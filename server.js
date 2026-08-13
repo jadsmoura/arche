@@ -38,6 +38,19 @@ function stateKey(req) {
   return key;
 }
 
+// Curso de origem do upload: campo explícito no form, ou deduzido da página
+// que enviou (Referer). A página raiz de avaliação/dossiê é a piloto
+// (Psicologia); as demais vivem em subpastas com o slug do curso.
+function cursoFrom(req) {
+  const explicit = String(req.body?.curso || "").trim();
+  if (explicit) return slug(explicit);
+  const ref = String(req.headers.referer || "");
+  const sub = ref.match(/\/arche\/(?:avaliacao|dossie)\/([a-z0-9-]+)\/?/i);
+  if (sub) return slug(sub[1]);
+  if (/\/arche\/(avaliacao|dossie)\/?([?#]|$)/i.test(ref)) return "psicologia";
+  return "geral";
+}
+
 /* ------------------------------- ESTADO --------------------------------- */
 app.get("/api/estado", async (req, res) => {
   try {
@@ -101,7 +114,7 @@ app.post("/api/drive/upload", upload.single("file"), async (req, res) => {
     const originalName = codigo ? `${codigo}_${req.file.originalname}` : req.file.originalname;
     res.json(await files.save({
       buffer: req.file.buffer, originalName,
-      prefix: `dossie/${professor}/${categoria}`,
+      prefix: `dossie/${cursoFrom(req)}/${professor}/${categoria}`,
     }));
   } catch (error) {
     console.error("Erro no upload do dossiê:", error);
@@ -117,7 +130,7 @@ app.post("/api/drive/upload-avaliacao", upload.single("file"), async (req, res) 
     const originalName = `Indicador-${indicador}_Criterio-${criterio}_${req.file.originalname}`;
     res.json(await files.save({
       buffer: req.file.buffer, originalName,
-      prefix: `avaliacao/indicador-${slug(indicador)}`,
+      prefix: `avaliacao/${cursoFrom(req)}/indicador-${slug(indicador)}`,
     }));
   } catch (error) {
     console.error("Erro no upload da avaliação:", error);
