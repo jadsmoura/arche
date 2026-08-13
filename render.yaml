@@ -1,0 +1,24 @@
+# Blueprint de deploy do ARCHÉ no Render (https://render.com)
+# Um serviço web Node. Os segredos (Client Secret e Refresh Token do Google
+# Drive) NÃO ficam aqui — são preenchidos no painel do Render (sync: false).
+services:
+  - type: web
+    name: arche
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: GDRIVE_FOLDER_NAME
+        value: ARCHÉ
+      - key: STATE_BACKEND
+        value: drive
+      - key: GDRIVE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GDRIVE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GDRIVE_OAUTH_REFRESH_TOKEN
+        sync: false

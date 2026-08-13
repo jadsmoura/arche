@@ -1,0 +1,26 @@
+{
+  "name": "arche",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ARCHÉ — portal de gestão das demandas da PROPPEX (Pesquisa, Inovação, Extensão, Avaliação Institucional).",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.2",
+    "express": "^4.21.2",
+    "multer": "^2.2.0",
+    "nanoid": "^5.1.5"
+  },
+  "optionalDependencies": {
+    "@aws-sdk/client-s3": "^3.693.0",
+    "@aws-sdk/s3-request-presigner": "^3.693.0",
+    "googleapis": "^144.0.0",
+    "mysql2": "^3.15.0"
+  }
+}
