@@ -3,6 +3,12 @@ data/
 .env
 credenciais/
 *.log
+
+# Pasta de documentos do sistema (vive no Google Drive; nunca versionar)
+ARCHÉ/
+ARCHE/
+
+# Artefatos de migração (contêm dados pessoais)
 estado-migrado.json
 migracao-map.json
 migrar-manus.mjs

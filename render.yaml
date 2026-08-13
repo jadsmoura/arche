@@ -14,6 +14,8 @@ services:
         value: "20"
       - key: GDRIVE_FOLDER_NAME
         value: ARCHÉ
+      - key: GDRIVE_FOLDER_ID
+        value: 1h7wLsriozGDAz3pj3Rh8mu5iPl0MT4es
       - key: STATE_BACKEND
         value: drive
       - key: GDRIVE_OAUTH_CLIENT_ID

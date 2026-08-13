@@ -4,13 +4,17 @@ import { driveAuth } from "../lib/files.js";
 
 const drive = google.drive({ version: "v3", auth: driveAuth(google) });
 
-// Localiza a pasta raiz ARCHÉ
+// Localiza a pasta raiz: por ID fixo (funciona em qualquer lugar do Drive)
+// ou, na ausência do ID, por nome na raiz do Drive.
+let rootId = process.env.GDRIVE_FOLDER_ID;
 const name = process.env.GDRIVE_FOLDER_NAME || "ARCHÉ";
-const root = await drive.files.list({
-  q: `'root' in parents and mimeType='application/vnd.google-apps.folder' and name='${name}' and trashed=false`,
-  fields: "files(id,name)", pageSize: 1,
-});
-const rootId = root.data.files?.[0]?.id;
+if (!rootId) {
+  const root = await drive.files.list({
+    q: `'root' in parents and mimeType='application/vnd.google-apps.folder' and name='${name}' and trashed=false`,
+    fields: "files(id,name)", pageSize: 1,
+  });
+  rootId = root.data.files?.[0]?.id;
+}
 console.log(`Pasta raiz "${name}": ${rootId ? "encontrada (id " + rootId + ")" : "NÃO encontrada"}`);
 
 // Lista recursiva simples
