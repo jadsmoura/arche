@@ -5,45 +5,49 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gestão de acessos · ARCHÉ</title>
 <link rel="icon" href="/arche/favicon.svg">
+<link rel="stylesheet" href="/assets/arche-ui.css">
 <style>
-  :root{--bg:#eef1f4;--card:#fff;--ink:#182632;--muted:#657179;--line:#dde4e8;
-    --teal:#1c3742;--teal2:#2d535c;--cyan:#40717e;--cyan-soft:#e6f5fa;
-    --ok:#2e7d32;--ok-soft:#e8f5e9;--warn:#b26a00;--warn-soft:#fff3e0;--err:#c62828}
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--ink);font-family:'Figtree',-apple-system,'Segoe UI',Roboto,sans-serif;line-height:1.5}
-  .wrap{max-width:860px;margin:0 auto;padding:0 20px}
-  header{background:linear-gradient(135deg,var(--teal),var(--teal2));color:#eaf3f5;padding:16px 0;border-bottom:3px solid var(--cyan)}
-  .top{display:flex;align-items:center;gap:12px}
-  .brand{font-weight:800;letter-spacing:2px;font-size:17px}
-  .top a{margin-left:auto;color:#b9d6de;font-size:13px;text-decoration:none}
-  h1{font-size:24px;font-weight:800;margin:26px 0 4px}
+  :root{--teal:var(--brand);--teal2:var(--brand-3);--cyan:var(--brand-2);--cyan-soft:var(--accent-wash)}
+  main{max-width:900px;padding:34px 26px 46px}
+  h1{font-family:'Archivo',sans-serif;font-size:26px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
   .sub{color:var(--muted);margin-bottom:22px;font-size:14px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px;
-    box-shadow:0 1px 2px rgba(24,38,50,.06)}
-  .sec{font-size:15px;font-weight:800;color:var(--teal);margin-bottom:10px}
-  .u{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;flex-wrap:wrap}
-  .u:last-child{border-bottom:0}
-  .u .em{font-weight:600;flex:1;min-width:200px}
-  .u .quando{color:var(--muted);font-size:12px}
-  .bt{border:0;border-radius:8px;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
-  .bt-ok{background:var(--ok-soft);color:var(--ok)}
-  .bt-pri{background:var(--cyan-soft);color:var(--teal)}
-  .bt-err{background:#fdecea;color:var(--err)}
-  .badge{font-size:10px;font-weight:800;letter-spacing:.6px;border-radius:999px;padding:3px 10px;text-transform:uppercase}
-  .b-g{background:var(--teal);color:#fff}
+  .card{margin-bottom:16px}
+  .sec{font-family:'Archivo',sans-serif;font-size:15.5px;font-weight:700;letter-spacing:-.01em;color:var(--brand);margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--accent-wash)}
+  .card .u{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;flex-wrap:wrap}
+  .card .u:last-child{border-bottom:0}
+  .card .u .em{font-weight:600;flex:1;min-width:200px}
+  .card .u .quando{color:var(--muted);font-size:12px}
+  .bt{padding:8px 14px;font-size:13px;border-radius:9px}
+  .badge{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.08em;border-radius:999px;padding:3px 10px;text-transform:uppercase}
+  .b-g{background:var(--brand);color:#fff}
   .b-a{background:var(--ok-soft);color:var(--ok)}
   .muted{color:var(--muted);font-size:13px}
   .add{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-  .add input{flex:1;min-width:220px;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font:inherit;font-size:14px}
+  .add input{flex:1;min-width:220px;width:auto}
 </style>
 </head>
 <body>
-<header><div class="wrap top">
-  <div class="brand">ARCHÉ · GESTÃO DE ACESSOS</div>
-  <a href="/extensao/">← Extensão</a>
-  <a href="/" style="margin-left:14px">← Voltar ao portal</a>
-</div></header>
-<main class="wrap">
+<header class="topo">
+  <div class="topo-rule"></div>
+  <div class="topo-inner">
+    <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO — Centro Universitário Evangélico de Goianésia">
+    <span class="vr"></span>
+    <div class="topo-txt">
+      <span class="topo-t">
+        <span class="arche-wm">
+          <svg class="arche-ic" viewBox="0 0 40 42" aria-hidden="true"><path d="M7 39 V20 a13 13 0 0 1 26 0 V39" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round"/><circle cx="20" cy="20" r="3.4" fill="var(--accent)"/></svg>
+          <span class="arche-tx">ARCHÉ</span>
+        </span>
+      </span>
+      <span class="topo-s">Gestão de acessos — PROPPEX / UNIEGO</span>
+    </div>
+    <nav class="topo-nav">
+      <a href="/extensao/">← Extensão</a>
+      <a href="/">← Voltar ao portal</a>
+    </nav>
+  </div>
+</header>
+<main>
   <h1>Gestão de acessos</h1>
   <div class="sub">Aprovações de submissores e papéis de gestor. Contas <b>@uniego.edu.br</b> entram automaticamente como submissoras.</div>
   <div id="conteudo" class="muted">Carregando…</div>

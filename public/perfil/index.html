@@ -5,30 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Meu perfil · ARCHÉ</title>
 <link rel="icon" href="/arche/favicon.svg">
+<link rel="stylesheet" href="/assets/arche-ui.css">
 <style>
-  :root{--bg:#eef1f4;--card:#fff;--ink:#182632;--muted:#657179;--line:#dde4e8;
-    --teal:#1c3742;--teal2:#2d535c;--cyan:#40717e;--cyan-soft:#e6f5fa;--ok:#2e7d32;--ok-soft:#e8f5e9}
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--ink);font-family:'Figtree',-apple-system,'Segoe UI',Roboto,sans-serif;
-    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-  .box{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:32px;max-width:480px;width:100%;
-    box-shadow:0 1px 2px rgba(24,38,50,.06),0 12px 34px rgba(24,38,50,.08)}
-  h1{font-size:20px;font-weight:800;color:var(--teal);margin-bottom:4px}
+  :root{--teal:var(--brand);--teal2:var(--brand-3);--cyan:var(--brand-2);--cyan-soft:var(--accent-wash)}
+  body{align-items:center;justify-content:center;padding:20px}
+  .box{position:relative;overflow:hidden;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:34px 32px 30px;max-width:490px;width:100%;
+    box-shadow:var(--shadow-lg)}
+  .box::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--brand) 0%,var(--brand-2) 55%,var(--accent) 100%)}
+  h1{font-family:'Archivo',sans-serif;font-size:21px;font-weight:800;letter-spacing:-.01em;color:var(--ink);margin:8px 0 4px}
   .sub{color:var(--muted);font-size:13.5px;margin-bottom:18px}
-  label{display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 4px}
-  input,select{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:inherit;font-size:14px}
-  input:focus,select:focus{outline:2px solid var(--cyan);border-color:var(--cyan)}
-  .bt{width:100%;border:0;border-radius:9px;padding:12px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;
-    background:var(--teal);color:#fff;margin-top:18px}
-  .bt:hover{background:var(--teal2)}
+  .bt{width:100%;color:#fff;background:linear-gradient(160deg,var(--brand-2),var(--brand));box-shadow:0 6px 16px -8px var(--brand);margin-top:20px}
+  .bt:hover{filter:brightness(1.08)}
   .bt:disabled{opacity:.6}
-  .email{background:var(--cyan-soft);border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;color:var(--teal)}
+  .email{background:var(--accent-wash);border:1px solid var(--accent);border-radius:9px;padding:8px 12px;font-size:13px;font-weight:600;color:var(--brand)}
   .msg{margin-top:10px;font-size:13px;color:var(--ok);font-weight:700}
+  .volta a{color:var(--brand-2);font-size:13px;font-weight:600;transition:.15s}
+  .volta a:hover{color:var(--brand)}
 </style>
 </head>
 <body>
 <div class="box">
-  <div style="margin-bottom:10px"><a href="/" style="color:var(--cyan);text-decoration:none;font-size:13px;font-weight:600">← Voltar ao portal</a></div>
+  <div class="volta" style="margin-bottom:12px"><a href="/">← Voltar ao portal</a></div>
+  <span class="eyebrow">MEU PERFIL · ARCHÉ / PROPPEX</span>
   <h1>Complete seu perfil</h1>
   <div class="sub">Esses dados identificam suas submissões e serão pré-preenchidos nos formulários. Você pode ajustá-los depois.</div>
   <div class="email" id="email">…</div>

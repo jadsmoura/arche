@@ -1,0 +1,133 @@
+/* ========================================================================
+   ARCHÉ · identidade visual compartilhada — extraída do módulo de
+   Avaliação Institucional (public/arche/) para uso nas demais páginas.
+   Fontes: Archivo (títulos) · IBM Plex Sans (texto) · IBM Plex Mono (código)
+   ======================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+:root{
+  --brand:#1c3742; --brand-2:#40717e; --brand-3:#2d535c;
+  --brand-ink:#152b34; --accent:#71c8e2; --accent-deep:#40717e;
+  --wash:#eef3f5; --wash2:#dde9ec; --accent-wash:#e6f5fa;
+  --bg:#eef1f4; --card:#ffffff; --line:#dde4e8; --line-strong:#cbd6db;
+  --ink:#182632; --ink-soft:#3c4b56; --muted:#657179; --muted-2:#93a1a8;
+  --ok:#2e7d32; --ok-soft:#e8f5e9; --warn:#b26a00; --warn-soft:#fff3e0;
+  --err:#c62828; --err-soft:#fdecea;
+  --shadow:0 1px 2px rgba(20,45,55,.05), 0 10px 30px -18px rgba(20,45,55,.3);
+  --shadow-lg:0 6px 20px -8px rgba(28,55,66,.25), 0 28px 60px -30px rgba(20,45,55,.45);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans',system-ui,sans-serif;color:var(--ink);line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  background:
+    radial-gradient(1100px 500px at 85% -10%, #dfeaed 0%, transparent 60%),
+    radial-gradient(900px 500px at 5% 110%, #e4eef0 0%, transparent 55%),
+    var(--bg);
+  min-height:100vh;display:flex;flex-direction:column}
+a{text-decoration:none;color:inherit}
+.f-disp{font-family:'Archivo',sans-serif}
+.f-code{font-family:'IBM Plex Mono',monospace}
+
+/* ------------------------------- topo ----------------------------------- */
+.topo{background:var(--card);box-shadow:0 1px 0 var(--line),0 6px 22px -16px rgba(20,45,55,.3)}
+.topo-rule{height:4px;background:linear-gradient(90deg,var(--brand) 0%,var(--brand-2) 55%,var(--accent) 100%)}
+.topo-inner{max-width:1080px;margin:0 auto;padding:14px 26px;display:flex;align-items:center;gap:16px}
+.topo-inner img.u{height:44px}
+.topo-inner img.p{height:46px;margin-left:auto}
+.vr{width:1px;height:34px;background:var(--line-strong)}
+.topo-txt{display:flex;flex-direction:column;gap:2px}
+.topo-t{font-family:'Archivo',sans-serif;font-size:15px;font-weight:700;color:var(--brand-ink);letter-spacing:-.01em}
+.topo-s{font-size:11px;color:var(--muted)}
+.topo-nav{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:13px}
+.topo-nav a{color:var(--brand-2);font-weight:600;padding:7px 12px;border-radius:8px;transition:.15s}
+.topo-nav a:hover{background:var(--wash);color:var(--brand)}
+.topo-nav .quem{color:var(--muted);font-size:12px;padding:7px 4px}
+.topo-inner:has(.topo-nav) img.p{margin-left:0}
+
+/* ---- Letreiro ARCHÉ ---- */
+.arche-wm{display:inline-flex;align-items:center;gap:9px}
+.arche-ic{color:var(--brand);flex-shrink:0}
+.arche-tx{font-family:'Archivo',sans-serif;font-weight:800;letter-spacing:.02em;color:var(--brand-ink);line-height:1}
+.topo-t .arche-tx{font-size:19px}
+.topo-t .arche-ic{width:22px;height:23px}
+
+/* -------------------------------- hero ---------------------------------- */
+main{flex:1;max-width:1080px;margin:0 auto;width:100%;padding:52px 26px 40px}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.22em;color:var(--brand-2);font-weight:600;text-transform:uppercase}
+.hero-wm{display:flex;align-items:center;gap:16px;margin:16px 0 6px}
+.hero-wm .arche-ic{width:56px;height:58px}
+.hero-wm .arche-tx{font-size:58px;letter-spacing:.005em}
+.hero-sub{font-size:14px;color:var(--muted);font-style:italic;margin-bottom:2px}
+.hero-h{font-family:'Archivo',sans-serif;font-size:38px;font-weight:800;letter-spacing:-.025em;line-height:1.08;color:var(--ink);margin:14px 0 0}
+.hero-h span{color:var(--brand-2)}
+.hero-p{font-size:15px;line-height:1.65;color:var(--ink-soft);max-width:620px;margin-top:16px}
+
+/* -------------------------------- cards --------------------------------- */
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:24px}
+.card{position:relative;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);
+  border-radius:18px;padding:26px 24px 24px;box-shadow:var(--shadow);transition:.18s;overflow:hidden}
+.card::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--brand) 0%,var(--accent-deep) 100%)}
+a.card:hover,.card.hoverable:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg);border-color:var(--brand-2)}
+.card-ic{width:52px;height:52px;border-radius:13px;display:grid;place-items:center;background:var(--wash);border:1px solid var(--wash2);color:var(--brand-2);margin-bottom:16px}
+.card.b .card-ic{background:var(--accent-wash)}
+.card-num{position:absolute;top:22px;right:24px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted-2);font-weight:600}
+.card-t{font-family:'Archivo',sans-serif;font-size:20px;font-weight:700;letter-spacing:-.01em;color:var(--ink);line-height:1.2}
+.card-sub{font-size:12px;color:var(--brand-2);font-weight:600;margin-top:3px;letter-spacing:.01em}
+.card-d{font-size:13.5px;line-height:1.6;color:var(--ink-soft);margin-top:10px;flex:1}
+.card-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px}
+.chip{font-size:11px;font-weight:600;color:var(--brand-ink);background:var(--wash);border:1px solid var(--wash2);border-radius:20px;padding:4px 11px}
+.card-cta{display:inline-flex;align-items:center;justify-content:center;gap:8px;margin-top:20px;
+  font-weight:700;font-size:14px;color:#fff;background:linear-gradient(160deg,var(--brand-2),var(--brand));
+  padding:12px 18px;border-radius:11px;transition:.15s;box-shadow:0 6px 16px -8px var(--brand)}
+.card-cta:hover{filter:brightness(1.08)}
+.card-cta svg{transition:transform .15s}
+.card:hover .card-cta svg{transform:translateX(3px)}
+.card.soon{opacity:.75}
+.card.soon::before{background:linear-gradient(90deg,var(--muted-2) 0%,var(--line-strong) 100%)}
+.badge-soon{align-self:flex-start;margin-top:20px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line-strong);border-radius:999px;padding:5px 12px}
+
+/* ----------------------------- formulários ------------------------------ */
+label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:12px 0 5px}
+input,select,textarea{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:10px 13px;
+  font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:14px;background:var(--card);color:var(--ink);
+  transition:border-color .2s,box-shadow .2s}
+textarea{min-height:84px;resize:vertical;line-height:1.55}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent-deep);box-shadow:0 0 0 3px rgba(64,113,126,.12)}
+select{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:38px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%232d6a6a' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center}
+
+/* -------------------------------- botões -------------------------------- */
+.bt{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:11px;
+  padding:11px 18px;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:14px;font-weight:700;
+  cursor:pointer;transition:.15s}
+.bt-pri{color:#fff;background:linear-gradient(160deg,var(--brand-2),var(--brand));box-shadow:0 6px 16px -8px var(--brand)}
+.bt-pri:hover{filter:brightness(1.08)}
+.bt-sec{background:var(--accent-wash);color:var(--brand);border:1px solid var(--accent)}
+.bt-sec:hover{background:var(--wash);border-color:var(--accent-deep)}
+.bt-ghost{background:transparent;color:var(--muted);border:1px solid var(--line-strong)}
+.bt-ghost:hover{color:var(--brand);border-color:var(--brand-2)}
+.bt-warn{background:var(--warn-soft);color:var(--warn)}
+.bt-ok{background:var(--ok-soft);color:var(--ok)}
+.bt-err{background:var(--err-soft);color:var(--err)}
+.bt:disabled{opacity:.5;cursor:not-allowed}
+
+/* -------------------------------- rodapé -------------------------------- */
+footer{max-width:1080px;margin:0 auto;width:100%;padding:22px 26px 34px;display:flex;align-items:center;gap:14px;border-top:1px solid var(--line);color:var(--muted)}
+footer img.u{height:26px;opacity:.85}
+footer img.p{height:44px;opacity:.85}
+footer .sep{flex:1}
+footer p{font-size:11px;line-height:1.5}
+
+/* ------------------------------ responsivo ------------------------------ */
+@media(max-width:760px){
+  .cards{grid-template-columns:1fr}
+  .hero-h{font-size:28px}
+  .hero-wm .arche-tx{font-size:44px}
+  .hero-wm .arche-ic{width:44px;height:46px}
+  main{padding:36px 18px 30px}
+  .topo-inner{padding:12px 16px;flex-wrap:wrap}
+  .topo-inner img.p{height:38px}
+  footer{flex-wrap:wrap}
+}

@@ -5,95 +5,81 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ARCHÉ · Extensão · PROPPEX / UNIEGO</title>
 <link rel="icon" href="/arche/favicon.svg">
+<link rel="stylesheet" href="/assets/arche-ui.css">
 <style>
-  :root{
-    --bg:#eef1f4; --card:#fff; --ink:#182632; --muted:#657179; --line:#dde4e8;
-    --teal:#1c3742; --teal2:#2d535c; --cyan:#40717e; --cyan-soft:#e6f5fa;
-    --ok:#2e7d32; --ok-soft:#e8f5e9; --warn:#b26a00; --warn-soft:#fff3e0;
-    --err:#c62828; --err-soft:#fdecea;
-    --shadow:0 1px 2px rgba(24,38,50,.06),0 8px 24px rgba(24,38,50,.06);
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--ink);font-family:'Figtree',-apple-system,'Segoe UI',Roboto,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1000px;margin:0 auto;padding:0 20px}
-  header{background:linear-gradient(135deg,var(--teal),var(--teal2));color:#eaf3f5;padding:16px 0;border-bottom:3px solid var(--cyan)}
-  .top{display:flex;align-items:center;gap:12px}
-  .logo{width:38px;height:38px;flex:none}
-  .brand{font-weight:800;letter-spacing:2px;font-size:18px}
-  .brand small{display:block;letter-spacing:1.5px;font-size:10px;font-weight:600;color:var(--cyan)}
-  .top a.back{margin-left:auto;color:#b9d6de;font-size:13px;text-decoration:none}
-  .top a.back:hover{color:#fff}
-  h1{font-size:26px;font-weight:800;margin:26px 0 4px}
-  .sub{color:var(--muted);margin-bottom:22px;font-size:15px}
+  /* aliases da paleta antiga -> identidade da Avaliação (usados nos estilos
+     inline gerados pelo script) */
+  :root{--teal:var(--brand);--teal2:var(--brand-3);--cyan:var(--brand-2);--cyan-soft:var(--accent-wash)}
+  main{max-width:1000px;padding:34px 26px 46px}
+  h1{font-family:'Archivo',sans-serif;font-size:27px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
+  .sub{color:var(--muted);margin-bottom:22px;font-size:14.5px}
   .tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
-  .tab{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 18px;font-size:14px;font-weight:600;cursor:pointer;color:var(--muted)}
-  .tab.on{background:var(--teal);border-color:var(--teal);color:#fff}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:var(--shadow);margin-bottom:18px}
+  .tab{border:1px solid var(--line-strong);background:var(--card);border-radius:999px;padding:9px 18px;font-family:'IBM Plex Sans',sans-serif;font-size:13.5px;font-weight:600;cursor:pointer;color:var(--muted);transition:.15s}
+  .tab:hover{border-color:var(--brand-2);color:var(--brand)}
+  .tab.on{background:linear-gradient(160deg,var(--brand-2),var(--brand));border-color:var(--brand);color:#fff;box-shadow:0 6px 16px -8px var(--brand)}
+  .card{margin-bottom:18px}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
   @media(max-width:720px){.grid2,.grid3{grid-template-columns:1fr}}
-  label{display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px}
-  input,select,textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font:inherit;font-size:14px;background:#ffffff;color:var(--ink)}
-  textarea{min-height:84px;resize:vertical}
-  input:focus,select:focus,textarea:focus{outline:2px solid var(--cyan);border-color:var(--cyan)}
-  .bt{display:inline-block;border:0;border-radius:9px;padding:10px 20px;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
-  .bt-pri{background:var(--teal);color:#fff}
-  .bt-pri:hover{background:var(--teal2)}
-  .bt-sec{background:var(--cyan-soft);color:var(--teal)}
-  .bt-ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
-  .bt-warn{background:var(--warn-soft);color:var(--warn)}
-  .bt-ok{background:var(--ok-soft);color:var(--ok)}
-  .bt:disabled{opacity:.5;cursor:not-allowed}
-  .badge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;border-radius:999px;padding:4px 12px}
-  .b-submetida{background:var(--cyan-soft);color:#0b5e80}
+  .item{display:flex;align-items:center;gap:12px;padding:15px 16px;border:1px solid var(--line);border-radius:13px;margin-bottom:10px;cursor:pointer;background:var(--card);box-shadow:var(--shadow);transition:.18s}
+  .item:hover{transform:translateY(-2px);border-color:var(--brand-2);box-shadow:var(--shadow-lg)}
+  .item .nm{font-weight:700;flex:1}
+  .item .cs{color:var(--muted);font-size:13px;font-weight:400}
+  .sec-t{font-family:'Archivo',sans-serif;font-size:16px;font-weight:700;letter-spacing:-.01em;color:var(--brand);margin:20px 0 8px;padding-bottom:6px;border-bottom:2px solid var(--accent-wash)}
+  .muted{color:var(--muted);font-size:13px}
+  .kv{margin:3px 0;font-size:14px}
+  .kv b{color:var(--brand)}
+  .badge{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border-radius:999px;padding:4px 12px}
+  .b-submetida{background:var(--accent-wash);color:#0b5e80}
   .b-devolvida{background:var(--err-soft);color:var(--err)}
   .b-aprovada{background:var(--ok-soft);color:var(--ok)}
   .b-pendente{background:var(--warn-soft);color:var(--warn)}
   .b-relatorio-entregue{background:#ede7f6;color:#5e35b1}
-  .b-registrada{background:#e0e0e0;color:#424242}
-  .item{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;cursor:pointer;background:var(--card)}
-  .item:hover{border-color:var(--cyan)}
-  .item .nm{font-weight:700;flex:1}
-  .item .cs{color:var(--muted);font-size:13px}
-  .sec-t{font-size:15px;font-weight:800;color:var(--teal);margin:20px 0 8px;padding-bottom:5px;border-bottom:2px solid var(--cyan-soft)}
-  .muted{color:var(--muted);font-size:13px}
-  .kv{margin:3px 0;font-size:14px}
-  .kv b{color:var(--teal)}
+  .b-registrada{background:var(--wash2);color:var(--ink-soft)}
   .banner{border-radius:12px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:600}
   .ba-warn{background:var(--warn-soft);color:var(--warn);border:1px solid #ffe0b2}
   .ba-err{background:var(--err-soft);color:var(--err);border:1px solid #ffcdd2}
   .ba-ok{background:var(--ok-soft);color:var(--ok);border:1px solid #c8e6c9}
-  .tut{background:#f0f7ff;border:1px solid #cfe3f7;border-radius:12px;padding:14px 16px;margin:10px 0;font-size:13.5px}
-  .tut summary{font-weight:800;color:#0b5e80;cursor:pointer;font-size:14px}
+  .tut{background:var(--accent-wash);border:1px solid var(--accent);border-radius:12px;padding:14px 16px;margin:10px 0;font-size:13.5px}
+  .tut summary{font-family:'Archivo',sans-serif;font-weight:700;color:var(--brand);cursor:pointer;font-size:14px}
   .tut ol{margin:10px 0 4px 20px}
   .tut li{margin-bottom:5px}
-  .tut .dica{background:#fff;border-radius:8px;padding:8px 12px;margin-top:8px;border:1px dashed #9ec8e8}
+  .tut .dica{background:var(--card);border-radius:8px;padding:8px 12px;margin-top:8px;border:1px dashed var(--accent)}
   table.pt{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
-  table.pt th{background:var(--teal);color:#fff;padding:7px 9px;text-align:left;font-size:12px}
+  table.pt th{background:var(--brand);color:#fff;padding:7px 9px;text-align:left;font-size:12px;font-weight:600}
   table.pt td{border-bottom:1px solid var(--line);padding:6px 9px}
   table.pt td.bad{color:var(--err);font-weight:700}
   table.pt .rm{color:var(--err);cursor:pointer;font-weight:800}
+  table.pt a{color:var(--brand-2);font-weight:600;text-decoration:underline}
   .cnt{font-size:13px;color:var(--muted);margin:6px 0}
   .colmap{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
-  .colmap select{width:auto;font-size:13px;padding:5px 8px}
+  .colmap select{width:auto;font-size:13px;padding:5px 28px 5px 8px}
   .exp{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
-  footer{border-top:1px solid var(--line);color:var(--muted);font-size:12px;padding:18px 0 30px;margin-top:30px}
   .hide{display:none!important}
   .stat{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}
-  .stat .s{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 18px;min-width:110px}
-  .stat .s b{font-size:22px;display:block;color:var(--teal)}
-  .stat .s span{font-size:12px;color:var(--muted)}
+  .stat .s{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px 18px;min-width:110px;box-shadow:var(--shadow)}
+  .stat .s b{font-family:'Archivo',sans-serif;font-size:22px;display:block;color:var(--brand)}
+  .stat .s span{font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;letter-spacing:.04em;text-transform:uppercase}
 </style>
 </head>
 <body>
-<header>
-  <div class="wrap top">
-    <svg class="logo" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M8 34 L8 20 A12 12 0 0 1 32 20 L32 34" fill="none" stroke="#eaf3f5" stroke-width="3.4" stroke-linecap="round"/>
-      <circle cx="20" cy="21" r="4" fill="#71c8e2"/>
-    </svg>
-    <div class="brand">ARCHÉ · EXTENSÃO<small>PROPPEX · UNIEGO</small></div>
-    <a class="back" href="/">← voltar ao portal</a>
+<header class="topo">
+  <div class="topo-rule"></div>
+  <div class="topo-inner">
+    <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO — Centro Universitário Evangélico de Goianésia">
+    <span class="vr"></span>
+    <div class="topo-txt">
+      <span class="topo-t">
+        <span class="arche-wm">
+          <svg class="arche-ic" viewBox="0 0 40 42" aria-hidden="true"><path d="M7 39 V20 a13 13 0 0 1 26 0 V39" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round"/><circle cx="20" cy="20" r="3.4" fill="var(--accent)"/></svg>
+          <span class="arche-tx">ARCHÉ</span>
+        </span>
+      </span>
+      <span class="topo-s">Módulo de Extensão — PROPPEX / UNIEGO</span>
+    </div>
+    <nav class="topo-nav">
+      <a class="back" href="/">← voltar ao portal</a>
+    </nav>
   </div>
 </header>
 
@@ -193,7 +179,12 @@
   <section id="v-detalhe" class="hide"></section>
 </main>
 
-<footer><div class="wrap">ARCHÉ · Módulo de Extensão · PROPPEX / UNIEGO</div></footer>
+<footer>
+  <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO">
+  <p>ARCHÉ · Módulo de Extensão · PROPPEX / UNIEGO</p>
+  <span class="sep"></span>
+  <img class="p" src="/assets/logo-proppex.png" alt="PROPPEX">
+</footer>
 
 <script>
 /* ============================== BASE ==================================== */
@@ -265,10 +256,9 @@ function montarTabs(){
   if(PROPPEX){ $("titulo").textContent="Extensão — Painel PROPPEX";
     $("subtitulo").textContent="Análise de propostas, emissão do número da ação, apreciação de relatórios e exportações."; }
   if(ME){
-    const back=document.querySelector(".top a.back");
+    const back=document.querySelector(".topo-nav a.back");
     back.insertAdjacentHTML("beforebegin",
-      `<span style="margin-left:auto;font-size:12px;color:#b9d6de">${ME.nome&&ME.nome!==ME.email?ME.nome:ME.email}${ME.papel==="gestor"?" · gestor":ME.papel==="coordenador"?" · coordenador":""} · <a href="/auth/sair" style="color:#71c8e2">sair</a></span>`);
-    back.style.marginLeft="14px";
+      `<span class="quem">${ME.nome&&ME.nome!==ME.email?ME.nome:ME.email}${ME.papel==="gestor"?" · gestor":ME.papel==="coordenador"?" · coordenador":""} · <a href="/auth/sair" style="color:var(--brand-2);font-weight:600">sair</a></span>`);
   }
 }
 
