@@ -713,6 +713,13 @@ app.get("/api/files/*", async (req, res) => {
   }
 });
 
+// Endereço leve para monitor externo manter o serviço acordado (o plano free
+// do Render hiberna após ~15 min sem acesso e o próximo visitante espera o
+// religamento). Não toca no estado nem no Drive.
+app.get("/healthz", (_req, res) => {
+  res.json({ ok: true, servico: "arche", em: new Date().toISOString() });
+});
+
 /* ------------------------------- ESTÁTICO ------------------------------- */
 app.use(express.static(PUBLIC));
 
