@@ -349,14 +349,76 @@ app.post("/api/extensao/notificar", async (req, res) => {
     const acoes = raw ? JSON.parse(raw) : [];
     const acao = acoes.find((a) => a.id === id);
     if (!acao) return res.status(404).json({ error: "Ação não encontrada" });
-    const { enviarEmail, emailNovaProposta } = await import("./lib/mailer.js");
+    const { enviarEmail, emailNovaProposta, emailConfirmacaoProposta } = await import("./lib/mailer.js");
+
+    // Cópia da proposta em PDF (mesmo timbrado do relatório final): segue
+    // anexa aos dois e-mails e é arquivada no Drive da PROPPEX.
+    let anexos = [];
+    try {
+      const { gerarPropostaPdf } = await import("./lib/pdf.js");
+      const pdf = await gerarPropostaPdf(acao);
+      const nomePdf = `Proposta-${slug(acao.proposta?.nomeAtividade || acao.id)}.pdf`;
+      anexos = [{ nome: nomePdf, tipo: "application/pdf", conteudo: pdf }];
+      files.save({
+        buffer: pdf, originalName: nomePdf,
+        prefix: `extensao/${slug(acao.curso || "geral")}/propostas`,
+      }).catch((e) => console.error("Falha ao arquivar PDF da proposta no Drive:", e.message));
+    } catch (e) {
+      console.error("Falha ao gerar PDF da proposta:", e.message);
+    }
+
     const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const destino = await enviarEmail(emailNovaProposta(acao, baseUrl));
-    res.json({ ok: true, para: destino });
+    const destino = await enviarEmail({ ...emailNovaProposta(acao, baseUrl), anexos });
+
+    // confirmação ao responsável, com a mesma cópia em PDF
+    let paraResponsavel = null;
+    const confirmacao = emailConfirmacaoProposta(acao);
+    if (confirmacao.para && confirmacao.para.toLowerCase() !== destino.toLowerCase()) {
+      try {
+        paraResponsavel = await enviarEmail({ ...confirmacao, anexos });
+      } catch (e) {
+        console.error("Falha ao enviar confirmação ao responsável:", e.message);
+      }
+    }
+    res.json({ ok: true, para: destino, paraResponsavel });
   } catch (error) {
     console.error("Falha ao notificar por e-mail:", error.message);
     // não é fatal para o fluxo — a proposta já foi salva
     res.status(200).json({ ok: false, error: error.message });
+  }
+});
+
+/* -------------------- EXTENSÃO: PORTFÓLIO DO RELATÓRIO ------------------- */
+// Anexos do relatório final (fotos, cartazes, materiais de divulgação…):
+// o arquivo vai para o Drive (extensao/<curso>/<nº da ação>/portfolio) e a
+// referência é gravada na própria ação, para constar no PDF do relatório.
+app.post("/api/extensao/anexo", upload.single("file"), async (req, res) => {
+  try {
+    const u = await usuarioDe(req);
+    if (!u || u.papel === "pendente")
+      return res.status(403).json({ error: "Faça login para anexar arquivos" });
+    if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
+    const id = String(req.body.id || "");
+    const raw = await storage.get("extensao-acoes-v1");
+    const acoes = raw ? JSON.parse(raw) : [];
+    const acao = acoes.find((a) => a.id === id);
+    if (!acao) return res.status(404).json({ error: "Ação não encontrada" });
+    if (acao.status === "registrada")
+      return res.status(400).json({ error: "Ação registrada — anexos travados" });
+
+    const data = await files.save({
+      buffer: req.file.buffer, originalName: req.file.originalname,
+      prefix: `extensao/${slug(acao.curso || "geral")}/${slug(acao.numeroAcao || acao.id)}/portfolio`,
+    });
+    const anexo = { ...data, enviadoEm: new Date().toISOString(), enviadoPor: u.email };
+    acao.portfolio = acao.portfolio || {};
+    acao.portfolio.anexos = [...(acao.portfolio.anexos || []), anexo];
+    acao.atualizadoEm = new Date().toISOString();
+    await storage.set("extensao-acoes-v1", JSON.stringify(acoes));
+    res.json({ ok: true, anexo, anexos: acao.portfolio.anexos });
+  } catch (error) {
+    console.error("Erro no anexo do portfólio:", error);
+    res.status(500).json({ error: error.message || "Erro no upload" });
   }
 });
 

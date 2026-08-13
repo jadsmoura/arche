@@ -322,7 +322,7 @@ async function enviarProposta(){
   fetch("/api/extensao/notificar",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({id:nova.id})}).catch(()=>{});
   $("f-msg").textContent="";
-  alert("✅ Proposta enviada à PROPPEX!\n\nAcompanhe a situação na aba \"Ações de extensão\". Quando aprovada, ela receberá o Número da Ação.");
+  alert("✅ Proposta enviada à PROPPEX!\n\nVocê receberá uma cópia da proposta em PDF no seu e-mail. Acompanhe a situação na aba \"Ações de extensão\". Quando aprovada, ela receberá o Número da Ação.");
   document.querySelectorAll("#v-nova input,#v-nova textarea").forEach(i=>i.value="");
   $("f-municipio").value="Goianésia/GO";
   renderLista(); nav("acoes");
@@ -437,6 +437,17 @@ function renderDetalhe(id){
         <div><label>Despesa total</label><input id="r-despesa" ${lock?"disabled":""} value="${esc(r.despesa||"")}" placeholder="Não se aplica"></div>
         <div><label>Receita</label><input id="r-receita" ${lock?"disabled":""} value="${esc(r.receita||"")}" placeholder="Não se aplica"></div>
       </div>
+      <div class="sec-t" style="margin-top:18px">Portfólio / evidências de divulgação</div>
+      <div class="muted" style="margin-bottom:4px">Anexe imagens e arquivos que julgar pertinentes (fotos, cartazes, prints de publicações…) e informe links de postagens em redes sociais, vídeos, matérias etc. Tudo passa a constar no PDF timbrado do relatório.</div>
+      <label>Links de divulgação <span class="muted">(um por linha)</span></label>
+      <textarea id="r-links" ${lock?"disabled":""} placeholder="https://instagram.com/p/…&#10;https://youtube.com/watch?v=…" style="min-height:70px">${esc(r.linksPortfolio||"")}</textarea>
+      <label>Arquivos anexados</label>
+      <div id="ax-lista"></div>
+      ${lock?"":`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px">
+        <input type="file" id="ax-file" multiple style="max-width:340px">
+        <button class="bt bt-sec" onclick="anexarArquivos('${a.id}')">📎 Anexar ao relatório</button>
+        <span class="muted" id="ax-msg">até 50 MB por arquivo</span>
+      </div>`}
     </div>`;
 
     /* ---- participantes ---- */
@@ -488,7 +499,46 @@ function renderDetalhe(id){
 
   html += `<button class="bt bt-ghost" onclick="nav('acoes')" style="margin-bottom:24px">← voltar à lista</button>`;
   $("v-detalhe").innerHTML = html;
-  if(podeRelatorio){ montarCola(a); renderTabelasPart(a); }
+  if(podeRelatorio){ montarCola(a); renderTabelasPart(a); renderAnexos(a); }
+}
+
+/* ------------------------- portfólio: anexos ----------------------------- */
+function fmtTam(n){ if(!n) return ""; return n>=1048576?(n/1048576).toFixed(1)+" MB":Math.max(1,Math.round(n/1024))+" KB"; }
+function renderAnexos(a){
+  const el=$("ax-lista"); if(!el) return;
+  const lock = statusReal(a)==="registrada";
+  const l=a.portfolio?.anexos||[];
+  el.innerHTML = l.length ? `<table class="pt"><thead><tr><th>Arquivo</th><th>Tamanho</th><th>Enviado em</th><th></th></tr></thead><tbody>`
+    + l.map((x,i)=>`<tr>
+      <td><a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.name)}</a></td>
+      <td>${fmtTam(x.size)}</td>
+      <td>${x.enviadoEm?fmt(x.enviadoEm.slice(0,10)):""}</td>
+      <td>${lock?"":`<span class="rm" title="remover" onclick="removerAnexo('${a.id}',${i})">✕</span>`}</td></tr>`).join("")
+    + `</tbody></table>`
+    : '<div class="cnt">— nenhum arquivo anexado ainda.</div>';
+}
+async function anexarArquivos(id){
+  const a=ACOES.find(x=>x.id===id); const inp=$("ax-file");
+  if(!a||!inp||!inp.files.length){ alert("Escolha um ou mais arquivos primeiro."); return; }
+  const msg=$("ax-msg"); const arquivos=[...inp.files];
+  for(let i=0;i<arquivos.length;i++){
+    if(msg) msg.textContent=`Enviando ${i+1}/${arquivos.length}…`;
+    const fd=new FormData(); fd.append("id",id); fd.append("file",arquivos[i]);
+    let r,j;
+    try{ r=await fetch("/api/extensao/anexo",{method:"POST",body:fd}); j=await r.json().catch(()=>({})); }
+    catch{ r=null; j={}; }
+    if(!r||!r.ok){ if(msg) msg.textContent=""; alert("⚠ Falha ao anexar "+arquivos[i].name+": "+(j.error||"erro de conexão")); renderAnexos(a); return; }
+    a.portfolio=a.portfolio||{}; a.portfolio.anexos=j.anexos||a.portfolio.anexos||[];
+  }
+  inp.value="";
+  if(msg){ msg.textContent="✓ anexado(s) com sucesso"; setTimeout(()=>{ if($("ax-msg")) $("ax-msg").textContent=""; },3000); }
+  renderAnexos(a);
+}
+async function removerAnexo(id,i){
+  const a=ACOES.find(x=>x.id===id); if(!a||!a.portfolio?.anexos) return;
+  if(!confirm("Remover este anexo do relatório?\n(o arquivo permanece arquivado no Drive da PROPPEX)")) return;
+  a.portfolio.anexos.splice(i,1); a.atualizadoEm=new Date().toISOString();
+  await salvar(); renderAnexos(a);
 }
 
 /* ------------------------- participantes: colagem ----------------------- */
@@ -600,6 +650,7 @@ function lerRelatorio(){
     avaliacaoResultados:$("r-avaliacao")?.value.trim()||"",
     qtdDiscentes:$("r-qtd-disc")?.value||"", qtdDocentes:$("r-qtd-doc")?.value||"", qtdTecnicos:$("r-qtd-tec")?.value||"",
     despesa:$("r-despesa")?.value.trim()||"", receita:$("r-receita")?.value.trim()||"",
+    linksPortfolio:$("r-links")?.value.trim()||"",
   };
 }
 async function enviarRelatorio(id){
