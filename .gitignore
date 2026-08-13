@@ -12,3 +12,5 @@ ARCHE/
 estado-migrado.json
 migracao-map.json
 migrar-manus.mjs
+backup-dossie-*.json
+removidos-dossie-psicologia.json
