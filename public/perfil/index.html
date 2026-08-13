@@ -38,6 +38,19 @@
   <label>Telefone</label><input id="telefone" placeholder="(62) 9…">
   <button class="bt" id="bt" onclick="salvar()">Salvar e continuar</button>
   <div class="msg" id="msg"></div>
+
+  <div style="margin-top:26px;padding-top:20px;border-top:1px solid var(--line)">
+    <label style="margin-top:0">Senha de acesso</label>
+    <p class="dica" id="senha-estado" style="color:var(--muted);font-size:13px;margin-bottom:10px">…</p>
+    <div id="senha-form" style="display:none">
+      <input type="password" id="senha-atual" autocomplete="current-password" placeholder="Senha atual" style="display:none">
+      <input type="password" id="senha-nova" autocomplete="new-password" placeholder="Nova senha (mínimo 8 caracteres)">
+      <input type="password" id="senha-nova2" autocomplete="new-password" placeholder="Repita a nova senha" style="margin-top:8px">
+      <button class="bt bt-sec" style="width:100%;margin-top:10px" onclick="salvarSenha()">Salvar senha</button>
+      <div id="senha-msg" style="font-size:13px;font-weight:600;margin-top:8px"></div>
+    </div>
+    <button class="bt bt-sec" id="bt-senha" style="width:100%" onclick="abrirSenha()">Criar senha</button>
+  </div>
 </div>
 <script>
 const CURSOS=["Administração","Agronomia","Ciências Contábeis","Direito","Educação Física","Enfermagem",
@@ -46,13 +59,41 @@ const CURSOS=["Administração","Agronomia","Ciências Contábeis","Direito","Ed
 const NEXT=new URLSearchParams(location.search).get("next")||"/extensao/";
 const $=(id)=>document.getElementById(id);
 $("curso").innerHTML='<option value="">Selecione…</option>'+CURSOS.map(c=>`<option>${c}</option>`).join("");
+let TEM_SENHA=false;
 fetch("/api/me").then(async r=>{
   if(r.status===401){location.href="/entrar?next="+encodeURIComponent(location.pathname+location.search);return;}
   const me=await r.json();
   $("email").textContent="Conta: "+me.email;
   if(me.perfil){$("nome").value=me.perfil.nome||"";$("funcao").value=me.perfil.funcao||"";
     $("curso").value=me.perfil.curso||"";$("telefone").value=me.perfil.telefone||"";$("titulacao").value=me.perfil.titulacao||"";}
+  TEM_SENHA=!!me.temSenha;
+  $("senha-estado").textContent=TEM_SENHA
+    ? "Você já tem senha cadastrada. Pode trocá-la quando quiser."
+    : "Hoje você entra pelo código enviado por e-mail. Crie uma senha para entrar direto, sem esperar o e-mail.";
+  $("bt-senha").textContent=TEM_SENHA?"Trocar senha":"Criar senha";
 });
+function abrirSenha(){
+  $("senha-form").style.display="block";
+  $("bt-senha").style.display="none";
+  if(TEM_SENHA) $("senha-atual").style.display="block";
+  ($("senha-atual").style.display==="block"?$("senha-atual"):$("senha-nova")).focus();
+}
+async function salvarSenha(){
+  const nova=$("senha-nova").value, nova2=$("senha-nova2").value, atual=$("senha-atual").value;
+  const m=$("senha-msg");
+  m.style.color="var(--err)";
+  if(nova.length<8){m.textContent="Use pelo menos 8 caracteres.";return;}
+  if(nova!==nova2){m.textContent="As duas senhas não são iguais.";return;}
+  m.style.color="var(--muted)"; m.textContent="Salvando…";
+  const r=await fetch("/auth/senha/definir",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({senha:nova,senhaAtual:atual})});
+  const j=await r.json().catch(()=>({}));
+  if(j.ok){
+    m.style.color="var(--ok)"; m.textContent="✓ Senha salva. Use-a no próximo acesso.";
+    $("senha-nova").value=""; $("senha-nova2").value=""; $("senha-atual").value="";
+    TEM_SENHA=true; $("senha-estado").textContent="Você já tem senha cadastrada. Pode trocá-la quando quiser.";
+  } else { m.style.color="var(--err)"; m.textContent=j.error||"Não foi possível salvar a senha."; }
+}
 async function salvar(){
   const dados={nome:$("nome").value.trim(),funcao:$("funcao").value.trim(),curso:$("curso").value,
     telefone:$("telefone").value.trim(),titulacao:$("titulacao").value};

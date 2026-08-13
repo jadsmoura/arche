@@ -279,8 +279,15 @@ function montarTabs(){
   if(ME){
     const back=document.querySelector(".topo-nav a.back");
     back.insertAdjacentHTML("beforebegin",
-      `<span class="quem">${ME.nome&&ME.nome!==ME.email?ME.nome:ME.email}${ME.papel==="gestor"?" · gestor":ME.papel==="coordenador"?" · coordenador":""} · <a href="/auth/sair" style="color:var(--brand-2);font-weight:600">sair</a></span>`);
+      `<span class="quem">${ME.nome&&ME.nome!==ME.email?ME.nome:ME.email}${ME.papel==="gestor"?" · gestor":ME.papel==="coordenador"?" · coordenador":""} · <button onclick="sair()" style="background:none;border:0;color:var(--brand-2);font:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:0">sair</button></span>`);
   }
+}
+
+// Sair por POST: como link (GET), o pré-carregamento do navegador e o toque
+// acidental no celular derrubavam a sessão sozinhos.
+async function sair(){
+  try{ await fetch("/auth/sair",{method:"POST"}); }catch{}
+  location.href="/";
 }
 
 /* ============================== NOVA PROPOSTA =========================== */

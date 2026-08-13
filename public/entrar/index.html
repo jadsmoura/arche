@@ -9,32 +9,62 @@
 <style>
   :root{--teal:var(--brand);--teal2:var(--brand-3);--cyan:var(--brand-2);--cyan-soft:var(--accent-wash)}
   body{align-items:center;justify-content:center;padding:20px}
-  .box{position:relative;overflow:hidden;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:36px 34px 32px;max-width:430px;width:100%;
-    box-shadow:var(--shadow-lg);text-align:center}
-  .box::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--brand) 0%,var(--brand-2) 55%,var(--accent) 100%)}
+  .box{position:relative;overflow:hidden;background:var(--card);border:1px solid var(--line);
+    border-radius:18px;padding:36px 34px 30px;max-width:430px;width:100%;box-shadow:var(--shadow-lg);text-align:center}
+  .box::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;
+    background:linear-gradient(90deg,var(--brand) 0%,var(--brand-2) 55%,var(--accent) 100%)}
   .box .arche-wm{justify-content:center;margin-bottom:8px}
   .box .arche-ic{width:34px;height:36px}
   .box .arche-tx{font-size:30px}
-  .eyebrow{display:block;margin-bottom:16px}
-  .sub{color:var(--muted);font-size:13px;margin:6px 0 24px}
+  .eyebrow{display:block;margin-bottom:14px}
+  h1{font-family:'Archivo',sans-serif;font-size:19px;font-weight:800;letter-spacing:-.01em;margin-bottom:4px}
+  .sub{color:var(--muted);font-size:13.5px;margin:0 0 20px}
+  form{text-align:left}
+  label{margin-top:0}
+  /* o Safari do iPhone dá zoom em campos < 16px */
+  input{font-size:16px;margin-bottom:4px}
+  .bt-bloco{width:100%;padding:13px 18px;margin-top:12px}
+  .bt-pri{color:#fff;background:linear-gradient(160deg,var(--brand-2),var(--brand));box-shadow:0 6px 16px -8px var(--brand)}
+  .bt-pri:hover{filter:brightness(1.08)}
+  .bt[aria-busy="true"]{opacity:.75;cursor:wait}
   .aviso{border-radius:10px;padding:12px 14px;font-size:13.5px;margin-bottom:16px;text-align:left}
   .a-warn{background:var(--warn-soft);color:var(--warn);border:1px solid #ffe0b2}
   .a-ok{background:var(--ok-soft);color:var(--ok);border:1px solid #c8e6c9}
-  .sep{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;margin:18px 0;
-    font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase}
+  .a-err{background:var(--err-soft);color:var(--err);border:1px solid #ffcdd2}
+  .erro-campo{color:var(--err);font-size:12.5px;font-weight:600;margin:2px 0 6px;min-height:1px}
+  .sep{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:11px;margin:18px 0;
+    font-family:'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase}
   .sep::before,.sep::after{content:"";flex:1;height:1px;background:var(--line)}
-  input{margin-bottom:10px}
-  .bt{width:100%;color:#fff;background:linear-gradient(160deg,var(--brand-2),var(--brand));box-shadow:0 6px 16px -8px var(--brand)}
-  .bt:hover{filter:brightness(1.08)}
-  .bt:disabled{opacity:.6;cursor:wait}
-  #gbox{display:flex;justify-content:center;margin-bottom:4px}
-  .volta{margin-top:22px;font-size:13px}
-  .volta a{color:var(--brand-2);font-weight:600;transition:.15s}
-  .volta a:hover{color:var(--brand)}
-  .rodape{color:var(--muted);font-size:12px;margin-top:26px;text-align:center}
+  #gbox{display:flex;justify-content:center}
+  .quem{display:flex;align-items:center;gap:8px;background:var(--accent-wash);border:1px solid var(--accent);
+    border-radius:10px;padding:7px 10px;margin-bottom:14px}
+  .quem input{flex:1;border:0;background:transparent;font-size:13.5px;font-weight:600;color:var(--brand);
+    padding:0;margin:0;box-shadow:none}
+  .quem input:focus{outline:none;box-shadow:none}
+  .quem button{background:none;border:0;color:var(--brand-2);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;padding:2px 4px}
+  .campo-senha{position:relative}
+  .campo-senha input{padding-right:44px}
+  .olho{position:absolute;right:6px;top:3px;background:none;border:0;cursor:pointer;padding:8px;
+    color:var(--muted);line-height:0;border-radius:8px}
+  .olho:hover{color:var(--brand)}
+  .link{background:none;border:0;color:var(--brand-2);font:inherit;font-size:13px;font-weight:600;
+    cursor:pointer;padding:6px 2px}
+  .link:hover{color:var(--brand);text-decoration:underline}
+  .link:disabled{color:var(--muted);cursor:default;text-decoration:none}
+  .acoes{display:flex;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap;gap:4px}
+  .medidor{display:flex;gap:4px;margin:6px 0 2px}
+  .medidor i{flex:1;height:4px;border-radius:2px;background:var(--line)}
+  .medidor.n1 i:nth-child(1){background:var(--err)}
+  .medidor.n2 i:nth-child(-n+2){background:var(--warn)}
+  .medidor.n3 i{background:var(--ok)}
+  .dica{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .volta{margin-top:20px;font-size:13px;text-align:center}
+  .volta a{color:var(--brand-2);font-weight:600}
+  .rodape{color:var(--muted);font-size:12px;margin-top:22px;text-align:center;max-width:430px}
   .logos{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:18px;opacity:.85}
   .logos img.u{height:24px}
   .logos img.p{height:40px}
+  [hidden]{display:none!important}
 </style>
 </head>
 <body>
@@ -44,27 +74,92 @@
     <span class="arche-tx">ARCHÉ</span>
   </span>
   <span class="eyebrow">PROPPEX · UNIEGO</span>
-  <div class="sub">Acesso aos setores de gestão da PROPPEX<br>(Pesquisa · Extensão · Inovação)</div>
 
-  <div id="msg"></div>
+  <div id="msg" role="status" aria-live="polite"></div>
 
-  <div id="gbox"></div>
-
-  <div class="sep">ou</div>
-
-  <form id="passo1" onsubmit="return pedirCodigo(event)">
-    <input type="email" id="email" placeholder="seu e-mail (ex.: nome@uniego.edu.br)" required>
-    <button class="bt" id="bt-codigo" type="submit">Receber código por e-mail</button>
-  </form>
-
-  <form id="passo2" style="display:none" onsubmit="return confirmarCodigo(event)">
-    <input type="text" id="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
-      placeholder="digite o código de 6 dígitos" style="text-align:center;font-size:22px;letter-spacing:8px;font-weight:800">
-    <button class="bt" id="bt-verificar" type="submit">Entrar</button>
-    <div style="margin-top:10px;font-size:12.5px;color:var(--muted)">
-      Não chegou? Confira o spam ou <a href="#" onclick="voltarPasso1();return false" style="color:var(--cyan)">reenviar código</a>.
+  <!-- etapa 1 · e-mail -->
+  <section id="et-email">
+    <h1>Entrar</h1>
+    <p class="sub">Acesso aos setores de gestão da PROPPEX<br>(Pesquisa · Extensão · Inovação)</p>
+    <form id="f-email" novalidate>
+      <label for="email">Seu e-mail</label>
+      <input type="email" id="email" name="username" autocomplete="username" required
+        placeholder="nome@uniego.edu.br" aria-describedby="err-email">
+      <p class="erro-campo" id="err-email" role="alert"></p>
+      <button class="bt bt-pri bt-bloco" id="bt-continuar" type="submit">Continuar</button>
+    </form>
+    <div id="bloco-google" hidden>
+      <div class="sep">ou</div>
+      <div id="gbox"></div>
     </div>
-  </form>
+  </section>
+
+  <!-- etapa 2A · senha -->
+  <section id="et-senha" hidden>
+    <h1>Digite sua senha</h1>
+    <form id="f-senha" novalidate>
+      <div class="quem">
+        <input type="email" id="quem1" name="username" autocomplete="username" readonly aria-label="Conta">
+        <button type="button" id="bt-trocar">trocar</button>
+      </div>
+      <label for="senha">Senha</label>
+      <div class="campo-senha">
+        <input type="password" id="senha" autocomplete="current-password" aria-describedby="err-senha">
+        <button type="button" class="olho" id="olho-senha" aria-label="Mostrar senha" aria-pressed="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <p class="erro-campo" id="err-senha" role="alert"></p>
+      <button class="bt bt-pri bt-bloco" id="bt-entrar" type="submit">Entrar</button>
+      <div class="acoes">
+        <button type="button" class="link" id="bt-esqueci">Esqueci minha senha</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- etapa 2B · código -->
+  <section id="et-codigo" hidden>
+    <h1>Digite o código</h1>
+    <p class="sub">Enviamos um código de 6 dígitos para o seu e-mail. Ele vale por 30 minutos.</p>
+    <form id="f-codigo" novalidate>
+      <div class="quem">
+        <input type="email" id="quem2" name="username" autocomplete="username" readonly aria-label="Conta">
+        <button type="button" id="bt-trocar2">trocar</button>
+      </div>
+      <label for="codigo">Código recebido</label>
+      <input type="text" id="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+        style="text-align:center;font-size:24px;letter-spacing:8px;font-weight:800" aria-describedby="err-codigo">
+      <p class="erro-campo" id="err-codigo" role="alert"></p>
+      <button class="bt bt-pri bt-bloco" id="bt-verificar" type="submit">Entrar</button>
+      <div class="acoes">
+        <button type="button" class="link" id="bt-reenviar">Reenviar código</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- etapa 3 · criar senha -->
+  <section id="et-nova" hidden>
+    <h1>Pronto! Você entrou.</h1>
+    <p class="sub">Crie uma senha para entrar direto da próxima vez, sem precisar abrir o e-mail e esperar o código.</p>
+    <form id="f-nova" novalidate>
+      <input type="email" id="quem3" name="username" autocomplete="username" hidden>
+      <label for="nova">Nova senha</label>
+      <div class="campo-senha">
+        <input type="password" id="nova" autocomplete="new-password" aria-describedby="nova-dica err-nova">
+        <button type="button" class="olho" id="olho-nova" aria-label="Mostrar senha" aria-pressed="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <div class="medidor" id="medidor" aria-hidden="true"><i></i><i></i><i></i></div>
+      <p class="dica" id="nova-dica">Pelo menos 8 caracteres. Evite seu nome e datas de nascimento.</p>
+      <p class="erro-campo" id="err-nova" role="alert"></p>
+      <label for="nova2">Repita a senha</label>
+      <input type="password" id="nova2" autocomplete="new-password" aria-describedby="err-nova2">
+      <p class="erro-campo" id="err-nova2" role="alert"></p>
+      <button class="bt bt-pri bt-bloco" id="bt-salvar" type="submit">Salvar senha</button>
+      <button class="bt bt-ghost bt-bloco" id="bt-depois" type="button">Agora não — continuar sem senha</button>
+    </form>
+  </section>
 
   <div class="volta"><a href="/">← voltar ao portal</a></div>
   <div class="logos">
@@ -75,69 +170,212 @@
 <div class="rodape">Contas @uniego.edu.br entram automaticamente · demais aguardam aprovação da PROPPEX</div>
 
 <script>
+const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
 const NEXT = q.get("next") || "/";
-const msg = document.getElementById("msg");
-if (q.get("pendente")) msg.innerHTML = '<div class="aviso a-warn">⏳ Seu acesso está <b>aguardando aprovação</b> da PROPPEX. Você receberá a liberação em breve — tente novamente mais tarde.</div>';
+let EMAIL = "", REDEFININDO = false;
 
-function voltarPasso1(){
-  document.getElementById("passo2").style.display="none";
-  document.getElementById("passo1").style.display="block";
-  const bt=document.getElementById("bt-codigo"); bt.disabled=false; bt.textContent="Receber código por e-mail";
+if (q.get("pendente"))
+  aviso("warn", "⏳ Seu acesso está <b>aguardando aprovação</b> da PROPPEX. Você receberá a liberação em breve.");
+
+function aviso(tipo, html){ $("msg").innerHTML = `<div class="aviso a-${tipo}">${html}</div>`; }
+function limpaAviso(){ $("msg").innerHTML = ""; }
+function erroCampo(id, texto){
+  $("err-" + id).textContent = texto || "";
+  $(id).setAttribute("aria-invalid", texto ? "true" : "false");
+  if (texto) $(id).focus();
 }
-async function pedirCodigo(e){
-  e.preventDefault();
-  const bt = document.getElementById("bt-codigo");
-  bt.disabled = true; bt.textContent = "Enviando…";
-  try{
-    const r = await fetch("/auth/codigo", {method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({email: document.getElementById("email").value.trim()})});
-    const j = await r.json();
-    if (j.ok){
-      msg.innerHTML = '<div class="aviso a-ok">📬 Código enviado para <b>'+document.getElementById("email").value.trim()+'</b>. Digite-o abaixo (vale 10 minutos).</div>';
-      document.getElementById("passo1").style.display="none";
-      document.getElementById("passo2").style.display="block";
-      document.getElementById("codigo").focus();
-    } else { msg.innerHTML = '<div class="aviso a-warn">⚠ ' + (j.error||"Falha ao enviar") + '</div>'; bt.disabled=false; bt.textContent="Receber código por e-mail"; }
-  }catch{ bt.disabled=false; bt.textContent="Receber código por e-mail"; }
-  return false;
+function etapa(secao, foco){
+  for (const s of document.querySelectorAll("section")) s.hidden = s.id !== secao;
+  if (foco) setTimeout(() => $(foco).focus(), 60);
 }
-async function confirmarCodigo(e){
-  e.preventDefault();
-  const bt = document.getElementById("bt-verificar");
-  bt.disabled = true; bt.textContent = "Verificando…";
-  try{
-    const r = await fetch("/auth/codigo/verificar", {method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({email: document.getElementById("email").value.trim(),
-        codigo: document.getElementById("codigo").value.trim()})});
-    const j = await r.json();
-    if (j.ok) location.href = j.papel === "pendente" ? "/entrar?pendente=1" : NEXT;
-    else { msg.innerHTML = '<div class="aviso a-warn">⚠ ' + (j.error||"Código inválido") + '</div>'; bt.disabled=false; bt.textContent="Entrar"; }
-  }catch{ bt.disabled=false; bt.textContent="Entrar"; }
-  return false;
+let timerLento = null;
+function ocupado(bt, texto){
+  bt.dataset.txt = bt.textContent; bt.textContent = texto;
+  bt.disabled = true; bt.setAttribute("aria-busy", "true");
+  // o serviço hiberna quando fica sem uso: a primeira entrada do dia demora
+  timerLento = setTimeout(() => aviso("ok", "Ainda verificando… o sistema pode levar alguns segundos para acordar."), 6000);
 }
+function livre(bt){
+  clearTimeout(timerLento);
+  bt.textContent = bt.dataset.txt || bt.textContent;
+  bt.disabled = false; bt.removeAttribute("aria-busy");
+}
+async function post(url, dados){
+  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(dados) });
+  return r.json().catch(() => ({ ok: false, error: "Resposta inesperada do servidor." }));
+}
+function entrou(j){
+  if (j.papel === "pendente") { location.href = "/entrar?pendente=1"; return; }
+  location.href = NEXT;
+}
+function identificar(email){
+  EMAIL = email;
+  for (const id of ["quem1", "quem2", "quem3"]) $(id).value = email;
+}
+
+/* ------------------------- etapa 1 · e-mail ---------------------------- */
+$("f-email").addEventListener("submit", async (ev) => {
+  ev.preventDefault(); limpaAviso();
+  const email = $("email").value.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
+    return erroCampo("email", "Digite um e-mail válido, como nome@uniego.edu.br.");
+  erroCampo("email", "");
+  const bt = $("bt-continuar"); ocupado(bt, "Verificando…");
+  try {
+    const j = await post("/auth/inicio", { email });
+    livre(bt);
+    if (!j.ok) return erroCampo("email", j.error || "Não foi possível continuar. Tente de novo.");
+    identificar(email);
+    if (j.metodo === "senha") { limpaAviso(); etapa("et-senha", "senha"); }
+    else {
+      aviso("ok", `📬 Enviamos um código para <b>${email}</b>. Ele vale por 30 minutos.`);
+      etapa("et-codigo", "codigo");
+    }
+  } catch {
+    livre(bt); aviso("err", "Não conseguimos falar com o servidor. Verifique sua conexão e tente de novo.");
+  }
+});
+
+/* ------------------------- etapa 2A · senha ---------------------------- */
+$("f-senha").addEventListener("submit", async (ev) => {
+  ev.preventDefault(); limpaAviso();
+  const senha = $("senha").value;
+  if (!senha) return erroCampo("senha", "Digite sua senha.");
+  erroCampo("senha", "");
+  const bt = $("bt-entrar"); ocupado(bt, "Entrando…");
+  try {
+    const j = await post("/auth/senha", { email: EMAIL, senha });
+    livre(bt);
+    if (j.ok) return entrou(j);
+    erroCampo("senha", (j.error || "Não foi possível entrar.") + " Você também pode entrar com um código por e-mail.");
+  } catch {
+    livre(bt); aviso("err", "Não conseguimos falar com o servidor. Tente de novo.");
+  }
+});
+
+$("bt-esqueci").addEventListener("click", async () => {
+  const bt = $("bt-esqueci"); bt.disabled = true; bt.textContent = "Enviando código…";
+  const j = await post("/auth/codigo", { email: EMAIL }).catch(() => ({}));
+  bt.disabled = false; bt.textContent = "Esqueci minha senha";
+  if (!j.ok) return aviso("err", "Não conseguimos enviar o e-mail agora. Tente novamente em instantes.");
+  REDEFININDO = true;
+  aviso("ok", `Sem problema. Enviamos um código para <b>${EMAIL}</b> — ao entrar, você poderá cadastrar uma nova senha.`);
+  etapa("et-codigo", "codigo"); contagem(45);
+});
+
+/* ------------------------- etapa 2B · código --------------------------- */
+$("codigo").addEventListener("input", (e) => {
+  e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6);
+  if (e.target.value.length === 6) erroCampo("codigo", "");
+});
+
+$("f-codigo").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const codigo = $("codigo").value.replace(/\D/g, "");
+  if (codigo.length !== 6) return erroCampo("codigo", "O código tem 6 dígitos. Confira o e-mail.");
+  const bt = $("bt-verificar"); ocupado(bt, "Conferindo…");
+  try {
+    const j = await post("/auth/codigo/verificar", { email: EMAIL, codigo });
+    livre(bt);
+    if (!j.ok) { $("codigo").value = "";
+      return erroCampo("codigo", "Código inválido ou expirado. Peça um novo código."); }
+    limpaAviso();
+    if (j.papel === "pendente") return entrou(j);
+    if (REDEFININDO || j.temSenha === false) { etapa("et-nova", "nova"); return; }
+    entrou(j);
+  } catch {
+    livre(bt); aviso("err", "Não conseguimos falar com o servidor. Tente de novo.");
+  }
+});
+
+$("bt-reenviar").addEventListener("click", async () => {
+  const j = await post("/auth/codigo", { email: EMAIL }).catch(() => ({}));
+  if (j.ok) { aviso("ok", `Novo código enviado para <b>${EMAIL}</b>.`); contagem(45); }
+  else aviso("err", "Não conseguimos enviar o e-mail agora. Tente novamente em instantes.");
+});
+function contagem(seg){
+  const b = $("bt-reenviar"); clearInterval(b._t);
+  const tick = () => {
+    if (seg <= 0){ clearInterval(b._t); b.disabled = false; b.textContent = "Reenviar código"; return; }
+    b.disabled = true; b.textContent = `Reenviar código em ${seg}s`; seg--;
+  };
+  tick(); b._t = setInterval(tick, 1000);
+}
+
+/* ------------------------ etapa 3 · criar senha ------------------------ */
+$("nova").addEventListener("input", () => {
+  const v = $("nova").value, n = v.length;
+  const nivel = n === 0 ? 0 : n < 8 ? 1 : (n >= 12 || /[^a-zA-Z]/.test(v)) ? 3 : 2;
+  $("medidor").className = "medidor n" + nivel;
+  $("nova-dica").textContent = ["Pelo menos 8 caracteres. Evite seu nome e datas de nascimento.",
+    "Muito curta — use pelo menos 8 caracteres.", "Boa. Pode entrar assim.", "Ótima senha."][nivel];
+});
+
+$("f-nova").addEventListener("submit", async (ev) => {
+  ev.preventDefault(); limpaAviso();
+  const s1 = $("nova").value, s2 = $("nova2").value;
+  if (s1.length < 8) return erroCampo("nova", "Use pelo menos 8 caracteres.");
+  erroCampo("nova", "");
+  if (s1 !== s2) return erroCampo("nova2", "As duas senhas não são iguais. Digite novamente.");
+  erroCampo("nova2", "");
+  const bt = $("bt-salvar"); ocupado(bt, "Salvando…");
+  try {
+    const j = await post("/auth/senha/definir", { senha: s1 });
+    livre(bt);
+    if (j.ok) {
+      aviso("ok", "✓ Senha criada. Na próxima vez, é só digitar seu e-mail e a senha.");
+      setTimeout(() => location.href = NEXT, 1200);
+    } else erroCampo("nova", j.error || "Não foi possível salvar a senha agora.");
+  } catch { livre(bt); aviso("err", "Não conseguimos falar com o servidor. Tente de novo."); }
+});
+$("bt-depois").addEventListener("click", () => { location.href = NEXT; });
+
+/* --------------------------- apoios de uso ----------------------------- */
+function trocarConta(){
+  limpaAviso(); REDEFININDO = false;
+  $("senha").value = ""; $("codigo").value = "";
+  erroCampo("senha", ""); erroCampo("codigo", "");
+  etapa("et-email", "email");
+}
+$("bt-trocar").addEventListener("click", trocarConta);
+$("bt-trocar2").addEventListener("click", trocarConta);
+
+function olho(idBt, idCampo){
+  const b = $(idBt), c = $(idCampo);
+  b.addEventListener("click", () => {
+    const mostrar = c.type === "password";
+    c.type = mostrar ? "text" : "password";
+    b.setAttribute("aria-pressed", String(mostrar));
+    b.setAttribute("aria-label", mostrar ? "Ocultar senha" : "Mostrar senha");
+    c.focus();
+  });
+}
+olho("olho-senha", "senha"); olho("olho-nova", "nova");
 
 /* Botão Google (aparece só se o servidor tiver GOOGLE_WEB_CLIENT_ID) */
-fetch("/api/authcfg").then(r=>r.json()).then(cfg=>{
-  if(!cfg.googleClientId) return;
+fetch("/api/authcfg").then(r => r.json()).then(cfg => {
+  if (!cfg.googleClientId) return;
   const s = document.createElement("script");
   s.src = "https://accounts.google.com/gsi/client"; s.async = true;
-  s.onload = ()=>{
+  s.onload = () => {
     google.accounts.id.initialize({
       client_id: cfg.googleClientId,
-      callback: async (resp)=>{
-        const r = await fetch("/auth/google", {method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({credential: resp.credential})});
-        const j = await r.json();
-        if (j.ok) location.href = j.papel === "pendente" ? "/entrar?pendente=1" : NEXT;
-        else msg.innerHTML = '<div class="aviso a-warn">⚠ ' + (j.error||"Falha no login Google") + '</div>';
+      callback: async (resp) => {
+        const j = await post("/auth/google", { credential: resp.credential });
+        if (j.ok) entrou(j);
+        else aviso("err", j.error || "Não foi possível entrar com o Google. Tente pelo e-mail.");
       },
     });
-    google.accounts.id.renderButton(document.getElementById("gbox"),
-      { theme:"outline", size:"large", text:"signin_with", locale:"pt-BR", width:340 });
+    google.accounts.id.renderButton($("gbox"),
+      { theme: "outline", size: "large", text: "signin_with", locale: "pt-BR", width: 340 });
+    $("bloco-google").hidden = false;   // só aparece quando o botão existe
   };
   document.head.appendChild(s);
 });
+
+$("email").focus();
 </script>
 </body>
 </html>
