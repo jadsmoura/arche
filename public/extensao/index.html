@@ -227,12 +227,31 @@ function statusReal(a){
 const STATUS_LABEL = {submetida:"Submetida", devolvida:"Devolvida p/ ajustes", aprovada:"Aprovada",
   pendente:"Relatório pendente", "relatorio-entregue":"Relatório entregue", registrada:"Registrada"};
 
+// Completude do fluxo: ① proposta · ② relatório final · ③ participantes
+function completude(a){
+  const c = {
+    proposta: true,
+    relatorio: !!(a.relatorio && a.relatorio.entregueEm),
+    participantes: (a.participantes?.inscritos||[]).length > 0,
+  };
+  c.completa = c.proposta && c.relatorio && c.participantes;
+  return c;
+}
+function marcas(a){
+  const c = completude(a);
+  const mk=(ok,rot)=>`<span style="font-size:11px;font-weight:700;color:${ok?"var(--ok)":"var(--muted)"}">${ok?"✓":"○"} ${rot}</span>`;
+  return `<div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap">
+    ${mk(c.proposta,"Proposta")} ${mk(c.relatorio,"Relatório final")} ${mk(c.participantes,"Participantes")}
+    <span class="badge" style="background:${c.completa?"var(--ok-soft)":"var(--warn-soft)"};color:${c.completa?"var(--ok)":"var(--warn)"}">${c.completa?"COMPLETA":"INCOMPLETA"}</span>
+  </div>`;
+}
+
 /* ============================== NAVEGAÇÃO =============================== */
 let TABS = [];
 function definirTabs(){
   TABS = PROPPEX
-    ? [["acoes","Painel PROPPEX"],["nova","Submeter proposta"]]
-    : [["acoes","Ações de extensão"],["nova","Submeter proposta"]];
+    ? [["acoes","Propostas submetidas"],["nova","Submeter proposta"]]
+    : [["acoes","Propostas submetidas"],["nova","Submeter proposta"]];
 }
 function nav(view, id){
   document.querySelectorAll("main section").forEach(s=>s.classList.add("hide"));
@@ -322,17 +341,26 @@ function renderLista(){
   const fc=$("l-curso").value, fs=$("l-status").value;
   const universo = minhas();
   const st = {};
-  for(const a of universo){ const s=statusReal(a); st[s]=(st[s]||0)+1; }
-  $("stats").innerHTML = ["submetida","aprovada","pendente","relatorio-entregue","registrada"]
-    .map(s=>`<div class="s"><b>${st[s]||0}</b><span>${STATUS_LABEL[s]}</span></div>`).join("");
+  let completas=0, incompletas=0;
+  for(const a of universo){
+    const s=statusReal(a); st[s]=(st[s]||0)+1;
+    if(completude(a).completa) completas++; else incompletas++;
+  }
+  $("stats").innerHTML =
+    `<div class="s" style="border-color:var(--ok)"><b style="color:var(--ok)">${completas}</b><span>Completas (3/3)</span></div>
+     <div class="s" style="border-color:#ffe0b2"><b style="color:var(--warn)">${incompletas}</b><span>Incompletas</span></div>`
+    + ["submetida","aprovada","pendente","relatorio-entregue","registrada"]
+      .map(s=>`<div class="s"><b>${st[s]||0}</b><span>${STATUS_LABEL[s]}</span></div>`).join("");
   const list = universo.filter(a=>(!fc||a.curso===fc)&&(!fs||statusReal(a)===fs))
     .sort((a,b)=>(b.criadoEm||"").localeCompare(a.criadoEm||""));
   $("lista").innerHTML = list.length ? list.map(a=>{
     const s=statusReal(a);
     return `<div class="item" onclick="nav('detalhe','${a.id}')">
-      <div class="nm">${esc(a.proposta.nomeAtividade)}<div class="cs">${esc(a.curso)} · ${a.numeroAcao?("Ação "+a.numeroAcao):"sem número"} · ${fmt(a.proposta.periodoInicio)} a ${fmt(a.proposta.periodoFim)}</div></div>
+      <div class="nm">${esc(a.proposta.nomeAtividade)}
+        <div class="cs">${esc(a.curso)} · ${a.numeroAcao?("Ação "+a.numeroAcao):"sem número"} · ${fmt(a.proposta.periodoInicio)} a ${fmt(a.proposta.periodoFim)}</div>
+        ${marcas(a)}</div>
       <span class="badge b-${s}">${STATUS_LABEL[s]}</span></div>`;
-  }).join("") : '<div class="card muted">Nenhuma ação encontrada com esses filtros.</div>';
+  }).join("") : '<div class="card muted">Nenhuma proposta encontrada com esses filtros.</div>';
 }
 const fmt=(iso)=>iso?iso.split("-").reverse().join("/"):"—";
 
@@ -351,6 +379,10 @@ function renderDetalhe(id){
     </div>
     <div class="muted" style="margin:4px 0 12px">${esc(a.curso)} · ${fmt(p.periodoInicio)} a ${fmt(p.periodoFim)} · ${esc(p.cargaHoraria)}h · ${esc(p.local)} (${esc(p.municipio)})${a.criadoPor?` · submetida por ${esc(a.criadoPorNome||a.criadoPor)} &lt;${esc(a.criadoPor)}&gt;`:""}</div>`;
 
+  html += marcas(a) + '<div style="margin-bottom:10px"></div>';
+  const c3 = completude(a);
+  if(PROPPEX && c3.completa && s==="relatorio-entregue")
+    html += `<div class="banner ba-ok">🎓 <b>3/3 completa — pronta para certificação.</b> Emita os certificados no sistema da instituição (use a planilha exportada) e depois finalize o fluxo abaixo.</div>`;
   if(s==="devolvida" && a.motivoDevolucao)
     html += `<div class="banner ba-err">↩ Devolvida para ajustes: ${esc(a.motivoDevolucao)}</div>`;
   if(s==="pendente" && !PROPPEX)
@@ -442,10 +474,11 @@ function renderDetalhe(id){
     if(!PROPPEX && !lock)
       html += `<button class="bt bt-pri" onclick="enviarRelatorio('${a.id}')">📨 ${s==="relatorio-entregue"?"Reenviar relatório atualizado":"Enviar relatório final à PROPPEX"}</button>`;
     if(PROPPEX){
-      html += `<button class="bt bt-sec" onclick="exportar('${a.id}','registro')">📄 Exportar Registro de Atividade (.docx)</button>
-        <button class="bt bt-sec" onclick="exportar('${a.id}','certificados')">📊 Exportar Planilha de Certificados (.xlsx)</button>`;
+      html += `<button class="bt bt-sec" onclick="exportar('${a.id}','registro')">📄 Registro de Atividade (.docx)</button>
+        <button class="bt bt-sec" onclick="exportar('${a.id}','certificados')">📊 Planilha de Certificados (.xlsx)</button>
+        <button class="bt bt-sec" onclick="exportar('${a.id}','pdf')">🖨 Relatório Final em PDF (timbrado)</button>`;
       if(!lock) html += `<button class="bt bt-pri" onclick="salvarApreciacao('${a.id}')">💾 Salvar apreciação</button>
-        <button class="bt bt-ok" onclick="registrarAcao('${a.id}')">✓ Marcar como Registrada</button>`;
+        <button class="bt bt-ok" onclick="registrarAcao('${a.id}')">🎓 Certificados emitidos — Finalizar (Registrada)</button>`;
     }
     html += `</div>`;
     if(PROPPEX) html += `<label>Apreciação da Coordenadoria de Extensão</label>
@@ -606,7 +639,7 @@ async function salvarApreciacao(id){
 }
 async function registrarAcao(id){
   const a=ACOES.find(x=>x.id===id); if(!a)return;
-  if(!confirm("Marcar esta ação como REGISTRADA? (encerra o ciclo; os campos ficam travados)")) return;
+  if(!confirm("Confirmar que os certificados foram emitidos no sistema institucional e FINALIZAR esta ação como REGISTRADA?\n\n(encerra o ciclo; os campos ficam travados)")) return;
   a.apreciacao=$("d-apreciacao")?.value.trim()||a.apreciacao;
   a.status="registrada"; a.atualizadoEm=new Date().toISOString();
   await salvar(); renderLista(); renderDetalhe(id);

@@ -381,6 +381,11 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
       buffer = await gerarCertificadosXlsx(acao);
       nome = `Certificados-${num}.xlsx`;
       mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    } else if (tipo === "pdf") {
+      const { gerarRelatorioPdf } = await import("./lib/pdf.js");
+      buffer = await gerarRelatorioPdf(acao);
+      nome = `Relatorio-Final-${num}.pdf`;
+      mime = "application/pdf";
     } else {
       return res.status(400).send("Tipo inválido");
     }
