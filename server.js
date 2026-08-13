@@ -12,6 +12,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getStorage } from "./lib/storage.js";
 import { getFiles, slug } from "./lib/files.js";
+import {
+  lerSessao, emitirCookie, limparCookie, carregarUsuarios, salvarUsuarios,
+  papelDe, verificarGoogle, criarLinkMagico, consumirLinkMagico,
+} from "./lib/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, "public");
@@ -38,6 +42,130 @@ function stateKey(req) {
   return key;
 }
 
+/* ---------------------------- AUTENTICAÇÃO ------------------------------ */
+async function usuarioDe(req) {
+  const s = lerSessao(req);
+  if (!s) return null;
+  const usuarios = await carregarUsuarios(storage);
+  return { email: s.email, nome: s.nome, papel: papelDe(s.email, usuarios) };
+}
+async function exigirGestor(req, res) {
+  const u = await usuarioDe(req);
+  if (!u || u.papel !== "gestor") { res.status(403).json({ error: "Acesso restrito à PROPPEX" }); return null; }
+  return u;
+}
+
+// Setores de gestão exigem login (Avaliação Institucional continua aberta).
+const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|usuarios)(\/|$)/;
+app.use(async (req, res, next) => {
+  if (req.method !== "GET" || !AREAS_PROTEGIDAS.test(req.path)) return next();
+  const u = await usuarioDe(req);
+  if (!u) return res.redirect("/entrar?next=" + encodeURIComponent(req.originalUrl));
+  if (u.papel === "pendente") return res.redirect("/entrar?pendente=1");
+  if (req.path.startsWith("/usuarios") && u.papel !== "gestor") return res.redirect("/");
+  next();
+});
+
+app.get("/api/authcfg", (_req, res) => res.json({ googleClientId: process.env.GOOGLE_WEB_CLIENT_ID || null }));
+
+app.get("/api/me", async (req, res) => {
+  const u = await usuarioDe(req);
+  if (!u) return res.status(401).json({ error: "não autenticado" });
+  res.json(u);
+});
+
+app.post("/auth/google", async (req, res) => {
+  try {
+    const { email, nome } = await verificarGoogle(req.body?.credential);
+    emitirCookie(res, { email, nome });
+    const usuarios = await carregarUsuarios(storage);
+    const papel = papelDe(email, usuarios);
+    if (papel === "pendente" && !usuarios.pendentes.some((p) => p.email === email.toLowerCase())) {
+      usuarios.pendentes.push({ email: email.toLowerCase(), nome, quando: new Date().toISOString() });
+      await salvarUsuarios(storage, usuarios);
+      notificarPendente(email, nome).catch(() => {});
+    }
+    res.json({ ok: true, papel });
+  } catch (e) {
+    res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+app.post("/auth/magic", async (req, res) => {
+  try {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ ok: false, error: "E-mail inválido" });
+    const next = String(req.body?.next || "/");
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const link = (await criarLinkMagico(storage, email, baseUrl)) + "&next=" + encodeURIComponent(next);
+    const { enviarEmail } = await import("./lib/mailer.js");
+    await enviarEmail({
+      para: email,
+      assunto: "Seu link de acesso ao ARCHÉ",
+      corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:520px">
+        <h2 style="color:#1c3742">Acesso ao ARCHÉ · PROPPEX</h2>
+        <p>Clique no botão abaixo para entrar. O link vale por <b>20 minutos</b>.</p>
+        <p><a href="${link}" style="background:#1c3742;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:700">Entrar no ARCHÉ</a></p>
+        <p style="color:#5b7280;font-size:12px">Se você não solicitou este acesso, ignore este e-mail.</p></div>`,
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("magic:", e.message);
+    res.status(500).json({ ok: false, error: "Falha ao enviar o e-mail" });
+  }
+});
+
+app.get("/auth/magic/cb", async (req, res) => {
+  const email = await consumirLinkMagico(storage, req.query.t);
+  if (!email) return res.redirect("/entrar?erro=expirado");
+  emitirCookie(res, { email, nome: email });
+  const usuarios = await carregarUsuarios(storage);
+  const papel = papelDe(email, usuarios);
+  if (papel === "pendente") {
+    if (!usuarios.pendentes.some((p) => p.email === email)) {
+      usuarios.pendentes.push({ email, nome: email, quando: new Date().toISOString() });
+      await salvarUsuarios(storage, usuarios);
+      notificarPendente(email, email).catch(() => {});
+    }
+    return res.redirect("/entrar?pendente=1");
+  }
+  res.redirect(String(req.query.next || "/"));
+});
+
+app.get("/auth/sair", (req, res) => { limparCookie(res); res.redirect("/"); });
+
+async function notificarPendente(email, nome) {
+  const { enviarEmail } = await import("./lib/mailer.js");
+  await enviarEmail({
+    assunto: `[ARCHÉ] Novo acesso aguardando aprovação: ${email}`,
+    corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif">
+      <p><b>${nome}</b> (${email}) entrou no ARCHÉ e aguarda aprovação como submissor.</p>
+      <p><a href="https://arche-289g.onrender.com/usuarios/">Abrir gestão de acessos</a></p></div>`,
+  });
+}
+
+/* usuários (somente gestor) */
+app.get("/api/usuarios", async (req, res) => {
+  if (!(await exigirGestor(req, res))) return;
+  res.json(await carregarUsuarios(storage));
+});
+app.post("/api/usuarios", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  const { acao, email } = req.body || {};
+  const e = String(email || "").trim().toLowerCase();
+  if (!e) return res.status(400).json({ error: "e-mail obrigatório" });
+  const u = await carregarUsuarios(storage);
+  u.pendentes = u.pendentes.filter((p) => p.email !== e);
+  u.aprovados = u.aprovados.filter((x) => x !== e);
+  u.gestores = u.gestores.filter((x) => x !== e);
+  if (acao === "aprovar") u.aprovados.push(e);
+  else if (acao === "promover") u.gestores.push(e);
+  else if (acao !== "remover") return res.status(400).json({ error: "ação inválida" });
+  if (!u.gestores.length) u.gestores.push("jadsonbelem@gmail.com"); // nunca ficar sem gestor
+  await salvarUsuarios(storage, u);
+  res.json(u);
+});
+
 // Curso de origem do upload: campo explícito no form, ou deduzido da página
 // que enviou (Referer). A página raiz de avaliação/dossiê é a piloto
 // (Psicologia); as demais vivem em subpastas com o slug do curso.
@@ -55,6 +183,7 @@ function cursoFrom(req) {
 app.get("/api/estado", async (req, res) => {
   try {
     const chave = stateKey(req);
+    if (chave.startsWith("auth-")) return res.status(404).json({ error: "nf" });
     const valor = await storage.get(chave);
     if (valor === null) return res.status(404).json({ error: "nf" });
     res.json({ key: chave, value: valor });
@@ -63,9 +192,21 @@ app.get("/api/estado", async (req, res) => {
   }
 });
 
+// Chaves dos setores de gestão só aceitam escrita de usuário autenticado
+// e aprovado (as da Avaliação Institucional continuam abertas).
+const CHAVES_PROTEGIDAS = /^(extensao-|pesquisa-|inovacao-|auth-usuarios)/;
+async function podeEscrever(req, chave) {
+  if (!CHAVES_PROTEGIDAS.test(chave)) return true;
+  if (chave.startsWith("auth-")) return false; // só via /api/usuarios
+  const u = await usuarioDe(req);
+  return !!u && u.papel !== "pendente";
+}
+
 app.put("/api/estado", async (req, res) => {
   try {
     const chave = stateKey(req);
+    if (!(await podeEscrever(req, chave)))
+      return res.status(403).json({ error: "Faça login para salvar neste setor" });
     await storage.set(chave, req.body.valor);
     res.json({ key: chave, value: req.body.valor || "" });
   } catch (error) {
@@ -88,6 +229,8 @@ app.post("/api/estado-beacon", async (req, res) => {
 app.delete("/api/estado", async (req, res) => {
   try {
     const chave = stateKey(req);
+    if (!(await podeEscrever(req, chave)))
+      return res.status(403).json({ error: "Faça login para alterar este setor" });
     await storage.del(chave);
     res.json({ key: chave, deleted: true });
   } catch (error) {
@@ -97,7 +240,8 @@ app.delete("/api/estado", async (req, res) => {
 
 app.get("/api/estado/list", async (req, res) => {
   try {
-    const keys = await storage.list(String(req.query.prefixo || ""));
+    const keys = (await storage.list(String(req.query.prefixo || "")))
+      .filter((k) => !k.startsWith("auth-"));
     res.json({ keys });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -183,6 +327,8 @@ app.post("/api/extensao/notificar", async (req, res) => {
 /* ------------------------- EXTENSÃO: EXPORTS ---------------------------- */
 app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
   try {
+    const u = await usuarioDe(req);
+    if (!u || u.papel !== "gestor") return res.status(403).send("Acesso restrito à PROPPEX");
     const { tipo, id } = req.params;
     const raw = await storage.get("extensao-acoes-v1");
     const acoes = raw ? JSON.parse(raw) : [];

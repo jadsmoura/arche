@@ -201,7 +201,7 @@ const CURSOS = ["Administração","Agronomia","Ciências Contábeis","Direito","
   "Enfermagem","Engenharia Civil","Engenharia de Software","Engenharia Mecânica",
   "Medicina Veterinária","Odontologia","Psicologia","Institucional / PROPPEX"];
 const KEY = "extensao-acoes-v1", KEYCFG = "extensao-config-v1";
-const PROPPEX = new URLSearchParams(location.search).get("perfil") === "proppex";
+let PROPPEX = false, ME = null;
 let ACOES = [];
 
 async function stGet(chave){
@@ -228,9 +228,12 @@ const STATUS_LABEL = {submetida:"Submetida", devolvida:"Devolvida p/ ajustes", a
   pendente:"Relatório pendente", "relatorio-entregue":"Relatório entregue", registrada:"Registrada"};
 
 /* ============================== NAVEGAÇÃO =============================== */
-const TABS = PROPPEX
-  ? [["acoes","Painel PROPPEX"]]
-  : [["acoes","Ações de extensão"],["nova","Submeter proposta"]];
+let TABS = [];
+function definirTabs(){
+  TABS = PROPPEX
+    ? [["acoes","Painel PROPPEX"],["nova","Submeter proposta"]]
+    : [["acoes","Ações de extensão"],["nova","Submeter proposta"]];
+}
 function nav(view, id){
   document.querySelectorAll("main section").forEach(s=>s.classList.add("hide"));
   if(view==="detalhe"){ renderDetalhe(id); $("v-detalhe").classList.remove("hide"); }
@@ -238,9 +241,16 @@ function nav(view, id){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.v===view));
 }
 function montarTabs(){
-  $("tabs").innerHTML = TABS.map(([v,l])=>`<button class="tab" data-v="${v}" onclick="nav('${v}')">${l}</button>`).join("");
+  $("tabs").innerHTML = TABS.map(([v,l])=>`<button class="tab" data-v="${v}" onclick="nav('${v}')">${l}</button>`).join("")
+    + (PROPPEX?'<a class="tab" href="/usuarios/" style="text-decoration:none">Gestão de acessos</a>':"");
   if(PROPPEX){ $("titulo").textContent="Extensão — Painel PROPPEX";
     $("subtitulo").textContent="Análise de propostas, emissão do número da ação, apreciação de relatórios e exportações."; }
+  if(ME){
+    const back=document.querySelector(".top a.back");
+    back.insertAdjacentHTML("beforebegin",
+      `<span style="margin-left:auto;font-size:12px;color:#b9d6de">${ME.nome&&ME.nome!==ME.email?ME.nome:ME.email}${PROPPEX?" · gestor":""} · <a href="/auth/sair" style="color:#71c8e2">sair</a></span>`);
+    back.style.marginLeft="14px";
+  }
 }
 
 /* ============================== NOVA PROPOSTA =========================== */
@@ -589,7 +599,14 @@ function exportar(id,tipo){ window.open(`/api/extensao/export/${tipo}/${id}`,"_b
 
 /* ============================== INIT ==================================== */
 (async function init(){
-  montarTabs(); montarForm(); montarFiltros();
+  try{
+    const r = await fetch("/api/me");
+    if(r.status===401){ location.href="/entrar?next="+encodeURIComponent(location.pathname); return; }
+    ME = await r.json();
+    if(ME.papel==="pendente"){ location.href="/entrar?pendente=1"; return; }
+    PROPPEX = ME.papel==="gestor";
+  }catch{ /* segue sem sessão (modo dev) */ }
+  definirTabs(); montarTabs(); montarForm(); montarFiltros();
   await carregar(); renderLista(); nav("acoes");
 })();
 </script>

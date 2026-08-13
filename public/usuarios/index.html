@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestão de acessos · ARCHÉ</title>
+<link rel="icon" href="/arche/favicon.svg">
+<style>
+  :root{--bg:#f4f2ec;--card:#fff;--ink:#17303a;--muted:#5b7280;--line:#e4e0d6;
+    --teal:#1c3742;--teal2:#27505e;--cyan:#4aa5c4;--cyan-soft:#e8f4f8;
+    --ok:#2e7d32;--ok-soft:#e8f5e9;--warn:#b26a00;--warn-soft:#fff3e0;--err:#c62828}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:'Figtree',-apple-system,'Segoe UI',Roboto,sans-serif;line-height:1.5}
+  .wrap{max-width:860px;margin:0 auto;padding:0 20px}
+  header{background:linear-gradient(135deg,var(--teal),var(--teal2));color:#eaf3f5;padding:16px 0;border-bottom:3px solid var(--cyan)}
+  .top{display:flex;align-items:center;gap:12px}
+  .brand{font-weight:800;letter-spacing:2px;font-size:17px}
+  .top a{margin-left:auto;color:#b9d6de;font-size:13px;text-decoration:none}
+  h1{font-size:24px;font-weight:800;margin:26px 0 4px}
+  .sub{color:var(--muted);margin-bottom:22px;font-size:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px;
+    box-shadow:0 1px 2px rgba(23,48,58,.06)}
+  .sec{font-size:15px;font-weight:800;color:var(--teal);margin-bottom:10px}
+  .u{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;flex-wrap:wrap}
+  .u:last-child{border-bottom:0}
+  .u .em{font-weight:600;flex:1;min-width:200px}
+  .u .quando{color:var(--muted);font-size:12px}
+  .bt{border:0;border-radius:8px;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+  .bt-ok{background:var(--ok-soft);color:var(--ok)}
+  .bt-pri{background:var(--cyan-soft);color:var(--teal)}
+  .bt-err{background:#fdecea;color:var(--err)}
+  .badge{font-size:10px;font-weight:800;letter-spacing:.6px;border-radius:999px;padding:3px 10px;text-transform:uppercase}
+  .b-g{background:var(--teal);color:#fff}
+  .b-a{background:var(--ok-soft);color:var(--ok)}
+  .muted{color:var(--muted);font-size:13px}
+  .add{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .add input{flex:1;min-width:220px;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font:inherit;font-size:14px}
+</style>
+</head>
+<body>
+<header><div class="wrap top">
+  <div class="brand">ARCHÉ · GESTÃO DE ACESSOS</div>
+  <a href="/extensao/">← Extensão</a>
+</div></header>
+<main class="wrap">
+  <h1>Gestão de acessos</h1>
+  <div class="sub">Aprovações de submissores e papéis de gestor. Contas <b>@uniego.edu.br</b> entram automaticamente como submissoras.</div>
+  <div id="conteudo" class="muted">Carregando…</div>
+</main>
+<script>
+const $=(id)=>document.getElementById(id);
+const esc=(s)=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function agir(acao,email){
+  const r=await fetch("/api/usuarios",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,email})});
+  if(!r.ok){alert("Falha: "+((await r.json()).error||r.status));return;}
+  render(await r.json());
+}
+function render(u){
+  $("conteudo").innerHTML=`
+    <div class="card"><div class="sec">⏳ Aguardando aprovação (${u.pendentes.length})</div>
+      ${u.pendentes.length?u.pendentes.map(p=>`<div class="u"><span class="em">${esc(p.nome&&p.nome!==p.email?p.nome+" · ":"")}${esc(p.email)}</span>
+        <span class="quando">${p.quando?new Date(p.quando).toLocaleString("pt-BR"):""}</span>
+        <button class="bt bt-ok" onclick="agir('aprovar','${esc(p.email)}')">✓ Aprovar</button>
+        <button class="bt bt-err" onclick="agir('remover','${esc(p.email)}')">✕ Recusar</button></div>`).join("")
+      :'<div class="muted">Nenhuma solicitação pendente.</div>'}
+    </div>
+    <div class="card"><div class="sec">✅ Submissores aprovados (${u.aprovados.length})</div>
+      ${u.aprovados.length?u.aprovados.map(e=>`<div class="u"><span class="em">${esc(e)}</span><span class="badge b-a">submissor</span>
+        <button class="bt bt-pri" onclick="agir('promover','${esc(e)}')">↑ Tornar gestor</button>
+        <button class="bt bt-err" onclick="agir('remover','${esc(e)}')">✕ Revogar</button></div>`).join("")
+      :'<div class="muted">Nenhum aprovado manualmente (contas @uniego.edu.br não precisam aparecer aqui).</div>'}
+      <div class="add"><input id="novo-email" type="email" placeholder="aprovar e-mail manualmente (ex.: professor@gmail.com)">
+        <button class="bt bt-ok" onclick="agir('aprovar',$('novo-email').value.trim())">＋ Aprovar</button></div>
+    </div>
+    <div class="card"><div class="sec">👑 Gestores PROPPEX (${u.gestores.length})</div>
+      ${u.gestores.map(e=>`<div class="u"><span class="em">${esc(e)}</span><span class="badge b-g">gestor</span>
+        ${u.gestores.length>1?`<button class="bt bt-err" onclick="agir('remover','${esc(e)}')">✕ Remover</button>`:'<span class="muted">único gestor</span>'}</div>`).join("")}
+      <div class="add"><input id="novo-gestor" type="email" placeholder="promover e-mail a gestor">
+        <button class="bt bt-pri" onclick="agir('promover',$('novo-gestor').value.trim())">＋ Tornar gestor</button></div>
+    </div>`;
+}
+fetch("/api/usuarios").then(async r=>{
+  if(!r.ok){$("conteudo").innerHTML="Acesso restrito à PROPPEX.";return;}
+  render(await r.json());
+});
+</script>
+</body>
+</html>

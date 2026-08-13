@@ -20,6 +20,10 @@ services:
         value: drive
       - key: NOTIFY_EMAIL
         value: extensao@uniego.edu.br
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GOOGLE_WEB_CLIENT_ID
+        sync: false
       - key: GDRIVE_OAUTH_CLIENT_ID
         sync: false
       - key: GDRIVE_OAUTH_CLIENT_SECRET
