@@ -242,13 +242,13 @@ function nav(view, id){
 }
 function montarTabs(){
   $("tabs").innerHTML = TABS.map(([v,l])=>`<button class="tab" data-v="${v}" onclick="nav('${v}')">${l}</button>`).join("")
-    + (PROPPEX?'<a class="tab" href="/usuarios/" style="text-decoration:none">Gestão de acessos</a>':"");
+    + (ME?.papel==="gestor"?'<a class="tab" href="/usuarios/" style="text-decoration:none">Gestão de acessos</a>':"");
   if(PROPPEX){ $("titulo").textContent="Extensão — Painel PROPPEX";
     $("subtitulo").textContent="Análise de propostas, emissão do número da ação, apreciação de relatórios e exportações."; }
   if(ME){
     const back=document.querySelector(".top a.back");
     back.insertAdjacentHTML("beforebegin",
-      `<span style="margin-left:auto;font-size:12px;color:#b9d6de">${ME.nome&&ME.nome!==ME.email?ME.nome:ME.email}${PROPPEX?" · gestor":""} · <a href="/auth/sair" style="color:#71c8e2">sair</a></span>`);
+      `<span style="margin-left:auto;font-size:12px;color:#b9d6de">${ME.nome&&ME.nome!==ME.email?ME.nome:ME.email}${ME.papel==="gestor"?" · gestor":ME.papel==="coordenador"?" · coordenador":""} · <a href="/auth/sair" style="color:#71c8e2">sair</a></span>`);
     back.style.marginLeft="14px";
   }
 }
@@ -620,7 +620,7 @@ function exportar(id,tipo){ window.open(`/api/extensao/export/${tipo}/${id}`,"_b
     if(r.status===401){ location.href="/entrar?next="+encodeURIComponent(location.pathname); return; }
     ME = await r.json();
     if(ME.papel==="pendente"){ location.href="/entrar?pendente=1"; return; }
-    PROPPEX = ME.papel==="gestor";
+    PROPPEX = ME.papel==="gestor" || (ME.modulos||[]).includes("extensao");
     if(!PROPPEX && !ME.perfil){ location.href="/perfil/?next="+encodeURIComponent(location.pathname); return; }
   }catch{ /* segue sem sessão (modo dev) */ }
   definirTabs(); montarTabs(); montarForm(); montarFiltros();

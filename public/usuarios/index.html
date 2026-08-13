@@ -50,12 +50,29 @@
 <script>
 const $=(id)=>document.getElementById(id);
 const esc=(s)=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-async function agir(acao,email){
-  const r=await fetch("/api/usuarios",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,email})});
+const MODULOS=[["extensao","Extensão"],["pesquisa","Pesquisa / IC"],["inovacao","Inovação"]];
+const FIXOS=["jadsonbelem@gmail.com","jadson.moura@uniego.edu.br"];
+async function agir(acao,email,modulos){
+  const r=await fetch("/api/usuarios",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,email,modulos})});
   if(!r.ok){alert("Falha: "+((await r.json()).error||r.status));return;}
   render(await r.json());
 }
+function coordenar(email){
+  const marcados=[...document.querySelectorAll(email?`.chk-${cssId(email)}:checked`:".chk-novo:checked")].map(c=>c.value);
+  const e=email||$("coord-email").value.trim();
+  if(!e){alert("Informe o e-mail.");return;}
+  if(!marcados.length){alert("Marque ao menos um módulo.");return;}
+  agir("coordenar",e,marcados);
+}
+const cssId=(e)=>e.replace(/[^a-z0-9]/gi,"_");
+const chips=(mods)=>mods.map(m=>`<span class="badge" style="background:var(--cyan-soft);color:var(--teal)">${(MODULOS.find(x=>x[0]===m)||[m,m])[1]}</span>`).join(" ");
+function checkboxes(cls,marcados=[]){
+  return MODULOS.map(([v,l])=>`<label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;text-transform:none;letter-spacing:0;margin:0 10px 0 0;color:var(--ink)">
+    <input type="checkbox" class="${cls}" value="${v}" ${marcados.includes(v)?"checked":""} style="width:auto"> ${l}</label>`).join("");
+}
 function render(u){
+  const coords=Object.entries(u.coordenadores||{});
+  const conhecidos=[...new Set([...u.aprovados,...u.pendentes.map(p=>p.email),...coords.map(([e])=>e)])];
   $("conteudo").innerHTML=`
     <div class="card"><div class="sec">⏳ Aguardando aprovação (${u.pendentes.length})</div>
       ${u.pendentes.length?u.pendentes.map(p=>`<div class="u"><span class="em">${esc(p.nome&&p.nome!==p.email?p.nome+" · ":"")}${esc(p.email)}</span>
@@ -64,19 +81,34 @@ function render(u){
         <button class="bt bt-err" onclick="agir('remover','${esc(p.email)}')">✕ Recusar</button></div>`).join("")
       :'<div class="muted">Nenhuma solicitação pendente.</div>'}
     </div>
-    <div class="card"><div class="sec">✅ Submissores aprovados (${u.aprovados.length})</div>
-      ${u.aprovados.length?u.aprovados.map(e=>`<div class="u"><span class="em">${esc(e)}</span><span class="badge b-a">submissor</span>
-        <button class="bt bt-pri" onclick="agir('promover','${esc(e)}')">↑ Tornar gestor</button>
+
+    <div class="card"><div class="sec">🧭 Coordenadores — gestão por módulo (${coords.length})</div>
+      <div class="muted" style="margin-bottom:8px">Coordenadores têm painel de gestão apenas nos módulos marcados. Não gerenciam usuários.</div>
+      ${coords.length?coords.map(([e,mods])=>`<div class="u"><span class="em">${esc(e)}</span> ${chips(mods)}
+        <span style="flex-basis:100%"></span>
+        <span>${checkboxes("chk-"+cssId(e),mods)}</span>
+        <button class="bt bt-pri" onclick="coordenar('${esc(e)}')">💾 Atualizar</button>
         <button class="bt bt-err" onclick="agir('remover','${esc(e)}')">✕ Revogar</button></div>`).join("")
-      :'<div class="muted">Nenhum aprovado manualmente (contas @uniego.edu.br não precisam aparecer aqui).</div>'}
-      <div class="add"><input id="novo-email" type="email" placeholder="aprovar e-mail manualmente (ex.: professor@gmail.com)">
+      :'<div class="muted">Nenhum coordenador designado ainda.</div>'}
+      <div class="add" style="align-items:center">
+        <input id="coord-email" list="emails" type="email" placeholder="e-mail do coordenador (dentre os cadastrados)">
+        <datalist id="emails">${conhecidos.map(e=>`<option value="${esc(e)}">`).join("")}</datalist>
+        <span>${checkboxes("chk-novo")}</span>
+        <button class="bt bt-ok" onclick="coordenar()">＋ Designar coordenador</button>
+      </div>
+    </div>
+
+    <div class="card"><div class="sec">✅ Submissores aprovados manualmente (${u.aprovados.length})</div>
+      ${u.aprovados.length?u.aprovados.map(e=>`<div class="u"><span class="em">${esc(e)}</span><span class="badge b-a">submissor</span>
+        <button class="bt bt-err" onclick="agir('remover','${esc(e)}')">✕ Revogar</button></div>`).join("")
+      :'<div class="muted">Nenhum aprovado manualmente (contas @uniego.edu.br entram sozinhas e não precisam aparecer aqui).</div>'}
+      <div class="add"><input id="novo-email" type="email" placeholder="aprovar e-mail externo (ex.: professor@gmail.com)">
         <button class="bt bt-ok" onclick="agir('aprovar',$('novo-email').value.trim())">＋ Aprovar</button></div>
     </div>
-    <div class="card"><div class="sec">👑 Gestores PROPPEX (${u.gestores.length})</div>
-      ${u.gestores.map(e=>`<div class="u"><span class="em">${esc(e)}</span><span class="badge b-g">gestor</span>
-        ${u.gestores.length>1?`<button class="bt bt-err" onclick="agir('remover','${esc(e)}')">✕ Remover</button>`:'<span class="muted">único gestor</span>'}</div>`).join("")}
-      <div class="add"><input id="novo-gestor" type="email" placeholder="promover e-mail a gestor">
-        <button class="bt bt-pri" onclick="agir('promover',$('novo-gestor').value.trim())">＋ Tornar gestor</button></div>
+
+    <div class="card"><div class="sec">👑 Gestores gerais (${u.gestores.length})</div>
+      ${u.gestores.map(e=>`<div class="u"><span class="em">${esc(e)}</span><span class="badge b-g">gestor geral</span>
+        ${FIXOS.includes(e)?'<span class="muted">fixo (PROPPEX)</span>':`<button class="bt bt-err" onclick="agir('remover','${esc(e)}')">✕ Remover</button>`}</div>`).join("")}
     </div>`;
 }
 fetch("/api/usuarios").then(async r=>{
