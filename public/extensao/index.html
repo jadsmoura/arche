@@ -278,8 +278,21 @@ function montarTabs(){
     $("subtitulo").textContent="Análise de propostas, emissão do número da ação, apreciação de relatórios e exportações."; }
   if(ME){
     const back=document.querySelector(".topo-nav a.back");
+    const p=ME.perfil||{};
+    const nome=p.tratamento||p.nome||(ME.nome&&ME.nome!==ME.email?ME.nome:ME.email);
+    const sigla=(()=>{const b=(p.nome||ME.email.split("@")[0].replace(/[._-]/g," ")).trim().split(/\s+/);
+      return ((b[0]||"?")[0]+((b[1]||"")[0]||"")).toUpperCase();})();
+    const avatar=p.foto
+      ? `<img src="${esc(p.foto)}" alt="" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--accent)">`
+      : `<span style="width:30px;height:30px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-family:Archivo,sans-serif;font-size:12px;font-weight:800">${esc(sigla)}</span>`;
     back.insertAdjacentHTML("beforebegin",
-      `<span class="quem">${ME.nome&&ME.nome!==ME.email?ME.nome:ME.email}${ME.papel==="gestor"?" · gestor":ME.papel==="coordenador"?" · coordenador":""} · <button onclick="sair()" style="background:none;border:0;color:var(--brand-2);font:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:0">sair</button></span>`);
+      `<a href="/perfil/" class="quem" title="Meu perfil" style="display:flex;align-items:center;gap:8px;text-decoration:none">
+         ${avatar}
+         <span style="display:flex;flex-direction:column;line-height:1.15">
+           <b style="font-size:12.5px;color:var(--ink)">${esc(nome)}</b>
+           <span style="font-size:10.5px;color:var(--muted)">${ME.papel==="gestor"?"gestor":ME.papel==="coordenador"?"coordenador":"meu perfil"}</span>
+         </span></a>
+       <button onclick="sair()" style="background:none;border:0;color:var(--brand-2);font:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:6px 4px">sair</button>`);
   }
 }
 

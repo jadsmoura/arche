@@ -111,19 +111,82 @@ app.get("/api/me", async (req, res) => {
   res.json({ ...u, perfil: perfis[u.email] || null, temSenha: await temSenha(storage, u.email) });
 });
 
+// Ficha do usuário vinculada à conta (a chave é o e-mail da sessão).
+// Campos livres são limitados no tamanho para não inflar o estado, que é
+// regravado por inteiro a cada gravação.
+const txt = (v, max = 120) => String(v ?? "").trim().slice(0, max);
+
 app.post("/api/perfil", async (req, res) => {
   const u = await usuarioDe(req);
   if (!u) return res.status(401).json({ error: "não autenticado" });
-  const { nome, funcao, curso, telefone, titulacao } = req.body || {};
-  if (!nome || !funcao || !curso) return res.status(400).json({ error: "Preencha nome, função e curso" });
+  const b = req.body || {};
+  if (!txt(b.nome) || !txt(b.funcao) || !txt(b.curso))
+    return res.status(400).json({ error: "Preencha nome, função e curso" });
+
   const perfis = await carregarPerfis();
+  const antes = perfis[u.email] || {};
   perfis[u.email] = {
-    nome: String(nome).trim(), funcao: String(funcao).trim(), curso: String(curso).trim(),
-    telefone: String(telefone || "").trim(), titulacao: String(titulacao || "").trim(),
+    ...antes,
+    // identificação
+    nome: txt(b.nome), tratamento: txt(b.tratamento, 60), titulacao: txt(b.titulacao, 20),
+    // vínculo institucional
+    funcao: txt(b.funcao), curso: txt(b.curso), vinculo: txt(b.vinculo, 40),
+    matricula: txt(b.matricula, 40),
+    // contato
+    telefone: txt(b.telefone, 40), whatsapp: txt(b.whatsapp, 40),
+    emailAlternativo: txt(b.emailAlternativo, 120).toLowerCase(),
+    // currículo
+    lattes: txt(b.lattes, 200), orcid: txt(b.orcid, 40),
+    resumo: txt(b.resumo, 600),
+    // foto é gravada pela rota própria
+    foto: antes.foto || null,
+    email: u.email,
+    criadoEm: antes.criadoEm || new Date().toISOString(),
     atualizadoEm: new Date().toISOString(),
   };
   await storage.set(PERFIS_KEY, JSON.stringify(perfis));
   res.json({ ok: true, perfil: perfis[u.email] });
+});
+
+// Foto do perfil. O navegador já envia a imagem redimensionada; aqui só
+// entram tipos de imagem e um limite de tamanho, e o arquivo vai para o
+// mesmo armazenamento dos demais (Drive em produção).
+app.post("/api/perfil/foto", upload.single("file"), async (req, res) => {
+  try {
+    const u = await usuarioDe(req);
+    if (!u) return res.status(401).json({ error: "não autenticado" });
+    if (!req.file) return res.status(400).json({ error: "Nenhuma imagem enviada" });
+    if (!/^image\/(jpeg|png|webp)$/.test(req.file.mimetype || ""))
+      return res.status(400).json({ error: "Envie uma imagem JPG, PNG ou WEBP" });
+    if (req.file.size > 3 * 1024 * 1024)
+      return res.status(400).json({ error: "Imagem muito grande (máximo 3 MB)" });
+
+    const ext = req.file.mimetype === "image/png" ? "png" : req.file.mimetype === "image/webp" ? "webp" : "jpg";
+    const data = await files.save({
+      buffer: req.file.buffer,
+      originalName: `foto-${slug(u.email)}.${ext}`,
+      prefix: `perfis/${slug(u.email)}`,
+    });
+    const perfis = await carregarPerfis();
+    perfis[u.email] = { ...(perfis[u.email] || {}), email: u.email, foto: data.link,
+      atualizadoEm: new Date().toISOString() };
+    await storage.set(PERFIS_KEY, JSON.stringify(perfis));
+    res.json({ ok: true, foto: data.link });
+  } catch (e) {
+    console.error("Erro ao gravar a foto do perfil:", e);
+    res.status(500).json({ error: e.message || "Não foi possível gravar a foto" });
+  }
+});
+
+app.delete("/api/perfil/foto", async (req, res) => {
+  const u = await usuarioDe(req);
+  if (!u) return res.status(401).json({ error: "não autenticado" });
+  const perfis = await carregarPerfis();
+  if (perfis[u.email]) {
+    perfis[u.email] = { ...perfis[u.email], foto: null, atualizadoEm: new Date().toISOString() };
+    await storage.set(PERFIS_KEY, JSON.stringify(perfis));
+  }
+  res.json({ ok: true });
 });
 
 app.post("/auth/google", async (req, res) => {
