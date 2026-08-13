@@ -376,7 +376,6 @@ const IC = {
   acoes:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M9 13h6M9 17h4"></path>',
   nova:'<path d="M12 5v14M5 12h14"></path>',
   relatorios:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M9 13h6M9 17h6"></path>',
-  certificacao:'<circle cx="12" cy="9" r="6"></circle><path d="M8.5 14.5L7 22l5-2.5L17 22l-1.5-7.5"></path>',
   cobrancas:'<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"></path>',
   acessos:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path>',
 };
@@ -384,15 +383,13 @@ const icone = (p)=>`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" 
 
 const SECOES = [
   {k:"painel",       rot:"Painel",         ic:IC.painel,       tit:"Painel",
-   sub:"Visão geral das ações de extensão — submissões, relatórios e certificação."},
+   sub:"Visão geral das ações de extensão — submissões, andamento e relatórios."},
   {k:"acoes",        rot:"Propostas",      ic:IC.acoes,        tit:"Propostas",
    sub:"Todas as ações de extensão submetidas, com filtros por curso e situação."},
   {k:"nova",         rot:"Nova proposta",  ic:IC.nova,         tit:"Nova proposta de extensão",
    sub:"Preencha os dados da ação. Após a aprovação, ela recebe o Número da Ação."},
   {k:"relatorios",   rot:"Relatórios",     ic:IC.relatorios,   tit:"Relatórios finais",
    sub:"Ações encerradas: acompanhe o que está pendente e o que já foi entregue."},
-  {k:"certificacao", rot:"Certificação",   ic:IC.certificacao, tit:"Certificação",
-   sub:"Ações completas (proposta · relatório · participantes), prontas para emissão de certificados."},
   {k:"cobrancas",    rot:"Cobranças",      ic:IC.cobrancas,    tit:"Cobrança automática de relatórios",
    sub:"Lembretes enviados aos responsáveis um dia após o encerramento da ação.", gestao:true},
 ];
@@ -421,7 +418,6 @@ function montarSidebar(){
 // Relatórios e Certificação reaproveitam a lista, com recorte próprio.
 function passaPreset(a){
   if(SECAO==="relatorios") return ["pendente","relatorio-entregue"].includes(statusReal(a));
-  if(SECAO==="certificacao") return completude(a).completa;
   return true;
 }
 
@@ -472,7 +468,7 @@ function renderPainel(){
     ${kpi("Aguardando análise", aguardando, aguardando?"exigem parecer da PROPPEX":"nada na fila", aguardando?"var(--info)":"var(--ok)")}
     ${kpi("Aprovadas / em andamento", ativas, "com número de ação", "var(--muted)")}
     ${kpi("Relatórios pendentes", pendentes, pendentes?"ação encerrada sem relatório":"em dia", pendentes?"var(--warn)":"var(--ok)")}
-    ${kpi("Prontas para certificar", completas, "fluxo 3/3 completo", completas?"var(--ok)":"var(--muted)")}
+    ${kpi("Ações completas", completas, "proposta · relatório · participantes", completas?"var(--ok)":"var(--muted)")}
   </div>`;
 
   const ordem = ["submetida","devolvida","aprovada","pendente","relatorio-entregue","registrada"];
@@ -519,7 +515,7 @@ function renderPainel(){
   const fluxo = etapa("Proposta submetida", aguardando, "#40717e", "aguardando análise da PROPPEX")
     + etapa("Aprovada", ativas, "#3f8a5d", "com número EXT-AAAA-NNN, em execução")
     + etapa("Relatório final", (st["relatorio-entregue"]||0)+pendentes, "#c98a2b", `${pendentes} pendente(s) · ${st["relatorio-entregue"]||0} entregue(s)`)
-    + etapa("Certificação", completas, "#5e5091", "participantes lançados, prontas para certificar")
+    + etapa("Lista de participantes", completas, "#5e5091", "planilha recolhida no relatório final")
     + etapa("Registrada", st["registrada"]||0, "#a9b4c0", "ciclo encerrado");
 
   // atividade recente a partir das próprias datas das ações
@@ -562,7 +558,7 @@ function renderPainel(){
     <div class="duplo">
       <div class="card">
         <div class="card-t">Fluxo da extensão</div>
-        <div class="card-s">Etapas do ciclo: proposta → aprovação → relatório → certificação</div>
+        <div class="card-s">Etapas do ciclo: proposta → aprovação → relatório → participantes</div>
         ${fluxo}
       </div>
       <div class="card">
@@ -742,7 +738,7 @@ function renderDetalhe(id){
   html += marcas(a) + '<div style="margin-bottom:10px"></div>';
   const c3 = completude(a);
   if(PROPPEX && c3.completa && s==="relatorio-entregue")
-    html += `<div class="banner ba-ok">🎓 <b>3/3 completa — pronta para certificação.</b> Emita os certificados no sistema da instituição (use a planilha exportada) e depois finalize o fluxo abaixo.</div>`;
+    html += `<div class="banner ba-ok">✅ <b>Ação completa (3/3).</b> A lista de participantes está recolhida — exporte a planilha para emitir os certificados no sistema da instituição e depois finalize o fluxo abaixo.</div>`;
   if(s==="devolvida" && a.motivoDevolucao)
     html += `<div class="banner ba-err">↩ Devolvida para ajustes: ${esc(a.motivoDevolucao)}</div>`;
   if(s==="pendente" && !PROPPEX)
@@ -811,7 +807,7 @@ function renderDetalhe(id){
     </div>`;
 
     /* ---- participantes ---- */
-    html += `<div class="card"><div class="sec-t">Participantes para certificação</div>
+    html += `<div class="card"><div class="sec-t">Lista de participantes</div>
       <details class="tut">
         <summary>📋 Como colar a lista do Excel corretamente (leia antes)</summary>
         <ol>
@@ -830,7 +826,7 @@ function renderDetalhe(id){
       </details>
       <label>Categoria da lista que você vai colar</label>
       <select id="p-cat" style="max-width:340px">
-        <option value="inscritos">Inscritos / participantes (aptos a certificado)</option>
+        <option value="inscritos">Inscritos / participantes</option>
         <option value="palestrantes">Palestrantes / ministrantes</option>
         <option value="comissao">Comissão organizadora</option>
       </select>
