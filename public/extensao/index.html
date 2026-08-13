@@ -205,12 +205,33 @@ async function stSet(chave, valor){
     body:JSON.stringify({chave, valor})});
   if(!r.ok) throw new Error("Falha ao salvar");
 }
-async function carregar(){ const v = await stGet(KEY); ACOES = v?JSON.parse(v):[]; }
+async function carregar(){
+  const v = await stGet(KEY);
+  ACOES = v?JSON.parse(v):[];
+  // normaliza registros antigos/importados: sem isso, uma ação sem o bloco de
+  // participantes quebra a tela de detalhe ao renderizar as listas
+  for(const a of ACOES){
+    a.proposta = a.proposta || {};
+    a.relatorio = a.relatorio || {};
+    const p = a.participantes || (a.participantes = {});
+    p.inscritos = p.inscritos || []; p.palestrantes = p.palestrantes || []; p.comissao = p.comissao || [];
+  }
+}
 async function salvar(){ await stSet(KEY, JSON.stringify(ACOES)); }
 
 const $ = (id)=>document.getElementById(id);
 const esc = (s)=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const hojeISO = ()=>new Date().toISOString().slice(0,10);
+// Data de hoje no fuso institucional (America/Sao_Paulo). Com toISOString()
+// o dia virava às 21h de Brasília e a tela marcava "Relatório pendente" um dia
+// antes da cobrança automática enviada pelo servidor.
+const hojeISO = ()=>{
+  try{
+    return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",
+      year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  }catch{
+    return new Date(Date.now()-3*3600*1000).toISOString().slice(0,10);
+  }
+};
 function statusReal(a){
   if(a.status==="aprovada" && a.proposta?.periodoFim && a.proposta.periodoFim < hojeISO()) return "pendente";
   return a.status;
@@ -479,7 +500,8 @@ function renderDetalhe(id){
         <button class="bt bt-sec" onclick="exportar('${a.id}','certificados')">📊 Planilha de Certificados (.xlsx)</button>
         <button class="bt bt-sec" onclick="exportar('${a.id}','pdf')">🖨 Relatório Final em PDF (timbrado)</button>`;
       if(!lock) html += `<button class="bt bt-pri" onclick="salvarApreciacao('${a.id}')">💾 Salvar apreciação</button>
-        <button class="bt bt-ok" onclick="registrarAcao('${a.id}')">🎓 Certificados emitidos — Finalizar (Registrada)</button>`;
+        <button class="bt bt-ok" onclick="registrarAcao('${a.id}')">🎓 Certificados emitidos — Finalizar (Registrada)</button>
+        <button class="bt bt-ghost" onclick="dispensarCobranca('${a.id}')" title="O responsável deixa de receber o lembrete automático do relatório final">🔕 Dispensar cobrança automática</button>`;
     }
     html += `</div>`;
     if(PROPPEX) html += `<label>Apreciação da Coordenadoria de Extensão</label>
@@ -657,12 +679,15 @@ async function aprovar(id){
   const a=ACOES.find(x=>x.id===id); if(!a)return;
   if(!confirm(`Aprovar a proposta "${a.proposta.nomeAtividade}" e emitir o Número da Ação?`)) return;
   const cfgRaw=await stGet(KEYCFG);
-  const ano=new Date().getFullYear();
+  // ano pelo calendário de Brasília: aprovar em 31/12 à noite não pode emitir
+  // número do ano seguinte (e zerar a sequência antes da hora)
+  const ano=Number(hojeISO().slice(0,4));
   let cfg=cfgRaw?JSON.parse(cfgRaw):{ano,seq:0};
   if(cfg.ano!==ano){cfg={ano,seq:0};}
   cfg.seq++;
   a.numeroAcao=`EXT-${ano}-${String(cfg.seq).padStart(3,"0")}`;
   a.status="aprovada"; a.motivoDevolucao=""; a.atualizadoEm=new Date().toISOString();
+  a.aprovadoEm=new Date().toISOString();   // base da cobrança do relatório
   await stSet(KEYCFG, JSON.stringify(cfg)); await salvar();
   alert(`✅ Aprovada!\nNúmero da Ação: ${a.numeroAcao}`); renderLista(); renderDetalhe(id);
 }
@@ -686,6 +711,18 @@ async function registrarAcao(id){
   await salvar(); renderLista(); renderDetalhe(id);
 }
 function exportar(id,tipo){ window.open(`/api/extensao/export/${tipo}/${id}`,"_blank"); }
+
+/* --------- cobrança automática do relatório final (visão PROPPEX) -------- */
+async function dispensarCobranca(id){
+  const a=ACOES.find(x=>x.id===id); if(!a) return;
+  if(!confirm(`Dispensar a cobrança automática do relatório de "${a.proposta.nomeAtividade}"?\n\nO responsável deixa de receber o lembrete por e-mail. Use quando o relatório já foi entregue por outro meio, o evento foi cancelado ou o professor não está mais na instituição.`)) return;
+  try{
+    const r=await fetch("/api/extensao/cobranca/dispensar",{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+    if(!r.ok) throw new Error((await r.json()).error||r.status);
+    alert("🔕 Cobrança automática dispensada para esta ação.");
+  }catch(e){ alert("Não foi possível dispensar: "+e.message); }
+}
 
 /* ============================== INIT ==================================== */
 (async function init(){

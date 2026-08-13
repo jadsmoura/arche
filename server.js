@@ -8,10 +8,12 @@
 import "dotenv/config";
 import express from "express";
 import multer from "multer";
+import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getStorage } from "./lib/storage.js";
 import { getFiles, slug } from "./lib/files.js";
+import { varrer, varrerSeVencido, dispensar, situacao } from "./lib/cobranca.js";
 import {
   lerSessao, emitirCookie, limparCookie, carregarUsuarios, salvarUsuarios,
   papelDe, modulosDe, MODULOS, verificarGoogle, criarCodigo, verificarCodigo,
@@ -66,6 +68,14 @@ async function exigirGestao(req, res, modulo) {
   }
   return u;
 }
+
+// Gatilho oportunista das tarefas de fundo: o plano free hiberna, então o
+// tráfego do portal é o que garante que a cobrança de relatórios rode mesmo
+// depois de o processo dormir. Não bloqueia a requisição (sem await).
+app.use((_req, _res, next) => {
+  next();
+  varrerSeVencido(storage, "trafego");
+});
 
 // Setores de gestão exigem login (Avaliação Institucional continua aberta).
 const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|usuarios)(\/|$)/;
@@ -216,10 +226,15 @@ function cursoFrom(req) {
 }
 
 /* ------------------------------- ESTADO --------------------------------- */
+// Chaves internas do servidor: invisíveis e não graváveis pela API pública.
+// "auth-*" guarda sessão/usuários; "sys-*", registros operacionais (ex.: quais
+// ações já receberam cobrança de relatório).
+const CHAVES_INTERNAS = /^(auth-|sys-)/;
+
 app.get("/api/estado", async (req, res) => {
   try {
     const chave = stateKey(req);
-    if (chave.startsWith("auth-")) return res.status(404).json({ error: "nf" });
+    if (CHAVES_INTERNAS.test(chave)) return res.status(404).json({ error: "nf" });
     const valor = await storage.get(chave);
     if (valor === null) return res.status(404).json({ error: "nf" });
     res.json({ key: chave, value: valor });
@@ -232,8 +247,8 @@ app.get("/api/estado", async (req, res) => {
 // e aprovado (as da Avaliação Institucional continuam abertas).
 const CHAVES_PROTEGIDAS = /^(extensao-|pesquisa-|inovacao-|auth-usuarios)/;
 async function podeEscrever(req, chave) {
+  if (CHAVES_INTERNAS.test(chave)) return false; // só o próprio servidor grava
   if (!CHAVES_PROTEGIDAS.test(chave)) return true;
-  if (chave.startsWith("auth-")) return false; // só via /api/usuarios
   const u = await usuarioDe(req);
   return !!u && u.papel !== "pendente";
 }
@@ -250,11 +265,15 @@ app.put("/api/estado", async (req, res) => {
   }
 });
 
+// sendBeacon do dossiê (envia os cookies da sessão): passa pelas mesmas regras
+// de escrita do PUT — sem isso, qualquer requisição anônima gravaria em
+// qualquer chave, inclusive as dos setores de gestão.
 app.post("/api/estado-beacon", async (req, res) => {
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const chave = String(body?.chave || "").trim();
     if (!chave) return res.status(400).end();
+    if (!(await podeEscrever(req, chave))) return res.status(403).end();
     await storage.set(chave, body.valor);
     res.status(204).end();
   } catch {
@@ -277,7 +296,7 @@ app.delete("/api/estado", async (req, res) => {
 app.get("/api/estado/list", async (req, res) => {
   try {
     const keys = (await storage.list(String(req.query.prefixo || "")))
-      .filter((k) => !k.startsWith("auth-"));
+      .filter((k) => !CHAVES_INTERNAS.test(k));
     res.json({ keys });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -422,6 +441,47 @@ app.post("/api/extensao/anexo", upload.single("file"), async (req, res) => {
   }
 });
 
+/* ------------- EXTENSÃO: COBRANÇA DO RELATÓRIO FINAL (D+1) -------------- */
+// A rotina roda sozinha (no boot, por tráfego e de hora em hora). O endpoint
+// abaixo existe para quem quiser um horário fixo via cron externo — protegido
+// por COBRANCA_TOKEN e respondendo 404 sem token, para não anunciar a rota.
+function tokenCobrancaOk(req) {
+  const esperado = String(process.env.COBRANCA_TOKEN || "");
+  const dado = String(req.get("x-cobranca-token") || req.query.token || "");
+  if (!esperado || dado.length !== esperado.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(dado), Buffer.from(esperado));
+}
+
+app.all("/api/extensao/cobranca/varrer", (req, res) => {
+  if (!tokenCobrancaOk(req)) return res.status(404).end();
+  // responde antes de varrer: o cold start do plano free estoura o timeout do cron
+  res.status(202).json({ ok: true, iniciada: true });
+  varrer({ storage, motivo: "cron", dry: req.query.dry === "1", force: req.query.force === "1" })
+    .catch((e) => console.error("[cobranca] falha no gatilho externo:", e.message));
+});
+
+// Prévia: mostra à PROPPEX o que seria cobrado, sem enviar nada.
+app.get("/api/extensao/cobranca/previa", async (req, res) => {
+  if (!(await exigirGestao(req, res, "extensao"))) return;
+  try {
+    res.json(await varrer({ storage, motivo: "previa", dry: true }));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/extensao/cobranca/situacao", async (req, res) => {
+  if (!(await exigirGestao(req, res, "extensao"))) return;
+  res.json(await situacao(storage));
+});
+
+app.post("/api/extensao/cobranca/dispensar", async (req, res) => {
+  const g = await exigirGestao(req, res, "extensao"); if (!g) return;
+  const id = String(req.body?.id || "").trim();
+  if (!id) return res.status(400).json({ error: "informe a ação" });
+  res.json({ ok: true, registro: await dispensar(storage, id, g.email) });
+});
+
 /* ------------------------- EXTENSÃO: EXPORTS ---------------------------- */
 app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
   try {
@@ -484,6 +544,28 @@ app.get("/api/files/*", async (req, res) => {
 
 /* ------------------------------- ESTÁTICO ------------------------------- */
 app.use(express.static(PUBLIC));
-app.listen(port, () =>
-  console.log(`ARCHÉ disponível em http://localhost:${port}/`),
-);
+
+/* --------------------- ENCERRAMENTO E TAREFAS DE FUNDO ------------------- */
+// O Render hiberna o serviço no plano free: sem este flush, qualquer gravação
+// feita nos instantes anteriores ao desligamento morre em memória.
+for (const sinal of ["SIGTERM", "SIGINT"]) {
+  process.on(sinal, async () => {
+    try {
+      await storage.flush?.();
+      console.log("ARCHÉ · estado gravado antes de encerrar");
+    } catch (e) {
+      console.error("Falha ao gravar o estado no encerramento:", e.message);
+    } finally {
+      process.exit(0);
+    }
+  });
+}
+
+app.listen(port, () => {
+  console.log(`ARCHÉ disponível em http://localhost:${port}/`);
+  // Cobrança do relatório final: varre ao acordar e de hora em hora enquanto
+  // o processo estiver vivo. O tráfego do portal também dispara (com throttle),
+  // o que cobre as hibernações do plano free.
+  setTimeout(() => varrerSeVencido(storage, "boot"), 20_000).unref();
+  setInterval(() => varrerSeVencido(storage, "intervalo"), 60 * 60 * 1000).unref();
+});

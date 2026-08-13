@@ -20,6 +20,19 @@ services:
         value: drive
       - key: NOTIFY_EMAIL
         value: extensao@uniego.edu.br
+      - key: TZ
+        value: America/Sao_Paulo
+      # Cobrança automática do relatório final (D+1 do fim do evento).
+      # Já nasce ligada; para congelar sem novo deploy, troque para "false".
+      - key: COBRANCA_ATIVA
+        value: "true"
+      - key: COBRANCA_JANELA_DIAS
+        value: "30"
+      - key: COBRANCA_MAX_EMAILS
+        value: "10"
+      # Token do gatilho externo opcional (cron). Gerado pelo Render.
+      - key: COBRANCA_TOKEN
+        generateValue: true
       - key: SESSION_SECRET
         generateValue: true
       - key: GOOGLE_WEB_CLIENT_ID
