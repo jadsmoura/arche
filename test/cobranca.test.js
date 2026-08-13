@@ -349,6 +349,65 @@ test("prévia mostra o que seria cobrado sem enviar nem gravar", async () => {
   assert.equal(st.dados[LEDGER_KEY], antes, "prévia não altera o registro");
 });
 
+/* --------- regressões dos achados da revisão adversarial ---------------- */
+test("ação aprovada depois da estreia é cobrada mesmo se o evento terminou antes", () => {
+  const cfg = lerConfig(ENV);
+  // rotina estreou em 12/08; evento terminou em 10/08 mas só foi aprovado em 13/08
+  const ledger = { acoes: {}, inicio: "2026-08-12" };
+  const a = acao({
+    aprovadoEm: "2026-08-13T12:00:00Z",
+    proposta: { periodoInicio: "2026-08-05", periodoFim: "2026-08-10" },
+  });
+  const sel = selecionar([a], { hoje: "2026-08-15", ledger, cfg });
+  assert.equal(sel.alvos.length, 1, "o corte vale sobre a data-base, não sobre o fim do evento");
+  assert.equal(sel.alvos[0].dias, 5, "o e-mail informa os dias desde o fim do evento");
+});
+
+test("registro em enviando NÃO é reenviado (queda após o envio não duplica cobrança)", () => {
+  const cfg = lerConfig(ENV);
+  const ledger = { inicio: null, acoes: { "ext-x": {
+    dispensadaEm: null, envios: { d1: { status: "enviando", tentativas: 1, em: "2026-08-14T12:00:00Z" } } } } };
+  const a = acao({ id: "ext-x", proposta: { periodoFim: "2026-08-12" } });
+  assert.equal(selecionar([a], { hoje: "2026-08-15", ledger, cfg }).alvos.length, 0);
+});
+
+test("id malicioso não polui o prototype do registro", () => {
+  const cfg = lerConfig(ENV);
+  const a = acao({ id: "__proto__", proposta: { periodoFim: "2026-08-12" } });
+  const sel = selecionar([a], { hoje: "2026-08-15", ledger: { acoes: {}, inicio: null }, cfg });
+  assert.equal(sel.alvos.length, 0);
+  assert.equal({}.dispensadaEm, undefined);
+});
+
+test("prévia não bloqueia nem sequestra a rodada real", async () => {
+  const st = await comBackfillFeito([]);
+  st.dados[ACOES_KEY] = JSON.stringify([acao({ proposta: { periodoFim: "2026-08-16" } })]);
+  const quando = new Date("2026-08-18T12:00:00Z");
+  const enviar = coletor();
+  const [previa, real] = await Promise.all([
+    varrer({ storage: st, agora: quando, enviar, env: ENV, dry: true }),
+    varrer({ storage: st, agora: quando, enviar, env: ENV, force: true }),
+  ]);
+  assert.equal(previa.modo, "previa");
+  assert.equal(real.modo, "cobranca", "a rodada real não virou no-op por causa da prévia");
+  assert.equal(enviar.cobrancas().length, 1);
+});
+
+test("pendência sem e-mail é relatada uma vez, não a cada rodada", async () => {
+  const st = await comBackfillFeito([]);
+  const semEmail = acao({ id: "sem", criadoPor: "", proposta: { periodoFim: "2026-08-16", respEmail: "invalido" } });
+  st.dados[ACOES_KEY] = JSON.stringify([semEmail]);
+  const quando = new Date("2026-08-18T12:00:00Z");
+
+  const e1 = coletor();
+  await varrer({ storage: st, agora: quando, enviar: e1, env: ENV, force: true });
+  assert.equal(e1.enviados.length, 1, "a PROPPEX é avisada da pendência");
+
+  const e2 = coletor();
+  await varrer({ storage: st, agora: quando, enviar: e2, env: ENV, force: true });
+  assert.equal(e2.enviados.length, 0, "e não é avisada de novo na rodada seguinte");
+});
+
 test("relógio implausível aborta a rodada", async () => {
   const st = await comBackfillFeito([]);
   const enviar = coletor();

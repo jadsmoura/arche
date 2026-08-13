@@ -329,6 +329,14 @@ app.get("/api/estado", async (req, res) => {
   try {
     const chave = stateKey(req);
     if (CHAVES_INTERNAS.test(chave)) return res.status(404).json({ error: "nf" });
+    // Os setores de gestão guardam dados pessoais (e-mail, telefone e CPF de
+    // participantes): a LEITURA também exige sessão. As chaves da Avaliação
+    // Institucional continuam abertas, como manda a regra do projeto.
+    if (CHAVES_PROTEGIDAS.test(chave)) {
+      const u = await usuarioDe(req);
+      if (!u || u.papel === "pendente")
+        return res.status(403).json({ error: "Faça login para acessar este setor" });
+    }
     const valor = await storage.get(chave);
     if (valor === null) return res.status(404).json({ error: "nf" });
     res.json({ key: chave, value: valor });
@@ -486,7 +494,10 @@ app.post("/api/extensao/notificar", async (req, res) => {
     // confirmação ao responsável, com a mesma cópia em PDF
     let paraResponsavel = null;
     const confirmacao = emailConfirmacaoProposta(acao);
-    if (confirmacao.para && confirmacao.para.toLowerCase() !== destino.toLowerCase()) {
+    // e-mail inválido cairia no destinatário padrão e a PROPPEX receberia uma
+    // mensagem escrita para o professor
+    const paraValido = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(confirmacao.para || "").trim());
+    if (paraValido && confirmacao.para.toLowerCase() !== destino.toLowerCase()) {
       try {
         paraResponsavel = await enviarEmail({ ...confirmacao, anexos });
       } catch (e) {
@@ -540,10 +551,13 @@ app.post("/api/extensao/anexo", upload.single("file"), async (req, res) => {
 // abaixo existe para quem quiser um horário fixo via cron externo — protegido
 // por COBRANCA_TOKEN e respondendo 404 sem token, para não anunciar a rota.
 function tokenCobrancaOk(req) {
-  const esperado = String(process.env.COBRANCA_TOKEN || "");
-  const dado = String(req.get("x-cobranca-token") || req.query.token || "");
-  if (!esperado || dado.length !== esperado.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(dado), Buffer.from(esperado));
+  try {
+    const esperado = Buffer.from(String(process.env.COBRANCA_TOKEN || ""));
+    const dado = Buffer.from(String(req.get("x-cobranca-token") || req.query.token || ""));
+    // comparar o tamanho em BYTES: caractere multibyte quebraria timingSafeEqual
+    if (!esperado.length || dado.length !== esperado.length) return false;
+    return crypto.timingSafeEqual(dado, esperado);
+  } catch { return false; }
 }
 
 app.all("/api/extensao/cobranca/varrer", (req, res) => {
