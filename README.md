@@ -97,3 +97,5 @@ Para os uploads irem direto para uma pasta do seu Google Drive:
 | `POST /api/drive/upload-avaliacao` | Upload de comprovante de indicador |
 | `POST /api/drive/upload-doc-institucional` | Upload de documento institucional |
 | `GET /api/files/*` | Recuperar arquivo (stream/redirect) |
+
+Portal oficial: https://arche.app.br
