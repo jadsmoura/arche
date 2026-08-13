@@ -257,6 +257,15 @@ function montarTabs(){
 function montarForm(){
   $("f-curso").innerHTML = '<option value="">Selecione…</option>'+CURSOS.map(c=>`<option>${c}</option>`).join("");
   $("f-class").onchange = ()=>$("f-class-outro-w").classList.toggle("hide",$("f-class").value!=="Outro");
+  // pré-preenche com o perfil do usuário logado
+  const p = ME?.perfil;
+  if(p){
+    $("f-curso").value = p.curso || "";
+    $("f-resp-nome").value = p.nome || "";
+    $("f-resp-cargo").value = p.funcao || "";
+    $("f-resp-tel").value = p.telefone || "";
+  }
+  if(ME?.email) $("f-resp-email").value = ME.email;
 }
 async function enviarProposta(){
   const obr = [["f-curso","curso"],["f-nome","nome da atividade"],["f-inicio","início"],["f-fim","término"],
@@ -270,6 +279,7 @@ async function enviarProposta(){
   ACOES.push({
     id:"ext-"+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
     numeroAcao:null, status:"submetida", curso:$("f-curso").value,
+    criadoPor: ME?.email || "", criadoPorNome: ME?.perfil?.nome || ME?.nome || "",
     criadoEm:new Date().toISOString(), atualizadoEm:new Date().toISOString(),
     proposta:{
       nomeAtividade:$("f-nome").value.trim(), classificacao:$("f-class").value,
@@ -304,13 +314,18 @@ function montarFiltros(){
   $("l-curso").innerHTML = '<option value="">Todos os cursos</option>'+CURSOS.map(c=>`<option>${c}</option>`).join("");
   $("l-curso").onchange = renderLista; $("l-status").onchange = renderLista;
 }
+function minhas(){
+  // gestor vê tudo; submissor vê só as ações vinculadas ao seu e-mail
+  return PROPPEX ? ACOES : ACOES.filter(a=>a.criadoPor && a.criadoPor===ME?.email);
+}
 function renderLista(){
   const fc=$("l-curso").value, fs=$("l-status").value;
+  const universo = minhas();
   const st = {};
-  for(const a of ACOES){ const s=statusReal(a); st[s]=(st[s]||0)+1; }
+  for(const a of universo){ const s=statusReal(a); st[s]=(st[s]||0)+1; }
   $("stats").innerHTML = ["submetida","aprovada","pendente","relatorio-entregue","registrada"]
     .map(s=>`<div class="s"><b>${st[s]||0}</b><span>${STATUS_LABEL[s]}</span></div>`).join("");
-  const list = ACOES.filter(a=>(!fc||a.curso===fc)&&(!fs||statusReal(a)===fs))
+  const list = universo.filter(a=>(!fc||a.curso===fc)&&(!fs||statusReal(a)===fs))
     .sort((a,b)=>(b.criadoEm||"").localeCompare(a.criadoEm||""));
   $("lista").innerHTML = list.length ? list.map(a=>{
     const s=statusReal(a);
@@ -324,7 +339,8 @@ const fmt=(iso)=>iso?iso.split("-").reverse().join("/"):"—";
 /* ============================== DETALHE ================================= */
 function renderDetalhe(id){
   const a = ACOES.find(x=>x.id===id);
-  if(!a){ $("v-detalhe").innerHTML='<div class="card">Ação não encontrada.</div>'; return; }
+  if(!a || (!PROPPEX && a.criadoPor!==ME?.email)){
+    $("v-detalhe").innerHTML='<div class="card">Ação não encontrada.</div>'; return; }
   const s = statusReal(a), p=a.proposta, r=a.relatorio||{};
   const podeRelatorio = ["aprovada","pendente","relatorio-entregue","devolvida"].includes(s) && a.numeroAcao;
   let html = `<div class="card">
@@ -333,7 +349,7 @@ function renderDetalhe(id){
       <span class="badge b-${s}">${STATUS_LABEL[s]}</span>
       ${a.numeroAcao?`<span class="badge" style="background:var(--teal);color:#fff">Ação ${a.numeroAcao}</span>`:""}
     </div>
-    <div class="muted" style="margin:4px 0 12px">${esc(a.curso)} · ${fmt(p.periodoInicio)} a ${fmt(p.periodoFim)} · ${esc(p.cargaHoraria)}h · ${esc(p.local)} (${esc(p.municipio)})</div>`;
+    <div class="muted" style="margin:4px 0 12px">${esc(a.curso)} · ${fmt(p.periodoInicio)} a ${fmt(p.periodoFim)} · ${esc(p.cargaHoraria)}h · ${esc(p.local)} (${esc(p.municipio)})${a.criadoPor?` · submetida por ${esc(a.criadoPorNome||a.criadoPor)} &lt;${esc(a.criadoPor)}&gt;`:""}</div>`;
 
   if(s==="devolvida" && a.motivoDevolucao)
     html += `<div class="banner ba-err">↩ Devolvida para ajustes: ${esc(a.motivoDevolucao)}</div>`;
@@ -605,6 +621,7 @@ function exportar(id,tipo){ window.open(`/api/extensao/export/${tipo}/${id}`,"_b
     ME = await r.json();
     if(ME.papel==="pendente"){ location.href="/entrar?pendente=1"; return; }
     PROPPEX = ME.papel==="gestor";
+    if(!PROPPEX && !ME.perfil){ location.href="/perfil/?next="+encodeURIComponent(location.pathname); return; }
   }catch{ /* segue sem sessão (modo dev) */ }
   definirTabs(); montarTabs(); montarForm(); montarFiltros();
   await carregar(); renderLista(); nav("acoes");

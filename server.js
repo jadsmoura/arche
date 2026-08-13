@@ -14,7 +14,7 @@ import { getStorage } from "./lib/storage.js";
 import { getFiles, slug } from "./lib/files.js";
 import {
   lerSessao, emitirCookie, limparCookie, carregarUsuarios, salvarUsuarios,
-  papelDe, verificarGoogle, criarLinkMagico, consumirLinkMagico,
+  papelDe, verificarGoogle, criarCodigo, verificarCodigo,
 } from "./lib/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -68,10 +68,32 @@ app.use(async (req, res, next) => {
 
 app.get("/api/authcfg", (_req, res) => res.json({ googleClientId: process.env.GOOGLE_WEB_CLIENT_ID || null }));
 
+const PERFIS_KEY = "auth-perfis-v1";
+async function carregarPerfis() {
+  const raw = await storage.get(PERFIS_KEY);
+  return raw ? JSON.parse(raw) : {};
+}
+
 app.get("/api/me", async (req, res) => {
   const u = await usuarioDe(req);
   if (!u) return res.status(401).json({ error: "não autenticado" });
-  res.json(u);
+  const perfis = await carregarPerfis();
+  res.json({ ...u, perfil: perfis[u.email] || null });
+});
+
+app.post("/api/perfil", async (req, res) => {
+  const u = await usuarioDe(req);
+  if (!u) return res.status(401).json({ error: "não autenticado" });
+  const { nome, funcao, curso, telefone, titulacao } = req.body || {};
+  if (!nome || !funcao || !curso) return res.status(400).json({ error: "Preencha nome, função e curso" });
+  const perfis = await carregarPerfis();
+  perfis[u.email] = {
+    nome: String(nome).trim(), funcao: String(funcao).trim(), curso: String(curso).trim(),
+    telefone: String(telefone || "").trim(), titulacao: String(titulacao || "").trim(),
+    atualizadoEm: new Date().toISOString(),
+  };
+  await storage.set(PERFIS_KEY, JSON.stringify(perfis));
+  res.json({ ok: true, perfil: perfis[u.email] });
 });
 
 app.post("/auth/google", async (req, res) => {
@@ -91,45 +113,42 @@ app.post("/auth/google", async (req, res) => {
   }
 });
 
-app.post("/auth/magic", async (req, res) => {
+app.post("/auth/codigo", async (req, res) => {
   try {
     const email = String(req.body?.email || "").trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ ok: false, error: "E-mail inválido" });
-    const next = String(req.body?.next || "/");
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const link = (await criarLinkMagico(storage, email, baseUrl)) + "&next=" + encodeURIComponent(next);
+    const codigo = await criarCodigo(storage, email);
     const { enviarEmail } = await import("./lib/mailer.js");
     await enviarEmail({
       para: email,
-      assunto: "Seu link de acesso ao ARCHÉ",
-      corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:520px">
+      assunto: `${codigo} é o seu código de acesso ao ARCHÉ`,
+      corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:480px">
         <h2 style="color:#1c3742">Acesso ao ARCHÉ · PROPPEX</h2>
-        <p>Clique no botão abaixo para entrar. O link vale por <b>20 minutos</b>.</p>
-        <p><a href="${link}" style="background:#1c3742;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:700">Entrar no ARCHÉ</a></p>
+        <p>Use o código abaixo na tela de acesso. Ele vale por <b>10 minutos</b>.</p>
+        <p style="font-size:36px;font-weight:800;letter-spacing:8px;color:#1c3742;background:#e8f4f8;
+          border-radius:10px;padding:16px 20px;text-align:center">${codigo}</p>
         <p style="color:#5b7280;font-size:12px">Se você não solicitou este acesso, ignore este e-mail.</p></div>`,
     });
     res.json({ ok: true });
   } catch (e) {
-    console.error("magic:", e.message);
+    console.error("codigo:", e.message);
     res.status(500).json({ ok: false, error: "Falha ao enviar o e-mail" });
   }
 });
 
-app.get("/auth/magic/cb", async (req, res) => {
-  const email = await consumirLinkMagico(storage, req.query.t);
-  if (!email) return res.redirect("/entrar?erro=expirado");
+app.post("/auth/codigo/verificar", async (req, res) => {
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  const okCodigo = await verificarCodigo(storage, email, req.body?.codigo);
+  if (!okCodigo) return res.status(400).json({ ok: false, error: "Código inválido ou expirado" });
   emitirCookie(res, { email, nome: email });
   const usuarios = await carregarUsuarios(storage);
   const papel = papelDe(email, usuarios);
-  if (papel === "pendente") {
-    if (!usuarios.pendentes.some((p) => p.email === email)) {
-      usuarios.pendentes.push({ email, nome: email, quando: new Date().toISOString() });
-      await salvarUsuarios(storage, usuarios);
-      notificarPendente(email, email).catch(() => {});
-    }
-    return res.redirect("/entrar?pendente=1");
+  if (papel === "pendente" && !usuarios.pendentes.some((p) => p.email === email)) {
+    usuarios.pendentes.push({ email, nome: email, quando: new Date().toISOString() });
+    await salvarUsuarios(storage, usuarios);
+    notificarPendente(email, email).catch(() => {});
   }
-  res.redirect(String(req.query.next || "/"));
+  res.json({ ok: true, papel });
 });
 
 app.get("/auth/sair", (req, res) => { limparCookie(res); res.redirect("/"); });

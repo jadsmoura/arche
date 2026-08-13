@@ -49,9 +49,18 @@
 
   <div class="sep">ou</div>
 
-  <form id="magic" onsubmit="return enviarMagic(event)">
+  <form id="passo1" onsubmit="return pedirCodigo(event)">
     <input type="email" id="email" placeholder="seu e-mail (ex.: nome@uniego.edu.br)" required>
-    <button class="bt" id="bt-magic" type="submit">Receber link de acesso por e-mail</button>
+    <button class="bt" id="bt-codigo" type="submit">Receber código por e-mail</button>
+  </form>
+
+  <form id="passo2" style="display:none" onsubmit="return confirmarCodigo(event)">
+    <input type="text" id="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+      placeholder="digite o código de 6 dígitos" style="text-align:center;font-size:22px;letter-spacing:8px;font-weight:800">
+    <button class="bt" id="bt-verificar" type="submit">Entrar</button>
+    <div style="margin-top:10px;font-size:12.5px;color:var(--muted)">
+      Não chegou? Confira o spam ou <a href="#" onclick="voltarPasso1();return false" style="color:var(--cyan)">reenviar código</a>.
+    </div>
   </form>
 
   <div class="volta"><a href="/">← voltar ao portal</a></div>
@@ -63,20 +72,41 @@ const q = new URLSearchParams(location.search);
 const NEXT = q.get("next") || "/";
 const msg = document.getElementById("msg");
 if (q.get("pendente")) msg.innerHTML = '<div class="aviso a-warn">⏳ Seu acesso está <b>aguardando aprovação</b> da PROPPEX. Você receberá a liberação em breve — tente novamente mais tarde.</div>';
-if (q.get("enviado")) msg.innerHTML = '<div class="aviso a-ok">📬 Link enviado! Confira seu e-mail (e a caixa de spam) e clique no link para entrar. Ele vale por 20 minutos.</div>';
-if (q.get("erro")) msg.innerHTML = '<div class="aviso a-warn">⚠ ' + (q.get("erro")==="expirado" ? "Este link expirou ou já foi usado. Peça um novo abaixo." : "Não foi possível entrar. Tente novamente.") + '</div>';
 
-async function enviarMagic(e){
+function voltarPasso1(){
+  document.getElementById("passo2").style.display="none";
+  document.getElementById("passo1").style.display="block";
+  const bt=document.getElementById("bt-codigo"); bt.disabled=false; bt.textContent="Receber código por e-mail";
+}
+async function pedirCodigo(e){
   e.preventDefault();
-  const bt = document.getElementById("bt-magic");
+  const bt = document.getElementById("bt-codigo");
   bt.disabled = true; bt.textContent = "Enviando…";
   try{
-    const r = await fetch("/auth/magic", {method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({email: document.getElementById("email").value.trim(), next: NEXT})});
+    const r = await fetch("/auth/codigo", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({email: document.getElementById("email").value.trim()})});
     const j = await r.json();
-    if (j.ok) location.search = "?enviado=1&next=" + encodeURIComponent(NEXT);
-    else { msg.innerHTML = '<div class="aviso a-warn">⚠ ' + (j.error||"Falha ao enviar") + '</div>'; bt.disabled=false; bt.textContent="Receber link de acesso por e-mail"; }
-  }catch{ bt.disabled=false; bt.textContent="Receber link de acesso por e-mail"; }
+    if (j.ok){
+      msg.innerHTML = '<div class="aviso a-ok">📬 Código enviado para <b>'+document.getElementById("email").value.trim()+'</b>. Digite-o abaixo (vale 10 minutos).</div>';
+      document.getElementById("passo1").style.display="none";
+      document.getElementById("passo2").style.display="block";
+      document.getElementById("codigo").focus();
+    } else { msg.innerHTML = '<div class="aviso a-warn">⚠ ' + (j.error||"Falha ao enviar") + '</div>'; bt.disabled=false; bt.textContent="Receber código por e-mail"; }
+  }catch{ bt.disabled=false; bt.textContent="Receber código por e-mail"; }
+  return false;
+}
+async function confirmarCodigo(e){
+  e.preventDefault();
+  const bt = document.getElementById("bt-verificar");
+  bt.disabled = true; bt.textContent = "Verificando…";
+  try{
+    const r = await fetch("/auth/codigo/verificar", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({email: document.getElementById("email").value.trim(),
+        codigo: document.getElementById("codigo").value.trim()})});
+    const j = await r.json();
+    if (j.ok) location.href = j.papel === "pendente" ? "/entrar?pendente=1" : NEXT;
+    else { msg.innerHTML = '<div class="aviso a-warn">⚠ ' + (j.error||"Código inválido") + '</div>'; bt.disabled=false; bt.textContent="Entrar"; }
+  }catch{ bt.disabled=false; bt.textContent="Entrar"; }
   return false;
 }
 

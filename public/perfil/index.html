@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meu perfil · ARCHÉ</title>
+<link rel="icon" href="/arche/favicon.svg">
+<style>
+  :root{--bg:#f4f2ec;--card:#fff;--ink:#17303a;--muted:#5b7280;--line:#e4e0d6;
+    --teal:#1c3742;--teal2:#27505e;--cyan:#4aa5c4;--cyan-soft:#e8f4f8;--ok:#2e7d32;--ok-soft:#e8f5e9}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:'Figtree',-apple-system,'Segoe UI',Roboto,sans-serif;
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .box{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:32px;max-width:480px;width:100%;
+    box-shadow:0 1px 2px rgba(23,48,58,.06),0 12px 34px rgba(23,48,58,.08)}
+  h1{font-size:20px;font-weight:800;color:var(--teal);margin-bottom:4px}
+  .sub{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+  label{display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 4px}
+  input,select{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:inherit;font-size:14px}
+  input:focus,select:focus{outline:2px solid var(--cyan);border-color:var(--cyan)}
+  .bt{width:100%;border:0;border-radius:9px;padding:12px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;
+    background:var(--teal);color:#fff;margin-top:18px}
+  .bt:hover{background:var(--teal2)}
+  .bt:disabled{opacity:.6}
+  .email{background:var(--cyan-soft);border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;color:var(--teal)}
+  .msg{margin-top:10px;font-size:13px;color:var(--ok);font-weight:700}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>Complete seu perfil</h1>
+  <div class="sub">Esses dados identificam suas submissões e serão pré-preenchidos nos formulários. Você pode ajustá-los depois.</div>
+  <div class="email" id="email">…</div>
+  <label>Nome completo *</label><input id="nome" placeholder="Ex.: Maria Silva Santos">
+  <label>Titulação</label>
+  <select id="titulacao"><option value="">—</option><option>Esp.</option><option>Me.</option><option>Ma.</option><option>Dr.</option><option>Dra.</option></select>
+  <label>Função / cargo *</label><input id="funcao" placeholder="Ex.: Docente do Curso, Coordenador(a)…">
+  <label>Curso / departamento *</label><select id="curso"></select>
+  <label>Telefone</label><input id="telefone" placeholder="(62) 9…">
+  <button class="bt" id="bt" onclick="salvar()">Salvar e continuar</button>
+  <div class="msg" id="msg"></div>
+</div>
+<script>
+const CURSOS=["Administração","Agronomia","Ciências Contábeis","Direito","Educação Física","Enfermagem",
+"Engenharia Civil","Engenharia de Software","Engenharia Mecânica","Medicina Veterinária","Odontologia",
+"Psicologia","Institucional / PROPPEX"];
+const NEXT=new URLSearchParams(location.search).get("next")||"/extensao/";
+const $=(id)=>document.getElementById(id);
+$("curso").innerHTML='<option value="">Selecione…</option>'+CURSOS.map(c=>`<option>${c}</option>`).join("");
+fetch("/api/me").then(async r=>{
+  if(r.status===401){location.href="/entrar?next="+encodeURIComponent(location.pathname+location.search);return;}
+  const me=await r.json();
+  $("email").textContent="Conta: "+me.email;
+  if(me.perfil){$("nome").value=me.perfil.nome||"";$("funcao").value=me.perfil.funcao||"";
+    $("curso").value=me.perfil.curso||"";$("telefone").value=me.perfil.telefone||"";$("titulacao").value=me.perfil.titulacao||"";}
+});
+async function salvar(){
+  const dados={nome:$("nome").value.trim(),funcao:$("funcao").value.trim(),curso:$("curso").value,
+    telefone:$("telefone").value.trim(),titulacao:$("titulacao").value};
+  if(!dados.nome||!dados.funcao||!dados.curso){alert("Preencha nome, função e curso.");return;}
+  $("bt").disabled=true;
+  const r=await fetch("/api/perfil",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(dados)});
+  if(r.ok){$("msg").textContent="✓ Salvo! Redirecionando…";setTimeout(()=>location.href=NEXT,600);}
+  else{$("bt").disabled=false;alert("Falha ao salvar: "+((await r.json()).error||r.status));}
+}
+</script>
+</body>
+</html>
