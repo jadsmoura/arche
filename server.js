@@ -161,6 +161,70 @@ app.post("/api/drive/upload-doc-institucional", upload.single("file"), async (re
   }
 });
 
+/* ------------------------- EXTENSÃO: NOTIFICAÇÃO ------------------------ */
+app.post("/api/extensao/notificar", async (req, res) => {
+  try {
+    const { id } = req.body || {};
+    const raw = await storage.get("extensao-acoes-v1");
+    const acoes = raw ? JSON.parse(raw) : [];
+    const acao = acoes.find((a) => a.id === id);
+    if (!acao) return res.status(404).json({ error: "Ação não encontrada" });
+    const { enviarEmail, emailNovaProposta } = await import("./lib/mailer.js");
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const destino = await enviarEmail(emailNovaProposta(acao, baseUrl));
+    res.json({ ok: true, para: destino });
+  } catch (error) {
+    console.error("Falha ao notificar por e-mail:", error.message);
+    // não é fatal para o fluxo — a proposta já foi salva
+    res.status(200).json({ ok: false, error: error.message });
+  }
+});
+
+/* ------------------------- EXTENSÃO: EXPORTS ---------------------------- */
+app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
+  try {
+    const { tipo, id } = req.params;
+    const raw = await storage.get("extensao-acoes-v1");
+    const acoes = raw ? JSON.parse(raw) : [];
+    const acao = acoes.find((a) => a.id === id);
+    if (!acao) return res.status(404).send("Ação não encontrada");
+
+    const { gerarRegistroDocx, gerarCertificadosXlsx } = await import("./lib/exports.js");
+    let buffer, nome, mime;
+    const num = (acao.numeroAcao || acao.id).replace(/[^A-Za-z0-9-]/g, "-");
+    if (tipo === "registro") {
+      buffer = await gerarRegistroDocx(acao);
+      nome = `Registro-Atividade-${num}.docx`;
+      mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    } else if (tipo === "certificados") {
+      buffer = await gerarCertificadosXlsx(acao);
+      nome = `Certificados-${num}.xlsx`;
+      mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    } else {
+      return res.status(400).send("Tipo inválido");
+    }
+
+    // Arquiva uma cópia versionada no Drive (extensao/<curso>/<nº da ação>/)
+    try {
+      const ts = new Date().toISOString().slice(0, 16).replace("T", "_").replace(":", "h");
+      const nomeArq = nome.replace(/(\.[a-z]+)$/i, `_${ts}$1`);
+      await files.save({
+        buffer, originalName: nomeArq,
+        prefix: `extensao/${slug(acao.curso || "geral")}/${slug(acao.numeroAcao || acao.id)}`,
+      });
+    } catch (e) {
+      console.error("Falha ao arquivar export no Drive:", e.message);
+    }
+
+    res.setHeader("Content-Type", mime);
+    res.setHeader("Content-Disposition", `attachment; filename="${nome}"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error("Erro no export da extensão:", error);
+    res.status(500).send("Erro ao gerar documento: " + error.message);
+  }
+});
+
 app.get("/api/files/*", async (req, res) => {
   try {
     const fileId = decodeURIComponent(req.params[0]);

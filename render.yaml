@@ -18,6 +18,8 @@ services:
         value: 1h7wLsriozGDAz3pj3Rh8mu5iPl0MT4es
       - key: STATE_BACKEND
         value: drive
+      - key: NOTIFY_EMAIL
+        value: extensao@uniego.edu.br
       - key: GDRIVE_OAUTH_CLIENT_ID
         sync: false
       - key: GDRIVE_OAUTH_CLIENT_SECRET

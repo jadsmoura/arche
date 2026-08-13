@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARCHÉ · Extensão · PROPPEX / UNIEGO</title>
+<link rel="icon" href="/arche/favicon.svg">
+<style>
+  :root{
+    --bg:#f4f2ec; --card:#fff; --ink:#17303a; --muted:#5b7280; --line:#e4e0d6;
+    --teal:#1c3742; --teal2:#27505e; --cyan:#4aa5c4; --cyan-soft:#e8f4f8;
+    --ok:#2e7d32; --ok-soft:#e8f5e9; --warn:#b26a00; --warn-soft:#fff3e0;
+    --err:#c62828; --err-soft:#fdecea;
+    --shadow:0 1px 2px rgba(23,48,58,.06),0 8px 24px rgba(23,48,58,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:'Figtree',-apple-system,'Segoe UI',Roboto,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 20px}
+  header{background:linear-gradient(135deg,var(--teal),var(--teal2));color:#eaf3f5;padding:16px 0;border-bottom:3px solid var(--cyan)}
+  .top{display:flex;align-items:center;gap:12px}
+  .logo{width:38px;height:38px;flex:none}
+  .brand{font-weight:800;letter-spacing:2px;font-size:18px}
+  .brand small{display:block;letter-spacing:1.5px;font-size:10px;font-weight:600;color:var(--cyan)}
+  .top a.back{margin-left:auto;color:#b9d6de;font-size:13px;text-decoration:none}
+  .top a.back:hover{color:#fff}
+  h1{font-size:26px;font-weight:800;margin:26px 0 4px}
+  .sub{color:var(--muted);margin-bottom:22px;font-size:15px}
+  .tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+  .tab{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 18px;font-size:14px;font-weight:600;cursor:pointer;color:var(--muted)}
+  .tab.on{background:var(--teal);border-color:var(--teal);color:#fff}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:var(--shadow);margin-bottom:18px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  @media(max-width:720px){.grid2,.grid3{grid-template-columns:1fr}}
+  label{display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px}
+  input,select,textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font:inherit;font-size:14px;background:#fdfdfb;color:var(--ink)}
+  textarea{min-height:84px;resize:vertical}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--cyan);border-color:var(--cyan)}
+  .bt{display:inline-block;border:0;border-radius:9px;padding:10px 20px;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+  .bt-pri{background:var(--teal);color:#fff}
+  .bt-pri:hover{background:var(--teal2)}
+  .bt-sec{background:var(--cyan-soft);color:var(--teal)}
+  .bt-ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .bt-warn{background:var(--warn-soft);color:var(--warn)}
+  .bt-ok{background:var(--ok-soft);color:var(--ok)}
+  .bt:disabled{opacity:.5;cursor:not-allowed}
+  .badge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;border-radius:999px;padding:4px 12px}
+  .b-submetida{background:var(--cyan-soft);color:#0b5e80}
+  .b-devolvida{background:var(--err-soft);color:var(--err)}
+  .b-aprovada{background:var(--ok-soft);color:var(--ok)}
+  .b-pendente{background:var(--warn-soft);color:var(--warn)}
+  .b-relatorio-entregue{background:#ede7f6;color:#5e35b1}
+  .b-registrada{background:#e0e0e0;color:#424242}
+  .item{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;cursor:pointer;background:var(--card)}
+  .item:hover{border-color:var(--cyan)}
+  .item .nm{font-weight:700;flex:1}
+  .item .cs{color:var(--muted);font-size:13px}
+  .sec-t{font-size:15px;font-weight:800;color:var(--teal);margin:20px 0 8px;padding-bottom:5px;border-bottom:2px solid var(--cyan-soft)}
+  .muted{color:var(--muted);font-size:13px}
+  .kv{margin:3px 0;font-size:14px}
+  .kv b{color:var(--teal)}
+  .banner{border-radius:12px;padding:14px 16px;margin-bottom:14px;font-size:14px;font-weight:600}
+  .ba-warn{background:var(--warn-soft);color:var(--warn);border:1px solid #ffe0b2}
+  .ba-err{background:var(--err-soft);color:var(--err);border:1px solid #ffcdd2}
+  .ba-ok{background:var(--ok-soft);color:var(--ok);border:1px solid #c8e6c9}
+  .tut{background:#f0f7ff;border:1px solid #cfe3f7;border-radius:12px;padding:14px 16px;margin:10px 0;font-size:13.5px}
+  .tut summary{font-weight:800;color:#0b5e80;cursor:pointer;font-size:14px}
+  .tut ol{margin:10px 0 4px 20px}
+  .tut li{margin-bottom:5px}
+  .tut .dica{background:#fff;border-radius:8px;padding:8px 12px;margin-top:8px;border:1px dashed #9ec8e8}
+  table.pt{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  table.pt th{background:var(--teal);color:#fff;padding:7px 9px;text-align:left;font-size:12px}
+  table.pt td{border-bottom:1px solid var(--line);padding:6px 9px}
+  table.pt td.bad{color:var(--err);font-weight:700}
+  table.pt .rm{color:var(--err);cursor:pointer;font-weight:800}
+  .cnt{font-size:13px;color:var(--muted);margin:6px 0}
+  .colmap{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+  .colmap select{width:auto;font-size:13px;padding:5px 8px}
+  .exp{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  footer{border-top:1px solid var(--line);color:var(--muted);font-size:12px;padding:18px 0 30px;margin-top:30px}
+  .hide{display:none!important}
+  .stat{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+  .stat .s{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 18px;min-width:110px}
+  .stat .s b{font-size:22px;display:block;color:var(--teal)}
+  .stat .s span{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap top">
+    <svg class="logo" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M8 34 L8 20 A12 12 0 0 1 32 20 L32 34" fill="none" stroke="#eaf3f5" stroke-width="3.4" stroke-linecap="round"/>
+      <circle cx="20" cy="21" r="4" fill="#71c8e2"/>
+    </svg>
+    <div class="brand">ARCHÉ · EXTENSÃO<small>PROPPEX · UNIEGO</small></div>
+    <a class="back" href="/">← voltar ao portal</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <h1 id="titulo">Extensão</h1>
+  <div class="sub" id="subtitulo">Submissão e acompanhamento de ações de extensão — cursos livres, projetos, eventos e atividades.</div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <!-- ============ NOVA PROPOSTA ============ -->
+  <section id="v-nova" class="hide">
+    <div class="card">
+      <div class="sec-t">Identificação</div>
+      <div class="grid2">
+        <div><label>Curso / Departamento responsável *</label>
+          <select id="f-curso"></select></div>
+        <div><label>Nome da atividade *</label>
+          <input id="f-nome" placeholder="Ex.: XII Semana de Enfermagem"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Classificação *</label>
+          <select id="f-class">
+            <option>Evento</option><option>Projeto</option><option>Curso Livre</option>
+            <option>Prestação de Serviço</option><option>Produção Cultural</option>
+            <option>Atividade Desportiva</option><option>Atividade Assistencial</option>
+            <option>Atividade Artística</option><option>Outro</option>
+          </select></div>
+        <div id="f-class-outro-w" class="hide"><label>Especifique (Outro)</label>
+          <input id="f-class-outro"></div>
+        <div><label>Tema central (se houver)</label><input id="f-tema"></div>
+      </div>
+      <div class="grid3">
+        <div><label>Início *</label><input type="date" id="f-inicio"></div>
+        <div><label>Término *</label><input type="date" id="f-fim"></div>
+        <div><label>Carga horária (h) *</label><input type="number" id="f-ch" min="1"></div>
+      </div>
+      <div class="grid3">
+        <div><label>Público-alvo *</label><input id="f-publico" placeholder="Acadêmicos e docentes do curso"></div>
+        <div><label>Local de realização *</label><input id="f-local"></div>
+        <div><label>Município *</label><input id="f-municipio" value="Goianésia/GO"></div>
+      </div>
+
+      <div class="sec-t">Projeto</div>
+      <label>Justificativa *</label><textarea id="f-justificativa"></textarea>
+      <label>Objetivo geral *</label><textarea id="f-objgeral" style="min-height:60px"></textarea>
+      <label>Objetivos específicos * <span class="muted">(um por linha)</span></label><textarea id="f-objesp"></textarea>
+      <label>Metodologia *</label><textarea id="f-metodologia"></textarea>
+      <label>Programação <span class="muted">(datas, atividades, ministrantes)</span></label><textarea id="f-programacao" style="min-height:120px"></textarea>
+      <label>Certificação solicitada <span class="muted">(quem deve receber certificado)</span></label><textarea id="f-cert" style="min-height:60px"></textarea>
+      <label>Comissão organizadora</label><textarea id="f-comissao" style="min-height:60px"></textarea>
+
+      <div class="sec-t">Recursos e parcerias</div>
+      <div class="grid3">
+        <div><label>Instalações</label><input id="f-rec-inst" placeholder="Não se aplica"></div>
+        <div><label>Multimídia</label><input id="f-rec-multi" placeholder="Datashow, computadores…"></div>
+        <div><label>Outros recursos</label><input id="f-rec-outros" placeholder="Não se aplica"></div>
+      </div>
+      <label>Parcerias externas</label><input id="f-parceria" placeholder="Ex.: COREN-GO">
+
+      <div class="sec-t">Responsável pela ação</div>
+      <div class="grid2">
+        <div><label>Nome completo *</label><input id="f-resp-nome"></div>
+        <div><label>Cargo / função *</label><input id="f-resp-cargo"></div>
+        <div><label>Telefone *</label><input id="f-resp-tel"></div>
+        <div><label>E-mail *</label><input id="f-resp-email" type="email"></div>
+      </div>
+
+      <div style="margin-top:20px;display:flex;gap:10px">
+        <button class="bt bt-pri" onclick="enviarProposta()">Enviar proposta à PROPPEX</button>
+        <span class="muted" id="f-msg"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LISTA DE AÇÕES ============ -->
+  <section id="v-acoes" class="hide">
+    <div class="stat" id="stats"></div>
+    <div class="card">
+      <div class="grid2">
+        <div><label>Filtrar por curso</label><select id="l-curso"></select></div>
+        <div><label>Filtrar por situação</label>
+          <select id="l-status">
+            <option value="">Todas</option>
+            <option value="submetida">Submetida (aguardando análise)</option>
+            <option value="devolvida">Devolvida para ajustes</option>
+            <option value="aprovada">Aprovada</option>
+            <option value="pendente">Relatório pendente</option>
+            <option value="relatorio-entregue">Relatório entregue</option>
+            <option value="registrada">Registrada</option>
+          </select></div>
+      </div>
+    </div>
+    <div id="lista"></div>
+  </section>
+
+  <!-- ============ DETALHE DA AÇÃO ============ -->
+  <section id="v-detalhe" class="hide"></section>
+</main>
+
+<footer><div class="wrap">ARCHÉ · Módulo de Extensão · PROPPEX / UNIEGO</div></footer>
+
+<script>
+/* ============================== BASE ==================================== */
+const CURSOS = ["Administração","Agronomia","Ciências Contábeis","Direito","Educação Física",
+  "Enfermagem","Engenharia Civil","Engenharia de Software","Engenharia Mecânica",
+  "Medicina Veterinária","Odontologia","Psicologia","Institucional / PROPPEX"];
+const KEY = "extensao-acoes-v1", KEYCFG = "extensao-config-v1";
+const PROPPEX = new URLSearchParams(location.search).get("perfil") === "proppex";
+let ACOES = [];
+
+async function stGet(chave){
+  const r = await fetch("/api/estado?chave="+encodeURIComponent(chave));
+  if(!r.ok) return null;
+  return (await r.json()).value;
+}
+async function stSet(chave, valor){
+  const r = await fetch("/api/estado",{method:"PUT",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({chave, valor})});
+  if(!r.ok) throw new Error("Falha ao salvar");
+}
+async function carregar(){ const v = await stGet(KEY); ACOES = v?JSON.parse(v):[]; }
+async function salvar(){ await stSet(KEY, JSON.stringify(ACOES)); }
+
+const $ = (id)=>document.getElementById(id);
+const esc = (s)=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const hojeISO = ()=>new Date().toISOString().slice(0,10);
+function statusReal(a){
+  if(a.status==="aprovada" && a.proposta?.periodoFim && a.proposta.periodoFim < hojeISO()) return "pendente";
+  return a.status;
+}
+const STATUS_LABEL = {submetida:"Submetida", devolvida:"Devolvida p/ ajustes", aprovada:"Aprovada",
+  pendente:"Relatório pendente", "relatorio-entregue":"Relatório entregue", registrada:"Registrada"};
+
+/* ============================== NAVEGAÇÃO =============================== */
+const TABS = PROPPEX
+  ? [["acoes","Painel PROPPEX"]]
+  : [["acoes","Ações de extensão"],["nova","Submeter proposta"]];
+function nav(view, id){
+  document.querySelectorAll("main section").forEach(s=>s.classList.add("hide"));
+  if(view==="detalhe"){ renderDetalhe(id); $("v-detalhe").classList.remove("hide"); }
+  else $("v-"+view).classList.remove("hide");
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.v===view));
+}
+function montarTabs(){
+  $("tabs").innerHTML = TABS.map(([v,l])=>`<button class="tab" data-v="${v}" onclick="nav('${v}')">${l}</button>`).join("");
+  if(PROPPEX){ $("titulo").textContent="Extensão — Painel PROPPEX";
+    $("subtitulo").textContent="Análise de propostas, emissão do número da ação, apreciação de relatórios e exportações."; }
+}
+
+/* ============================== NOVA PROPOSTA =========================== */
+function montarForm(){
+  $("f-curso").innerHTML = '<option value="">Selecione…</option>'+CURSOS.map(c=>`<option>${c}</option>`).join("");
+  $("f-class").onchange = ()=>$("f-class-outro-w").classList.toggle("hide",$("f-class").value!=="Outro");
+}
+async function enviarProposta(){
+  const obr = [["f-curso","curso"],["f-nome","nome da atividade"],["f-inicio","início"],["f-fim","término"],
+    ["f-ch","carga horária"],["f-publico","público-alvo"],["f-local","local"],["f-municipio","município"],
+    ["f-justificativa","justificativa"],["f-objgeral","objetivo geral"],["f-objesp","objetivos específicos"],
+    ["f-metodologia","metodologia"],["f-resp-nome","nome do responsável"],["f-resp-cargo","cargo"],
+    ["f-resp-tel","telefone"],["f-resp-email","e-mail"]];
+  for(const [id,lab] of obr){ if(!$(id).value.trim()){ $("f-msg").textContent="⚠ Preencha: "+lab; $(id).focus(); return; } }
+  $("f-msg").textContent="Enviando…";
+  await carregar();
+  ACOES.push({
+    id:"ext-"+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+    numeroAcao:null, status:"submetida", curso:$("f-curso").value,
+    criadoEm:new Date().toISOString(), atualizadoEm:new Date().toISOString(),
+    proposta:{
+      nomeAtividade:$("f-nome").value.trim(), classificacao:$("f-class").value,
+      classificacaoOutro:$("f-class-outro").value.trim(), departamento:$("f-curso").value,
+      temaCentral:$("f-tema").value.trim(), periodoInicio:$("f-inicio").value, periodoFim:$("f-fim").value,
+      cargaHoraria:$("f-ch").value, publicoAlvo:$("f-publico").value.trim(),
+      local:$("f-local").value.trim(), municipio:$("f-municipio").value.trim(),
+      justificativa:$("f-justificativa").value.trim(), objetivoGeral:$("f-objgeral").value.trim(),
+      objetivosEspecificos:$("f-objesp").value.trim(), metodologia:$("f-metodologia").value.trim(),
+      programacao:$("f-programacao").value.trim(), certificacaoSolicitada:$("f-cert").value.trim(),
+      comissaoTexto:$("f-comissao").value.trim(), parceria:$("f-parceria").value.trim(),
+      recursoInstalacao:$("f-rec-inst").value.trim(), recursoMultimidia:$("f-rec-multi").value.trim(),
+      recursoOutros:$("f-rec-outros").value.trim(),
+      respNome:$("f-resp-nome").value.trim(), respCargo:$("f-resp-cargo").value.trim(),
+      respTelefone:$("f-resp-tel").value.trim(), respEmail:$("f-resp-email").value.trim(),
+    },
+    relatorio:{}, participantes:{inscritos:[],palestrantes:[],comissao:[]}, apreciacao:"",
+  });
+  await salvar();
+  const nova = ACOES[ACOES.length-1];
+  fetch("/api/extensao/notificar",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({id:nova.id})}).catch(()=>{});
+  $("f-msg").textContent="";
+  alert("✅ Proposta enviada à PROPPEX!\n\nAcompanhe a situação na aba \"Ações de extensão\". Quando aprovada, ela receberá o Número da Ação.");
+  document.querySelectorAll("#v-nova input,#v-nova textarea").forEach(i=>i.value="");
+  $("f-municipio").value="Goianésia/GO";
+  renderLista(); nav("acoes");
+}
+
+/* ============================== LISTA =================================== */
+function montarFiltros(){
+  $("l-curso").innerHTML = '<option value="">Todos os cursos</option>'+CURSOS.map(c=>`<option>${c}</option>`).join("");
+  $("l-curso").onchange = renderLista; $("l-status").onchange = renderLista;
+}
+function renderLista(){
+  const fc=$("l-curso").value, fs=$("l-status").value;
+  const st = {};
+  for(const a of ACOES){ const s=statusReal(a); st[s]=(st[s]||0)+1; }
+  $("stats").innerHTML = ["submetida","aprovada","pendente","relatorio-entregue","registrada"]
+    .map(s=>`<div class="s"><b>${st[s]||0}</b><span>${STATUS_LABEL[s]}</span></div>`).join("");
+  const list = ACOES.filter(a=>(!fc||a.curso===fc)&&(!fs||statusReal(a)===fs))
+    .sort((a,b)=>(b.criadoEm||"").localeCompare(a.criadoEm||""));
+  $("lista").innerHTML = list.length ? list.map(a=>{
+    const s=statusReal(a);
+    return `<div class="item" onclick="nav('detalhe','${a.id}')">
+      <div class="nm">${esc(a.proposta.nomeAtividade)}<div class="cs">${esc(a.curso)} · ${a.numeroAcao?("Ação "+a.numeroAcao):"sem número"} · ${fmt(a.proposta.periodoInicio)} a ${fmt(a.proposta.periodoFim)}</div></div>
+      <span class="badge b-${s}">${STATUS_LABEL[s]}</span></div>`;
+  }).join("") : '<div class="card muted">Nenhuma ação encontrada com esses filtros.</div>';
+}
+const fmt=(iso)=>iso?iso.split("-").reverse().join("/"):"—";
+
+/* ============================== DETALHE ================================= */
+function renderDetalhe(id){
+  const a = ACOES.find(x=>x.id===id);
+  if(!a){ $("v-detalhe").innerHTML='<div class="card">Ação não encontrada.</div>'; return; }
+  const s = statusReal(a), p=a.proposta, r=a.relatorio||{};
+  const podeRelatorio = ["aprovada","pendente","relatorio-entregue","devolvida"].includes(s) && a.numeroAcao;
+  let html = `<div class="card">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <h2 style="font-size:20px;flex:1">${esc(p.nomeAtividade)}</h2>
+      <span class="badge b-${s}">${STATUS_LABEL[s]}</span>
+      ${a.numeroAcao?`<span class="badge" style="background:var(--teal);color:#fff">Ação ${a.numeroAcao}</span>`:""}
+    </div>
+    <div class="muted" style="margin:4px 0 12px">${esc(a.curso)} · ${fmt(p.periodoInicio)} a ${fmt(p.periodoFim)} · ${esc(p.cargaHoraria)}h · ${esc(p.local)} (${esc(p.municipio)})</div>`;
+
+  if(s==="devolvida" && a.motivoDevolucao)
+    html += `<div class="banner ba-err">↩ Devolvida para ajustes: ${esc(a.motivoDevolucao)}</div>`;
+  if(s==="pendente" && !PROPPEX)
+    html += `<div class="banner ba-warn">⏰ O período da ação terminou — o relatório final está pendente. Preencha a seção "Relatório final" abaixo.</div>`;
+  if(s==="submetida" && !PROPPEX)
+    html += `<div class="banner ba-ok">✓ Proposta enviada. Aguardando análise da PROPPEX.</div>`;
+
+  html += `<div class="sec-t">Proposta</div>
+    <div class="kv"><b>Classificação:</b> ${esc(p.classificacao)}${p.classificacao==="Outro"?" — "+esc(p.classificacaoOutro):""}</div>
+    ${p.temaCentral?`<div class="kv"><b>Tema central:</b> ${esc(p.temaCentral)}</div>`:""}
+    <div class="kv"><b>Público-alvo:</b> ${esc(p.publicoAlvo)}</div>
+    <div class="kv"><b>Justificativa:</b> ${esc(p.justificativa)}</div>
+    <div class="kv"><b>Objetivo geral:</b> ${esc(p.objetivoGeral)}</div>
+    <div class="kv"><b>Objetivos específicos:</b><br>${esc(p.objetivosEspecificos).replace(/\n/g,"<br>")}</div>
+    <div class="kv"><b>Metodologia:</b> ${esc(p.metodologia)}</div>
+    ${p.programacao?`<div class="kv"><b>Programação:</b><br>${esc(p.programacao).replace(/\n/g,"<br>")}</div>`:""}
+    ${p.certificacaoSolicitada?`<div class="kv"><b>Certificação solicitada:</b><br>${esc(p.certificacaoSolicitada).replace(/\n/g,"<br>")}</div>`:""}
+    ${p.parceria?`<div class="kv"><b>Parcerias:</b> ${esc(p.parceria)}</div>`:""}
+    <div class="kv"><b>Responsável:</b> ${esc(p.respNome)} — ${esc(p.respCargo)} · ${esc(p.respTelefone)} · ${esc(p.respEmail)}</div>`;
+
+  /* ---- ações do PROPPEX sobre a proposta ---- */
+  if(PROPPEX && (s==="submetida"||s==="devolvida")){
+    html += `<div class="exp">
+      <button class="bt bt-pri" onclick="aprovar('${a.id}')">✓ Aprovar e emitir Número da Ação</button>
+      <button class="bt bt-warn" onclick="devolver('${a.id}')">↩ Devolver para ajustes</button>
+    </div>`;
+  }
+  html += `</div>`;
+
+  /* ---- relatório final ---- */
+  if(podeRelatorio){
+    const lock = s==="registrada";
+    html += `<div class="card"><div class="sec-t">Relatório final</div>`;
+    if(PROPPEX && s!=="relatorio-entregue" && s!=="registrada")
+      html += `<div class="muted">O responsável ainda não enviou o relatório.</div>`;
+    html += `
+      <label>Conteúdo programático</label><textarea id="r-conteudo" ${lock?"disabled":""}>${esc(r.conteudoProgramatico||"")}</textarea>
+      <div class="grid2">
+        <div><label>Bolsistas</label><input id="r-bolsistas" ${lock?"disabled":""} value="${esc(r.bolsistas||"")}" placeholder="Não se aplica"></div>
+        <div><label>Alunos (atividade curricular)</label><input id="r-alunoscur" ${lock?"disabled":""} value="${esc(r.alunosCurricular||"")}"></div>
+        <div><label>Alunos (atividade não curricular)</label><input id="r-alunosnao" ${lock?"disabled":""} value="${esc(r.alunosNaoCurricular||"")}"></div>
+        <div><label>Docentes envolvidos <span class="muted">(um por linha no campo maior abaixo)</span></label><input disabled value="use o campo abaixo"></div>
+      </div>
+      <label>Docentes envolvidos (um por linha)</label><textarea id="r-docentes" ${lock?"disabled":""}>${esc(r.docentesEnvolvidos||"")}</textarea>
+      <label>Avaliação / resultados alcançados</label><textarea id="r-avaliacao" ${lock?"disabled":""} style="min-height:110px">${esc(r.avaliacaoResultados||"")}</textarea>
+      <div class="grid3">
+        <div><label>Nº de discentes</label><input type="number" id="r-qtd-disc" ${lock?"disabled":""} value="${esc(r.qtdDiscentes??"")}"></div>
+        <div><label>Nº de docentes</label><input type="number" id="r-qtd-doc" ${lock?"disabled":""} value="${esc(r.qtdDocentes??"")}"></div>
+        <div><label>Nº de técnicos adm.</label><input type="number" id="r-qtd-tec" ${lock?"disabled":""} value="${esc(r.qtdTecnicos??"")}"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Despesa total</label><input id="r-despesa" ${lock?"disabled":""} value="${esc(r.despesa||"")}" placeholder="Não se aplica"></div>
+        <div><label>Receita</label><input id="r-receita" ${lock?"disabled":""} value="${esc(r.receita||"")}" placeholder="Não se aplica"></div>
+      </div>
+    </div>`;
+
+    /* ---- participantes ---- */
+    html += `<div class="card"><div class="sec-t">Participantes para certificação</div>
+      <details class="tut">
+        <summary>📋 Como colar a lista do Excel corretamente (leia antes)</summary>
+        <ol>
+          <li>Abra sua planilha no Excel (ou Google Planilhas).</li>
+          <li>Organize as colunas nesta ordem, uma linha por participante:
+            <b>Nome · Matrícula · CPF · E-mail · Telefone · Carga horária</b>
+            (não precisa ter todas — o sistema detecta as que existirem).</li>
+          <li>Selecione as células com os dados (pode incluir a linha de cabeçalho).</li>
+          <li>Copie (<b>Ctrl+C</b>), clique na área abaixo e cole (<b>Ctrl+V</b>).</li>
+          <li>Confira o mapeamento das colunas e a pré-visualização, depois clique em <b>Adicionar</b>.</li>
+        </ol>
+        <div class="dica">💡 <b>Dicas:</b> o CPF pode estar com ou sem pontos — o sistema padroniza sozinho.
+        CPFs inválidos ficam destacados em vermelho para você corrigir.
+        Participantes repetidos (mesmo CPF ou matrícula) são ignorados automaticamente.
+        Para <b>palestrantes</b>, inclua também uma coluna com o nome da palestra/minicurso.</div>
+      </details>
+      <label>Categoria da lista que você vai colar</label>
+      <select id="p-cat" style="max-width:340px">
+        <option value="inscritos">Inscritos / participantes (aptos a certificado)</option>
+        <option value="palestrantes">Palestrantes / ministrantes</option>
+        <option value="comissao">Comissão organizadora</option>
+      </select>
+      <label>Cole aqui os dados copiados do Excel</label>
+      <textarea id="p-cola" placeholder="Cole aqui (Ctrl+V)…" style="min-height:90px;font-family:ui-monospace,monospace;font-size:12.5px"></textarea>
+      <div id="p-preview"></div>
+      <div id="p-tabelas"></div>
+    </div>`;
+
+    /* botões de envio/apreciação/export */
+    html += `<div class="card"><div class="exp">`;
+    if(!PROPPEX && !lock)
+      html += `<button class="bt bt-pri" onclick="enviarRelatorio('${a.id}')">📨 ${s==="relatorio-entregue"?"Reenviar relatório atualizado":"Enviar relatório final à PROPPEX"}</button>`;
+    if(PROPPEX){
+      html += `<button class="bt bt-sec" onclick="exportar('${a.id}','registro')">📄 Exportar Registro de Atividade (.docx)</button>
+        <button class="bt bt-sec" onclick="exportar('${a.id}','certificados')">📊 Exportar Planilha de Certificados (.xlsx)</button>`;
+      if(!lock) html += `<button class="bt bt-pri" onclick="salvarApreciacao('${a.id}')">💾 Salvar apreciação</button>
+        <button class="bt bt-ok" onclick="registrarAcao('${a.id}')">✓ Marcar como Registrada</button>`;
+    }
+    html += `</div>`;
+    if(PROPPEX) html += `<label>Apreciação da Coordenadoria de Extensão</label>
+      <textarea id="d-apreciacao" ${lock?"disabled":""}>${esc(a.apreciacao||"")}</textarea>`;
+    html += `<div class="muted" style="margin-top:8px">As exportações também são arquivadas automaticamente no Drive da PROPPEX (extensão/curso/nº da ação).</div></div>`;
+  }
+
+  html += `<button class="bt bt-ghost" onclick="nav('acoes')" style="margin-bottom:24px">← voltar à lista</button>`;
+  $("v-detalhe").innerHTML = html;
+  if(podeRelatorio){ montarCola(a); renderTabelasPart(a); }
+}
+
+/* ------------------------- participantes: colagem ----------------------- */
+const CAMPOS = [["ignorar","(ignorar)"],["nome","Nome"],["matricula","Matrícula"],["cpf","CPF"],
+  ["email","E-mail"],["telefone","Telefone"],["ch","Carga horária"],["palestra","Palestra/minicurso"]];
+let COLA = null;
+
+function normCPF(v){ const d=String(v||"").replace(/\D/g,""); return d.length===11?d:String(v||"").trim(); }
+function cpfValido(v){ const d=String(v||"").replace(/\D/g,""); if(d.length!==11||/^(\d)\1+$/.test(d))return false;
+  let s=0;for(let i=0;i<9;i++)s+=+d[i]*(10-i);let r=(s*10)%11;if(r===10)r=0;if(r!==+d[9])return false;
+  s=0;for(let i=0;i<10;i++)s+=+d[i]*(11-i);r=(s*10)%11;if(r===10)r=0;return r===+d[10]; }
+function fmtCPF(v){ const d=String(v||"").replace(/\D/g,""); return d.length===11?d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,"$1.$2.$3-$4"):v; }
+
+function detectaColuna(vals){
+  const v=vals.filter(x=>x&&x.trim());
+  if(!v.length) return "ignorar";
+  const n=v.length;
+  const pct=(f)=>v.filter(f).length/n;
+  if(pct(x=>/@/.test(x))>0.5) return "email";
+  if(pct(x=>cpfValido(x))>0.5) return "cpf";
+  if(pct(x=>/^[A-Za-z]\d{5,}$/i.test(x.replace(/\s/g,"")))>0.5) return "matricula";
+  if(pct(x=>/^\d{1,3}$/.test(x.trim()))>0.7) return "ch";
+  if(pct(x=>/^[\d\s()+-]{8,16}$/.test(x)&&x.replace(/\D/g,"").length>=8&&x.replace(/\D/g,"").length<=13&&!cpfValido(x))>0.5) return "telefone";
+  if(pct(x=>/^[\p{L}\s.'-]{5,}$/u.test(x)&&x.split(/\s+/).length>=2)>0.6) return "nome";
+  return "ignorar";
+}
+function montarCola(acao){
+  $("p-cola").addEventListener("input", ()=>{
+    const txt=$("p-cola").value;
+    if(!txt.trim()){ $("p-preview").innerHTML=""; COLA=null; return; }
+    let linhas = txt.split(/\r?\n/).filter(l=>l.trim());
+    let rows = linhas.map(l=>l.split(/\t/).length>1?l.split(/\t/):l.split(/;/)).map(r=>r.map(c=>c.trim()));
+    // remove cabeçalho se detectado
+    const cab = rows[0]&&rows[0].some(c=>/nome|cpf|matr|carga|mail/i.test(c));
+    if(cab) rows=rows.slice(1);
+    if(!rows.length){ $("p-preview").innerHTML='<div class="banner ba-err">Nenhuma linha de dados encontrada.</div>'; return; }
+    const ncols = Math.max(...rows.map(r=>r.length));
+    const mapa=[];
+    for(let c=0;c<ncols;c++) mapa.push(detectaColuna(rows.map(r=>r[c]||"")));
+    COLA={rows,mapa};
+    renderPreview(acao);
+  });
+}
+function renderPreview(acao){
+  if(!COLA) return;
+  const {rows,mapa}=COLA;
+  let selects = mapa.map((m,i)=>`<span>Col ${i+1}: <select onchange="COLA.mapa[${i}]=this.value;renderPreview()" >${
+    CAMPOS.map(([v,l])=>`<option value="${v}" ${v===m?"selected":""}>${l}</option>`).join("")}</select></span>`).join(" ");
+  const amostra = rows.slice(0,5).map(r=>`<tr>${mapa.map((m,i)=>{
+    const v=r[i]||""; const bad = m==="cpf"&&v&&!cpfValido(v);
+    return `<td class="${bad?"bad":""}">${esc(m==="cpf"?fmtCPF(v):v)}</td>`;}).join("")}</tr>`).join("");
+  const invalidos = rows.filter(r=>mapa.some((m,i)=>m==="cpf"&&r[i]&&!cpfValido(r[i]))).length;
+  $("p-preview").innerHTML = `
+    <div class="colmap">${selects}</div>
+    <table class="pt"><thead><tr>${mapa.map(m=>`<th>${(CAMPOS.find(c=>c[0]===m)||["","?"])[1]}</th>`).join("")}</tr></thead>
+    <tbody>${amostra}</tbody></table>
+    <div class="cnt">${rows.length} linha(s) detectada(s)${rows.length>5?" (mostrando 5)":""}.
+      ${invalidos?`<span style="color:var(--err);font-weight:700"> ⚠ ${invalidos} CPF(s) inválido(s) — serão adicionados marcados para correção.</span>`:""}</div>
+    <button class="bt bt-pri" onclick="adicionarCola('${acao?acao.id:""}')">＋ Adicionar ${rows.length} participante(s) à lista</button>`;
+}
+async function adicionarCola(id){
+  const a = ACOES.find(x=>x.id===id); if(!a||!COLA) return;
+  const cat=$("p-cat").value;
+  const lista=a.participantes[cat]||(a.participantes[cat]=[]);
+  const chave=(x)=>((x.cpf||"").replace(/\D/g,"")||x.matricula||x.nome||"").toLowerCase();
+  const existentes=new Set(lista.map(chave));
+  let add=0,dup=0;
+  for(const r of COLA.rows){
+    const o={};
+    COLA.mapa.forEach((m,i)=>{ if(m!=="ignorar"&&r[i]) o[m]=r[i]; });
+    if(!o.nome) continue;
+    if(o.cpf) o.cpf=normCPF(o.cpf);
+    const k=chave(o);
+    if(existentes.has(k)){dup++;continue;}
+    existentes.add(k); lista.push(o); add++;
+  }
+  a.atualizadoEm=new Date().toISOString();
+  await salvar();
+  $("p-cola").value=""; $("p-preview").innerHTML=""; COLA=null;
+  renderTabelasPart(a);
+  alert(`✅ ${add} participante(s) adicionados${dup?` · ${dup} duplicado(s) ignorado(s)`:""}.`);
+}
+function renderTabelasPart(a){
+  const cats=[["inscritos","Inscritos / participantes"],["palestrantes","Palestrantes"],["comissao","Comissão organizadora"]];
+  $("p-tabelas").innerHTML = cats.map(([c,titulo])=>{
+    const l=a.participantes[c]||[];
+    if(!l.length) return `<div class="cnt">— ${titulo}: nenhum registrado ainda.</div>`;
+    return `<div class="sec-t" style="margin-top:16px">${titulo} · ${l.length}</div>
+      <table class="pt"><thead><tr>${c==="palestrantes"?"<th>Palestra</th>":""}<th>Nome</th><th>Matrícula</th><th>CPF</th><th>E-mail</th><th>CH</th><th></th></tr></thead>
+      <tbody>${l.map((x,i)=>`<tr>
+        ${c==="palestrantes"?`<td>${esc(x.palestra||"")}</td>`:""}
+        <td>${esc(x.nome)}</td><td>${esc(x.matricula||"")}</td>
+        <td class="${x.cpf&&!cpfValido(x.cpf)?"bad":""}">${esc(fmtCPF(x.cpf||""))}</td>
+        <td>${esc(x.email||"")}</td><td>${esc(x.ch||"")}</td>
+        <td class="rm" title="remover" onclick="removerPart('${a.id}','${c}',${i})">✕</td></tr>`).join("")}</tbody></table>`;
+  }).join("");
+}
+async function removerPart(id,cat,i){
+  const a=ACOES.find(x=>x.id===id); if(!a)return;
+  a.participantes[cat].splice(i,1); await salvar(); renderTabelasPart(a);
+}
+
+/* ------------------------- fluxo / status ------------------------------- */
+function lerRelatorio(){
+  return {
+    conteudoProgramatico:$("r-conteudo")?.value.trim()||"",
+    bolsistas:$("r-bolsistas")?.value.trim()||"", alunosCurricular:$("r-alunoscur")?.value.trim()||"",
+    alunosNaoCurricular:$("r-alunosnao")?.value.trim()||"", docentesEnvolvidos:$("r-docentes")?.value.trim()||"",
+    avaliacaoResultados:$("r-avaliacao")?.value.trim()||"",
+    qtdDiscentes:$("r-qtd-disc")?.value||"", qtdDocentes:$("r-qtd-doc")?.value||"", qtdTecnicos:$("r-qtd-tec")?.value||"",
+    despesa:$("r-despesa")?.value.trim()||"", receita:$("r-receita")?.value.trim()||"",
+  };
+}
+async function enviarRelatorio(id){
+  const a=ACOES.find(x=>x.id===id); if(!a)return;
+  const r=lerRelatorio();
+  if(!r.avaliacaoResultados){ alert("Preencha a Avaliação / resultados alcançados."); return; }
+  if(!(a.participantes.inscritos||[]).length && !confirm("A lista de participantes está vazia. Enviar mesmo assim?")) return;
+  a.relatorio={...r, entregueEm:new Date().toISOString()};
+  a.status="relatorio-entregue"; a.atualizadoEm=new Date().toISOString();
+  await salvar();
+  alert("✅ Relatório enviado à PROPPEX!"); renderLista(); renderDetalhe(id);
+}
+async function aprovar(id){
+  const a=ACOES.find(x=>x.id===id); if(!a)return;
+  if(!confirm(`Aprovar a proposta "${a.proposta.nomeAtividade}" e emitir o Número da Ação?`)) return;
+  const cfgRaw=await stGet(KEYCFG);
+  const ano=new Date().getFullYear();
+  let cfg=cfgRaw?JSON.parse(cfgRaw):{ano,seq:0};
+  if(cfg.ano!==ano){cfg={ano,seq:0};}
+  cfg.seq++;
+  a.numeroAcao=`EXT-${ano}-${String(cfg.seq).padStart(3,"0")}`;
+  a.status="aprovada"; a.motivoDevolucao=""; a.atualizadoEm=new Date().toISOString();
+  await stSet(KEYCFG, JSON.stringify(cfg)); await salvar();
+  alert(`✅ Aprovada!\nNúmero da Ação: ${a.numeroAcao}`); renderLista(); renderDetalhe(id);
+}
+async function devolver(id){
+  const a=ACOES.find(x=>x.id===id); if(!a)return;
+  const m=prompt("Motivo da devolução (será mostrado ao responsável):"); if(m===null)return;
+  a.status="devolvida"; a.motivoDevolucao=m; a.atualizadoEm=new Date().toISOString();
+  await salvar(); renderLista(); renderDetalhe(id);
+}
+async function salvarApreciacao(id){
+  const a=ACOES.find(x=>x.id===id); if(!a)return;
+  a.apreciacao=$("d-apreciacao")?.value.trim()||""; a.relatorio={...a.relatorio,...lerRelatorio()};
+  a.atualizadoEm=new Date().toISOString();
+  await salvar(); alert("💾 Salvo.");
+}
+async function registrarAcao(id){
+  const a=ACOES.find(x=>x.id===id); if(!a)return;
+  if(!confirm("Marcar esta ação como REGISTRADA? (encerra o ciclo; os campos ficam travados)")) return;
+  a.apreciacao=$("d-apreciacao")?.value.trim()||a.apreciacao;
+  a.status="registrada"; a.atualizadoEm=new Date().toISOString();
+  await salvar(); renderLista(); renderDetalhe(id);
+}
+function exportar(id,tipo){ window.open(`/api/extensao/export/${tipo}/${id}`,"_blank"); }
+
+/* ============================== INIT ==================================== */
+(async function init(){
+  montarTabs(); montarForm(); montarFiltros();
+  await carregar(); renderLista(); nav("acoes");
+})();
+</script>
+</body>
+</html>
