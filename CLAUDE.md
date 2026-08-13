@@ -1,0 +1,58 @@
+# ARCHÉ — Portal de gestão da PROPPEX / UNIEGO
+
+Sistema institucional em produção: **https://arche.app.br**
+Dono: Prof. Dr. Jadson Belém de Moura (Pró-Reitor — PROPPEX/UNIEGO).
+Idioma de toda a interface e commits: **português (pt-BR)**.
+
+## Deploy — IMPORTANTE
+
+- `git push` na `main` → **Render deploya automaticamente** (~2 min) → https://arche.app.br
+- NÃO é preciso configurar nada de deploy; apenas commitar e pushar.
+- Segredos (Google Drive OAuth, sessão) vivem nas env vars do Render — **NUNCA commitar
+  segredos, tokens ou `.env`** neste repositório.
+
+## Arquitetura
+
+```
+server.js            Express: estático + APIs (/api/estado, uploads, auth, exports)
+lib/storage.js       Estado key-value (Google Drive em prod: _estado.json; local em dev)
+lib/files.js         Uploads → Google Drive (pasta ARCHÉ, por curso)
+lib/auth.js          Sessão por cookie HMAC; papéis: gestor > coordenador > aprovado > pendente
+lib/exports.js       Registro de Atividade (.docx) e Planilha de Certificados (.xlsx)
+lib/pdf.js           Relatório final em PDF com timbrado oficial UNIEGO
+lib/mailer.js        E-mails via Gmail API (remetente "ARCHÉ · PROPPEX")
+templates/           Template xlsx de certificados + logo UNIEGO (não alterar estrutura)
+public/
+  index.html         Portal (2 seções: Gestão PROPPEX | Avaliação Institucional)
+  extensao/          Módulo Extensão (SPA vanilla JS) — propostas, relatórios, participantes
+  pesquisa/ic/       Iniciação Científica (runtime DC — editar só o markup/bloco text/x-dc)
+  arche/             Avaliação Institucional (app COMPILADO do Manus — NÃO refatorar;
+                     alterações só por append de <script>/<style> no fim dos html)
+  entrar/ perfil/ usuarios/   Login (código por e-mail + Google), perfil, gestão de acessos
+```
+
+## Regras de negócio essenciais
+
+- **Setores protegidos** (exigem login): `/extensao`, `/pesquisa`, `/inovacao`, `/usuarios`.
+  **Avaliação (`/arche/`) é ABERTA** — não adicionar login nela.
+- Gestores gerais fixos: `jadsonbelem@gmail.com` e `jadson.moura@uniego.edu.br` (lib/auth.js).
+- Contas `@uniego.edu.br` entram como submissoras automaticamente; outras aguardam aprovação.
+- Fluxo da Extensão: proposta → aprovação (nº `EXT-AAAA-NNN`) → relatório final →
+  participantes (3/3 completa) → certificados → registrada. Não alterar o formato do nº.
+- Uploads e estado são organizados **por curso** no Google Drive — preservar os prefixos
+  usados em server.js (`extensao/<curso>/…`, `dossie/<curso>/…` etc.).
+- Estado do app em chaves `/api/estado` (ex.: `extensao-acoes-v1`); chaves `auth-*` são
+  internas e invisíveis pela API.
+
+## Identidade visual
+
+Paleta (mesma do sistema de Avaliação): fundo `#eef1f4`, marca `#1c3742`, hover `#2d535c`,
+acento `#40717e`, acento claro `#71c8e2`, wash `#e6f5fa`, texto `#182632`, muted `#657179`,
+linhas `#dde4e8`. Fonte: Figtree/system. Manter consistência em qualquer página nova.
+
+## Limitações no ambiente cloud
+
+- Sem os segredos locais: chamadas reais ao Google Drive/Gmail não funcionam em testes
+  locais na nuvem — validar por leitura de código; o site em produção tem as chaves.
+- O servidor pode ser testado com `npm install && node server.js` (modo local: estado em
+  `data/estado.json`, uploads em `data/uploads/`), sem tocar em dados de produção.
