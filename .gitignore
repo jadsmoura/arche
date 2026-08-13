@@ -3,3 +3,6 @@ data/
 .env
 credenciais/
 *.log
+estado-migrado.json
+migracao-map.json
+migrar-manus.mjs
