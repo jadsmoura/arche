@@ -408,6 +408,51 @@ test("pendência sem e-mail é relatada uma vez, não a cada rodada", async () =
   assert.equal(e2.enviados.length, 0, "e não é avisada de novo na rodada seguinte");
 });
 
+test("retentativa é espaçada por dia: falha do Gmail não queima as chances na mesma hora", async () => {
+  const st = await comBackfillFeito([]);
+  st.dados[ACOES_KEY] = JSON.stringify([acao({ id: "f", proposta: { periodoFim: "2026-08-16" } })]);
+  const falha = async () => { throw new Error("Gmail 429 rate limit"); };
+
+  // três rodadas no mesmo dia: só a primeira consome tentativa
+  for (const h of ["12:00", "12:30", "13:00"])
+    await varrer({ storage: st, agora: new Date(`2026-08-18T${h}:00Z`), enviar: falha, env: ENV, force: true });
+  let reg = JSON.parse(st.dados[LEDGER_KEY]).acoes.f.envios.d1;
+  assert.equal(reg.tentativas, 1, "as rodadas seguintes do mesmo dia não gastam tentativa");
+  assert.equal(reg.status, "erro");
+
+  // no dia seguinte, tenta de novo — e agora dá certo
+  const ok = coletor();
+  await varrer({ storage: st, agora: new Date("2026-08-19T12:00:00Z"), enviar: ok, env: ENV, force: true });
+  assert.equal(ok.cobrancas().length, 1, "a ação continua sendo cobrada nos dias seguintes");
+});
+
+test("dispensa feita durante a rodada não é apagada pela gravação final", async () => {
+  const st = await comBackfillFeito([]);
+  st.dados[ACOES_KEY] = JSON.stringify([
+    acao({ id: "lote", criadoPor: "a@uniego.edu.br", proposta: { respEmail: "a@uniego.edu.br", periodoFim: "2026-08-16" } }),
+  ]);
+  // a dispensa de OUTRA ação chega enquanto a rodada está em voo
+  const enviar = async (msg) => {
+    await dispensar(st, "outra", "gestor@uniego.edu.br");
+    return String(msg.para);
+  };
+  await varrer({ storage: st, agora: new Date("2026-08-18T12:00:00Z"), enviar, env: ENV, force: true });
+  const ledger = JSON.parse(st.dados[LEDGER_KEY]);
+  assert.ok(ledger.acoes.outra?.dispensadaEm, "a dispensa sobreviveu à gravação da rodada");
+  assert.equal(ledger.acoes.lote.envios.d1.status, "enviado", "e a marca da rodada também");
+});
+
+test("situação expõe as ações que ficaram sem cobrança por falha", async () => {
+  const st = await comBackfillFeito([]);
+  st.dados[ACOES_KEY] = JSON.stringify([acao({ id: "z", proposta: { periodoFim: "2026-08-16" } })]);
+  await varrer({ storage: st, agora: new Date("2026-08-18T12:00:00Z"),
+    enviar: async () => { throw new Error("caixa cheia"); }, env: ENV, force: true });
+  const { situacao } = await import("../lib/cobranca.js");
+  const s = await situacao(st);
+  assert.equal(s.falhas.length, 1);
+  assert.equal(s.falhas[0].id, "z");
+});
+
 test("relógio implausível aborta a rodada", async () => {
   const st = await comBackfillFeito([]);
   const enviar = coletor();
