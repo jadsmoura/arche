@@ -1801,10 +1801,11 @@ window.addEventListener('pagehide', function(){
       exibida nas guias (ano atual − 3, idêntica ao filtro de importação
       do Lattes). Antes a contagem usava ano − 2 e itens do ano-limite
       apareciam nas guias sem entrar na soma.
-   2) TITULAÇÃO: a PROPPEX pode editar a titulação do docente (Graduado,
-      Especialista, Mestre, Doutor) direto no cartão do professor. O valor
-      é persistido em chave própria (dossie-<curso>-titulos-v1) e aplicado
-      ao carregar — o save-guard do estado dos docentes permanece intacto.
+   2) TITULAÇÃO: o próprio docente e a PROPPEX podem editar a titulação
+      (Graduação, Especialista, Mestrado, Doutorado) no cartão do
+      professor; o avaliador apenas visualiza. O valor é persistido em
+      chave própria (dossie-<curso>-titulos-v1) e aplicado ao carregar —
+      o save-guard do estado dos docentes permanece intacto.
    ================================================================ */
 (function(){
   if (typeof validProds3y !== "function" || typeof renderProf !== "function") return;
@@ -1835,15 +1836,19 @@ window.addEventListener('pagehide', function(){
     };
   }
 
-  /* ---------------- 2) titulação editável pela PROPPEX ---------------- */
+  /* ------- 2) titulação editável (docente + PROPPEX; avaliador só vê) ------- */
   var TKEY = DOSSIE_KEY.replace(/-v\d+$/, "") + "-titulos-v1";
-  var TITULOS = [["Grad.","Graduado(a)"],["Esp.","Especialista"],["Me.","Mestre"],
-                 ["Ma.","Mestra"],["Dr.","Doutor"],["Dra.","Doutora"]];
+  // rótulos por nível de formação; o valor gravado mantém as abreviações
+  // que o app já usa em selos, listas e PDFs
+  var TITULOS = [["Grad.","Graduação"],["Esp.","Especialista"],["Me.","Mestrado"],["Dr.","Doutorado"]];
+  // equivalências para variantes femininas já cadastradas
+  var EQUIV = { "Ma.":"Me.", "Dra.":"Dr.", "Grada.":"Grad." };
   var titulosSalvos = {};
   function chaveProf(p){ return p.lattesId ? "lattes:" + p.lattesId : "nome:" + (p.nome||"").toLowerCase(); }
+  function podeEditar(){ return state.role === "proreitoria" || state.role === "docente"; }
 
   var _tituloLong = tituloLong;
-  tituloLong = function(t){ return t === "Grad." ? "Graduado(a)" : _tituloLong(t); };
+  tituloLong = function(t){ return t === "Grad." ? "Graduação" : _tituloLong(t); };
 
   function aplicarTitulos(){
     if (!titulosSalvos || !Object.keys(titulosSalvos).length) return;
@@ -1885,15 +1890,19 @@ window.addEventListener('pagehide', function(){
     _renderProf.apply(this, arguments);
     try {
       corrigirRotulos();
-      if (state.role !== "proreitoria") return;
       var tag = document.getElementById("pTag");
+      var sel = document.getElementById("tituloSelect");
+      if (!podeEditar()){           // avaliador: selo estático, sem edição
+        if (sel) sel.remove();
+        if (tag) tag.style.display = "";
+        return;
+      }
       var p = current();
       if (!tag || !p) return;
-      var sel = document.getElementById("tituloSelect");
       if (!sel){
         sel = document.createElement("select");
         sel.id = "tituloSelect";
-        sel.title = "Titulação do docente (edição PROPPEX — salva automaticamente)";
+        sel.title = "Titulação do docente (salva automaticamente)";
         sel.style.cssText = "font-size:12px;font-weight:700;letter-spacing:.02em;padding:3px 8px;" +
           "border:1px solid var(--line,#dde4e8);border-radius:6px;cursor:pointer;background:#fff;margin-right:6px";
         sel.innerHTML = TITULOS.map(function(t){ return '<option value="'+t[0]+'">'+t[1]+"</option>"; }).join("");
@@ -1908,13 +1917,17 @@ window.addEventListener('pagehide', function(){
           window.storage.set(TKEY, JSON.stringify(titulosSalvos)).catch(function(){
             alert("Não foi possível salvar a titulação — verifique a conexão e tente novamente.");
           });
+          // docente: grava também no estado principal do dossiê (permitido pelo save-guard)
+          try { if (state.role === "docente" && typeof scheduleSave === "function") scheduleSave(); } catch(e){}
         });
       }
-      // valor sempre sincronizado com o docente aberto
-      var existe = Array.prototype.some.call(sel.options, function(o){ return o.value === p.titulo; });
-      if (p.titulo && !existe)
-        sel.insertAdjacentHTML("beforeend", '<option value="'+p.titulo+'">'+tituloLong(p.titulo)+"</option>");
-      sel.value = p.titulo || "Esp.";
+      tag.style.display = "none";
+      // valor sincronizado com o docente aberto (variantes femininas -> nível)
+      var v = EQUIV[p.titulo] || p.titulo;
+      var existe = Array.prototype.some.call(sel.options, function(o){ return o.value === v; });
+      if (v && !existe)
+        sel.insertAdjacentHTML("beforeend", '<option value="'+v+'">'+tituloLong(v)+"</option>");
+      sel.value = v || "Esp.";
     } catch(e){ console.error("[Append PROPPEX]", e); }
   };
 })();
