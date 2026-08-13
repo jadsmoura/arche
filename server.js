@@ -148,7 +148,7 @@ app.post("/api/drive/upload-doc-institucional", upload.single("file"), async (re
       : req.file.originalname;
     const data = await files.save({
       buffer: req.file.buffer, originalName,
-      prefix: `docs-institucionais/${section}`,
+      prefix: `docs-institucionais/${cursoFrom(req)}/${section}`,
     });
     res.json({
       ...data, name: provided || req.file.originalname,
