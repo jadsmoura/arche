@@ -1794,5 +1794,130 @@ window.addEventListener('pagehide', function(){
 })();
 /* ===== FIM EXPORTAR PDF ===== */
 </script>
+<script>
+/* ================================================================
+   AJUSTES PROPPEX (append — não alterar o app compilado acima)
+   1) CONTAGEM: "produções válidas" passa a usar a MESMA janela de anos
+      exibida nas guias (ano atual − 3, idêntica ao filtro de importação
+      do Lattes). Antes a contagem usava ano − 2 e itens do ano-limite
+      apareciam nas guias sem entrar na soma.
+   2) TITULAÇÃO: a PROPPEX pode editar a titulação do docente (Graduado,
+      Especialista, Mestre, Doutor) direto no cartão do professor. O valor
+      é persistido em chave própria (dossie-<curso>-titulos-v1) e aplicado
+      ao carregar — o save-guard do estado dos docentes permanece intacto.
+   ================================================================ */
+(function(){
+  if (typeof validProds3y !== "function" || typeof renderProf !== "function") return;
+
+  /* ---------------- 1) janela da contagem ---------------- */
+  var anoAtual = new Date().getFullYear(), anoMin = anoAtual - 3;
+  var faixa = anoMin + "–" + anoAtual;
+  validProds3y = function(p){
+    return profItems(p).filter(function(i){
+      return PROD_CATS.includes(i.cat) && i.year && (+i.year) >= anoMin;
+    }).length;
+  };
+  function corrigirRotulos(){
+    document.querySelectorAll(".pc-lab, .s3-lab").forEach(function(el){
+      if (el.innerHTML.indexOf("últimos 3 anos") !== -1)
+        el.innerHTML = el.innerHTML.replace("últimos 3 anos", "produções " + faixa);
+    });
+    var cap = document.getElementById("ncCap");
+    if (cap) cap.textContent = cap.textContent.replace(/em \d{4}–\d{4}/, "em " + faixa);
+  }
+  corrigirRotulos();
+  if (typeof renderRoster === "function"){
+    var _renderRoster = renderRoster;
+    renderRoster = function(){
+      var ret = _renderRoster.apply(this, arguments);
+      try { corrigirRotulos(); } catch(e){}
+      return ret;
+    };
+  }
+
+  /* ---------------- 2) titulação editável pela PROPPEX ---------------- */
+  var TKEY = DOSSIE_KEY.replace(/-v\d+$/, "") + "-titulos-v1";
+  var TITULOS = [["Grad.","Graduado(a)"],["Esp.","Especialista"],["Me.","Mestre"],
+                 ["Ma.","Mestra"],["Dr.","Doutor"],["Dra.","Doutora"]];
+  var titulosSalvos = {};
+  function chaveProf(p){ return p.lattesId ? "lattes:" + p.lattesId : "nome:" + (p.nome||"").toLowerCase(); }
+
+  var _tituloLong = tituloLong;
+  tituloLong = function(t){ return t === "Grad." ? "Graduado(a)" : _tituloLong(t); };
+
+  function aplicarTitulos(){
+    if (!titulosSalvos || !Object.keys(titulosSalvos).length) return;
+    var mudou = false;
+    professors.forEach(function(p){
+      var t = titulosSalvos[chaveProf(p)];
+      if (t && p.titulo !== t){ p.titulo = t; mudou = true; }
+    });
+    if (!mudou) return;
+    document.querySelectorAll("#loginSelect option").forEach(function(o){
+      if (o.value === "") return;
+      var p = professors[+o.value];
+      if (p) o.textContent = p.titulo + " " + p.nome;
+    });
+    try {
+      if (typeof renderRoster === "function" &&
+          (state.role === "proreitoria" || state.role === "avaliador")) renderRoster();
+    } catch(e){}
+  }
+
+  window.storage.get(TKEY).then(function(r){
+    try { titulosSalvos = JSON.parse(r.value || "{}") || {}; } catch(e){ titulosSalvos = {}; }
+    aplicarTitulos();
+  }).catch(function(){});
+
+  // o estado salvo dos docentes chega depois (async) e reconstrói a lista:
+  // re-aplica os overrides de titulação após cada merge
+  if (typeof deserializeAndMerge === "function"){
+    var _merge = deserializeAndMerge;
+    deserializeAndMerge = function(json){
+      var ret = _merge(json);
+      try { aplicarTitulos(); } catch(e){}
+      return ret;
+    };
+  }
+
+  var _renderProf = renderProf;
+  renderProf = function(){
+    _renderProf.apply(this, arguments);
+    try {
+      corrigirRotulos();
+      if (state.role !== "proreitoria") return;
+      var tag = document.getElementById("pTag");
+      var p = current();
+      if (!tag || !p) return;
+      var sel = document.getElementById("tituloSelect");
+      if (!sel){
+        sel = document.createElement("select");
+        sel.id = "tituloSelect";
+        sel.title = "Titulação do docente (edição PROPPEX — salva automaticamente)";
+        sel.style.cssText = "font-size:12px;font-weight:700;letter-spacing:.02em;padding:3px 8px;" +
+          "border:1px solid var(--line,#dde4e8);border-radius:6px;cursor:pointer;background:#fff;margin-right:6px";
+        sel.innerHTML = TITULOS.map(function(t){ return '<option value="'+t[0]+'">'+t[1]+"</option>"; }).join("");
+        tag.parentNode.insertBefore(sel, tag);
+        tag.style.display = "none";
+        sel.addEventListener("change", function(){
+          var pp = current(); if (!pp) return;
+          pp.titulo = sel.value;
+          titulosSalvos[chaveProf(pp)] = sel.value;
+          tag.textContent = tituloLong(pp.titulo);
+          tag.className = "tag " + badgeClass(pp.titulo);
+          window.storage.set(TKEY, JSON.stringify(titulosSalvos)).catch(function(){
+            alert("Não foi possível salvar a titulação — verifique a conexão e tente novamente.");
+          });
+        });
+      }
+      // valor sempre sincronizado com o docente aberto
+      var existe = Array.prototype.some.call(sel.options, function(o){ return o.value === p.titulo; });
+      if (p.titulo && !existe)
+        sel.insertAdjacentHTML("beforeend", '<option value="'+p.titulo+'">'+tituloLong(p.titulo)+"</option>");
+      sel.value = p.titulo || "Esp.";
+    } catch(e){ console.error("[Append PROPPEX]", e); }
+  };
+})();
+</script>
 </body>
 </html>
