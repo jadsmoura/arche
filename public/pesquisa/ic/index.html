@@ -246,6 +246,10 @@ let FILTRO = { status: "", curso: "", linha: "", grupo: "", q: "", edital: "" };
 // (pedido fora do prazo deferido pela pró-reitoria). Vale só para o formulário
 // aberto agora — some assim que o projeto é salvo ou a tela troca.
 let MANUAL = false;
+// o ciclo (edital) escolhido na guia Projetos — um por vez, começa no vigente
+let CICLO_SEL = "";
+// idem para a guia Bolsistas e Voluntários — começa no ciclo mais atual
+let CICLO_BV = "";
 
 // Quatro acessos, uma barra lateral só: cada perfil vê as guias que usa.
 //   gestao     — tudo
@@ -763,7 +767,18 @@ function renderBolsistas() {
   }
   const ciclos = [...porCiclo.entries()].sort((a, b) => String(b[0]).split("/").pop() - String(a[0]).split("/").pop());
 
-  $("v-bolsistas").innerHTML = ciclos.map(([ciclo, projetos]) => {
+  // um ciclo por vez, na lista suspensa — o mais atual em evidência
+  if (!CICLO_BV || !ciclos.some(([c]) => c === CICLO_BV)) CICLO_BV = ciclos[0]?.[0] || "";
+  const seletor = ciclos.length ? `<div class="filtros" style="margin-bottom:14px">
+    <label style="margin:0;display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--muted)">
+      Ciclo
+      <select style="width:auto;min-width:220px" onchange="CICLO_BV=this.value;renderBolsistas()">
+        ${ciclos.map(([c, ps]) => `<option value="${esc(c)}" ${CICLO_BV === c ? "selected" : ""}>Ciclo ${esc(c)}${c === META.edital?.numero ? " — atual" : ""} · ${ps.reduce((s, p) => s + (p.alunos || []).length, 0)} aluno(s)</option>`).join("")}
+      </select>
+    </label>
+  </div>` : "";
+
+  $("v-bolsistas").innerHTML = seletor + ciclos.filter(([c]) => c === CICLO_BV).map(([ciclo, projetos]) => {
     const comAlunos = projetos.filter((p) => (p.alunos || []).length);
     const totalAlunos = comAlunos.reduce((s, p) => s + p.alunos.length, 0);
     let corpo = "";
@@ -832,6 +847,11 @@ const ehDoutor = (v) => /^(dr|dra|doutor|doutora|doutorado|pos-?doutor)/
 
 function renderClassificacao() {
   const titNome = (c) => (META.titulacoes.find((t) => t.codigo === c) || {}).nome || c || "—";
+  const editais = editaisOrdenados();
+  // um ciclo por vez, escolhido na lista suspensa — começa no vigente
+  if (!CICLO_SEL || !editais.some((e) => e.numero === CICLO_SEL)) {
+    CICLO_SEL = (editais.find((e) => e.vigente) || editais[0] || {}).numero || "";
+  }
 
   const quadro = (rotulo, lista) => {
     let pos = 0;
@@ -861,7 +881,16 @@ function renderClassificacao() {
     </table></div>` : `<div class="muted" style="margin-bottom:10px">Nenhuma proposta neste quadro.</div>`}`;
   };
 
-  $("v-classificacao").innerHTML = editaisOrdenados().map((e) => {
+  const seletor = `<div class="filtros" style="margin-bottom:14px">
+    <label style="margin:0;display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--muted)">
+      Ciclo
+      <select style="width:auto;min-width:220px" onchange="CICLO_SEL=this.value;renderClassificacao()">
+        ${editais.map((e) => `<option value="${esc(e.numero)}" ${CICLO_SEL === e.numero ? "selected" : ""}>Edital ${esc(e.numero)}${e.vigente ? " — vigente" : ""} · ${e.projetos} projeto(s)</option>`).join("")}
+      </select>
+    </label>
+  </div>`;
+
+  $("v-classificacao").innerHTML = seletor + editais.filter((e) => e.numero === CICLO_SEL).map((e) => {
     const doEdital = PROJETOS.filter((p) => (p.edital || META.edital?.numero) === e.numero && p.status !== "rascunho");
     const doutores = ordenarClassificacao(doEdital.filter((p) => ehDoutor(p.orientador?.titulacao)));
     const geral = ordenarClassificacao(doEdital);
