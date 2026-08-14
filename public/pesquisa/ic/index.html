@@ -771,6 +771,13 @@ function renderClassificacao() {
         <a href="#" onclick="nav('editais');return false">Editais e Resultados</a>.</div>
       ${quadro("Classificação — professores doutores", doutores)}
       ${quadro("Classificação geral — todos os professores", geral)}
+
+      ${META.linhas.map((l) => {
+        // sub-ranking por categoria: só as propostas daquela linha, na mesma
+        // ordem de nota — categoria sem proposta não ocupa a tela
+        const daLinha = ordenarClassificacao(doEdital.filter((p) => (p.linha || "ic") === l.codigo));
+        return daLinha.length ? quadro(`Classificação por categoria — ${l.nome}`, daLinha) : "";
+      }).join("")}
     </div>`;
   }).join("") || `<div class="card"><div class="vazio">Nenhum edital com propostas ainda.</div></div>`;
 }
