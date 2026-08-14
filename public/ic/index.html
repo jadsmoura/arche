@@ -21,6 +21,17 @@
   .selo.e{background:var(--warn-soft);color:var(--warn)}
   .card + .card{margin-top:20px}
   .exp{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 6px}
+  /* a lista de projetos fica recolhida por padrão: são muitos por ciclo */
+  details.lista > summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;
+    margin-top:8px;font-weight:600;font-size:13.5px;color:var(--brand-2);padding:8px 14px;
+    border:1px solid var(--line-strong);border-radius:10px;transition:.15s;user-select:none}
+  details.lista > summary::-webkit-details-marker{display:none}
+  details.lista > summary:hover{border-color:var(--brand-2);background:var(--wash)}
+  details.lista > summary .seta{transition:transform .2s;font-size:11px}
+  details.lista[open] > summary .seta{transform:rotate(180deg)}
+  details.lista > summary .fechado, details.lista[open] > summary .aberto{display:inline}
+  details.lista > summary .aberto, details.lista[open] > summary .fechado{display:none}
+  details.lista[open] > summary{margin-bottom:10px}
 </style>
 </head>
 <body>
@@ -81,11 +92,14 @@ fetch("/api/publico/ic").then(async (r) => {
         ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📜 Edital (PDF)</a>` : ""}
         <a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/publico/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">📄 Resultado do processo (PDF)</a>
       </div>
-      ${doEdital.length ? `<div class="rolo"><table class="pub">
+      ${doEdital.length ? `<details class="lista">
+        <summary><span class="fechado">Ver os ${doEdital.length} projetos</span><span class="aberto">Recolher a lista</span>
+          <span class="seta">▼</span></summary>
+        <div class="rolo"><table class="pub">
         <thead><tr><th style="width:34%">Título do projeto</th><th style="width:14%">Curso</th>
           <th style="width:20%">Orientador(a)</th><th style="width:18%">Bolsista</th><th style="width:14%">Modalidade</th></tr></thead>
         <tbody>${doEdital.map(linha).join("")}</tbody>
-      </table></div>` : `<p style="color:var(--muted);font-size:13.5px">As submissões deste edital ainda não foram registradas.</p>`}
+      </table></div></details>` : `<p style="color:var(--muted);font-size:13.5px">As submissões deste edital ainda não foram registradas.</p>`}
     </div>`;
   }).join("") || '<div class="card"><p style="color:var(--muted)">Nenhum edital publicado ainda.</p></div>';
 }).catch(() => {
