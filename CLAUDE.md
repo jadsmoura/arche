@@ -106,9 +106,16 @@ public/
   abre com o que ele informou da última vez (`producaoAnterior` em `/api/ic/meta`), e ela
   pode ser preenchida depois da submissão. Classificação (item 9.4):
   **NFC = NP×0,6 + CL×0,4**, com NP = média dos pareceres (0–10) e CL = pontuação/10.
-- **Grupo de pesquisa** (DGP/CNPq): a proposta indica **apenas o nome do grupo**, escolhido
-  na lista dos certificados pelo UNIEGO. Por decisão do dono, não se pergunta o papel de
-  quem submete no grupo — professores submetem propostas ligadas a grupos que não lideram.
+- **Grupo de pesquisa** (DGP/CNPq): a proposta indica **apenas o nome do grupo**. Por
+  decisão do dono, **não se pergunta o papel** de quem submete no grupo — professores
+  submetem propostas ligadas a grupos que não lideram — e por isso **não há a pontuação
+  do item 9.3** (5 membro / 10 líder): ela dependeria desse papel. A lista oferece os
+  certificados no DGP e **cresce com o uso** (`gruposConhecidos`): quem não achar o seu
+  digita o nome, e ele passa a aparecer para os demais assim que o projeto sai do
+  rascunho. `normalizarGrupo` casa o que foi digitado com um nome já conhecido (ignora
+  acento, caixa e espaço), para o mesmo grupo não virar duas linhas na lista. Grupo e
+  planilha de produção **seguem editáveis depois da submissão** — são fato sobre o
+  projeto, não argumento da proposta, e os 33 importados chegaram sem os dois.
 - **Pendências** (`pendenciasDoProjeto`) não travam a submissão, mas aparecem em amarelo:
   aluno sem e-mail (não conseguirá enviar relatório), planilha de produção em branco,
   CEP/CEUA sem protocolo. O formulário do edital não coletou e-mail nem CPF dos alunos —

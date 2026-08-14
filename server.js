@@ -35,7 +35,7 @@ import {
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import {
   EDITAL, LINHAS, GRUPOS_PESQUISA, FOMENTOS, TITULACOES, BLOCOS_PRODUCAO,
-  pontuarProducao, normalizarProducao, notaClassificacao, modalidadePor,
+  pontuarProducao, normalizarProducao, notaClassificacao, modalidadePor, gruposConhecidos,
 } from "./lib/edital.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
 import { dataCivil, hojeLocalISO } from "./lib/datas.js";
@@ -1274,6 +1274,12 @@ function perfilIC(u, projetos) {
  * segunda proposta não deveria digitar tudo de novo. Devolve a produção mais
  * recente que a pessoa informou em qualquer projeto seu.
  */
+/** Catálogo do edital mais o que já foi informado à mão, num array só. */
+function todosOsGrupos(projetos) {
+  const { certificados, informados } = gruposConhecidos(projetos);
+  return [...certificados, ...informados];
+}
+
 function producaoMaisRecente(projetos, u) {
   const meus = (projetos || [])
     .filter((p) => papelNoProjeto(quemIC(u), p) === "orientador" && Object.keys(p.producao || {}).length)
@@ -1293,7 +1299,10 @@ app.get("/api/ic/meta", async (req, res) => {
     situacoesEtapa: SITUACOES_ETAPA, tiposRelatorio: TIPOS_RELATORIO,
     criterios: CRITERIOS, recomendacoes: RECOMENDACOES,
     // catálogo do edital vigente (lib/edital.js)
-    edital: EDITAL, linhas: LINHAS, grupos: GRUPOS_PESQUISA, fomentos: FOMENTOS,
+    edital: EDITAL, linhas: LINHAS, fomentos: FOMENTOS,
+    // a lista de grupos cresce com o uso: certificados no DGP mais os que
+    // foram informados à mão em projetos já submetidos
+    ...gruposConhecidos(projetos),
     titulacoes: TITULACOES, blocosProducao: BLOCOS_PRODUCAO,
     // a produção acadêmica é a mesma para todos os projetos do professor:
     // o formulário já abre com o que ele informou da última vez
@@ -1369,20 +1378,27 @@ app.post("/api/ic", async (req, res) => {
       const i = b.id ? projetos.findIndex((x) => x.id === b.id) : -1;
       const base = i >= 0 ? projetos[i] : null;
       if (!base && b.id) return { erro: [404, "Projeto não encontrado"], gravar: false };
+      // grupo digitado é casado com os já conhecidos: mesma grafia, mesma linha na lista
+      const conhecidos = todosOsGrupos(projetos);
       if (base && !podeEditarProjeto(meu, base) && !podeGerirExecucao(meu, base))
         return { erro: [403, "Sem permissão para editar este projeto"], gravar: false };
       // em execução, a proposta está fechada: seguem só cronograma e alunos
       if (base && !podeEditarProjeto(meu, base)) {
-        // a planilha de produção é do coordenador, não do texto da proposta:
-        // ele pode preenchê-la depois de submeter (os projetos importados do
-        // edital chegaram sem ela)
-        const p = normalizarProjeto(
-          { ...base, alunos: b.alunos, cronograma: b.cronograma, producao: b.producao ?? base.producao },
-          { base, autor: u.email });
-        projetos[i] = anotarProjeto(p, { quem: u.email, oQue: "atualizou cronograma, alunos ou produção" });
+        // A planilha de produção e o grupo de pesquisa não são argumento da
+        // proposta: são fato sobre quem coordena e sobre a que grupo o
+        // trabalho se liga. Seguem editáveis depois de submeter — os projetos
+        // importados do edital chegaram sem os dois, e alguém precisa
+        // completá-los sem reabrir o texto.
+        const p = normalizarProjeto({
+          ...base,
+          alunos: b.alunos, cronograma: b.cronograma,
+          producao: b.producao ?? base.producao,
+          grupoPesquisa: b.grupoPesquisa ?? base.grupoPesquisa,
+        }, { base, autor: u.email, grupos: conhecidos });
+        projetos[i] = anotarProjeto(p, { quem: u.email, oQue: "atualizou cronograma, alunos, produção ou grupo" });
         return { projeto: projetos[i] };
       }
-      const projeto = anotarProjeto(normalizarProjeto(b, { base, autor: u.email }),
+      const projeto = anotarProjeto(normalizarProjeto(b, { base, autor: u.email, grupos: conhecidos }),
         { quem: u.email, oQue: base ? "editou a proposta" : "abriu o projeto" });
       if (i >= 0) projetos[i] = projeto; else projetos.push(projeto);
       return { projeto };
@@ -1492,7 +1508,7 @@ app.post("/api/ic/importar", async (req, res) => {
         ...bruto,
         orientador: { ...(bruto?.orientador || {}), cpf },
         alunos: (bruto?.alunos || []).map((a) => ({ ...a, cpf: normalizarCpf(a?.cpf) })),
-      }, { base, autor: "" });
+      }, { base, autor: "", grupos: todosOsGrupos(projetos) });
 
       const erros = validarProjeto(p);
       if (erros.length && situacao !== "rascunho") {

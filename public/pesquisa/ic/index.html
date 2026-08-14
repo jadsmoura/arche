@@ -229,10 +229,13 @@ const fmtDH = (iso) => { const d = iso ? new Date(iso) : null; return d && !isNa
 const hojeISO = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
 let META = { cursos: [], modalidades: [], status: [], rotulos: {}, gestao: false, eu: "", perfil: "orientador",
-  linhas: [], grupos: [], fomentos: [], titulacoes: [], blocosProducao: [], edital: {}, producaoAnterior: null };
+  linhas: [], certificados: [], informados: [], fomentos: [], titulacoes: [], blocosProducao: [],
+  edital: {}, producaoAnterior: null };
+// todos os grupos que a tela oferece, na ordem em que aparecem
+const gruposConhecidos = () => [...(META.certificados || []), ...(META.informados || [])];
 let PROJETOS = [], ETAPAS = [], RELS = { relatorios: [], pendentes: [] };
 let ATUAL = null, PODE = {}, ME = null, SECAO = "painel";
-let FILTRO = { status: "", curso: "", linha: "", q: "" };
+let FILTRO = { status: "", curso: "", linha: "", grupo: "", q: "" };
 
 // Quatro acessos, uma barra lateral só: cada perfil vê as guias que usa.
 //   gestao     — tudo
@@ -459,6 +462,10 @@ function renderGestao() {
     (!FILTRO.status || p.status === FILTRO.status) &&
     (!FILTRO.curso || p.curso === FILTRO.curso) &&
     (!FILTRO.linha || p.linha === FILTRO.linha) &&
+    (!FILTRO.grupo
+      || (FILTRO.grupo === "__com" && !!p.grupoPesquisa)
+      || (FILTRO.grupo === "__sem" && !p.grupoPesquisa)
+      || p.grupoPesquisa === FILTRO.grupo) &&
     (!FILTRO.q || `${p.numero || ""} ${p.titulo} ${p.orientador?.nome || ""} ${(p.alunos || []).map((a) => a.nome).join(" ")}`
       .toLowerCase().includes(FILTRO.q.toLowerCase())));
 
@@ -478,10 +485,18 @@ function renderGestao() {
         <option value="">Todas as linhas</option>
         ${META.linhas.map((l) => `<option value="${l.codigo}" ${FILTRO.linha === l.codigo ? "selected" : ""}>${esc(l.nome)}</option>`).join("")}
       </select>
+      <select onchange="FILTRO.grupo=this.value;renderGestao()" title="Vínculo com grupo de pesquisa">
+        <option value="">Grupo de pesquisa: todos</option>
+        <option value="__com" ${FILTRO.grupo === "__com" ? "selected" : ""}>Vinculados a algum grupo</option>
+        <option value="__sem" ${FILTRO.grupo === "__sem" ? "selected" : ""}>Sem grupo</option>
+        ${gruposEmUso().map((g) => `<option value="${esc(g)}" ${FILTRO.grupo === g ? "selected" : ""}>${esc(g)}</option>`).join("")}
+      </select>
       ${ehAluno() ? "" : `<button class="bt bt-pri" onclick="nav('submissao')">＋ Novo projeto</button>`}
       ${ME?.papel === "gestor" ? `<button class="bt bt-ghost" onclick="importarEdital(true)" title="Confere o arquivo sem gravar">Importar edital 01/2026</button>` : ""}
     </div>
-    <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">${lista.length} projeto(s)</div>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">${lista.length} projeto(s)${
+      (() => { const n = lista.filter((p) => p.grupoPesquisa).length;
+        return n ? ` · ${n} vinculado(s) a grupo de pesquisa` : ""; })()}</div>
     ${lista.map((p) => `
       <div class="item" onclick="abrir('${esc(p.id)}')">
         <div style="flex:1;min-width:0">
@@ -714,12 +729,9 @@ function renderEditor(alvo) {
             ${META.modalidades.filter((m) => m.linha === (p.linha || "ic"))
               .map((m) => `<option value="${m.codigo}" ${p.modalidade === m.codigo ? "selected" : ""}>${esc(m.nome)}${m.valor ? ` — R$ ${m.valor}` : ""}</option>`).join("")}
           </select></div>
-        <div><label>Grupo de pesquisa (DGP/CNPq) <span class="muted">(se a proposta estiver vinculada a um)</span></label>
-          <select ${ro} onchange="campo('grupoPesquisa',this.value)">
-            <option value="">— não vinculada a grupo —</option>
-            ${META.grupos.map((g) => `<option value="${esc(g)}" ${p.grupoPesquisa === g ? "selected" : ""}>${esc(g)}</option>`).join("")}
-            ${p.grupoPesquisa && !META.grupos.includes(p.grupoPesquisa) ? `<option value="${esc(p.grupoPesquisa)}" selected>${esc(p.grupoPesquisa)}</option>` : ""}
-          </select></div>
+        <div><label>Grupo de pesquisa (DGP/CNPq)
+          <span class="muted">${ed ? "(se a proposta estiver vinculada a um)" : "(pode ser informado depois da submissão)"}</span></label>
+          ${campoGrupo(p, roGer)}</div>
       </div>
 
       <div class="grid2">
@@ -872,6 +884,48 @@ function desenharEtapas() {
     </tr>`).join("") || `<tr><td colspan="6" class="muted">Nenhuma atividade. O cronograma é obrigatório para submeter.</td></tr>`;
 }
 function addEtapa() { ATUAL.cronograma = [...(ATUAL.cronograma || []), { atividade: "", responsavel: "", inicio: "", fim: "", situacao: "prevista" }]; desenharEtapas(); }
+
+/** Grupos que aparecem nos projetos a que a pessoa tem acesso. */
+function gruposEmUso() {
+  const vistos = new Set(PROJETOS.map((p) => p.grupoPesquisa).filter(Boolean));
+  return [...vistos].sort((a, b) => a.localeCompare(b, "pt-BR"));
+}
+
+/* --------------------------- grupo de pesquisa ------------------------- */
+/* O edital só quer saber a que grupo a proposta se liga. A lista traz os
+   certificados no DGP/CNPq e os que já foram informados à mão por alguém; se
+   o grupo não estiver em nenhuma das duas, a pessoa digita o nome e ele passa
+   a aparecer para os próximos. */
+function campoGrupo(p, ro) {
+  const conhecidos = gruposConhecidos();
+  const livre = !!p.grupoPesquisa && !conhecidos.includes(p.grupoPesquisa);
+  const opcoes = (lista) => lista.map((g) =>
+    `<option value="${esc(g)}" ${p.grupoPesquisa === g ? "selected" : ""}>${esc(g)}</option>`).join("");
+  return `
+    <select id="grupo-lista" ${ro} onchange="escolheuGrupo(this.value)">
+      <option value="">— não vinculada a grupo —</option>
+      ${(META.certificados || []).length ? `<optgroup label="Certificados no DGP/CNPq">${opcoes(META.certificados)}</optgroup>` : ""}
+      ${(META.informados || []).length ? `<optgroup label="Informados em outras propostas">${opcoes(META.informados)}</optgroup>` : ""}
+      <option value="__novo" ${livre ? "selected" : ""}>Outro grupo — informar o nome…</option>
+    </select>
+    <input id="grupo-livre" ${ro} style="margin-top:8px;${livre ? "" : "display:none"}"
+      value="${esc(livre ? p.grupoPesquisa : "")}" maxlength="200"
+      placeholder="Nome do grupo, como consta no Diretório do CNPq"
+      oninput="campo('grupoPesquisa',this.value)">`;
+}
+
+function escolheuGrupo(valor) {
+  const caixa = $("grupo-livre");
+  if (valor === "__novo") {
+    caixa.style.display = "";
+    campo("grupoPesquisa", caixa.value.trim());
+    caixa.focus();
+  } else {
+    caixa.style.display = "none";
+    caixa.value = "";
+    campo("grupoPesquisa", valor);
+  }
+}
 
 /* Importação do banco do edital que acompanha o sistema. Roda primeiro em
    simulação — ninguém deve gravar 33 projetos sem ver antes o que entra. */

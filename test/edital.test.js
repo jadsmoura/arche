@@ -10,6 +10,7 @@ import {
   EDITAL, LINHAS, MODALIDADES, GRUPOS_PESQUISA, FOMENTOS, BLOCOS_PRODUCAO, ITENS_PRODUCAO,
   PONTUACAO_MAXIMA, modalidadeDe, modalidadePor, modalidadeVigente, modalidadesDaLinha,
   normalizarTitulacao, titulacaoAtende, pontuarProducao, normalizarProducao, notaClassificacao,
+  gruposConhecidos, normalizarGrupo,
 } from "../lib/edital.js";
 import { cpfValido } from "../lib/cpf.js";
 import { normalizarProjeto, validarProjeto, modalidadeEfetiva } from "../lib/ic.js";
@@ -124,6 +125,62 @@ test("os grupos do DGP/CNPq entram só pelo nome, sem repetição", () => {
   assert.equal(new Set(GRUPOS_PESQUISA).size, GRUPOS_PESQUISA.length, "sem duplicatas");
   assert.ok(GRUPOS_PESQUISA.every((g) => typeof g === "string" && g.trim().length > 5));
   assert.ok(GRUPOS_PESQUISA.includes("Solos, Ecologia e Dinâmica da Matéria Orgânica"));
+});
+
+test("a lista de grupos cresce com o uso, sem duplicar", () => {
+  const projetos = [
+    { grupoPesquisa: "Núcleo de Estudos em Direito Digital", status: "submetido" },
+    { grupoPesquisa: "nucleo de   estudos em DIREITO digital", status: "aprovado" },
+    { grupoPesquisa: "Solos, Ecologia e Dinâmica da Matéria Orgânica", status: "aprovado" },
+    { grupoPesquisa: "Grupo que ainda é rascunho", status: "rascunho" },
+    { grupoPesquisa: "", status: "submetido" },
+  ];
+  const { certificados, informados } = gruposConhecidos(projetos);
+  assert.equal(certificados.length, GRUPOS_PESQUISA.length, "os certificados são sempre os mesmos");
+  assert.deepEqual(informados, ["Núcleo de Estudos em Direito Digital"],
+    "o mesmo grupo escrito de outro jeito não vira uma segunda entrada");
+  assert.ok(!informados.includes("Grupo que ainda é rascunho"), "rascunho é do autor, não entra na lista comum");
+  assert.ok(!certificados.some((g) => informados.includes(g)), "certificado não se repete entre os informados");
+});
+
+test("o nome digitado volta à grafia já conhecida; grupo novo é aceito como veio", () => {
+  assert.equal(normalizarGrupo("  solos,   ECOLOGIA e dinamica da materia organica "),
+    "Solos, Ecologia e Dinâmica da Matéria Orgânica", "acento e caixa não criam grupo novo");
+  assert.equal(normalizarGrupo("Núcleo de   Pesquisa em  Bioética"), "Núcleo de Pesquisa em Bioética",
+    "espaços sobrando somem, mas o nome novo permanece");
+  assert.equal(normalizarGrupo(""), "");
+  assert.equal(normalizarGrupo("   "), "", "espaço em branco não é grupo");
+
+  // com a lista ampliada, casa também com o que outra pessoa já informou
+  const conhecidos = [...GRUPOS_PESQUISA, "Núcleo de Estudos em Direito Digital"];
+  assert.equal(normalizarGrupo("NUCLEO DE ESTUDOS EM DIREITO DIGITAL", conhecidos),
+    "Núcleo de Estudos em Direito Digital");
+  assert.equal(normalizarGrupo("Grupo inédito", conhecidos), "Grupo inédito");
+});
+
+test("o projeto guarda o grupo já casado com os conhecidos", () => {
+  const conhecidos = [...GRUPOS_PESQUISA, "Núcleo de Estudos em Direito Digital"];
+  const p = normalizarProjeto({ grupoPesquisa: "nucleo de estudos em direito digital" }, { grupos: conhecidos });
+  assert.equal(p.grupoPesquisa, "Núcleo de Estudos em Direito Digital");
+  const q = normalizarProjeto({ grupoPesquisa: "Observatório de Políticas Públicas" });
+  assert.equal(q.grupoPesquisa, "Observatório de Políticas Públicas", "sem lista, o texto limpo vale");
+});
+
+test("grupo de pesquisa não pontua: o edital só quer saber o vínculo", () => {
+  // O item 9.3 daria 5 pontos ao membro e 10 ao líder, mas isso exigiria
+  // perguntar o papel de quem submete no grupo — e a decisão foi não
+  // perguntar. Então nada disso entra na conta em lugar nenhum.
+  assert.ok(!ITENS_PRODUCAO.some((i) => /grupo/i.test(i.nome)),
+    "a planilha de produção não tem item de grupo de pesquisa");
+  assert.ok(GRUPOS_PESQUISA.every((g) => typeof g === "string"),
+    "grupo é só um nome — sem peso, sem papel, sem pontuação");
+  const comGrupo = normalizarProjeto({ grupoPesquisa: "Solos, Ecologia e Dinâmica da Matéria Orgânica" });
+  const semGrupo = normalizarProjeto({});
+  assert.equal(
+    notaClassificacao({ notaPareceres: 8, pontuacaoProducao: pontuarProducao(comGrupo.producao).total }).nfc,
+    notaClassificacao({ notaPareceres: 8, pontuacaoProducao: pontuarProducao(semGrupo.producao).total }).nfc,
+    "estar num grupo não muda a classificação",
+  );
 });
 
 test("o fomento tem exatamente as três saídas da seleção", () => {
