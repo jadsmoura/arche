@@ -55,7 +55,7 @@
 <script>
 const $=(id)=>document.getElementById(id);
 const esc=(s)=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const MODULOS=[["extensao","Extensão"],["pesquisa","Pesquisa / IC"],["inovacao","Inovação"]];
+const MODULOS=[["extensao","Extensão"],["pesquisa","Pesquisa / IC"],["inovacao","Inovação"],["atas","Atas e Colegiados"]];
 const FIXOS=["jadsonbelem@gmail.com","jadson.moura@uniego.edu.br"];
 async function agir(acao,email,modulos){
   const r=await fetch("/api/usuarios",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,email,modulos})});

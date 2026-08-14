@@ -156,6 +156,9 @@
   .tut li{margin-bottom:5px}
   .tut .dica{background:#fff;border-radius:8px;padding:9px 12px;margin-top:8px;border:1px dashed #a9cfe0}
   .hide{display:none!important}
+  /* itens de grade não podem ser mais largos que a coluna: sem isto, um
+     título longo com white-space:nowrap estoura a página no celular */
+  .duplo>*,.kpis>*,.stat>*,.grid2>*,.grid3>*{min-width:0}
 
   @media(max-width:760px){
     .app{flex-direction:column}

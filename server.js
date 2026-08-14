@@ -15,6 +15,10 @@ import { getStorage } from "./lib/storage.js";
 import { getFiles, slug } from "./lib/files.js";
 import { varrer, varrerSeVencido, dispensar, situacao } from "./lib/cobranca.js";
 import {
+  ATAS_KEY, ORGAOS, CURSOS, STATUS as ATA_STATUS, normalizarAta, validarAta,
+  numerar, tituloDe, anotar, encaminhamentos, orgaoDe,
+} from "./lib/atas.js";
+import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
   papelDe, modulosDe, MODULOS, verificarGoogle, criarCodigo, verificarCodigo,
   iniciarAuth, definirSenha, temSenha, validarSenhaDe, senhaFraca,
@@ -86,7 +90,7 @@ app.use((_req, _res, next) => {
 });
 
 // Setores de gestão exigem login (Avaliação Institucional continua aberta).
-const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|usuarios)(\/|$)/;
+const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios)(\/|$)/;
 app.use(async (req, res, next) => {
   if (req.method !== "GET" || !AREAS_PROTEGIDAS.test(req.path)) return next();
   const u = await usuarioDe(req, res);   // renova a sessão de quem está usando
@@ -386,7 +390,7 @@ function cursoFrom(req) {
 // Chaves internas do servidor: invisíveis e não graváveis pela API pública.
 // "auth-*" guarda sessão/usuários; "sys-*", registros operacionais (ex.: quais
 // ações já receberam cobrança de relatório).
-const CHAVES_INTERNAS = /^(auth-|sys-)/;
+const CHAVES_INTERNAS = /^(auth-|sys-|atas-)/;
 
 app.get("/api/estado", async (req, res) => {
   try {
@@ -702,6 +706,290 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
     console.error("Erro no export da extensão:", error);
     res.status(500).send("Erro ao gerar documento: " + error.message);
   }
+});
+
+/* ======================== ARCHÉ AT — ATAS =============================== */
+// As atas ficam numa única chave interna (atas-reunioes-v1); toda leitura e
+// gravação passa por aqui, onde a permissão é aplicada. Gravações são
+// serializadas para que dois registros simultâneos não recebam o mesmo número.
+const ATAS_META = { orgaos: ORGAOS, cursos: CURSOS, status: ATA_STATUS };
+
+async function lerAtas() {
+  const raw = await storage.get(ATAS_KEY);
+  try { const v = JSON.parse(raw || "[]"); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+}
+
+let filaAtas = Promise.resolve();
+/** Lê, transforma e grava as atas em série. `fn(atas)` devolve o resultado. */
+function comAtas(fn) {
+  const proxima = filaAtas.then(async () => {
+    const atas = await lerAtas();
+    const r = await fn(atas);
+    if (r?.gravar !== false) await storage.set(ATAS_KEY, JSON.stringify(atas));
+    return r;
+  });
+  filaAtas = proxima.catch(() => {});   // uma falha não trava a fila
+  return proxima;
+}
+
+// Gestão do setor: gestor geral ou coordenador designado para "atas".
+const gereAtas = (u) => !!u && (u.papel === "gestor" || u.modulos?.includes("atas"));
+// Quem enxerga a ata: a gestão, quem a criou, quem secretariou e quem consta
+// como participante com o próprio e-mail.
+function podeVer(u, a) {
+  if (gereAtas(u)) return true;
+  if (!u) return false;
+  return a.criadoPor === u.email
+    || a.secretaria?.email === u.email
+    || (a.participantes || []).some((p) => p.email && p.email === u.email);
+}
+// Quem edita: a gestão, quem criou e quem secretariou — e nunca depois de
+// registrada (a ata registrada é documento fechado).
+function podeEditar(u, a) {
+  if (!u) return false;
+  if (a.status === "registrada" && !gereAtas(u)) return false;
+  return gereAtas(u) || a.criadoPor === u.email || a.secretaria?.email === u.email;
+}
+
+async function sessaoAtas(req, res) {
+  const u = await usuarioDe(req, res);
+  if (!u || u.papel === "pendente") {
+    res.status(403).json({ error: "Faça login para acessar as atas" });
+    return null;
+  }
+  return u;
+}
+
+// Metadados do setor (órgãos, cursos e situações) para montar os formulários.
+app.get("/api/atas/meta", async (req, res) => {
+  const u = await sessaoAtas(req, res);
+  if (!u) return;
+  res.json({ ...ATAS_META, gestao: gereAtas(u), eu: u.email, ia: (await import("./lib/redator.js")).provedorAtivo() });
+});
+
+// Lista enxuta (sem o corpo do texto, que pode ter dezenas de milhares de
+// caracteres) — a tela de arquivo só precisa do cabeçalho de cada ata.
+app.get("/api/atas", async (req, res) => {
+  const u = await sessaoAtas(req, res);
+  if (!u) return;
+  const atas = (await lerAtas()).filter((a) => podeVer(u, a));
+  res.json({
+    gestao: gereAtas(u),
+    atas: atas.map((a) => ({
+      id: a.id, numero: a.numero, orgao: a.orgao, orgaoNome: a.orgaoNome, curso: a.curso,
+      titulo: tituloDe(a), status: a.status, sessao: a.sessao, ano: a.ano,
+      presidencia: a.presidencia, secretaria: a.secretaria,
+      participantes: (a.participantes || []).length,
+      pontos: (a.pauta || []).length, temTexto: !!a.texto, pdf: a.pdf, registro: a.registro,
+      criadoEm: a.criadoEm, criadoPor: a.criadoPor, atualizadoEm: a.atualizadoEm,
+    })).sort((x, y) => String(y.sessao?.data || "").localeCompare(String(x.sessao?.data || ""))),
+    encaminhamentos: encaminhamentos(atas).filter((e) => e.prazo),
+  });
+});
+
+app.get("/api/atas/:id", async (req, res) => {
+  const u = await sessaoAtas(req, res);
+  if (!u) return;
+  const a = (await lerAtas()).find((x) => x.id === req.params.id);
+  if (!a || !podeVer(u, a)) return res.status(404).json({ error: "Ata não encontrada" });
+  res.json({ ata: a, podeEditar: podeEditar(u, a), gestao: gereAtas(u) });
+});
+
+// Cria ou atualiza. O número só é emitido quando a ata sai de rascunho, para
+// que reuniões abandonadas não consumam a sequência do órgão.
+app.post("/api/atas", async (req, res) => {
+  try {
+    const u = await sessaoAtas(req, res);
+    if (!u) return;
+    const b = req.body || {};
+    const r = await comAtas((atas) => {
+      const i = b.id ? atas.findIndex((x) => x.id === b.id) : -1;
+      const base = i >= 0 ? atas[i] : null;
+      if (base && !podeEditar(u, base)) return { erro: [403, "Sem permissão para editar esta ata"], gravar: false };
+      if (!base && b.id) return { erro: [404, "Ata não encontrada"], gravar: false };
+
+      let ata = normalizarAta(b, { base, autor: u.email });
+      if (!ata.id) ata.id = "ata_" + crypto.randomUUID().slice(0, 12);
+
+      const querNumero = ata.status !== "rascunho";
+      if (querNumero) {
+        const erros = validarAta(ata);
+        if (erros.length) return { erro: [400, erros.join(" ")], gravar: false };
+        ata = numerar(atas, ata);
+      }
+      ata = anotar(ata, { quem: u.email, oQue: base ? `editou (${ata.status})` : "abriu a reunião" });
+
+      if (i >= 0) atas[i] = ata; else atas.push(ata);
+      return { ata };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, ata: r.ata });
+  } catch (e) {
+    console.error("Erro ao gravar ata:", e);
+    res.status(500).json({ error: e.message || "Erro ao gravar a ata" });
+  }
+});
+
+// Redige a minuta a partir dos campos estruturados. Nunca sobrescreve texto
+// já revisado sem que se peça explicitamente (refazer=1).
+app.post("/api/atas/:id/redigir", async (req, res) => {
+  try {
+    const u = await sessaoAtas(req, res);
+    if (!u) return;
+    const atas = await lerAtas();
+    const ata = atas.find((x) => x.id === req.params.id);
+    if (!ata || !podeVer(u, ata)) return res.status(404).json({ error: "Ata não encontrada" });
+    if (!podeEditar(u, ata)) return res.status(403).json({ error: "Sem permissão para editar esta ata" });
+    if (ata.texto && !req.body?.refazer)
+      return res.status(409).json({ error: "Esta ata já tem texto. Confirme para reescrever." });
+    const erros = validarAta(ata);
+    if (erros.length) return res.status(400).json({ error: erros.join(" ") });
+
+    // a redação pode levar dezenas de segundos: fica fora da fila de gravação
+    const { redigir } = await import("./lib/redator.js");
+    const r = await redigir(ata);
+
+    const out = await comAtas((lista) => {
+      const i = lista.findIndex((x) => x.id === req.params.id);
+      if (i < 0) return { erro: [404, "Ata não encontrada"], gravar: false };
+      const nova = anotar({
+        ...lista[i], texto: r.texto,
+        redacao: { provedor: r.provedor, modelo: r.modelo, em: r.em },
+        status: lista[i].status === "rascunho" ? "minuta" : lista[i].status,
+        atualizadoEm: new Date().toISOString(), atualizadoPor: u.email,
+      }, { quem: u.email, oQue: `redigiu a minuta (${r.provedor})` });
+      lista[i] = numerar(lista, nova);
+      return { ata: lista[i] };
+    });
+    if (out.erro) return res.status(out.erro[0]).json({ error: out.erro[1] });
+    res.json({ ok: true, ata: out.ata, aviso: r.aviso, provedor: r.provedor });
+  } catch (e) {
+    console.error("Erro ao redigir ata:", e);
+    res.status(500).json({ error: e.message || "Erro ao redigir a ata" });
+  }
+});
+
+// Muda a situação (minuta → em revisão → aprovada). O registro tem rota
+// própria, porque emite PDF e dispara e-mails.
+app.post("/api/atas/:id/status", async (req, res) => {
+  const u = await sessaoAtas(req, res);
+  if (!u) return;
+  const alvo = String(req.body?.status || "");
+  if (!["rascunho", "minuta", "revisao", "aprovada"].includes(alvo))
+    return res.status(400).json({ error: "Situação inválida" });
+  const r = await comAtas((atas) => {
+    const i = atas.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVer(u, atas[i])) return { erro: [404, "Ata não encontrada"], gravar: false };
+    if (!podeEditar(u, atas[i])) return { erro: [403, "Sem permissão"], gravar: false };
+    if (alvo === "aprovada" && !gereAtas(u) && atas[i].secretaria?.email !== u.email)
+      return { erro: [403, "A aprovação cabe à secretaria da sessão ou à PROPPEX"], gravar: false };
+    if (alvo !== "rascunho") {
+      const erros = validarAta(atas[i]);
+      if (erros.length) return { erro: [400, erros.join(" ")], gravar: false };
+    }
+    atas[i] = numerar(atas, anotar({ ...atas[i], status: alvo, atualizadoEm: new Date().toISOString(), atualizadoPor: u.email },
+      { quem: u.email, oQue: `situação → ${alvo}` }));
+    return { ata: atas[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, ata: r.ata });
+});
+
+app.get("/api/atas/:id/pdf", async (req, res) => {
+  try {
+    const u = await sessaoAtas(req, res);
+    if (!u) return;
+    const ata = (await lerAtas()).find((x) => x.id === req.params.id);
+    if (!ata || !podeVer(u, ata)) return res.status(404).send("Ata não encontrada");
+    if (!ata.texto) return res.status(400).send("A ata ainda não tem texto — gere a minuta primeiro.");
+    const { gerarAtaPdf } = await import("./lib/pdf.js");
+    const buffer = await gerarAtaPdf(ata);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${slug(ata.numero || ata.id)}.pdf"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro no PDF da ata:", e);
+    res.status(500).send("Erro ao gerar o PDF: " + e.message);
+  }
+});
+
+// Registro definitivo: gera o PDF, arquiva no Drive (ATAS/<órgão>/<ano>/) e
+// envia por e-mail a quem presidiu, a quem secretariou e à PROPPEX.
+app.post("/api/atas/:id/registrar", async (req, res) => {
+  try {
+    const u = await sessaoAtas(req, res);
+    if (!u) return;
+    const ata = (await lerAtas()).find((x) => x.id === req.params.id);
+    if (!ata || !podeVer(u, ata)) return res.status(404).json({ error: "Ata não encontrada" });
+    if (!podeEditar(u, ata)) return res.status(403).json({ error: "Sem permissão" });
+    if (ata.status === "registrada") return res.status(400).json({ error: "Esta ata já está registrada" });
+    if (!ata.texto) return res.status(400).json({ error: "Gere a minuta antes de registrar" });
+    const erros = validarAta(ata);
+    if (erros.length) return res.status(400).json({ error: erros.join(" ") });
+
+    const { gerarAtaPdf } = await import("./lib/pdf.js");
+    const pdfBuffer = await gerarAtaPdf(ata);
+    const nomePdf = `${slug(ata.numero || ata.id)}.pdf`;
+    const pasta = `atas/${slug(orgaoDe(ata.orgao)?.sigla || "geral")}${ata.curso ? "/" + slug(ata.curso) : ""}/${ata.ano || "sem-ano"}`;
+
+    let arquivo = null;
+    try {
+      arquivo = await files.save({ buffer: pdfBuffer, originalName: nomePdf, prefix: pasta });
+    } catch (e) {
+      console.error("Falha ao arquivar a ata no Drive:", e.message);
+    }
+
+    // destinatários: secretaria, quem abriu a reunião, o registro da PROPPEX
+    // e os participantes com e-mail (cada um recebe a própria ata).
+    const proppex = process.env.ATAS_EMAIL || process.env.NOTIFY_EMAIL || "extensao@uniego.edu.br";
+    const destinos = [ata.secretaria?.email, ata.criadoPor, u.email, proppex];
+    if (req.body?.enviarParticipantes) destinos.push(...(ata.participantes || []).map((p) => p.email));
+
+    let enviadoPara = null, falhaEmail = null;
+    try {
+      const { enviarEmail, emailAtaRegistrada } = await import("./lib/mailer.js");
+      enviadoPara = await enviarEmail({
+        ...emailAtaRegistrada(ata, { titulo: tituloDe(ata), para: destinos }),
+        anexos: [{ nome: nomePdf, tipo: "application/pdf", conteudo: pdfBuffer }],
+      });
+    } catch (e) {
+      falhaEmail = e.message;
+      console.error("Falha ao enviar a ata por e-mail:", e.message);
+    }
+
+    const r = await comAtas((atas) => {
+      const i = atas.findIndex((x) => x.id === req.params.id);
+      if (i < 0) return { erro: [404, "Ata não encontrada"], gravar: false };
+      atas[i] = numerar(atas, anotar({
+        ...atas[i], status: "registrada", pdf: arquivo,
+        registro: { em: new Date().toISOString(), por: u.email, enviadoPara, pasta },
+        atualizadoEm: new Date().toISOString(), atualizadoPor: u.email,
+      }, { quem: u.email, oQue: "registrou a ata" }));
+      return { ata: atas[i] };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, ata: r.ata, enviadoPara, arquivada: !!arquivo, falhaEmail });
+  } catch (e) {
+    console.error("Erro ao registrar a ata:", e);
+    res.status(500).json({ error: e.message || "Erro ao registrar a ata" });
+  }
+});
+
+// Só rascunho se apaga — ata numerada some do arquivo, nunca do histórico.
+app.delete("/api/atas/:id", async (req, res) => {
+  const u = await sessaoAtas(req, res);
+  if (!u) return;
+  const r = await comAtas((atas) => {
+    const i = atas.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVer(u, atas[i])) return { erro: [404, "Ata não encontrada"], gravar: false };
+    if (!podeEditar(u, atas[i])) return { erro: [403, "Sem permissão"], gravar: false };
+    if (atas[i].numero) return { erro: [400, "Ata numerada não pode ser excluída"], gravar: false };
+    atas.splice(i, 1);
+    return { ok: true };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true });
 });
 
 app.get("/api/files/*", async (req, res) => {

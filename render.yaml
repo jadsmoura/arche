@@ -33,6 +33,19 @@ services:
       # Token do gatilho externo opcional (cron). Gerado pelo Render.
       - key: COBRANCA_TOKEN
         generateValue: true
+      # ARCHÉ AT — Atas e Colegiados.
+      # ATA_IA: "modelo" (padrão, custo zero), "gemini" ou "anthropic".
+      # Basta preencher a chave correspondente no painel para ligar a IA.
+      - key: ATA_IA
+        value: modelo
+      # Caixa institucional que recebe cópia de toda ata registrada.
+      # Em branco, cai no NOTIFY_EMAIL (extensao@uniego.edu.br).
+      - key: ATAS_EMAIL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
       - key: SESSION_SECRET
         generateValue: true
       - key: GOOGLE_WEB_CLIENT_ID
