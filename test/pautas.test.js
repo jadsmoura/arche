@@ -120,6 +120,53 @@ function ata({ orgao = "NDE", curso = "psicologia", data = HOJE, status = "regis
 const noNde = (atas, id, hoje = HOJE) =>
   situacaoPautas(atas, { orgao: "NDE", curso: "psicologia", hoje }).find((p) => p.id === id);
 
+/* --------------------------- ata retroativa ----------------------------- */
+test("o checklist de uma sessão passada não conta o que só foi registrado depois", () => {
+  // O NDE tratou o PPC em junho; agora se lavra a ata da sessão de março do
+  // mesmo semestre. Para março, o tema ainda não estava cumprido — e é
+  // justamente ali que o responsável precisa poder marcá-lo.
+  const junho = ata({ data: "2026-06-20", pautas: ["nde-ppc"] });
+
+  const emJunho = noNde([junho], "nde-ppc", "2026-06-20");
+  assert.equal(emJunho.estado, "em-dia", "na data do registro, o tema está cumprido");
+
+  const emMarco = noNde([junho], "nde-ppc", "2026-03-15");
+  assert.notEqual(emMarco.estado, "em-dia",
+    "para a sessão de março, o registro de junho ainda não existia");
+  assert.equal(emMarco.registrosNaJanela, 0);
+  assert.equal(emMarco.ultima, null, "e não se cita como prova uma ata do futuro daquela sessão");
+});
+
+test("o que já estava registrado antes da sessão continua contando", () => {
+  const marco = ata({ data: "2026-03-10", pautas: ["nde-ppc"] });
+  const emJunho = noNde([marco], "nde-ppc", "2026-06-20");
+  assert.equal(emJunho.estado, "em-dia", "o registro anterior vale para a sessão posterior");
+  assert.equal(emJunho.ultima?.data, "2026-03-10");
+});
+
+test("no uso corrente o corte por data não muda nada", () => {
+  // ata de hoje e ata de meses atrás: as duas continuam contando hoje
+  const atas = [ata({ data: "2026-07-01", pautas: ["nde-ppc"] }), ata({ data: HOJE, pautas: ["nde-bibliografia"] })];
+  assert.equal(noNde(atas, "nde-ppc").estado, "em-dia");
+  assert.equal(noNde(atas, "nde-bibliografia").estado, "em-dia");
+  const ck = checklistSemestral(atas, { orgao: "NDE", curso: "psicologia", hoje: HOJE });
+  assert.ok(ck.emDia >= 2, `${ck.emDia} tema(s) em dia`);
+});
+
+test("o catálogo do órgão inteiro fica ao alcance de quem registra, cobrado ou não", () => {
+  // A tela oferece todas as pautas do órgão: as cobradas no semestre em
+  // destaque e as demais num bloco à parte. Nenhuma some — sessão pode ter
+  // tratado tema anual do outro semestre, e a ata precisa poder dizer isso.
+  const doNde = situacaoPautas([], { orgao: "NDE", curso: "psicologia", hoje: "2026-03-15" });
+  const cobradas = doNde.filter((p) => p.exigidaAgora);
+  const outras = doNde.filter((p) => !p.exigidaAgora);
+  assert.ok(cobradas.length, "há temas cobrados no semestre");
+  assert.ok(outras.length, "e há temas anuais do outro semestre");
+  assert.equal(cobradas.length + outras.length, doNde.length, "juntos, são o catálogo inteiro do órgão");
+  assert.ok(outras.every((p) => p.cadencia === "anual"),
+    "só cai fora da janela o que é anual do outro semestre");
+});
+
 /* ------------------------ ciclo de sessões ordinárias ------------------- */
 test("o ciclo do NDE exige duas sessões ordinárias por semestre", () => {
   const vazio = ritualDoOrgao([], { orgao: "NDE", curso: "psicologia", hoje: HOJE });

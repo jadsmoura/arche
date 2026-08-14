@@ -77,7 +77,14 @@ public/
   com o timbre atual. Para corrigir a data de corte, mude a env var, não o código.
 - **Datas passadas são aceitas** de propósito, para os órgãos regularizarem o arquivo.
   Numa ata retroativa, o checklist cobrado e o ciclo de sessões são os do semestre
-  DA SESSÃO, não os do semestre corrente (`/api/atas/pauta-regulatoria?data=…`).
+  DA SESSÃO, não os do semestre corrente (`/api/atas/pauta-regulatoria?data=…`). Duas
+  regras existem para o checklist não travar quem regulariza: (1) o cumprimento é
+  **relativo à data da sessão** — `registrosDaPauta` corta o que foi registrado depois
+  dela, senão uma sessão de março apareceria com o tema "já cumprido" por causa de uma
+  ata de junho, e sem caixa para marcar; (2) **nenhum tema fica fora do alcance** — os
+  cobrados no semestre vêm em destaque e os demais (anuais do outro semestre) num bloco
+  à parte, aberto por padrão nas retroativas. O checklist lembra o que o semestre cobra;
+  quem diz o que a reunião tratou é a ata.
 - Fluxo da IC (ARCHÉ IC): **rascunho → submetido → aprovado (em execução) → concluído**,
   com desvios para `devolvido` (volta a ser editável) e `reprovado`. O protocolo
   `IC-AAAA-NNN` sai na submissão e nunca se repete. Submetida, a **proposta fecha**;

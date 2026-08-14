@@ -224,11 +224,9 @@
   .chk-pauta.on{border-color:var(--ok);background:#f6fbf8}
   .chk-pauta.feita{background:#f6fbf8;border-color:#cfeeda}
   .chk-pauta.feita .tt{color:var(--ink-soft)}
-  .ok-orgao{width:18px;height:18px;border-radius:5px;background:var(--ok);color:#fff;flex:none;
-    display:grid;place-items:center;font-size:12px;font-weight:800;margin-top:1px}
-  .de-novo{background:none;border:0;color:var(--brand-3);font-size:11.5px;font-weight:600;
-    cursor:pointer;padding:0;margin-top:6px;text-decoration:underline}
-  .de-novo:hover{color:var(--brand-2)}
+  .outras-pautas{border:1px dashed var(--line-2);border-radius:10px;padding:10px 14px;margin:4px 0 14px;background:#fbfcfe}
+  .outras-pautas summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--brand-3)}
+  .outras-pautas[open] summary{margin-bottom:4px}
   .chk-pauta input{width:18px;height:18px;margin:1px 0 0;flex:none;accent-color:var(--brand)}
   .chk-pauta .txt{flex:1;min-width:0;display:block}
   .chk-pauta .tt{display:block;font-size:13.5px;font-weight:600;color:var(--ink);line-height:1.35}
@@ -1047,6 +1045,10 @@ async function renderSugestoes() {
   const extra = ATUAL.sessao?.tipo === "extraordinária";
   const daVez = r.proximoMomento;
   const cobradas = d.pautas.filter((p) => p.exigidaAgora);
+  // O checklist lembra o que o semestre cobra; não decide o que a reunião
+  // tratou. Tema anual do outro semestre, ou já cumprido, continua ao alcance
+  // de quem registra — senão a ata não consegue dizer o que de fato houve.
+  const outras = d.pautas.filter((p) => !p.exigidaAgora);
   ANTERIOR = d.anterior || null;
   const marcadas = cobradas.filter((p) => usadas.has(p.id)).length;
   const jaFeitas = cobradas.filter((p) => p.estado === "em-dia" && !usadas.has(p.id)).length;
@@ -1067,15 +1069,14 @@ async function renderSugestoes() {
         ${feita ? `<span class="md" style="color:var(--ok);font-weight:600">
             ✓ Registrada em ${fmtD(p.ultima?.data)}${p.ultima?.numero ? ` na ${esc(p.ultima.numero)}` : ""}
             — o ciclo do órgão já contempla este tema.</span>
-          ${PODE_EDITAR ? `<button class="de-novo" onclick="alternarPauta('${p.id}',true)">
-            a sessão voltou a tratar deste tema — incluir também nesta ata</button>` : ""}`
+          ${PODE_EDITAR ? `<span class="md">Marque ao lado se esta sessão voltou a tratar do tema.</span>` : ""}`
           : `<span class="ev">${esc(p.evidencia)}</span>`}
       </span>
       <span class="badge e-${on || feita ? "em-dia" : p.estado}">${rotulo}</span>`;
 
-    // cumprida: marca fixa em vez de caixa, para ninguém confundir com pendente
-    if (feita) return `<div class="chk-pauta feita"><span class="ok-orgao">✓</span>${corpo}</div>`;
-    return `<label class="chk-pauta ${on ? "on" : ""}">
+    // Cumprida pelo órgão: o ✓ conta o fato, mas a caixa continua lá — a
+    // sessão pode ter voltado ao tema, e é a ata que diz isso, não o sistema.
+    return `<label class="chk-pauta ${on ? "on" : feita ? "feita" : ""}">
       <input type="checkbox" ${on ? "checked" : ""} ${PODE_EDITAR ? "" : "disabled"}
         onchange="alternarPauta('${p.id}',this.checked)">${corpo}</label>`;
   };
@@ -1122,7 +1123,7 @@ async function renderSugestoes() {
       <b>${marcadas}</b> marcado(s) nesta ata ·
       <b style="color:var(--ok)">${jaFeitas}</b> já cumprido(s) pelo órgão em sessão anterior ·
       <b style="color:${pendentes ? "var(--warn)" : "var(--ok)"}">${pendentes}</b> pendente(s).
-      ${jaFeitas ? "O que outro colega já registrou aparece com ✓ — não precisa repetir." : ""}</div>
+      ${jaFeitas ? "O que o órgão já registrou aparece em verde — não precisa repetir, mas pode marcar se a sessão voltou ao tema." : ""}</div>
     ${itemAnterior ? `<div class="grupo-mom"><div class="grupo-t">
       <span class="mom mom-livre">Ordem do dia</span> <span>item de praxe</span></div>${itemAnterior}</div>` : ""}
     ${grupos.map((m) => {
@@ -1133,7 +1134,14 @@ async function renderSugestoes() {
           <span>${doGrupo.filter((p) => usadas.has(p.id) || p.estado === "em-dia").length}/${doGrupo.length} cumprido(s) no semestre</span></div>
         ${doGrupo.map(caixa).join("")}</div>`;
     }).join("")}
-    ${cobradas.length ? "" : '<div class="banner ba-ok">Este órgão não tem pauta obrigatória vencendo neste semestre.</div>'}`;
+    ${cobradas.length ? "" : '<div class="banner ba-ok">Este órgão não tem pauta obrigatória vencendo neste semestre.</div>'}
+    ${outras.length ? `<details class="outras-pautas" ${d.retroativa ? "open" : ""}>
+      <summary>Outros temas da pauta regulatória deste órgão (${outras.length})</summary>
+      <div class="muted" style="margin:6px 0 10px">Não são cobrados em ${esc(r.janela)}: são de cadência anual
+        do outro semestre. Se a sessão os tratou, marque — o registro conta do mesmo jeito, e é assim que se
+        regulariza o histórico de um semestre já encerrado.</div>
+      ${outras.map(caixa).join("")}
+    </details>` : ""}`;
 }
 
 // A leitura da ata anterior vira o primeiro ponto da ordem do dia.
