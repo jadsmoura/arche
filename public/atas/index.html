@@ -581,15 +581,33 @@ function renderEncaminhamentos() {
 /* -------------------------- pauta regulatória --------------------------- */
 const ROT_ESTADO = { "em-dia": "em dia", pendente: "a fazer", vencendo: "vencendo",
   nunca: "nunca tratada", "fora-da-janela": "não vence neste semestre" };
-let REG = { orgao: "NDE", curso: "psicologia", dados: null, carregando: false };
+let REG = { orgao: "NDE", curso: "psicologia", data: "", dados: null };
 
-async function buscarPautas(orgao, curso, excluir) {
+async function buscarPautas(orgao, curso, excluir, data) {
   const q = `orgao=${encodeURIComponent(orgao)}&curso=${encodeURIComponent(curso || "")}`
-    + (excluir ? `&excluir=${encodeURIComponent(excluir)}` : "");
+    + (excluir ? `&excluir=${encodeURIComponent(excluir)}` : "")
+    + (data ? `&data=${encodeURIComponent(data)}` : "");
   return api("/api/atas/pauta-regulatoria?" + q);
 }
 let ANTERIOR = null;
+// Semestres para consulta retroativa: do ano corrente para trás.
+function semestresParaConsulta() {
+  const ano = Number(hojeISO().slice(0, 4));
+  const lista = [];
+  for (let a = ano; a >= ano - 4; a--) for (const sem of [2, 1]) {
+    lista.push({ valor: sem === 1 ? `${a}-03-15` : `${a}-09-15`, rot: `${a}-S${sem}` });
+  }
+  return lista;
+}
 function orgaoPorCurso(cod) { return !!META.orgaos.find((o) => o.codigo === cod)?.porCurso; }
+// O âmbito é escolhido primeiro: com curso, só entram os órgãos do curso;
+// sem curso, só os colegiados superiores, pró-reitorias e comissões.
+const orgaosDoAmbito = (curso) => (META.orgaos || []).filter((o) => !!o.porCurso === !!curso);
+// Trocar de âmbito derruba um órgão que não pertença a ele.
+function trocarAmbito(curso) {
+  ATUAL.curso = curso;
+  if (ATUAL.orgao && !orgaosDoAmbito(curso).some((o) => o.codigo === ATUAL.orgao)) ATUAL.orgao = "";
+}
 const CAD_ROT = (k) => (META.cadencias?.[k]?.rot || k);
 const MOM_ROT = (k) => (META.momentos?.[k]?.rot || k);
 const chipMomento = (m) => `<span class="mom mom-${m}">${esc(MOM_ROT(m))}</span>`;
@@ -607,11 +625,15 @@ async function renderRegulatoria() {
       <select class="${porCurso ? "" : "hide"}" onchange="REG.curso=this.value;renderRegulatoria()">
         ${META.cursos.map((c) => `<option value="${c.slug}" ${REG.curso === c.slug ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}
       </select>
+      <select onchange="REG.data=this.value;renderRegulatoria()">
+        <option value="">Semestre corrente</option>
+        ${semestresParaConsulta().map((x) => `<option value="${x.valor}" ${REG.data === x.valor ? "selected" : ""}>${esc(x.rot)}</option>`).join("")}
+      </select>
     </div>`;
   el.innerHTML = cab + '<div class="card"><div class="vazio">Carregando…</div></div>';
 
   let d;
-  try { d = await buscarPautas(REG.orgao, porCurso ? REG.curso : ""); }
+  try { d = await buscarPautas(REG.orgao, porCurso ? REG.curso : "", null, REG.data); }
   catch (e) { el.innerHTML = cab + `<div class="banner ba-err">${esc(e.message)}</div>`; return; }
   REG.dados = d;
 
@@ -635,6 +657,8 @@ async function renderRegulatoria() {
     </div>`;
 
   el.innerHTML = cab + `
+    ${d.retroativa ? `<div class="banner ba-warn">Consultando um semestre encerrado (${esc(r.janela)});
+      o corrente é ${esc(d.janelaAtual)}.</div>` : ""}
     <div class="card">
       <div class="card-t">Ciclo do semestre ${esc(r.janela)}</div>
       <div class="card-s">Toda sessão ordinária do ciclo precisa estar registrada em ata; as extraordinárias entram por demanda e não substituem essas.</div>
@@ -875,23 +899,28 @@ function renderEditor(alvo) {
     <div class="card">
       <div class="sec-t" style="margin-top:0">Órgão e sessão</div>
       <div class="grid3">
-        <div><label>Órgão *</label><select id="f-orgao" ${ro} onchange="campo('orgao',this.value);renderEditor('${alvo}')">
-          <option value="">— escolha —</option>
-          ${META.orgaos.map((x) => `<option value="${x.codigo}" ${a.orgao === x.codigo ? "selected" : ""}>${esc(x.nome)}</option>`).join("")}
-        </select></div>
-        <div class="${o?.porCurso ? "" : "hide"}"><label>Curso *</label><select id="f-curso" ${ro} onchange="campo('curso',this.value);renderSugestoes()">
-          <option value="">— escolha —</option>
+        <div><label>Âmbito *</label><select id="f-curso" ${ro} onchange="trocarAmbito(this.value);renderEditor('${alvo}')">
+          <option value="" ${!a.curso ? "selected" : ""}>— Órgão institucional (não vinculado a curso) —</option>
           ${META.cursos.map((c) => `<option value="${c.slug}" ${a.curso === c.slug ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}
+        </select>
+        <div class="muted" style="margin-top:5px">${a.curso
+          ? "NDE e Colegiado do curso escolhido."
+          : "Conselhos, pró-reitorias, CPA e comissões."}</div></div>
+        <div><label>Órgão *</label><select id="f-orgao" ${ro} onchange="campo('orgao',this.value);renderEditor('${alvo}')">
+          <option value="">— escolha o órgão —</option>
+          ${orgaosDoAmbito(a.curso).map((x) => `<option value="${x.codigo}" ${a.orgao === x.codigo ? "selected" : ""}>${esc(x.nome)}</option>`).join("")}
         </select></div>
-        <div class="${o?.nomeLivre ? "" : "hide"}"><label>Nome da comissão *</label>
-          <input id="f-orgao-nome" ${ro} value="${esc(a.orgaoNome || "")}" oninput="campo('orgaoNome',this.value)"
-            placeholder="Ex.: Comissão de Autoavaliação Institucional"></div>
-        <div><label>Tipo de sessão</label><select id="f-tipo" ${ro} onchange="sub('sessao','tipo',this.value);renderSugestoes()">
+        <div><label>Tipo de sessão</label><select ${ro} onchange="sub('sessao','tipo',this.value);renderSugestoes()">
           ${["ordinária", "extraordinária", "solene"].map((t) => `<option ${a.sessao.tipo === t ? "selected" : ""}>${t}</option>`).join("")}
         </select></div>
       </div>
+      <div class="${o?.nomeLivre ? "" : "hide"}"><label>Nome da comissão ou grupo de trabalho *</label>
+        <input id="f-orgao-nome" ${ro} value="${esc(a.orgaoNome || "")}" oninput="campo('orgaoNome',this.value)"
+          placeholder="Ex.: Comissão de Autoavaliação Institucional"></div>
       <div class="grid3">
-        <div><label>Data da sessão *</label><input type="date" ${ro} value="${esc(a.sessao.data || "")}" onchange="sub('sessao','data',this.value)"></div>
+        <div><label>Data da sessão *</label><input type="date" ${ro} value="${esc(a.sessao.data || "")}"
+            onchange="sub('sessao','data',this.value);renderEditor('${alvo}')">
+          <div class="muted" style="margin-top:5px">Aceita datas de semestres anteriores, para regularizar o arquivo.</div></div>
         <div><label>Início *</label><input type="time" ${ro} value="${esc(a.sessao.horaInicio || "")}" onchange="sub('sessao','horaInicio',this.value)"></div>
         <div><label>Término</label><input type="time" ${ro} value="${esc(a.sessao.horaFim || "")}" onchange="sub('sessao','horaFim',this.value)"></div>
       </div>
@@ -973,7 +1002,7 @@ async function renderSugestoes() {
   const porCurso = orgaoPorCurso(ATUAL.orgao);
   if (porCurso && !ATUAL.curso) return;
   let d;
-  try { d = await buscarPautas(ATUAL.orgao, porCurso ? ATUAL.curso : "", ATUAL.id); }
+  try { d = await buscarPautas(ATUAL.orgao, porCurso ? ATUAL.curso : "", ATUAL.id, ATUAL.sessao?.data); }
   catch { return; }
   SUGESTOES = d.pautas;
 
@@ -1024,6 +1053,9 @@ async function renderSugestoes() {
   el.classList.remove("hide");
   el.innerHTML = `
     <div class="card-t">Pautas obrigatórias do semestre ${esc(r.janela)}</div>
+    ${d.retroativa ? `<div class="banner ba-warn" style="margin:8px 0 12px">
+      <b>Registro retroativo.</b> Esta sessão é de ${esc(r.janela)} e o semestre corrente é ${esc(d.janelaAtual)}.
+      O checklist abaixo é o daquele semestre — o que você marcar regulariza o histórico, não a janela atual.</div>` : ""}
     <div class="card-s">${esc(META.orgaos.find((o) => o.codigo === ATUAL.orgao)?.nome || "")} registrou
       <b>${r.ordinarias} de ${r.exigidas}</b> sessão(ões) ordinária(s) neste semestre${r.extraordinarias ? ` e ${r.extraordinarias} extraordinária(s)` : ""}.
       ${extra ? "Esta é uma sessão <b>extraordinária</b>: entra por demanda e não fecha o ciclo, mas os temas que marcar aqui contam como registro."
@@ -1186,6 +1218,7 @@ function cardMinuta(a) {
       ${a.status === "registrada" ? `<span class="badge b-registrada">registrada em ${fmtDH(a.registro?.em)}</span>` : ""}
     </div>
     ${a.registro?.enviadoPara ? `<div class="cnt">Enviada por e-mail para: ${esc(a.registro.enviadoPara)}</div>` : ""}
+    ${a.registro?.pasta ? `<div class="cnt">Cópia arquivada no Google Drive em <b>ARCHÉ/${esc(a.registro.pasta)}</b>.</div>` : ""}
   </div>`;
 }
 

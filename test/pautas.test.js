@@ -295,3 +295,43 @@ test("ata do ano passado não conta na janela de hoje", () => {
   const atas = [ata({ data: somaDias(HOJE, -400), pautas: ["nde-ppc"] })];
   assert.equal(matrizConformidade(atas, { hoje: HOJE }).emDia, 0);
 });
+
+/* -------------------- regularização retroativa -------------------------- */
+test("o checklist de uma sessão antiga é o daquele semestre, não o de hoje", () => {
+  // ata de 2025-S1 tratando um tema que só é cobrado no 1º semestre
+  const anual1 = PAUTAS.find((p) => p.orgao === "NDE" && p.cadencia === "anual" && p.semestre === 1);
+  const antiga = ata({ data: "2025-03-20", pautas: [anual1.id] });
+
+  // olhando de hoje (2026-S2), o tema nem é cobrado
+  assert.equal(situacaoPautas([antiga], { orgao: "NDE", curso: "psicologia", hoje: HOJE })
+    .find((p) => p.id === anual1.id).estado, "fora-da-janela");
+
+  // olhando da data da sessão, ele está em dia — foi o que a ata regularizou
+  const naEpoca = situacaoPautas([antiga], { orgao: "NDE", curso: "psicologia", hoje: "2025-03-20" })
+    .find((p) => p.id === anual1.id);
+  assert.equal(naEpoca.estado, "em-dia");
+  assert.equal(naEpoca.janela, "2025-S1");
+});
+
+test("atas retroativas fecham o ciclo do semestre a que pertencem", () => {
+  const atas = [ata({ data: "2025-03-10" }), ata({ data: "2025-05-20" })];
+  const passado = ritualDoOrgao(atas, { orgao: "NDE", curso: "psicologia", hoje: "2025-06-01" });
+  assert.equal(passado.completo, true, "as duas sessões de 2025-S1 fecham aquele ciclo");
+  const agora = ritualDoOrgao(atas, { orgao: "NDE", curso: "psicologia", hoje: HOJE });
+  assert.equal(agora.completo, false, "e não contam para o semestre corrente");
+});
+
+test("a numeração retroativa respeita a série do ano da sessão", () => {
+  const atas = [];
+  for (const data of ["2024-04-10", "2024-09-12", "2025-03-05"]) {
+    atas.push(numerar(atas, normalizarAta({
+      orgao: "NDE", curso: "psicologia",
+      sessao: { data, horaInicio: "14:00", local: "Sala 1" },
+      presidencia: { nome: "P" }, secretaria: { nome: "S" },
+      participantes: [{ nome: "A", presenca: "presente" }, { nome: "B", presenca: "presente" }],
+      pauta: [{ titulo: "Ponto" }], status: "registrada",
+    })));
+  }
+  assert.deepEqual(atas.map((a) => a.numero),
+    ["ATA-NDE-PSI-2024-001", "ATA-NDE-PSI-2024-002", "ATA-NDE-PSI-2025-001"]);
+});

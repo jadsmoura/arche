@@ -19,10 +19,11 @@ import {
   numerar, tituloDe, anotar, encaminhamentos, orgaoDe,
 } from "./lib/atas.js";
 import {
-  PAUTAS, MOMENTOS, CADENCIAS, RITUAL, checklistSemestral, pautasSugeridas,
+  PAUTAS, MOMENTOS, CADENCIAS, RITUAL, checklistSemestral, pautasSugeridas, janelaDe,
   matrizConformidade, placarPorCurso, ciclosDoSemestre, proximosPrazos,
 } from "./lib/pautas.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
+import { dataCivil, hojeLocalISO } from "./lib/datas.js";
 import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
   papelDe, modulosDe, MODULOS, verificarGoogle, criarCodigo, verificarCodigo,
@@ -719,6 +720,14 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
 // serializadas para que dois registros simultâneos não recebam o mesmo número.
 const ATAS_META = { orgaos: ORGAOS, cursos: CURSOS, status: ATA_STATUS };
 
+// Mesma convenção dos outros setores: por curso primeiro (atas/<curso>/…),
+// e os colegiados superiores sob "institucional".
+function pastaDaAta(ata) {
+  const orgao = slug(orgaoDe(ata.orgao)?.sigla || "geral");
+  const raiz = ata.curso ? slug(ata.curso) : "institucional";
+  return `atas/${raiz}/${orgao}/${ata.ano || "sem-ano"}`;
+}
+
 async function lerAtas() {
   const raw = await storage.get(ATAS_KEY);
   try { const v = JSON.parse(raw || "[]"); return Array.isArray(v) ? v : []; }
@@ -808,21 +817,28 @@ app.get("/api/atas/pauta-regulatoria", async (req, res) => {
   const curso = String(req.query.curso || "");
   if (!orgaoDe(orgao)) return res.status(400).json({ error: "Informe um órgão válido" });
   const atas = await lerAtas();
-  const ck = checklistSemestral(atas, { orgao, curso });
+  // A referência é a data da sessão: numa ata retroativa o checklist cobrado
+  // é o daquele semestre, não o do semestre corrente.
+  const hojeReal = hojeLocalISO();
+  const referencia = dataCivil(req.query.data) || hojeReal;
+  const retroativa = janelaDe(referencia) !== janelaDe(hojeReal);
+  const ck = checklistSemestral(atas, { orgao, curso, hoje: referencia });
   // ata da sessão anterior do mesmo órgão: item de praxe da ordem do dia
   const escopoCurso = !!orgaoDe(orgao)?.porCurso;
   const anterior = atas
     .filter((a) => a.orgao === orgao && (!escopoCurso || (a.curso || "") === curso)
-      && a.id !== String(req.query.excluir || "") && a.numero && a.sessao?.data)
+      && a.id !== String(req.query.excluir || "") && a.numero && a.sessao?.data
+      && a.sessao.data <= referencia)
     .sort((x, y) => String(y.sessao.data).localeCompare(String(x.sessao.data)))[0] || null;
   res.json({
     orgao, curso, ...ck,
+    referencia, retroativa, janelaAtual: janelaDe(hojeReal),
     anterior: anterior && {
       id: anterior.id, numero: anterior.numero, data: anterior.sessao.data,
       status: anterior.status, tipo: anterior.sessao.tipo,
     },
-    sugeridas: pautasSugeridas(atas, { orgao, curso }).map((p) => p.id),
-    prazos: proximosPrazos(atas, { orgao, curso }),
+    sugeridas: pautasSugeridas(atas, { orgao, curso, hoje: referencia }).map((p) => p.id),
+    prazos: proximosPrazos(atas, { orgao, curso, hoje: referencia }),
   });
 });
 
@@ -995,7 +1011,7 @@ app.post("/api/atas/:id/registrar", async (req, res) => {
     const { gerarAtaPdf } = await import("./lib/pdf.js");
     const pdfBuffer = await gerarAtaPdf(ata);
     const nomePdf = `${slug(ata.numero || ata.id)}.pdf`;
-    const pasta = `atas/${slug(orgaoDe(ata.orgao)?.sigla || "geral")}${ata.curso ? "/" + slug(ata.curso) : ""}/${ata.ano || "sem-ano"}`;
+    const pasta = pastaDaAta(ata);
 
     let arquivo = null;
     try {
@@ -1079,7 +1095,7 @@ app.post("/api/atas/:id/anexo", upload.single("file"), async (req, res) => {
     if (!podeEditar(u, ata)) return res.status(403).json({ error: "Sem permissão para anexar" });
     if ((ata.anexos || []).length >= 30) return res.status(400).json({ error: "Limite de 30 anexos por ata" });
 
-    const pasta = `atas/${slug(orgaoDe(ata.orgao)?.sigla || "geral")}${ata.curso ? "/" + slug(ata.curso) : ""}/${ata.ano || "sem-ano"}/${slug(ata.numero || ata.id)}`;
+    const pasta = `${pastaDaAta(ata)}/${slug(ata.numero || ata.id)}`;
     const arquivo = await files.save({
       buffer: req.file.buffer, originalName: req.file.originalname, prefix: pasta,
     });

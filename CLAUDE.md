@@ -44,9 +44,15 @@ public/
 - Fluxo da Extensão: proposta → aprovação (nº `EXT-AAAA-NNN`) → relatório final →
   participantes (3/3 completa) → certificados → registrada. Não alterar o formato do nº.
 - Uploads e estado são organizados **por curso** no Google Drive — preservar os prefixos
-  usados em server.js (`extensao/<curso>/…`, `dossie/<curso>/…` etc.).
+  usados em server.js (`extensao/<curso>/…`, `dossie/<curso>/…`,
+  `atas/<curso>/<órgão>/<ano>/` e `atas/institucional/<órgão>/<ano>/`).
 - Estado do app em chaves `/api/estado` (ex.: `extensao-acoes-v1`); chaves `auth-*`, `sys-*`
   e `atas-*` são internas e invisíveis pela API.
+- No ARCHÉ AT o **curso é escolhido antes do órgão**: com curso entram NDE e Colegiado;
+  sem curso, os conselhos superiores, pró-reitorias, CPA e comissões.
+- **Datas passadas são aceitas** de propósito, para os órgãos regularizarem o arquivo.
+  Numa ata retroativa, o checklist cobrado e o ciclo de sessões são os do semestre
+  DA SESSÃO, não os do semestre corrente (`/api/atas/pauta-regulatoria?data=…`).
 - Fluxo das Atas (ARCHÉ AT): rascunho → minuta → em revisão → aprovada → registrada.
   O número (`ATA-NDE-ENF-2026-003`) só é emitido ao sair do rascunho e nunca se repete.
   Ata registrada é documento fechado. Toda leitura/gravação passa por `/api/atas/*`.
