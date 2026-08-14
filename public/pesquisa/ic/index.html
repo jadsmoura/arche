@@ -148,6 +148,11 @@
   table.pt td input,table.pt td select{font-size:12.5px;padding:7px 8px}
   table.pt .rm{color:var(--err);cursor:pointer;font-weight:700;background:none;border:0;font-size:15px}
   .rolo{overflow-x:auto}
+  .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .stat>*{min-width:0}
+  .stat .s{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .stat .s b{font-family:Sora,sans-serif;font-size:22px;display:block;color:var(--ink);line-height:1.1}
+  .stat .s span{font-size:11.5px;color:var(--muted)}
   .filtros{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
   .filtros select,.filtros input{width:auto;min-width:150px;font-size:13px;padding:8px 10px}
   .bloco{border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:12px;background:#fcfdfe}
@@ -223,10 +228,11 @@ const fmtD = (iso) => (iso ? String(iso).split("-").reverse().join("/") : "—")
 const fmtDH = (iso) => { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—"; };
 const hojeISO = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
-let META = { cursos: [], modalidades: [], status: [], rotulos: {}, gestao: false, eu: "", perfil: "orientador" };
+let META = { cursos: [], modalidades: [], status: [], rotulos: {}, gestao: false, eu: "", perfil: "orientador",
+  linhas: [], grupos: [], fomentos: [], titulacoes: [], blocosProducao: [], edital: {}, producaoAnterior: null };
 let PROJETOS = [], ETAPAS = [], RELS = { relatorios: [], pendentes: [] };
 let ATUAL = null, PODE = {}, ME = null, SECAO = "painel";
-let FILTRO = { status: "", curso: "", q: "" };
+let FILTRO = { status: "", curso: "", linha: "", q: "" };
 
 // Quatro acessos, uma barra lateral só: cada perfil vê as guias que usa.
 //   gestao     — tudo
@@ -266,6 +272,19 @@ function aviso(msg, tipo = "ok") {
 }
 const cursoNome = (slug) => (META.cursos.find((c) => c.slug === slug) || {}).nome || slug || "—";
 const modNome = (c) => (META.modalidades.find((m) => m.codigo === c) || {}).nome || c || "—";
+const linhaNome = (c) => (META.linhas.find((l) => l.codigo === c) || {}).nome || c || "—";
+const fomentoNome = (c) => (META.fomentos.find((f) => f.codigo === c) || {}).nome || c || "—";
+// a modalidade que vale: a definida pelo fomento; senão, a pretendida
+const modVigente = (p) => (p.fomento?.modalidade ? modNome(p.fomento.modalidade)
+  : p.modalidade ? modNome(p.modalidade) + " (pretendida)" : linhaNome(p.linha));
+function pontuarProducao(q) {
+  let total = 0;
+  for (const b of META.blocosProducao) {
+    const bruto = b.itens.reduce((s, i) => s + (Math.max(0, Math.trunc(Number(q?.[i.codigo]) || 0))) * i.peso, 0);
+    total += Math.min(bruto, b.teto);
+  }
+  return Math.round(total * 100) / 100;
+}
 const chip = (s) => `<span class="badge b-${esc(s)}">${esc(META.rotulos[s] || s)}</span>`;
 const ehAluno = () => META.perfil === "aluno";
 const ehAvaliador = () => META.perfil === "avaliador";
@@ -439,6 +458,7 @@ function renderGestao() {
   const lista = PROJETOS.filter((p) =>
     (!FILTRO.status || p.status === FILTRO.status) &&
     (!FILTRO.curso || p.curso === FILTRO.curso) &&
+    (!FILTRO.linha || p.linha === FILTRO.linha) &&
     (!FILTRO.q || `${p.numero || ""} ${p.titulo} ${p.orientador?.nome || ""} ${(p.alunos || []).map((a) => a.nome).join(" ")}`
       .toLowerCase().includes(FILTRO.q.toLowerCase())));
 
@@ -454,17 +474,27 @@ function renderGestao() {
       </select>
       <input placeholder="Buscar por número, título, orientação ou aluno" value="${esc(FILTRO.q)}"
         oninput="FILTRO.q=this.value;clearTimeout(window.__b);window.__b=setTimeout(renderGestao,250)">
+      <select onchange="FILTRO.linha=this.value;renderGestao()">
+        <option value="">Todas as linhas</option>
+        ${META.linhas.map((l) => `<option value="${l.codigo}" ${FILTRO.linha === l.codigo ? "selected" : ""}>${esc(l.nome)}</option>`).join("")}
+      </select>
       ${ehAluno() ? "" : `<button class="bt bt-pri" onclick="nav('submissao')">＋ Novo projeto</button>`}
+      ${ME?.papel === "gestor" ? `<button class="bt bt-ghost" onclick="importarEdital(true)" title="Confere o arquivo sem gravar">Importar edital 01/2026</button>` : ""}
     </div>
     <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">${lista.length} projeto(s)</div>
     ${lista.map((p) => `
       <div class="item" onclick="abrir('${esc(p.id)}')">
         <div style="flex:1;min-width:0">
           <div class="nm">${esc(p.titulo || "(sem título)")}</div>
-          <div class="cs">${esc(p.numero || "sem número")} · ${esc(cursoNome(p.curso))} · ${esc(modNome(p.modalidade))}
+          <div class="cs">${esc(p.numero || "sem número")} · ${esc(cursoNome(p.curso))} · ${esc(modVigente(p))}
             · orientação: ${esc(p.orientador?.nome || p.orientador?.email || "—")}
-            ${p.alunos?.length ? ` · ${p.alunos.length} aluno(s)` : " · sem aluno indicado"}</div>
+            ${p.alunos?.length ? ` · ${p.alunos.length} aluno(s)` : " · sem aluno indicado"}
+            ${p.grupoPesquisa ? ` · grupo: ${esc(p.grupoPesquisa)}` : ""}</div>
+          ${(p.pendencias || []).length ? `<div class="cs" style="color:var(--warn)">⚠ ${esc(p.pendencias[0].texto)}${
+            p.pendencias.length > 1 ? ` (+${p.pendencias.length - 1})` : ""}</div>` : ""}
         </div>
+        ${p.classificacao?.nfc ? `<span class="prazo" title="NP ${p.classificacao.np ?? "—"} · CL ${p.classificacao.cl}">NFC ${p.classificacao.nfc}</span>` : ""}
+        ${p.fomento ? `<span class="badge b-${p.fomento.tipo === "voluntario" ? "prevista" : "validado"}">${esc(fomentoNome(p.fomento.tipo))}</span>` : ""}
         ${p.aValidar ? `<span class="badge b-enviado">${p.aValidar} a validar</span>` : ""}
         ${p.atrasadas ? `<span class="badge b-atrasada">${p.atrasadas} atrasada(s)</span>` : ""}
         ${chip(p.status)}
@@ -670,11 +700,26 @@ function renderEditor(alvo) {
           <option value="">— escolha —</option>
           ${META.cursos.map((c) => `<option value="${c.slug}" ${p.curso === c.slug ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}
         </select></div>
-        <div><label>Modalidade *</label><select ${ro} onchange="campo('modalidade',this.value)">
-          ${META.modalidades.map((m) => `<option value="${m.codigo}" ${p.modalidade === m.codigo ? "selected" : ""}>${esc(m.nome)}</option>`).join("")}
+        <div><label>Linha *</label><select ${ro} onchange="campo('linha',this.value);renderEditor('${alvo}')">
+          ${META.linhas.map((l) => `<option value="${l.codigo}" ${p.linha === l.codigo ? "selected" : ""}>${esc(l.nome)}</option>`).join("")}
         </select></div>
-        <div><label>Edital <span class="muted">(se houver)</span></label>
-          <input ${ro} value="${esc(p.edital || "")}" oninput="campo('edital',this.value)" placeholder="PIBIC 01/2026"></div>
+        <div><label>Edital</label>
+          <input ${ro} value="${esc(p.edital || META.edital?.numero || "")}" oninput="campo('edital',this.value)" placeholder="01/2026"></div>
+      </div>
+
+      <div class="grid2">
+        <div><label>Modalidade pretendida <span class="muted">(a concessão é decidida na seleção)</span></label>
+          <select ${ro} onchange="campo('modalidade',this.value)">
+            <option value="">— a definir na seleção —</option>
+            ${META.modalidades.filter((m) => m.linha === (p.linha || "ic"))
+              .map((m) => `<option value="${m.codigo}" ${p.modalidade === m.codigo ? "selected" : ""}>${esc(m.nome)}${m.valor ? ` — R$ ${m.valor}` : ""}</option>`).join("")}
+          </select></div>
+        <div><label>Grupo de pesquisa (DGP/CNPq) <span class="muted">(se a proposta estiver vinculada a um)</span></label>
+          <select ${ro} onchange="campo('grupoPesquisa',this.value)">
+            <option value="">— não vinculada a grupo —</option>
+            ${META.grupos.map((g) => `<option value="${esc(g)}" ${p.grupoPesquisa === g ? "selected" : ""}>${esc(g)}</option>`).join("")}
+            ${p.grupoPesquisa && !META.grupos.includes(p.grupoPesquisa) ? `<option value="${esc(p.grupoPesquisa)}" selected>${esc(p.grupoPesquisa)}</option>` : ""}
+          </select></div>
       </div>
 
       <div class="grid2">
@@ -694,8 +739,39 @@ function renderEditor(alvo) {
       <label>Objetivos *</label>
       <textarea ${ro} oninput="campo('objetivos',this.value)">${esc(p.objetivos || "")}</textarea>
 
+      <label>Justificativa e relevância *</label>
+      <textarea ${ro} oninput="campo('justificativa',this.value)">${esc(p.justificativa || "")}</textarea>
+
       <label>Metodologia *</label>
       <textarea ${ro} oninput="campo('metodologia',this.value)">${esc(p.metodologia || "")}</textarea>
+
+      <label>Resultados esperados *</label>
+      <textarea ${ro} oninput="campo('resultadosEsperados',this.value)">${esc(p.resultadosEsperados || "")}</textarea>
+
+      <label>Referências bibliográficas *</label>
+      <textarea ${ro} oninput="campo('referencias',this.value)">${esc(p.referencias || "")}</textarea>
+
+      <div class="sec-t">Comitê de ética</div>
+      <div class="muted" style="margin-bottom:8px">Projeto com seres humanos ou animais precisa do CEP ou da CEUA
+        até a implementação da bolsa (item 7.7 do edital).</div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink)">
+        <input type="checkbox" style="width:auto" ${ro} ${p.etica?.exige ? "checked" : ""}
+          onchange="sub('etica','exige',this.checked);renderEditor('${alvo}')">
+        Este projeto envolve seres humanos e/ou animais
+      </label>
+      ${p.etica?.exige ? `<div class="grid3">
+        <div><label>Comitê</label><select ${ro} onchange="sub('etica','comite',this.value)">
+          <option value="">— escolha —</option>
+          <option value="cep" ${p.etica?.comite === "cep" ? "selected" : ""}>CEP — seres humanos</option>
+          <option value="ceua" ${p.etica?.comite === "ceua" ? "selected" : ""}>CEUA — animais</option>
+        </select></div>
+        <div><label>Protocolo / CAAE</label><input ${ro} value="${esc(p.etica?.protocolo || "")}" oninput="sub('etica','protocolo',this.value)"></div>
+        <div><label>Situação</label><select ${ro} onchange="sub('etica','situacao',this.value)">
+          <option value="">— escolha —</option>
+          <option value="submetido" ${p.etica?.situacao === "submetido" ? "selected" : ""}>Submetido</option>
+          <option value="aprovado" ${p.etica?.situacao === "aprovado" ? "selected" : ""}>Aprovado</option>
+        </select></div>
+      </div>` : ""}
 
       <div class="sec-t">Orientação</div>
       ${PODE.papel === "avaliador" ? `
@@ -703,7 +779,14 @@ function renderEditor(alvo) {
       <div class="grid3">
         <div><label>Nome *</label><input ${ro} value="${esc(p.orientador?.nome || "")}" oninput="sub('orientador','nome',this.value)"></div>
         <div><label>E-mail *</label><input type="email" ${ro} value="${esc(p.orientador?.email || "")}" oninput="sub('orientador','email',this.value)"></div>
-        <div><label>Titulação</label><input ${ro} value="${esc(p.orientador?.titulacao || "")}" oninput="sub('orientador','titulacao',this.value)" placeholder="Doutor(a)"></div>
+        <div><label>Titulação *</label><select ${ro} onchange="sub('orientador','titulacao',this.value)">
+          <option value="">— escolha —</option>
+          ${META.titulacoes.map((t) => `<option value="${t.codigo}" ${p.orientador?.titulacao === t.codigo ? "selected" : ""}>${esc(t.nome)}</option>`).join("")}
+        </select></div>
+      </div>
+      <div class="grid2">
+        <div><label>Telefone (WhatsApp)</label><input ${ro} value="${esc(p.orientador?.telefone || "")}" oninput="sub('orientador','telefone',this.value)"></div>
+        <div><label>Currículo Lattes</label><input ${ro} value="${esc(p.orientador?.lattes || "")}" oninput="sub('orientador','lattes',this.value)" placeholder="http://lattes.cnpq.br/…"></div>
       </div>`}
     </div>
 
@@ -713,11 +796,13 @@ function renderEditor(alvo) {
         ? "Quantos alunos a proposta prevê e se há bolsa — os nomes ficam de fora."
         : "O e-mail é o que dá ao aluno acesso ao próprio cronograma e aos relatórios — use o mesmo com que ele entra no ARCHÉ."}</div>
       <div class="rolo"><table class="pt">
-        <thead><tr><th style="width:32%">Nome</th><th style="width:30%">E-mail</th><th>Matrícula</th><th>Bolsista</th><th></th></tr></thead>
+        <thead><tr><th style="width:26%">Nome</th><th style="width:26%">E-mail</th><th>Matrícula</th><th>Período</th><th>Bolsista</th><th></th></tr></thead>
         <tbody id="tb-alunos"></tbody>
       </table></div>
       ${ger ? `<div class="exp"><button class="bt bt-sec" onclick="addAluno()">＋ Indicar aluno</button></div>` : ""}
     </div>
+
+    ${renderProducao(p, ger)}
 
     <div class="card">
       <div class="card-t">Cronograma</div>
@@ -729,6 +814,8 @@ function renderEditor(alvo) {
       ${ger ? `<div class="exp"><button class="bt bt-sec" onclick="addEtapa()">＋ Adicionar atividade</button></div>` : ""}
     </div>
 
+    ${p.id ? renderPendencias(p) : ""}
+    ${p.id ? renderSelecao(p) : ""}
     ${p.id ? renderAvaliacaoDoProjeto(p) : ""}
     ${p.id && PODE.papel !== "avaliador" ? renderRelatoriosDoProjeto(p) : ""}
 
@@ -747,7 +834,7 @@ function renderEditor(alvo) {
       ${p.historico?.length ? `<div class="muted" style="margin-top:14px">Último registro: ${esc(p.historico.at(-1).oQue)} — ${esc(p.historico.at(-1).quem)} em ${fmtDH(p.historico.at(-1).quando)}</div>` : ""}
     </div>`;
 
-  desenharAlunos(); desenharEtapas();
+  desenharAlunos(); desenharEtapas(); pintarProducao();
 }
 
 function desenharAlunos() {
@@ -757,9 +844,12 @@ function desenharAlunos() {
       <td><input ${ger ? "" : "disabled"} value="${esc(a.nome || "")}" oninput="ATUAL.alunos[${i}].nome=this.value"></td>
       <td><input type="email" ${ger ? "" : "disabled"} value="${esc(a.email || "")}" oninput="ATUAL.alunos[${i}].email=this.value;desenharEtapas()"></td>
       <td><input ${ger ? "" : "disabled"} value="${esc(a.matricula || "")}" oninput="ATUAL.alunos[${i}].matricula=this.value"></td>
+      <td><input ${ger ? "" : "disabled"} value="${esc(a.periodo || "")}" oninput="ATUAL.alunos[${i}].periodo=this.value" placeholder="5º"></td>
       <td><input type="checkbox" style="width:auto" ${a.bolsista ? "checked" : ""} ${ger ? "" : "disabled"} onchange="ATUAL.alunos[${i}].bolsista=this.checked"></td>
       <td>${ger ? `<button class="rm" title="remover" onclick="ATUAL.alunos.splice(${i},1);desenharAlunos();desenharEtapas()">×</button>` : ""}</td>
-    </tr>`).join("") || `<tr><td colspan="5" class="muted">Nenhum aluno indicado. Sem aluno, o projeto anda, mas não há relatórios a entregar.</td></tr>`;
+    </tr>${!a.email ? `<tr><td colspan="6" class="muted" style="border-top:0;padding-top:0">
+      ⚠ sem e-mail, ${esc(a.nome || "este aluno")} não entra no sistema para enviar os relatórios</td></tr>` : ""}`).join("")
+    || `<tr><td colspan="6" class="muted">Nenhum aluno indicado. Sem aluno, o projeto anda, mas não há relatórios a entregar.</td></tr>`;
 }
 function addAluno() { ATUAL.alunos = [...(ATUAL.alunos || []), { nome: "", email: "", matricula: "", bolsista: false }]; desenharAlunos(); }
 
@@ -782,6 +872,169 @@ function desenharEtapas() {
     </tr>`).join("") || `<tr><td colspan="6" class="muted">Nenhuma atividade. O cronograma é obrigatório para submeter.</td></tr>`;
 }
 function addEtapa() { ATUAL.cronograma = [...(ATUAL.cronograma || []), { atividade: "", responsavel: "", inicio: "", fim: "", situacao: "prevista" }]; desenharEtapas(); }
+
+/* Importação do banco do edital que acompanha o sistema. Roda primeiro em
+   simulação — ninguém deve gravar 33 projetos sem ver antes o que entra. */
+async function importarEdital(simular) {
+  try {
+    const r = await api("/api/ic/importar", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ arquivo: "edital-01-2026", simular }),
+    });
+    const resumo = `${r.criados} a criar, ${r.atualizados} a atualizar` +
+      (r.semCpf ? `, ${r.semCpf} sem CPF válido` : "") +
+      (r.invalidos?.length ? `, ${r.invalidos.length} com pendência` : "");
+    if (simular) {
+      const detalhe = (r.invalidos || []).slice(0, 5).map((x) => `linha ${x.linha}: ${x.erro}`).join("\n");
+      if (!confirm(`Importação do edital 01/2026\n\n${resumo}\n\n${detalhe}\n\nConfirmar a gravação?`)) return;
+      return importarEdital(false);
+    }
+    await carregar(); montarSidebar(); renderGestao();
+    aviso(`Edital importado: ${resumo}.`);
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+/* --------------- pendências e resultado da seleção --------------------- */
+function renderPendencias(p) {
+  if (PODE.papel === "avaliador") return "";
+  const f = [];
+  for (const a of p.alunos || []) if (!a.email) f.push(`${a.nome || "Um aluno indicado"} está sem e-mail — sem ele o aluno não entra no sistema para enviar relatório.`);
+  if (!Object.keys(p.producao || {}).length) f.push("A planilha de pontuação da produção acadêmica não foi preenchida — ela vale 40% da classificação.");
+  if (p.etica?.exige && !p.etica?.protocolo) f.push("Projeto com seres humanos ou animais sem o protocolo do CEP/CEUA.");
+  if (!f.length) return "";
+  return `<div class="banner ba-warn"><b>Pendências</b><ul style="margin:6px 0 0 18px">
+    ${f.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
+}
+
+/* O resultado da seleção quanto à bolsa. As oito modalidades do edital são
+   o cruzamento linha × fomento: marcada a bolsa, a modalidade sai sozinha. */
+function renderSelecao(p) {
+  const gestao = PODE.podeDesignar;
+  if (!gestao && !p.fomento) return "";
+  const cls = p.classificacao;
+
+  if (!gestao) {
+    return `<div class="card">
+      <div class="card-t">Resultado da seleção</div>
+      <div class="kv"><b>${esc(fomentoNome(p.fomento.tipo))}</b>${p.fomento.modalidade ? ` · ${esc(modNome(p.fomento.modalidade))}` : ""}</div>
+      ${p.fomento.observacao ? `<div class="kv">${esc(p.fomento.observacao)}</div>` : ""}
+    </div>`;
+  }
+
+  return `<div class="card">
+    <div class="card-t">Seleção e concessão</div>
+    <div class="card-s">Marque se o projeto foi contemplado com bolsa — do CNPq ou do UNIEGO — ou se seguirá como voluntário.
+      A modalidade do edital sai daí: ${esc(linhaNome(p.linha))} + bolsa CNPq = ${esc(modNome((META.modalidades.find((m) => m.linha === p.linha && m.fomento === "cnpq") || {}).codigo))}.</div>
+
+    ${p.fomento ? `<div class="banner ba-ok">Definido: <b>${esc(fomentoNome(p.fomento.tipo))}</b>${
+      p.fomento.modalidade ? ` — ${esc(modNome(p.fomento.modalidade))}` : ""} · por ${esc(p.fomento.por)} em ${fmtDH(p.fomento.em)}</div>` : ""}
+
+    <div class="exp">
+      ${META.fomentos.map((f) => `<button class="bt ${p.fomento?.tipo === f.codigo ? "bt-pri" : "bt-sec"}"
+        onclick="definirFomento('${f.codigo}')">${esc(f.nome)}</button>`).join("")}
+    </div>
+
+    ${cls ? `<div class="stat" style="margin-top:16px">
+      <div class="s"><b>${cls.np ?? "—"}</b><span>NP · parecer (0–10)</span></div>
+      <div class="s"><b>${cls.cl ?? "—"}</b><span>CL · currículo (0–10)</span></div>
+      <div class="s" style="border-color:var(--brand-3)"><b>${cls.nfc ?? "—"}</b><span>NFC = NP×0,6 + CL×0,4</span></div>
+    </div>` : ""}
+  </div>`;
+}
+
+async function definirFomento(tipo) {
+  const obs = tipo === "voluntario" ? "" : (prompt("Observação sobre a concessão (opcional):") ?? "");
+  try {
+    const r = await api(`/api/ic/${ATUAL.id}/fomento`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tipo, observacao: obs }),
+    });
+    await carregar(); montarSidebar(); await abrir(r.projeto.id);
+    aviso(`Fomento definido: ${fomentoNome(tipo)}.`);
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+/* ---------------- planilha de pontuação da produção -------------------- */
+/* Réplica da planilha oficial do edital (item 6.2). A pessoa informa as
+   quantidades do período; o peso, os tetos por bloco e o total saem de
+   lib/edital.js — a conta na tela é só para ela ver o resultado na hora. */
+function renderProducao(p, editavel) {
+  if (PODE.papel === "avaliador") return "";
+  const q = p.producao || {};
+  const preenchida = Object.keys(q).length > 0;
+  const ro = editavel ? "" : "disabled";
+  const ed = META.edital || {};
+
+  return `<div class="card">
+    <div class="card-t">Produção acadêmica do coordenador</div>
+    <div class="card-s">Planilha de pontuação do edital (${esc(ed.producaoDe || "2022")} a ${esc(ed.producaoAte || "2026")}),
+      conferida contra o currículo Lattes. Vale 40% da nota de classificação — os outros 60% são o parecer.</div>
+
+    ${!preenchida && META.producaoAnterior && editavel ? `<div class="banner ba-info">
+      Você já preencheu esta planilha em outro projeto.
+      <button class="bt bt-sec" style="margin-left:8px" onclick="copiarProducaoAnterior()">Trazer os números de lá</button>
+    </div>` : ""}
+
+    <details ${preenchida || !editavel ? "" : "open"}>
+      <summary style="cursor:pointer;font-weight:600;font-size:13.5px;color:var(--brand);margin-bottom:10px">
+        ${preenchida ? "Ver e editar os itens" : "Preencher a planilha"}
+      </summary>
+      ${META.blocosProducao.map((b) => `
+        <div class="sec-t">${esc(b.nome)} <span class="muted">(máximo ${b.teto} pontos)</span></div>
+        <div class="rolo"><table class="pt">
+          <thead><tr><th style="width:56%">Item</th><th style="width:14%">Peso</th><th style="width:15%">Quantidade</th><th style="width:15%">Pontos</th></tr></thead>
+          <tbody>${b.itens.map((i) => `<tr>
+            <td>${i.grupo ? `<span class="muted">${esc(i.grupo)} · </span>` : ""}${esc(i.nome)}</td>
+            <td class="muted">${i.peso}</td>
+            <td><input type="number" min="0" step="1" ${ro} id="prod-${i.codigo}" value="${q[i.codigo] || ""}"
+              oninput="mudouProducao('${i.codigo}',this.value)" style="max-width:90px"></td>
+            <td id="pts-${i.codigo}" class="muted">${((q[i.codigo] || 0) * i.peso).toFixed(1)}</td>
+          </tr>`).join("")}</tbody>
+        </table></div>`).join("")}
+    </details>
+
+    <div class="stat" style="margin-top:16px">
+      ${META.blocosProducao.map((b) => `<div class="s"><b id="bl-${b.codigo}">—</b><span>${esc(b.nome)} (máx. ${b.teto})</span></div>`).join("")}
+      <div class="s" style="border-color:var(--brand-3)"><b id="prod-total">—</b><span>Pontuação (máx. 100)</span></div>
+    </div>
+  </div>`;
+}
+
+function mudouProducao(codigo, valor) {
+  const n = Math.max(0, Math.trunc(Number(valor) || 0));
+  ATUAL.producao = { ...(ATUAL.producao || {}) };
+  if (n) ATUAL.producao[codigo] = n; else delete ATUAL.producao[codigo];
+  pintarProducao();
+}
+
+function pintarProducao() {
+  if (!$("prod-total")) return;
+  const q = ATUAL.producao || {};
+  let total = 0;
+  for (const b of META.blocosProducao) {
+    let bruto = 0;
+    for (const i of b.itens) {
+      const pts = (q[i.codigo] || 0) * i.peso;
+      bruto += pts;
+      const cel = $("pts-" + i.codigo);
+      if (cel) cel.textContent = pts.toFixed(1);
+    }
+    const pontos = Math.min(bruto, b.teto);
+    total += pontos;
+    const alvo = $("bl-" + b.codigo);
+    if (alvo) {
+      alvo.textContent = pontos.toFixed(1);
+      alvo.parentElement.style.borderColor = bruto > b.teto ? "var(--warn)" : "";
+      alvo.parentElement.title = bruto > b.teto ? `Somou ${bruto.toFixed(1)}, mas o bloco tem teto de ${b.teto}` : "";
+    }
+  }
+  $("prod-total").textContent = (Math.round(total * 100) / 100).toFixed(1);
+}
+
+function copiarProducaoAnterior() {
+  ATUAL.producao = { ...(META.producaoAnterior || {}) };
+  renderEditor(SECAO === "submissao" ? "v-submissao" : "v-projeto");
+  aviso("Números trazidos do seu projeto anterior. Confira antes de salvar.");
+}
 
 /* ------------------ avaliação ad hoc dentro do projeto ----------------- */
 function renderAvaliacaoDoProjeto(p) {

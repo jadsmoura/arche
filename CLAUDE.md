@@ -23,6 +23,8 @@ lib/pdf.js           Relatório final, proposta e ata em PDF (timbrado oficial U
 lib/atas.js          ARCHÉ AT: órgãos, numeração das atas, normalização e validação
 lib/ic.js            ARCHÉ IC: projetos de IC, cronograma, relatórios e permissões
 lib/cpf.js           CPF: validação, normalização e a chave de vínculo dos importados
+lib/edital.js        Edital 01/2026: modalidades, grupos DGP/CNPq e pontuação docente
+dados/               Lotes de importação (ic-edital-01-2026.json: as 33 submissões)
 lib/pautas.js        Catálogo da Pauta Regulatória (indicadores INEP) e conformidade
 lib/redator.js       Redação da minuta da ata: modelo (padrão) | gemini | anthropic
 lib/assistente.js    Assistente de escrita dos campos da ata (só ARCHÉ AT)
@@ -89,6 +91,28 @@ public/
      durante a seleção (4 critérios de 0 a 10 + recomendação; a nota é a média) ou
      recusa por impedimento. Não participa da execução: cronograma e relatórios não
      aparecem para ele.
+- **Edital 01/2026** (`lib/edital.js`): as regras que o sistema precisa conhecer viram
+  catálogo — trocar de edital é mexer nesse arquivo, preservando os `codigo`, que são
+  a chave do que já está gravado. Três **linhas** (IC, IT, IE) e oito **modalidades**,
+  que são o cruzamento linha × fomento: o professor escolhe a linha e, se quiser, a
+  modalidade pretendida; a coordenação marca na seleção se houve **bolsa do CNPq, bolsa
+  do UNIEGO (R$ 350) ou voluntário**, e a modalidade efetiva (`modalidadeEfetiva`) sai
+  daí — marcar bolsa também marca os alunos como bolsistas. Cada modalidade cobra a
+  **titulação mínima** do item 4.4 (PIBIC/CNPq exige doutor; as voluntárias, especialista),
+  e a titulação chega como texto livre ("Doutora", "Dr.") — `normalizarTitulacao` resolve.
+- **Pontuação da produção acadêmica** (`pontuarProducao`): réplica da planilha oficial do
+  edital — 28 itens em 3 blocos, com pesos e tetos (30 + 60 + 10 = 100), no período de
+  2022 a 2026. Fica no projeto, mas é do coordenador: o formulário do próximo projeto
+  abre com o que ele informou da última vez (`producaoAnterior` em `/api/ic/meta`), e ela
+  pode ser preenchida depois da submissão. Classificação (item 9.4):
+  **NFC = NP×0,6 + CL×0,4**, com NP = média dos pareceres (0–10) e CL = pontuação/10.
+- **Grupo de pesquisa** (DGP/CNPq): a proposta indica **apenas o nome do grupo**, escolhido
+  na lista dos certificados pelo UNIEGO. Por decisão do dono, não se pergunta o papel de
+  quem submete no grupo — professores submetem propostas ligadas a grupos que não lideram.
+- **Pendências** (`pendenciasDoProjeto`) não travam a submissão, mas aparecem em amarelo:
+  aluno sem e-mail (não conseguirá enviar relatório), planilha de produção em branco,
+  CEP/CEUA sem protocolo. O formulário do edital não coletou e-mail nem CPF dos alunos —
+  por isso `validarProjeto` aceita aluno identificado só por nome e matrícula.
 - **CPF é a chave do que vem de fora** (`lib/cpf.js`): o perfil (`/perfil/`) pede o CPF,
   guardado só em dígitos e **único por conta** (dois cadastros com o mesmo CPF são
   recusados — o segundo herdaria os projetos do primeiro); alterar CPF já gravado só

@@ -24,7 +24,9 @@ function bruto(extra = {}) {
     titulo: "Micorrizas e produtividade do milho no Cerrado",
     resumo: "Investiga a relação entre colonização micorrízica e produtividade do milho em solos do Cerrado goiano. ".repeat(2),
     curso: "agronomia", modalidade: "pibic", edital: "PIBIC 01/2026",
-    objetivos: "Quantificar a colonização.", metodologia: "Blocos casualizados.",
+    objetivos: "Quantificar a colonização.", justificativa: "O tema é central para a produção regional.",
+    metodologia: "Blocos casualizados.", resultadosEsperados: "Índices de colonização por tratamento.",
+    referencias: "MOURA, J. B. Solos do Cerrado. Goianésia, 2024.",
     orientador: { nome: "Profa. Renata", email: PROF.email, titulacao: "Doutora" },
     alunos: [{ nome: "Marcos", email: ALUNO.email, matricula: "2024001", bolsista: true }],
     cronograma: [
@@ -73,7 +75,7 @@ test("normalização limpa listas e aceita só valores conhecidos", () => {
     alunos: [{ nome: "", email: "" }, { nome: "Marcos", email: "MARCOS@Uniego.edu.BR" }],
     cronograma: [{ atividade: "", inicio: "2026-01-01" }, { atividade: "Coleta", inicio: "hoje", fim: "2026-03-01", situacao: "voando" }],
   }), { autor: PROF.email });
-  assert.equal(p.modalidade, "pibic", "modalidade desconhecida cai no padrão");
+  assert.equal(p.modalidade, "", "modalidade desconhecida não entra");
   assert.equal(p.alunos.length, 1, "aluno vazio sai da lista");
   assert.equal(p.alunos[0].email, "marcos@uniego.edu.br", "e-mail vai para minúsculas");
   assert.equal(p.cronograma.length, 1, "atividade sem nome sai da lista");
@@ -357,5 +359,7 @@ test("o histórico guarda quem fez o quê, com teto", () => {
 
 test("as situações do projeto e as modalidades são as previstas", () => {
   assert.deepEqual(STATUS, ["rascunho", "submetido", "devolvido", "aprovado", "concluido", "reprovado"]);
-  assert.deepEqual(MODALIDADES.map((m) => m.codigo), ["pibic", "pibiti", "voluntaria"]);
+  assert.deepEqual(MODALIDADES.map((m) => m.codigo),
+    ["pibic-cnpq", "pibiti-cnpq", "pbic-uniego", "pbiti-uniego", "pbie-uniego",
+     "pvic-uniego", "pviti-uniego", "pvie-uniego"], "as oito modalidades do edital 01/2026");
 });

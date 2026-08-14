@@ -40,7 +40,9 @@ const importado = () => normalizarProjeto({
   titulo: "Sistemas agroflorestais na recuperação de nascentes",
   resumo: "Avalia arranjos agroflorestais na recuperação de nascentes degradadas na bacia do rio dos Bois. ".repeat(2),
   curso: "agronomia", modalidade: "pibic",
-  objetivos: "Comparar três arranjos.", metodologia: "Parcelas permanentes.",
+  objetivos: "Comparar três arranjos.", justificativa: "Nascentes degradadas comprometem o abastecimento.",
+  metodologia: "Parcelas permanentes.", resultadosEsperados: "Protocolo de recuperação.",
+  referencias: "EMBRAPA. Recuperação de nascentes, 2023.",
   orientador: { nome: "Profa. Marina", cpf: "390.533.447-05" },     // sem e-mail: veio da planilha
   alunos: [{ nome: "João Pedro", cpf: CPF2 }],
   cronograma: [{ atividade: "Implantação", inicio: "2025-09-01", fim: "2025-12-15" }],

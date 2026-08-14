@@ -10,6 +10,7 @@ import express from "express";
 import multer from "multer";
 import crypto from "node:crypto";
 import path from "node:path";
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { getStorage } from "./lib/storage.js";
 import { getFiles, slug } from "./lib/files.js";
@@ -32,6 +33,10 @@ import {
   participaDeAlgum, vincularPorCpf,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
+import {
+  EDITAL, LINHAS, GRUPOS_PESQUISA, FOMENTOS, TITULACOES, BLOCOS_PRODUCAO,
+  pontuarProducao, normalizarProducao, notaClassificacao, modalidadePor,
+} from "./lib/edital.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
 import { dataCivil, hojeLocalISO } from "./lib/datas.js";
 import { CREDENCIAMENTO, MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
@@ -1264,6 +1269,18 @@ function perfilIC(u, projetos) {
   return "orientador";                          // acumula papéis: vê o setor inteiro
 }
 
+/**
+ * A planilha de pontuação é do coordenador, não do projeto: quem submete a
+ * segunda proposta não deveria digitar tudo de novo. Devolve a produção mais
+ * recente que a pessoa informou em qualquer projeto seu.
+ */
+function producaoMaisRecente(projetos, u) {
+  const meus = (projetos || [])
+    .filter((p) => papelNoProjeto(quemIC(u), p) === "orientador" && Object.keys(p.producao || {}).length)
+    .sort((a, b) => String(b.atualizadoEm || "").localeCompare(String(a.atualizadoEm || "")));
+  return meus.length ? meus[0].producao : null;
+}
+
 /** Nenhuma resposta devolve o projeto cru: o sigilo do parecer é aplicado aqui. */
 const verProjeto = (u, p) => visaoDoProjeto(p, quemIC(u));
 
@@ -1275,6 +1292,12 @@ app.get("/api/ic/meta", async (req, res) => {
     cursos: CURSOS, modalidades: IC_MODALIDADES, status: IC_STATUS, rotulos: IC_ROTULO_STATUS,
     situacoesEtapa: SITUACOES_ETAPA, tiposRelatorio: TIPOS_RELATORIO,
     criterios: CRITERIOS, recomendacoes: RECOMENDACOES,
+    // catálogo do edital vigente (lib/edital.js)
+    edital: EDITAL, linhas: LINHAS, grupos: GRUPOS_PESQUISA, fomentos: FOMENTOS,
+    titulacoes: TITULACOES, blocosProducao: BLOCOS_PRODUCAO,
+    // a produção acadêmica é a mesma para todos os projetos do professor:
+    // o formulário já abre com o que ele informou da última vez
+    producaoAnterior: producaoMaisRecente(projetos, u),
     gestao: gereIC(u), eu: u.email, nome: u.nome || "", perfil: perfilIC(u, projetos),
   });
 });
@@ -1350,9 +1373,13 @@ app.post("/api/ic", async (req, res) => {
         return { erro: [403, "Sem permissão para editar este projeto"], gravar: false };
       // em execução, a proposta está fechada: seguem só cronograma e alunos
       if (base && !podeEditarProjeto(meu, base)) {
-        const p = normalizarProjeto({ ...base, alunos: b.alunos, cronograma: b.cronograma },
+        // a planilha de produção é do coordenador, não do texto da proposta:
+        // ele pode preenchê-la depois de submeter (os projetos importados do
+        // edital chegaram sem ela)
+        const p = normalizarProjeto(
+          { ...base, alunos: b.alunos, cronograma: b.cronograma, producao: b.producao ?? base.producao },
           { base, autor: u.email });
-        projetos[i] = anotarProjeto(p, { quem: u.email, oQue: "atualizou cronograma/alunos" });
+        projetos[i] = anotarProjeto(p, { quem: u.email, oQue: "atualizou cronograma, alunos ou produção" });
         return { projeto: projetos[i] };
       }
       const projeto = anotarProjeto(normalizarProjeto(b, { base, autor: u.email }),
@@ -1430,14 +1457,26 @@ app.post("/api/ic/:id/avaliar", async (req, res) => {
 app.post("/api/ic/importar", async (req, res) => {
   const u = await exigirGestor(req, res);
   if (!u) return;
-  const lote = Array.isArray(req.body?.projetos) ? req.body.projetos : null;
-  if (!lote) return res.status(400).json({ error: "Envie { projetos: [...] }" });
+  // Ou vem no corpo, ou é um dos arquivos que acompanham o sistema
+  // (dados/ic-<lote>.json) — é assim que o banco do edital 01/2026 entra.
+  let corpo = req.body || {};
+  if (corpo.arquivo) {
+    const nome = String(corpo.arquivo).replace(/[^a-z0-9-]/gi, "");
+    try {
+      const bruto = await readFile(path.join(__dirname, "dados", `ic-${nome}.json`), "utf8");
+      corpo = { ...JSON.parse(bruto), ...corpo, projetos: JSON.parse(bruto).projetos };
+    } catch {
+      return res.status(404).json({ error: `Arquivo de importação "${nome}" não encontrado` });
+    }
+  }
+  const lote = Array.isArray(corpo.projetos) ? corpo.projetos : null;
+  if (!lote) return res.status(400).json({ error: "Envie { projetos: [...] } ou { arquivo: \"edital-01-2026\" }" });
   if (lote.length > 500) return res.status(400).json({ error: "Limite de 500 projetos por lote" });
 
-  const origem = String(req.body?.origem || "submissao-anterior").slice(0, 60);
-  const situacao = String(req.body?.status || "submetido");
+  const origem = String(corpo.lote || corpo.origem || "submissao-anterior").slice(0, 60);
+  const situacao = String(corpo.status || "submetido");
   if (!IC_STATUS.includes(situacao)) return res.status(400).json({ error: "Situação inválida" });
-  const simulacao = !!req.body?.simular;
+  const simulacao = !!corpo.simular;
 
   const r = await comProjetos((projetos) => {
     const relatorio = { criados: 0, atualizados: 0, semCpf: 0, invalidos: [] };
@@ -1462,7 +1501,12 @@ app.post("/api/ic/importar", async (req, res) => {
       }
       p = {
         ...p, status: situacao,
-        origem: { lote: origem, id: chave, importadoEm: new Date().toISOString(), por: u.email },
+        // a data real da submissão veio no formulário — não é a data de hoje
+        ...(bruto?.submetidoEm ? { submetidoEm: String(bruto.submetidoEm) } : {}),
+        origem: {
+          lote: origem, id: chave, importadoEm: new Date().toISOString(), por: u.email,
+          ...(bruto?.anexosOrigem || {}),
+        },
         // o projeto nasce sem dono de e-mail: quem o reivindica é o CPF
         criadoPor: base?.criadoPor || "",
       };
@@ -1580,6 +1624,39 @@ app.post("/api/ic/:id/parecer", async (req, res) => {
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
   res.json({ ok: true, projeto: verProjeto(u, r.projeto), nota: notaFinal(parecerDe(r.projeto, u.email)) });
+});
+
+/**
+ * Resultado da seleção quanto ao fomento: bolsa do CNPq, bolsa do UNIEGO ou
+ * voluntário. É o que define a modalidade efetiva (PIBIC/CNPq, PBIC/UNIEGO,
+ * PVIC…) e marca quais alunos são bolsistas. Só a coordenação decide.
+ */
+app.post("/api/ic/:id/fomento", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const tipo = String(req.body?.tipo || "");
+  const obs = String(req.body?.observacao || "").trim().slice(0, 2000);
+  if (!FOMENTOS.some((f) => f.codigo === tipo)) return res.status(400).json({ error: "Fomento inválido" });
+
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    if (papelNoProjeto(meu, projetos[i]) !== "gestao")
+      return { erro: [403, "A concessão de bolsa é decidida pela coordenação"], gravar: false };
+    const p = projetos[i];
+    const mod = modalidadePor(p.linha, tipo);
+    projetos[i] = anotarProjeto({
+      ...p,
+      fomento: { tipo, modalidade: mod?.codigo || "", observacao: obs, por: u.email, em: new Date().toISOString() },
+      // bolsa é do aluno: marca quem recebe (voluntário desmarca todos)
+      alunos: (p.alunos || []).map((a) => ({ ...a, bolsista: tipo !== "voluntario" })),
+      atualizadoEm: new Date().toISOString(),
+    }, { quem: u.email, oQue: `fomento: ${mod?.nome || tipo}` });
+    return { projeto: projetos[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
 });
 
 // Relatório do aluno indicado — parcial ou final.
