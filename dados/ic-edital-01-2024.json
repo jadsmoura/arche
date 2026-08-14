@@ -1,0 +1,478 @@
+{
+ "lote": "edital-01-2024",
+ "historico": true,
+ "edital": "01/2024",
+ "status": "concluido",
+ "vigencia": {
+  "inicio": "2024-09-01",
+  "fim": "2025-08-31"
+ },
+ "descricao": "Arquivo do ciclo 2024-2025 (Edital nº 01/2024 — FACEG), transcrito do resultado final publicado.",
+ "projetos": [
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Micorrizas em sistemas agroflorestais como ferramenta para a recuperação de áreas degradadas no Cerrado",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-1"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Intensidade luminosa e atividade micorrízica em alface cultivada sob condições de estresse hídrico",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-2"
+  },
+  {
+   "orientador": {
+    "nome": "Maisa França Teixeira"
+   },
+   "titulo": "Percepção dos determinantes sociais em saúde bucal num contexto de territorialização no bairro Granville em Goianésia-GO",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-3"
+  },
+  {
+   "orientador": {
+    "nome": "Maisa França Teixeira"
+   },
+   "titulo": "Privacidade em foco: a trajetória feminina na era da tecnologia da informação",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-4"
+  },
+  {
+   "orientador": {
+    "nome": "Rodrigo Fernandes de Souza"
+   },
+   "titulo": "Micorriza arbuscular em genótipos de café cultivados em Cerrado",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-5"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Inoculação de Rhizophagus intraradices e patógenos de solo em soja cultivada em Cerrado",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/CNPq",
+   "fomento": "cnpq",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-6"
+  },
+  {
+   "orientador": {
+    "nome": "Rodrigo Fernandes de Souza"
+   },
+   "titulo": "Relação entre frações oxidáveis da matéria orgânica e atributos microbianos em solo sob sistemas de manejo para produção de hortaliças",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/CNPq",
+   "fomento": "cnpq",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-7"
+  },
+  {
+   "orientador": {
+    "nome": "Rodrigo Fernandes de Souza"
+   },
+   "titulo": "Bioinsumos: uma alternativa sustentável à cultura tradicional do agrotóxico",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/CNPq",
+   "fomento": "cnpq",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-8"
+  },
+  {
+   "orientador": {
+    "nome": "Danyelly Rodrigues Machado Azevedo"
+   },
+   "titulo": "A importância da orientação às gestantes e puérperas para garantir êxito no aleitamento materno",
+   "curso": "enfermagem",
+   "modalidadeHistorica": "PROBEX/FACEG",
+   "fomento": "uniego",
+   "linha": "ie",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-9"
+  },
+  {
+   "orientador": {
+    "nome": "Talita Rodrigues Corredeira Mendes"
+   },
+   "titulo": "Projeto de extensão — cultivando o bem-estar: um mosaico para a qualidade de vida",
+   "curso": "enfermagem",
+   "modalidadeHistorica": "PROBEX/FACEG",
+   "fomento": "uniego",
+   "linha": "ie",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-10"
+  },
+  {
+   "orientador": {
+    "nome": "Geoeselita Borges Teixeira"
+   },
+   "titulo": "Fortalecendo a saúde da mulher: uma jornada de integração e empoderamento",
+   "curso": "enfermagem",
+   "modalidadeHistorica": "PROBEX/FACEG",
+   "fomento": "uniego",
+   "linha": "ie",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-11"
+  },
+  {
+   "orientador": {
+    "nome": "Thiago Brito Steckelberg"
+   },
+   "titulo": "Execução penal — uma análise da divergência entre o Poder Executivo e o Poder Judiciário no exercício do jus puniendi",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-12"
+  },
+  {
+   "orientador": {
+    "nome": "José Mateus dos Santos Junior"
+   },
+   "titulo": "Avaliação do conhecimento de cirurgiões-dentistas em clínicas privadas do município de Goianésia-GO sobre o câncer em região de cabeça e pescoço",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-13"
+  },
+  {
+   "orientador": {
+    "nome": "Keren Morais de Brito Matos"
+   },
+   "titulo": "Benefícios da arborização urbana na cidade de Goianésia-GO",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-14"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Atividade micorrízica como bioindicador de qualidade em agroecossistemas conservacionistas",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-15"
+  },
+  {
+   "orientador": {
+    "nome": "Maisa França Teixeira"
+   },
+   "titulo": "A importância da saúde bucal no ambiente corporativo e o seu impacto no bem-estar e produtividade dos colaboradores",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-16"
+  },
+  {
+   "orientador": {
+    "nome": "Rodrigo Fernandes de Souza"
+   },
+   "titulo": "Fungos micorrízicos arbusculares associados a espécies frutíferas nativas do Cerrado",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-17"
+  },
+  {
+   "orientador": {
+    "nome": "Thiago Brito Steckelberg"
+   },
+   "titulo": "Responsabilidade penal dos proprietários da boate Kiss: uma análise da tipificação dos crimes de homicídio com dolo eventual",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-18"
+  },
+  {
+   "orientador": {
+    "nome": "José Mateus dos Santos Junior"
+   },
+   "titulo": "Perfil dos pacientes atendidos na clínica odontológica de ensino da Associação Educativa Evangélica de Goianésia",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-19"
+  },
+  {
+   "orientador": {
+    "nome": "Keren Morais de Brito Matos"
+   },
+   "titulo": "Contribuição das áreas de proteção ambiental na conservação do Cerrado: desafio à gestão ambiental",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-20"
+  },
+  {
+   "orientador": {
+    "nome": "Ivandro José de Freitas Rocha"
+   },
+   "titulo": "Prototipagem de robô manipulador com cadeia cinemática fechada e três juntas rotacionais",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "PIBITI/FACEG",
+   "fomento": "uniego",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-21"
+  },
+  {
+   "orientador": {
+    "nome": "Rodrigo Fernandes de Souza"
+   },
+   "titulo": "Influência de diferentes fontes de nitrogênio e sistemas de plantio em três variedades de cana-de-açúcar",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/FACEG",
+   "fomento": "uniego",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-22"
+  },
+  {
+   "orientador": {
+    "nome": "Ivandro José de Freitas Rocha"
+   },
+   "titulo": "Prototipagem de robô manipulador hidráulico com cadeia cinemática aberta, três juntas rotacionais e ímã como órgão terminal",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "PIBITI/FACEG",
+   "fomento": "uniego",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-23"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Fungos micorrízicos em soja cultivada com fino de mica xisto no cerrado sob regimes hídricos variáveis",
+   "curso": "agronomia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-24"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Micorriza arbuscular em genótipos de trigo, sob plantio direto e convencional",
+   "curso": "agronomia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-25"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Avaliação de coinoculação de organismos promotores de tolerância a estresse hídrico",
+   "curso": "agronomia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-26"
+  },
+  {
+   "orientador": {
+    "nome": "Maisa França Teixeira"
+   },
+   "titulo": "Impacto da laserterapia na saúde bucal: abordagens terapêuticas e implicações clínicas em pacientes oncológicos do município de Goianésia (GO)",
+   "curso": "odontologia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-27"
+  },
+  {
+   "orientador": {
+    "nome": "Maisa França Teixeira"
+   },
+   "titulo": "Análise da crise humanitária e ambiental na comunidade indígena Yanomami: enfoque nos direitos humanos e impactos socioambientais emergentes",
+   "curso": "direito",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-28"
+  },
+  {
+   "orientador": {
+    "nome": "Rodrigo Fernandes de Souza"
+   },
+   "titulo": "Desenvolvimento da cultura da soja sob diferentes recomendações de adubação",
+   "curso": "agronomia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-29"
+  },
+  {
+   "orientador": {
+    "nome": "Ivandro José de Freitas Rocha"
+   },
+   "titulo": "Desenvolvimento de prótese robótica de braço e mão com controle sem fio via luva sensorial",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-30"
+  },
+  {
+   "orientador": {
+    "nome": "Ivandro José de Freitas Rocha"
+   },
+   "titulo": "Desenvolvimento de software de controle para manipuladores robóticos com Arduino: estratégias e implementação modular",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2024",
+   "inicio": "2024-09-01",
+   "fim": "2025-08-31",
+   "origemId": "res-2024-31"
+  }
+ ]
+}

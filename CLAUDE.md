@@ -39,6 +39,9 @@ public/
   atas/              ARCHÉ AT — Atas e Colegiados (SPA vanilla, mesmo desenho do EX)
   arche/             Avaliação Institucional (app COMPILADO do Manus — NÃO refatorar;
                      alterações só por append de <script>/<style> no fim dos html)
+  ic/                Vitrine PÚBLICA da IC (sem login, de propósito): editais, resultados
+                     e a lista simplificada dos projetos — arquivo para o MEC. Os PDFs dos
+                     editais e dos resultados publicados vivem em public/ic/docs/
   entrar/ perfil/ usuarios/   Login (código por e-mail + Google), perfil, gestão de acessos
 ```
 
@@ -150,6 +153,21 @@ public/
   (0–100) sem formulário — ela tem **precedência** sobre a média dos pareceres, fica no
   histórico (sigilosa) e some da visão do avaliador e da orientação. `{ nota: null }`
   desfaz. Nos próximos editais o caminho é o parecer pelo sistema.
+- **Vitrine pública** (`/ic/` + `GET /api/publico/ic`): acesso livre com os editais, os
+  documentos e a lista simplificada (título, curso, orientador, bolsista, modalidade) —
+  nunca e-mail, CPF, nota ou dado bancário. Campos em branco enquanto o processo corre;
+  a página se atualiza sozinha. Resultado de edital ENCERRADO redireciona para o PDF
+  original publicado (`RESULTADOS_EDITAIS`); o vigente sai do gerador.
+- **Arquivo histórico** (`LOTES_HISTORICOS`, dados/ic-edital-01-2022…2025.json): os
+  ciclos anteriores transcritos dos resultados publicados, importados no arranque como
+  projetos CONCLUÍDOS — com `modalidadeHistorica` (PIBIC/FACEG etc., que não se
+  recalcula pelo catálogo atual) e os bolsistas nomeados quando a fonte os traz.
+  Concluído não tem prazo correndo (`prazosRelatorios` só vale para `aprovado`).
+- **Substituição de bolsista** (`POST /api/ic/:id/substituicao` + decisão da gestão em
+  `/:sid`): a orientação SOLICITA a troca — quem sai, o novo aluno (nome, curso,
+  período, e-mail, telefone) e o motivo — e a coordenação aprova ou recusa. Aprovada,
+  o sistema troca os vínculos e convida o novo bolsista por e-mail. O pedido inteiro
+  fica registrado no projeto; o aluno não vê o quadro (assunto da orientação).
 - **Guias da seleção** (SPA): **Projetos** (só gestão) traz as duas classificações de cada
   edital em tabela (posição, protocolo, título, professor, titulação, categoria de
   submissão — a LINHA: IC, IT ou IE —, NP, CL, total); **Editais e Resultados** é de

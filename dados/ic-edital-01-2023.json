@@ -1,0 +1,508 @@
+{
+ "lote": "edital-01-2023",
+ "historico": true,
+ "edital": "01/2023",
+ "status": "concluido",
+ "vigencia": {
+  "inicio": "2023-09-01",
+  "fim": "2024-08-31"
+ },
+ "descricao": "Arquivo do ciclo 2023-2024 (Edital nº 01/2023 — FACEG), transcrito do resultado final publicado.",
+ "projetos": [
+  {
+   "orientador": {
+    "nome": "Kenia Rodrigues de Oliveira"
+   },
+   "titulo": "Sistema nacional de adoção: mecanismos para gerenciar e fiscalizar a adoção de crianças e adolescentes",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-1"
+  },
+  {
+   "orientador": {
+    "nome": "Kenia Rodrigues de Oliveira"
+   },
+   "titulo": "Responsabilidade civil nas relações familiares: uma análise das consequências patrimoniais pelo descumprimento de deveres conjugais e de filiação",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-2"
+  },
+  {
+   "orientador": {
+    "nome": "Maisa França Teixeira"
+   },
+   "titulo": "Territorialização e percepção: determinantes sociais em saúde bucal no município de Goianésia-GO",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-3"
+  },
+  {
+   "orientador": {
+    "nome": "Maisa França Teixeira"
+   },
+   "titulo": "O agravamento da saúde da equipe de enfermagem no cuidado com a pessoa obesa",
+   "curso": "enfermagem",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-4"
+  },
+  {
+   "orientador": {
+    "nome": "Luiz Cesar Lopes Filho"
+   },
+   "titulo": "Micorrizas e patógenos de solo em áreas de produção sucroenergética",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-5"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Fungos micorrízicos em soja cultivada com fino de mica xisto no cerrado sob regimes hídricos variáveis",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/CNPq",
+   "fomento": "cnpq",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-6"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Escória de mineração de ferro-níquel e correção da acidez do solo",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/CNPq",
+   "fomento": "cnpq",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-7"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Doses de resíduo da produção de calcário na correção da acidez do solo",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/CNPq",
+   "fomento": "cnpq",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-8"
+  },
+  {
+   "orientador": {
+    "nome": "Luiz Cesar Lopes Filho"
+   },
+   "titulo": "Inoculantes micorrízicos em agroecossistemas cultivados",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/CNPq",
+   "fomento": "cnpq",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-9"
+  },
+  {
+   "orientador": {
+    "nome": "Carolina Vansan Martins da Silva"
+   },
+   "titulo": "Incidência de lesões ósseas do complexo maxilo-mandibular observadas em uma clínica de radiologia odontológica, no município de Goianésia/GO",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-10"
+  },
+  {
+   "orientador": {
+    "nome": "Jean Carlos Moura Mota"
+   },
+   "titulo": "Os desafios jurídicos e socioambientais na implementação do encerramento de lixão em município de pequeno porte: uma análise das políticas públicas e suas iniciativas legais",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-11"
+  },
+  {
+   "orientador": {
+    "nome": "José Mateus dos Santos Junior"
+   },
+   "titulo": "Avaliação da saúde bucal das crianças matriculadas na Escola Municipal de Tempo Integral Luiz de Oliveira no município de Goianésia-GO",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-12"
+  },
+  {
+   "orientador": {
+    "nome": "José Mateus dos Santos Junior"
+   },
+   "titulo": "Avaliação, percepção e diagnóstico de lesões orais potencialmente malignas em uma comunidade de boias-frias no município de Goianésia-GO",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-13"
+  },
+  {
+   "orientador": {
+    "nome": "Luana de Miranda Santos"
+   },
+   "titulo": "A vitimização quaternária e a proliferação das informações sobre os ataques às escolas",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-14"
+  },
+  {
+   "orientador": {
+    "nome": "Rodrigo Fernandes de Souza"
+   },
+   "titulo": "Frações lábeis da matéria orgânica do solo cultivado com milho sob doses de fósforo e organismo solubilizador de fosfato",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-15"
+  },
+  {
+   "orientador": {
+    "nome": "Rodrigo Fernandes de Souza"
+   },
+   "titulo": "Frações oxidáveis da matéria orgânica do solo cultivado com milho sob doses de fósforo e organismo solubilizador de fosfato",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-16"
+  },
+  {
+   "orientador": {
+    "nome": "Thiago Brito Steckelberg"
+   },
+   "titulo": "A nova comunicação da direita política: uma análise comparada entre Brasil e Estados Unidos",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-17"
+  },
+  {
+   "orientador": {
+    "nome": "Thiago Brito Steckelberg"
+   },
+   "titulo": "Órfãos da origem: crise migratória venezuelana na fronteira brasileira e o dualismo de conflito entre povos distintos e sua ligação no tocante ao desrespeito com a humanidade",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-18"
+  },
+  {
+   "orientador": {
+    "nome": "Ariane Martins Caponi Lima"
+   },
+   "titulo": "Bancada didática de uma mesa vibratória para análise de resistência de materiais",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "PIBITI/FACEG",
+   "fomento": "uniego",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-19"
+  },
+  {
+   "orientador": {
+    "nome": "Ivandro José de Freitas Rocha"
+   },
+   "titulo": "Análise, montagem e aperfeiçoamentos através de projeto CAD de um protótipo de robô manipulador CNC",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "PIBITI/FACEG",
+   "fomento": "uniego",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-20"
+  },
+  {
+   "orientador": {
+    "nome": "Ivandro José de Freitas Rocha"
+   },
+   "titulo": "Implementação do software do sistema de controle do robô manipulador CNC visando qualidade e precisão das operações",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "PIBITI/FACEG",
+   "fomento": "uniego",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-21"
+  },
+  {
+   "orientador": {
+    "nome": "Jéssica Nayara Dias"
+   },
+   "titulo": "Construção virtual da Faculdade Evangélica de Goianésia — FACEG em software BIM para processo de virtualização do campus",
+   "curso": "engenharia-civil",
+   "modalidadeHistorica": "PIBITI/FACEG",
+   "fomento": "uniego",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-22"
+  },
+  {
+   "orientador": {
+    "nome": "Jéssica Nayara Dias"
+   },
+   "titulo": "Virtualização da Faculdade Evangélica de Goianésia — FACEG: ampliação do espaço real dentro de um espaço virtual na internet",
+   "curso": "engenharia-civil",
+   "modalidadeHistorica": "PIBITI/FACEG",
+   "fomento": "uniego",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-23"
+  },
+  {
+   "orientador": {
+    "nome": "Rodrigo Fernandes de Souza"
+   },
+   "titulo": "Recuperação de áreas de mineração com espécies nativas de Cerrado",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/FACEG",
+   "fomento": "uniego",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-24"
+  },
+  {
+   "orientador": {
+    "nome": "Kenia Rodrigues de Oliveira"
+   },
+   "titulo": "Medidas de acessibilidade para pessoas com deficiência a fim de facilitar o acesso à justiça nos cartórios extrajudiciais",
+   "curso": "direito",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-25"
+  },
+  {
+   "orientador": {
+    "nome": "Kenia Rodrigues de Oliveira"
+   },
+   "titulo": "A exposição da imagem sem autorização: um conflito entre resguardar direitos da personalidade e o direito à informação",
+   "curso": "direito",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-26"
+  },
+  {
+   "orientador": {
+    "nome": "Kenia Rodrigues de Oliveira"
+   },
+   "titulo": "Sistema nacional de adoção: mecanismos para gerenciar e fiscalizar a adoção de crianças e adolescentes (execução voluntária)",
+   "curso": "direito",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-27"
+  },
+  {
+   "orientador": {
+    "nome": "Maisa França Teixeira"
+   },
+   "titulo": "Agravos à saúde referidos pelos profissionais de enfermagem na cidade de Goianésia-GO",
+   "curso": "enfermagem",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-28"
+  },
+  {
+   "orientador": {
+    "nome": "Thiago Brito Steckelberg"
+   },
+   "titulo": "A responsabilidade internacional do Estado brasileiro na tragédia dos Yanomamis",
+   "curso": "direito",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-29"
+  },
+  {
+   "orientador": {
+    "nome": "Thiago Brito Steckelberg"
+   },
+   "titulo": "Impactos das mudanças no Plano Diretor na qualidade de vida do município de Goianésia e o direito ao meio ambiente equilibrado",
+   "curso": "direito",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-30"
+  },
+  {
+   "orientador": {
+    "nome": "Thiago Brito Steckelberg"
+   },
+   "titulo": "Estudo dos impactos ambientais e sociais advindos da exploração turística nas cavernas de Vila Propício: análise de viabilidade e sustentabilidade",
+   "curso": "direito",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-31"
+  },
+  {
+   "orientador": {
+    "nome": "Ivandro José de Freitas Rocha"
+   },
+   "titulo": "Estratégias para aprimorar o desempenho do protótipo do robô manipulador CNC, aumentando a confiabilidade e melhorando a operação",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-32"
+  },
+  {
+   "orientador": {
+    "nome": "Jéssica Nayara Dias"
+   },
+   "titulo": "Metaverso: espaço virtual da Faculdade Evangélica de Goianésia — FACEG para construção do conhecimento",
+   "curso": "engenharia-civil",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2023",
+   "inicio": "2023-09-01",
+   "fim": "2024-08-31",
+   "origemId": "res-2023-33"
+  }
+ ]
+}

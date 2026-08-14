@@ -36,7 +36,7 @@ import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import {
   EDITAL, LINHAS, GRUPOS_PESQUISA, FOMENTOS, TITULACOES, BLOCOS_PRODUCAO,
   pontuarProducao, normalizarProducao, notaClassificacao, modalidadePor, gruposConhecidos,
-  DOCUMENTOS_EDITAIS,
+  DOCUMENTOS_EDITAIS, RESULTADOS_EDITAIS,
 } from "./lib/edital.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
 import { dataCivil, hojeLocalISO } from "./lib/datas.js";
@@ -418,6 +418,66 @@ async function notificarPendente(email, nome) {
       <p><a href="${(process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "")}/usuarios/">Abrir gestão de acessos</a></p></div>`,
   });
 }
+
+
+/* --------------------- ARCHÉ IC — vitrine pública ------------------------ */
+/**
+ * Acesso LIVRE, sem login (decisão do dono, pensando no arquivo para o MEC):
+ * os editais com seus documentos e a lista simplificada dos projetos —
+ * título, orientador(a), bolsista(s) e modalidade. Nada além disso sai por
+ * aqui: sem e-mail, sem CPF, sem nota, sem situação interna. Enquanto o
+ * processo não termina, os campos ficam em branco e a página se atualiza
+ * sozinha conforme a seleção e as indicações acontecem.
+ */
+app.get("/api/publico/ic", async (req, res) => {
+  try {
+    const projetos = await lerProjetos();
+    res.json({
+      instituicao: "Centro Universitário Evangélico de Goianésia — UNIEGO",
+      editais: editaisConhecidos(projetos),
+      projetos: projetos
+        .filter((p) => p.status !== "rascunho")
+        .map((p) => ({
+          edital: String(p.edital || EDITAL.numero),
+          titulo: p.titulo || "",
+          curso: (CURSOS.find((c) => c.slug === p.curso) || {}).nome || p.curso || "",
+          orientador: p.orientador?.nome || "",
+          bolsistas: (p.alunos || []).filter((a) => a.bolsista).map((a) => a.nome).filter(Boolean),
+          modalidade: p.modalidadeHistorica
+            || (p.fomento
+              ? (modalidadeEfetivaIC(p)?.nome || (p.fomento.tipo === "voluntario" ? "Voluntário" : ""))
+              : (p.status === "reprovado" ? "Não aprovado" : "")),
+        }))
+        .sort((a, b) => a.orientador.localeCompare(b.orientador, "pt-BR") || a.titulo.localeCompare(b.titulo, "pt-BR")),
+    });
+  } catch (e) {
+    console.error("Erro na vitrine pública da IC:", e);
+    res.status(500).json({ error: "Erro ao montar a lista pública" });
+  }
+});
+
+// O resultado oficial também é público: é o documento que se publica.
+app.get("/api/publico/ic/resultado.pdf", async (req, res) => {
+  try {
+    const numero = String(req.query.edital || EDITAL.numero).trim();
+    if (RESULTADOS_EDITAIS[numero]) return res.redirect(RESULTADOS_EDITAIS[numero]);
+    const todos = await lerProjetos();
+    const neutro = { email: "", cpf: "", gestao: true };
+    const projetos = todos
+      .filter((p) => String(p.edital || EDITAL.numero) === numero && p.status !== "rascunho")
+      .map((p) => resumirProjeto(p, neutro));
+    const { gerarResultadoEditalPdf } = await import("./lib/pdf.js");
+    const buffer = await gerarResultadoEditalPdf({
+      edital: numero === EDITAL.numero ? EDITAL : { numero }, projetos, emitidoPor: "",
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(numero)}.pdf"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro no PDF público do resultado:", e);
+    res.status(500).send("Erro ao gerar o PDF: " + e.message);
+  }
+});
 
 /* usuários (somente gestor) */
 app.get("/api/usuarios", async (req, res) => {
@@ -1391,6 +1451,7 @@ function editaisConhecidos(projetos) {
   return [...mapa].map(([numero, c]) => ({
     numero, projetos: c.projetos, bolsas: c.bolsas, vigente: numero === EDITAL.numero,
     documento: DOCUMENTOS_EDITAIS[numero] || null,
+    resultadoDocumento: RESULTADOS_EDITAIS[numero] || null,
   })).sort((a, b) => b.numero.localeCompare(a.numero, "pt-BR"));
 }
 
@@ -1493,6 +1554,8 @@ app.get("/api/ic/resultado.pdf", async (req, res) => {
     // setor baixa o mesmo PDF. Por isso o resumo sai por um leitor neutro de
     // gestão — sem identidade, para o papel de ninguém recortar as notas.
     const numero = String(req.query.edital || EDITAL.numero).trim();
+    // edital encerrado com resultado publicado: o documento original vale
+    if (RESULTADOS_EDITAIS[numero]) return res.redirect(RESULTADOS_EDITAIS[numero]);
     const todos = await lerProjetos();
     const neutro = { email: "", cpf: "", gestao: true };
     const projetos = todos
@@ -1767,6 +1830,97 @@ app.post("/api/ic/:id/meus-dados", async (req, res) => {
   res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
 });
 
+/**
+ * Substituição de bolsista: a orientação SOLICITA a troca — diz quem sai,
+ * apresenta o novo aluno (nome, curso, período, e-mail, telefone) e o
+ * motivo — e a decisão é da coordenação. Aprovada, o sistema faz a troca:
+ * o aluno que sai perde o vínculo, o novo entra como bolsista e recebe o
+ * convite por e-mail para completar os próprios dados. O pedido inteiro
+ * fica registrado no projeto.
+ */
+app.post("/api/ic/:id/substituicao", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const b = req.body || {};
+  const novo = b.novo || {};
+  if (!String(novo.nome || "").trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(novo.email || "").trim()))
+    return res.status(400).json({ error: "Informe o nome e um e-mail válido do novo bolsista — é pelo e-mail que ele entra no sistema." });
+  if (String(b.motivo || "").trim().length < 10)
+    return res.status(400).json({ error: "Escreva o motivo da substituição — ele fica registrado no projeto." });
+
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    const p = projetos[i];
+    const papel = papelNoProjeto(meu, p);
+    if (papel !== "orientador" && papel !== "gestao")
+      return { erro: [403, "A substituição é pedida pela orientação (ou registrada pela coordenação)"], gravar: false };
+    if (!["aprovado", "concluido"].includes(p.status) || !p.fomento || p.fomento.tipo === "voluntario")
+      return { erro: [400, "Substituição de bolsista vale para projeto aprovado com bolsa"], gravar: false };
+    const sai = (p.alunos || []).find((a) => a.bolsista && (a.email === String(b.saiEmail || "").toLowerCase() || a.nome === b.saiNome));
+    if (!sai) return { erro: [400, "Diga qual bolsista sai — não encontrei o aluno indicado"], gravar: false };
+
+    const pedido = {
+      id: `sub-${Math.random().toString(36).slice(2, 10)}`,
+      sai: { nome: sai.nome, email: sai.email },
+      novo: {
+        nome: String(novo.nome).trim().slice(0, 120),
+        email: String(novo.email).trim().toLowerCase().slice(0, 160),
+        telefone: String(novo.telefone || "").trim().slice(0, 30),
+        curso: String(novo.curso || "").trim().slice(0, 60),
+        periodo: String(novo.periodo || "").trim().slice(0, 30),
+      },
+      motivo: String(b.motivo).trim().slice(0, 2000),
+      por: u.email, em: new Date().toISOString(), situacao: "solicitada",
+    };
+    projetos[i] = anotarProjeto({
+      ...p, substituicoes: [...(p.substituicoes || []), pedido], atualizadoEm: new Date().toISOString(),
+    }, { quem: u.email, oQue: `solicitou a substituição do bolsista ${sai.nome || sai.email} por ${pedido.novo.nome}` });
+    return { projeto: projetos[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
+});
+
+// A decisão da coordenação sobre o pedido. Aprovada, a troca acontece aqui.
+app.post("/api/ic/:id/substituicao/:sid", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const decisao = String(req.body?.decisao || "");
+  if (!["aprovada", "recusada"].includes(decisao))
+    return res.status(400).json({ error: "Decisão inválida" });
+
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    if (papelNoProjeto(meu, projetos[i]) !== "gestao")
+      return { erro: [403, "A decisão da substituição é da coordenação"], gravar: false };
+    const p = projetos[i];
+    const idx = (p.substituicoes || []).findIndex((x) => x.id === req.params.sid && x.situacao === "solicitada");
+    if (idx < 0) return { erro: [404, "Pedido não encontrado ou já decidido"], gravar: false };
+    const pedido = { ...p.substituicoes[idx], situacao: decisao, decididoPor: u.email, decididoEm: new Date().toISOString() };
+    const substituicoes = p.substituicoes.slice(); substituicoes[idx] = pedido;
+
+    let alunos = p.alunos || [];
+    if (decisao === "aprovada") {
+      alunos = alunos.filter((a) => !(a.bolsista && (a.email === pedido.sai.email && a.nome === pedido.sai.nome)));
+      alunos = [...alunos, { ...pedido.novo, bolsista: true }];
+    }
+    projetos[i] = anotarProjeto(normalizarProjeto({ ...p, alunos }, { base: { ...p, substituicoes } }), {
+      quem: u.email,
+      oQue: decisao === "aprovada"
+        ? `aprovou a substituição: sai ${pedido.sai.nome || pedido.sai.email}, entra ${pedido.novo.nome} como bolsista`
+        : `recusou a substituição de ${pedido.sai.nome || pedido.sai.email}`,
+    });
+    return { projeto: projetos[i], convidar: decisao === "aprovada" ? [{ ...pedido.novo, bolsista: true }] : [] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  if (r.convidar?.length) convidarAlunosIC(r.projeto, r.convidar);
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
+});
+
 // Submete à avaliação da PROPPEX: aqui o projeto ganha número.
 app.post("/api/ic/:id/submeter", async (req, res) => {
   const u = await sessaoIC(req, res);
@@ -1981,6 +2135,51 @@ async function enquadrarCronogramasIniciais() {
   });
   await storage.set(marca, new Date().toISOString());
   await storage.flush?.();
+}
+
+/**
+ * O ARQUIVO dos ciclos anteriores (2022→2025): editais e resultados que já
+ * foram publicados em PDF, transcritos para o sistema como projetos
+ * CONCLUÍDOS — título, curso, orientação, bolsistas do ciclo e a modalidade
+ * histórica (PIBIC/FACEG etc.). Sem proposta, sem CPF, sem nota: registro,
+ * não fluxo. Cada lote sobe UMA vez (marca sys-ic-lote-<nome>) — apagar um
+ * projeto do arquivo não o ressuscita no deploy seguinte.
+ */
+const LOTES_HISTORICOS = ["edital-01-2022", "edital-01-2023", "edital-01-2024", "edital-01-2025"];
+
+async function subirArquivoHistorico() {
+  for (const nome of LOTES_HISTORICOS) {
+    const marca = `sys-ic-lote-${nome}`;
+    if (await storage.get(marca)) continue;
+    const lote = await lerLoteDoDisco(nome).catch(() => null);
+    if (!lote?.historico) continue;
+    await comProjetos((projetos) => {
+      let n = 0;
+      lote.projetos.forEach((bruto, linha) => {
+        const chave = String(bruto.origemId || `${nome}:${linha + 1}`);
+        if (projetos.some((p) => p.origem?.lote === nome && p.origem?.id === chave)) return;
+        const ano = Number(String(lote.edital).split("/").pop());
+        let p = normalizarProjeto({ ...bruto }, { autor: "" });
+        p = numerarProjeto(projetos, {
+          ...p, ano, status: "concluido", edital: lote.edital,
+          inicio: bruto.inicio || lote.vigencia?.inicio || "",
+          fim: bruto.fim || lote.vigencia?.fim || "",
+          fomento: bruto.fomento ? { tipo: bruto.fomento, modalidade: "", observacao: "", por: "", em: "" } : null,
+          modalidadeHistorica: String(bruto.modalidadeHistorica || "").slice(0, 40),
+          origem: { lote: nome, id: chave, importadoEm: new Date().toISOString(), por: "arquivo-historico" },
+          criadoPor: "",
+          historico: [{ quando: new Date().toISOString(), quem: "sistema",
+            oQue: `entrou no arquivo histórico (${lote.edital}, resultado publicado)` }],
+        });
+        projetos.push(p);
+        n += 1;
+      });
+      console.log(`[ic] arquivo histórico ${nome}: ${n} projeto(s)`);
+      return {};
+    });
+    await storage.set(marca, new Date().toISOString());
+    await storage.flush?.();
+  }
 }
 
 async function zerarAlunosIniciais() {
@@ -2492,7 +2691,7 @@ app.listen(port, () => {
   // deles (e só depois: num arranque limpo os projetos precisam existir
   // primeiro), os anexos dos formulários — cronogramas e planilhas de
   // produção — são ligados a cada projeto.
-  subirLotesIniciais().then(aplicarAnexosIniciais).then(zerarAlunosIniciais).then(enquadrarCronogramasIniciais);
+  subirLotesIniciais().then(aplicarAnexosIniciais).then(zerarAlunosIniciais).then(enquadrarCronogramasIniciais).then(subirArquivoHistorico);
   // Cobrança do relatório final: varre ao acordar e de hora em hora enquanto
   // o processo estiver vivo. O tráfego do portal também dispara (com throttle),
   // o que cobre as hibernações do plano free.

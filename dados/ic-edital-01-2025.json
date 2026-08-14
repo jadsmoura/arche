@@ -1,0 +1,906 @@
+{
+ "lote": "edital-01-2025",
+ "historico": true,
+ "edital": "01/2025",
+ "status": "concluido",
+ "vigencia": {
+  "inicio": "2025-09-01",
+  "fim": "2026-08-31"
+ },
+ "descricao": "Arquivo do ciclo 2025-2026 (Edital nº 01/2025 — FACEG), transcrito do resultado final publicado.",
+ "projetos": [
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Micorrizas em sistemas agroflorestais como ferramenta para a recuperação de áreas degradadas no Cerrado",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-1"
+  },
+  {
+   "orientador": {
+    "nome": "Kenia Rodrigues de Oliveira"
+   },
+   "titulo": "A responsabilidade civil em decorrência de violação ao direito à privacidade em decorrência da expansão do uso da tecnologia",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-2"
+  },
+  {
+   "orientador": {
+    "nome": "Osmar Nascimento Silva"
+   },
+   "titulo": "Avaliação da atividade bacteriana de um análogo de sulfonamida",
+   "curso": "enfermagem",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [
+    {
+     "nome": "Ana Cláudia Alexandre Araújo Camargo",
+     "bolsista": true
+    },
+    {
+     "nome": "Carla Cristina Nunes Silva",
+     "bolsista": true
+    },
+    {
+     "nome": "Eloá Teresa Pereira Monteiro Dias",
+     "bolsista": true
+    },
+    {
+     "nome": "João Pedro Medeiros",
+     "bolsista": true
+    },
+    {
+     "nome": "Lara Luísa Avelino Silva",
+     "bolsista": true
+    },
+    {
+     "nome": "Luiza Gabrielly Tavares Freire",
+     "bolsista": true
+    },
+    {
+     "nome": "Mariana",
+     "bolsista": true
+    }
+   ],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-3"
+  },
+  {
+   "orientador": {
+    "nome": "Rodrigo Fernandes de Souza"
+   },
+   "titulo": "Relação entre frações oxidáveis da matéria orgânica e atributos microbianos em solo sob sistemas de manejo para produção de hortaliças",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-4"
+  },
+  {
+   "orientador": {
+    "nome": "Wagner Gonçalves Vieira Junior"
+   },
+   "titulo": "Viabilidade de substratos alternativos na cultivação axênica de Pleurotus ostreatus",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-5"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Intensidade luminosa e atividade micorrízica em alface cultivada sob condições de estresse hídrico",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/CNPq",
+   "fomento": "cnpq",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-6"
+  },
+  {
+   "orientador": {
+    "nome": "Rodrigo Fernandes de Souza"
+   },
+   "titulo": "Micorriza arbuscular em genótipos de café cultivados em Cerrado",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/CNPq",
+   "fomento": "cnpq",
+   "linha": "it",
+   "alunos": [
+    {
+     "nome": "Mariana Pereira Batista",
+     "bolsista": true
+    }
+   ],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-7"
+  },
+  {
+   "orientador": {
+    "nome": "Wagner Gonçalves Vieira Junior"
+   },
+   "titulo": "Avaliação da viabilidade de substratos formulados com substrato pós-cultivo de cogumelo e microrganismos promotores de crescimento vegetal na produção de tomate",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/CNPq",
+   "fomento": "cnpq",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-8"
+  },
+  {
+   "orientador": {
+    "nome": "Marinés Chiquinquirá Carvajal Bravo Gomes"
+   },
+   "titulo": "Desenvolvimento de um motor pulsojato para análise de capacidade de propulsão com diferentes tipos de combustíveis",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-9"
+  },
+  {
+   "orientador": {
+    "nome": "Carolina Vansan Martins da Silva"
+   },
+   "titulo": "Cigarro eletrônico e relação com a saúde bucal: o conhecimento de estudantes do ensino médio",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-10"
+  },
+  {
+   "orientador": {
+    "nome": "Cesar Ramos Rodrigues Filho"
+   },
+   "titulo": "Guincho girafa articulada",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-11"
+  },
+  {
+   "orientador": {
+    "nome": "Erivelton Gonçalves da Cunha"
+   },
+   "titulo": "Influência da aplicação de herbicidas na atividade microbiológica do solo",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-12"
+  },
+  {
+   "orientador": {
+    "nome": "José Mateus dos Santos Junior"
+   },
+   "titulo": "O impacto na saúde bucal em dependentes de substâncias psicoativas em processo de reabilitação em uma comunidade terapêutica em Uruaçu, Goiás",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [
+    {
+     "nome": "Stefanny Guedes dos Santos",
+     "bolsista": true
+    }
+   ],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-13"
+  },
+  {
+   "orientador": {
+    "nome": "Keren Morais de Brito Matos"
+   },
+   "titulo": "O princípio da proibição do retrocesso ambiental no controle de constitucionalidade no Brasil",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-14"
+  },
+  {
+   "orientador": {
+    "nome": "Marlana Carla Peixoto Ribeiro"
+   },
+   "titulo": "A utilização da linguagem simples no âmbito do Poder Judiciário: caminhos para a democratização da justiça",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [
+    {
+     "nome": "Anna Júlia Rodrigues de Sousa",
+     "bolsista": true
+    },
+    {
+     "nome": "Nicolas Barbeiro Fagundes",
+     "bolsista": true
+    }
+   ],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-15"
+  },
+  {
+   "orientador": {
+    "nome": "Naílla Crystine de Carvalho Dias"
+   },
+   "titulo": "Aspectos de bem-estar na cadeia produtiva de equinos",
+   "curso": "medicina-veterinaria",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [
+    {
+     "nome": "Isabela Marques de Faria",
+     "bolsista": true
+    },
+    {
+     "nome": "Isadora Eloá Barbosa Rocha",
+     "bolsista": true
+    },
+    {
+     "nome": "Pamella Carvalho",
+     "bolsista": true
+    },
+    {
+     "nome": "Sarah Quintanilha Alves",
+     "bolsista": true
+    }
+   ],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-16"
+  },
+  {
+   "orientador": {
+    "nome": "Sara Moraes Vieira"
+   },
+   "titulo": "A naturalização da violência contra a mulher no cotidiano brasileiro: silêncio, cultura e impunidade",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [
+    {
+     "nome": "Letícia Gabryelle de Oliveira Silva",
+     "bolsista": true
+    },
+    {
+     "nome": "Rebeca Rezende Lacerda Farias",
+     "bolsista": true
+    }
+   ],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-17"
+  },
+  {
+   "orientador": {
+    "nome": "Leidiane dos Santos Lucas"
+   },
+   "titulo": "Bioinsumos na produção de tomate orgânico",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/FACEG",
+   "fomento": "uniego",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-18"
+  },
+  {
+   "orientador": {
+    "nome": "Ivandro José de Freitas Rocha"
+   },
+   "titulo": "Desenvolvimento de um manipulador pneumático articulado de baixo custo com quatro graus de liberdade, controlado por microcontrolador ESP32 para fins educacionais",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "PIBITI/FACEG",
+   "fomento": "uniego",
+   "linha": "it",
+   "alunos": [
+    {
+     "nome": "Gabriel Moisés Maximo da Silva",
+     "bolsista": true
+    },
+    {
+     "nome": "Guilherme dos Santos Araujo",
+     "bolsista": true
+    }
+   ],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-19"
+  },
+  {
+   "orientador": {
+    "nome": "Manoel Henrique Reis de Oliveira"
+   },
+   "titulo": "Assistência técnica aos produtores de açaí de Goianésia",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PROEX/FACEG",
+   "fomento": "uniego",
+   "linha": "ie",
+   "alunos": [
+    {
+     "nome": "Arthur Emanoel Lourenço Menezes",
+     "bolsista": true
+    }
+   ],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-20"
+  },
+  {
+   "orientador": {
+    "nome": "Thiago Brito Steckelberg"
+   },
+   "titulo": "Direito ambiental na prática: educação e orientação jurídica para a sustentabilidade local",
+   "curso": "direito",
+   "modalidadeHistorica": "PROEX/FACEG",
+   "fomento": "uniego",
+   "linha": "ie",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-21"
+  },
+  {
+   "orientador": {
+    "nome": "Camila Cardoso"
+   },
+   "titulo": "Educação em saúde na terceira idade: um instrumento de transformação",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PROEX/FACEG",
+   "fomento": "uniego",
+   "linha": "ie",
+   "alunos": [
+    {
+     "nome": "Elisa Costa Camargo",
+     "bolsista": true
+    }
+   ],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-22"
+  },
+  {
+   "orientador": {
+    "nome": "Samuel Pinheiro Almeida"
+   },
+   "titulo": "Projeto de extensão — orientação vocacional, desenvolvimento juvenil e saúde mental",
+   "curso": "psicologia",
+   "modalidadeHistorica": "PROEX/FACEG",
+   "fomento": "uniego",
+   "linha": "ie",
+   "alunos": [
+    {
+     "nome": "Anna Gabrielly Ferreira",
+     "bolsista": true
+    }
+   ],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-23"
+  },
+  {
+   "orientador": {
+    "nome": "Camila Cardoso"
+   },
+   "titulo": "Importância clínica dos biofilmes patogênicos orais: uma revisão da literatura",
+   "curso": "odontologia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-24"
+  },
+  {
+   "orientador": {
+    "nome": "Camila Cardoso"
+   },
+   "titulo": "Prevalência de infecções ósseas e abscessos de origem odontogênica: uma revisão da literatura",
+   "curso": "odontologia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-25"
+  },
+  {
+   "orientador": {
+    "nome": "Carolina Vansan Martins da Silva"
+   },
+   "titulo": "Incidência de perda dentária precoce em adultos atendidos na clínica odontológica de ensino da Faculdade de Odontologia de Goianésia",
+   "curso": "odontologia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-26"
+  },
+  {
+   "orientador": {
+    "nome": "Carolina Vansan Martins da Silva"
+   },
+   "titulo": "Qualidade de vida relacionada à saúde bucal em pacientes com doença renal crônica: pesquisa survey",
+   "curso": "odontologia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-27"
+  },
+  {
+   "orientador": {
+    "nome": "Carolina Vansan Martins da Silva"
+   },
+   "titulo": "Índice de CPOD em pacientes atendidos na clínica odontológica de ensino da Faculdade Evangélica de Goianésia: um estudo retrospectivo",
+   "curso": "odontologia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-28"
+  },
+  {
+   "orientador": {
+    "nome": "Fablynny Jhiordany de Moura Souza"
+   },
+   "titulo": "Aplicação prática do melhoramento genético animal em propriedades rurais: avaliação zootécnica de reprodutores e conscientização sobre biotecnologias reprodutivas",
+   "curso": "medicina-veterinaria",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-29"
+  },
+  {
+   "orientador": {
+    "nome": "Ivandro José de Freitas Rocha"
+   },
+   "titulo": "Braço robótico pneumático",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-30"
+  },
+  {
+   "orientador": {
+    "nome": "Ivandro José de Freitas Rocha"
+   },
+   "titulo": "Desenvolvimento de protótipo automatizado para medição do índice de antecipação em tratores agrícolas",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-31"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Atividade micorrízica como bioindicador de qualidade em agroecossistemas conservacionistas",
+   "curso": "agronomia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-32"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Avaliação de coinoculação de organismos promotores de tolerância a estresse hídrico",
+   "curso": "agronomia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-33"
+  },
+  {
+   "orientador": {
+    "nome": "Kenia Rodrigues de Oliveira"
+   },
+   "titulo": "Direito ao esquecimento: a assimetria na ponderação de direitos e garantias fundamentais e sua correlação com a proliferação de informações ad aeternum",
+   "curso": "direito",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-34"
+  },
+  {
+   "orientador": {
+    "nome": "Kenia Rodrigues de Oliveira"
+   },
+   "titulo": "Filiação socioafetiva: o afeto como critério de parentalidade no direito brasileiro",
+   "curso": "direito",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-35"
+  },
+  {
+   "orientador": {
+    "nome": "Manoel Henrique Reis de Oliveira"
+   },
+   "titulo": "Efeito de diferentes adubações de cobertura na cultura do milho: foliar versus mineral",
+   "curso": "agronomia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-36"
+  },
+  {
+   "orientador": {
+    "nome": "Manoel Henrique Reis de Oliveira"
+   },
+   "titulo": "Manejo hídrico na cultura do açaí cultivar BRS Pai d'Égua no Cerrado",
+   "curso": "agronomia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-37"
+  },
+  {
+   "orientador": {
+    "nome": "Manoel Henrique Reis de Oliveira"
+   },
+   "titulo": "Avaliação de turno de rega no açaí no Cerrado",
+   "curso": "agronomia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-38"
+  },
+  {
+   "orientador": {
+    "nome": "Marinés Chiquinquirá Carvajal Bravo Gomes"
+   },
+   "titulo": "Desenvolvimento estrutural de um protótipo de miniveículo off-road para competições estudantis",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-39"
+  },
+  {
+   "orientador": {
+    "nome": "Marinés Chiquinquirá Carvajal Bravo Gomes"
+   },
+   "titulo": "Desenvolvimento e integração dos sistemas de motorização, transmissão, suspensão e freios em um miniveículo off-road",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-40"
+  },
+  {
+   "orientador": {
+    "nome": "Marlana Carla Peixoto Ribeiro"
+   },
+   "titulo": "A regulamentação do uso das redes sociais no Brasil: desafios jurídicos na era digital",
+   "curso": "direito",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-41"
+  },
+  {
+   "orientador": {
+    "nome": "Rodrigo Fernandes de Souza"
+   },
+   "titulo": "Fungos micorrízicos arbusculares associados a espécies frutíferas nativas do Cerrado",
+   "curso": "agronomia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-42"
+  },
+  {
+   "orientador": {
+    "nome": "Rogerio Rodrigues da Silva"
+   },
+   "titulo": "Mídia e desinformação: a construção do \"normal\" e do \"absurdo\" na era digital",
+   "curso": "psicologia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-43"
+  },
+  {
+   "orientador": {
+    "nome": "Rogerio Rodrigues da Silva"
+   },
+   "titulo": "Transtornos psíquicos puerperais",
+   "curso": "psicologia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-44"
+  },
+  {
+   "orientador": {
+    "nome": "Rogerio Rodrigues da Silva"
+   },
+   "titulo": "Desafios na dinâmica familiar: repercussões psicológicas, financeiras e sociais para cuidadores de pessoas com transtornos do neurodesenvolvimento",
+   "curso": "psicologia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-45"
+  },
+  {
+   "orientador": {
+    "nome": "Rogerio Rodrigues da Silva"
+   },
+   "titulo": "O patriarcado no contexto social e sua relação com a saúde mental masculina",
+   "curso": "psicologia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-46"
+  },
+  {
+   "orientador": {
+    "nome": "Samuel Pinheiro Almeida"
+   },
+   "titulo": "Uma revisão sistemática: a eficácia da terapia cognitivo-comportamental na prevenção e tratamento do burnout no contexto da vida da mulher",
+   "curso": "psicologia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-47"
+  },
+  {
+   "orientador": {
+    "nome": "Samuel Pinheiro Almeida"
+   },
+   "titulo": "Como a personalização do conteúdo nas redes sociais contribui para a hiperestimulação do sistema dopaminérgico, levando ao uso excessivo e à possível anedonia nos usuários",
+   "curso": "psicologia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-48"
+  },
+  {
+   "orientador": {
+    "nome": "Samuel Pinheiro Almeida"
+   },
+   "titulo": "A atuação da psicologia na promoção da saúde mental de mulheres privadas de liberdade no Brasil: uma revisão sistemática",
+   "curso": "psicologia",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-49"
+  },
+  {
+   "orientador": {
+    "nome": "Thiago Brito Steckelberg"
+   },
+   "titulo": "Fiscal Verde: monitoramento cidadão da política ambiental municipal",
+   "curso": "direito",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-50"
+  },
+  {
+   "orientador": {
+    "nome": "Thiago Brito Steckelberg"
+   },
+   "titulo": "Direitos humanos no Brasil: impacto das narrativas ideológicas na formação das percepções sociais",
+   "curso": "direito",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-51"
+  },
+  {
+   "orientador": {
+    "nome": "Thiago Brito Steckelberg"
+   },
+   "titulo": "A batalha dos Estados Unidos contra o tráfico de drogas e a hipocrisia diante do tráfico de armas",
+   "curso": "direito",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-52"
+  },
+  {
+   "orientador": {
+    "nome": "Turricelli Rezende Turrioni"
+   },
+   "titulo": "Bem-estar animal e profilaxia parasitária em cães institucionalizados: um estudo no abrigo público de Goianésia",
+   "curso": "medicina-veterinaria",
+   "modalidadeHistorica": "Voluntário",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2025",
+   "inicio": "2025-09-01",
+   "fim": "2026-08-31",
+   "origemId": "res-2025-53"
+  }
+ ]
+}

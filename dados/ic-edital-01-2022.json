@@ -1,0 +1,493 @@
+{
+ "lote": "edital-01-2022",
+ "historico": true,
+ "edital": "01/2022",
+ "status": "concluido",
+ "vigencia": {
+  "inicio": "2022-09-01",
+  "fim": "2023-08-31"
+ },
+ "descricao": "Arquivo do ciclo 2022-2023 (Edital nº 01/2022 — FACEG), transcrito do resultado final publicado.",
+ "projetos": [
+  {
+   "orientador": {
+    "nome": "Elias Emanuel Silva Mota"
+   },
+   "titulo": "Contraste situacional da vulnerabilidade e qualidade de vida de duas comunidades de assentamentos",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-1"
+  },
+  {
+   "orientador": {
+    "nome": "José Mateus dos Santos"
+   },
+   "titulo": "A legitimidade do conflito (Ucrânia–Rússia) sob a ótica do direito de guerra",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-2"
+  },
+  {
+   "orientador": {
+    "nome": "Maisa França Teixeira"
+   },
+   "titulo": "Avaliação da condição de saúde bucal em pacientes com necessidades especiais da APAE de Ceres-GO",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-3"
+  },
+  {
+   "orientador": {
+    "nome": "Marinés Chiquinquirá Carvajal Bravo Gomes"
+   },
+   "titulo": "Desenvolvimento de bancada didática de elementos mecânicos",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "PIBIC/CNPq",
+   "fomento": "cnpq",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-4"
+  },
+  {
+   "orientador": {
+    "nome": "Carolina Vansan Martins da Silva"
+   },
+   "titulo": "Análise do grau de satisfação pós manejo odontológico utilizando a mínima intervenção em alunos da APAE do município de Goianésia-GO",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-5"
+  },
+  {
+   "orientador": {
+    "nome": "Cristiane Ingrid de Souza Bonfim"
+   },
+   "titulo": "Estudo da reincidência infracional do adolescente em Goianésia-GO nos anos de 2020 a 2022",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-6"
+  },
+  {
+   "orientador": {
+    "nome": "Elias Emanuel Silva Mota"
+   },
+   "titulo": "Divergência genética em genótipos de Anacardium othonianum Rizz. via caracteres fenotípicos",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-7"
+  },
+  {
+   "orientador": {
+    "nome": "Gleidson Henrique Antunes de Andrade"
+   },
+   "titulo": "Centro Judiciário de Solução de Conflitos e Cidadania (CEJUSC) de Goianésia: atuação e eficácia da conciliação e mediação qualificada",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-8"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Atividade e biodiversidade de fungos micorrízicos arbusculares em plantas alimentícias não convencionais sob solo de cerrado",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-9"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Fungos micorrízicos arbusculares associados a espécies frutíferas nativas do Cerrado",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-10"
+  },
+  {
+   "orientador": {
+    "nome": "José Mateus dos Santos Junior"
+   },
+   "titulo": "Avaliação da saúde bucal dos idosos residentes no Lar do Idoso São Vicente de Paula no município de Goianésia-GO",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-11"
+  },
+  {
+   "orientador": {
+    "nome": "Larissa Santana Arantes Elias Alves"
+   },
+   "titulo": "Avaliação dos estudantes de Odontologia quanto ao exercício de prescrição medicamentosa",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-12"
+  },
+  {
+   "orientador": {
+    "nome": "Maisa França Teixeira"
+   },
+   "titulo": "Práticas educativas em saúde bucal no 6º ano do Colégio Estadual da Polícia Militar de Goiás José Carrilho em Goianésia-GO",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-13"
+  },
+  {
+   "orientador": {
+    "nome": "Rodrigo Fernandes de Souza"
+   },
+   "titulo": "Análise cienciométrica de fungos associados aos solos do Cerrado: importância e tendência dos últimos 40 anos",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-14"
+  },
+  {
+   "orientador": {
+    "nome": "Rodrigo Fernandes de Souza"
+   },
+   "titulo": "Microrganismos totais em solo de Cerrado sob influência das alterações sazonais",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-15"
+  },
+  {
+   "orientador": {
+    "nome": "Simone Maria da Silva"
+   },
+   "titulo": "Juízo 100% digital: o acesso à justiça diante aspectos tecnológicos e econômicos",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-16"
+  },
+  {
+   "orientador": {
+    "nome": "Simone Maria da Silva"
+   },
+   "titulo": "PROCON/GO: análise da prestação de serviços ao consumidor na cidade de Goianésia/Goiás",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-17"
+  },
+  {
+   "orientador": {
+    "nome": "Thiago Brito Steckelberg"
+   },
+   "titulo": "O que muda nas áreas de preservação permanente no município de Goianésia com a Lei Federal 14.285 de 2021",
+   "curso": "direito",
+   "modalidadeHistorica": "PIBIC/FACEG",
+   "fomento": "uniego",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-18"
+  },
+  {
+   "orientador": {
+    "nome": "Gustavo Henrique Mendes Brito"
+   },
+   "titulo": "Necessidade hídrica da cana-de-açúcar na região do Vale do São Patrício-GO",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/FACEG",
+   "fomento": "uniego",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-19"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Fungos micorrízicos em soja cultivada com fino de mica xisto no cerrado sob regimes hídricos variáveis",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/CNPq",
+   "fomento": "cnpq",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-20"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Escória de mineração de ferro-níquel e correção da acidez do solo",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/CNPq",
+   "fomento": "cnpq",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-21"
+  },
+  {
+   "orientador": {
+    "nome": "Jadson Belem de Moura"
+   },
+   "titulo": "Doses de resíduo da produção de calcário na correção da acidez do solo",
+   "curso": "agronomia",
+   "modalidadeHistorica": "PIBITI/CNPq",
+   "fomento": "cnpq",
+   "linha": "it",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-22"
+  },
+  {
+   "orientador": {
+    "nome": "Luana de Miranda Santos"
+   },
+   "titulo": "Análise sobre a vitimização secundária nos casos de estupro e a sobreposição à teoria da vítima provocadora",
+   "curso": "direito",
+   "modalidadeHistorica": "PIVIC",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-23"
+  },
+  {
+   "orientador": {
+    "nome": "Luana de Miranda Santos"
+   },
+   "titulo": "Estudos contemporâneos da vitimologia e o nascimento da vitimização quaternária: os novos prismas da era da informação",
+   "curso": "direito",
+   "modalidadeHistorica": "PIVIC",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-24"
+  },
+  {
+   "orientador": {
+    "nome": "Maisa França Teixeira"
+   },
+   "titulo": "Saúde bucal no âmbito escolar: as práticas educativas em saúde bucal no 5º ano do Colégio Estadual Laurentino Martins em Goianésia-GO",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIVIC",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-25"
+  },
+  {
+   "orientador": {
+    "nome": "Maisa França Teixeira"
+   },
+   "titulo": "A atuação do Sistema de Justiça Criminal brasileiro nos casos de violência sexual contra as mulheres",
+   "curso": "direito",
+   "modalidadeHistorica": "PIVIC",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-26"
+  },
+  {
+   "orientador": {
+    "nome": "Simone Maria da Silva"
+   },
+   "titulo": "Aplicação das normas do Código de Defesa do Consumidor e da Lei Geral de Proteção de Dados no comércio eletrônico brasileiro",
+   "curso": "direito",
+   "modalidadeHistorica": "PIVIC",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-27"
+  },
+  {
+   "orientador": {
+    "nome": "Marinés Chiquinquirá Carvajal Bravo Gomes"
+   },
+   "titulo": "Desenvolvimento de dispositivo regulador de hidróxido de amônia para conservação de bagaço",
+   "curso": "engenharia-mecanica",
+   "modalidadeHistorica": "PIVIC",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-28"
+  },
+  {
+   "orientador": {
+    "nome": "Larissa Santana Arantes Elias Alves"
+   },
+   "titulo": "Avaliação dos profissionais de Odontologia do município de Goianésia quanto ao exercício de prescrição medicamentosa",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIVIC",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-29"
+  },
+  {
+   "orientador": {
+    "nome": "Carolina Vansan Martins da Silva"
+   },
+   "titulo": "A eficácia do TRA (Tratamento Restaurador Atraumático) utilizando o Papacárie como veículo químico de remoção de dentina cariada em alunos da APAE Goianésia-GO",
+   "curso": "odontologia",
+   "modalidadeHistorica": "PIVIC",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-30"
+  },
+  {
+   "orientador": {
+    "nome": "Thiago Brito Steckelberg"
+   },
+   "titulo": "Recuperação de área degradada no Morro São Gonçalo no município de Vila Propício: análise jurídica e socioambiental",
+   "curso": "direito",
+   "modalidadeHistorica": "PIVIC",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-31"
+  },
+  {
+   "orientador": {
+    "nome": "Gleidson Henrique Antunes de Andrade"
+   },
+   "titulo": "A relevância social e jurídica do Núcleo de Práticas Jurídicas do curso de Direito da Faculdade Evangélica de Goianésia perante a comunidade carente",
+   "curso": "direito",
+   "modalidadeHistorica": "PIVIC",
+   "fomento": "voluntario",
+   "linha": "ic",
+   "alunos": [],
+   "edital": "01/2022",
+   "inicio": "2022-09-01",
+   "fim": "2023-08-31",
+   "origemId": "res-2022-32"
+  }
+ ]
+}

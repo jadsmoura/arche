@@ -746,8 +746,10 @@ function renderBolsistas() {
       </div>
       <div class="muted" style="margin-bottom:6px">${esc(p.numero || "")} · ${esc(p.titulo || "")}${a.curso ? ` · ${esc(a.curso)}` : ""}${a.periodo ? ` · ${esc(a.periodo)}` : ""}</div>
       <div class="exp" style="gap:6px">
-        <span class="badge b-${atrasadas ? "atrasada" : "validado"}">metas: ${feitas}/${metas.length} concluída(s)${atrasadas ? ` · ${atrasadas} atrasada(s)` : ""}</span>
-        ${rel("parcial")} ${rel("final")} ${contrato}
+        ${p.status === "concluido"
+          ? '<span class="badge b-validado">ciclo encerrado</span>'
+          : `<span class="badge b-${atrasadas ? "atrasada" : "validado"}">metas: ${feitas}/${metas.length} concluída(s)${atrasadas ? ` · ${atrasadas} atrasada(s)` : ""}</span>
+        ${rel("parcial")} ${rel("final")}`} ${contrato}
       </div>
       <div class="exp"><button class="bt bt-ghost" onclick="abrir('${esc(p.id)}')">Abrir o projeto</button></div>
     </div>`;
@@ -894,8 +896,8 @@ function renderEditais() {
       <div class="exp">
         ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">
           📜 Edital (PDF)</a>` : `<span class="muted">Documento do edital ainda não arquivado.</span>`}
-        <a class="bt bt-sec" href="/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}" target="_blank" rel="noopener">
-          📄 Resultado do processo (PDF)</a>
+        <a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">
+          📄 Resultado do processo (PDF)${e.resultadoDocumento ? " — publicado" : ""}</a>
       </div>
       <div class="muted" style="margin-top:10px">O resultado sai sempre com os dados de agora — emitido na hora,
         com as duas classificações (doutores e geral).${META.gestao ? ` A lista dos projetos está na guia
@@ -1522,7 +1524,84 @@ function renderIndicacaoBolsista(p, ger) {
         : '<span class="badge b-enviado">aguardando o aluno</span>'}
     </div>`).join("") || `<div class="banner ba-warn">Nenhum aluno marcado como <b>bolsista</b> na
       indicação acima — marque a caixa e salve o projeto.</div>`}
+
+    ${renderSubstituicoes(p, bolsistas)}
   </div>`;
+}
+
+/* ------------------- substituição de bolsista --------------------------- */
+/* A orientação SOLICITA a troca — quem sai, quem entra (nome, curso,
+   período, e-mail, telefone) e o motivo — e a decisão é da coordenação.
+   Aprovada, o sistema troca os vínculos e convida o novo aluno por e-mail. */
+function renderSubstituicoes(p, bolsistas) {
+  const pedidos = p.substituicoes || [];
+  const pendentes = pedidos.filter((x) => x.situacao === "solicitada");
+  const decididos = pedidos.filter((x) => x.situacao !== "solicitada");
+  const rotulo = { solicitada: "aguardando a coordenação", aprovada: "aprovada", recusada: "recusada" };
+
+  return `<div class="sec-t">Alteração de bolsista</div>
+    ${pendentes.map((x) => `<div class="bloco meu">
+      <div class="bloco-cab"><span class="t">Sai ${esc(x.sai.nome || x.sai.email)} · entra ${esc(x.novo.nome)}</span>
+        <span class="badge b-enviado">${rotulo[x.situacao]}</span></div>
+      <div class="kv">${esc(x.motivo)}</div>
+      <div class="muted" style="margin-top:4px">Pedido de ${esc(x.por)} em ${fmtDH(x.em)}</div>
+      ${PODE.podeDesignar ? `<div class="exp">
+        <button class="bt bt-ok" onclick="decidirSubstituicao('${esc(x.id)}','aprovada')">✓ Aprovar a troca</button>
+        <button class="bt bt-err" onclick="decidirSubstituicao('${esc(x.id)}','recusada')">Recusar</button>
+      </div>` : ""}
+    </div>`).join("")}
+    ${decididos.map((x) => `<div class="kv muted" style="margin-bottom:4px">
+      ${x.situacao === "aprovada" ? "✓" : "✕"} ${esc(x.sai.nome || x.sai.email)} → ${esc(x.novo.nome)} ·
+      ${rotulo[x.situacao]} por ${esc(x.decididoPor || "")} em ${fmtDH(x.decididoEm)}</div>`).join("")}
+
+    ${bolsistas.length && !pendentes.length ? `
+    <details style="margin-top:8px"><summary style="cursor:pointer;font-size:13.5px;color:var(--brand-2);font-weight:600">
+      Solicitar alteração de bolsista</summary>
+      <div class="grid3" style="margin-top:10px">
+        <div><label>Quem sai *</label><select id="sub-sai">
+          ${bolsistas.map((a) => `<option value="${esc(a.email || a.nome)}">${esc(a.nome || a.email)}</option>`).join("")}
+        </select></div>
+        <div><label>Nome do novo bolsista *</label><input id="sub-nome"></div>
+        <div><label>E-mail do novo bolsista *</label><input id="sub-email" type="email"></div>
+      </div>
+      <div class="grid3">
+        <div><label>Telefone</label><input id="sub-telefone" placeholder="(62) 9…"></div>
+        <div><label>Curso</label><input id="sub-curso" value="${esc(cursoNome(p.curso))}"></div>
+        <div><label>Período</label><input id="sub-periodo" placeholder="5º"></div>
+      </div>
+      <label>Motivo da substituição * <span class="muted">(fica registrado no projeto)</span></label>
+      <textarea id="sub-motivo" style="min-height:70px" placeholder="Ex.: desistência do aluno por transferência de instituição."></textarea>
+      <div class="exp"><button class="bt bt-sec" onclick="solicitarSubstituicao()">Enviar a solicitação</button></div>
+    </details>` : ""}`;
+}
+
+async function solicitarSubstituicao() {
+  const corpo = {
+    saiEmail: $("sub-sai").value, saiNome: $("sub-sai").value,
+    novo: { nome: $("sub-nome").value.trim(), email: $("sub-email").value.trim(),
+      telefone: $("sub-telefone").value.trim(), curso: $("sub-curso").value.trim(), periodo: $("sub-periodo").value.trim() },
+    motivo: $("sub-motivo").value.trim(),
+  };
+  if (!corpo.novo.nome || !corpo.novo.email) return aviso("Informe o nome e o e-mail do novo bolsista.", "warn");
+  if (corpo.motivo.length < 10) return aviso("Escreva o motivo da substituição.", "warn");
+  try {
+    await api(`/api/ic/${ATUAL.id}/substituicao`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
+    });
+    await carregar(); montarSidebar(); await abrir(ATUAL.id);
+    aviso("Solicitação registrada — a coordenação decide, e a troca acontece na aprovação.");
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+async function decidirSubstituicao(sid, decisao) {
+  if (decisao === "aprovada" && !confirm("Aprovar a troca? O aluno que sai perde o vínculo e o novo recebe o convite por e-mail.")) return;
+  try {
+    await api(`/api/ic/${ATUAL.id}/substituicao/${sid}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decisao }),
+    });
+    await carregar(); montarSidebar(); await abrir(ATUAL.id);
+    aviso(decisao === "aprovada" ? "Troca aprovada — o novo bolsista foi convidado por e-mail." : "Solicitação recusada.");
+  } catch (e) { aviso(e.message, "err"); }
 }
 
 /* O aluno grava os próprios dados — vão direto para o registro dele. */

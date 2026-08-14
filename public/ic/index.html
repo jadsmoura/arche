@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Iniciação Científica — UNIEGO · Editais e Resultados</title>
+<meta name="description" content="Editais, resultados e projetos de Iniciação Científica, Inovação Tecnológica e Iniciação à Extensão do Centro Universitário Evangélico de Goianésia — UNIEGO.">
+<link rel="stylesheet" href="/assets/arche-ui.css">
+<style>
+  /* Página ABERTA de propósito (vitrine institucional — arquivo para o MEC):
+     nada aqui exige login, e a API por trás só devolve o que é público. */
+  .rolo{overflow-x:auto}
+  table.pub{width:100%;border-collapse:collapse;font-size:13.5px}
+  table.pub th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
+    text-align:left;padding:9px 10px;border-bottom:2px solid var(--line-strong);background:var(--wash)}
+  table.pub td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.pub tr:last-child td{border-bottom:0}
+  .selo{font-size:11px;font-weight:600;border-radius:20px;padding:3px 10px;white-space:nowrap}
+  .selo.b{background:var(--ok-soft);color:var(--ok)}
+  .selo.v{background:var(--wash);color:var(--muted)}
+  .selo.e{background:var(--warn-soft);color:var(--warn)}
+  .card + .card{margin-top:20px}
+  .exp{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 6px}
+</style>
+</head>
+<body>
+<header class="topo">
+  <div class="topo-rule"></div>
+  <div class="topo-inner">
+    <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+    <div class="vr"></div>
+    <div class="topo-txt">
+      <div class="topo-t"><span class="arche-wm"><span class="arche-tx">Iniciação Científica</span></span></div>
+      <div class="topo-s">PROPPEX · Centro Universitário Evangélico de Goianésia — UNIEGO</div>
+    </div>
+    <nav class="topo-nav"><a href="/">Portal</a></nav>
+  </div>
+</header>
+
+<main>
+  <div class="eyebrow">Acesso público · Editais e Resultados</div>
+  <h1 class="hero-h" style="font-size:30px;margin-top:10px">Pesquisa, Inovação e <span>Iniciação à Extensão</span></h1>
+  <p class="hero-p">Os processos seletivos de Iniciação Científica (IC), Inovação Tecnológica (IT) e
+    Iniciação à Extensão (IE) do UNIEGO, com os documentos de cada edital e a relação dos projetos —
+    título, curso, orientação, bolsista e modalidade. Esta página se atualiza sozinha conforme a
+    seleção avança e os bolsistas são indicados.</p>
+  <div id="conteudo" style="margin-top:26px"><div class="card"><p style="color:var(--muted)">Carregando…</p></div></div>
+</main>
+
+<footer>
+  <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+  <div class="sep"></div>
+  <p>PROPPEX — Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária.<br>
+    Documento eletrônico de acesso público · dados fornecidos pelo sistema ARCHÉ.</p>
+</footer>
+
+<script>
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const anoDe = (n) => Number(String(n).split("/").pop()) || 0;
+
+fetch("/api/publico/ic").then(async (r) => {
+  const j = await r.json();
+  const editais = (j.editais || []).slice().sort((a, b) => anoDe(b.numero) - anoDe(a.numero));
+  document.getElementById("conteudo").innerHTML = editais.map((e) => {
+    const doEdital = (j.projetos || []).filter((p) => p.edital === e.numero);
+    const linha = (p) => `<tr>
+      <td>${esc(p.titulo) || "—"}</td>
+      <td>${esc(p.curso) || "—"}</td>
+      <td>${esc(p.orientador) || "—"}</td>
+      <td>${p.bolsistas.length ? esc(p.bolsistas.join(", ")) : '<span class="selo e">a indicar</span>'}</td>
+      <td>${p.modalidade
+        ? `<span class="selo ${p.modalidade === "Não aprovado" ? "v" : /PV|Volunt/i.test(p.modalidade) ? "v" : "b"}">${esc(p.modalidade)}</span>`
+        : '<span class="selo e">em seleção</span>'}</td>
+    </tr>`;
+    return `<div class="card" style="padding:24px">
+      <div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:19px">Edital ${esc(e.numero)}
+        ${e.vigente ? '<span class="selo b" style="vertical-align:2px">vigente</span>' : ""}</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:3px">Ano ${anoDe(e.numero) || "—"} ·
+        ${doEdital.length} projeto(s) · ${e.bolsas ?? 0} bolsa(s) concedida(s)</div>
+      <div class="exp">
+        ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📜 Edital (PDF)</a>` : ""}
+        <a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/publico/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">📄 Resultado do processo (PDF)</a>
+      </div>
+      ${doEdital.length ? `<div class="rolo"><table class="pub">
+        <thead><tr><th style="width:34%">Título do projeto</th><th style="width:14%">Curso</th>
+          <th style="width:20%">Orientador(a)</th><th style="width:18%">Bolsista</th><th style="width:14%">Modalidade</th></tr></thead>
+        <tbody>${doEdital.map(linha).join("")}</tbody>
+      </table></div>` : `<p style="color:var(--muted);font-size:13.5px">As submissões deste edital ainda não foram registradas.</p>`}
+    </div>`;
+  }).join("") || '<div class="card"><p style="color:var(--muted)">Nenhum edital publicado ainda.</p></div>';
+}).catch(() => {
+  document.getElementById("conteudo").innerHTML = '<div class="card"><p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente em instantes.</p></div>';
+});
+</script>
+</body>
+</html>
