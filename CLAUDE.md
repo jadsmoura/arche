@@ -167,6 +167,15 @@ public/
   perfil, `vincularPorCpf` escreve o e-mail dela nos projetos que a esperavam e eles
   aparecem na conta já na situação importada. O vínculo **nunca sobrescreve** e-mail
   existente. Enviar `simular: true` faz a conferência sem gravar nada.
+- **Anexos do formulário viram dado do projeto** (`aplicarAnexosIniciais`,
+  `dados/ic-<lote>-anexos.json`): os cronogramas e planilhas de produção que os
+  professores anexaram ao formulário foram lidos arquivo a arquivo e entram numa
+  segunda migração de arranque (marca `sys-ic-anexos-<lote>`), chaveados pelo id do
+  Drive gravado em `origem`. Nunca sobrescreve edição: o cronograma só troca se ainda
+  for o genérico do lote, e a planilha só entra vazia. Atenção ao ler as planilhas do
+  edital: **muitos professores digitaram a quantidade na coluna do total**, apagando a
+  fórmula — nesses arquivos o total impresso soma quantidades, e a leitura detecta o
+  modo pela coerência entre quantidade × peso e total (ver test/anexos.test.js).
 - **Lotes sobem sozinhos no arranque** (`subirLotesIniciais`, `LOTES_INICIAIS`): cada
   arquivo de `dados/` é importado **uma única vez**, marcado por `sys-ic-lote-<nome>`.
   A marca é o que impede um deploy de ressuscitar projeto que a PROPPEX apagou de

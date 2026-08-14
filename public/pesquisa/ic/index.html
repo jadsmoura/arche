@@ -603,7 +603,7 @@ function renderGestao() {
           ${(p.pendencias || []).length ? `<div class="cs" style="color:var(--warn)">⚠ ${esc(p.pendencias[0].texto)}${
             p.pendencias.length > 1 ? ` (+${p.pendencias.length - 1})` : ""}</div>` : ""}
         </div>
-        ${p.classificacao?.nfc ? `<span class="prazo" title="NP ${p.classificacao.np ?? "—"} · CL ${p.classificacao.cl}">NFC ${p.classificacao.nfc}</span>` : ""}
+        ${p.classificacao?.np != null ? `<span class="prazo" title="NP ${p.classificacao.np} · CL ${p.classificacao.cl}">NFC ${p.classificacao.nfc}</span>` : ""}
         ${p.fomento ? `<span class="badge b-${p.fomento.tipo === "voluntario" ? "prevista" : "validado"}">${esc(fomentoNome(p.fomento.tipo))}</span>` : ""}
         ${p.aValidar ? `<span class="badge b-enviado">${p.aValidar} a validar</span>` : ""}
         ${p.atrasadas ? `<span class="badge b-atrasada">${p.atrasadas} atrasada(s)</span>` : ""}
@@ -1113,7 +1113,7 @@ function renderSelecao(p) {
     ${cls ? `<div class="stat" style="margin-top:16px">
       <div class="s"><b>${cls.np ?? "—"}</b><span>NP · parecer (0–10)</span></div>
       <div class="s"><b>${cls.cl ?? "—"}</b><span>CL · currículo (0–10)</span></div>
-      <div class="s" style="border-color:var(--brand-3)"><b>${cls.nfc ?? "—"}</b><span>NFC = NP×0,6 + CL×0,4</span></div>
+      <div class="s" style="border-color:var(--brand-3)"><b>${cls.np != null ? cls.nfc : "—"}</b><span>NFC = NP×0,6 + CL×0,4${cls.np == null ? " · aguarda parecer" : ""}</span></div>
     </div>` : ""}
   </div>`;
 }

@@ -1747,6 +1747,64 @@ async function subirLotesIniciais() {
   }
 }
 
+/**
+ * Segunda migração do lote: liga a cada projeto o cronograma e a planilha de
+ * produção que o professor anexou no formulário (dados/ic-<lote>-anexos.json,
+ * chaveado pelo arquivo do Drive gravado em `origem`). Roda uma vez, depois
+ * da importação, e nunca sobrescreve o que alguém já mexeu: o cronograma só
+ * troca se ainda for o genérico do lote, e a planilha só entra se estiver
+ * vazia.
+ */
+const CRONOGRAMA_DO_LOTE = ["Execução do plano de trabalho", "Relatório parcial", "Relatório final"];
+const idDoDrive = (url) => (String(url || "").match(/[?&]id=([\w-]+)/) || [])[1] || "";
+const cronogramaAindaDoLote = (cron) => !(cron || []).length ||
+  ((cron || []).length === CRONOGRAMA_DO_LOTE.length &&
+    (cron || []).every((e, i) => e.atividade === CRONOGRAMA_DO_LOTE[i]));
+
+async function aplicarAnexosIniciais() {
+  for (const nome of LOTES_INICIAIS) {
+    const marca = `sys-ic-anexos-${nome}`;
+    try {
+      if (await storage.get(marca)) continue;
+      let anexos;
+      try {
+        anexos = JSON.parse(await readFile(path.join(__dirname, "dados", `ic-${nome}-anexos.json`), "utf8"));
+      } catch { continue; }                       // lote sem arquivo de anexos
+      const r = await comProjetos((projetos) => {
+        let cron = 0, prod = 0;
+        for (let i = 0; i < projetos.length; i++) {
+          const p = projetos[i];
+          if (p.origem?.lote !== (anexos.lote || nome)) continue;
+          const doCron = anexos.cronogramas?.[idDoDrive(p.origem?.cronograma)];
+          const daProd = anexos.producoes?.[idDoDrive(p.origem?.producao)];
+          const trocaCron = !!doCron && cronogramaAindaDoLote(p.cronograma);
+          const poeProd = !!daProd && !Object.keys(p.producao || {}).length;
+          if (!trocaCron && !poeProd) continue;
+          let novo = normalizarProjeto({
+            ...p,
+            ...(trocaCron ? { cronograma: doCron.etapas } : {}),
+            ...(poeProd ? { producao: daProd.quantidades } : {}),
+          }, { base: p });
+          if (trocaCron) cron++;
+          if (poeProd) prod++;
+          projetos[i] = anotarProjeto(novo, {
+            quem: "sistema (anexos do formulário)",
+            oQue: [
+              trocaCron && `incorporou o cronograma anexado no formulário (${doCron.etapas.length} atividades)`,
+              poeProd && "incorporou a planilha de produção acadêmica anexada no formulário",
+            ].filter(Boolean).join(" e "),
+          });
+        }
+        return { cron, prod, gravar: cron + prod > 0 };
+      });
+      await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), cronogramas: r.cron, producoes: r.prod }));
+      console.log(`ARCHÉ IC · anexos do lote ${nome}: ${r.cron} cronograma(s) e ${r.prod} planilha(s) de produção incorporados`);
+    } catch (e) {
+      console.error(`ARCHÉ IC · falha ao aplicar os anexos do lote ${nome}:`, e.message);
+    }
+  }
+}
+
 // Designação de avaliador ad hoc: é a indicação pelo e-mail que dá o acesso,
 // como acontece com o aluno. Fora do @uniego.edu.br a conta nasce pendente e
 // a PROPPEX ainda precisa liberá-la em /usuarios/.
@@ -2109,8 +2167,11 @@ for (const sinal of ["SIGTERM", "SIGINT"]) {
 app.listen(port, () => {
   console.log(`ARCHÉ disponível em http://localhost:${port}/`);
   // Lotes que acompanham o sistema (as submissões do edital) sobem sozinhos
-  // no primeiro arranque que os encontrar — ver subirLotesIniciais.
-  subirLotesIniciais();
+  // no primeiro arranque que os encontrar — ver subirLotesIniciais. Depois
+  // deles (e só depois: num arranque limpo os projetos precisam existir
+  // primeiro), os anexos dos formulários — cronogramas e planilhas de
+  // produção — são ligados a cada projeto.
+  subirLotesIniciais().then(aplicarAnexosIniciais);
   // Cobrança do relatório final: varre ao acordar e de hora em hora enquanto
   // o processo estiver vivo. O tráfego do portal também dispara (com throttle),
   // o que cobre as hibernações do plano free.
