@@ -1647,8 +1647,21 @@ app.post("/api/ic", async (req, res) => {
           producao: b.producao ?? base.producao,
           grupoPesquisa: b.grupoPesquisa ?? base.grupoPesquisa,
         }, { base, autor: u.email, grupos: conhecidos });
+        // Documentos e conta bancária são DO ALUNO: ele mesmo informa, pela
+        // rota própria. O formulário da orientação nunca os altera — nem os
+        // apaga sem querer ao salvar a indicação (ela não recebe os valores).
+        const doBase = (email) => (base.alunos || []).find((a) => a.email && a.email === email);
+        p.alunos = p.alunos.map((a) => {
+          const antes = doBase(a.email);
+          return antes ? { ...a, cpf: antes.cpf, banco: antes.banco, agencia: antes.agencia,
+            conta: antes.conta, pix: antes.pix } : a;
+        });
+        // aluno recém-indicado num projeto aprovado: recebe o convite por
+        // e-mail para entrar no sistema e completar os próprios dados
+        const novos = ["aprovado", "concluido"].includes(base.status)
+          ? p.alunos.filter((a) => a.email && !doBase(a.email)) : [];
         projetos[i] = anotarProjeto(p, { quem: u.email, oQue: "atualizou cronograma, alunos, produção ou grupo" });
-        return { projeto: projetos[i] };
+        return { projeto: projetos[i], convidar: novos };
       }
       // na inclusão manual o autor é o professor: senão a coordenação viraria
       // "orientador" do projeto e deixaria de ser gestão nele
@@ -1673,11 +1686,85 @@ app.post("/api/ic", async (req, res) => {
       return { projeto };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    if (r.convidar?.length) convidarAlunosIC(r.projeto, r.convidar);   // sem await: e-mail não trava a gravação
     res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
   } catch (e) {
     console.error("Erro ao gravar projeto de IC:", e);
     res.status(500).json({ error: e.message || "Erro ao gravar o projeto" });
   }
+});
+
+/**
+ * O e-mail que abre o sistema para o aluno indicado: convite com o link de
+ * entrada. Ele entra com este e-mail (código ou Google), cria o usuário e
+ * completa os próprios dados — documentos, banco e Pix — dentro do projeto.
+ * Falha de e-mail não pode derrubar a indicação: melhor logar e seguir.
+ */
+async function convidarAlunosIC(projeto, alunos) {
+  const base = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
+  const link = `${base}/entrar?next=${encodeURIComponent("/pesquisa/ic/")}`;
+  for (const a of alunos) {
+    try {
+      const { enviarEmail } = await import("./lib/mailer.js");
+      await enviarEmail({
+        para: a.email,
+        assunto: `[ARCHÉ] Você foi indicado(a) para a Iniciação Científica — ${projeto.numero || "UNIEGO"}`,
+        corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:560px">
+          <p>Olá${a.nome ? `, <b>${a.nome}</b>` : ""}!</p>
+          <p>Você foi indicado(a) por <b>${projeto.orientador?.nome || "sua orientação"}</b> como
+            ${a.bolsista ? "<b>bolsista</b>" : "aluno(a) voluntário(a)"} no projeto:</p>
+          <p style="background:#eef3f5;border-radius:10px;padding:12px 16px"><b>${projeto.titulo || ""}</b><br>
+            ${projeto.numero || ""} · Centro Universitário Evangélico de Goianésia — UNIEGO</p>
+          <p><b>Próximo passo:</b> entre no ARCHÉ com este e-mail (${a.email}) para criar o seu
+            usuário e completar o seu cadastro${a.bolsista ? " — documentos pessoais, dados bancários e chave Pix, necessários para o contrato da bolsa" : ""}.
+            É lá também que ficam o seu cronograma e a entrega dos relatórios parcial e final.</p>
+          <p><a href="${link}" style="display:inline-block;background:#1c3742;color:#fff;text-decoration:none;
+            padding:12px 22px;border-radius:10px;font-weight:600">Entrar no ARCHÉ</a></p>
+          <p style="color:#5b7280;font-size:12px">Se o botão não abrir, copie e cole: ${link}</p></div>`,
+      });
+      console.log(`[ic] convite enviado a ${a.email} (${projeto.numero || projeto.id})`);
+    } catch (e) {
+      console.error(`[ic] convite a ${a.email} falhou:`, e.message);
+    }
+  }
+}
+
+/**
+ * Os dados que o PRÓPRIO aluno informa depois de indicado — documentos,
+ * conta bancária e Pix, os campos da planilha do contrato. Só o aluno do
+ * registro grava aqui; a orientação nem os enxerga (alunosVisiveis).
+ */
+app.post("/api/ic/:id/meus-dados", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const b = req.body || {};
+  const cpf = normalizarCpf(b.cpf);
+  if (String(b.cpf || "").trim() && !cpf)
+    return res.status(400).json({ error: "CPF inválido — confira os 11 dígitos." });
+
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    const p = projetos[i];
+    const idx = (p.alunos || []).findIndex((a) => a.email && a.email === meu.email);
+    if (idx < 0) return { erro: [403, "Só o próprio aluno indicado preenche os seus dados"], gravar: false };
+    const alunos = p.alunos.slice();
+    alunos[idx] = {
+      ...alunos[idx],
+      cpf: cpf || alunos[idx].cpf,
+      telefone: String(b.telefone ?? alunos[idx].telefone ?? "").trim().slice(0, 30),
+      banco: String(b.banco ?? alunos[idx].banco ?? "").trim().slice(0, 60),
+      agencia: String(b.agencia ?? alunos[idx].agencia ?? "").trim().slice(0, 20),
+      conta: String(b.conta ?? alunos[idx].conta ?? "").trim().slice(0, 30),
+      pix: String(b.pix ?? alunos[idx].pix ?? "").trim().slice(0, 120),
+    };
+    projetos[i] = anotarProjeto(normalizarProjeto({ ...p, alunos }, { base: p }),
+      { quem: u.email, oQue: "completou os próprios dados para o contrato" });
+    return { projeto: projetos[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
 });
 
 // Submete à avaliação da PROPPEX: aqui o projeto ganha número.
@@ -1857,6 +1944,60 @@ app.post("/api/ic/importar", async (req, res) => {
  * deploy ressuscitaria projeto que a PROPPEX tivesse apagado de propósito.
  */
 const LOTES_INICIAIS = ["edital-01-2026"];
+/**
+ * Mudança de fluxo (ago/2026, decisão do dono): a proposta não carrega mais
+ * aluno — a indicação acontece depois da aprovação, e os dados pessoais e
+ * bancários quem informa é o próprio aluno. Os alunos que vieram gravados
+ * nas propostas (lote do edital, importados sem e-mail) são apagados UMA
+ * vez; a marca impede o deploy seguinte de apagar indicações novas.
+ */
+/**
+ * Enquadra os cronogramas na vigência do edital (decisão do dono): execução
+ * de setembro/2026 a agosto/2027. Etapa que começava antes passa a começar
+ * em 01/09/2026; a que terminava depois, a terminar em 31/08/2027 — o
+ * miolo de cada plano fica como o professor desenhou. Também fixa o início
+ * e o fim de cada projeto do edital. Roda UMA vez (marca em sys-*).
+ */
+async function enquadrarCronogramasIniciais() {
+  const marca = "sys-ic-cronograma-vigencia-v1";
+  if (await storage.get(marca)) return;
+  const INI = EDITAL.vigencia.inicio, FIM = EDITAL.vigencia.fim;
+  await comProjetos((projetos) => {
+    let n = 0;
+    for (let i = 0; i < projetos.length; i++) {
+      const p = projetos[i];
+      if (String(p.edital || EDITAL.numero) !== EDITAL.numero) continue;
+      const cronograma = (p.cronograma || []).map((e) => ({
+        ...e,
+        inicio: e.inicio ? (e.inicio < INI ? INI : e.inicio > FIM ? FIM : e.inicio) : e.inicio,
+        fim: e.fim ? (e.fim > FIM ? FIM : e.fim < INI ? INI : e.fim) : e.fim,
+      }));
+      const mudou = JSON.stringify(cronograma) !== JSON.stringify(p.cronograma)
+        || p.inicio !== INI || p.fim !== FIM;
+      if (mudou) { n += 1; projetos[i] = { ...p, cronograma, inicio: INI, fim: FIM }; }
+    }
+    console.log(`[ic] cronogramas enquadrados na vigência ${INI} → ${FIM}: ${n} projeto(s)`);
+    return {};
+  });
+  await storage.set(marca, new Date().toISOString());
+  await storage.flush?.();
+}
+
+async function zerarAlunosIniciais() {
+  const marca = "sys-ic-alunos-zerados-v1";
+  if (await storage.get(marca)) return;
+  await comProjetos((projetos) => {
+    let n = 0;
+    for (let i = 0; i < projetos.length; i++) {
+      if ((projetos[i].alunos || []).length) { n += 1; projetos[i] = { ...projetos[i], alunos: [] }; }
+    }
+    console.log(`[ic] fluxo novo de indicação: alunos zerados em ${n} projeto(s)`);
+    return {};
+  });
+  await storage.set(marca, new Date().toISOString());
+  await storage.flush?.();
+}
+
 async function subirLotesIniciais() {
   for (const nome of LOTES_INICIAIS) {
     const marca = `sys-ic-lote-${nome}`;
@@ -2351,7 +2492,7 @@ app.listen(port, () => {
   // deles (e só depois: num arranque limpo os projetos precisam existir
   // primeiro), os anexos dos formulários — cronogramas e planilhas de
   // produção — são ligados a cada projeto.
-  subirLotesIniciais().then(aplicarAnexosIniciais);
+  subirLotesIniciais().then(aplicarAnexosIniciais).then(zerarAlunosIniciais).then(enquadrarCronogramasIniciais);
   // Cobrança do relatório final: varre ao acordar e de hora em hora enquanto
   // o processo estiver vivo. O tráfego do portal também dispara (com throttle),
   // o que cobre as hibernações do plano free.

@@ -101,8 +101,12 @@ test("o CPF de um aluno não fica à mostra para o colega de projeto", () => {
   assert.equal(doJoao.alunos[1].email, "");
   assert.equal(doJoao.alunos[1].matricula, "");
 
+  // fluxo novo: documentos e conta são DO ALUNO — nem a orientação os vê;
+  // ela acompanha pelo sinal de completude, e só a gestão (que monta o
+  // contrato) recebe os valores
   const daOrientacao = visaoDoProjeto(p, { email: "marina@uniego.edu.br", cpf: CPF });
-  assert.equal(daOrientacao.alunos[1].cpf, "52998224725", "quem indicou vê os dados de quem indicou");
+  assert.equal(daOrientacao.alunos[1].cpf, "", "o documento do aluno não é da orientação");
+  assert.equal(typeof daOrientacao.alunos[1].dadosCompletos, "boolean", "ela vê se está completo");
   assert.equal(visaoDoProjeto(p, { email: "x@y.br", gestao: true }).alunos[1].cpf, "52998224725");
 });
 

@@ -67,6 +67,12 @@
       <div class="avatar" id="avatar">··</div>
       <div style="flex:1;min-width:220px">
         <div class="conta" id="conta">…</div>
+        <!-- Gestão de acessos: é da conta do gestor, não de um setor — por
+             isso mora aqui no perfil (saiu da Extensão a pedido do dono). -->
+        <div id="acessos-gestor" class="oculto" style="margin-top:10px">
+          <a class="bt bt-sec" href="/usuarios/" style="text-decoration:none">👥 Gestão de acessos</a>
+          <div class="dica" style="margin-top:6px">Aprovações, coordenadores por módulo e senha provisória — só gestores veem este atalho.</div>
+        </div>
         <div class="foto-acoes" style="margin-top:12px">
           <button class="bt bt-sec" onclick="document.getElementById('f-foto').click()">📷 Escolher foto</button>
           <button class="bt bt-ghost oculto" id="bt-remover-foto" onclick="removerFoto()">Remover</button>
@@ -233,6 +239,7 @@ fetch("/api/me").then(async r=>{
   ME=await r.json();
   const papel={gestor:"gestor geral",coordenador:"coordenador",aprovado:"submissor",pendente:"aguardando aprovação"}[ME.papel]||ME.papel;
   $("conta").innerHTML=`Conta: <b>${ME.email}</b><span class="papel">${papel}</span>`;
+  if(ME.papel==="gestor") $("acessos-gestor").classList.remove("oculto");
   const p=ME.perfil||{};
   for(const c of CAMPOS) if($(c)&&p[c]!=null) $(c).value=p[c];
   if($("cpf").value) $("cpf").value=fmtCPF($("cpf").value);   // guardado só em dígitos

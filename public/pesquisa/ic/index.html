@@ -209,6 +209,7 @@
         <section id="v-avaliacao" class="hide"></section>
         <section id="v-classificacao" class="hide"></section>
         <section id="v-editais" class="hide"></section>
+        <section id="v-bolsistas" class="hide"></section>
         <section id="v-cronograma" class="hide"></section>
         <section id="v-relatorios" class="hide"></section>
         <section id="v-projeto" class="hide"></section>
@@ -258,6 +259,7 @@ const SECOES = [
   { id: "avaliacao", grupo: "SELEÇÃO", rot: "Avaliação", ic: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', perfis: ["gestao", "avaliador"] },
   { id: "classificacao", grupo: "SELEÇÃO", rot: "Projetos", ic: '<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>', perfis: ["gestao"] },
   { id: "editais", grupo: "SELEÇÃO", rot: "Editais e Resultados", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 12h8M8 16h8"/>' },
+  { id: "bolsistas", grupo: "ACOMPANHAMENTO", rot: "Bolsistas e Voluntários", ic: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>', perfis: ["gestao", "orientador"] },
   { id: "cronograma", grupo: "ACOMPANHAMENTO", rot: "Cronograma", ic: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/>', perfis: ["orientador", "aluno"] },
   { id: "relatorios", grupo: "ACOMPANHAMENTO", rot: "Relatórios", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 13h8M8 17h5"/>', perfis: ["gestao", "orientador", "aluno"] },
 ];
@@ -268,6 +270,7 @@ const TITULOS = {
   gestao: ["Gestão de projetos", "Projetos submetidos, em execução e concluídos."],
   avaliacao: ["Avaliação da seleção", "Parecer ad hoc dos projetos submetidos."],
   classificacao: ["Projetos do edital", "Todos os projetos de cada processo seletivo, em ordem de classificação."],
+  bolsistas: ["Bolsistas e Voluntários", "Cada aluno em execução, com as metas do cronograma e as entregas — por ciclo."],
   editais: ["Editais e Resultados", "Os documentos de cada processo, ano a ano: o edital e o resultado."],
   cronograma: ["Cronograma", "Todas as atividades dos projetos num só lugar."],
   relatorios: ["Relatórios", "Parciais e finais: o aluno envia, a orientação valida."],
@@ -421,7 +424,7 @@ function nav(secao, modo) {
   // a inclusão manual vale só para o formulário aberto por ela
   MANUAL = secao === "submissao" && modo === "manual";
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === secao);
-  for (const v of ["painel", "submissao", "gestao", "avaliacao", "classificacao", "editais", "cronograma", "relatorios", "projeto"]) $("v-" + v).classList.add("hide");
+  for (const v of ["painel", "submissao", "gestao", "avaliacao", "classificacao", "editais", "bolsistas", "cronograma", "relatorios", "projeto"]) $("v-" + v).classList.add("hide");
   // submissão e projeto compartilham o editor (mesmos ids): a seção que sai
   // do ar é esvaziada, senão getElementById acha os campos escondidos
   for (const v of ["submissao", "projeto"]) if (v !== secao) $("v-" + v).innerHTML = "";
@@ -444,6 +447,7 @@ function nav(secao, modo) {
   if (secao === "gestao") renderGestao();
   if (secao === "avaliacao") renderAvaliacao();
   if (secao === "classificacao") renderClassificacao();
+  if (secao === "bolsistas") renderBolsistas();
   if (secao === "editais") renderEditais();
   if (secao === "cronograma") renderCronograma();
   if (secao === "relatorios") renderRelatorios();
@@ -707,6 +711,85 @@ function renderAvaliacao() {
     ${!meus.length && !META.gestao ? `<div class="card"><div class="vazio">
       Nenhum projeto designado a você no momento.</div></div>` : ""}`;
 }
+
+/* ------------------------ bolsistas e voluntários ----------------------- */
+/* O acompanhamento por PESSOA: cada aluno em execução com as suas demandas —
+   as metas do cronograma sob a responsabilidade dele e a entrega dos
+   relatórios frente aos prazos do edital. Organizado por CICLO (edital),
+   porque a cada ciclo os alunos e as metas mudam. O professor vê os seus;
+   a gestão vê todos, agrupados por orientador. */
+function renderBolsistas() {
+  const fmtBr = (iso) => iso ? String(iso).slice(0, 10).split("-").reverse().join("/") : "—";
+  const emExec = PROJETOS.filter((p) => ["aprovado", "concluido"].includes(p.status));
+
+  const cartaoAluno = (p, a) => {
+    const metas = ETAPAS.filter((e) => e.projetoId === p.id && e.responsavel === a.email);
+    const feitas = metas.filter((e) => e.situacao === "concluida").length;
+    const atrasadas = metas.filter((e) => e.situacao !== "concluida" && e.fim && e.fim < hojeISO()).length;
+    const rel = (tipo) => {
+      const r = RELS.relatorios.find((x) => x.projetoId === p.id && x.aluno === a.email && x.tipo === tipo);
+      const prazo = (p.prazoRelatorios?.prazos || []).find((x) => x.tipo === tipo);
+      if (r) return `<span class="badge b-${esc(r.situacao)}">${tipo}: ${esc({ enviado: "enviado", validado: "validado", devolvido: "devolvido" }[r.situacao] || r.situacao)}</span>`;
+      if (prazo?.atrasado) return `<span class="badge b-atrasada">${tipo}: atrasado (venceu ${fmtBr(prazo.vence)})</span>`;
+      return `<span class="badge b-rascunho">${tipo}: até ${fmtBr(prazo?.vence)}</span>`;
+    };
+    const contrato = a.bolsista
+      ? ((a.dadosCompletos ?? !!(a.cpf && a.banco && a.conta && a.pix))
+        ? '<span class="badge b-validado">contrato: dados completos</span>'
+        : '<span class="badge b-enviado">contrato: aguardando o aluno</span>')
+      : "";
+    return `<div class="bloco">
+      <div class="bloco-cab">
+        <span class="t">${esc(a.nome || a.email || "Aluno")}</span>
+        <span class="badge b-${a.bolsista ? "aprovado" : "prevista"}">${a.bolsista ? "bolsista" : "voluntário"}</span>
+        ${a.email ? "" : '<span class="badge b-atrasada">sem e-mail — sem acesso</span>'}
+      </div>
+      <div class="muted" style="margin-bottom:6px">${esc(p.numero || "")} · ${esc(p.titulo || "")}${a.curso ? ` · ${esc(a.curso)}` : ""}${a.periodo ? ` · ${esc(a.periodo)}` : ""}</div>
+      <div class="exp" style="gap:6px">
+        <span class="badge b-${atrasadas ? "atrasada" : "validado"}">metas: ${feitas}/${metas.length} concluída(s)${atrasadas ? ` · ${atrasadas} atrasada(s)` : ""}</span>
+        ${rel("parcial")} ${rel("final")} ${contrato}
+      </div>
+      <div class="exp"><button class="bt bt-ghost" onclick="abrir('${esc(p.id)}')">Abrir o projeto</button></div>
+    </div>`;
+  };
+
+  const porCiclo = new Map();
+  for (const p of emExec) {
+    const ciclo = p.edital || META.edital?.numero || "—";
+    if (!porCiclo.has(ciclo)) porCiclo.set(ciclo, []);
+    porCiclo.get(ciclo).push(p);
+  }
+  const ciclos = [...porCiclo.entries()].sort((a, b) => String(b[0]).split("/").pop() - String(a[0]).split("/").pop());
+
+  $("v-bolsistas").innerHTML = ciclos.map(([ciclo, projetos]) => {
+    const comAlunos = projetos.filter((p) => (p.alunos || []).length);
+    const totalAlunos = comAlunos.reduce((s, p) => s + p.alunos.length, 0);
+    let corpo = "";
+    if (META.gestao) {
+      // gestão: agrupado por orientador
+      const porOrientador = new Map();
+      for (const p of comAlunos) {
+        const k = p.orientador?.nome || p.orientador?.email || "—";
+        if (!porOrientador.has(k)) porOrientador.set(k, []);
+        porOrientador.get(k).push(p);
+      }
+      corpo = [...porOrientador.entries()].sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
+        .map(([nome, ps]) => `<div class="sec-t">${esc(nome)}
+          <span class="muted" style="font-weight:400">· ${ps.reduce((s, p) => s + p.alunos.length, 0)} aluno(s)</span></div>
+          ${ps.flatMap((p) => (p.alunos || []).map((a) => cartaoAluno(p, a))).join("")}`).join("");
+    } else {
+      corpo = comAlunos.flatMap((p) => (p.alunos || []).map((a) => cartaoAluno(p, a))).join("");
+    }
+    return `<div class="card">
+      <div class="card-t">Ciclo ${esc(ciclo)}</div>
+      <div class="card-s">${totalAlunos} aluno(s) em ${comAlunos.length} projeto(s) em execução.</div>
+      ${corpo || `<div class="vazio">Nenhum aluno indicado neste ciclo ainda — a indicação abre com a aprovação do projeto.</div>`}
+    </div>`;
+  }).join("") || `<div class="card"><div class="vazio">Nenhum projeto em execução ainda. Os alunos aparecem aqui
+    depois da aprovação e da indicação.</div></div>`;
+}
+
+/* ------------------------ bolsistas: fim -------------------------------- */
 
 /* --------------------- projetos do edital (classificação) -------------- */
 /* As listas de cada processo seletivo, com o que a coordenação precisa ver
@@ -1116,11 +1199,12 @@ function renderEditor(alvo) {
     ${!["aprovado", "concluido"].includes(p.status) || PODE.papel === "avaliador" ? "" : `
     <div class="card">
       <div class="card-t">Indicação de alunos</div>
-      <div class="card-s">A proposta não pede aluno: a indicação acontece <b>depois da aprovação</b>, aqui.
-        O e-mail é o que abre o sistema para o aluno — o cronograma e a entrega dos relatórios parcial e
-        final. Marque <b>Bolsista</b> em quem recebe a bolsa; a ficha do contrato abre logo abaixo.</div>
+      <div class="card-s">A indicação acontece <b>depois da aprovação</b>, aqui: nome, curso, período,
+        e-mail e telefone. Ao <b>salvar o projeto</b>, o aluno recebe um e-mail com o link para entrar no
+        sistema, criar o usuário e completar o próprio cadastro — documentos, dados bancários e Pix, se
+        for bolsista. Marque <b>Bolsista</b> em quem recebe a bolsa.</div>
       <div class="rolo"><table class="pt">
-        <thead><tr><th style="width:26%">Nome</th><th style="width:26%">E-mail</th><th>Matrícula</th><th>Período</th><th>Bolsista</th><th></th></tr></thead>
+        <thead><tr><th style="width:22%">Nome</th><th style="width:22%">E-mail</th><th style="width:16%">Telefone</th><th style="width:18%">Curso</th><th>Período</th><th>Bolsista</th><th></th></tr></thead>
         <tbody id="tb-alunos"></tbody>
       </table></div>
       ${ger ? `<div class="exp"><button class="bt bt-sec" onclick="addAluno()">＋ Indicar aluno</button></div>` : ""}
@@ -1170,15 +1254,16 @@ function desenharAlunos() {
     <tr>
       <td><input ${ger ? "" : "disabled"} value="${esc(a.nome || "")}" oninput="ATUAL.alunos[${i}].nome=this.value"></td>
       <td><input type="email" ${ger ? "" : "disabled"} value="${esc(a.email || "")}" oninput="ATUAL.alunos[${i}].email=this.value;desenharEtapas()"></td>
-      <td><input ${ger ? "" : "disabled"} value="${esc(a.matricula || "")}" oninput="ATUAL.alunos[${i}].matricula=this.value"></td>
+      <td><input ${ger ? "" : "disabled"} value="${esc(a.telefone || "")}" oninput="ATUAL.alunos[${i}].telefone=this.value" placeholder="(62) 9…"></td>
+      <td><input ${ger ? "" : "disabled"} value="${esc(a.curso || "")}" oninput="ATUAL.alunos[${i}].curso=this.value"></td>
       <td><input ${ger ? "" : "disabled"} value="${esc(a.periodo || "")}" oninput="ATUAL.alunos[${i}].periodo=this.value" placeholder="5º"></td>
       <td><input type="checkbox" style="width:auto" ${a.bolsista ? "checked" : ""} ${ger ? "" : "disabled"} onchange="ATUAL.alunos[${i}].bolsista=this.checked"></td>
       <td>${ger ? `<button class="rm" title="remover" onclick="ATUAL.alunos.splice(${i},1);desenharAlunos();desenharEtapas()">×</button>` : ""}</td>
-    </tr>${!a.email ? `<tr><td colspan="6" class="muted" style="border-top:0;padding-top:0">
-      ⚠ sem e-mail, ${esc(a.nome || "este aluno")} não entra no sistema para enviar os relatórios</td></tr>` : ""}`).join("")
-    || `<tr><td colspan="6" class="muted">Nenhum aluno indicado. Sem aluno, o projeto anda, mas não há relatórios a entregar.</td></tr>`;
+    </tr>${!a.email ? `<tr><td colspan="7" class="muted" style="border-top:0;padding-top:0">
+      ⚠ sem e-mail não há convite: ${esc(a.nome || "este aluno")} não entra no sistema</td></tr>` : ""}`).join("")
+    || `<tr><td colspan="7" class="muted">Nenhum aluno indicado ainda.</td></tr>`;
 }
-function addAluno() { ATUAL.alunos = [...(ATUAL.alunos || []), { nome: "", email: "", matricula: "", bolsista: false }]; desenharAlunos(); }
+function addAluno() { ATUAL.alunos = [...(ATUAL.alunos || []), { nome: "", email: "", telefone: "", curso: cursoNome(ATUAL.curso), periodo: "", bolsista: false }]; desenharAlunos(); }
 
 function desenharEtapas() {
   const ger = PODE.podeGerir || PODE.podeEditar;
@@ -1398,43 +1483,61 @@ function renderIndicacaoBolsista(p, ger) {
   if (!p.id || !["aprovado", "concluido"].includes(p.status)) return "";
   if (!p.fomento || p.fomento.tipo === "voluntario") return "";
   if (PODE.papel === "avaliador") return "";
-  const bolsistas = (p.alunos || []).map((a, i) => [a, i]).filter(([a]) => a.bolsista);
-  const ro = ger ? "" : "disabled";
-  const linha = ([a, i]) => `
-    <div class="bloco">
-      <div class="bloco-cab"><span class="t">${esc(a.nome || "Bolsista sem nome")}</span>
-        ${a.cpf && a.telefone && a.banco && a.conta && a.pix
-          ? '<span class="badge b-validado">indicação completa</span>'
-          : '<span class="badge b-enviado">faltam dados</span>'}</div>
+
+  // O PRÓPRIO aluno preenche os dados do contrato — a ficha dele
+  if (PODE.papel === "aluno") {
+    const eu = (p.alunos || []).find((a) => a.email === META.eu);
+    if (!eu || !eu.bolsista) return "";
+    return `<div class="card">
+      <div class="card-t">Meus dados para o contrato da bolsa</div>
+      <div class="card-s"><b>${esc(fomentoNome(p.fomento.tipo))}</b> concedida. Preencha os seus dados —
+        são eles que geram o contrato. A conta e o Pix precisam estar no seu nome.</div>
       <div class="grid3">
-        <div><label>CPF do aluno *</label>
-          <input ${ro} value="${esc(a.cpf || "")}" oninput="ATUAL.alunos[${i}].cpf=this.value" placeholder="000.000.000-00"></div>
-        <div><label>Telefone do aluno *</label>
-          <input ${ro} value="${esc(a.telefone || "")}" oninput="ATUAL.alunos[${i}].telefone=this.value" placeholder="(62) 90000-0000"></div>
-        <div><label>E-mail do aluno</label>
-          <input type="email" ${ro} value="${esc(a.email || "")}" oninput="ATUAL.alunos[${i}].email=this.value"></div>
+        <div><label>CPF *</label><input id="md-cpf" value="${esc(eu.cpf || "")}" placeholder="000.000.000-00"></div>
+        <div><label>Telefone *</label><input id="md-telefone" value="${esc(eu.telefone || "")}" placeholder="(62) 90000-0000"></div>
+        <div><label>Banco *</label><input id="md-banco" value="${esc(eu.banco || "")}" placeholder="Ex.: Caixa, Nubank"></div>
       </div>
       <div class="grid3">
-        <div><label>Banco *</label>
-          <input ${ro} value="${esc(a.banco || "")}" oninput="ATUAL.alunos[${i}].banco=this.value" placeholder="Ex.: Caixa, Nubank"></div>
-        <div><label>Agência</label>
-          <input ${ro} value="${esc(a.agencia || "")}" oninput="ATUAL.alunos[${i}].agencia=this.value"></div>
-        <div><label>Conta corrente *</label>
-          <input ${ro} value="${esc(a.conta || "")}" oninput="ATUAL.alunos[${i}].conta=this.value"></div>
+        <div><label>Agência</label><input id="md-agencia" value="${esc(eu.agencia || "")}"></div>
+        <div><label>Conta corrente *</label><input id="md-conta" value="${esc(eu.conta || "")}"></div>
+        <div style="display:flex;align-items:flex-end"><button class="bt bt-pri" onclick="salvarMeusDados()">Salvar meus dados</button></div>
       </div>
       <label>Pix (vinculado à conta acima) *</label>
-      <input ${ro} value="${esc(a.pix || "")}" oninput="ATUAL.alunos[${i}].pix=this.value"
-        placeholder="CPF, e-mail ou chave aleatória — precisa ser da conta informada">
+      <input id="md-pix" value="${esc(eu.pix || "")}" placeholder="CPF, e-mail ou chave aleatória — da conta informada">
     </div>`;
+  }
+
+  // orientação e gestão acompanham: quem já completou, quem ainda falta
+  const bolsistas = (p.alunos || []).filter((a) => a.bolsista);
+  const completo = (a) => a.dadosCompletos ?? !!(a.cpf && a.banco && a.conta && a.pix);
   return `<div class="card">
-    <div class="card-t">Indicação do bolsista</div>
+    <div class="card-t">Contrato da bolsa</div>
     <div class="card-s"><b>${esc(fomentoNome(p.fomento.tipo))}</b> concedida${p.fomento.modalidade ? ` (${esc(modNome(p.fomento.modalidade))})` : ""}.
-      ${ger ? "Preencha os dados de cada bolsista — são eles que geram o contrato da bolsa. A conta e o Pix precisam ser do próprio aluno."
-            : "Dados preenchidos pela orientação para o contrato da bolsa."}
-      Depois de preencher, <b>salve o projeto</b>.</div>
-    ${bolsistas.map(linha).join("") || `<div class="banner ba-warn">Nenhum aluno marcado como <b>bolsista</b> na
-      lista acima — marque a caixa "Bolsista" do aluno contemplado e salve.</div>`}
+      Os documentos e os dados bancários quem informa é <b>o próprio aluno</b>, depois do convite por e-mail —
+      aqui fica só o andamento.</div>
+    ${bolsistas.map((a) => `<div class="linha">
+      <div class="txt"><div class="p1">${esc(a.nome || a.email || "Bolsista")}</div>
+        <div class="p2">${esc(a.email || "sem e-mail — sem convite")}</div></div>
+      ${completo(a) ? '<span class="badge b-validado">dados completos</span>'
+        : '<span class="badge b-enviado">aguardando o aluno</span>'}
+    </div>`).join("") || `<div class="banner ba-warn">Nenhum aluno marcado como <b>bolsista</b> na
+      indicação acima — marque a caixa e salve o projeto.</div>`}
   </div>`;
+}
+
+/* O aluno grava os próprios dados — vão direto para o registro dele. */
+async function salvarMeusDados() {
+  try {
+    await api(`/api/ic/${ATUAL.id}/meus-dados`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cpf: $("md-cpf").value, telefone: $("md-telefone").value, banco: $("md-banco").value,
+        agencia: $("md-agencia").value, conta: $("md-conta").value, pix: $("md-pix").value,
+      }),
+    });
+    await carregar(); montarSidebar(); await abrir(ATUAL.id);
+    aviso("Dados salvos — a PROPPEX usa exatamente o que você informou para montar o contrato.");
+  } catch (e) { aviso(e.message, "err"); }
 }
 
 /* ---------------- planilha de pontuação da produção -------------------- */

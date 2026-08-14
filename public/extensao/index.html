@@ -431,10 +431,10 @@ function bannerVisao(){
 
 function montarSidebar(){
   montarAlternador();
+  // A Gestão de acessos saiu daqui: ela é da conta, não da Extensão — o
+  // gestor a encontra no próprio perfil (decisão do dono, ago/2026).
   $("menu").innerHTML = secoesVisiveis().map(s=>
-    `<button class="side-item" data-k="${s.k}" onclick="nav('${s.k}')">${icone(s.ic)}${s.rot}</button>`).join("")
-    + (PROPPEX && ME?.papel==="gestor"
-      ? `<a class="side-item" href="/usuarios/" style="text-decoration:none">${icone(IC.acessos)}Gestão de acessos</a>` : "");
+    `<button class="side-item" data-k="${s.k}" onclick="nav('${s.k}')">${icone(s.ic)}${s.rot}</button>`).join("");
 
   const p = ME?.perfil||{};
   const nome = p.tratamento || p.nome || (ME?.nome && ME.nome!==ME?.email ? ME.nome : (ME?.email||"—"));

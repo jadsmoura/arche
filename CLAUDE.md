@@ -42,6 +42,9 @@ public/
   entrar/ perfil/ usuarios/   Login (código por e-mail + Google), perfil, gestão de acessos
 ```
 
+- **Gestão de acessos** é da conta, não de um setor: o atalho mora no **perfil** do
+  gestor (`/perfil/`), não na barra lateral da Extensão.
+
 ## Regras de negócio essenciais
 
 - **Setores protegidos** (exigem login): `/extensao`, `/pesquisa`, `/inovacao`, `/atas`, `/usuarios`.
@@ -95,9 +98,16 @@ public/
   com desvios para `devolvido` (volta a ser editável) e `reprovado`. O protocolo
   `IC-AAAA-NNN` sai na submissão e nunca se repete. Submetida, a **proposta fecha**;
   cronograma segue editável pela orientação. **A proposta não pede aluno**: a indicação
-  acontece DEPOIS da aprovação, dentro do projeto — e é aí que o aluno indicado (pelo
-  e-mail) passa a acessar o sistema discente, com o cronograma e a entrega dos
-  relatórios parcial e final. Validados todos os relatórios
+  acontece DEPOIS da aprovação, dentro do projeto — nome, curso, período, e-mail e
+  telefone. Ao salvar, **o aluno recebe o convite por e-mail** (`convidarAlunosIC`) com o
+  link de entrada; ele cria o usuário e **ele mesmo** completa documentos, dados
+  bancários e Pix (`POST /api/ic/:id/meus-dados` — só o próprio aluno grava).
+  **Documentos e conta são do aluno** (`alunosVisiveis`): a orientação vê só o contato
+  que indicou e o sinal `dadosCompletos`; a gestão vê tudo (contrato); o formulário da
+  orientação nunca sobrescreve o que o aluno gravou. Os alunos que vinham nas propostas
+  importadas foram apagados de vez (`sys-ic-alunos-zerados-v1`), e os cronogramas do
+  edital 01/2026 foram enquadrados na vigência set/2026 → ago/2027
+  (`sys-ic-cronograma-vigencia-v1`). Validados todos os relatórios
   finais, o projeto passa a concluído. A tela de Cronograma reúne **todos os projetos
   num só lugar**. Não há guia de bolsas nem de comunicação — a bolsa é um campo do
   aluno indicado.
@@ -149,6 +159,10 @@ public/
   documento). A guia **Cronograma** é só do professor e do aluno; para a gestão, o
   Painel mostra o dashboard de relatórios em atraso e a guia **Relatórios** vira o radar:
   a lista dos projetos em execução com EM DIA/ATRASADO — o detalhe se lê no projeto.
+  A guia **Bolsistas e Voluntários** (professor e gestão) acompanha por PESSOA e por
+  CICLO (edital): cada aluno com as metas do cronograma sob sua responsabilidade, a
+  situação dos relatórios frente aos prazos e o andamento do contrato; para a gestão,
+  agrupada por orientador.
 - **Prazos dos relatórios** (`prazosRelatorios` em lib/ic.js, item 11.1.b): o parcial
   vence aos 6 meses de execução e o final no fim da vigência; cada um pode ser entregue
   a partir de 2 meses antes. Projeto ATRASADO = prazo vencido com relatório faltando.

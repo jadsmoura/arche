@@ -527,6 +527,14 @@ test("a indicação do bolsista guarda contato e conta; colega de projeto não v
   for (const campo of ["banco", "agencia", "conta", "pix", "telefone", "cpf"])
     assert.ok(!doColega?.[campo], `${campo} do bolsista não vaza para o colega`);
 
+  // nem para a orientação: documento e conta são do aluno; ela vê o andamento
+  const daProf = visaoDoProjeto({ ...p, status: "aprovado", numero: "IC-2026-001" }, PROF);
+  const meuAluno = daProf.alunos.find((x) => x.nome === "Marcos");
+  for (const campo of ["banco", "conta", "pix", "cpf"])
+    assert.ok(!meuAluno?.[campo], `${campo} não aparece para a orientação`);
+  assert.equal(meuAluno.dadosCompletos, true, "a orientação sabe que o aluno completou");
+  assert.equal(meuAluno.telefone, "(62) 90000-0000", "o contato que ela mesma indicou, sim");
+
   // bolsa concedida sem os dados completos vira pendência
   const semDados = { ...p, status: "aprovado", fomento: { tipo: "uniego", modalidade: "pbic-uniego" },
     alunos: [{ ...p.alunos[0], banco: "", pix: "" }] };
