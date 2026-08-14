@@ -349,3 +349,34 @@ test("órgão não previsto não tem checklist nem entra no ciclo obrigatório",
   assert.ok(!ciclosDoSemestre([], { hoje: HOJE }).some((c) => c.orgao === "OUTRO"),
     "não entra no acompanhamento de ciclos da PROPPEX");
 });
+
+/* ---------------- checkpoints compartilhados dentro do órgão ------------ */
+test("o que um colega registrou conta para todos do mesmo órgão e curso", () => {
+  // Pessoa A lavra a 1ª ata do NDE de Agronomia e marca duas pautas
+  const daPessoaA = { ...ata({ curso: "agronomia", data: "2026-08-03", pautas: ["nde-ppc", "nde-bibliografia"] }),
+    criadoPor: "pessoa.a@uniego.edu.br" };
+
+  // Pessoa B, ao abrir a 2ª ata do MESMO órgão, vê os dois temas cumpridos
+  const ck = checklistSemestral([daPessoaA], { orgao: "NDE", curso: "agronomia", hoje: HOJE });
+  const emDia = ck.pautas.filter((p) => p.estado === "em-dia").map((p) => p.id);
+  assert.deepEqual(emDia.sort(), ["nde-bibliografia", "nde-ppc"]);
+  assert.equal(ck.emDia, 2, "o checklist é do órgão, não de quem lavrou");
+  assert.equal(ck.ritual.ordinarias, 1, "e a sessão de A conta no ciclo do órgão");
+
+  // o rastro aponta a ata de A, para que B saiba onde o tema foi tratado
+  const ppc = ck.pautas.find((p) => p.id === "nde-ppc");
+  assert.equal(ppc.ultima.numero, daPessoaA.numero);
+  assert.equal(ppc.ultima.data, "2026-08-03");
+
+  // e nada disso vaza para outro curso
+  const outro = checklistSemestral([daPessoaA], { orgao: "NDE", curso: "psicologia", hoje: HOJE });
+  assert.equal(outro.emDia, 0);
+});
+
+test("as sugestões de B não repetem o que A já registrou", () => {
+  const daPessoaA = ata({ curso: "agronomia", data: "2026-08-03", pautas: ["nde-ppc", "nde-bibliografia"] });
+  const sug = pautasSugeridas([daPessoaA], { orgao: "NDE", curso: "agronomia", hoje: HOJE }).map((p) => p.id);
+  assert.ok(!sug.includes("nde-ppc"));
+  assert.ok(!sug.includes("nde-bibliografia"));
+  assert.ok(sug.length, "o que falta continua sendo sugerido");
+});

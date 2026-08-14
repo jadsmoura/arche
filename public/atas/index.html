@@ -224,7 +224,13 @@
     padding:12px 14px;margin-bottom:8px;cursor:pointer;background:#fff;transition:border-color .15s,background .15s}
   .chk-pauta:hover{border-color:var(--brand-3)}
   .chk-pauta.on{border-color:var(--ok);background:#f6fbf8}
-  .chk-pauta.feita{opacity:.7}
+  .chk-pauta.feita{background:#f6fbf8;border-color:#cfeeda}
+  .chk-pauta.feita .tt{color:var(--ink-soft)}
+  .ok-orgao{width:18px;height:18px;border-radius:5px;background:var(--ok);color:#fff;flex:none;
+    display:grid;place-items:center;font-size:12px;font-weight:800;margin-top:1px}
+  .de-novo{background:none;border:0;color:var(--brand-3);font-size:11.5px;font-weight:600;
+    cursor:pointer;padding:0;margin-top:6px;text-decoration:underline}
+  .de-novo:hover{color:var(--brand-2)}
   .chk-pauta input{width:18px;height:18px;margin:1px 0 0;flex:none;accent-color:var(--brand)}
   .chk-pauta .txt{flex:1;min-width:0;display:block}
   .chk-pauta .tt{display:block;font-size:13.5px;font-weight:600;color:var(--ink);line-height:1.35}
@@ -1038,23 +1044,35 @@ async function renderSugestoes() {
   const cobradas = d.pautas.filter((p) => p.exigidaAgora);
   ANTERIOR = d.anterior || null;
   const marcadas = cobradas.filter((p) => usadas.has(p.id)).length;
+  const jaFeitas = cobradas.filter((p) => p.estado === "em-dia" && !usadas.has(p.id)).length;
+  const pendentes = cobradas.length - marcadas - jaFeitas;
   const grupos = r.momentos.length > 1 ? r.momentos : ["livre"];
 
+  // Três estados: marcada nesta ata · já cumprida pelo órgão em outra ata do
+  // semestre (pode ter sido lavrada por outro colega) · ainda pendente.
   const caixa = (p) => {
     const on = usadas.has(p.id);
-    const feita = p.estado === "em-dia" && !on;   // já coberta por outra ata do semestre
-    return `<label class="chk-pauta ${on ? "on" : ""} ${feita ? "feita" : ""}">
-      <input type="checkbox" ${on ? "checked" : ""} ${PODE_EDITAR ? "" : "disabled"}
-        onchange="alternarPauta('${p.id}',this.checked)">
+    const feita = p.estado === "em-dia" && !on;
+    const rotulo = on ? "nesta ata" : feita ? "cumprida pelo órgão" : ROT_ESTADO[p.estado];
+    const corpo = `
       <span class="txt">
         <span class="tt">${esc(p.titulo)}</span>
         <span class="md">${esc(quandoVence(p))} · prazo ${fmtD(p.fimDaJanela)}
-          · ${p.refs.map((x) => `${x.inst === "curso" ? "Curso" : "IES"} ${esc(x.num)}`).join(", ")}
-          ${feita ? ` · <b style="color:var(--ok)">já registrada em ${fmtD(p.ultima?.data)}</b>` : ""}</span>
-        <span class="ev">${esc(p.evidencia)}</span>
+          · ${p.refs.map((x) => `${x.inst === "curso" ? "Curso" : "IES"} ${esc(x.num)}`).join(", ")}</span>
+        ${feita ? `<span class="md" style="color:var(--ok);font-weight:600">
+            ✓ Registrada em ${fmtD(p.ultima?.data)}${p.ultima?.numero ? ` na ${esc(p.ultima.numero)}` : ""}
+            — o ciclo do órgão já contempla este tema.</span>
+          ${PODE_EDITAR ? `<button class="de-novo" onclick="alternarPauta('${p.id}',true)">
+            a sessão voltou a tratar deste tema — incluir também nesta ata</button>` : ""}`
+          : `<span class="ev">${esc(p.evidencia)}</span>`}
       </span>
-      <span class="badge e-${on ? "em-dia" : p.estado}">${on ? "nesta ata" : ROT_ESTADO[p.estado]}</span>
-    </label>`;
+      <span class="badge e-${on || feita ? "em-dia" : p.estado}">${rotulo}</span>`;
+
+    // cumprida: marca fixa em vez de caixa, para ninguém confundir com pendente
+    if (feita) return `<div class="chk-pauta feita"><span class="ok-orgao">✓</span>${corpo}</div>`;
+    return `<label class="chk-pauta ${on ? "on" : ""}">
+      <input type="checkbox" ${on ? "checked" : ""} ${PODE_EDITAR ? "" : "disabled"}
+        onchange="alternarPauta('${p.id}',this.checked)">${corpo}</label>`;
   };
 
   // item de praxe do rito: a ata da sessão anterior é lida e aprovada nesta
@@ -1097,14 +1115,19 @@ async function renderSugestoes() {
               : r.completo ? "O ciclo já está cumprido — esta sessão é um reforço."
               : `Esta será a sessão de <b>${esc(MOM_ROT(daVez).toLowerCase())}</b>.`}
       <b>Marque abaixo o que a reunião abordou</b> — cada item marcado vira um ponto de pauta.</div>
-    <div class="cnt">${marcadas} de ${cobradas.length} pauta(s) do semestre marcada(s) nesta ata.</div>
+    <div class="cnt">${cobradas.length} tema(s) cobrado(s) neste semestre ·
+      <b>${marcadas}</b> marcado(s) nesta ata ·
+      <b style="color:var(--ok)">${jaFeitas}</b> já cumprido(s) pelo órgão em sessão anterior ·
+      <b style="color:${pendentes ? "var(--warn)" : "var(--ok)"}">${pendentes}</b> pendente(s).
+      ${jaFeitas ? "O que outro colega já registrou aparece com ✓ — não precisa repetir." : ""}</div>
     ${itemAnterior ? `<div class="grupo-mom"><div class="grupo-t">
       <span class="mom mom-livre">Ordem do dia</span> <span>item de praxe</span></div>${itemAnterior}</div>` : ""}
     ${grupos.map((m) => {
       const doGrupo = cobradas.filter((p) => p.momento === m);
       if (!doGrupo.length) return "";
       return `<div class="grupo-mom">
-        <div class="grupo-t">${chipMomento(m)} <span>${doGrupo.filter((p) => usadas.has(p.id)).length}/${doGrupo.length} marcada(s)</span></div>
+        <div class="grupo-t">${chipMomento(m)}
+          <span>${doGrupo.filter((p) => usadas.has(p.id) || p.estado === "em-dia").length}/${doGrupo.length} cumprido(s) no semestre</span></div>
         ${doGrupo.map(caixa).join("")}</div>`;
     }).join("")}
     ${cobradas.length ? "" : '<div class="banner ba-ok">Este órgão não tem pauta obrigatória vencendo neste semestre.</div>'}`;
