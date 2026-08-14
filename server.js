@@ -1466,6 +1466,9 @@ app.get("/api/ic/:id", async (req, res) => {
     podeAvaliar: podeAvaliar(meu, p), podeEnviar: podeEnviarRelatorio(meu, p),
     podeValidar: podeValidarRelatorio(meu, p),
     podeDesignar: podeDesignarAvaliador(meu, p), podeDarParecer: podeDarParecer(meu, p),
+    // NP/CL/total da ficha: derivado que só resumir() calcula — sem ele a
+    // gestão veria a nota na lista e no PDF, mas não na tela do projeto
+    ...(meu.gestao ? { classificacao: resumirProjeto(p, meu).classificacao ?? null } : {}),
   });
 });
 
@@ -1884,9 +1887,14 @@ app.post("/api/ic/:id/parecer", async (req, res) => {
       return res.status(400).json({ error: "Escolha a recomendação." });
     if (texto.length < 200) return res.status(400).json({ error: "O parecer precisa de ao menos 200 caracteres." });
     for (const c of CRITERIOS) {
-      const n = Number(b.notas?.[c.codigo]);
-      if (!Number.isFinite(n) || n < 0 || n > 10)
-        return res.status(400).json({ error: `Dê uma nota de 0 a 10 em "${c.nome}".` });
+      const cru = b.notas?.[c.codigo];
+      // campo em branco NÃO é zero: Number("") === 0 passaria calado, e na
+      // régua da soma cada branco custaria até o teto do critério
+      if (cru === undefined || cru === null || String(cru).trim() === "")
+        return res.status(400).json({ error: `Falta a nota de "${c.nome}" — todo critério precisa ser pontuado (zero incluído).` });
+      const n = Number(cru);
+      if (!Number.isFinite(n) || n < 0 || n > c.peso)
+        return res.status(400).json({ error: `Dê de 0 a ${c.peso} pontos em "${c.nome}".` });
     }
   }
 
@@ -1947,6 +1955,51 @@ app.post("/api/ic/:id/fomento", async (req, res) => {
       alunos: (p.alunos || []).map((a) => ({ ...a, bolsista: tipo !== "voluntario" })),
       atualizadoEm: new Date().toISOString(),
     }, { quem: u.email, oQue: `fomento: ${mod?.nome || tipo}` });
+    return { projeto: projetos[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
+});
+
+/**
+ * Nota do projeto atribuída direto pela coordenação, sem formulário — para a
+ * seleção que correu fora do sistema (é o caso do edital 01/2026). A nota é
+ * do PROJETO, de 0 a 100; o currículo continua saindo da planilha, e a nota
+ * final é a soma. Enviar { nota: null } desfaz. Nos próximos editais o
+ * caminho é o parecer pelo sistema — esta rota fica para a exceção.
+ */
+app.post("/api/ic/:id/nota", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const bruto = req.body?.nota;
+  const remover = bruto === null || bruto === "";
+  const valor = Number(bruto);
+  if (!remover && (!Number.isFinite(valor) || valor < 0 || valor > 100))
+    return res.status(400).json({ error: "A nota do projeto vai de 0 a 100" });
+  const obs = String(req.body?.observacao || "").trim().slice(0, 2000);
+
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    if (papelNoProjeto(meu, projetos[i]) !== "gestao")
+      return { erro: [403, "Só a coordenação atribui a nota do projeto"], gravar: false };
+    if (projetos[i].status === "rascunho")
+      return { erro: [400, "Rascunho ainda não está na seleção — não há o que pontuar"], gravar: false };
+    const p = projetos[i];
+    const { notaDireta, ...semNota } = p;
+    projetos[i] = anotarProjeto({
+      ...(remover ? semNota : {
+        ...p,
+        notaDireta: { valor: Math.round(valor * 10) / 10, por: u.email, em: new Date().toISOString(), observacao: obs },
+      }),
+      atualizadoEm: new Date().toISOString(),
+    }, {
+      quem: u.email,
+      oQue: remover ? "desfez a nota atribuída ao projeto"
+        : `atribuiu a nota do projeto: ${Math.round(valor * 10) / 10} (seleção conduzida fora do sistema)`,
+      sigilo: true,
+    });
     return { projeto: projetos[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });

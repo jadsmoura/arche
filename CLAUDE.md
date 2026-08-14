@@ -101,9 +101,9 @@ public/
   3. **aluno indicado** — envia os relatórios **parcial e final**; quem valida ou
      devolve é a orientação, nunca o próprio aluno nem a orientação no lugar dele;
   4. **avaliador ad hoc** — designado pela gestão **projeto a projeto**, dá parecer
-     durante a seleção (4 critérios de 0 a 10 + recomendação; a nota é a média) ou
-     recusa por impedimento. Não participa da execução: cronograma e relatórios não
-     aparecem para ele.
+     durante a seleção (sete critérios com teto de pontos somando 100 + recomendação;
+     a nota do parecer é a soma) ou recusa por impedimento. Não participa da execução:
+     cronograma e relatórios não aparecem para ele.
 - **Edital 01/2026** (`lib/edital.js`): as regras que o sistema precisa conhecer viram
   catálogo — trocar de edital é mexer nesse arquivo, preservando os `codigo`, que são
   a chave do que já está gravado. Três **linhas** (IC, IT, IE) e oito **modalidades**,
@@ -117,8 +117,22 @@ public/
   edital — 28 itens em 3 blocos, com pesos e tetos (30 + 60 + 10 = 100), no período de
   2022 a 2026. Fica no projeto, mas é do coordenador: o formulário do próximo projeto
   abre com o que ele informou da última vez (`producaoAnterior` em `/api/ic/meta`), e ela
-  pode ser preenchida depois da submissão. Classificação (item 9.4):
-  **NFC = NP×0,6 + CL×0,4**, com NP = média dos pareceres (0–10) e CL = pontuação/10.
+  pode ser preenchida depois da submissão.
+- **Classificação por SOMA** (`notaClassificacao`, decisão do dono em ago/2026): a nota
+  final é **NP + CL**, teto 200 — NP é a nota do projeto (0–100: sete critérios com teto
+  de pontos em `CRITERIOS_AVALIACAO`, a nota do parecer é a soma; entre pareceres vale a
+  média) e CL é a pontuação da planilha **em valor absoluto** (0–100, sem conversão).
+  Currículo sozinho não classifica: sem NP não há nota final (null, nunca zero). Há
+  **dois quadros**: primeiro só os professores **doutores** (bolsa CNPq exige doutorado),
+  depois o geral com todos — doutores inclusive (`classificarProjetos`; empate resolve
+  por NP, depois protocolo). Os 4 códigos antigos de critério foram preservados.
+- **Nota atribuída pela coordenação** (`notaDireta`, `POST /api/ic/:id/nota`, só gestão):
+  a seleção de 2026 correu fora do sistema, então a gestão atribui a nota do projeto
+  (0–100) sem formulário — ela tem **precedência** sobre a média dos pareceres, fica no
+  histórico (sigilosa) e some da visão do avaliador e da orientação. `{ nota: null }`
+  desfaz. Nos próximos editais o caminho é o parecer pelo sistema.
+- **Guia Editais** (SPA, só gestão): o histórico dos processos por ano — cada edital com
+  resumo, botão do resultado em PDF e os dois quadros de classificação.
 - **Grupo de pesquisa** (DGP/CNPq): a proposta indica **apenas o nome do grupo**. Por
   decisão do dono, **não se pergunta o papel** de quem submete no grupo — professores
   submetem propostas ligadas a grupos que não lideram — e por isso **não há a pontuação
@@ -140,15 +154,16 @@ public/
   resultado do edital ("inclusão deferida fora do prazo"). O avaliador ad hoc não vê a
   marca: ele julga a proposta, não como ela entrou.
 - **A coordenação também dá parecer** (`podeDarParecer`): o edital prevê a análise da
-  PROPPEX, e ela usa os mesmos quatro critérios do ad hoc — sem precisar se designar. O
-  parecer entra na média (NP) como qualquer outro e fica no mesmo sigilo: a orientação
-  segue vendo só as contagens e a decisão.
+  PROPPEX, e ela usa os mesmos sete critérios do ad hoc — sem precisar se designar. O
+  parecer entra na média que forma a NP como qualquer outro e fica no mesmo sigilo: a
+  orientação segue vendo só as contagens e a decisão.
 - **Resultado do processo em PDF** (`gerarResultadoEditalPdf`, `GET /api/ic/resultado.pdf`,
   só gestão): documento timbrado com o resumo do processo e a lista dos projetos daquele
-  edital, em ordem de classificação. Filtra pelo campo `edital` do projeto — é o que faz o
-  histórico dos editais antigos sair pelo mesmo lugar. **Proposta sem parecer sai sem NFC**,
-  nunca com zero: num documento oficial, zero seria nota, e o que existe é ausência de
-  avaliação (por isso `notaClassificacao` trata `null` como faltante, não como 0).
+  edital, com os **dois quadros** (doutores; geral) em ordem de nota final. Filtra pelo
+  campo `edital` do projeto — é o que faz o histórico dos editais antigos sair pelo mesmo
+  lugar. **Proposta sem nota de projeto sai sem nota final**, nunca com zero: num documento
+  oficial, zero seria nota, e o que existe é ausência de avaliação (por isso
+  `notaClassificacao` trata `null` como faltante, não como 0).
 - **Ver como** (`visaoComo` no server): a coordenação abre o ARCHÉ IC pelos olhos de
   qualquer pessoa do setor — professor, aluno ou avaliador — para conferir o que ela
   enxerga. Não é atalho de permissão: o alvo é tratado como quem é (`gestao: false`),

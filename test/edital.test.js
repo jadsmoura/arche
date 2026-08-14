@@ -10,7 +10,7 @@ import {
   EDITAL, LINHAS, MODALIDADES, GRUPOS_PESQUISA, FOMENTOS, BLOCOS_PRODUCAO, ITENS_PRODUCAO,
   PONTUACAO_MAXIMA, modalidadeDe, modalidadePor, modalidadeVigente, modalidadesDaLinha,
   normalizarTitulacao, titulacaoAtende, pontuarProducao, normalizarProducao, notaClassificacao,
-  gruposConhecidos, normalizarGrupo,
+  gruposConhecidos, normalizarGrupo, CRITERIOS_AVALIACAO, NOTA_MAXIMA_PROJETO, classificarProjetos,
 } from "../lib/edital.js";
 import { cpfValido } from "../lib/cpf.js";
 import { normalizarProjeto, validarProjeto, modalidadeEfetiva } from "../lib/ic.js";
@@ -100,22 +100,51 @@ test("quantidade inválida não pontua", () => {
 });
 
 /* ---------------------------- classificação ------------------------------ */
-test("NFC = NP×0,6 + CL×0,4, com o currículo trazido de 0–100 para 0–10", () => {
-  const r = notaClassificacao({ notaPareceres: 8, pontuacaoProducao: 50 });
-  assert.equal(r.np, 8);
-  assert.equal(r.cl, 5, "50 pontos de produção viram 5");
-  assert.equal(r.nfc, 6.8, "8×0,6 + 5×0,4");
+test("o formulário de avaliação vale 100, repartidos em sete critérios", () => {
+  assert.equal(CRITERIOS_AVALIACAO.length, 7);
+  assert.equal(NOTA_MAXIMA_PROJETO, 100, "os pesos dos critérios somam 100");
+  for (const c of CRITERIOS_AVALIACAO) assert.ok(c.peso >= 10 && c.peso <= 20, `${c.codigo}: peso ${c.peso}`);
+  // os quatro códigos do formulário anterior seguem existindo: código é chave
+  for (const cod of ["merito", "metodologia", "viabilidade", "formacao"])
+    assert.ok(CRITERIOS_AVALIACAO.some((c) => c.codigo === cod), cod);
+});
 
-  assert.equal(notaClassificacao({ notaPareceres: 10, pontuacaoProducao: 100 }).nfc, 10, "o teto é 10");
+test("nota final = projeto + currículo, com o currículo ABSOLUTO da planilha", () => {
+  const r = notaClassificacao({ notaProjeto: 80, pontuacaoProducao: 50 });
+  assert.equal(r.np, 80);
+  assert.equal(r.cl, 50, "a pontuação da planilha entra como está, sem conversão");
+  assert.equal(r.total, 130, "a classificação é a SOMA das duas");
+
+  assert.equal(notaClassificacao({ notaProjeto: 100, pontuacaoProducao: 100 }).total, 200, "o teto é 200");
   assert.equal(notaClassificacao({}), null, "sem nota nenhuma não se inventa classificação");
-  assert.equal(notaClassificacao({ pontuacaoProducao: 100 }).nfc, 4, "só currículo pesa 40%");
+  assert.equal(notaClassificacao({ pontuacaoProducao: 100 }).total, null,
+    "currículo sozinho não classifica: sem nota de projeto não há nota final");
+  assert.equal(notaClassificacao({ notaProjeto: 70 }).total, 70, "planilha em branco pontua zero no currículo");
 
   // Proposta ainda sem parecer chega com média null; se isso virasse zero, o
-  // resultado impresso diria "NFC 0" onde o certo é "ainda não avaliada".
-  assert.equal(notaClassificacao({ notaPareceres: null }), null);
-  assert.equal(notaClassificacao({ notaPareceres: null, pontuacaoProducao: undefined }), null);
-  assert.equal(notaClassificacao({ notaPareceres: null, pontuacaoProducao: 50 }).np, null,
-    "com planilha e sem parecer, a NP fica em aberto");
+  // resultado impresso diria "nota 0" onde o certo é "ainda não avaliada".
+  assert.equal(notaClassificacao({ notaProjeto: null }), null);
+  assert.equal(notaClassificacao({ notaProjeto: null, pontuacaoProducao: undefined }), null);
+  assert.equal(notaClassificacao({ notaProjeto: null, pontuacaoProducao: 50 }).np, null,
+    "com planilha e sem parecer, a nota do projeto fica em aberto");
+});
+
+test("dois quadros: doutores primeiro, e o geral inclui os doutores", () => {
+  const p = (numero, titulacao, total, np = total) => ({
+    numero, orientador: { titulacao }, classificacao: total == null ? null : { np, cl: total - np, total },
+  });
+  const { doutores, geral } = classificarProjetos([
+    p("IC-2026-001", "mestre", 150),
+    p("IC-2026-002", "doutor", 120, 80),
+    p("IC-2026-003", "doutor", 170),
+    p("IC-2026-004", "especialista", null),
+    p("IC-2026-005", "Doutora", 120, 90),   // titulação como texto livre
+  ]);
+  assert.deepEqual(doutores.map((x) => x.numero), ["IC-2026-003", "IC-2026-005", "IC-2026-002"],
+    "só doutores, pela nota final; empate resolve pela nota do projeto");
+  assert.deepEqual(geral.map((x) => x.numero),
+    ["IC-2026-003", "IC-2026-001", "IC-2026-005", "IC-2026-002", "IC-2026-004"],
+    "o geral tem todo mundo — doutores inclusive — e quem não tem nota vai ao fim");
 });
 
 test("a modalidade efetiva sai da linha com o fomento decidido na seleção", () => {
@@ -184,8 +213,8 @@ test("grupo de pesquisa não pontua: o edital só quer saber o vínculo", () => 
   const comGrupo = normalizarProjeto({ grupoPesquisa: "Solos, Ecologia e Dinâmica da Matéria Orgânica" });
   const semGrupo = normalizarProjeto({});
   assert.equal(
-    notaClassificacao({ notaPareceres: 8, pontuacaoProducao: pontuarProducao(comGrupo.producao).total }).nfc,
-    notaClassificacao({ notaPareceres: 8, pontuacaoProducao: pontuarProducao(semGrupo.producao).total }).nfc,
+    notaClassificacao({ notaProjeto: 80, pontuacaoProducao: pontuarProducao(comGrupo.producao).total }).total,
+    notaClassificacao({ notaProjeto: 80, pontuacaoProducao: pontuarProducao(semGrupo.producao).total }).total,
     "estar num grupo não muda a classificação",
   );
 });

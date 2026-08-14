@@ -227,23 +227,60 @@ test("a orientação não sabe quem avaliou — nem pela lista, nem pelo histór
   assert.equal(visaoDoProjeto(p, PROPPEX).avaliacoes.length, 2, "a gestão vê tudo, porque decide");
 });
 
-test("a nota final é a média dos critérios; o placar soma os pareceres", () => {
-  assert.equal(notaFinal({ notas: { merito: 9, metodologia: 8, viabilidade: 9.5, formacao: 9 } }), 8.9);
-  assert.equal(notaFinal({ notas: {} }), null, "sem nota não se inventa média");
-  assert.equal(notaFinal({ notas: { merito: 10 } }), 10, "conta só o que foi preenchido");
+test("a nota do projeto é a SOMA dos critérios (0 a 100); o placar faz a média", () => {
+  assert.equal(notaFinal({ notas: { merito: 18, objetivos: 8, fundamentacao: 7, metodologia: 16, viabilidade: 12, formacao: 13, redacao: 9 } }), 83);
+  assert.equal(notaFinal({ notas: {} }), null, "sem nota não se inventa soma");
+  assert.equal(notaFinal({ notas: { merito: 20 } }), 20, "conta só o que foi preenchido");
+  const cheio = Object.fromEntries(CRITERIOS.map((c) => [c.codigo, c.peso]));
+  assert.equal(notaFinal({ notas: cheio }), 100, "tudo no teto fecha em 100");
 
   const p = emSelecao([
-    { email: AD2.email, situacao: "entregue", recomendacao: "recomendado", notas: Object.fromEntries(CRITERIOS.map((c) => [c.codigo, 8])) },
-    { email: "carla@ufg.br", situacao: "entregue", recomendacao: "nao_recomendado", notas: Object.fromEntries(CRITERIOS.map((c) => [c.codigo, 4])) },
+    { email: AD2.email, situacao: "entregue", recomendacao: "recomendado", notas: cheio },
+    { email: "carla@ufg.br", situacao: "entregue", recomendacao: "nao_recomendado",
+      notas: Object.fromEntries(CRITERIOS.map((c) => [c.codigo, c.peso / 2])) },
     { email: "davi@ufg.br", situacao: "recusado", notas: {} },
   ]);
   const placar = placarPareceres(p);
   assert.equal(placar.designados, 4);
   assert.equal(placar.entregues, 2);
   assert.equal(placar.recusados, 1);
-  assert.equal(placar.media, 6, "média entre 8 e 4");
+  assert.equal(placar.media, 75, "média entre 100 e 50");
   assert.equal(placar.recomendam, 1);
   assert.equal(placar.contra, 1);
+});
+
+test("cada critério é limitado ao próprio teto ao normalizar o parecer", () => {
+  const p = normalizarProjeto({}, { base: {
+    ...emSelecao([{ email: AD2.email, situacao: "entregue", recomendacao: "recomendado",
+      notas: { merito: 999, redacao: -5, objetivos: 7 } }]),
+  } });
+  const a = p.avaliacoes.find((x) => x.email === AD2.email);
+  assert.equal(a.notas.merito, 20, "acima do teto, vale o teto do critério");
+  assert.equal(a.notas.redacao, 0, "nota não fica negativa");
+  assert.equal(a.notas.objetivos, 7);
+});
+
+test("a nota atribuída pela coordenação vale como nota do projeto na classificação", () => {
+  const comNota = { ...emSelecao(), producao: { "art-a1": 5 },
+    notaDireta: { valor: 82, por: PROPPEX.email, em: "2026-08-14T12:00:00Z", observacao: "" } };
+  const r = resumir(comNota, PROPPEX);
+  assert.equal(r.classificacao.np, 82, "a nota direta substitui a média dos pareceres");
+  assert.equal(r.classificacao.cl, 20, "5 artigos A1 = 20 pontos absolutos");
+  assert.equal(r.classificacao.total, 102);
+  assert.deepEqual(r.notaDireta.valor, 82, "a gestão vê quem atribuiu e quando");
+
+  assert.equal(resumir(comNota, PROF).notaDireta, undefined, "a orientação não recebe a nota crua");
+  assert.equal(visaoDoProjeto(comNota, PROF).notaDireta, undefined);
+  const av = { email: AD1.email, gestao: false };
+  assert.equal(visaoDoProjeto({ ...comNota, avaliacoes: [{ email: AD1.email, situacao: "designado", notas: {} }] }, av).notaDireta,
+    undefined, "o avaliador não vê a nota da coordenação — ancoraria o parecer");
+
+  // sem nota direta e sem parecer, segue sem classificação
+  assert.equal(resumir({ ...emSelecao(), producao: { "art-a1": 5 } }, PROPPEX).classificacao.total, null,
+    "currículo sozinho não fecha nota final");
+  // a nota direta não entra pelo formulário
+  const editado = normalizarProjeto({ notaDireta: { valor: 100, por: "invasor@x.br" } }, { base: emSelecao() });
+  assert.equal(editado.notaDireta, undefined);
 });
 
 test("o parecer ad hoc não vem do formulário do projeto", () => {
@@ -285,6 +322,35 @@ test("a inclusão manual fica gravada e some para o avaliador", () => {
     "quem orienta sabe como o projeto entrou");
   assert.equal(resumir({ ...emSelecao(), inclusaoManual: marca }, AD1).inclusaoManual, undefined,
     "o avaliador julga a proposta, não como ela entrou");
+});
+
+test("a visão do avaliador não desanonimiza a proposta por campo nenhum", () => {
+  // criadoPor e origem trazem o e-mail de quem orienta; a inclusão manual
+  // conta como o projeto entrou. Nada disso é assunto do parecer.
+  const p = {
+    ...emSelecao(), criadoPor: PROF.email,
+    origem: { lote: "edital-01-2026", id: "form-9", emailFormulario: PROF.email },
+    inclusaoManual: { por: PROPPEX.email, motivo: "deferido fora do prazo" },
+    notaDireta: { valor: 90, por: PROPPEX.email, em: "2026-08-14T12:00:00Z" },
+  };
+  const vista = visaoDoProjeto(p, AD1);
+  for (const campo of ["criadoPor", "origem", "inclusaoManual", "notaDireta", "orientador"])
+    assert.ok(vista[campo] == null, `${campo} não pode chegar ao avaliador`);
+  assert.ok(!JSON.stringify(vista).includes(PROF.email), "nenhum campo carrega o e-mail da orientação");
+});
+
+test("a classificação sai pela bandeira de gestão, mesmo no projeto que o gestor orienta", () => {
+  // O pró-reitor pode ter projeto próprio no edital: nele o papel é
+  // "orientador", mas a nota agregada precisa aparecer no resultado.
+  const meuProprio = {
+    ...emSelecao(), orientador: { nome: "Pró-Reitor", email: PROPPEX.email, titulacao: "Doutor" },
+    producao: { "art-a1": 5 }, notaDireta: { valor: 80, por: "colega@uniego.edu.br", em: "2026-08-14T12:00:00Z" },
+  };
+  const r = resumir(meuProprio, PROPPEX);
+  assert.equal(r.papel, "orientador");
+  assert.equal(r.classificacao.total, 100, "80 + 20 do currículo, apesar do papel");
+  assert.equal(r.notaDireta, undefined, "o cru da nota continua fora do papel de orientador");
+  assert.equal(resumir(meuProprio, PROF).classificacao, undefined, "professor comum segue sem o campo");
 });
 
 test("o avaliador não acompanha a execução de projeto alheio", () => {

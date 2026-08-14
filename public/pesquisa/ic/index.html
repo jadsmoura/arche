@@ -207,6 +207,7 @@
         <section id="v-submissao" class="hide"></section>
         <section id="v-gestao" class="hide"></section>
         <section id="v-avaliacao" class="hide"></section>
+        <section id="v-editais" class="hide"></section>
         <section id="v-cronograma" class="hide"></section>
         <section id="v-relatorios" class="hide"></section>
         <section id="v-projeto" class="hide"></section>
@@ -254,6 +255,7 @@ const SECOES = [
   { id: "submissao", grupo: "PROJETOS", rot: "Submissão", ic: '<path d="M12 5v14M5 12h14"/>', perfis: ["gestao", "orientador"] },
   { id: "gestao", grupo: "PROJETOS", rot: "Gestão", ic: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8"/>', perfis: ["gestao", "orientador"] },
   { id: "avaliacao", grupo: "SELEÇÃO", rot: "Avaliação", ic: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', perfis: ["gestao", "avaliador"] },
+  { id: "editais", grupo: "SELEÇÃO", rot: "Editais", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 12h8M8 16h8"/>', perfis: ["gestao"] },
   { id: "cronograma", grupo: "ACOMPANHAMENTO", rot: "Cronograma", ic: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/>', perfis: ["gestao", "orientador", "aluno"] },
   { id: "relatorios", grupo: "ACOMPANHAMENTO", rot: "Relatórios", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 13h8M8 17h5"/>', perfis: ["gestao", "orientador", "aluno"] },
 ];
@@ -263,6 +265,7 @@ const TITULOS = {
   submissao: ["Submissão de projeto", "Preencha a proposta e submeta à avaliação da PROPPEX."],
   gestao: ["Gestão de projetos", "Projetos submetidos, em execução e concluídos."],
   avaliacao: ["Avaliação da seleção", "Parecer ad hoc dos projetos submetidos."],
+  editais: ["Editais", "O histórico dos processos seletivos, ano a ano, com as classificações."],
   cronograma: ["Cronograma", "Todas as atividades dos projetos num só lugar."],
   relatorios: ["Relatórios", "Parciais e finais: o aluno envia, a orientação valida."],
   projeto: ["Projeto", ""],
@@ -278,6 +281,12 @@ function comQuem(url) {
 }
 
 async function api(url, opcoes) {
+  // "Ver como" é somente leitura de ponta a ponta: escrever aqui gravaria em
+  // nome da COORDENAÇÃO (a sessão real) enquanto a tela finge ser outra
+  // pessoa — o servidor já recusa escrita com ?como=, e o cliente não deve
+  // contornar isso tirando o parâmetro.
+  if (COMO && opcoes && (opcoes.method || "GET") !== "GET")
+    throw new Error("Você está vendo o setor como outra pessoa — saia do modo \"ver como\" para editar.");
   const r = await fetch(!opcoes || (opcoes.method || "GET") === "GET" ? comQuem(url) : url, opcoes);
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || `Falha (${r.status})`);
@@ -397,7 +406,7 @@ function nav(secao, modo) {
   // a inclusão manual vale só para o formulário aberto por ela
   MANUAL = secao === "submissao" && modo === "manual";
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === secao);
-  for (const v of ["painel", "submissao", "gestao", "avaliacao", "cronograma", "relatorios", "projeto"]) $("v-" + v).classList.add("hide");
+  for (const v of ["painel", "submissao", "gestao", "avaliacao", "editais", "cronograma", "relatorios", "projeto"]) $("v-" + v).classList.add("hide");
   // submissão e projeto compartilham o editor (mesmos ids): a seção que sai
   // do ar é esvaziada, senão getElementById acha os campos escondidos
   for (const v of ["submissao", "projeto"]) if (v !== secao) $("v-" + v).innerHTML = "";
@@ -419,6 +428,7 @@ function nav(secao, modo) {
   }
   if (secao === "gestao") renderGestao();
   if (secao === "avaliacao") renderAvaliacao();
+  if (secao === "editais") renderEditais();
   if (secao === "cronograma") renderCronograma();
   if (secao === "relatorios") renderRelatorios();
   $("v-" + secao).classList.remove("hide");
@@ -439,6 +449,8 @@ async function abrir(id) {
   try {
     const r = await api("/api/ic/" + id);
     ATUAL = r.projeto; PODE = r;
+    // NP/CL/total vem ao lado do projeto (derivado, não gravado)
+    if (r.classificacao !== undefined) ATUAL.classificacao = r.classificacao;
     nav("projeto");
     $("crumb").textContent = ATUAL.numero || "Projeto";
     $("titulo").textContent = ATUAL.numero || "Projeto";
@@ -603,7 +615,7 @@ function renderGestao() {
           ${(p.pendencias || []).length ? `<div class="cs" style="color:var(--warn)">⚠ ${esc(p.pendencias[0].texto)}${
             p.pendencias.length > 1 ? ` (+${p.pendencias.length - 1})` : ""}</div>` : ""}
         </div>
-        ${p.classificacao?.np != null ? `<span class="prazo" title="NP ${p.classificacao.np} · CL ${p.classificacao.cl}">NFC ${p.classificacao.nfc}</span>` : ""}
+        ${p.classificacao?.np != null ? `<span class="prazo" title="Projeto ${p.classificacao.np} + currículo ${p.classificacao.cl}">Nota ${p.classificacao.total}</span>` : ""}
         ${p.fomento ? `<span class="badge b-${p.fomento.tipo === "voluntario" ? "prevista" : "validado"}">${esc(fomentoNome(p.fomento.tipo))}</span>` : ""}
         ${p.aValidar ? `<span class="badge b-enviado">${p.aValidar} a validar</span>` : ""}
         ${p.atrasadas ? `<span class="badge b-atrasada">${p.atrasadas} atrasada(s)</span>` : ""}
@@ -642,7 +654,7 @@ function renderAvaliacao() {
       <ol>
         <li>A coordenação designa os avaliadores <b>dentro de cada projeto</b>, pelo e-mail — é a designação que dá o acesso.</li>
         <li>O avaliador vê apenas os projetos que recebeu, e neles só a proposta: nada de relatórios, histórico ou parecer dos colegas.</li>
-        <li>São quatro notas de 0 a 10 e uma recomendação. A nota final é a média simples dos critérios.</li>
+        <li>O projeto vale <b>de 0 a 100</b>: sete critérios, cada um com o seu teto de pontos, e a nota é a soma. Havendo mais de um parecer, vale a média das somas.</li>
         <li>Havendo impedimento, o avaliador <b>recusa</b> a avaliação dizendo o motivo — não fica travando a seleção.</li>
         <li>A orientação nunca sabe quem avaliou: recebe a decisão da coordenação, e é a ela que responde.</li>
       </ol></details></div>
@@ -667,6 +679,83 @@ function renderAvaliacao() {
 
     ${!meus.length && !META.gestao ? `<div class="card"><div class="vazio">
       Nenhum projeto designado a você no momento.</div></div>` : ""}`;
+}
+
+/* -------------------------------- editais ------------------------------ */
+/* O histórico dos processos seletivos, ano a ano. Cada edital traz o resumo,
+   o botão do resultado em PDF e as duas classificações: primeiro os
+   professores doutores (bolsa CNPq exige doutorado), depois a geral, com
+   todos — doutores inclusive. A nota final é projeto + currículo. */
+function renderEditais() {
+  const anoDe = (n) => Number(String(n).split("/").pop()) || 0;
+  const editais = (META.editais || [])
+    .slice()
+    .sort((a, b) => anoDe(b.numero) - anoDe(a.numero) || String(b.numero).localeCompare(String(a.numero)));
+
+  // a mesma ordem do PDF: nota final desc; empate pela nota do projeto;
+  // sem nota final vai para o fim, na ordem do protocolo
+  const ordenar = (lista) => lista.slice().sort((a, b) => {
+    const na = a.classificacao?.total, nb = b.classificacao?.total;
+    if (typeof na === "number" && typeof nb === "number") {
+      if (na !== nb) return nb - na;
+      const pa = a.classificacao?.np ?? -1, pb = b.classificacao?.np ?? -1;
+      if (pa !== pb) return pb - pa;
+    } else if (typeof na === "number" || typeof nb === "number") {
+      return typeof na === "number" ? -1 : 1;
+    }
+    return String(a.numero || "").localeCompare(String(b.numero || ""));
+  });
+  const titNome = (c) => (META.titulacoes.find((t) => t.codigo === c) || {}).nome || c || "—";
+  // o mesmo entendimento de normalizarTitulacao no servidor: projeto gravado
+  // antes da normalização pode trazer "Doutora"/"Dr." — o quadro não pode
+  // divergir do PDF por causa de grafia
+  const ehDoutor = (v) => /^(dr|dra|doutor|doutora|doutorado|pos-?doutor)/
+    .test(String(v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim());
+
+  const quadro = (rotulo, lista) => {
+    let pos = 0;
+    return `<div class="sec-t">${rotulo}</div>
+    ${lista.length ? `<div class="rolo"><table class="pt">
+      <thead><tr><th style="width:5%"></th><th style="width:13%">Protocolo</th><th>Orientação</th>
+        <th style="width:12%">Titulação</th><th style="width:9%">Projeto</th><th style="width:9%">Currículo</th>
+        <th style="width:10%">Nota final</th><th style="width:14%">Resultado</th></tr></thead>
+      <tbody>${lista.map((p) => {
+        const comNota = p.classificacao?.total != null;
+        if (comNota) pos += 1;
+        const resultado = p.fomento ? fomentoNome(p.fomento.tipo)
+          : { reprovado: "Não recomendado", devolvido: "Devolvido", submetido: "Em avaliação" }[p.status] || "—";
+        return `<tr style="cursor:pointer" onclick="abrir('${esc(p.id)}')" title="${esc(p.titulo || "")}">
+          <td>${comNota ? pos + "º" : "—"}</td>
+          <td><b style="color:var(--brand-2)">${esc(p.numero || "—")}</b></td>
+          <td>${esc(p.orientador?.nome || p.orientador?.email || "—")}</td>
+          <td>${esc(titNome(p.orientador?.titulacao))}</td>
+          <td>${p.classificacao?.np ?? "—"}${p.notaDireta ? ' <span class="muted" title="nota atribuída pela coordenação">✎</span>' : ""}</td>
+          <td>${p.classificacao?.cl ?? "—"}</td>
+          <td><b>${comNota ? p.classificacao.total : "—"}</b></td>
+          <td>${esc(resultado)}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table></div>` : `<div class="muted" style="margin-bottom:10px">Nenhuma proposta neste quadro.</div>`}`;
+  };
+
+  $("v-editais").innerHTML = editais.map((e) => {
+    const doEdital = PROJETOS.filter((p) => (p.edital || META.edital?.numero) === e.numero && p.status !== "rascunho");
+    const doutores = ordenar(doEdital.filter((p) => ehDoutor(p.orientador?.titulacao)));
+    const geral = ordenar(doEdital);
+    const bolsas = doEdital.filter((p) => p.fomento && p.fomento.tipo !== "voluntario").length;
+    const comNota = doEdital.filter((p) => p.classificacao?.total != null).length;
+    return `<div class="card">
+      <div class="card-t">Edital ${esc(e.numero)}${e.vigente ? ' <span class="badge b-aprovado">vigente</span>' : ""}</div>
+      <div class="card-s">${doEdital.length} proposta(s) · ${doutores.length} de professores doutores ·
+        ${comNota} com nota final · ${bolsas} bolsa(s) concedida(s).</div>
+      <div class="exp" style="margin-bottom:6px">
+        <a class="bt bt-ghost" href="/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}" target="_blank" rel="noopener">
+          Resultado do processo (PDF)</a>
+      </div>
+      ${quadro("Classificação — professores doutores", doutores)}
+      ${quadro("Classificação geral — todos os professores", geral)}
+    </div>`;
+  }).join("") || `<div class="card"><div class="vazio">Nenhum edital com propostas ainda.</div></div>`;
 }
 
 /* ------------------------------ cronograma ----------------------------- */
@@ -1075,7 +1164,7 @@ function renderPendencias(p) {
   if (PODE.papel === "avaliador") return "";
   const f = [];
   for (const a of p.alunos || []) if (!a.email) f.push(`${a.nome || "Um aluno indicado"} está sem e-mail — sem ele o aluno não entra no sistema para enviar relatório.`);
-  if (!Object.keys(p.producao || {}).length) f.push("A planilha de pontuação da produção acadêmica não foi preenchida — ela vale 40% da classificação.");
+  if (!Object.keys(p.producao || {}).length) f.push("A planilha de pontuação da produção acadêmica não foi preenchida — ela vale até 100 dos 200 pontos da classificação.");
   if (p.etica?.exige && !p.etica?.protocolo) f.push("Projeto com seres humanos ou animais sem o protocolo do CEP/CEUA.");
   if (!f.length) return "";
   return `<div class="banner ba-warn"><b>Pendências</b><ul style="margin:6px 0 0 18px">
@@ -1110,12 +1199,46 @@ function renderSelecao(p) {
         onclick="definirFomento('${f.codigo}')">${esc(f.nome)}</button>`).join("")}
     </div>
 
+    ${p.status === "rascunho" ? "" : `
+    <div class="sec-t">Nota do projeto</div>
+    <div class="muted" style="margin-bottom:8px">Na seleção conduzida fora do sistema, a coordenação
+      atribui aqui a nota do projeto (0 a 100), sem formulário. Havendo pareceres no sistema, a nota
+      atribuída tem precedência sobre a média deles.</div>
+    ${p.notaDireta ? `<div class="banner ba-info">Nota atribuída: <b>${p.notaDireta.valor}</b> · por
+      ${esc(p.notaDireta.por)} em ${fmtDH(p.notaDireta.em)}${p.notaDireta.observacao ? ` — ${esc(p.notaDireta.observacao)}` : ""}</div>` : ""}
+    <div class="grid3">
+      <div><label>Nota do projeto (0 a 100)</label>
+        <input type="number" min="0" max="100" step="0.5" id="nota-direta" value="${p.notaDireta?.valor ?? ""}"></div>
+      <div><label>Observação <span class="muted">(opcional; fica no histórico)</span></label>
+        <input id="nota-direta-obs" value="${esc(p.notaDireta?.observacao || "")}" placeholder="Ex.: média dos pareceres do processo externo"></div>
+      <div style="display:flex;align-items:flex-end;gap:8px">
+        <button class="bt bt-sec" onclick="atribuirNota()">Atribuir nota</button>
+        ${p.notaDireta ? `<button class="bt bt-ghost" onclick="atribuirNota(true)" title="Volta a valer a média dos pareceres">Desfazer</button>` : ""}
+      </div>
+    </div>`}
+
     ${cls ? `<div class="stat" style="margin-top:16px">
-      <div class="s"><b>${cls.np ?? "—"}</b><span>NP · parecer (0–10)</span></div>
-      <div class="s"><b>${cls.cl ?? "—"}</b><span>CL · currículo (0–10)</span></div>
-      <div class="s" style="border-color:var(--brand-3)"><b>${cls.np != null ? cls.nfc : "—"}</b><span>NFC = NP×0,6 + CL×0,4${cls.np == null ? " · aguarda parecer" : ""}</span></div>
+      <div class="s"><b>${cls.np ?? "—"}</b><span>Projeto (0–100)${p.notaDireta ? " · atribuída" : " · média dos pareceres"}</span></div>
+      <div class="s"><b>${cls.cl ?? "—"}</b><span>Currículo (0–100) · planilha</span></div>
+      <div class="s" style="border-color:var(--brand-3)"><b>${cls.total ?? "—"}</b><span>Nota final = projeto + currículo${cls.np == null ? " · aguarda nota do projeto" : ""}</span></div>
     </div>` : ""}
   </div>`;
+}
+
+/* Nota atribuída direto pela coordenação — a seleção deste ano correu fora
+   do sistema; nos próximos, o caminho é o parecer pelo formulário. */
+async function atribuirNota(desfazer) {
+  const valor = desfazer ? null : $("nota-direta").value.trim();
+  if (!desfazer && valor === "") return aviso("Informe a nota do projeto, de 0 a 100.", "warn");
+  if (desfazer && !confirm("Desfazer a nota atribuída? Volta a valer a média dos pareceres do sistema.")) return;
+  try {
+    await api(`/api/ic/${ATUAL.id}/nota`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nota: desfazer ? null : Number(valor), observacao: desfazer ? "" : $("nota-direta-obs").value.trim() }),
+    });
+    await carregar(); montarSidebar(); await abrir(ATUAL.id);
+    aviso(desfazer ? "Nota desfeita — vale a média dos pareceres." : `Nota do projeto registrada: ${valor}.`);
+  } catch (e) { aviso(e.message, "err"); }
 }
 
 async function definirFomento(tipo) {
@@ -1143,7 +1266,8 @@ function renderProducao(p, editavel) {
   return `<div class="card">
     <div class="card-t">Produção acadêmica do coordenador</div>
     <div class="card-s">Planilha de pontuação do edital (${esc(ed.producaoDe || "2022")} a ${esc(ed.producaoAte || "2026")}),
-      conferida contra o currículo Lattes. Vale 40% da nota de classificação — os outros 60% são o parecer.</div>
+      conferida contra o currículo Lattes. A pontuação entra <b>em valor absoluto</b> na classificação:
+      nota final = nota do projeto (0–100) + currículo (0–100).</div>
 
     ${!preenchida && META.producaoAnterior && editavel ? `<div class="banner ba-info">
       Você já preencheu esta planilha em outro projeto.
@@ -1228,10 +1352,11 @@ function renderAvaliacaoDoProjeto(p) {
   }
 
   const notas = (a) => META.criterios.map((c) =>
-    `<div class="kv">${esc(c.nome)}: <b>${a.notas?.[c.codigo] ?? "—"}</b></div>`).join("");
+    `<div class="kv">${esc(c.nome)}: <b>${a.notas?.[c.codigo] ?? "—"}</b> <span class="muted">/ ${c.peso}</span></div>`).join("");
+  // a nota do projeto num parecer é a SOMA dos critérios, de 0 a 100
   const media = (a) => {
     const v = META.criterios.map((c) => a.notas?.[c.codigo]).filter((n) => typeof n === "number");
-    return v.length ? Math.round((v.reduce((s, n) => s + n, 0) / v.length) * 10) / 10 : "—";
+    return v.length ? Math.round(v.reduce((s, n) => s + n, 0) * 10) / 10 : "—";
   };
 
   const formulario = () => {
@@ -1243,15 +1368,21 @@ function renderAvaliacaoDoProjeto(p) {
         ? (entregue ? "Seu parecer como coordenação (pode ser refeito enquanto a seleção não decide)"
           : "Avaliar a proposta como coordenação")
         : (entregue ? "Seu parecer (pode ser refeito enquanto a seleção não decide)" : "Seu parecer")}</span></div>
-      ${gestao ? `<div class="muted" style="margin-bottom:8px">A coordenação avalia com os mesmos quatro
-        critérios do ad hoc, e o parecer entra na média que forma a NP da classificação. Ele fica no sigilo
+      ${gestao ? `<div class="muted" style="margin-bottom:8px">A coordenação avalia com os mesmos
+        critérios do ad hoc, e o parecer entra na média que forma a nota do projeto. Ele fica no sigilo
         dos demais: a orientação continua vendo só a decisão.</div>` : ""}
+      <div class="muted" style="margin-bottom:8px">O projeto vale <b>de 0 a 100</b>: cada critério tem o
+        seu teto de pontos e a nota é a soma dos sete.</div>
       <div class="grid2">
         ${META.criterios.map((c) => `<div>
-          <label>${esc(c.nome)} <span class="muted">(0 a 10)</span></label>
-          <input type="number" min="0" max="10" step="0.5" id="nota-${c.codigo}" value="${a.notas?.[c.codigo] ?? ""}">
+          <label>${esc(c.nome)} <span class="muted">(até ${c.peso} pontos)</span></label>
+          <input type="number" min="0" max="${c.peso}" step="0.5" id="nota-${c.codigo}"
+            value="${a.notas?.[c.codigo] ?? ""}" oninput="somarParecer()">
         </div>`).join("")}
       </div>
+      <div class="kv" style="margin-top:10px;font-size:14px">Nota do projeto:
+        <b id="soma-parecer" style="font-size:17px;color:var(--brand)">${media(a) === "—" ? "0" : media(a)}</b>
+        <span class="muted">/ 100</span></div>
       <label>Recomendação</label>
       <select id="rec-parecer">
         <option value="">— escolha —</option>
@@ -1309,6 +1440,17 @@ function renderAvaliacaoDoProjeto(p) {
   </div>`;
 }
 
+/* Soma ao vivo do formulário do parecer: cada critério limitado ao teto. */
+function somarParecer() {
+  let s = 0;
+  for (const c of META.criterios) {
+    const v = Number($("nota-" + c.codigo)?.value);
+    if (Number.isFinite(v)) s += Math.min(Math.max(v, 0), c.peso);
+  }
+  const el = $("soma-parecer");
+  if (el) el.textContent = Math.round(s * 10) / 10;
+}
+
 async function designarAvaliador() {
   const email = $("av-email").value.trim(), nome = $("av-nome").value.trim();
   if (!email) return aviso("Informe o e-mail do avaliador.", "warn");
@@ -1339,7 +1481,12 @@ async function enviarParecer(recusar) {
   } else {
     corpo.recomendacao = $("rec-parecer").value;
     corpo.notas = {};
-    for (const c of META.criterios) corpo.notas[c.codigo] = $("nota-" + c.codigo).value;
+    for (const c of META.criterios) {
+      const v = $("nota-" + c.codigo).value.trim();
+      // branco não é zero: quem quer dar zero digita 0
+      if (v === "") return aviso(`Falta a nota de "${c.nome}" — todo critério precisa ser pontuado (zero incluído).`, "warn");
+      corpo.notas[c.codigo] = v;
+    }
     if (!corpo.recomendacao) return aviso("Escolha a recomendação.", "warn");
     if (parecer.length < 200) return aviso("O parecer precisa de ao menos 200 caracteres.", "warn");
   }
@@ -1348,7 +1495,7 @@ async function enviarParecer(recusar) {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
     });
     await carregar(); montarSidebar(); await abrir(ATUAL.id);
-    aviso(recusar ? "Avaliação recusada." : `Parecer entregue — nota final ${r.nota}.`);
+    aviso(recusar ? "Avaliação recusada." : `Parecer entregue — nota do projeto ${r.nota} de 100.`);
   } catch (e) { aviso(e.message, "err"); }
 }
 
