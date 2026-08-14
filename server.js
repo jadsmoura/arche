@@ -1210,8 +1210,13 @@ app.get("/api/files/*", async (req, res) => {
 // Endereço leve para monitor externo manter o serviço acordado (o plano free
 // do Render hiberna após ~15 min sem acesso e o próximo visitante espera o
 // religamento). Não toca no estado nem no Drive.
-app.get("/healthz", (_req, res) => {
-  res.json({ ok: true, servico: "arche", em: new Date().toISOString() });
+app.get("/healthz", async (_req, res) => {
+  // `ia` diz apenas QUAL provedor está configurado — nunca a chave, nunca o
+  // modelo. Serve para conferir de fora se a ativação pegou, sem precisar de
+  // sessão, e para o monitor externo notar se a IA caiu sozinha.
+  let ia = "desconhecido";
+  try { ia = (await import("./lib/redator.js")).provedorAtivo(); } catch { /* segue */ }
+  res.json({ ok: true, servico: "arche", ia, em: new Date().toISOString() });
 });
 
 /* ------------------------------- ESTÁTICO ------------------------------- */
