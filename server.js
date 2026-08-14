@@ -24,6 +24,7 @@ import {
 } from "./lib/pautas.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
 import { dataCivil, hojeLocalISO } from "./lib/datas.js";
+import { MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
 import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
   papelDe, modulosDe, MODULOS, verificarGoogle, criarCodigo, verificarCodigo,
@@ -718,7 +719,16 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
 // As atas ficam numa única chave interna (atas-reunioes-v1); toda leitura e
 // gravação passa por aqui, onde a permissão é aplicada. Gravações são
 // serializadas para que dois registros simultâneos não recebam o mesmo número.
-const ATAS_META = { orgaos: ORGAOS, cursos: CURSOS, status: ATA_STATUS };
+const ATAS_META = {
+  orgaos: ORGAOS, cursos: CURSOS, status: ATA_STATUS,
+  // identidade institucional por data: atas anteriores à transformação saem
+  // com o timbre da FACEG (ver lib/marca.js)
+  marcas: {
+    unieogDesde: UNIEGO_DESDE,
+    faceg: { nome: MARCAS.faceg.nome, sigla: MARCAS.faceg.sigla },
+    uniego: { nome: MARCAS.uniego.nome, sigla: MARCAS.uniego.sigla },
+  },
+};
 
 // Mesma convenção dos outros setores: por curso primeiro (atas/<curso>/…),
 // e os colegiados superiores sob "institucional".

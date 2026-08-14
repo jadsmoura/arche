@@ -291,3 +291,47 @@ test("órgão não previsto exige nome e recebe número na própria série", () 
   assert.equal(camara.curso, "", "órgão institucional não carrega curso");
   assert.equal(numerar([], camara).numero, `ATA-ORG-${camara.ano}-001`);
 });
+
+/* --------------------- identidade institucional por data ---------------- */
+test("ata anterior à transformação sai como FACEG; posterior, como UNIEGO", async () => {
+  const { marcaEm, UNIEGO_DESDE } = await import("../lib/marca.js");
+  const { somaDias: menos } = await import("../lib/datas.js");
+  assert.equal(marcaEm(menos(UNIEGO_DESDE, -1)).codigo, "faceg");
+  assert.equal(marcaEm(UNIEGO_DESDE).codigo, "uniego");
+  assert.equal(marcaEm(null).codigo, "uniego", "sem data, vale a identidade de hoje");
+  assert.equal(marcaEm("data inválida").codigo, "uniego");
+});
+
+test("o texto da ata nomeia a instituição vigente na data da sessão", () => {
+  const em = (data) => redigirPorModelo(normalizarAta({
+    orgao: "NDE", curso: "psicologia",
+    sessao: { data, horaInicio: "14:00", local: "Sala 4" },
+    presidencia: { nome: "P" }, secretaria: { nome: "S" },
+    participantes: [{ nome: "A", presenca: "presente" }, { nome: "B", presenca: "presente" }],
+    pauta: [{ titulo: "Ponto" }],
+  }));
+  assert.match(em("2024-05-10"), /na Faculdade Evangélica de Goianésia/);
+  assert.ok(!/UNIEGO/.test(em("2024-05-10")), "ata da FACEG não pode citar a UNIEGO");
+  assert.match(em("2026-08-10"), /no Centro Universitário Evangélico de Goianésia/);
+});
+
+test("cada PDF sai com o timbre da sua época, e o texto da pauta regulatória é válido", async () => {
+  const { gerarAtaPdf } = await import("../lib/pdf.js");
+  const mk = (data) => {
+    const a = numerar([], normalizarAta({
+      orgao: "NDE", curso: "psicologia",
+      sessao: { data, horaInicio: "14:00", local: "Sala 4" },
+      presidencia: { nome: "P" }, secretaria: { nome: "S" },
+      participantes: [{ nome: "A", presenca: "presente" }, { nome: "B", presenca: "presente" }],
+      pauta: [{ titulo: "PPC", pautaMec: "nde-ppc", deliberacao: "Aprovada." }],
+    }));
+    a.texto = redigirPorModelo(a);
+    return a;
+  };
+  for (const data of ["2024-05-10", "2026-08-10"]) {
+    const buf = await gerarAtaPdf(mk(data));
+    assert.equal(buf.subarray(0, 5).toString(), "%PDF-");
+    assert.ok(buf.length > 3000);
+    assert.ok(!buf.includes(Buffer.from("undefined")), `PDF de ${data} traz "undefined"`);
+  }
+});

@@ -603,6 +603,25 @@ function orgaoPorCurso(cod) { return !!META.orgaos.find((o) => o.codigo === cod)
 // O âmbito é escolhido primeiro: com curso, só entram os órgãos do curso;
 // sem curso, só os colegiados superiores, pró-reitorias e comissões.
 const orgaosDoAmbito = (curso) => (META.orgaos || []).filter((o) => !!o.porCurso === !!curso);
+
+// Qual identidade institucional vale numa data — a instituição era FACEG
+// antes da transformação em UNIEGO, e a ata precisa sair com o timbre certo.
+function marcaDaData(data) {
+  const m = META.marcas;
+  if (!m) return null;
+  return data && data < m.unieogDesde ? { ...m.faceg, codigo: "faceg" } : { ...m.uniego, codigo: "uniego" };
+}
+function notaDoTimbre(data) {
+  const m = marcaDaData(data);
+  if (!m) return "";
+  if (m.codigo === "uniego") {
+    return '<div class="muted" style="margin-top:5px">Aceita datas anteriores, para regularizar o arquivo.</div>';
+  }
+  return `<div class="muted" style="margin-top:5px;color:var(--warn);font-weight:600">
+    Timbre da <b>${esc(m.sigla)}</b> — ${esc(m.nome)}.<br>
+    <span style="font-weight:400">A instituição transformou-se em ${esc(META.marcas.uniego.sigla)}
+    em ${fmtD(META.marcas.unieogDesde)}; a ata sai com o timbre da época.</span></div>`;
+}
 // Trocar de âmbito derruba um órgão que não pertença a ele.
 function trocarAmbito(curso) {
   ATUAL.curso = curso;
@@ -922,7 +941,7 @@ function renderEditor(alvo) {
       <div class="grid3">
         <div><label>Data da sessão *</label><input type="date" ${ro} value="${esc(a.sessao.data || "")}"
             onchange="sub('sessao','data',this.value);renderEditor('${alvo}')">
-          <div class="muted" style="margin-top:5px">Aceita datas de semestres anteriores, para regularizar o arquivo.</div></div>
+          ${notaDoTimbre(a.sessao.data)}</div>
         <div><label>Início *</label><input type="time" ${ro} value="${esc(a.sessao.horaInicio || "")}" onchange="sub('sessao','horaInicio',this.value)"></div>
         <div><label>Término</label><input type="time" ${ro} value="${esc(a.sessao.horaFim || "")}" onchange="sub('sessao','horaFim',this.value)"></div>
       </div>

@@ -40,6 +40,10 @@ services:
       # primeiro que responder (GEMINI_MODELO força um específico).
       - key: ATA_IA
         value: modelo
+      # Primeiro dia em que a instituição já era UNIEGO. Atas com sessão
+      # anterior a esta data saem com o timbre da FACEG.
+      - key: MARCA_UNIEGO_DESDE
+        value: "2025-10-01"
       # Caixa institucional que recebe cópia de toda ata registrada.
       # Em branco, cai no NOTIFY_EMAIL (extensao@uniego.edu.br).
       - key: ATAS_EMAIL

@@ -23,6 +23,8 @@ lib/pdf.js           Relatório final, proposta e ata em PDF (timbrado oficial U
 lib/atas.js          ARCHÉ AT: órgãos, numeração das atas, normalização e validação
 lib/pautas.js        Catálogo da Pauta Regulatória (indicadores INEP) e conformidade
 lib/redator.js       Redação da minuta da ata: modelo (padrão) | gemini | anthropic
+lib/marca.js         Identidade institucional por data (FACEG até set/2025; UNIEGO depois)
+lib/alertas.js       Alertas de regularização das atas para a PROPPEX
 lib/mailer.js        E-mails via Gmail API (remetente "ARCHÉ · PROPPEX")
 templates/           Template xlsx de certificados + logo UNIEGO (não alterar estrutura)
 public/
@@ -52,6 +54,11 @@ public/
   "Outro órgão do curso"; sem curso, os conselhos superiores, pró-reitorias, CPA,
   comissões e "Outro órgão institucional". Os de nome livre (`nomeLivre`) exigem o nome
   e não têm pauta regulatória nem ciclo obrigatório — o ARCHÉ só registra e arquiva.
+- **Identidade institucional por data** (`lib/marca.js`): a instituição era FACEG até
+  `MARCA_UNIEGO_DESDE` (padrão `2025-10-01`) e UNIEGO a partir dali. Ata com sessão
+  anterior sai com o logotipo, o nome e o rodapé da FACEG, e o texto diz "na Faculdade
+  Evangélica de Goianésia". Vale só para as atas — os documentos da Extensão seguem
+  com o timbre atual. Para corrigir a data de corte, mude a env var, não o código.
 - **Datas passadas são aceitas** de propósito, para os órgãos regularizarem o arquivo.
   Numa ata retroativa, o checklist cobrado e o ciclo de sessões são os do semestre
   DA SESSÃO, não os do semestre corrente (`/api/atas/pauta-regulatoria?data=…`).
