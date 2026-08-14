@@ -175,8 +175,15 @@ const q = new URLSearchParams(location.search);
 const NEXT = q.get("next") || "/";
 let EMAIL = "", REDEFININDO = false;
 
+// Conta fora do @uniego.edu.br nasce pendente. Mas quem já submeteu projeto
+// pelo formulário do edital não precisa esperar: o projeto o reconhece pelo
+// CPF, e informá-lo no perfil abre o setor de Pesquisa na hora.
 if (q.get("pendente"))
-  aviso("warn", "⏳ Seu acesso está <b>aguardando aprovação</b> da PROPPEX. Você receberá a liberação em breve.");
+  aviso("warn", "⏳ Seu acesso está <b>aguardando aprovação</b> da PROPPEX. Você receberá a liberação em breve."
+    + '<div style="margin-top:8px;font-weight:400">Se você <b>submeteu projeto de Iniciação Científica</b> ou foi'
+    + ' indicado em um, informe o seu <b>CPF</b> no perfil: é por ele que o sistema encontra os seus projetos,'
+    + ' e o acesso à Pesquisa abre na mesma hora.<br>'
+    + '<a href="/perfil/?next=%2Fpesquisa%2Fic%2F" style="font-weight:600">Informar meu CPF no perfil →</a></div>');
 
 function aviso(tipo, html){ $("msg").innerHTML = `<div class="aviso a-${tipo}">${html}</div>`; }
 function limpaAviso(){ $("msg").innerHTML = ""; }

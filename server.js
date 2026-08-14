@@ -1528,35 +1528,27 @@ app.post("/api/ic/:id/avaliar", async (req, res) => {
  * É idempotente: `origem.id` identifica a linha da planilha, e reimportar o
  * mesmo arquivo atualiza em vez de duplicar. Nada aqui apaga projeto.
  */
-app.post("/api/ic/importar", async (req, res) => {
-  const u = await exigirGestor(req, res);
-  if (!u) return;
-  // Ou vem no corpo, ou é um dos arquivos que acompanham o sistema
-  // (dados/ic-<lote>.json) — é assim que o banco do edital 01/2026 entra.
-  let corpo = req.body || {};
-  if (corpo.arquivo) {
-    const nome = String(corpo.arquivo).replace(/[^a-z0-9-]/gi, "");
-    try {
-      const bruto = await readFile(path.join(__dirname, "dados", `ic-${nome}.json`), "utf8");
-      corpo = { ...JSON.parse(bruto), ...corpo, projetos: JSON.parse(bruto).projetos };
-    } catch {
-      return res.status(404).json({ error: `Arquivo de importação "${nome}" não encontrado` });
-    }
-  }
-  const lote = Array.isArray(corpo.projetos) ? corpo.projetos : null;
-  if (!lote) return res.status(400).json({ error: "Envie { projetos: [...] } ou { arquivo: \"edital-01-2026\" }" });
-  if (lote.length > 500) return res.status(400).json({ error: "Limite de 500 projetos por lote" });
-
-  const origem = String(corpo.lote || corpo.origem || "submissao-anterior").slice(0, 60);
-  const situacao = String(corpo.status || "submetido");
-  if (!IC_STATUS.includes(situacao)) return res.status(400).json({ error: "Situação inválida" });
-  const simulacao = !!corpo.simular;
+/**
+ * Sobe um lote de projetos vindo de fora. Usada pela rota da PROPPEX e pela
+ * migração que roda no arranque — daí ficar fora do Express.
+ *
+ * Cada projeto é identificado pelo CPF de quem orienta e pela linha de origem
+ * (`origem.lote` + `origem.id`), o que torna a reimportação idempotente:
+ * atualiza, não duplica. Nada aqui apaga projeto.
+ */
+async function importarLoteIC({ lote, projetos: entrada, status = "submetido", simular = false, por = "" }) {
+  const origem = String(lote || "submissao-anterior").slice(0, 60);
+  if (!IC_STATUS.includes(status)) throw new Error("Situação inválida");
 
   const r = await comProjetos((projetos) => {
     const relatorio = { criados: 0, atualizados: 0, semCpf: 0, invalidos: [] };
-    lote.forEach((bruto, linha) => {
+    entrada.forEach((bruto, linha) => {
       const cpf = normalizarCpf(bruto?.orientador?.cpf ?? bruto?.cpf);
-      if (!cpf) { relatorio.semCpf++; relatorio.invalidos.push({ linha: linha + 1, erro: "CPF de quem orienta ausente ou inválido" }); return; }
+      if (!cpf) {
+        relatorio.semCpf++;
+        relatorio.invalidos.push({ linha: linha + 1, erro: "CPF de quem orienta ausente ou inválido" });
+        return;
+      }
 
       const chave = String(bruto?.origemId ?? bruto?.id ?? `${origem}:${linha + 1}`);
       const i = projetos.findIndex((p) => p.origem?.lote === origem && p.origem?.id === chave);
@@ -1569,31 +1561,110 @@ app.post("/api/ic/importar", async (req, res) => {
       }, { base, autor: "", grupos: todosOsGrupos(projetos) });
 
       const erros = validarProjeto(p);
-      if (erros.length && situacao !== "rascunho") {
+      if (erros.length && status !== "rascunho") {
         relatorio.invalidos.push({ linha: linha + 1, titulo: p.titulo, erro: erros.join(" ") });
         return;
       }
       p = {
-        ...p, status: situacao,
+        ...p, status,
         // a data real da submissão veio no formulário — não é a data de hoje
         ...(bruto?.submetidoEm ? { submetidoEm: String(bruto.submetidoEm) } : {}),
         origem: {
-          lote: origem, id: chave, importadoEm: new Date().toISOString(), por: u.email,
+          lote: origem, id: chave, importadoEm: new Date().toISOString(), por,
           ...(bruto?.anexosOrigem || {}),
         },
         // o projeto nasce sem dono de e-mail: quem o reivindica é o CPF
         criadoPor: base?.criadoPor || "",
       };
-      if (situacao !== "rascunho") p = numerarProjeto(projetos, p);
-      p = anotarProjeto(p, { quem: u.email, oQue: base ? `reimportado de ${origem}` : `importado de ${origem}` });
+      if (status !== "rascunho") p = numerarProjeto(projetos, p);
+      p = anotarProjeto(p, { quem: por, oQue: base ? `reimportado de ${origem}` : `importado de ${origem}` });
 
-      if (simulacao) { base ? relatorio.atualizados++ : relatorio.criados++; return; }
+      if (simular) { base ? relatorio.atualizados++ : relatorio.criados++; return; }
       if (i >= 0) { projetos[i] = p; relatorio.atualizados++; } else { projetos.push(p); relatorio.criados++; }
     });
-    return { ...relatorio, gravar: !simulacao };
+    return { ...relatorio, gravar: !simular };
   });
-  res.json({ ok: true, simulacao, ...r });
+
+  // Com os projetos no lugar, quem já tem CPF no perfil recebe os seus na
+  // hora — sem precisar entrar no perfil de novo só para disparar o vínculo.
+  const vinculo = simular ? { pessoas: 0, projetos: 0 } : await vincularPerfisIC();
+  return { ...r, vinculo };
+}
+
+/** Passa todos os perfis com CPF pelos projetos, ligando o que estiver órfão. */
+async function vincularPerfisIC() {
+  const perfis = await carregarPerfis();
+  const comCpf = Object.entries(perfis).filter(([, p]) => p?.cpf);
+  if (!comCpf.length) return { pessoas: 0, projetos: 0 };
+  return comProjetos((projetos) => {
+    let pessoas = 0, total = 0;
+    for (const [email, perfil] of comCpf) {
+      const { vinculados } = vincularPorCpf(projetos, { email, cpf: perfil.cpf });
+      if (vinculados) { pessoas++; total += vinculados; }
+    }
+    return { pessoas, projetos: total, gravar: total > 0 };
+  });
+}
+
+/** Lê um dos lotes que acompanham o sistema (dados/ic-<nome>.json). */
+async function lerLoteDoDisco(nome) {
+  const limpo = String(nome).replace(/[^a-z0-9-]/gi, "");
+  const bruto = await readFile(path.join(__dirname, "dados", `ic-${limpo}.json`), "utf8");
+  return { ...JSON.parse(bruto), lote: JSON.parse(bruto).lote || limpo };
+}
+
+app.post("/api/ic/importar", async (req, res) => {
+  const u = await exigirGestor(req, res);
+  if (!u) return;
+  let corpo = req.body || {};
+  if (corpo.arquivo) {
+    try {
+      corpo = { ...(await lerLoteDoDisco(corpo.arquivo)), ...corpo };
+      corpo.projetos = (await lerLoteDoDisco(req.body.arquivo)).projetos;
+    } catch {
+      return res.status(404).json({ error: `Arquivo de importação "${corpo.arquivo}" não encontrado` });
+    }
+  }
+  if (!Array.isArray(corpo.projetos)) {
+    return res.status(400).json({ error: "Envie { projetos: [...] } ou { arquivo: \"edital-01-2026\" }" });
+  }
+  if (corpo.projetos.length > 500) return res.status(400).json({ error: "Limite de 500 projetos por lote" });
+  try {
+    const r = await importarLoteIC({
+      lote: corpo.lote || corpo.origem, projetos: corpo.projetos,
+      status: String(corpo.status || "submetido"), simular: !!corpo.simular, por: u.email,
+    });
+    res.json({ ok: true, simulacao: !!corpo.simular, ...r });
+  } catch (e) {
+    res.status(400).json({ error: e.message || "Falha na importação" });
+  }
 });
+
+/**
+ * Migração de dados no arranque: sobe uma única vez o lote que acompanha o
+ * sistema. A marca em `sys-*` é o que garante o "uma vez só" — sem ela, cada
+ * deploy ressuscitaria projeto que a PROPPEX tivesse apagado de propósito.
+ */
+const LOTES_INICIAIS = ["edital-01-2026"];
+async function subirLotesIniciais() {
+  for (const nome of LOTES_INICIAIS) {
+    const marca = `sys-ic-lote-${nome}`;
+    try {
+      if (await storage.get(marca)) continue;
+      const lote = await lerLoteDoDisco(nome);
+      const r = await importarLoteIC({
+        lote: lote.lote, projetos: lote.projetos, status: lote.status || "submetido",
+        por: "sistema (importação inicial)",
+      });
+      await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), ...r }));
+      console.log(`ARCHÉ IC · lote ${nome}: ${r.criados} projeto(s) importado(s)` +
+        `${r.invalidos.length ? `, ${r.invalidos.length} recusado(s)` : ""}` +
+        `${r.vinculo.projetos ? `, ${r.vinculo.projetos} vinculado(s) a ${r.vinculo.pessoas} conta(s) pelo CPF` : ""}`);
+    } catch (e) {
+      console.error(`ARCHÉ IC · falha ao importar o lote ${nome}:`, e.message);
+    }
+  }
+}
 
 // Designação de avaliador ad hoc: é a indicação pelo e-mail que dá o acesso,
 // como acontece com o aluno. Fora do @uniego.edu.br a conta nasce pendente e
@@ -1946,6 +2017,9 @@ for (const sinal of ["SIGTERM", "SIGINT"]) {
 
 app.listen(port, () => {
   console.log(`ARCHÉ disponível em http://localhost:${port}/`);
+  // Lotes que acompanham o sistema (as submissões do edital) sobem sozinhos
+  // no primeiro arranque que os encontrar — ver subirLotesIniciais.
+  subirLotesIniciais();
   // Cobrança do relatório final: varre ao acordar e de hora em hora enquanto
   // o processo estiver vivo. O tráfego do portal também dispara (com throttle),
   // o que cobre as hibernações do plano free.

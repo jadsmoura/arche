@@ -298,6 +298,21 @@ test("simular por CPF mostra o que a pessoa verá antes mesmo de ter conta", () 
   assert.equal(podeVerProjeto({ email: "", cpf: "11144477735", gestao: false }, p), false, "CPF de outro não abre nada");
 });
 
+test("projeto importado que ainda espera o dono aparece como pendência, não como erro", async () => {
+  const { pendenciasDoProjeto } = await import("../lib/ic.js");
+  const importado = normalizarProjeto(bruto({
+    orientador: { nome: "Prof. Sem Conta", email: "", cpf: "390.533.447-05" },
+  }), { autor: "" });
+  assert.deepEqual(validarProjeto(importado), [], "sem e-mail o projeto continua válido");
+  const p = pendenciasDoProjeto({ ...importado, status: "submetido" });
+  assert.ok(p.some((x) => x.tipo === "orientacao-sem-conta"), "mas a coordenação é avisada");
+  assert.ok(p.find((x) => x.tipo === "orientacao-sem-conta").texto.includes("CPF"),
+    "e o aviso diz o que resolve");
+
+  const comDono = pendenciasDoProjeto({ ...importado, orientador: { ...importado.orientador, email: "prof@uniego.edu.br" }, status: "submetido" });
+  assert.ok(!comDono.some((x) => x.tipo === "orientacao-sem-conta"), "vinculado, a pendência some");
+});
+
 /* ------------------------------ cronograma ------------------------------ */
 test("o cronograma junta os projetos, mas o aluno só vê o plano dele", () => {
   const a = { ...emExecucao(), id: "p1" };

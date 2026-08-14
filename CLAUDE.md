@@ -144,6 +144,14 @@ public/
   perfil, `vincularPorCpf` escreve o e-mail dela nos projetos que a esperavam e eles
   aparecem na conta já na situação importada. O vínculo **nunca sobrescreve** e-mail
   existente. Enviar `simular: true` faz a conferência sem gravar nada.
+- **Lotes sobem sozinhos no arranque** (`subirLotesIniciais`, `LOTES_INICIAIS`): cada
+  arquivo de `dados/` é importado **uma única vez**, marcado por `sys-ic-lote-<nome>`.
+  A marca é o que impede um deploy de ressuscitar projeto que a PROPPEX apagou de
+  propósito — para reimportar de verdade, apague a marca ou use o botão da tela. Logo
+  após a importação, `vincularPerfisIC` passa todos os perfis com CPF pelos projetos,
+  para quem já está cadastrado não precisar fazer nada. Quem tem conta `pendente` (fora
+  do `@uniego.edu.br`) é orientado, na tela de entrada, a informar o CPF no perfil —
+  é o que abre o setor para ele.
 - **O e-mail é o convite** na IC: indicar um aluno ou designar um avaliador dá acesso
   ao setor mesmo com a conta ainda `pendente` (`participaDeAlgum`), e só aos projetos
   em que a pessoa está. O convidado não abre projeto novo — submeter exige conta
