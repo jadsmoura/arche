@@ -109,6 +109,13 @@ test("NFC = NP×0,6 + CL×0,4, com o currículo trazido de 0–100 para 0–10",
   assert.equal(notaClassificacao({ notaPareceres: 10, pontuacaoProducao: 100 }).nfc, 10, "o teto é 10");
   assert.equal(notaClassificacao({}), null, "sem nota nenhuma não se inventa classificação");
   assert.equal(notaClassificacao({ pontuacaoProducao: 100 }).nfc, 4, "só currículo pesa 40%");
+
+  // Proposta ainda sem parecer chega com média null; se isso virasse zero, o
+  // resultado impresso diria "NFC 0" onde o certo é "ainda não avaliada".
+  assert.equal(notaClassificacao({ notaPareceres: null }), null);
+  assert.equal(notaClassificacao({ notaPareceres: null, pontuacaoProducao: undefined }), null);
+  assert.equal(notaClassificacao({ notaPareceres: null, pontuacaoProducao: 50 }).np, null,
+    "com planilha e sem parecer, a NP fica em aberto");
 });
 
 test("a modalidade efetiva sai da linha com o fomento decidido na seleção", () => {

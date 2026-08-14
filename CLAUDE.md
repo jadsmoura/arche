@@ -133,6 +133,22 @@ public/
   aluno sem e-mail (não conseguirá enviar relatório), planilha de produção em branco,
   CEP/CEUA sem protocolo. O formulário do edital não coletou e-mail nem CPF dos alunos —
   por isso `validarProjeto` aceita aluno identificado só por nome e matrícula.
+- **Inclusão manual pela coordenação** (`inclusaoManual`): quando a pró-reitoria defere um
+  pedido de inclusão fora do prazo, a gestão abre o projeto **em nome de quem orienta** —
+  o dono é o professor (é na conta dele que aparece e é ele quem toca), a coordenação só
+  digitou. Exige e-mail **ou** CPF do orientador e um motivo, que fica no histórico e no
+  resultado do edital ("inclusão deferida fora do prazo"). O avaliador ad hoc não vê a
+  marca: ele julga a proposta, não como ela entrou.
+- **A coordenação também dá parecer** (`podeDarParecer`): o edital prevê a análise da
+  PROPPEX, e ela usa os mesmos quatro critérios do ad hoc — sem precisar se designar. O
+  parecer entra na média (NP) como qualquer outro e fica no mesmo sigilo: a orientação
+  segue vendo só as contagens e a decisão.
+- **Resultado do processo em PDF** (`gerarResultadoEditalPdf`, `GET /api/ic/resultado.pdf`,
+  só gestão): documento timbrado com o resumo do processo e a lista dos projetos daquele
+  edital, em ordem de classificação. Filtra pelo campo `edital` do projeto — é o que faz o
+  histórico dos editais antigos sair pelo mesmo lugar. **Proposta sem parecer sai sem NFC**,
+  nunca com zero: num documento oficial, zero seria nota, e o que existe é ausência de
+  avaliação (por isso `notaClassificacao` trata `null` como faltante, não como 0).
 - **Ver como** (`visaoComo` no server): a coordenação abre o ARCHÉ IC pelos olhos de
   qualquer pessoa do setor — professor, aluno ou avaliador — para conferir o que ela
   enxerga. Não é atalho de permissão: o alvo é tratado como quem é (`gestao: false`),

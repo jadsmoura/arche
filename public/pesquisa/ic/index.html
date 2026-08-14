@@ -238,7 +238,11 @@ let ATUAL = null, PODE = {}, ME = null, SECAO = "painel";
 // "ver como": a coordenação abre o setor pelos olhos de outra pessoa. Guardado
 // na aba (sessionStorage) para sobreviver ao F5 sem grudar entre sessões.
 let COMO = sessionStorage.getItem("arche-ic-como") || "";
-let FILTRO = { status: "", curso: "", linha: "", grupo: "", q: "" };
+let FILTRO = { status: "", curso: "", linha: "", grupo: "", q: "", edital: "" };
+// Inclusão manual: a coordenação abre a submissão em nome de outro professor
+// (pedido fora do prazo deferido pela pró-reitoria). Vale só para o formulário
+// aberto agora — some assim que o projeto é salvo ou a tela troca.
+let MANUAL = false;
 
 // Quatro acessos, uma barra lateral só: cada perfil vê as guias que usa.
 //   gestao     — tudo
@@ -388,8 +392,10 @@ async function verComo(email) {
   nav(vale.includes(SECAO) ? SECAO : "painel");
 }
 
-function nav(secao, id) {
+function nav(secao, modo) {
   SECAO = secao;
+  // a inclusão manual vale só para o formulário aberto por ela
+  MANUAL = secao === "submissao" && modo === "manual";
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === secao);
   for (const v of ["painel", "submissao", "gestao", "avaliacao", "cronograma", "relatorios", "projeto"]) $("v-" + v).classList.add("hide");
   // submissão e projeto compartilham o editor (mesmos ids): a seção que sai
@@ -401,7 +407,16 @@ function nav(secao, id) {
   $("aviso").innerHTML = faixaVerComo();
 
   if (secao === "painel") renderPainel();
-  if (secao === "submissao") { ATUAL = novoProjeto(); PODE = { podeEditar: true, papel: "orientador" }; renderEditor("v-submissao"); }
+  if (secao === "submissao") {
+    ATUAL = novoProjeto();
+    PODE = { podeEditar: true, podeGerir: true, papel: MANUAL ? "gestao" : "orientador" };
+    if (MANUAL) {
+      $("titulo").textContent = "Inclusão de projeto pela coordenação";
+      $("crumb").textContent = "Inclusão pela coordenação";
+      $("subtitulo").textContent = "Projeto de outro professor, com pedido fora do prazo deferido pela pró-reitoria.";
+    }
+    renderEditor("v-submissao");
+  }
   if (secao === "gestao") renderGestao();
   if (secao === "avaliacao") renderAvaliacao();
   if (secao === "cronograma") renderCronograma();
@@ -436,9 +451,17 @@ function novoProjeto() {
   return {
     titulo: "", resumo: "", palavrasChave: "", curso: "", modalidade: "pibic", edital: "",
     linhaPesquisa: "", objetivos: "", metodologia: "", inicio: "", fim: "",
-    orientador: { nome: ME?.perfil?.nome || ME?.nome || "", email: ME?.email || "", titulacao: "" },
+    // na inclusão manual quem orienta é outra pessoa: os campos nascem vazios
+    orientador: MANUAL ? { nome: "", email: "", cpf: "", titulacao: "" }
+      : { nome: ME?.perfil?.nome || ME?.nome || "", email: ME?.email || "", titulacao: "" },
     alunos: [], cronograma: [], relatorios: [], status: "rascunho",
+    ...(MANUAL ? { inclusaoManual: { motivo: "" } } : {}),
   };
+}
+
+/** A coordenação abre a submissão em nome de quem orienta. */
+function incluirManualmente() {
+  nav("submissao", "manual");
 }
 
 /* -------------------------------- painel ------------------------------- */
@@ -527,6 +550,7 @@ function renderGestao() {
       || (FILTRO.grupo === "__com" && !!p.grupoPesquisa)
       || (FILTRO.grupo === "__sem" && !p.grupoPesquisa)
       || p.grupoPesquisa === FILTRO.grupo) &&
+    (!FILTRO.edital || (p.edital || META.edital?.numero) === FILTRO.edital) &&
     (!FILTRO.q || `${p.numero || ""} ${p.titulo} ${p.orientador?.nome || ""} ${(p.alunos || []).map((a) => a.nome).join(" ")}`
       .toLowerCase().includes(FILTRO.q.toLowerCase())));
 
@@ -552,7 +576,16 @@ function renderGestao() {
         <option value="__sem" ${FILTRO.grupo === "__sem" ? "selected" : ""}>Sem grupo</option>
         ${gruposEmUso().map((g) => `<option value="${esc(g)}" ${FILTRO.grupo === g ? "selected" : ""}>${esc(g)}</option>`).join("")}
       </select>
+      ${META.gestao && (META.editais || []).length > 1 ? `
+      <select onchange="FILTRO.edital=this.value;renderGestao()" title="Edital a que a proposta se vincula">
+        <option value="">Todos os editais</option>
+        ${(META.editais || []).map((e) => `<option value="${esc(e.numero)}" ${FILTRO.edital === e.numero ? "selected" : ""}>Edital ${esc(e.numero)}${e.vigente ? " (vigente)" : ""}</option>`).join("")}
+      </select>` : ""}
       ${ehAluno() ? "" : `<button class="bt bt-pri" onclick="nav('submissao')">＋ Novo projeto</button>`}
+      ${META.gestao ? `<button class="bt bt-sec" onclick="incluirManualmente()"
+        title="Pedido de inclusão fora do prazo deferido pela pró-reitoria">＋ Incluir por outro professor</button>` : ""}
+      ${META.gestao ? `<button class="bt bt-ghost" onclick="baixarResultado()"
+        title="Documento timbrado com o resultado do processo seletivo">Resultado do processo (PDF)</button>` : ""}
       ${ME?.papel === "gestor" ? `<button class="bt bt-ghost" onclick="importarEdital(true)" title="Confere o arquivo sem gravar">Importar edital 01/2026</button>` : ""}
     </div>
     <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">${lista.length} projeto(s)${
@@ -565,7 +598,8 @@ function renderGestao() {
           <div class="cs">${esc(p.numero || "sem número")} · ${esc(cursoNome(p.curso))} · ${esc(modVigente(p))}
             · orientação: ${esc(p.orientador?.nome || p.orientador?.email || "—")}
             ${p.alunos?.length ? ` · ${p.alunos.length} aluno(s)` : " · sem aluno indicado"}
-            ${p.grupoPesquisa ? ` · grupo: ${esc(p.grupoPesquisa)}` : ""}</div>
+            ${p.grupoPesquisa ? ` · grupo: ${esc(p.grupoPesquisa)}` : ""}
+            ${p.inclusaoManual ? ` · <b>inclusão deferida fora do prazo</b>` : ""}</div>
           ${(p.pendencias || []).length ? `<div class="cs" style="color:var(--warn)">⚠ ${esc(p.pendencias[0].texto)}${
             p.pendencias.length > 1 ? ` (+${p.pendencias.length - 1})` : ""}</div>` : ""}
         </div>
@@ -761,6 +795,25 @@ function renderEditor(alvo) {
   const novo = !p.id;
 
   $(alvo).innerHTML = `
+    ${novo && MANUAL ? `<div class="card">
+      <div class="card-t">Inclusão pela coordenação</div>
+      <div class="card-s">Para o pedido de inclusão fora do prazo deferido pela pró-reitoria. O projeto
+        fica <b>no nome de quem orienta</b> — é na conta dele que aparece, e é ele quem segue tocando —,
+        e o motivo fica gravado no histórico.</div>
+      <label>Motivo do deferimento * <span class="muted">(mínimo de 10 caracteres; fica no histórico)</span></label>
+      <textarea style="min-height:70px" oninput="sub('inclusaoManual','motivo',this.value)"
+        placeholder="Ex.: inclusão fora do prazo deferida pelo Pró-Reitor em 12/06/2026, por falha no envio do formulário.">${esc(p.inclusaoManual?.motivo || "")}</textarea>
+      <label>CPF de quem orienta <span class="muted">(se a pessoa ainda não tiver conta no ARCHÉ)</span></label>
+      <input value="${esc(p.orientador?.cpf || "")}" oninput="sub('orientador','cpf',this.value)" placeholder="000.000.000-00">
+      <div class="muted" style="margin-top:8px">Basta o e-mail (na seção Orientação) <b>ou</b> o CPF: é por um
+        dos dois que o projeto encontra o professor. Só com o CPF, ele aparece na conta assim que a pessoa
+        gravar o CPF no perfil.</div>
+    </div>` : ""}
+
+    ${!novo && p.inclusaoManual ? `<div class="banner ba-info">
+      <b>Inclusão manual pela coordenação</b> — ${esc(p.inclusaoManual.por || "")} em ${fmtDH(p.inclusaoManual.em)}.
+      ${esc(p.inclusaoManual.motivo || "")}</div>` : ""}
+
     ${p.avaliacao ? `<div class="banner ba-${p.status === "aprovado" ? "ok" : p.status === "devolvido" ? "warn" : "err"}">
       <b>Parecer da coordenação (${fmtDH(p.avaliacao.em)}):</b> ${esc(p.avaliacao.parecer || "aprovado sem ressalvas")}</div>` : ""}
 
@@ -988,6 +1041,14 @@ function escolheuGrupo(valor) {
   }
 }
 
+/* Resultado do processo seletivo, em PDF timbrado: o documento que a PROPPEX
+   publica e arquiva. Sai do edital escolhido no filtro; sem filtro, do
+   vigente — para os antigos, escolha o edital antes. */
+function baixarResultado() {
+  const numero = FILTRO.edital || META.edital?.numero || "";
+  window.open("/api/ic/resultado.pdf?edital=" + encodeURIComponent(numero), "_blank");
+}
+
 /* Importação do banco do edital que acompanha o sistema. Roda primeiro em
    simulação — ninguém deve gravar 33 projetos sem ver antes o que entra. */
 async function importarEdital(simular) {
@@ -1178,7 +1239,13 @@ function renderAvaliacaoDoProjeto(p) {
     const a = meu || {};
     const entregue = a.situacao === "entregue";
     return `<div class="bloco meu">
-      <div class="bloco-cab"><span class="t">${entregue ? "Seu parecer (pode ser refeito enquanto a seleção não decide)" : "Seu parecer"}</span></div>
+      <div class="bloco-cab"><span class="t">${gestao
+        ? (entregue ? "Seu parecer como coordenação (pode ser refeito enquanto a seleção não decide)"
+          : "Avaliar a proposta como coordenação")
+        : (entregue ? "Seu parecer (pode ser refeito enquanto a seleção não decide)" : "Seu parecer")}</span></div>
+      ${gestao ? `<div class="muted" style="margin-bottom:8px">A coordenação avalia com os mesmos quatro
+        critérios do ad hoc, e o parecer entra na média que forma a NP da classificação. Ele fica no sigilo
+        dos demais: a orientação continua vendo só a decisão.</div>` : ""}
       <div class="grid2">
         ${META.criterios.map((c) => `<div>
           <label>${esc(c.nome)} <span class="muted">(0 a 10)</span></label>
@@ -1202,7 +1269,7 @@ function renderAvaliacaoDoProjeto(p) {
   return `<div class="card">
     <div class="card-t">Avaliação ad hoc</div>
     <div class="card-s">${gestao
-      ? "Designe pelo e-mail quem vai avaliar. A designação é o que dá acesso ao projeto — e só a este."
+      ? "Designe pelo e-mail quem vai avaliar — a designação é o que dá acesso ao projeto, e só a este. A coordenação também pode dar o seu próprio parecer, no fim desta seção."
       : "Você foi designado para avaliar esta proposta. A orientação não saberá quem avaliou."}</div>
 
     ${gestao ? `

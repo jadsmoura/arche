@@ -261,6 +261,32 @@ test("quem coordena e foi designado avaliador continua coordenando", () => {
   assert.ok(parecerDe(p, PROPPEX.email));
 });
 
+test("a coordenação avalia a proposta sem precisar se designar", () => {
+  // O edital prevê a análise da coordenação; ela usa os mesmos quatro
+  // critérios do ad hoc, e o parecer entra no placar como qualquer outro.
+  const p = { ...emSelecao(), avaliacoes: [] };
+  assert.equal(podeDarParecer(PROPPEX, p), true);
+  assert.equal(podeDarParecer(PROF, p), false, "a orientação continua fora");
+  assert.equal(podeDarParecer(ALUNO, p), false);
+  assert.equal(podeDarParecer(PROPPEX, { ...p, status: "aprovado" }), false,
+    "decidido o mérito, a janela fecha também para a coordenação");
+  assert.equal(podeDarParecer(PROPPEX, { ...p, avaliacoes: [{ email: PROPPEX.email, situacao: "recusado" }] }), false,
+    "quem recusou por impedimento não volta atrás");
+});
+
+test("a inclusão manual fica gravada e some para o avaliador", () => {
+  const marca = { por: PROPPEX.email, em: "2026-06-12T12:00:00.000Z", motivo: "pedido fora do prazo deferido" };
+  const base = { ...novo(), inclusaoManual: marca };
+  const p = normalizarProjeto({ ...bruto(), inclusaoManual: { por: "invasor@x.br", motivo: "eu que sei" } },
+    { base, autor: PROF.email });
+  assert.deepEqual(p.inclusaoManual, marca, "a marca é do servidor, não do formulário");
+  assert.deepEqual(resumir({ ...emSelecao(), inclusaoManual: marca }, PROPPEX).inclusaoManual, marca);
+  assert.deepEqual(resumir({ ...emSelecao(), inclusaoManual: marca }, PROF).inclusaoManual, marca,
+    "quem orienta sabe como o projeto entrou");
+  assert.equal(resumir({ ...emSelecao(), inclusaoManual: marca }, AD1).inclusaoManual, undefined,
+    "o avaliador julga a proposta, não como ela entrou");
+});
+
 test("o avaliador não acompanha a execução de projeto alheio", () => {
   const p = { ...emSelecao(), status: "aprovado", relatorios: [{ id: "r1", tipo: "parcial", aluno: ALUNO.email, situacao: "enviado" }] };
   assert.deepEqual(cronogramaDe([p], AD1), [], "cronograma é da execução, não da seleção");

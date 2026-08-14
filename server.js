@@ -1325,6 +1325,22 @@ function pessoasDoSetor(projetos) {
   return { orientadores: lista(orientadores), alunos: lista(alunos), avaliadores: lista(avaliadores) };
 }
 
+/**
+ * Editais com projeto no sistema, do mais recente para o mais antigo.
+ * É o que alimenta o filtro do histórico e a emissão do resultado — o
+ * vigente entra sempre, mesmo antes da primeira submissão.
+ */
+function editaisConhecidos(projetos) {
+  const mapa = new Map([[EDITAL.numero, 0]]);
+  for (const p of projetos || []) {
+    const n = String(p.edital || EDITAL.numero);
+    if (p.status === "rascunho") continue;
+    mapa.set(n, (mapa.get(n) || 0) + 1);
+  }
+  return [...mapa].map(([numero, projetos]) => ({ numero, projetos, vigente: numero === EDITAL.numero }))
+    .sort((a, b) => b.numero.localeCompare(a.numero, "pt-BR"));
+}
+
 /** Catálogo do edital mais o que já foi informado à mão, num array só. */
 function todosOsGrupos(projetos) {
   const { certificados, informados } = gruposConhecidos(projetos);
@@ -1363,7 +1379,7 @@ app.get("/api/ic/meta", async (req, res) => {
     gestao: meu.gestao, eu: meu.email, nome: como ? "" : (u.nome || ""),
     perfil: perfilIC(u, projetos, meu),
     // quem a coordenação pode simular, e por quais olhos está olhando agora
-    ...(gereIC(u) ? { pessoas: pessoasDoSetor(projetos) } : {}),
+    ...(gereIC(u) ? { pessoas: pessoasDoSetor(projetos), editais: editaisConhecidos(projetos) } : {}),
     ...(como ? { simulando: como.email } : {}),
   });
 });
@@ -1405,6 +1421,39 @@ app.get("/api/ic/relatorios", async (req, res) => {
   });
 });
 
+/**
+ * Resultado do processo seletivo de um edital, em PDF timbrado.
+ *
+ * É o documento que a PROPPEX publica e arquiva. Vale para o edital vigente
+ * e para os antigos — o filtro é o campo `edital` gravado no projeto, então
+ * o histórico que entrar depois sai por aqui do mesmo jeito.
+ * Precisa vir antes de /api/ic/:id, senão "resultado.pdf" viraria um id.
+ */
+app.get("/api/ic/resultado.pdf", async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    if (!gereIC(u)) return res.status(403).send("Somente a coordenação de pesquisa emite o resultado do processo.");
+    const numero = String(req.query.edital || EDITAL.numero).trim();
+    const todos = await lerProjetos();
+    const meu = quemIC(u);
+    const projetos = todos
+      .filter((p) => String(p.edital || EDITAL.numero) === numero && p.status !== "rascunho")
+      .map((p) => resumirProjeto(p, meu));
+    const { gerarResultadoEditalPdf } = await import("./lib/pdf.js");
+    const buffer = await gerarResultadoEditalPdf({
+      edital: numero === EDITAL.numero ? EDITAL : { numero },
+      projetos, emitidoPor: u.email,
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(numero)}.pdf"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro no PDF do resultado:", e);
+    res.status(500).send("Erro ao gerar o PDF: " + e.message);
+  }
+});
+
 app.get("/api/ic/:id", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
@@ -1432,6 +1481,21 @@ app.post("/api/ic", async (req, res) => {
     // submeter é da orientação, com conta aprovada
     if (!b.id && u.papel === "pendente")
       return res.status(403).json({ error: "Seu acesso ainda está pendente: só é possível submeter projeto com a conta aprovada" });
+
+    // Inclusão manual: a coordenação abre o projeto em nome de quem orienta —
+    // é o caso do pedido fora do prazo deferido pela pró-reitoria. O dono é o
+    // professor informado, não quem digitou; e o motivo fica gravado.
+    const manual = !b.id && gereIC(u) && !!b.inclusaoManual;
+    if (manual) {
+      const dono = String(b.orientador?.email || "").trim().toLowerCase();
+      const cpfDono = normalizarCpf(b.orientador?.cpf);
+      if (!dono && !cpfDono) {
+        return res.status(400).json({ error: "Informe o e-mail ou o CPF de quem vai orientar o projeto" });
+      }
+      if (String(b.inclusaoManual?.motivo || "").trim().length < 10) {
+        return res.status(400).json({ error: "Escreva o motivo da inclusão manual — ele fica no histórico do projeto" });
+      }
+    }
     const r = await comProjetos((projetos) => {
       const i = b.id ? projetos.findIndex((x) => x.id === b.id) : -1;
       const base = i >= 0 ? projetos[i] : null;
@@ -1456,8 +1520,25 @@ app.post("/api/ic", async (req, res) => {
         projetos[i] = anotarProjeto(p, { quem: u.email, oQue: "atualizou cronograma, alunos, produção ou grupo" });
         return { projeto: projetos[i] };
       }
-      const projeto = anotarProjeto(normalizarProjeto(b, { base, autor: u.email, grupos: conhecidos }),
-        { quem: u.email, oQue: base ? "editou a proposta" : "abriu o projeto" });
+      // na inclusão manual o autor é o professor: senão a coordenação viraria
+      // "orientador" do projeto e deixaria de ser gestão nele
+      const autor = manual ? String(b.orientador?.email || "").trim().toLowerCase() : u.email;
+      let projeto = normalizarProjeto(b, { base, autor, grupos: conhecidos });
+      if (manual) {
+        projeto = {
+          ...projeto,
+          inclusaoManual: {
+            por: u.email, em: new Date().toISOString(),
+            motivo: String(b.inclusaoManual?.motivo || "").trim().slice(0, 2000),
+          },
+        };
+      }
+      projeto = anotarProjeto(projeto, {
+        quem: u.email,
+        oQue: base ? "editou a proposta"
+          : manual ? `incluiu o projeto manualmente em nome de ${projeto.orientador?.nome || projeto.orientador?.email || "quem orienta"}`
+          : "abriu o projeto",
+      });
       if (i >= 0) projetos[i] = projeto; else projetos.push(projeto);
       return { projeto };
     });
@@ -1756,15 +1837,25 @@ app.post("/api/ic/:id/parecer", async (req, res) => {
     if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
     if (!podeDarParecer(meu, projetos[i]))
       return { erro: [403, "Parecer é de quem foi designado, e só enquanto o projeto está em avaliação"], gravar: false };
-    const lista = (projetos[i].avaliacoes || []).map((a) => a.email !== u.email ? a : {
+    // a coordenação avalia sem ter sido designada: entra na lista ao entregar
+    const existente = (projetos[i].avaliacoes || []).some((a) => a.email === u.email);
+    const base = existente ? (projetos[i].avaliacoes || []) : [...(projetos[i].avaliacoes || []), {
+      email: u.email, nome: u.nome || "", designadoEm: new Date().toISOString(),
+      designadoPor: u.email, situacao: "designado", notas: {}, recomendacao: "", parecer: "", entregueEm: "",
+    }];
+    const lista = base.map((a) => a.email !== u.email ? a : {
       ...a,
       situacao: recusar ? "recusado" : "entregue",
       notas: recusar ? {} : Object.fromEntries(CRITERIOS.map((c) => [c.codigo, Number(b.notas[c.codigo])])),
       recomendacao: recusar ? "" : recomendacao,
       parecer: texto, entregueEm: new Date().toISOString(),
     });
+    const daGestao = papelNoProjeto(meu, projetos[i]) === "gestao";
     projetos[i] = anotarProjeto({ ...projetos[i], avaliacoes: lista, atualizadoEm: new Date().toISOString() },
-      { quem: u.email, oQue: recusar ? "recusou a avaliação" : "entregou o parecer ad hoc", sigilo: true });
+      { quem: u.email,
+        oQue: recusar ? "recusou a avaliação"
+          : daGestao ? "entregou o parecer da coordenação" : "entregou o parecer ad hoc",
+        sigilo: true });
     return { projeto: projetos[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
