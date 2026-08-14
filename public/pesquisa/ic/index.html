@@ -1,747 +1,830 @@
 <!DOCTYPE html>
-<html><head>
+<html lang="pt-BR">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="assets/b8187601.js"></script>
+<title>ARCHÉ IC · Iniciação Científica · PROPPEX / UNIEGO</title>
+<link rel="icon" href="/arche/favicon.svg">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Figtree:wght@400;500;600;700&display=swap');
+  :root{
+    --brand:#1c3742; --brand-2:#2d535c; --brand-3:#40717e; --accent:#71c8e2;
+    --bg:#ebeef3; --card:#fff; --line:#e3e7ee; --line-2:#f0f2f6; --trilho:#eef1f5;
+    --ink:#1c3742; --ink-soft:#3a4650; --muted:#7c8794; --muted-2:#a9b4c0;
+    --ok:#3f8a5d; --ok-soft:#e5f3ea; --warn:#c98a2b; --warn-soft:#fbf3e4;
+    --err:#a1524c; --err-soft:#f6e9e7; --info:#40717e; --info-soft:#e8f4fa;
+    --roxo:#5e5091; --roxo-soft:#ecebf6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);font-family:Figtree,system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+  a{color:var(--brand-3);text-decoration:none}
+  a:hover{color:var(--brand-2)}
+  ::selection{background:var(--accent);color:var(--brand)}
+  button{font-family:Figtree,system-ui,sans-serif}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#c3ccd6;border-radius:6px}
+  .f-disp{font-family:Sora,sans-serif}
+
+  /* ------------------------------- casca -------------------------------- */
+  .app{display:flex;min-height:100vh}
+  .side{width:250px;flex:none;background:var(--brand);color:#fff;display:flex;flex-direction:column;
+    position:sticky;top:0;height:100vh}
+  .side-marca{padding:20px 22px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .side-marca span{font-family:Sora,sans-serif;font-weight:800;font-size:16px;letter-spacing:.02em;color:#fff}
+  .side-marca b{color:var(--accent);font-weight:800}
+  .side-nav{padding:14px 12px;flex:1;overflow-y:auto}
+  .side-lab{font-size:10px;letter-spacing:.16em;color:rgba(255,255,255,.35);font-weight:600;padding:10px 12px 6px}
+  .side-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:8px;cursor:pointer;
+    margin-bottom:2px;font-size:13.5px;font-weight:500;background:transparent;color:rgba(255,255,255,.62);
+    border-left:3px solid transparent;border-right:0;border-top:0;border-bottom:0;width:100%;text-align:left;
+    transition:background .15s,color .15s}
+  .side-item:hover{color:#fff;background:rgba(255,255,255,.06)}
+  .side-item.on{background:rgba(113,200,226,.14);color:#fff;border-left-color:var(--accent)}
+  .side-item svg{flex:none}
+  .side-item .tag{margin-left:auto;background:var(--accent);color:var(--brand);font-size:10.5px;
+    font-weight:700;border-radius:20px;padding:1px 7px}
+  .side-pe{padding:14px 16px;border-top:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:11px}
+  .side-pe .av{width:34px;height:34px;border-radius:50%;background:var(--brand-3);display:grid;place-items:center;
+    font-weight:700;font-size:13px;color:#fff;flex:none;overflow:hidden}
+  .side-pe .av img{width:100%;height:100%;object-fit:cover}
+  .side-pe .nm{font-size:13px;font-weight:600;color:#fff;line-height:1.3}
+  .side-pe .pp{font-size:11px;color:rgba(255,255,255,.5)}
+  .side-pe .sair{margin-left:auto;background:none;border:0;color:rgba(255,255,255,.5);cursor:pointer;font-size:11.5px;font-weight:600}
+  .side-pe .sair:hover{color:#fff}
+
+  .conteudo{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar{height:60px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;
+    justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:5}
+  .crumb{font-size:13px;color:var(--muted)}
+  .crumb b{color:var(--ink);font-weight:600}
+  .topbar .dir{display:flex;align-items:center;gap:14px;font-size:12.5px;color:var(--muted)}
+  .area{padding:28px 32px;flex:1}
+  .limite{max-width:1180px}
+  h1{font-family:Sora,sans-serif;font-weight:700;font-size:24px;color:var(--ink);margin:0 0 4px}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 24px}
+
+  /* ------------------------------- cartões ------------------------------ */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:20px}
+  .card-t{font-family:Sora,sans-serif;font-weight:700;font-size:15px;margin-bottom:2px}
+  .card-s{font-size:12px;color:var(--muted);margin-bottom:20px}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+  .kpis>*{min-width:0}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 18px 16px}
+  .kpi .l{font-size:12px;color:var(--muted);font-weight:500;margin-bottom:10px}
+  .kpi .v{font-family:Sora,sans-serif;font-weight:700;font-size:30px;color:var(--ink);line-height:1}
+  .kpi .d{font-size:11.5px;font-weight:600;margin-top:7px;color:var(--muted)}
+  .duplo{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;margin-bottom:20px}
+  .duplo>*{min-width:0}
+  @media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.duplo{grid-template-columns:1fr}}
+  .linha{display:flex;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line-2)}
+  .linha:last-child{border-bottom:0}
+  .linha .txt{flex:1;min-width:0}
+  .linha .p1{font-size:13px;color:var(--ink-soft);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .linha .p2{font-size:11.5px;color:var(--muted)}
+  .vazio{font-size:13px;color:var(--muted);padding:10px 0}
+
+  /* ------------------------------ formulários --------------------------- */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  .grid2>*,.grid3>*{min-width:0}
+  @media(max-width:820px){.grid2,.grid3{grid-template-columns:1fr}}
+  label{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin:12px 0 5px}
+  input,select,textarea{width:100%;border:1px solid #cfd6de;border-radius:8px;padding:10px 12px;
+    font-family:Figtree,system-ui,sans-serif;font-size:14px;background:#fff;color:var(--ink);transition:border-color .15s,box-shadow .15s}
+  textarea{min-height:84px;resize:vertical;line-height:1.55}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand-3);box-shadow:0 0 0 3px rgba(64,113,126,.12)}
+  input[disabled],select[disabled],textarea[disabled]{background:#f7f9fb;color:var(--ink-soft)}
+  .sec-t{font-family:Sora,sans-serif;font-weight:700;font-size:15px;color:var(--ink);margin:22px 0 6px;
+    padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .muted{color:var(--muted);font-size:12.5px;font-weight:400}
+  .kv{margin:4px 0;font-size:13.5px;color:var(--ink-soft)}
+  .kv b{color:var(--ink);font-weight:600}
+
+  /* -------------------------------- botões ------------------------------ */
+  .bt{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid transparent;
+    border-radius:8px;padding:10px 16px;font-size:13.5px;font-weight:600;cursor:pointer;transition:.15s}
+  .bt-pri{background:var(--brand);color:#fff}
+  .bt-pri:hover{background:var(--brand-2)}
+  .bt-sec{background:var(--info-soft);color:var(--brand);border-color:#cfe6f2}
+  .bt-sec:hover{background:#dbeef8}
+  .bt-ghost{background:#fff;color:var(--muted);border-color:#cfd6de}
+  .bt-ghost:hover{color:var(--ink);border-color:var(--brand-3)}
+  .bt-ok{background:var(--ok-soft);color:var(--ok);border-color:#cfeeda}
+  .bt-err{background:var(--err-soft);color:var(--err);border-color:#eed6d3}
+  .bt:disabled{opacity:.5;cursor:not-allowed}
+  .exp{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+
+  /* ------------------------------- estados ------------------------------ */
+  .badge{display:inline-block;font-size:11px;font-weight:600;border-radius:20px;padding:3px 10px;white-space:nowrap}
+  .b-rascunho{background:#eceff3;color:var(--muted)}
+  .b-submetido{background:var(--info-soft);color:var(--info)}
+  .b-devolvido{background:var(--warn-soft);color:var(--warn)}
+  .b-aprovado{background:var(--ok-soft);color:var(--ok)}
+  .b-concluido{background:var(--roxo-soft);color:var(--roxo)}
+  .b-reprovado{background:var(--err-soft);color:var(--err)}
+  .b-prevista{background:#eceff3;color:var(--muted)}
+  .b-andamento{background:var(--info-soft);color:var(--info)}
+  .b-concluida{background:var(--ok-soft);color:var(--ok)}
+  .b-atrasada{background:var(--err-soft);color:var(--err)}
+  .b-enviado{background:var(--info-soft);color:var(--info)}
+  .b-validado{background:var(--ok-soft);color:var(--ok)}
+  .banner{border-radius:10px;padding:13px 15px;margin-bottom:14px;font-size:13.5px;font-weight:500}
+  .ba-warn{background:var(--warn-soft);color:var(--warn);border:1px solid #f0e0bd}
+  .ba-err{background:var(--err-soft);color:var(--err);border:1px solid #eed6d3}
+  .ba-ok{background:var(--ok-soft);color:var(--ok);border:1px solid #cfeeda}
+  .ba-info{background:var(--info-soft);color:var(--info);border:1px solid #cfe6f2}
+
+  /* -------------------------------- listas ------------------------------ */
+  .item{display:flex;align-items:center;gap:14px;padding:15px 18px;background:#fff;border:1px solid var(--line);
+    border-radius:12px;margin-bottom:10px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+  .item:hover{border-color:var(--brand-3);box-shadow:0 2px 10px -4px rgba(28,55,66,.18)}
+  .item .nm{font-weight:600;flex:1;min-width:0;font-size:14px;color:var(--ink)}
+  .item .cs{color:var(--muted);font-size:12.5px;font-weight:400;margin-top:2px}
+  .num{font-family:Sora,sans-serif;font-size:12px;font-weight:700;color:var(--brand-3);white-space:nowrap}
+  table.pt{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+  table.pt th{background:#f7f9fb;color:var(--muted);padding:9px 10px;text-align:left;font-size:11.5px;
+    font-weight:600;border-bottom:1px solid var(--line)}
+  table.pt td{border-bottom:1px solid var(--line-2);padding:8px 10px;color:var(--ink-soft);vertical-align:middle}
+  table.pt td input,table.pt td select{font-size:12.5px;padding:7px 8px}
+  table.pt .rm{color:var(--err);cursor:pointer;font-weight:700;background:none;border:0;font-size:15px}
+  .rolo{overflow-x:auto}
+  .filtros{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+  .filtros select,.filtros input{width:auto;min-width:150px;font-size:13px;padding:8px 10px}
+  .bloco{border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:12px;background:#fcfdfe}
+  .bloco.meu{border-color:#cfe6f2;background:#f7fbfd}
+  .bloco-cab{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .bloco-cab .t{font-weight:600;font-size:14px;color:var(--ink);flex:1;min-width:0}
+  .prazo{font-size:12px;color:var(--muted);white-space:nowrap}
+  .tut{background:var(--info-soft);border:1px solid #cfe6f2;border-radius:10px;padding:14px 16px;margin:12px 0;font-size:13px}
+  .tut summary{font-family:Sora,sans-serif;font-weight:700;color:var(--brand);cursor:pointer;font-size:13.5px}
+  .tut ol{margin:10px 0 4px 20px}
+  .tut li{margin-bottom:5px}
+  .hide{display:none!important}
+
+  @media(max-width:760px){
+    .app{flex-direction:column}
+    .side{width:100%;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center}
+    .side-nav{padding:8px 10px;flex:1 1 100%;order:3;overflow-x:auto}
+    .side-nav #menu{display:flex;gap:6px}
+    .side-lab{display:none}
+    .side-item{width:auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent;border-radius:8px}
+    .side-item.on{border-left:0;border-bottom-color:var(--accent)}
+    .side-pe{border-top:0;margin-left:auto}
+    .area{padding:20px 16px}
+    .kpis{grid-template-columns:repeat(2,1fr)}
+  }
+</style>
 </head>
 <body>
-<x-dc>
-<helmet data-dc-atomics="">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-<style>/* latin-ext */
-@font-face {
-  font-family: 'Figtree';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("assets/f6ebafba.woff2") format('woff2');
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-/* latin */
-@font-face {
-  font-family: 'Figtree';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("assets/de5c822a.woff2") format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-/* latin-ext */
-@font-face {
-  font-family: 'Figtree';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("assets/f6ebafba.woff2") format('woff2');
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-/* latin */
-@font-face {
-  font-family: 'Figtree';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("assets/de5c822a.woff2") format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-/* latin-ext */
-@font-face {
-  font-family: 'Figtree';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("assets/f6ebafba.woff2") format('woff2');
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-/* latin */
-@font-face {
-  font-family: 'Figtree';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("assets/de5c822a.woff2") format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-/* latin-ext */
-@font-face {
-  font-family: 'Figtree';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("assets/f6ebafba.woff2") format('woff2');
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-/* latin */
-@font-face {
-  font-family: 'Figtree';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("assets/de5c822a.woff2") format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-/* latin-ext */
-@font-face {
-  font-family: 'Sora';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("assets/fe8de908.woff2") format('woff2');
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-/* latin */
-@font-face {
-  font-family: 'Sora';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("assets/39790e08.woff2") format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-/* latin-ext */
-@font-face {
-  font-family: 'Sora';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("assets/fe8de908.woff2") format('woff2');
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-/* latin */
-@font-face {
-  font-family: 'Sora';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("assets/39790e08.woff2") format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-/* latin-ext */
-@font-face {
-  font-family: 'Sora';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("assets/fe8de908.woff2") format('woff2');
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-/* latin */
-@font-face {
-  font-family: 'Sora';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("assets/39790e08.woff2") format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-/* latin-ext */
-@font-face {
-  font-family: 'Sora';
-  font-style: normal;
-  font-weight: 800;
-  font-display: swap;
-  src: url("assets/fe8de908.woff2") format('woff2');
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-/* latin */
-@font-face {
-  font-family: 'Sora';
-  font-style: normal;
-  font-weight: 800;
-  font-display: swap;
-  src: url("assets/39790e08.woff2") format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-</style>
-<style>
-*{box-sizing:border-box}
-body{margin:0;background:#ebeef3;font-family:Figtree,system-ui,sans-serif;color:#1c3742;-webkit-font-smoothing:antialiased}
-a{color:#40717e;text-decoration:none}
-a:hover{color:#2d535c}
-::selection{background:#71c8e2;color:#1c3742}
-button{font-family:Figtree,system-ui,sans-serif}
-::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-thumb{background:#c3ccd6;border-radius:6px}
-</style>
-</helmet>
+<div class="app">
+  <nav class="side">
+    <a class="side-marca" href="/" title="Voltar ao portal">
+      <svg width="24" height="24" viewBox="0 0 40 40" aria-hidden="true"><path d="M8 37 L8 20 A12 12 0 0 1 32 20 L32 37" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/><circle cx="20" cy="21" r="4" fill="#71c8e2"/></svg>
+      <span>ARCHÉ <b>IC</b></span>
+    </a>
+    <div class="side-nav"><div id="menu"></div></div>
+    <div class="side-pe" id="rodape-usuario"></div>
+  </nav>
 
-
-
-<sc-if value="{{ isHub }}" hint-placeholder-val="{{ true }}">
-<div style="min-height:100vh;display:flex;flex-direction:column">
-
-  <!-- top nav -->
-  <div style="background:#1c3742;color:#fff;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 32px;border-bottom:3px solid #71c8e2">
-    <div style="display:flex;align-items:center;gap:10px;font-family:Sora,sans-serif;font-weight:800;letter-spacing:.02em;font-size:16px">ARCHÉ <span style="font-weight:600;font-size:11px;letter-spacing:.14em;color:#71c8e2;border:1px solid rgba(113,200,226,.5);border-radius:4px;padding:2px 6px">IC</span></div>
-    <div style="display:flex;align-items:center;gap:26px;font-size:13.5px;font-weight:500">
-      <span style="color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:5px;padding:5px 12px">Início</span>
-      <span style="color:rgba(255,255,255,.7)">Projetos</span>
-      <span style="color:rgba(255,255,255,.7)">Avaliação</span>
-      <span style="color:rgba(255,255,255,.7)">Cronograma</span>
-      <a href="/" style="color:#71c8e2;text-decoration:none;font-weight:600;border:1px solid rgba(113,200,226,.5);border-radius:5px;padding:5px 12px">← Voltar ao portal</a>
-    </div>
-  </div>
-
-  <!-- institutional band -->
-  <div style="background:#fff;padding:16px 40px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e3e7ee">
-    <div style="display:flex;align-items:center;gap:20px">
-      <img src="assets/e9476baf.png" alt="UNIEGO" style="height:34px;width:auto">
-      <div style="width:1px;height:38px;background:#d6dce4"></div>
-      <div style="display:flex;align-items:center;gap:11px">
-        <svg width="26" height="26" sc-camel-view-box="0 0 40 40" style="flex:none"><path d="M8 37 L8 20 A12 12 0 0 1 32 20 L32 37" fill="none" stroke="#1c3742" stroke-width="4.5" stroke-linecap="round"></path><circle cx="20" cy="21" r="4" fill="#71c8e2"></circle></svg>
-        <div>
-          <div style="font-family:Sora,sans-serif;font-weight:700;font-size:15px;letter-spacing:.04em;color:#1c3742">ARCHÉ IC</div>
-          <div style="font-size:11px;color:#7c8794">Gestão da Iniciação Científica — PROPPEX / UNIEGO</div>
-        </div>
-      </div>
-    </div>
-    <img src="assets/b003564e.png" alt="PROPPEX" style="height:46px;width:auto">
-  </div>
-
-  <!-- hero -->
-  <div style="flex:1;padding:52px 40px 30px">
-    <div style="max-width:1120px;margin:0 auto">
-      <div style="font-family:Sora,sans-serif;font-size:11.5px;letter-spacing:.22em;color:#40717e;font-weight:600;margin-bottom:20px">PLATAFORMA DE PESQUISA · PIBIC · PIBITI · PROPPEX/UNIEGO</div>
-      <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px">
-        <svg width="46" height="46" sc-camel-view-box="0 0 40 40"><path d="M8 37 L8 20 A12 12 0 0 1 32 20 L32 37" fill="none" stroke="#1c3742" stroke-width="4.2" stroke-linecap="round"></path><circle cx="20" cy="21" r="4.6" fill="#71c8e2"></circle></svg>
-        <span style="font-family:Sora,sans-serif;font-weight:800;font-size:52px;letter-spacing:.01em;color:#1c3742;line-height:1">ARCHÉ <span style="color:#71c8e2">IC</span></span>
-      </div>
-      <div style="font-style:italic;color:#7c8794;font-size:14px;margin-bottom:34px;max-width:560px;line-height:1.5">do grego <em>arché</em> — Origem, Fundamento, Princípio.<br>Avaliação, Registro e Acompanhamento da Iniciação Científica.</div>
-      <h1 style="font-family:Sora,sans-serif;font-weight:700;font-size:34px;line-height:1.2;color:#1c3742;margin:0 0 16px;max-width:820px">Gestão completa da <span style="color:#40717e">Iniciação Científica</span> — do projeto submetido ao relatório final e pagamento de bolsas.</h1>
-      <p style="font-size:15px;color:#5c6773;max-width:680px;line-height:1.6;margin:0 0 30px">Recebe projetos, organiza as avaliações de mérito, acompanha o cronograma de cada bolsista, aciona relatórios parciais e finais e comunica orientadores e alunos participantes.</p>
-
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:36px">
-        <span style="font-family:Sora,sans-serif;font-size:11px;letter-spacing:.14em;color:#7c8794;font-weight:600">EDITAL:</span>
-        <div style="display:flex;align-items:center;gap:9px;background:#fff;border:1px solid #d6dce4;border-radius:8px;padding:9px 14px;font-size:13.5px;font-weight:600;color:#1c3742">
-          {{ edital }}
-          <svg width="14" height="14" sc-camel-view-box="0 0 24 24" fill="none" stroke="#7c8794" stroke-width="2.4"><path d="M6 9l6 6 6-6"></path></svg>
-        </div>
-      </div>
-
-      <!-- module cards -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">
-        <sc-for list="{{ modulos }}" as="m" hint-placeholder-count="6">
-          <div style="background:#fff;border-radius:12px;border:1px solid #e3e7ee;border-top:3px solid #71c8e2;padding:22px;display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(28,55,66,.05)">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
-              <div style="width:44px;height:44px;border-radius:11px;background:#e8f4fa;display:flex;align-items:center;justify-content:center;color:#2d535c" data-raw-icon="{{ m.icon }}"></div>
-              <span style="font-family:Sora,sans-serif;font-size:12px;color:#a9b4c0;font-weight:600">{{ m.num }}</span>
-            </div>
-            <div style="font-family:Sora,sans-serif;font-weight:700;font-size:17px;color:#1c3742;margin-bottom:3px">{{ m.title }}</div>
-            <div style="font-size:12px;color:#40717e;font-weight:600;margin-bottom:12px">{{ m.sub }}</div>
-            <div style="font-size:13px;color:#5c6773;line-height:1.55;margin-bottom:16px;flex:1">{{ m.desc }}</div>
-            <button data-section="{{ m.key }}" sc-camel-on-click="{{ navClick }}" style="background:#2d535c;color:#fff;border:none;border-radius:8px;padding:12px 16px;font-size:13.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s" style-hover="background:#1c3742">Acessar o módulo <svg width="15" height="15" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
-          </div>
-        </sc-for>
-      </div>
-
-      <!-- coordinator banner -->
-      <div style="margin-top:22px;background:#1c3742;border-radius:12px;padding:24px 28px;display:flex;align-items:center;justify-content:space-between;color:#fff">
-        <div>
-          <div style="font-family:Sora,sans-serif;font-weight:700;font-size:18px;margin-bottom:3px">Acesso do Coordenador</div>
-          <div style="font-size:13px;color:rgba(255,255,255,.7)">Painel completo: indicadores, avaliações, cronograma e bolsas em um só lugar.</div>
-        </div>
-        <button data-section="dashboard" sc-camel-on-click="{{ navClick }}" style="background:#71c8e2;color:#12313c;border:none;border-radius:8px;padding:13px 22px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap">Abrir painel <svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
-      </div>
-    </div>
-  </div>
-
-  <div style="background:#1c3742;color:rgba(255,255,255,.55);font-size:12px;padding:18px 40px;text-align:center">UNIEGO · Centro Universitário Evangélico de Goianésia — PROPPEX · Pró-Reitoria de Pesquisa, Pós-Graduação e Extensão</div>
-</div>
-</sc-if>
-
-<sc-if value="{{ isApp }}" hint-placeholder-val="{{ true }}">
-<div style="display:flex;min-height:100vh;background:#ebeef3">
-
-  <!-- sidebar -->
-  <div style="width:250px;flex:none;background:#1c3742;color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh">
-    <div sc-camel-on-click="{{ goHub }}" style="padding:20px 22px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08);cursor:pointer">
-      <svg width="24" height="24" sc-camel-view-box="0 0 40 40"><path d="M8 37 L8 20 A12 12 0 0 1 32 20 L32 37" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round"></path><circle cx="20" cy="21" r="4" fill="#71c8e2"></circle></svg>
-      <span style="font-family:Sora,sans-serif;font-weight:800;font-size:16px;letter-spacing:.02em">ARCHÉ <span style="color:#71c8e2">IC</span></span>
-    </div>
-    <div style="padding:14px 12px;flex:1;overflow-y:auto">
-      <div style="font-size:10px;letter-spacing:.16em;color:rgba(255,255,255,.35);font-weight:600;padding:8px 12px 6px">GESTÃO</div>
-      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="7">
-        <div data-section="{{ n.key }}" sc-camel-on-click="{{ navClick }}" style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:2px;font-size:13.5px;font-weight:500;background:{{ n.bg }};color:{{ n.fg }};border-left:3px solid {{ n.bar }}">
-          <span data-raw-icon="{{ n.icon }}" style="display:flex"></span>{{ n.label }}
-        </div>
-      </sc-for>
-    </div>
-    <div style="padding:14px 16px;border-top:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:11px">
-      <div style="width:34px;height:34px;border-radius:50%;background:#40717e;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff">RC</div>
-      <div style="line-height:1.3">
-        <div style="font-size:13px;font-weight:600">Profa. Renata C.</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.5)">Coordenadora de IC</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- main -->
-  <div style="flex:1;min-width:0;display:flex;flex-direction:column">
-    <!-- topbar -->
-    <div style="height:60px;background:#fff;border-bottom:1px solid #e3e7ee;display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:5">
-      <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#7c8794">
-        <span sc-camel-on-click="{{ goHub }}" style="cursor:pointer">ARCHÉ IC</span>
-        <span>/</span>
-        <span style="color:#1c3742;font-weight:600">{{ sectionTitle }}</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:16px">
-        <div style="display:flex;align-items:center;gap:8px;background:#f2f5f9;border:1px solid #e3e7ee;border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:600;color:#1c3742">
-          <svg width="13" height="13" sc-camel-view-box="0 0 24 24" fill="none" stroke="#40717e" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M3 10h18M8 2v4M16 2v4"></path></svg>
-          {{ edital }}
-          <svg width="13" height="13" sc-camel-view-box="0 0 24 24" fill="none" stroke="#7c8794" stroke-width="2.4"><path d="M6 9l6 6 6-6"></path></svg>
-        </div>
-        <svg width="19" height="19" sc-camel-view-box="0 0 24 24" fill="none" stroke="#40717e" stroke-width="1.9" style="cursor:pointer"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"></path></svg>
-      </div>
+  <div class="conteudo">
+    <div class="topbar">
+      <div class="crumb">ARCHÉ IC <span style="color:var(--muted-2)">/</span> <b id="crumb">Painel</b></div>
+      <div class="dir"><span id="dir-info"></span></div>
     </div>
 
-    <div style="padding:28px 32px;flex:1">
+    <div class="area">
+      <div class="limite">
+        <h1 id="titulo">Painel</h1>
+        <div class="sub" id="subtitulo">Iniciação Científica — PIBIC, PIBITI e voluntária.</div>
+        <div id="aviso"></div>
 
-      <!-- DASHBOARD -->
-      <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
-      <div style="max-width:1180px">
-        <h1 style="font-family:Sora,sans-serif;font-weight:700;font-size:24px;color:#1c3742;margin:0 0 4px">Painel do Coordenador</h1>
-        <p style="color:#7c8794;font-size:14px;margin:0 0 24px">Visão geral do edital {{ edital }} — submissões, avaliações e acompanhamento.</p>
-
-        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:24px">
-          <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="5">
-            <div style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:18px 18px 16px">
-              <div style="font-size:12px;color:#7c8794;font-weight:500;margin-bottom:10px">{{ k.label }}</div>
-              <div style="font-family:Sora,sans-serif;font-weight:700;font-size:30px;color:#1c3742;line-height:1">{{ k.value }}</div>
-              <div style="font-size:11.5px;color:{{ k.deltaColor }};font-weight:600;margin-top:7px">{{ k.delta }}</div>
-            </div>
-          </sc-for>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:20px;margin-bottom:20px">
-          <!-- status chart -->
-          <div style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:22px">
-            <div style="font-family:Sora,sans-serif;font-weight:700;font-size:15px;margin-bottom:2px">Projetos por status</div>
-            <div style="font-size:12px;color:#7c8794;margin-bottom:20px">42 projetos submetidos neste edital</div>
-            <sc-for list="{{ statusBars }}" as="s" hint-placeholder-count="5">
-              <div style="margin-bottom:15px">
-                <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:6px"><span style="color:#3a4650;font-weight:500">{{ s.label }}</span><span style="color:#7c8794;font-weight:600">{{ s.n }}</span></div>
-                <div style="height:9px;background:#eef1f5;border-radius:5px;overflow:hidden"><div style="height:100%;width:{{ s.pct }};background:{{ s.color }};border-radius:5px"></div></div>
-              </div>
-            </sc-for>
-          </div>
-          <!-- avaliações pendentes -->
-          <div style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:22px;display:flex;flex-direction:column">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-              <div style="font-family:Sora,sans-serif;font-weight:700;font-size:15px">Avaliações pendentes</div>
-              <span data-section="avaliacoes" sc-camel-on-click="{{ navClick }}" style="font-size:12px;color:#40717e;font-weight:600;cursor:pointer">Ver todas →</span>
-            </div>
-            <sc-for list="{{ avaliacoesPend }}" as="a" hint-placeholder-count="4">
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid #f0f2f6">
-                <div style="min-width:0">
-                  <div style="font-size:13px;font-weight:600;color:#1c3742;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px">{{ a.titulo }}</div>
-                  <div style="font-size:11.5px;color:#7c8794">{{ a.avaliador }} · prazo {{ a.prazo }}</div>
-                </div>
-                <span style="font-size:11px;font-weight:700;color:#c98a2b;background:#fbf3e4;padding:4px 9px;border-radius:20px;white-space:nowrap">pendente</span>
-              </div>
-            </sc-for>
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-          <!-- cronograma resumo -->
-          <div style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:22px">
-            <div style="font-family:Sora,sans-serif;font-weight:700;font-size:15px;margin-bottom:16px">Cronograma do edital</div>
-            <sc-for list="{{ cronogramaMini }}" as="c" hint-placeholder-count="5">
-              <div style="display:flex;align-items:center;gap:12px;padding:9px 0">
-                <span style="width:9px;height:9px;border-radius:50%;background:{{ c.dot }};flex:none"></span>
-                <div style="flex:1;font-size:13px;color:#3a4650;font-weight:500">{{ c.etapa }}</div>
-                <div style="font-size:12px;color:#7c8794">{{ c.periodo }}</div>
-                <span style="font-size:11px;font-weight:600;color:{{ c.fg }};background:{{ c.bg }};padding:3px 9px;border-radius:20px;white-space:nowrap">{{ c.status }}</span>
-              </div>
-            </sc-for>
-          </div>
-          <!-- atividade -->
-          <div style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:22px">
-            <div style="font-family:Sora,sans-serif;font-weight:700;font-size:15px;margin-bottom:16px">Atividade recente</div>
-            <sc-for list="{{ atividade }}" as="t" hint-placeholder-count="5">
-              <div style="display:flex;gap:12px;padding:9px 0;border-bottom:1px solid #f0f2f6">
-                <span style="width:7px;height:7px;border-radius:50%;background:#71c8e2;margin-top:6px;flex:none"></span>
-                <div><div style="font-size:13px;color:#3a4650;line-height:1.4">{{ t.txt }}</div><div style="font-size:11px;color:#a9b4c0;margin-top:2px">{{ t.quando }}</div></div>
-              </div>
-            </sc-for>
-          </div>
-        </div>
+        <section id="v-painel" class="hide"></section>
+        <section id="v-submissao" class="hide"></section>
+        <section id="v-gestao" class="hide"></section>
+        <section id="v-cronograma" class="hide"></section>
+        <section id="v-relatorios" class="hide"></section>
+        <section id="v-projeto" class="hide"></section>
       </div>
-      </sc-if>
-
-      <!-- PROJETOS -->
-      <sc-if value="{{ isProjetos }}" hint-placeholder-val="{{ true }}">
-      <div style="max-width:1180px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-          <div><h1 style="font-family:Sora,sans-serif;font-weight:700;font-size:24px;margin:0 0 4px">Projetos</h1><p style="color:#7c8794;font-size:14px;margin:0">42 projetos submetidos ao edital {{ edital }}</p></div>
-          <button style="background:#2d535c;color:#fff;border:none;border-radius:8px;padding:11px 18px;font-size:13.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><svg width="15" height="15" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 5v14M5 12h14"></path></svg>Novo projeto</button>
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:16px">
-          <sc-for list="{{ filtros }}" as="f" hint-placeholder-count="5">
-            <span style="font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:20px;background:{{ f.bg }};color:{{ f.fg }};border:1px solid {{ f.bd }};cursor:pointer">{{ f.label }}</span>
-          </sc-for>
-        </div>
-        <div style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;overflow:hidden">
-          <div style="display:grid;grid-template-columns:88px 2.4fr 1.3fr 1fr 130px;gap:16px;padding:13px 20px;background:#f7f9fb;border-bottom:1px solid #e3e7ee;font-size:11px;letter-spacing:.06em;color:#7c8794;font-weight:700">
-            <div>CÓDIGO</div><div>PROJETO</div><div>ORIENTADOR / BOLSISTA</div><div>MODALIDADE</div><div>STATUS</div>
-          </div>
-          <sc-for list="{{ projetos }}" as="p" hint-placeholder-count="8">
-            <div style="display:grid;grid-template-columns:88px 2.4fr 1.3fr 1fr 130px;gap:16px;padding:15px 20px;border-bottom:1px solid #f0f2f6;align-items:center;cursor:pointer" style-hover="background:#fafbfc">
-              <div style="font-family:Sora,sans-serif;font-size:12px;color:#a9b4c0;font-weight:600">{{ p.codigo }}</div>
-              <div><div style="font-size:13.5px;font-weight:600;color:#1c3742;line-height:1.35">{{ p.titulo }}</div><div style="font-size:11.5px;color:#7c8794;margin-top:2px">{{ p.curso }}</div></div>
-              <div style="font-size:12.5px;color:#3a4650">{{ p.orientador }}<div style="font-size:11.5px;color:#7c8794">{{ p.aluno }}</div></div>
-              <div><span style="font-size:11px;font-weight:600;color:#2d535c;background:#e8f4fa;padding:4px 10px;border-radius:20px">{{ p.tipo }}</span></div>
-              <div><span style="font-size:11.5px;font-weight:700;color:{{ p.fg }};background:{{ p.bg }};padding:5px 11px;border-radius:20px;white-space:nowrap">{{ p.status }}</span></div>
-            </div>
-          </sc-for>
-        </div>
-      </div>
-      </sc-if>
-
-      <!-- AVALIAÇÕES -->
-      <sc-if value="{{ isAvaliacoes }}" hint-placeholder-val="{{ true }}">
-      <div style="max-width:1000px">
-        <h1 style="font-family:Sora,sans-serif;font-weight:700;font-size:24px;margin:0 0 4px">Avaliação &amp; Pareceres</h1>
-        <p style="color:#7c8794;font-size:14px;margin:0 0 22px">Distribuição e acompanhamento das avaliações de mérito.</p>
-        <sc-for list="{{ avaliacoes }}" as="a" hint-placeholder-count="4">
-          <div style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:22px;margin-bottom:16px">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
-              <div style="min-width:0;padding-right:16px">
-                <div style="font-family:Sora,sans-serif;font-weight:700;font-size:16px;color:#1c3742;margin-bottom:3px">{{ a.titulo }}</div>
-                <div style="font-size:12.5px;color:#7c8794">{{ a.codigo }} · {{ a.curso }} · avaliador: {{ a.avaliador }}</div>
-              </div>
-              <span style="font-size:11.5px;font-weight:700;color:{{ a.fg }};background:{{ a.bg }};padding:5px 12px;border-radius:20px;white-space:nowrap">{{ a.status }}</span>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
-              <sc-for list="{{ a.criterios }}" as="cr" hint-placeholder-count="3">
-                <div style="background:#f7f9fb;border-radius:9px;padding:12px 14px">
-                  <div style="font-size:11.5px;color:#7c8794;margin-bottom:6px">{{ cr.nome }}</div>
-                  <div style="display:flex;align-items:baseline;gap:5px"><span style="font-family:Sora,sans-serif;font-weight:700;font-size:18px;color:#2d535c">{{ cr.nota }}</span><span style="font-size:11px;color:#a9b4c0">/ {{ cr.max }}</span></div>
-                </div>
-              </sc-for>
-            </div>
-          </div>
-        </sc-for>
-      </div>
-      </sc-if>
-
-      <!-- CRONOGRAMA -->
-      <sc-if value="{{ isCronograma }}" hint-placeholder-val="{{ true }}">
-      <div style="max-width:960px">
-        <h1 style="font-family:Sora,sans-serif;font-weight:700;font-size:24px;margin:0 0 4px">Cronograma &amp; Etapas</h1>
-        <p style="color:#7c8794;font-size:14px;margin:0 0 24px">Calendário oficial do edital {{ edital }}.</p>
-        <div style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:14px 26px">
-          <sc-for list="{{ cronograma }}" as="c" hint-placeholder-count="8">
-            <div style="display:flex;gap:18px;padding:16px 0;border-bottom:1px solid #f0f2f6">
-              <div style="display:flex;flex-direction:column;align-items:center;flex:none;width:20px">
-                <span style="width:14px;height:14px;border-radius:50%;background:{{ c.dot }};border:3px solid {{ c.ring }}"></span>
-                <span style="flex:1;width:2px;background:#eef1f5;margin-top:4px"></span>
-              </div>
-              <div style="flex:1;display:flex;align-items:flex-start;justify-content:space-between">
-                <div><div style="font-size:14.5px;font-weight:600;color:#1c3742">{{ c.etapa }}</div><div style="font-size:12.5px;color:#7c8794;margin-top:2px">{{ c.desc }}</div></div>
-                <div style="text-align:right;flex:none;padding-left:16px"><div style="font-size:12.5px;color:#3a4650;font-weight:600">{{ c.periodo }}</div><span style="font-size:11px;font-weight:600;color:{{ c.fg }};background:{{ c.bg }};padding:3px 10px;border-radius:20px;display:inline-block;margin-top:4px">{{ c.status }}</span></div>
-              </div>
-            </div>
-          </sc-for>
-        </div>
-      </div>
-      </sc-if>
-
-      <!-- RELATÓRIOS -->
-      <sc-if value="{{ isRelatorios }}" hint-placeholder-val="{{ true }}">
-      <div style="max-width:1180px">
-        <h1 style="font-family:Sora,sans-serif;font-weight:700;font-size:24px;margin:0 0 4px">Relatórios Parciais &amp; Finais</h1>
-        <p style="color:#7c8794;font-size:14px;margin:0 0 22px">Acompanhe entregas e acione lembretes automáticos aos bolsistas.</p>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px">
-          <sc-for list="{{ relatorios }}" as="r" hint-placeholder-count="6">
-            <div style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:20px">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-                <span style="font-size:11px;font-weight:700;letter-spacing:.05em;color:#40717e;background:#e8f4fa;padding:4px 10px;border-radius:6px">{{ r.tipo }}</span>
-                <span style="font-size:11.5px;font-weight:700;color:{{ r.fg }};background:{{ r.bg }};padding:4px 10px;border-radius:20px">{{ r.status }}</span>
-              </div>
-              <div style="font-size:14px;font-weight:600;color:#1c3742;line-height:1.35;margin-bottom:4px">{{ r.titulo }}</div>
-              <div style="font-size:12px;color:#7c8794;margin-bottom:16px">{{ r.aluno }} · prazo {{ r.prazo }}</div>
-              <button style="width:100%;background:#f2f5f9;color:#2d535c;border:1px solid #e3e7ee;border-radius:8px;padding:10px;font-size:12.5px;font-weight:600;cursor:pointer">{{ r.acao }}</button>
-            </div>
-          </sc-for>
-        </div>
-      </div>
-      </sc-if>
-
-      <!-- BOLSAS -->
-      <sc-if value="{{ isBolsas }}" hint-placeholder-val="{{ true }}">
-      <div style="max-width:1180px">
-        <h1 style="font-family:Sora,sans-serif;font-weight:700;font-size:24px;margin:0 0 4px">Bolsas &amp; Pagamentos</h1>
-        <p style="color:#7c8794;font-size:14px;margin:0 0 22px">Solicite dados bancários e organize a folha de pagamento dos bolsistas.</p>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:22px">
-          <div style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:18px"><div style="font-size:12px;color:#7c8794;margin-bottom:8px">Bolsas ativas</div><div style="font-family:Sora,sans-serif;font-weight:700;font-size:28px">18</div></div>
-          <div style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:18px"><div style="font-size:12px;color:#7c8794;margin-bottom:8px">Dados bancários pendentes</div><div style="font-family:Sora,sans-serif;font-weight:700;font-size:28px;color:#c98a2b">3</div></div>
-          <div style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:18px"><div style="font-size:12px;color:#7c8794;margin-bottom:8px">Valor mensal (folha)</div><div style="font-family:Sora,sans-serif;font-weight:700;font-size:28px">R$ 12.600</div></div>
-        </div>
-        <div style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;overflow:hidden">
-          <div style="display:grid;grid-template-columns:1.6fr 1fr 0.9fr 1.2fr 130px;gap:16px;padding:13px 20px;background:#f7f9fb;border-bottom:1px solid #e3e7ee;font-size:11px;letter-spacing:.06em;color:#7c8794;font-weight:700"><div>BOLSISTA</div><div>MODALIDADE</div><div>VALOR</div><div>DADOS BANCÁRIOS</div><div>AÇÃO</div></div>
-          <sc-for list="{{ bolsas }}" as="b" hint-placeholder-count="6">
-            <div style="display:grid;grid-template-columns:1.6fr 1fr 0.9fr 1.2fr 130px;gap:16px;padding:14px 20px;border-bottom:1px solid #f0f2f6;align-items:center">
-              <div><div style="font-size:13.5px;font-weight:600;color:#1c3742">{{ b.aluno }}</div><div style="font-size:11.5px;color:#7c8794">{{ b.curso }}</div></div>
-              <div style="font-size:12.5px;color:#3a4650">{{ b.modalidade }}</div>
-              <div style="font-size:13px;font-weight:600;color:#1c3742">{{ b.valor }}</div>
-              <div><span style="font-size:11.5px;font-weight:700;color:{{ b.fg }};background:{{ b.bg }};padding:4px 10px;border-radius:20px">{{ b.dados }}</span></div>
-              <div><button style="background:{{ b.btnBg }};color:{{ b.btnFg }};border:1px solid {{ b.btnBd }};border-radius:7px;padding:7px 12px;font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap">{{ b.acao }}</button></div>
-            </div>
-          </sc-for>
-        </div>
-      </div>
-      </sc-if>
-
-      <!-- COMUNICAÇÃO -->
-      <sc-if value="{{ isComunicacao }}" hint-placeholder-val="{{ true }}">
-      <div style="max-width:1000px">
-        <h1 style="font-family:Sora,sans-serif;font-weight:700;font-size:24px;margin:0 0 4px">Comunicação</h1>
-        <p style="color:#7c8794;font-size:14px;margin:0 0 22px">Avisos e mensagens para orientadores e bolsistas participantes.</p>
-        <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:20px">
-          <div>
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><div style="font-family:Sora,sans-serif;font-weight:700;font-size:15px">Comunicados enviados</div><button style="background:#2d535c;color:#fff;border:none;border-radius:8px;padding:9px 15px;font-size:12.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px"><svg width="14" height="14" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 5v14M5 12h14"></path></svg>Novo comunicado</button></div>
-            <sc-for list="{{ comunicados }}" as="c" hint-placeholder-count="4">
-              <div style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:18px;margin-bottom:14px">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;font-weight:700;color:#40717e;background:#e8f4fa;padding:3px 9px;border-radius:6px">{{ c.tag }}</span><span style="font-size:11.5px;color:#a9b4c0">{{ c.data }}</span></div>
-                <div style="font-size:14.5px;font-weight:600;color:#1c3742;margin-bottom:5px">{{ c.titulo }}</div>
-                <div style="font-size:13px;color:#5c6773;line-height:1.5;margin-bottom:10px">{{ c.corpo }}</div>
-                <div style="font-size:11.5px;color:#7c8794">Para: {{ c.para }} · {{ c.alcance }}</div>
-              </div>
-            </sc-for>
-          </div>
-          <div>
-            <div style="font-family:Sora,sans-serif;font-weight:700;font-size:15px;margin-bottom:14px">Destinatários</div>
-            <div style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:18px">
-              <sc-for list="{{ grupos }}" as="g" hint-placeholder-count="4">
-                <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid #f0f2f6"><div style="font-size:13px;color:#3a4650;font-weight:500">{{ g.nome }}</div><span style="font-size:12px;color:#7c8794;font-weight:600">{{ g.qtd }}</span></div>
-              </sc-for>
-            </div>
-          </div>
-        </div>
-      </div>
-      </sc-if>
-
     </div>
   </div>
 </div>
-</sc-if>
-</x-dc>
-<script type="text/x-dc" data-dc-script="">
-class Component extends DCLogic {
-  state = { route: 'hub', section: 'dashboard', edital: 'PIBIC 2026/2027' };
 
-  componentDidMount() {
-    // paint raw SVG icons into data-raw-icon holders
-    this._paintIcons();
-  }
-  componentDidUpdate() { this._paintIcons(); }
-  _paintIcons() {
-    if (!this.rootEl) this.rootEl = document.querySelector('x-dc') || document.body;
-    document.querySelectorAll('[data-raw-icon]').forEach(el => {
-      const svg = el.getAttribute('data-raw-icon');
-      if (svg && el.innerHTML.trim() !== svg) el.innerHTML = svg;
-    });
-  }
+<script>
+/* ======================================================================
+   ARCHÉ IC — Iniciação Científica.
+   Projeto: rascunho → submetido → avaliado pela PROPPEX → em execução.
+   Cronograma e relatórios ficam presos ao projeto; cada pessoa vê o que
+   é dela (a regra vive no servidor, em lib/ic.js).
+   ====================================================================== */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtD = (iso) => (iso ? String(iso).split("-").reverse().join("/") : "—");
+const fmtDH = (iso) => { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—"; };
+const hojeISO = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
-  icon(paths) {
-    return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>';
-  }
+let META = { cursos: [], modalidades: [], status: [], rotulos: {}, gestao: false, eu: "", perfil: "orientador" };
+let PROJETOS = [], ETAPAS = [], RELS = { relatorios: [], pendentes: [] };
+let ATUAL = null, PODE = {}, ME = null, SECAO = "painel";
+let FILTRO = { status: "", curso: "", q: "" };
 
-  renderVals() {
-    const s = this.state;
-    const navClick = (e) => this.setState({ section: e.currentTarget.dataset.section, route: 'app' });
-    const goHub = () => this.setState({ route: 'hub' });
+const SECOES = [
+  { id: "painel", grupo: "INÍCIO", rot: "Painel", ic: '<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>' },
+  { id: "submissao", grupo: "PROJETOS", rot: "Submissão", ic: '<path d="M12 5v14M5 12h14"/>', semAluno: true },
+  { id: "gestao", grupo: "PROJETOS", rot: "Gestão", ic: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8"/>', semAluno: true },
+  { id: "cronograma", grupo: "ACOMPANHAMENTO", rot: "Cronograma", ic: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/>' },
+  { id: "relatorios", grupo: "ACOMPANHAMENTO", rot: "Relatórios", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 13h8M8 17h5"/>' },
+];
 
-    const ICONS = {
-      dashboard: '<rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect>',
-      projetos: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M9 13h6M9 17h4"></path>',
-      avaliacoes: '<rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M8 11l3 3 5-6"></path>',
-      cronograma: '<rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M3 9h18M8 2v4M16 2v4"></path>',
-      relatorios: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M9 13h6M9 17h6"></path>',
-      bolsas: '<circle cx="12" cy="12" r="9"></circle><path d="M15 9.5a3 3 0 0 0-3-1.5c-1.7 0-3 .9-3 2s1.3 2 3 2 3 .9 3 2-1.3 2-3 2a3 3 0 0 1-3-1.5M12 6.5v11"></path>',
-      comunicacao: '<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"></path>'
-    };
+const TITULOS = {
+  painel: ["Painel", "Situação dos projetos de Iniciação Científica."],
+  submissao: ["Submissão de projeto", "Preencha a proposta e submeta à avaliação da PROPPEX."],
+  gestao: ["Gestão de projetos", "Projetos submetidos, em execução e concluídos."],
+  cronograma: ["Cronograma", "Todas as atividades dos projetos num só lugar."],
+  relatorios: ["Relatórios", "Parciais e finais: o aluno envia, a orientação valida."],
+  projeto: ["Projeto", ""],
+};
 
-    const modulos = [
-      { key:'projetos', num:'01', icon: this.icon(ICONS.projetos), title:'Projetos', sub:'Submissão & Homologação', desc:'Recepção de propostas de IC, triagem documental e homologação de inscrições por edital, curso e orientador.' },
-      { key:'avaliacoes', num:'02', icon: this.icon(ICONS.avaliacoes), title:'Avaliação', sub:'Mérito & Pareceres', desc:'Distribuição às bancas, planilha de critérios, notas por dimensão e emissão de pareceres de mérito.' },
-      { key:'cronograma', num:'03', icon: this.icon(ICONS.cronograma), title:'Cronograma', sub:'Etapas & Prazos', desc:'Calendário oficial do edital: submissão, resultados, vigência das bolsas, relatórios e seminário de IC.' },
-      { key:'relatorios', num:'04', icon: this.icon(ICONS.relatorios), title:'Relatórios', sub:'Parciais & Finais', desc:'Acionamento automático de relatórios parciais e finais, com controle de entrega e status por bolsista.' },
-      { key:'bolsas', num:'05', icon: this.icon(ICONS.bolsas), title:'Bolsas', sub:'Pagamentos & Dados', desc:'Coleta de dados bancários, montagem da folha e acompanhamento dos pagamentos mensais das bolsas.' },
-      { key:'comunicacao', num:'06', icon: this.icon(ICONS.comunicacao), title:'Comunicação', sub:'Orientadores & Bolsistas', desc:'Comunicados oficiais e mensagens direcionadas a orientadores e alunos participantes do programa.' }
-    ];
-
-    const sections = [
-      { key:'dashboard', label:'Painel' },
-      { key:'projetos', label:'Projetos' },
-      { key:'avaliacoes', label:'Avaliação' },
-      { key:'cronograma', label:'Cronograma' },
-      { key:'relatorios', label:'Relatórios' },
-      { key:'bolsas', label:'Bolsas' },
-      { key:'comunicacao', label:'Comunicação' }
-    ];
-    const titles = { dashboard:'Painel do Coordenador', projetos:'Projetos', avaliacoes:'Avaliação & Pareceres', cronograma:'Cronograma & Etapas', relatorios:'Relatórios', bolsas:'Bolsas & Pagamentos', comunicacao:'Comunicação' };
-
-    const navItems = sections.map(n => {
-      const active = n.key === s.section;
-      return { key:n.key, label:n.label, icon:this.icon(ICONS[n.key]),
-        bg: active ? 'rgba(113,200,226,0.14)' : 'transparent',
-        fg: active ? '#ffffff' : 'rgba(255,255,255,0.62)',
-        bar: active ? '#71c8e2' : 'transparent' };
-    });
-
-    const kpis = [
-      { label:'Projetos submetidos', value:'42', delta:'+8 vs. edital anterior', deltaColor:'#3f8a5d' },
-      { label:'Em avaliação', value:'11', delta:'6 aguardam parecerista', deltaColor:'#c98a2b' },
-      { label:'Aprovados / ativos', value:'24', delta:'em andamento', deltaColor:'#7c8794' },
-      { label:'Bolsas ativas', value:'18', delta:'3 dados pendentes', deltaColor:'#c98a2b' },
-      { label:'Relatórios pendentes', value:'7', delta:'2 vencendo esta semana', deltaColor:'#a1524c' }
-    ];
-
-    const statusBars = [
-      { label:'Aprovado / em andamento', n:24, pct:'57%', color:'#2d535c' },
-      { label:'Em avaliação', n:11, pct:'26%', color:'#71c8e2' },
-      { label:'Ajustes solicitados', n:4, pct:'10%', color:'#c98a2b' },
-      { label:'Submetido (triagem)', n:2, pct:'5%', color:'#40717e' },
-      { label:'Reprovado', n:1, pct:'2%', color:'#a1524c' }
-    ];
-
-    const avaliacoesPend = [
-      { titulo:'Diagnóstico tardio de TEA em adultos', avaliador:'Prof. Marcos L.', prazo:'18/07' },
-      { titulo:'Ansiedade acadêmica em ingressantes', avaliador:'Profa. Helena V.', prazo:'19/07' },
-      { titulo:'Burnout em profissionais de saúde', avaliador:'Prof. André S.', prazo:'21/07' },
-      { titulo:'Uso de redes sociais e sono na adolescência', avaliador:'Profa. Lúcia M.', prazo:'22/07' }
-    ];
-
-    const pill = { concluido:{bg:'#e5f3ea',fg:'#3f8a5d'}, andamento:{bg:'#e8f4fa',fg:'#2d7a94'}, aseguir:{bg:'#eef1f5',fg:'#7c8794'} };
-    const cronogramaMini = [
-      { etapa:'Submissão de projetos', periodo:'até 30/06', status:'Concluído', dot:'#3f8a5d', bg:pill.concluido.bg, fg:pill.concluido.fg },
-      { etapa:'Homologação', periodo:'01–05/07', status:'Concluído', dot:'#3f8a5d', bg:pill.concluido.bg, fg:pill.concluido.fg },
-      { etapa:'Avaliação de mérito', periodo:'07–25/07', status:'Em andamento', dot:'#71c8e2', bg:pill.andamento.bg, fg:pill.andamento.fg },
-      { etapa:'Divulgação de resultados', periodo:'01/08', status:'A seguir', dot:'#cfd6de', bg:pill.aseguir.bg, fg:pill.aseguir.fg },
-      { etapa:'Início das atividades', periodo:'01/09', status:'A seguir', dot:'#cfd6de', bg:pill.aseguir.bg, fg:pill.aseguir.fg }
-    ];
-
-    const atividade = [
-      { txt:'Prof. Marcos L. concluiu a avaliação do projeto PIC-031.', quando:'há 2 horas' },
-      { txt:'Bolsista Ana Paula enviou o relatório parcial (PIC-014).', quando:'há 5 horas' },
-      { txt:'3 novos projetos homologados no curso de Enfermagem.', quando:'ontem' },
-      { txt:'Comunicado "Prazo de relatório parcial" enviado a 18 bolsistas.', quando:'ontem' },
-      { txt:'Dados bancários confirmados por João Vitor (PIC-022).', quando:'há 2 dias' }
-    ];
-
-    const st = {
-      andamento:{bg:'#e5f3ea',fg:'#3f8a5d',label:'Em andamento'},
-      avaliacao:{bg:'#e8f4fa',fg:'#2d7a94',label:'Em avaliação'},
-      ajustes:{bg:'#fbf3e4',fg:'#c98a2b',label:'Ajustes solicitados'},
-      submetido:{bg:'#eef1f5',fg:'#5c6773',label:'Submetido'},
-      reprovado:{bg:'#f6e9e7',fg:'#a1524c',label:'Reprovado'}
-    };
-    const P = (t)=>({bg:t.bg,fg:t.fg,status:t.label});
-    const projetos = [
-      { codigo:'PIC-031', titulo:'Diagnóstico tardio de TEA — Transtorno do Espectro Autista em adultos', curso:'Psicologia', orientador:'Profa. Renata Campos', aluno:'Larissa Andrade', tipo:'PIBIC', ...P(st.avaliacao) },
-      { codigo:'PIC-014', titulo:'Ansiedade acadêmica em estudantes ingressantes', curso:'Psicologia', orientador:'Prof. André Souza', aluno:'Ana Paula Ribeiro', tipo:'PIBIC', ...P(st.andamento) },
-      { codigo:'PIC-022', titulo:'Sensor de baixo custo para monitoramento de irrigação', curso:'Engenharia', orientador:'Prof. Carlos Nunes', aluno:'João Vitor Lima', tipo:'PIBITI', ...P(st.andamento) },
-      { codigo:'PIC-008', titulo:'Adesão à vacinação infantil na região de Goianésia', curso:'Enfermagem', orientador:'Profa. Helena Vaz', aluno:'Marina Costa', tipo:'PIBIC', ...P(st.andamento) },
-      { codigo:'PIC-040', titulo:'Burnout em profissionais da atenção básica', curso:'Psicologia', orientador:'Prof. Marcos Leite', aluno:'Rafael Teixeira', tipo:'PIVIC', ...P(st.avaliacao) },
-      { codigo:'PIC-019', titulo:'Educação financeira e endividamento no ensino superior', curso:'Administração', orientador:'Profa. Bianca Rocha', aluno:'Pedro Alves', tipo:'PIBIC', ...P(st.ajustes) },
-      { codigo:'PIC-005', titulo:'Prevalência de lesões em atletas amadores', curso:'Educação Física', orientador:'Prof. Diego Martins', aluno:'Camila Freitas', tipo:'PIVIC', ...P(st.submetido) },
-      { codigo:'PIC-027', titulo:'Compostos bioativos de plantas do Cerrado', curso:'Biomedicina', orientador:'Profa. Sônia Prado', aluno:'Letícia Barros', tipo:'PIBIC', ...P(st.reprovado) }
-    ];
-
-    const filtros = [
-      { label:'Todos (42)', bg:'#2d535c', fg:'#fff', bd:'#2d535c' },
-      { label:'Em avaliação (11)', bg:'#fff', fg:'#5c6773', bd:'#e3e7ee' },
-      { label:'Aprovados (24)', bg:'#fff', fg:'#5c6773', bd:'#e3e7ee' },
-      { label:'Ajustes (4)', bg:'#fff', fg:'#5c6773', bd:'#e3e7ee' },
-      { label:'PIBIC · PIBITI · PIVIC', bg:'#fff', fg:'#5c6773', bd:'#e3e7ee' }
-    ];
-
-    const crit = (a,b,c)=>[{nome:'Mérito científico',nota:a,max:'40'},{nome:'Metodologia',nota:b,max:'30'},{nome:'Viabilidade',nota:c,max:'30'}];
-    const avaliacoes = [
-      { codigo:'PIC-031', titulo:'Diagnóstico tardio de TEA em adultos', curso:'Psicologia', avaliador:'Prof. Marcos L.', status:'Em avaliação', bg:st.avaliacao.bg, fg:st.avaliacao.fg, criterios:crit('—','—','—') },
-      { codigo:'PIC-014', titulo:'Ansiedade acadêmica em ingressantes', curso:'Psicologia', avaliador:'Profa. Helena V.', status:'Concluída', bg:st.andamento.bg, fg:st.andamento.fg, criterios:crit('36','27','25') },
-      { codigo:'PIC-008', titulo:'Adesão à vacinação infantil', curso:'Enfermagem', avaliador:'Prof. André S.', status:'Concluída', bg:st.andamento.bg, fg:st.andamento.fg, criterios:crit('34','25','28') },
-      { codigo:'PIC-019', titulo:'Educação financeira no ensino superior', curso:'Administração', avaliador:'Profa. Lúcia M.', status:'Ajustes', bg:st.ajustes.bg, fg:st.ajustes.fg, criterios:crit('28','20','22') }
-    ];
-
-    const cronograma = [
-      { etapa:'Submissão de projetos', desc:'Envio das propostas pelos orientadores.', periodo:'01–30/06', status:'Concluído', dot:'#3f8a5d', ring:'#cfeeda', bg:pill.concluido.bg, fg:pill.concluido.fg },
-      { etapa:'Homologação das inscrições', desc:'Conferência documental pela PROPPEX.', periodo:'01–05/07', status:'Concluído', dot:'#3f8a5d', ring:'#cfeeda', bg:pill.concluido.bg, fg:pill.concluido.fg },
-      { etapa:'Avaliação de mérito', desc:'Distribuição às bancas e emissão de pareceres.', periodo:'07–25/07', status:'Em andamento', dot:'#71c8e2', ring:'#d6f0f9', bg:pill.andamento.bg, fg:pill.andamento.fg },
-      { etapa:'Divulgação dos resultados', desc:'Publicação da lista de aprovados.', periodo:'01/08', status:'A seguir', dot:'#cfd6de', ring:'#eef1f5', bg:pill.aseguir.bg, fg:pill.aseguir.fg },
-      { etapa:'Envio de dados para bolsa', desc:'Coleta de dados bancários dos bolsistas.', periodo:'05–20/08', status:'A seguir', dot:'#cfd6de', ring:'#eef1f5', bg:pill.aseguir.bg, fg:pill.aseguir.fg },
-      { etapa:'Início das atividades', desc:'Vigência das bolsas (12 meses).', periodo:'01/09', status:'A seguir', dot:'#cfd6de', ring:'#eef1f5', bg:pill.aseguir.bg, fg:pill.aseguir.fg },
-      { etapa:'Relatório parcial', desc:'Entrega obrigatória de acompanhamento.', periodo:'01–15/03', status:'A seguir', dot:'#cfd6de', ring:'#eef1f5', bg:pill.aseguir.bg, fg:pill.aseguir.fg },
-      { etapa:'Relatório final & Seminário de IC', desc:'Encerramento e apresentação dos resultados.', periodo:'ago/2027', status:'A seguir', dot:'#cfd6de', ring:'#eef1f5', bg:pill.aseguir.bg, fg:pill.aseguir.fg }
-    ];
-
-    const rst = { entregue:{bg:'#e5f3ea',fg:'#3f8a5d'}, pendente:{bg:'#fbf3e4',fg:'#c98a2b'}, atrasado:{bg:'#f6e9e7',fg:'#a1524c'} };
-    const relatorios = [
-      { tipo:'PARCIAL', titulo:'Ansiedade acadêmica em ingressantes', aluno:'Ana Paula Ribeiro', prazo:'15/03', status:'Entregue', bg:rst.entregue.bg, fg:rst.entregue.fg, acao:'Ver relatório' },
-      { tipo:'PARCIAL', titulo:'Adesão à vacinação infantil', aluno:'Marina Costa', prazo:'15/03', status:'Pendente', bg:rst.pendente.bg, fg:rst.pendente.fg, acao:'Enviar lembrete' },
-      { tipo:'PARCIAL', titulo:'Sensor para monitoramento de irrigação', aluno:'João Vitor Lima', prazo:'12/03', status:'Atrasado', bg:rst.atrasado.bg, fg:rst.atrasado.fg, acao:'Cobrar entrega' },
-      { tipo:'FINAL', titulo:'Burnout na atenção básica (edital anterior)', aluno:'Rafael Teixeira', prazo:'20/08', status:'Entregue', bg:rst.entregue.bg, fg:rst.entregue.fg, acao:'Ver relatório' },
-      { tipo:'PARCIAL', titulo:'Educação financeira no ensino superior', aluno:'Pedro Alves', prazo:'15/03', status:'Pendente', bg:rst.pendente.bg, fg:rst.pendente.fg, acao:'Enviar lembrete' },
-      { tipo:'FINAL', titulo:'Compostos bioativos do Cerrado', aluno:'Letícia Barros', prazo:'20/08', status:'Pendente', bg:rst.pendente.bg, fg:rst.pendente.fg, acao:'Acionar entrega' }
-    ];
-
-    const dOk = {bg:'#e5f3ea',fg:'#3f8a5d'}, dPend = {bg:'#fbf3e4',fg:'#c98a2b'};
-    const bolsas = [
-      { aluno:'Ana Paula Ribeiro', curso:'Psicologia', modalidade:'PIBIC', valor:'R$ 700', dados:'Confirmado', bg:dOk.bg, fg:dOk.fg, acao:'Ver dados', btnBg:'#f2f5f9', btnFg:'#2d535c', btnBd:'#e3e7ee' },
-      { aluno:'João Vitor Lima', curso:'Engenharia', modalidade:'PIBITI', valor:'R$ 700', dados:'Confirmado', bg:dOk.bg, fg:dOk.fg, acao:'Ver dados', btnBg:'#f2f5f9', btnFg:'#2d535c', btnBd:'#e3e7ee' },
-      { aluno:'Marina Costa', curso:'Enfermagem', modalidade:'PIBIC', valor:'R$ 700', dados:'Pendente', bg:dPend.bg, fg:dPend.fg, acao:'Solicitar dados', btnBg:'#2d535c', btnFg:'#fff', btnBd:'#2d535c' },
-      { aluno:'Pedro Alves', curso:'Administração', modalidade:'PIBIC', valor:'R$ 700', dados:'Pendente', bg:dPend.bg, fg:dPend.fg, acao:'Solicitar dados', btnBg:'#2d535c', btnFg:'#fff', btnBd:'#2d535c' },
-      { aluno:'Larissa Andrade', curso:'Psicologia', modalidade:'PIBIC', valor:'R$ 700', dados:'Confirmado', bg:dOk.bg, fg:dOk.fg, acao:'Ver dados', btnBg:'#f2f5f9', btnFg:'#2d535c', btnBd:'#e3e7ee' },
-      { aluno:'Camila Freitas', curso:'Educação Física', modalidade:'PIVIC', valor:'Voluntário', dados:'Não se aplica', bg:'#eef1f5', fg:'#7c8794', acao:'—', btnBg:'#fff', btnFg:'#a9b4c0', btnBd:'#e3e7ee' }
-    ];
-
-    const comunicados = [
-      { tag:'PRAZO', data:'ontem', titulo:'Relatório parcial — prazo 15/03', corpo:'Lembramos que o relatório parcial das atividades de IC deve ser enviado pelo bolsista, com anuência do orientador, até 15/03.', para:'Bolsistas ativos', alcance:'18 destinatários' },
-      { tag:'RESULTADO', data:'01/08', titulo:'Divulgação dos aprovados — PIBIC 2026/2027', corpo:'O resultado da avaliação de mérito foi publicado. Consulte a lista de projetos aprovados no painel de projetos.', para:'Orientadores e alunos', alcance:'96 destinatários' },
-      { tag:'BOLSA', data:'05/08', titulo:'Envio de dados bancários', corpo:'Solicitamos aos bolsistas aprovados o envio dos dados bancários para inclusão na folha de pagamento das bolsas.', para:'Bolsistas aprovados', alcance:'18 destinatários' },
-      { tag:'GERAL', data:'20/07', titulo:'Seminário de Iniciação Científica 2027', corpo:'Reserve a data: o Seminário de IC ocorrerá em agosto/2027, com apresentação obrigatória dos resultados finais.', para:'Todos os participantes', alcance:'114 destinatários' }
-    ];
-    const grupos = [
-      { nome:'Orientadores', qtd:'38' },
-      { nome:'Bolsistas (PIBIC/PIBITI)', qtd:'18' },
-      { nome:'Voluntários (PIVIC)', qtd:'12' },
-      { nome:'Pareceristas designados', qtd:'22' }
-    ];
-
-    return {
-      isHub: s.route === 'hub',
-      isApp: s.route === 'app',
-      edital: s.edital,
-      navClick, goHub,
-      modulos,
-      navItems,
-      section: s.section,
-      sectionTitle: titles[s.section] || 'Painel',
-      isDashboard: s.section === 'dashboard',
-      isProjetos: s.section === 'projetos',
-      isAvaliacoes: s.section === 'avaliacoes',
-      isCronograma: s.section === 'cronograma',
-      isRelatorios: s.section === 'relatorios',
-      isBolsas: s.section === 'bolsas',
-      isComunicacao: s.section === 'comunicacao',
-      kpis, statusBars, avaliacoesPend, cronogramaMini, atividade,
-      projetos, filtros, avaliacoes, cronograma, relatorios, bolsas, comunicados, grupos
-    };
-  }
+/* ------------------------------- infra --------------------------------- */
+async function api(url, opcoes) {
+  const r = await fetch(url, opcoes);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Falha (${r.status})`);
+  return j;
 }
+function aviso(msg, tipo = "ok") {
+  $("aviso").innerHTML = `<div class="banner ba-${tipo}">${esc(msg)}</div>`;
+  if (tipo === "ok") setTimeout(() => { if ($("aviso").textContent === msg) $("aviso").innerHTML = ""; }, 6000);
+  window.scrollTo(0, 0);
+}
+const cursoNome = (slug) => (META.cursos.find((c) => c.slug === slug) || {}).nome || slug || "—";
+const modNome = (c) => (META.modalidades.find((m) => m.codigo === c) || {}).nome || c || "—";
+const chip = (s) => `<span class="badge b-${esc(s)}">${esc(META.rotulos[s] || s)}</span>`;
+const ehAluno = () => META.perfil === "aluno";
+
+async function sair() {
+  try { await fetch("/auth/sair", { method: "POST" }); } catch { /* ignora */ }
+  location.href = "/";
+}
+
+/* ------------------------------ navegação ------------------------------ */
+function montarSidebar() {
+  let grupo = "";
+  $("menu").innerHTML = SECOES
+    .filter((s) => !(ehAluno() && s.semAluno))
+    .map((s) => {
+      const cab = s.grupo !== grupo ? `<div class="side-lab">${s.grupo}</div>` : "";
+      grupo = s.grupo;
+      const n = s.id === "relatorios" ? RELS.relatorios.filter((r) => r.podeValidar).length : 0;
+      return `${cab}<button class="side-item" data-s="${s.id}" onclick="nav('${s.id}')">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${s.ic}</svg>
+        ${s.rot}${n ? `<span class="tag">${n}</span>` : ""}</button>`;
+    }).join("");
+
+  const ini = (ME?.nome || ME?.email || "?").trim()[0]?.toUpperCase() || "?";
+  const foto = ME?.perfil?.foto;
+  const papel = META.gestao ? "coordenação" : ehAluno() ? "aluno de IC" : "orientação";
+  $("rodape-usuario").innerHTML = ME ? `
+    <a class="av" href="/perfil/" title="Meu perfil">${foto ? `<img src="${esc(foto)}" alt="">` : esc(ini)}</a>
+    <div style="min-width:0">
+      <div class="nm" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc((ME.nome || ME.email).split(" ").slice(0, 2).join(" "))}</div>
+      <div class="pp">${papel}</div>
+    </div>
+    <button class="sair" onclick="sair()">sair</button>` : "";
+  for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === SECAO);
+}
+
+function nav(secao, id) {
+  SECAO = secao;
+  for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === secao);
+  for (const v of ["painel", "submissao", "gestao", "cronograma", "relatorios", "projeto"]) $("v-" + v).classList.add("hide");
+  // submissão e projeto compartilham o editor (mesmos ids): a seção que sai
+  // do ar é esvaziada, senão getElementById acha os campos escondidos
+  for (const v of ["submissao", "projeto"]) if (v !== secao) $("v-" + v).innerHTML = "";
+
+  const [t, s] = TITULOS[secao] || ["", ""];
+  $("titulo").textContent = t; $("subtitulo").textContent = s; $("crumb").textContent = t;
+  $("aviso").innerHTML = "";
+
+  if (secao === "painel") renderPainel();
+  if (secao === "submissao") { ATUAL = novoProjeto(); PODE = { podeEditar: true, papel: "orientador" }; renderEditor("v-submissao"); }
+  if (secao === "gestao") renderGestao();
+  if (secao === "cronograma") renderCronograma();
+  if (secao === "relatorios") renderRelatorios();
+  $("v-" + secao).classList.remove("hide");
+  window.scrollTo(0, 0);
+}
+
+/* -------------------------------- dados -------------------------------- */
+async function carregar() {
+  const [lista, crono, rel] = await Promise.all([
+    api("/api/ic"), api("/api/ic/cronograma"), api("/api/ic/relatorios"),
+  ]);
+  PROJETOS = lista.projetos || [];
+  ETAPAS = crono.etapas || [];
+  RELS = { relatorios: rel.relatorios || [], pendentes: rel.pendentes || [] };
+}
+
+async function abrir(id) {
+  try {
+    const r = await api("/api/ic/" + id);
+    ATUAL = r.projeto; PODE = r;
+    nav("projeto");
+    $("crumb").textContent = ATUAL.numero || "Projeto";
+    $("titulo").textContent = ATUAL.numero || "Projeto";
+    $("subtitulo").textContent = ATUAL.titulo || "";
+    renderEditor("v-projeto");
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+function novoProjeto() {
+  return {
+    titulo: "", resumo: "", palavrasChave: "", curso: "", modalidade: "pibic", edital: "",
+    linhaPesquisa: "", objetivos: "", metodologia: "", inicio: "", fim: "",
+    orientador: { nome: ME?.perfil?.nome || ME?.nome || "", email: ME?.email || "", titulacao: "" },
+    alunos: [], cronograma: [], relatorios: [], status: "rascunho",
+  };
+}
+
+/* -------------------------------- painel ------------------------------- */
+function renderPainel() {
+  const meus = PROJETOS;
+  const cont = (s) => meus.filter((p) => p.status === s).length;
+  const atrasadas = ETAPAS.filter((e) => e.situacao !== "concluida" && e.fim && e.fim < hojeISO());
+  const aValidar = RELS.relatorios.filter((r) => r.podeValidar);
+  const minhasPendencias = RELS.pendentes;
+
+  const kpis = ehAluno()
+    ? [["Projetos", meus.length, "em que você foi indicado"],
+       ["Atividades", ETAPAS.length, "no seu plano de trabalho"],
+       ["Em atraso", atrasadas.length, "atividades vencidas"],
+       ["Relatórios a enviar", minhasPendencias.length, "parciais e finais"]]
+    : [["Em avaliação", cont("submetido"), "aguardando a PROPPEX"],
+       ["Em execução", cont("aprovado"), "projetos aprovados"],
+       ["Atividades em atraso", atrasadas.length, "no cronograma"],
+       ["Relatórios a validar", aValidar.length, "enviados pelos alunos"]];
+
+  $("v-painel").innerHTML = `
+    <div class="kpis">${kpis.map(([l, v, d]) => `
+      <div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("")}
+    </div>
+
+    ${!meus.length ? `<div class="card"><div class="card-t">Comece por aqui</div>
+      <div class="card-s">${ehAluno()
+        ? "Você ainda não foi indicado em nenhum projeto. Quem orienta faz a indicação pelo seu e-mail."
+        : "Nenhum projeto ainda. A submissão abre o rascunho, que você preenche no seu tempo."}</div>
+      ${ehAluno() ? "" : `<button class="bt bt-pri" onclick="nav('submissao')">＋ Submeter projeto</button>`}</div>` : ""}
+
+    <div class="duplo">
+      <div class="card">
+        <div class="card-t">Projetos</div>
+        <div class="card-s">${meus.length} projeto(s) a que você tem acesso.</div>
+        ${meus.slice(0, 6).map((p) => `
+          <div class="linha" style="cursor:pointer" onclick="abrir('${esc(p.id)}')">
+            <div class="txt">
+              <div class="p1">${esc(p.titulo || "(sem título)")}</div>
+              <div class="p2">${esc(p.numero || "sem número")} · ${esc(cursoNome(p.curso))} · ${esc(modNome(p.modalidade))}</div>
+            </div>${chip(p.status)}
+          </div>`).join("") || `<div class="vazio">Nada por aqui ainda.</div>`}
+        ${meus.length > 6 ? `<div style="margin-top:10px"><button class="bt bt-ghost" onclick="nav('gestao')">Ver todos</button></div>` : ""}
+      </div>
+
+      <div class="card">
+        <div class="card-t">Próximas atividades</div>
+        <div class="card-s">Do cronograma, a partir de hoje.</div>
+        ${ETAPAS.filter((e) => e.situacao !== "concluida").slice(0, 7).map((e) => `
+          <div class="linha">
+            <div class="txt">
+              <div class="p1">${esc(e.atividade)}</div>
+              <div class="p2">${esc(e.numero || "—")} · ${esc(e.responsavelNome)} · até ${fmtD(e.fim)}</div>
+            </div>
+            ${e.fim && e.fim < hojeISO() ? `<span class="badge b-atrasada">atrasada</span>` : chip2(e.situacao)}
+          </div>`).join("") || `<div class="vazio">Sem atividades pendentes.</div>`}
+      </div>
+    </div>
+
+    ${aValidar.length ? `<div class="card">
+      <div class="card-t">Relatórios aguardando sua validação</div>
+      <div class="card-s">Enviados pelos alunos indicados.</div>
+      ${aValidar.map((r) => `<div class="linha" style="cursor:pointer" onclick="abrir('${esc(r.projetoId)}')">
+        <div class="txt"><div class="p1">${esc(r.alunoNome)} — relatório ${esc(r.tipo)}</div>
+        <div class="p2">${esc(r.numero || "")} · enviado em ${fmtDH(r.enviadoEm)}</div></div>
+        <span class="badge b-enviado">a validar</span></div>`).join("")}
+    </div>` : ""}`;
+}
+const chip2 = (s) => `<span class="badge b-${esc(s)}">${esc({ prevista: "prevista", andamento: "em andamento", concluida: "concluída" }[s] || s)}</span>`;
+
+/* ------------------------------- gestão -------------------------------- */
+function renderGestao() {
+  const lista = PROJETOS.filter((p) =>
+    (!FILTRO.status || p.status === FILTRO.status) &&
+    (!FILTRO.curso || p.curso === FILTRO.curso) &&
+    (!FILTRO.q || `${p.numero || ""} ${p.titulo} ${p.orientador?.nome || ""} ${(p.alunos || []).map((a) => a.nome).join(" ")}`
+      .toLowerCase().includes(FILTRO.q.toLowerCase())));
+
+  $("v-gestao").innerHTML = `
+    <div class="filtros">
+      <select onchange="FILTRO.status=this.value;renderGestao()">
+        <option value="">Todas as situações</option>
+        ${META.status.map((s) => `<option value="${s}" ${FILTRO.status === s ? "selected" : ""}>${esc(META.rotulos[s] || s)}</option>`).join("")}
+      </select>
+      <select onchange="FILTRO.curso=this.value;renderGestao()">
+        <option value="">Todos os cursos</option>
+        ${META.cursos.map((c) => `<option value="${c.slug}" ${FILTRO.curso === c.slug ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}
+      </select>
+      <input placeholder="Buscar por número, título, orientação ou aluno" value="${esc(FILTRO.q)}"
+        oninput="FILTRO.q=this.value;clearTimeout(window.__b);window.__b=setTimeout(renderGestao,250)">
+      ${ehAluno() ? "" : `<button class="bt bt-pri" onclick="nav('submissao')">＋ Novo projeto</button>`}
+    </div>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">${lista.length} projeto(s)</div>
+    ${lista.map((p) => `
+      <div class="item" onclick="abrir('${esc(p.id)}')">
+        <div style="flex:1;min-width:0">
+          <div class="nm">${esc(p.titulo || "(sem título)")}</div>
+          <div class="cs">${esc(p.numero || "sem número")} · ${esc(cursoNome(p.curso))} · ${esc(modNome(p.modalidade))}
+            · orientação: ${esc(p.orientador?.nome || p.orientador?.email || "—")}
+            ${p.alunos?.length ? ` · ${p.alunos.length} aluno(s)` : " · sem aluno indicado"}</div>
+        </div>
+        ${p.aValidar ? `<span class="badge b-enviado">${p.aValidar} a validar</span>` : ""}
+        ${p.atrasadas ? `<span class="badge b-atrasada">${p.atrasadas} atrasada(s)</span>` : ""}
+        ${chip(p.status)}
+      </div>`).join("") || `<div class="card"><div class="vazio">Nenhum projeto com esses filtros.</div></div>`}`;
+}
+
+/* ------------------------------ cronograma ----------------------------- */
+function renderCronograma() {
+  const porProjeto = new Map();
+  for (const e of ETAPAS) {
+    if (!porProjeto.has(e.projetoId)) porProjeto.set(e.projetoId, []);
+    porProjeto.get(e.projetoId).push(e);
+  }
+  const hoje = hojeISO();
+
+  $("v-cronograma").innerHTML = `
+    <div class="tut"><details><summary>Como o cronograma funciona</summary>
+      <ol>
+        <li>Cada atividade pertence a um projeto e pode ter um <b>responsável</b> — um aluno indicado, ou a própria orientação.</li>
+        <li>${ehAluno()
+          ? "Você vê aqui somente as atividades sob a sua responsabilidade, de todos os projetos em que foi indicado."
+          : "Você vê aqui as atividades de todos os seus projetos, reunidas num só lugar."}</li>
+        <li>A atividade fica <b>atrasada</b> sozinha, quando passa da data de fim sem ser concluída.</li>
+      </ol></details></div>
+
+    ${!ETAPAS.length ? `<div class="card"><div class="vazio">Nenhuma atividade ainda.
+      ${ehAluno() ? "Quem orienta monta o cronograma do projeto." : "O cronograma é montado dentro de cada projeto."}</div></div>` : ""}
+
+    ${[...porProjeto.entries()].map(([pid, etapas]) => {
+      const p = etapas[0];
+      const feitas = etapas.filter((e) => e.situacao === "concluida").length;
+      return `<div class="card">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+          <div style="flex:1;min-width:0">
+            <div class="card-t" style="cursor:pointer" onclick="abrir('${esc(pid)}')">${esc(p.titulo || "(sem título)")}</div>
+            <div class="card-s" style="margin-bottom:0">${esc(p.numero || "sem número")} · ${esc(cursoNome(p.curso))}
+              · orientação: ${esc(p.orientador)}</div>
+          </div>
+          <span class="badge b-${esc(p.status)}">${esc(META.rotulos[p.status] || p.status)}</span>
+          <span class="prazo">${feitas}/${etapas.length} concluída(s)</span>
+        </div>
+        <div class="rolo"><table class="pt">
+          <thead><tr><th style="width:40%">Atividade</th><th>Responsável</th><th>Início</th><th>Fim</th><th>Situação</th></tr></thead>
+          <tbody>${etapas.map((e) => `<tr>
+            <td>${esc(e.atividade)}${e.observacao ? `<div class="muted">${esc(e.observacao)}</div>` : ""}</td>
+            <td>${esc(e.responsavelNome)}${e.meu ? ' <span class="badge b-andamento">você</span>' : ""}</td>
+            <td>${fmtD(e.inicio)}</td><td>${fmtD(e.fim)}</td>
+            <td>${e.situacao !== "concluida" && e.fim && e.fim < hoje
+              ? `<span class="badge b-atrasada">atrasada</span>` : chip2(e.situacao)}</td>
+          </tr>`).join("")}</tbody>
+        </table></div>
+      </div>`;
+    }).join("")}`;
+}
+
+/* ------------------------------ relatórios ----------------------------- */
+function renderRelatorios() {
+  const pend = RELS.pendentes;
+  const enviados = RELS.relatorios;
+
+  $("v-relatorios").innerHTML = `
+    <div class="tut"><details><summary>Como funcionam os relatórios</summary>
+      <ol>
+        <li>Cada aluno indicado entrega um <b>relatório parcial</b> e um <b>relatório final</b> por projeto.</li>
+        <li>Quem envia é o aluno; quem <b>valida ou devolve</b> é a orientação.</li>
+        <li>Relatório devolvido volta para o aluno com o parecer e pode ser reenviado no lugar do anterior.</li>
+        <li>Quando todos os finais são validados, o projeto passa a <b>concluído</b>.</li>
+      </ol></details></div>
+
+    ${pend.length ? `<div class="card">
+      <div class="card-t">${ehAluno() ? "A entregar" : "Pendentes dos seus alunos"}</div>
+      <div class="card-s">Relatórios previstos que ainda não foram validados.</div>
+      ${pend.map((x) => `<div class="linha">
+        <div class="txt"><div class="p1">Relatório ${esc(x.tipo)} — ${esc(x.nome || x.aluno)}</div>
+          <div class="p2">${esc(x.numero || "")} · ${esc(x.titulo || "")}</div></div>
+        ${x.devolvido ? `<span class="badge b-devolvido">devolvido</span>` : `<span class="badge b-rascunho">não enviado</span>`}
+        <button class="bt bt-sec" onclick="abrir('${esc(x.projetoId)}')">abrir projeto</button>
+      </div>`).join("")}
+    </div>` : ""}
+
+    <div class="card">
+      <div class="card-t">Relatórios enviados</div>
+      <div class="card-s">${enviados.length} relatório(s).</div>
+      ${enviados.map((r) => `
+        <div class="bloco ${r.podeValidar ? "meu" : ""}">
+          <div class="bloco-cab">
+            <span class="num">${esc(r.numero || "—")}</span>
+            <span class="t">Relatório ${esc(r.tipo)} — ${esc(r.alunoNome)}</span>
+            <span class="badge b-${esc(r.situacao)}">${esc({ enviado: "aguardando validação", validado: "validado", devolvido: "devolvido" }[r.situacao] || r.situacao)}</span>
+          </div>
+          <div class="muted">${esc(r.titulo || "")} · enviado em ${fmtDH(r.enviadoEm)}${r.periodo ? ` · período: ${esc(r.periodo)}` : ""}</div>
+          ${r.parecer ? `<div class="kv" style="margin-top:8px"><b>Parecer:</b> ${esc(r.parecer)}</div>` : ""}
+          <div class="exp">
+            <button class="bt bt-ghost" onclick="abrir('${esc(r.projetoId)}')">Abrir o projeto</button>
+            ${r.podeValidar ? `
+              <button class="bt bt-ok" onclick="validar('${esc(r.projetoId)}','${esc(r.id)}','validado')">✓ Validar</button>
+              <button class="bt bt-err" onclick="validar('${esc(r.projetoId)}','${esc(r.id)}','devolvido')">Devolver</button>` : ""}
+          </div>
+        </div>`).join("") || `<div class="vazio">Nenhum relatório enviado ainda.</div>`}
+    </div>`;
+}
+
+async function validar(projetoId, relId, decisao) {
+  let parecer = "";
+  if (decisao === "devolvido") {
+    parecer = prompt("O que o aluno precisa corrigir?") || "";
+    if (parecer.trim().length < 10) return aviso("Escreva o parecer da devolução.", "warn");
+  } else {
+    parecer = prompt("Parecer da validação (opcional):") ?? "";
+  }
+  try {
+    await api(`/api/ic/${projetoId}/relatorio/${relId}/validar`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decisao, parecer }),
+    });
+    await carregar(); montarSidebar();
+    if (SECAO === "projeto") abrir(projetoId); else renderRelatorios();
+    aviso(decisao === "validado" ? "Relatório validado." : "Relatório devolvido ao aluno.");
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+/* ================================ editor =============================== */
+function sub(campo, chave, valor) { ATUAL[campo] = { ...(ATUAL[campo] || {}), [chave]: valor }; }
+function campo(k, v) { ATUAL[k] = v; }
+
+function renderEditor(alvo) {
+  const p = ATUAL, ed = PODE.podeEditar, ger = PODE.podeGerir || ed;
+  const ro = ed ? "" : "disabled";
+  const roGer = ger ? "" : "disabled";
+  const novo = !p.id;
+
+  $(alvo).innerHTML = `
+    ${p.avaliacao ? `<div class="banner ba-${p.status === "aprovado" ? "ok" : p.status === "devolvido" ? "warn" : "err"}">
+      <b>Parecer da coordenação (${fmtDH(p.avaliacao.em)}):</b> ${esc(p.avaliacao.parecer || "aprovado sem ressalvas")}</div>` : ""}
+
+    <div class="card">
+      <div class="card-t">Proposta</div>
+      <div class="card-s">${ed ? "Enquanto for rascunho ou devolvido, tudo aqui pode mudar." : "Proposta fechada — o projeto já está em avaliação ou em execução."}</div>
+
+      <label>Título do projeto *</label>
+      <input ${ro} value="${esc(p.titulo || "")}" oninput="campo('titulo',this.value)" placeholder="Título como aparecerá no protocolo">
+
+      <div class="grid3">
+        <div><label>Curso *</label><select ${ro} onchange="campo('curso',this.value)">
+          <option value="">— escolha —</option>
+          ${META.cursos.map((c) => `<option value="${c.slug}" ${p.curso === c.slug ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}
+        </select></div>
+        <div><label>Modalidade *</label><select ${ro} onchange="campo('modalidade',this.value)">
+          ${META.modalidades.map((m) => `<option value="${m.codigo}" ${p.modalidade === m.codigo ? "selected" : ""}>${esc(m.nome)}</option>`).join("")}
+        </select></div>
+        <div><label>Edital <span class="muted">(se houver)</span></label>
+          <input ${ro} value="${esc(p.edital || "")}" oninput="campo('edital',this.value)" placeholder="PIBIC 01/2026"></div>
+      </div>
+
+      <div class="grid2">
+        <div><label>Início previsto</label><input type="date" ${ro} value="${esc(p.inicio || "")}" onchange="campo('inicio',this.value)"></div>
+        <div><label>Término previsto</label><input type="date" ${ro} value="${esc(p.fim || "")}" onchange="campo('fim',this.value)"></div>
+      </div>
+
+      <label>Linha de pesquisa</label>
+      <input ${ro} value="${esc(p.linhaPesquisa || "")}" oninput="campo('linhaPesquisa',this.value)">
+
+      <label>Resumo * <span class="muted">(mínimo de 120 caracteres)</span></label>
+      <textarea ${ro} oninput="campo('resumo',this.value)" style="min-height:130px">${esc(p.resumo || "")}</textarea>
+
+      <label>Palavras-chave</label>
+      <input ${ro} value="${esc(p.palavrasChave || "")}" oninput="campo('palavrasChave',this.value)" placeholder="separadas por ponto e vírgula">
+
+      <label>Objetivos *</label>
+      <textarea ${ro} oninput="campo('objetivos',this.value)">${esc(p.objetivos || "")}</textarea>
+
+      <label>Metodologia *</label>
+      <textarea ${ro} oninput="campo('metodologia',this.value)">${esc(p.metodologia || "")}</textarea>
+
+      <div class="sec-t">Orientação</div>
+      <div class="grid3">
+        <div><label>Nome *</label><input ${ro} value="${esc(p.orientador?.nome || "")}" oninput="sub('orientador','nome',this.value)"></div>
+        <div><label>E-mail *</label><input type="email" ${ro} value="${esc(p.orientador?.email || "")}" oninput="sub('orientador','email',this.value)"></div>
+        <div><label>Titulação</label><input ${ro} value="${esc(p.orientador?.titulacao || "")}" oninput="sub('orientador','titulacao',this.value)" placeholder="Doutor(a)"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">Alunos indicados</div>
+      <div class="card-s">O e-mail é o que dá ao aluno acesso ao próprio cronograma e aos relatórios — use o mesmo com que ele entra no ARCHÉ.</div>
+      <div class="rolo"><table class="pt">
+        <thead><tr><th style="width:32%">Nome</th><th style="width:30%">E-mail</th><th>Matrícula</th><th>Bolsista</th><th></th></tr></thead>
+        <tbody id="tb-alunos"></tbody>
+      </table></div>
+      ${ger ? `<div class="exp"><button class="bt bt-sec" onclick="addAluno()">＋ Indicar aluno</button></div>` : ""}
+    </div>
+
+    <div class="card">
+      <div class="card-t">Cronograma</div>
+      <div class="card-s">O plano de trabalho: uma linha por atividade, com responsável e prazo. É daqui que sai a tela de Cronograma.</div>
+      <div class="rolo"><table class="pt">
+        <thead><tr><th style="width:34%">Atividade</th><th>Responsável</th><th>Início</th><th>Fim</th><th>Situação</th><th></th></tr></thead>
+        <tbody id="tb-etapas"></tbody>
+      </table></div>
+      ${ger ? `<div class="exp"><button class="bt bt-sec" onclick="addEtapa()">＋ Adicionar atividade</button></div>` : ""}
+    </div>
+
+    ${p.id ? renderRelatoriosDoProjeto(p) : ""}
+
+    <div class="card">
+      <div class="exp">
+        ${ger ? `<button class="bt bt-pri" onclick="salvar()">Salvar</button>` : ""}
+        ${ed ? `<button class="bt bt-ok" onclick="submeter()">Submeter à avaliação</button>` : ""}
+        ${PODE.podeAvaliar ? `
+          <button class="bt bt-ok" onclick="avaliar('aprovado')">✓ Aprovar</button>
+          <button class="bt bt-sec" onclick="avaliar('devolvido')">Devolver para ajustes</button>
+          <button class="bt bt-err" onclick="avaliar('reprovado')">Reprovar</button>` : ""}
+        ${p.id && ed && !p.numero ? `<button class="bt bt-ghost" onclick="excluir()">Excluir rascunho</button>` : ""}
+        <button class="bt bt-ghost" onclick="nav('${novo ? "painel" : "gestao"}')">Voltar</button>
+      </div>
+      ${p.historico?.length ? `<div class="muted" style="margin-top:14px">Último registro: ${esc(p.historico.at(-1).oQue)} — ${esc(p.historico.at(-1).quem)} em ${fmtDH(p.historico.at(-1).quando)}</div>` : ""}
+    </div>`;
+
+  desenharAlunos(); desenharEtapas();
+}
+
+function desenharAlunos() {
+  const ger = PODE.podeGerir || PODE.podeEditar;
+  $("tb-alunos").innerHTML = (ATUAL.alunos || []).map((a, i) => `
+    <tr>
+      <td><input ${ger ? "" : "disabled"} value="${esc(a.nome || "")}" oninput="ATUAL.alunos[${i}].nome=this.value"></td>
+      <td><input type="email" ${ger ? "" : "disabled"} value="${esc(a.email || "")}" oninput="ATUAL.alunos[${i}].email=this.value;desenharEtapas()"></td>
+      <td><input ${ger ? "" : "disabled"} value="${esc(a.matricula || "")}" oninput="ATUAL.alunos[${i}].matricula=this.value"></td>
+      <td><input type="checkbox" style="width:auto" ${a.bolsista ? "checked" : ""} ${ger ? "" : "disabled"} onchange="ATUAL.alunos[${i}].bolsista=this.checked"></td>
+      <td>${ger ? `<button class="rm" title="remover" onclick="ATUAL.alunos.splice(${i},1);desenharAlunos();desenharEtapas()">×</button>` : ""}</td>
+    </tr>`).join("") || `<tr><td colspan="5" class="muted">Nenhum aluno indicado. Sem aluno, o projeto anda, mas não há relatórios a entregar.</td></tr>`;
+}
+function addAluno() { ATUAL.alunos = [...(ATUAL.alunos || []), { nome: "", email: "", matricula: "", bolsista: false }]; desenharAlunos(); }
+
+function desenharEtapas() {
+  const ger = PODE.podeGerir || PODE.podeEditar;
+  const ro = ger ? "" : "disabled";
+  const opcoes = (sel) => `<option value="" ${!sel ? "selected" : ""}>orientação</option>` +
+    (ATUAL.alunos || []).filter((a) => a.email).map((a) =>
+      `<option value="${esc(a.email)}" ${sel === a.email ? "selected" : ""}>${esc(a.nome || a.email)}</option>`).join("");
+  $("tb-etapas").innerHTML = (ATUAL.cronograma || []).map((e, i) => `
+    <tr>
+      <td><input ${ro} value="${esc(e.atividade || "")}" oninput="ATUAL.cronograma[${i}].atividade=this.value" placeholder="Revisão bibliográfica"></td>
+      <td><select ${ro} onchange="ATUAL.cronograma[${i}].responsavel=this.value">${opcoes(e.responsavel)}</select></td>
+      <td><input type="date" ${ro} value="${esc(e.inicio || "")}" onchange="ATUAL.cronograma[${i}].inicio=this.value"></td>
+      <td><input type="date" ${ro} value="${esc(e.fim || "")}" onchange="ATUAL.cronograma[${i}].fim=this.value"></td>
+      <td><select ${ro} onchange="ATUAL.cronograma[${i}].situacao=this.value">
+        ${["prevista", "andamento", "concluida"].map((s) => `<option value="${s}" ${e.situacao === s ? "selected" : ""}>${{ prevista: "prevista", andamento: "em andamento", concluida: "concluída" }[s]}</option>`).join("")}
+      </select></td>
+      <td>${ger ? `<button class="rm" title="remover" onclick="ATUAL.cronograma.splice(${i},1);desenharEtapas()">×</button>` : ""}</td>
+    </tr>`).join("") || `<tr><td colspan="6" class="muted">Nenhuma atividade. O cronograma é obrigatório para submeter.</td></tr>`;
+}
+function addEtapa() { ATUAL.cronograma = [...(ATUAL.cronograma || []), { atividade: "", responsavel: "", inicio: "", fim: "", situacao: "prevista" }]; desenharEtapas(); }
+
+/* ------------------- relatórios dentro do projeto ---------------------- */
+function renderRelatoriosDoProjeto(p) {
+  const meus = p.relatorios || [];
+  const souAluno = PODE.papel === "aluno";
+  const emExecucao = ["aprovado", "concluido"].includes(p.status);
+
+  const bloco = (r) => `
+    <div class="bloco ${r.aluno === META.eu ? "meu" : ""}">
+      <div class="bloco-cab">
+        <span class="t">Relatório ${esc(r.tipo)} — ${esc((p.alunos || []).find((a) => a.email === r.aluno)?.nome || r.aluno)}</span>
+        <span class="badge b-${esc(r.situacao)}">${esc({ enviado: "aguardando validação", validado: "validado", devolvido: "devolvido" }[r.situacao] || r.situacao)}</span>
+      </div>
+      <div class="muted">Enviado em ${fmtDH(r.enviadoEm)}${r.periodo ? ` · período: ${esc(r.periodo)}` : ""}</div>
+      <div class="kv" style="white-space:pre-wrap;margin-top:8px">${esc(r.resumo || "")}</div>
+      ${(r.anexos || []).length ? `<div class="kv" style="margin-top:6px"><b>Anexos:</b> ${r.anexos.map((a) => `<a href="${esc(a.link || "#")}" target="_blank" rel="noopener">${esc(a.name)}</a>`).join(" · ")}</div>` : ""}
+      ${r.parecer ? `<div class="kv" style="margin-top:6px"><b>Parecer:</b> ${esc(r.parecer)}</div>` : ""}
+      ${PODE.podeValidar && r.situacao === "enviado" ? `<div class="exp">
+        <button class="bt bt-ok" onclick="validar('${esc(p.id)}','${esc(r.id)}','validado')">✓ Validar</button>
+        <button class="bt bt-err" onclick="validar('${esc(p.id)}','${esc(r.id)}','devolvido')">Devolver</button></div>` : ""}
+    </div>`;
+
+  const meuRel = (tipo) => meus.find((r) => r.tipo === tipo && r.aluno === META.eu);
+  const formulario = (tipo) => {
+    const r = meuRel(tipo);
+    if (r && r.situacao !== "devolvido") return "";
+    return `<div class="bloco">
+      <div class="bloco-cab"><span class="t">Enviar relatório ${tipo}</span>
+        ${r ? `<span class="badge b-devolvido">devolvido — reenvie corrigido</span>` : ""}</div>
+      <label>Período coberto</label>
+      <input id="per-${tipo}" placeholder="${tipo === "parcial" ? "agosto a dezembro de 2026" : "todo o período do projeto"}" value="${esc(r?.periodo || "")}">
+      <label>Relatório * <span class="muted">(mínimo de 200 caracteres)</span></label>
+      <textarea id="txt-${tipo}" style="min-height:160px">${esc(r?.resumo || "")}</textarea>
+      <div class="exp"><button class="bt bt-pri" onclick="enviarRelatorio('${tipo}')">Enviar relatório ${tipo}</button></div>
+    </div>`;
+  };
+
+  return `<div class="card">
+    <div class="card-t">Relatórios</div>
+    <div class="card-s">Parcial e final de cada aluno indicado. Quem envia é o aluno; quem valida é a orientação.</div>
+    ${!emExecucao ? `<div class="banner ba-info">Os relatórios abrem quando o projeto é aprovado.</div>` : ""}
+    ${meus.map(bloco).join("")}
+    ${emExecucao && souAluno ? formulario("parcial") + formulario("final") : ""}
+    ${!meus.length && !souAluno ? `<div class="vazio">Nenhum relatório enviado ainda.</div>` : ""}
+  </div>`;
+}
+
+async function enviarRelatorio(tipo) {
+  const resumo = $("txt-" + tipo).value.trim();
+  const periodo = $("per-" + tipo).value.trim();
+  if (resumo.length < 200) return aviso("O relatório precisa de ao menos 200 caracteres.", "warn");
+  try {
+    await api(`/api/ic/${ATUAL.id}/relatorio`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tipo, resumo, periodo }),
+    });
+    await carregar(); montarSidebar(); await abrir(ATUAL.id);
+    aviso("Relatório enviado. A orientação foi notificada dentro do sistema.");
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+/* ------------------------------- ações --------------------------------- */
+async function salvar() {
+  try {
+    const r = await api("/api/ic", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ATUAL),
+    });
+    ATUAL = r.projeto;
+    await carregar(); montarSidebar();
+    if (SECAO === "submissao") { nav("projeto"); await abrir(ATUAL.id); }
+    aviso("Projeto salvo.");
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+async function submeter() {
+  try {
+    if (!ATUAL.id) {
+      const r = await api("/api/ic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ATUAL) });
+      ATUAL = r.projeto;
+    } else {
+      await api("/api/ic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ATUAL) });
+    }
+    if (!confirm("Submeter o projeto à avaliação da PROPPEX? Depois disso a proposta fica fechada para edição.")) return;
+    const r = await api(`/api/ic/${ATUAL.id}/submeter`, { method: "POST" });
+    await carregar(); montarSidebar(); await abrir(r.projeto.id);
+    aviso(`Projeto submetido — protocolo ${r.projeto.numero}.`);
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+async function avaliar(decisao) {
+  const rotulo = { aprovado: "Aprovar", devolvido: "Devolver para ajustes", reprovado: "Reprovar" }[decisao];
+  const parecer = prompt(`${rotulo} — parecer da coordenação${decisao === "aprovado" ? " (opcional)" : ""}:`) ?? "";
+  if (decisao !== "aprovado" && parecer.trim().length < 10) return aviso("Escreva o parecer.", "warn");
+  try {
+    const r = await api(`/api/ic/${ATUAL.id}/avaliar`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decisao, parecer }),
+    });
+    await carregar(); montarSidebar(); await abrir(r.projeto.id);
+    aviso(`Projeto ${decisao}.`);
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+async function excluir() {
+  if (!confirm("Excluir este rascunho? Não há como desfazer.")) return;
+  try {
+    await api("/api/ic/" + ATUAL.id, { method: "DELETE" });
+    await carregar(); montarSidebar(); nav("gestao");
+    aviso("Rascunho excluído.");
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+/* -------------------------------- início ------------------------------- */
+(async function iniciar() {
+  try {
+    const r = await fetch("/api/me");
+    if (r.status === 401) { location.href = "/entrar?next=" + encodeURIComponent(location.pathname); return; }
+    ME = await r.json();
+    if (ME.papel === "pendente") { location.href = "/entrar?pendente=1"; return; }
+    META = await api("/api/ic/meta");
+    await carregar();
+  } catch (e) {
+    $("aviso").innerHTML = `<div class="banner ba-err">${esc(e.message || "Falha ao carregar o setor")}</div>`;
+  }
+  montarSidebar();
+  nav("painel");
+  $("dir-info").textContent = META.gestao ? "coordenação de pesquisa" : ehAluno() ? "aluno de IC" : "orientação";
+})();
 </script>
-
-
-<div id="__claude_design_branding"><style>#__claude_design_branding{position:fixed;right:16px;bottom:16px;z-index:2147483646;display:flex;align-items:center;gap:7px;height:30px;padding:0 5px 0 10px;border-radius:999px;font-family:"Anthropic Sans",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;font-size:12.5px;font-weight:400;line-height:1;letter-spacing:normal;text-transform:none;color:#141413;background:rgba(255,255,255,.86);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);box-shadow:0 0 0 .5px rgba(31,30,29,.14),0 2px 10px rgba(0,0,0,.09)}
-#__claude_design_branding *{box-sizing:border-box;margin:0}
-#__claude_design_branding a{color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
-#__claude_design_branding a:hover span{text-decoration:underline}
-#__claude_design_branding svg{flex:none}
-#__claude_design_branding a svg{color:#D97757}
-#__claude_design_branding button{width:20px;height:20px;padding:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:currentColor;opacity:.55;border:0;background:none;cursor:pointer;flex:none;font:inherit;transition:opacity .14s}
-#__claude_design_branding button:hover{opacity:1;background:rgba(127,127,127,.22)}
-@media print{#__claude_design_branding{display:none}}</style><a href="https://claude.com/product/design" target="_blank" rel="noopener noreferrer"><svg width="14" height="14" viewBox="0 0 20 21" fill="none" aria-hidden="true"><path fill="currentColor" d="M9.99902 0C15.5258 0.000170936 19.999 4.50643 19.999 10.0547C19.999 11.7656 19.5863 12.9976 18.7861 13.8203C17.9924 14.6362 16.9465 14.9138 15.9854 15.0078C15.05 15.0993 14.0097 15.0262 13.2549 15.0186C12.8524 15.0145 12.5177 15.0267 12.2441 15.0703C11.9682 15.1144 11.8143 15.1813 11.7305 15.2432C11.4745 15.4322 11.3353 15.7121 11.2656 16.1602C11.2303 16.3875 11.2168 16.6362 11.209 16.9131C11.2017 17.1715 11.1986 17.4893 11.1807 17.7705C11.1469 18.2975 11.0495 19.0865 10.4199 19.5908C9.7846 20.0996 8.88652 20.1057 7.85449 19.877C7.36399 19.7682 6.88652 19.6232 6.42578 19.4453C2.66989 17.9949 0.000187748 14.3414 0 10.0547C0 4.50643 4.47223 0.000171048 9.99902 0ZM9.99902 1.60547C5.36781 1.60564 1.60547 5.38391 1.60547 10.0547C1.60566 13.6582 3.84823 16.7296 7.00391 17.9482C7.39027 18.0974 7.79085 18.2184 8.20215 18.3096C9.1375 18.5169 9.384 18.3633 9.41602 18.3379C9.4524 18.3087 9.54558 18.1915 9.5791 17.668C9.5947 17.4239 9.59473 17.1786 9.60352 16.8672C9.61179 16.5742 9.62831 16.2435 9.67969 15.9131C9.78359 15.2455 10.0474 14.4906 10.7764 13.9521C11.1479 13.6778 11.5842 13.5493 11.9912 13.4844C12.4007 13.4191 12.8434 13.4088 13.2705 13.4131C14.1753 13.4222 15.0071 13.4905 15.8291 13.4102C16.6257 13.3322 17.2249 13.1235 17.6357 12.7012C18.0401 12.2855 18.3935 11.5261 18.3936 10.0547C18.3936 5.38391 14.6302 1.60564 9.99902 1.60547ZM5.11621 9.86719C5.86386 9.91468 6.45486 10.5348 6.45508 11.2939C6.45506 12.0838 5.81519 12.7245 5.02539 12.7246C4.28481 12.7246 3.67573 12.1617 3.60254 11.4404L3.59473 11.2939L3.60156 11.1533C3.66942 10.4596 4.23282 9.91186 4.93359 9.86719H5.11621ZM14.9814 7.19141C15.729 7.23889 16.3199 7.85919 16.3203 8.61816C16.3203 9.40801 15.6804 10.0487 14.8906 10.0488C14.1501 10.0487 13.5409 9.48586 13.4678 8.76465L13.46 8.61816L13.4668 8.47754C13.5348 7.78403 14.0983 7.23618 14.7988 7.19141H14.9814ZM6.4541 4.93457C7.20161 4.9822 7.79275 5.60231 7.79297 6.36133C7.79288 7.151 7.15291 7.7917 6.36328 7.79199C5.62274 7.79199 5.01369 7.22903 4.94043 6.50781L4.93262 6.36133L4.93945 6.2207C5.00731 5.52698 5.5707 4.97922 6.27148 4.93457H6.4541ZM11.3867 3.59668C12.1343 3.64419 12.7253 4.26436 12.7256 5.02344C12.7256 5.81326 12.0857 6.45393 11.2959 6.4541C10.5553 6.4541 9.94622 5.89123 9.87305 5.16992L9.86523 5.02344L9.87207 4.88281C9.93996 4.18912 10.5033 3.64133 11.2041 3.59668H11.3867Z"></path></svg><span>Made with Claude Design</span></a><button type="button" aria-label="Dismiss" onclick="this.parentElement.remove()"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></button></div><script src="/assets/arche-nav.js" defer></script>
-</body></html>
+<script src="/assets/arche-nav.js" defer></script>
+</body>
+</html>

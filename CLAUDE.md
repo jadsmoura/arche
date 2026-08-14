@@ -21,6 +21,7 @@ lib/auth.js          Sessão por cookie HMAC; papéis: gestor > coordenador > ap
 lib/exports.js       Registro de Atividade (.docx) e Planilha de Certificados (.xlsx)
 lib/pdf.js           Relatório final, proposta e ata em PDF (timbrado oficial UNIEGO)
 lib/atas.js          ARCHÉ AT: órgãos, numeração das atas, normalização e validação
+lib/ic.js            ARCHÉ IC: projetos de IC, cronograma, relatórios e permissões
 lib/pautas.js        Catálogo da Pauta Regulatória (indicadores INEP) e conformidade
 lib/redator.js       Redação da minuta da ata: modelo (padrão) | gemini | anthropic
 lib/assistente.js    Assistente de escrita dos campos da ata (só ARCHÉ AT)
@@ -31,7 +32,7 @@ templates/           Template xlsx de certificados + logo UNIEGO (não alterar e
 public/
   index.html         Portal (2 seções: Gestão PROPPEX | Avaliação Institucional)
   extensao/          Módulo Extensão (SPA vanilla JS) — propostas, relatórios, participantes
-  pesquisa/ic/       Iniciação Científica (runtime DC — editar só o markup/bloco text/x-dc)
+  pesquisa/ic/       ARCHÉ IC — Iniciação Científica (SPA vanilla, mesmo desenho do EX/AT)
   atas/              ARCHÉ AT — Atas e Colegiados (SPA vanilla, mesmo desenho do EX)
   arche/             Avaliação Institucional (app COMPILADO do Manus — NÃO refatorar;
                      alterações só por append de <script>/<style> no fim dos html)
@@ -49,8 +50,10 @@ public/
 - Uploads e estado são organizados **por curso** no Google Drive — preservar os prefixos
   usados em server.js (`extensao/<curso>/…`, `dossie/<curso>/…`,
   `atas/<curso>/<órgão>/<ano>/` e `atas/institucional/<órgão>/<ano>/`).
-- Estado do app em chaves `/api/estado` (ex.: `extensao-acoes-v1`); chaves `auth-*`, `sys-*`
-  e `atas-*` são internas e invisíveis pela API.
+- Estado do app em chaves `/api/estado` (ex.: `extensao-acoes-v1`); chaves `auth-*`, `sys-*`,
+  `atas-*` e `ic-*` são internas e invisíveis pela API — quem guarda dado com recorte
+  por pessoa (atas, IC) precisa ficar fora do `/api/estado`, senão a lista inteira sai
+  por ali. Toda leitura/gravação passa por `/api/atas/*` e `/api/ic/*`.
 - No ARCHÉ AT o **curso é escolhido antes do órgão**: com curso entram NDE, Colegiado e
   "Outro órgão do curso"; sem curso, os conselhos superiores, pró-reitorias, CPA,
   comissões e "Outro órgão institucional". Os de nome livre (`nomeLivre`) exigem o nome
@@ -66,6 +69,20 @@ public/
 - **Datas passadas são aceitas** de propósito, para os órgãos regularizarem o arquivo.
   Numa ata retroativa, o checklist cobrado e o ciclo de sessões são os do semestre
   DA SESSÃO, não os do semestre corrente (`/api/atas/pauta-regulatoria?data=…`).
+- Fluxo da IC (ARCHÉ IC): **rascunho → submetido → aprovado (em execução) → concluído**,
+  com desvios para `devolvido` (volta a ser editável) e `reprovado`. O protocolo
+  `IC-AAAA-NNN` sai na submissão e nunca se repete. Submetida, a **proposta fecha**;
+  alunos e cronograma seguem editáveis pela orientação. Papéis (`lib/ic.js`): o
+  ORIENTADOR submete, indica alunos e mantém o cronograma; a GESTÃO (gestor ou
+  coordenador do módulo "pesquisa") avalia o mérito; o ALUNO INDICADO envia os
+  relatórios **parcial e final**, e quem valida ou devolve é a orientação — nunca o
+  próprio aluno, nem a orientação no lugar dele. Validados todos os finais, o projeto
+  passa a concluído. **O e-mail do aluno indicado é o que lhe dá acesso**: ele vê só
+  as atividades sob a sua responsabilidade e os seus relatórios; nada dos colegas. O
+  aluno precisa de conta aprovada em `/usuarios/` (fora do `@uniego.edu.br`, o acesso
+  nasce pendente). A tela de Cronograma reúne **todos os projetos num só lugar**, com
+  esse mesmo recorte. Não há guia de bolsas nem de comunicação — a bolsa é um campo do
+  aluno indicado.
 - **Acervo por autor** (`podeVerAta`/`podeEditarAta` em `lib/atas.js`): cada usuário só
   enxerga as atas que ele mesmo registrou. Constar como secretaria ou participante NÃO
   dá acesso — quem precisa de cópia recebe o PDF por e-mail no registro. Só a gestão

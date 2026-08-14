@@ -22,6 +22,13 @@ import {
   PAUTAS, MOMENTOS, CADENCIAS, RITUAL, checklistSemestral, pautasSugeridas, janelaDe,
   matrizConformidade, placarPorCurso, ciclosDoSemestre, proximosPrazos,
 } from "./lib/pautas.js";
+import {
+  IC_KEY, MODALIDADES as IC_MODALIDADES, STATUS as IC_STATUS, ROTULO_STATUS as IC_ROTULO_STATUS,
+  SITUACOES_ETAPA, TIPOS_RELATORIO, normalizarProjeto, validarProjeto,
+  numerar as numerarProjeto, anotar as anotarProjeto, resumir as resumirProjeto,
+  papelNoProjeto, podeVerProjeto, podeEditarProjeto, podeGerirExecucao, podeAvaliar,
+  podeEnviarRelatorio, podeValidarRelatorio, cronogramaDe, relatoriosDe, relatoriosPendentes,
+} from "./lib/ic.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
 import { dataCivil, hojeLocalISO } from "./lib/datas.js";
 import { CREDENCIAMENTO, MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
@@ -397,7 +404,7 @@ function cursoFrom(req) {
 // Chaves internas do servidor: invisíveis e não graváveis pela API pública.
 // "auth-*" guarda sessão/usuários; "sys-*", registros operacionais (ex.: quais
 // ações já receberam cobrança de relatório).
-const CHAVES_INTERNAS = /^(auth-|sys-|atas-)/;
+const CHAVES_INTERNAS = /^(auth-|sys-|atas-|ic-)/;
 
 app.get("/api/estado", async (req, res) => {
   try {
@@ -1144,6 +1151,324 @@ app.delete("/api/atas/:id", async (req, res) => {
     if (!podeEditar(u, atas[i])) return { erro: [403, "Sem permissão"], gravar: false };
     if (atas[i].numero) return { erro: [400, "Ata numerada não pode ser excluída"], gravar: false };
     atas.splice(i, 1);
+    return { ok: true };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true });
+});
+
+/* ======================================================================
+   ARCHÉ IC — Iniciação Científica
+   Projeto (submissão → avaliação → execução), cronograma de todos os
+   projetos num só lugar e relatórios parcial/final do aluno indicado.
+   As regras de quem vê e quem faz o quê vivem em lib/ic.js, onde são
+   testáveis; aqui ficam só o transporte e a gravação em série.
+   ====================================================================== */
+async function lerProjetos() {
+  const raw = await storage.get(IC_KEY);
+  try {
+    const v = JSON.parse(raw || "[]");
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
+}
+
+let filaIC = Promise.resolve();
+/** Lê, transforma e grava os projetos em série. `fn(projetos)` devolve o resultado. */
+function comProjetos(fn) {
+  const proxima = filaIC.then(async () => {
+    const projetos = await lerProjetos();
+    const r = await fn(projetos);
+    if (r?.gravar !== false) await storage.set(IC_KEY, JSON.stringify(projetos));
+    return r;
+  });
+  filaIC = proxima.catch(() => {});
+  return proxima;
+}
+
+// Gestão do setor: gestor geral ou coordenador designado para "pesquisa".
+const gereIC = (u) => !!u && (u.papel === "gestor" || u.modulos?.includes("pesquisa"));
+const quemIC = (u) => ({ email: u?.email, gestao: gereIC(u) });
+
+async function sessaoIC(req, res) {
+  const u = await usuarioDe(req, res);
+  if (!u || u.papel === "pendente") {
+    res.status(403).json({ error: "Faça login para acessar a Iniciação Científica" });
+    return null;
+  }
+  return u;
+}
+
+/**
+ * Como a pessoa entra no setor: quem coordena, quem orienta, ou o aluno
+ * indicado num projeto. A tela se monta a partir disto — o aluno não vê
+ * submissão nem gestão, só o seu plano de trabalho e os seus relatórios.
+ */
+function perfilIC(u, projetos) {
+  if (gereIC(u)) return "gestao";
+  const papeis = projetos.map((p) => papelNoProjeto(quemIC(u), p)).filter(Boolean);
+  if (papeis.includes("orientador")) return "orientador";
+  if (papeis.length && papeis.every((x) => x === "aluno")) return "aluno";
+  return "orientador";        // docente ainda sem projeto: pode submeter
+}
+
+app.get("/api/ic/meta", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const projetos = await lerProjetos();
+  res.json({
+    cursos: CURSOS, modalidades: IC_MODALIDADES, status: IC_STATUS, rotulos: IC_ROTULO_STATUS,
+    situacoesEtapa: SITUACOES_ETAPA, tiposRelatorio: TIPOS_RELATORIO,
+    gestao: gereIC(u), eu: u.email, nome: u.nome || "", perfil: perfilIC(u, projetos),
+  });
+});
+
+// Lista enxuta: o resumo é o bastante para o painel e para as listas.
+app.get("/api/ic", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const projetos = (await lerProjetos()).filter((p) => podeVerProjeto(meu, p));
+  res.json({
+    gestao: gereIC(u), eu: u.email,
+    projetos: projetos.map((p) => resumirProjeto(p, meu))
+      .sort((a, b) => String(b.atualizadoEm || "").localeCompare(String(a.atualizadoEm || ""))),
+  });
+});
+
+// Cronograma de todos os projetos num só lugar (a regra de recorte por
+// pessoa está em lib/ic.js: o aluno só vê o que é dele).
+app.get("/api/ic/cronograma", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  res.json({ etapas: cronogramaDe(await lerProjetos(), quemIC(u)), eu: u.email, hoje: hojeLocalISO() });
+});
+
+app.get("/api/ic/relatorios", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const projetos = await lerProjetos();
+  const meu = quemIC(u);
+  res.json({
+    relatorios: relatoriosDe(projetos, meu),
+    pendentes: projetos.filter((p) => podeVerProjeto(meu, p)).flatMap((p) =>
+      relatoriosPendentes(p)
+        .filter((x) => papelNoProjeto(meu, p) !== "aluno" || x.aluno === u.email)
+        .map((x) => ({ ...x, projetoId: p.id, numero: p.numero, titulo: p.titulo }))),
+    eu: u.email,
+  });
+});
+
+app.get("/api/ic/:id", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const p = (await lerProjetos()).find((x) => x.id === req.params.id);
+  if (!p || !podeVerProjeto(meu, p)) return res.status(404).json({ error: "Projeto não encontrado" });
+  res.json({
+    projeto: p, papel: papelNoProjeto(meu, p),
+    podeEditar: podeEditarProjeto(meu, p), podeGerir: podeGerirExecucao(meu, p),
+    podeAvaliar: podeAvaliar(meu, p), podeEnviar: podeEnviarRelatorio(meu, p),
+    podeValidar: podeValidarRelatorio(meu, p),
+  });
+});
+
+// Cria ou atualiza a proposta. O número só sai na submissão, para que
+// rascunho abandonado não consuma a sequência do ano.
+app.post("/api/ic", async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    const b = req.body || {};
+    const meu = quemIC(u);
+    const r = await comProjetos((projetos) => {
+      const i = b.id ? projetos.findIndex((x) => x.id === b.id) : -1;
+      const base = i >= 0 ? projetos[i] : null;
+      if (!base && b.id) return { erro: [404, "Projeto não encontrado"], gravar: false };
+      if (base && !podeEditarProjeto(meu, base) && !podeGerirExecucao(meu, base))
+        return { erro: [403, "Sem permissão para editar este projeto"], gravar: false };
+      // em execução, a proposta está fechada: seguem só cronograma e alunos
+      if (base && !podeEditarProjeto(meu, base)) {
+        const p = normalizarProjeto({ ...base, alunos: b.alunos, cronograma: b.cronograma },
+          { base, autor: u.email });
+        projetos[i] = anotarProjeto(p, { quem: u.email, oQue: "atualizou cronograma/alunos" });
+        return { projeto: projetos[i] };
+      }
+      const projeto = anotarProjeto(normalizarProjeto(b, { base, autor: u.email }),
+        { quem: u.email, oQue: base ? "editou a proposta" : "abriu o projeto" });
+      if (i >= 0) projetos[i] = projeto; else projetos.push(projeto);
+      return { projeto };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, projeto: r.projeto });
+  } catch (e) {
+    console.error("Erro ao gravar projeto de IC:", e);
+    res.status(500).json({ error: e.message || "Erro ao gravar o projeto" });
+  }
+});
+
+// Submete à avaliação da PROPPEX: aqui o projeto ganha número.
+app.post("/api/ic/:id/submeter", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    if (!podeEditarProjeto(meu, projetos[i])) return { erro: [403, "Este projeto não está mais em edição"], gravar: false };
+    const erros = validarProjeto(projetos[i]);
+    if (erros.length) return { erro: [400, erros.join(" ")], gravar: false };
+    projetos[i] = anotarProjeto(numerarProjeto(projetos, {
+      ...projetos[i], status: "submetido", submetidoEm: new Date().toISOString(),
+      atualizadoEm: new Date().toISOString(),
+    }), { quem: u.email, oQue: "submeteu à avaliação" });
+    return { projeto: projetos[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, projeto: r.projeto });
+});
+
+// Avaliação de mérito: aprova, devolve para ajustes ou reprova.
+app.post("/api/ic/:id/avaliar", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const decisao = String(req.body?.decisao || "");
+  const parecer = String(req.body?.parecer || "").trim().slice(0, 8000);
+  if (!["aprovado", "devolvido", "reprovado"].includes(decisao))
+    return res.status(400).json({ error: "Decisão inválida" });
+  if (decisao !== "aprovado" && parecer.length < 10)
+    return res.status(400).json({ error: "Escreva o parecer: quem recebe precisa saber o que corrigir." });
+
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    if (!podeAvaliar(meu, projetos[i]))
+      return { erro: [403, "Só a coordenação avalia, e apenas projetos submetidos"], gravar: false };
+    projetos[i] = anotarProjeto({
+      ...projetos[i], status: decisao,
+      avaliacao: { decisao, parecer, por: u.email, em: new Date().toISOString() },
+      atualizadoEm: new Date().toISOString(),
+    }, { quem: u.email, oQue: `avaliou: ${decisao}` });
+    return { projeto: projetos[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, projeto: r.projeto });
+});
+
+// Relatório do aluno indicado — parcial ou final.
+app.post("/api/ic/:id/relatorio", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const b = req.body || {};
+  const tipo = String(b.tipo || "");
+  if (!TIPOS_RELATORIO.includes(tipo)) return res.status(400).json({ error: "Tipo de relatório inválido" });
+  if (String(b.resumo || "").trim().length < 200)
+    return res.status(400).json({ error: "O relatório precisa de ao menos 200 caracteres." });
+
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    if (!podeEnviarRelatorio(meu, projetos[i]))
+      return { erro: [403, "O relatório é enviado pelo aluno indicado, com o projeto em execução"], gravar: false };
+    const lista = [...(projetos[i].relatorios || [])];
+    // reenvio depois de devolvido substitui o anterior, guardando o parecer
+    const j = lista.findIndex((x) => x.tipo === tipo && x.aluno === u.email);
+    const novo = {
+      id: j >= 0 ? lista[j].id : "rel_" + crypto.randomUUID().slice(0, 10),
+      tipo, aluno: u.email, periodo: String(b.periodo || "").slice(0, 60),
+      resumo: String(b.resumo || "").slice(0, 20000),
+      anexos: j >= 0 ? lista[j].anexos || [] : [],
+      enviadoEm: new Date().toISOString(), situacao: "enviado",
+      parecer: j >= 0 ? lista[j].parecer || "" : "", avaliadoPor: "", avaliadoEm: "",
+    };
+    if (j >= 0) lista[j] = novo; else lista.push(novo);
+    projetos[i] = anotarProjeto({ ...projetos[i], relatorios: lista, atualizadoEm: new Date().toISOString() },
+      { quem: u.email, oQue: `enviou o relatório ${tipo}` });
+    return { projeto: projetos[i], relatorio: novo };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, projeto: r.projeto, relatorio: r.relatorio });
+});
+
+app.post("/api/ic/:id/relatorio/:rid/anexo", upload.single("file"), async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
+    const meu = quemIC(u);
+    const p = (await lerProjetos()).find((x) => x.id === req.params.id);
+    if (!p || !podeVerProjeto(meu, p)) return res.status(404).json({ error: "Projeto não encontrado" });
+    const rel = (p.relatorios || []).find((x) => x.id === req.params.rid);
+    if (!rel) return res.status(404).json({ error: "Relatório não encontrado" });
+    if (rel.aluno !== u.email) return res.status(403).json({ error: "O anexo é de quem assina o relatório" });
+
+    const arquivo = await files.save({
+      buffer: req.file.buffer, originalName: req.file.originalname,
+      prefix: `ic/${slug(p.curso || "geral")}/${slug(p.numero || p.id)}`,
+    });
+    const r = await comProjetos((projetos) => {
+      const i = projetos.findIndex((x) => x.id === req.params.id);
+      if (i < 0) return { erro: [404, "Projeto não encontrado"], gravar: false };
+      const lista = (projetos[i].relatorios || []).map((x) => x.id !== req.params.rid ? x
+        : { ...x, anexos: [...(x.anexos || []).slice(0, 9), { ...arquivo, em: new Date().toISOString() }] });
+      projetos[i] = anotarProjeto({ ...projetos[i], relatorios: lista, atualizadoEm: new Date().toISOString() },
+        { quem: u.email, oQue: `anexou ${req.file.originalname}` });
+      return { projeto: projetos[i] };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, projeto: r.projeto });
+  } catch (e) {
+    console.error("Erro ao anexar ao relatório de IC:", e);
+    res.status(500).json({ error: e.message || "Erro ao anexar o arquivo" });
+  }
+});
+
+// Validação do relatório — de quem orienta.
+app.post("/api/ic/:id/relatorio/:rid/validar", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const decisao = String(req.body?.decisao || "");
+  const parecer = String(req.body?.parecer || "").trim().slice(0, 8000);
+  if (!["validado", "devolvido"].includes(decisao)) return res.status(400).json({ error: "Decisão inválida" });
+  if (decisao === "devolvido" && parecer.length < 10)
+    return res.status(400).json({ error: "Diga o que o aluno precisa corrigir." });
+
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    if (!podeValidarRelatorio(meu, projetos[i]))
+      return { erro: [403, "Quem valida o relatório é a orientação"], gravar: false };
+    const lista = projetos[i].relatorios || [];
+    const j = lista.findIndex((x) => x.id === req.params.rid);
+    if (j < 0) return { erro: [404, "Relatório não encontrado"], gravar: false };
+    lista[j] = { ...lista[j], situacao: decisao, parecer, avaliadoPor: u.email, avaliadoEm: new Date().toISOString() };
+
+    // final validado de todos os alunos encerra o projeto
+    const finaisOk = (projetos[i].alunos || []).length > 0 && (projetos[i].alunos || []).every((a) =>
+      lista.some((x) => x.tipo === "final" && x.aluno === a.email && x.situacao === "validado"));
+    projetos[i] = anotarProjeto({
+      ...projetos[i], relatorios: [...lista],
+      status: finaisOk && projetos[i].status === "aprovado" ? "concluido" : projetos[i].status,
+      atualizadoEm: new Date().toISOString(),
+    }, { quem: u.email, oQue: `${decisao === "validado" ? "validou" : "devolveu"} o relatório ${lista[j].tipo}` });
+    return { projeto: projetos[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, projeto: r.projeto });
+});
+
+app.delete("/api/ic/:id", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    if (!podeEditarProjeto(meu, projetos[i])) return { erro: [403, "Sem permissão"], gravar: false };
+    if (projetos[i].numero) return { erro: [400, "Projeto já protocolado não pode ser excluído"], gravar: false };
+    projetos.splice(i, 1);
     return { ok: true };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
