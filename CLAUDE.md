@@ -137,11 +137,26 @@ public/
   (0–100) sem formulário — ela tem **precedência** sobre a média dos pareceres, fica no
   histórico (sigilosa) e some da visão do avaliador e da orientação. `{ nota: null }`
   desfaz. Nos próximos editais o caminho é o parecer pelo sistema.
-- **Guias da seleção** (SPA, só gestão): **Projetos** traz as duas classificações de cada
+- **Guias da seleção** (SPA): **Projetos** (só gestão) traz as duas classificações de cada
   edital em tabela (posição, protocolo, título, professor, titulação, categoria de
-  submissão — a modalidade —, NP, CL, total); **Editais e Resultados** traz os documentos
-  para download — o edital como publicado (`DOCUMENTOS_EDITAIS` em lib/edital.js →
-  `public/pesquisa/docs/`) e o resultado em PDF, ano a ano.
+  submissão — a LINHA: IC, IT ou IE —, NP, CL, total); **Editais e Resultados** é de
+  TODOS os usuários do setor e traz os documentos para download — o edital como publicado
+  (`DOCUMENTOS_EDITAIS` em lib/edital.js → `public/pesquisa/docs/`) e o resultado em PDF
+  (o `resultado.pdf` sai por um leitor neutro de gestão: todo mundo baixa o mesmo
+  documento). A guia **Cronograma** é só do professor e do aluno; para a gestão, o
+  Painel mostra o dashboard de relatórios em atraso e a guia **Relatórios** vira o radar:
+  a lista dos projetos em execução com EM DIA/ATRASADO — o detalhe se lê no projeto.
+- **Prazos dos relatórios** (`prazosRelatorios` em lib/ic.js, item 11.1.b): o parcial
+  vence aos 6 meses de execução e o final no fim da vigência; cada um pode ser entregue
+  a partir de 2 meses antes. Projeto ATRASADO = prazo vencido com relatório faltando.
+- **Decisão da seleção em 4 saídas** (renderSelecao): aprovado com bolsa CNPq, aprovado
+  com bolsa UNIEGO, aprovado sem bolsa ou reprovado — o front encadeia as rotas
+  `avaliar` + `fomento`. Bolsa concedida abre a **Indicação do bolsista** no projeto:
+  a orientação preenche CPF, telefone, banco, agência, conta e Pix de cada aluno
+  bolsista (campos do aluno em `normalizarAluno`; nunca aparecem para o avaliador nem
+  para os colegas de projeto). Falta de dado vira pendência `bolsista-incompleto`. A
+  PROPPEX exporta tudo em `GET /api/ic/bolsistas.xlsx` (só gestão) para montar os
+  contratos — as mesmas colunas do formulário antigo do Google.
 - **Grupo de pesquisa** (DGP/CNPq): a proposta indica **apenas o nome do grupo**. Por
   decisão do dono, **não se pergunta o papel** de quem submete no grupo — professores
   submetem propostas ligadas a grupos que não lideram — e por isso **não há a pontuação

@@ -257,8 +257,8 @@ const SECOES = [
   { id: "gestao", grupo: "PROJETOS", rot: "Gestão", ic: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8"/>', perfis: ["gestao", "orientador"] },
   { id: "avaliacao", grupo: "SELEÇÃO", rot: "Avaliação", ic: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', perfis: ["gestao", "avaliador"] },
   { id: "classificacao", grupo: "SELEÇÃO", rot: "Projetos", ic: '<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>', perfis: ["gestao"] },
-  { id: "editais", grupo: "SELEÇÃO", rot: "Editais e Resultados", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 12h8M8 16h8"/>', perfis: ["gestao"] },
-  { id: "cronograma", grupo: "ACOMPANHAMENTO", rot: "Cronograma", ic: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/>', perfis: ["gestao", "orientador", "aluno"] },
+  { id: "editais", grupo: "SELEÇÃO", rot: "Editais e Resultados", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 12h8M8 16h8"/>' },
+  { id: "cronograma", grupo: "ACOMPANHAMENTO", rot: "Cronograma", ic: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/>', perfis: ["orientador", "aluno"] },
   { id: "relatorios", grupo: "ACOMPANHAMENTO", rot: "Relatórios", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 13h8M8 17h5"/>', perfis: ["gestao", "orientador", "aluno"] },
 ];
 
@@ -499,15 +499,26 @@ function renderPainel() {
          ["Parecer pendente", aDarParecer.length, "aguardando você"],
          ["Pareceres entregues", meus.filter((p) => p.meuParecer?.situacao === "entregue").length, "já respondidos"],
          ["Recusados", meus.filter((p) => p.meuParecer?.situacao === "recusado").length, "por impedimento"]]
-      : [["Em avaliação", cont("submetido"), "aguardando a PROPPEX"],
-         ["Em execução", cont("aprovado"), "projetos aprovados"],
-         ["Atividades em atraso", atrasadas.length, "no cronograma"],
-         ["Relatórios a validar", aValidar.length, "enviados pelos alunos"]];
+      : META.gestao
+        ? [["Em avaliação", cont("submetido"), "aguardando a PROPPEX"],
+           ["Em execução", cont("aprovado"), "projetos aprovados"],
+           ["Relatórios em atraso", PROJETOS.filter((p) => p.prazoRelatorios?.atrasado).length, "projetos fora do prazo"],
+           ["Relatórios a validar", aValidar.length, "enviados pelos alunos"]]
+        : [["Em avaliação", cont("submetido"), "aguardando a PROPPEX"],
+           ["Em execução", cont("aprovado"), "projetos aprovados"],
+           ["Atividades em atraso", atrasadas.length, "no cronograma"],
+           ["Relatórios a validar", aValidar.length, "enviados pelos alunos"]];
 
+  const foraDoPrazo = META.gestao ? PROJETOS.filter((p) => p.prazoRelatorios?.atrasado) : [];
   $("v-painel").innerHTML = `
     <div class="kpis">${kpis.map(([l, v, d]) => `
       <div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("")}
     </div>
+
+    ${META.gestao && foraDoPrazo.length ? `<div class="banner ba-warn"><b>Relatórios em atraso</b> —
+      ${foraDoPrazo.length} projeto(s) fora do prazo do edital:
+      ${foraDoPrazo.slice(0, 8).map((p) => `<a href="#" onclick="abrir('${esc(p.id)}');return false">${esc(p.numero || p.titulo)}</a>`).join(" · ")}${foraDoPrazo.length > 8 ? " · …" : ""}
+      — a lista completa está na guia Relatórios.</div>` : ""}
 
     ${!meus.length ? `<div class="card"><div class="card-t">Comece por aqui</div>
       <div class="card-s">${ehAluno()
@@ -738,7 +749,7 @@ function renderClassificacao() {
           <td>${esc(p.titulo || "(sem título)")}</td>
           <td>${esc(p.orientador?.nome || p.orientador?.email || "—")}</td>
           <td>${esc(titNome(p.orientador?.titulacao))}</td>
-          <td>${esc(modVigente(p))}</td>
+          <td>${esc(linhaNome(p.linha))}</td>
           <td>${p.classificacao?.np ?? "—"}${p.notaDireta ? ' <span class="muted" title="nota atribuída pela coordenação">✎</span>' : ""}</td>
           <td>${p.classificacao?.cl ?? "—"}</td>
           <td><b>${comNota ? p.classificacao.total : "—"}</b></td>
@@ -769,24 +780,23 @@ function renderClassificacao() {
    RESULTADO em PDF timbrado — os dois para download. As listas de projetos
    ficam na guia Projetos. */
 function renderEditais() {
-  $("v-editais").innerHTML = editaisOrdenados().map((e) => {
-    const doEdital = PROJETOS.filter((p) => (p.edital || META.edital?.numero) === e.numero && p.status !== "rascunho");
-    const bolsas = doEdital.filter((p) => p.fomento && p.fomento.tipo !== "voluntario").length;
-    return `<div class="card">
+  $("v-editais").innerHTML = editaisOrdenados().map((e) => `<div class="card">
       <div class="card-t">Edital ${esc(e.numero)}${e.vigente ? ' <span class="badge b-aprovado">vigente</span>' : ""}</div>
-      <div class="card-s">Ano ${anoDoEdital(e.numero) || "—"} · ${doEdital.length} proposta(s) ·
-        ${bolsas} bolsa(s) concedida(s).</div>
+      <div class="card-s">Ano ${anoDoEdital(e.numero) || "—"} · ${e.projetos} proposta(s) ·
+        ${e.bolsas ?? 0} bolsa(s) concedida(s).</div>
       <div class="exp">
         ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">
           📜 Edital (PDF)</a>` : `<span class="muted">Documento do edital ainda não arquivado.</span>`}
         <a class="bt bt-sec" href="/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}" target="_blank" rel="noopener">
           📄 Resultado do processo (PDF)</a>
+        ${META.gestao ? `<a class="bt bt-ghost" href="/api/ic/bolsistas.xlsx?edital=${encodeURIComponent(e.numero)}"
+          title="Uma linha por bolsista, com CPF, contato e dados bancários — para montar os contratos">
+          📇 Bolsistas para contrato (Excel)</a>` : ""}
       </div>
       <div class="muted" style="margin-top:10px">O resultado sai sempre com os dados de agora — emitido na hora,
-        com as duas classificações (doutores e geral). A lista dos projetos está na guia
-        <a href="#" onclick="nav('classificacao');return false">Projetos</a>.</div>
-    </div>`;
-  }).join("") || `<div class="card"><div class="vazio">Nenhum edital registrado ainda.</div></div>`;
+        com as duas classificações (doutores e geral).${META.gestao ? ` A lista dos projetos está na guia
+        <a href="#" onclick="nav('classificacao');return false">Projetos</a>.` : ""}</div>
+    </div>`).join("") || `<div class="card"><div class="vazio">Nenhum edital registrado ainda.</div></div>`;
 }
 
 /* ------------------------------ cronograma ----------------------------- */
@@ -839,7 +849,53 @@ function renderCronograma() {
 }
 
 /* ------------------------------ relatórios ----------------------------- */
+/* Para a gestão, a guia Relatórios é um radar: cada projeto em execução com
+   a sua situação frente aos prazos do edital — EM DIA ou ATRASADO — e nada
+   mais. O relatório completo se lê dentro do projeto, num clique. */
+function renderRelatoriosGestao() {
+  const emExec = PROJETOS.filter((p) => ["aprovado", "concluido"].includes(p.status));
+  const ordem = emExec.slice().sort((a, b) =>
+    (b.prazoRelatorios?.atrasado === true) - (a.prazoRelatorios?.atrasado === true)
+    || String(a.numero || "").localeCompare(String(b.numero || "")));
+  const atrasados = ordem.filter((p) => p.prazoRelatorios?.atrasado).length;
+  const fmtBr = (iso) => iso ? iso.split("-").reverse().join("/") : "—";
+
+  const situacao = (p) => {
+    if (p.status === "concluido") return `<span class="badge b-validado">concluído</span>`;
+    if (p.prazoRelatorios?.atrasado) {
+      const quais = p.prazoRelatorios.prazos.filter((x) => x.atrasado)
+        .map((x) => `${x.tipo} (venceu ${fmtBr(x.vence)})`).join(" e ");
+      return `<span class="badge b-atrasada" title="${esc(quais)}">atrasado</span>`;
+    }
+    return `<span class="badge b-aprovado">em dia</span>`;
+  };
+
+  $("v-relatorios").innerHTML = `
+    <div class="tut"><details><summary>Como os prazos funcionam</summary>
+      <ol>
+        <li>São dois relatórios por aluno: o <b>parcial</b>, que vence aos 6 meses de execução, e o <b>final</b>, no fim da vigência.</li>
+        <li>Cada um pode começar a ser entregue <b>2 meses antes</b> de vencer.</li>
+        <li>O projeto fica <b>atrasado</b> quando um prazo vence e ainda falta relatório daquele tipo.</li>
+        <li>Clique no projeto para ler os relatórios completos e o histórico.</li>
+      </ol></details></div>
+
+    <div class="card">
+      <div class="card-t">Projetos em execução</div>
+      <div class="card-s">${emExec.length} projeto(s)${atrasados ? ` · <b style="color:var(--warn)">${atrasados} atrasado(s)</b>` : " · todos em dia"}.</div>
+      ${ordem.map((p) => `
+        <div class="linha" style="cursor:pointer" onclick="abrir('${esc(p.id)}')">
+          <div class="txt">
+            <div class="p1">${esc(p.numero || "sem número")} · ${esc(p.titulo || "(sem título)")}</div>
+            <div class="p2">${esc(cursoNome(p.curso))} · orientação: ${esc(p.orientador?.nome || p.orientador?.email || "—")}
+              · ${p.relatorios} relatório(s) no sistema${p.aValidar ? ` · ${p.aValidar} a validar` : ""}</div>
+          </div>
+          ${situacao(p)}
+        </div>`).join("") || `<div class="vazio">Nenhum projeto em execução ainda — a guia acompanha os aprovados.</div>`}
+    </div>`;
+}
+
 function renderRelatorios() {
+  if (META.gestao) return renderRelatoriosGestao();
   const pend = RELS.pendentes;
   const enviados = RELS.relatorios;
 
@@ -1048,6 +1104,8 @@ function renderEditor(alvo) {
       ${ger ? `<div class="exp"><button class="bt bt-sec" onclick="addAluno()">＋ Indicar aluno</button></div>` : ""}
     </div>
 
+    ${renderIndicacaoBolsista(p, ger)}
+
     ${renderProducao(p, ger)}
 
     <div class="card">
@@ -1219,15 +1277,20 @@ function renderSelecao(p) {
 
   return `<div class="card">
     <div class="card-t">Seleção e concessão</div>
-    <div class="card-s">Marque se o projeto foi contemplado com bolsa — do CNPq ou do UNIEGO — ou se seguirá como voluntário.
-      A modalidade do edital sai daí: ${esc(linhaNome(p.linha))} + bolsa CNPq = ${esc(modNome((META.modalidades.find((m) => m.linha === p.linha && m.fomento === "cnpq") || {}).codigo))}.</div>
+    <div class="card-s">A decisão da seleção numa escolha só: aprovado com bolsa (CNPq ou UNIEGO), aprovado
+      sem bolsa (voluntário) ou reprovado. A modalidade do edital sai daí:
+      ${esc(linhaNome(p.linha))} + bolsa CNPq = ${esc(modNome((META.modalidades.find((m) => m.linha === p.linha && m.fomento === "cnpq") || {}).codigo))}.
+      Concedida a bolsa, a orientação indica o bolsista na ficha que abre no projeto.</div>
 
     ${p.fomento ? `<div class="banner ba-ok">Definido: <b>${esc(fomentoNome(p.fomento.tipo))}</b>${
-      p.fomento.modalidade ? ` — ${esc(modNome(p.fomento.modalidade))}` : ""} · por ${esc(p.fomento.por)} em ${fmtDH(p.fomento.em)}</div>` : ""}
+      p.fomento.modalidade ? ` — ${esc(modNome(p.fomento.modalidade))}` : ""} · por ${esc(p.fomento.por)} em ${fmtDH(p.fomento.em)}</div>`
+      : p.status === "reprovado" ? `<div class="banner ba-err">Projeto reprovado na seleção.</div>` : ""}
 
     <div class="exp">
-      ${META.fomentos.map((f) => `<button class="bt ${p.fomento?.tipo === f.codigo ? "bt-pri" : "bt-sec"}"
-        onclick="definirFomento('${f.codigo}')">${esc(f.nome)}</button>`).join("")}
+      <button class="bt ${p.fomento?.tipo === "cnpq" ? "bt-pri" : "bt-sec"}" onclick="decidirSelecao('cnpq')">✓ Aprovado com bolsa CNPq</button>
+      <button class="bt ${p.fomento?.tipo === "uniego" ? "bt-pri" : "bt-sec"}" onclick="decidirSelecao('uniego')">✓ Aprovado com bolsa UNIEGO</button>
+      <button class="bt ${p.fomento?.tipo === "voluntario" ? "bt-pri" : "bt-sec"}" onclick="decidirSelecao('voluntario')">✓ Aprovado sem bolsa</button>
+      ${["submetido"].includes(p.status) ? `<button class="bt bt-err" onclick="decidirSelecao('reprovado')">✕ Reprovado</button>` : ""}
     </div>
 
     ${p.status === "rascunho" ? "" : `
@@ -1272,15 +1335,81 @@ async function atribuirNota(desfazer) {
   } catch (e) { aviso(e.message, "err"); }
 }
 
-async function definirFomento(tipo) {
-  const obs = tipo === "voluntario" ? "" : (prompt("Observação sobre a concessão (opcional):") ?? "");
+/* A decisão da seleção numa tacada: aprovar (se ainda estiver submetido) e
+   marcar o fomento — ou reprovar, com o parecer que a orientação vai ler. */
+async function decidirSelecao(tipo) {
   try {
-    const r = await api(`/api/ic/${ATUAL.id}/fomento`, {
+    if (tipo === "reprovado") {
+      const parecer = prompt("Parecer da reprovação (a orientação vai ler):");
+      if (parecer === null) return;
+      if (parecer.trim().length < 10) return aviso("Escreva o parecer da reprovação — quem recebe precisa saber o porquê.", "warn");
+      await api(`/api/ic/${ATUAL.id}/avaliar`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decisao: "reprovado", parecer }),
+      });
+      await carregar(); montarSidebar(); await abrir(ATUAL.id);
+      return aviso("Projeto reprovado na seleção.");
+    }
+    const obs = tipo === "voluntario" ? "" : (prompt("Observação sobre a concessão (opcional):") ?? "");
+    if (ATUAL.status === "submetido") {
+      await api(`/api/ic/${ATUAL.id}/avaliar`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decisao: "aprovado", parecer: "" }),
+      });
+    }
+    await api(`/api/ic/${ATUAL.id}/fomento`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tipo, observacao: obs }),
     });
-    await carregar(); montarSidebar(); await abrir(r.projeto.id);
-    aviso(`Fomento definido: ${fomentoNome(tipo)}.`);
+    await carregar(); montarSidebar(); await abrir(ATUAL.id);
+    aviso(`Decisão registrada: aprovado — ${fomentoNome(tipo)}.${tipo !== "voluntario" ? " A orientação já pode indicar o bolsista na ficha do projeto." : ""}`);
   } catch (e) { aviso(e.message, "err"); }
+}
+
+/* --------------------- indicação do bolsista --------------------------- */
+/* Abre quando a bolsa é concedida (CNPq ou UNIEGO). Quem preenche é a
+   orientação — são os dados que a PROPPEX exporta para montar o contrato:
+   CPF, telefone e a conta que vai receber a bolsa. O avaliador e os colegas
+   de projeto nunca veem esses campos (o recorte é do servidor). */
+function renderIndicacaoBolsista(p, ger) {
+  if (!p.id || !p.fomento || p.fomento.tipo === "voluntario") return "";
+  if (PODE.papel === "avaliador") return "";
+  const bolsistas = (p.alunos || []).map((a, i) => [a, i]).filter(([a]) => a.bolsista);
+  const ro = ger ? "" : "disabled";
+  const linha = ([a, i]) => `
+    <div class="bloco">
+      <div class="bloco-cab"><span class="t">${esc(a.nome || "Bolsista sem nome")}</span>
+        ${a.cpf && a.telefone && a.banco && a.conta && a.pix
+          ? '<span class="badge b-validado">indicação completa</span>'
+          : '<span class="badge b-enviado">faltam dados</span>'}</div>
+      <div class="grid3">
+        <div><label>CPF do aluno *</label>
+          <input ${ro} value="${esc(a.cpf || "")}" oninput="ATUAL.alunos[${i}].cpf=this.value" placeholder="000.000.000-00"></div>
+        <div><label>Telefone do aluno *</label>
+          <input ${ro} value="${esc(a.telefone || "")}" oninput="ATUAL.alunos[${i}].telefone=this.value" placeholder="(62) 90000-0000"></div>
+        <div><label>E-mail do aluno</label>
+          <input type="email" ${ro} value="${esc(a.email || "")}" oninput="ATUAL.alunos[${i}].email=this.value"></div>
+      </div>
+      <div class="grid3">
+        <div><label>Banco *</label>
+          <input ${ro} value="${esc(a.banco || "")}" oninput="ATUAL.alunos[${i}].banco=this.value" placeholder="Ex.: Caixa, Nubank"></div>
+        <div><label>Agência</label>
+          <input ${ro} value="${esc(a.agencia || "")}" oninput="ATUAL.alunos[${i}].agencia=this.value"></div>
+        <div><label>Conta corrente *</label>
+          <input ${ro} value="${esc(a.conta || "")}" oninput="ATUAL.alunos[${i}].conta=this.value"></div>
+      </div>
+      <label>Pix (vinculado à conta acima) *</label>
+      <input ${ro} value="${esc(a.pix || "")}" oninput="ATUAL.alunos[${i}].pix=this.value"
+        placeholder="CPF, e-mail ou chave aleatória — precisa ser da conta informada">
+    </div>`;
+  return `<div class="card">
+    <div class="card-t">Indicação do bolsista</div>
+    <div class="card-s"><b>${esc(fomentoNome(p.fomento.tipo))}</b> concedida${p.fomento.modalidade ? ` (${esc(modNome(p.fomento.modalidade))})` : ""}.
+      ${ger ? "Preencha os dados de cada bolsista — são eles que geram o contrato da bolsa. A conta e o Pix precisam ser do próprio aluno."
+            : "Dados preenchidos pela orientação para o contrato da bolsa."}
+      Depois de preencher, <b>salve o projeto</b>.</div>
+    ${bolsistas.map(linha).join("") || `<div class="banner ba-warn">Nenhum aluno marcado como <b>bolsista</b> na
+      lista acima — marque a caixa "Bolsista" do aluno contemplado e salve.</div>`}
+  </div>`;
 }
 
 /* ---------------- planilha de pontuação da produção -------------------- */

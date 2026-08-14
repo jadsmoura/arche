@@ -9,7 +9,7 @@ import {
   podeGerirExecucao, podeAvaliar, podeEnviarRelatorio, podeValidarRelatorio,
   cronogramaDe, etapaAtrasada, relatoriosDe, relatoriosPendentes, resumir, anotar,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto,
-  notaFinal, placarPareceres, participaDeAlgum,
+  notaFinal, placarPareceres, participaDeAlgum, prazosRelatorios, pendenciasDoProjeto,
 } from "../lib/ic.js";
 
 /* -------------------------------- fixtura ------------------------------- */
@@ -486,6 +486,53 @@ test("o resumo da lista conta etapas, atrasos e relatórios a validar", () => {
   assert.equal(r.aValidar, 1);
   assert.equal(r.papel, "orientador");
   assert.equal(r.resumo, undefined, "o resumo da lista não carrega os campos longos");
+});
+
+test("os prazos do edital: parcial aos 6 meses, final no fim, janela 2 meses antes", () => {
+  const p = { ...emExecucao(), inicio: "2026-09-01", fim: "2027-08-31" };
+  const r = prazosRelatorios(p, "2026-10-01");
+  assert.equal(r.prazos[0].vence, "2027-03-01", "parcial: 6 meses depois do início");
+  assert.equal(r.prazos[0].abre, "2027-01-01", "pode entregar 2 meses antes");
+  assert.equal(r.prazos[1].vence, "2027-08-31", "final: no fim da vigência");
+  assert.equal(r.prazos[1].abre, "2027-07-01");
+  assert.equal(r.atrasado, false, "em outubro nada venceu ainda");
+
+  assert.equal(prazosRelatorios(p, "2027-03-02").atrasado, true, "passou o prazo do parcial sem entrega");
+  const comParcial = { ...p, relatorios: [{ id: "r1", tipo: "parcial", aluno: ALUNO.email, situacao: "validado" }] };
+  assert.equal(prazosRelatorios(comParcial, "2027-03-02").atrasado, false, "parcial entregue: em dia");
+  assert.equal(prazosRelatorios(comParcial, "2027-09-05").atrasado, true, "mas o final venceu sem entrega");
+  const devolvido = { ...p, relatorios: [{ id: "r1", tipo: "parcial", aluno: ALUNO.email, situacao: "devolvido" }] };
+  assert.equal(prazosRelatorios(devolvido, "2027-03-02").atrasado, true, "devolvido não conta como entregue");
+
+  assert.equal(prazosRelatorios({ ...novo(), status: "submetido" }), null, "sem execução não há prazo");
+  // sem datas próprias, valem as da vigência do edital
+  const semDatas = { ...emExecucao(), inicio: "", fim: "" };
+  assert.equal(prazosRelatorios(semDatas, "2026-10-01").prazos[0].vence, "2027-03-01");
+});
+
+test("a indicação do bolsista guarda contato e conta; colega de projeto não vê", () => {
+  const p = normalizarProjeto({ ...bruto(), alunos: [{
+    nome: "Marcos", email: ALUNO.email, matricula: "2024001", bolsista: true,
+    cpf: "044.244.431-16", telefone: "(62) 90000-0000",
+    banco: "Caixa", agencia: "0655", conta: "20674195-2", pix: "04424443116",
+  }, { nome: "Beatriz", email: ALUNO2.email, matricula: "2024002" }] }, { autor: PROF.email });
+  const a = p.alunos[0];
+  assert.equal(a.banco, "Caixa");
+  assert.equal(a.pix, "04424443116");
+  assert.equal(a.cpf, "04424443116", "CPF entra só em dígitos");
+
+  // a colega de projeto vê que o bolsista existe — nunca a conta dele
+  const vista = visaoDoProjeto({ ...p, status: "aprovado", numero: "IC-2026-001" }, ALUNO2);
+  const doColega = vista.alunos.find((x) => x.nome === "Marcos");
+  for (const campo of ["banco", "agencia", "conta", "pix", "telefone", "cpf"])
+    assert.ok(!doColega?.[campo], `${campo} do bolsista não vaza para o colega`);
+
+  // bolsa concedida sem os dados completos vira pendência
+  const semDados = { ...p, status: "aprovado", fomento: { tipo: "uniego", modalidade: "pbic-uniego" },
+    alunos: [{ ...p.alunos[0], banco: "", pix: "" }] };
+  assert.ok(pendenciasDoProjeto(semDados).some((x) => x.tipo === "bolsista-incompleto"));
+  assert.ok(!pendenciasDoProjeto({ ...semDados, fomento: { tipo: "voluntario" } })
+    .some((x) => x.tipo === "bolsista-incompleto"), "voluntário não tem contrato de bolsa");
 });
 
 test("o histórico guarda quem fez o quê, com teto", () => {

@@ -30,7 +30,7 @@ import {
   papelNoProjeto, podeVerProjeto, podeEditarProjeto, podeGerirExecucao, podeAvaliar,
   podeEnviarRelatorio, podeValidarRelatorio, cronogramaDe, relatoriosDe, relatoriosPendentes,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto, notaFinal,
-  participaDeAlgum, vincularPorCpf,
+  participaDeAlgum, vincularPorCpf, modalidadeEfetiva as modalidadeEfetivaIC,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import {
@@ -1370,14 +1370,19 @@ function pessoasDoSetor(projetos) {
  * vigente entra sempre, mesmo antes da primeira submissão.
  */
 function editaisConhecidos(projetos) {
-  const mapa = new Map([[EDITAL.numero, 0]]);
+  // as contagens são agregadas de TODOS os projetos (quem chama é o servidor,
+  // não a visão de cada um) — é o que permite mostrar a guia Editais e
+  // Resultados para qualquer usuário sem vazar projeto alheio
+  const mapa = new Map([[EDITAL.numero, { projetos: 0, bolsas: 0 }]]);
   for (const p of projetos || []) {
     const n = String(p.edital || EDITAL.numero);
     if (p.status === "rascunho") continue;
-    mapa.set(n, (mapa.get(n) || 0) + 1);
+    if (!mapa.has(n)) mapa.set(n, { projetos: 0, bolsas: 0 });
+    mapa.get(n).projetos += 1;
+    if (p.fomento && p.fomento.tipo !== "voluntario") mapa.get(n).bolsas += 1;
   }
-  return [...mapa].map(([numero, projetos]) => ({
-    numero, projetos, vigente: numero === EDITAL.numero,
+  return [...mapa].map(([numero, c]) => ({
+    numero, projetos: c.projetos, bolsas: c.bolsas, vigente: numero === EDITAL.numero,
     documento: DOCUMENTOS_EDITAIS[numero] || null,
   })).sort((a, b) => b.numero.localeCompare(a.numero, "pt-BR"));
 }
@@ -1420,7 +1425,10 @@ app.get("/api/ic/meta", async (req, res) => {
     gestao: meu.gestao, eu: meu.email, nome: como ? "" : (u.nome || ""),
     perfil: perfilIC(u, projetos, meu),
     // quem a coordenação pode simular, e por quais olhos está olhando agora
-    ...(gereIC(u) ? { pessoas: pessoasDoSetor(projetos), editais: editaisConhecidos(projetos) } : {}),
+    // os editais (números, contagens e documentos) são de todos; a lista de
+    // pessoas para o "ver como" segue só com a coordenação
+    editais: editaisConhecidos(projetos),
+    ...(gereIC(u) ? { pessoas: pessoasDoSetor(projetos) } : {}),
     ...(como ? { simulando: como.email } : {}),
   });
 });
@@ -1474,13 +1482,15 @@ app.get("/api/ic/resultado.pdf", async (req, res) => {
   try {
     const u = await sessaoIC(req, res);
     if (!u) return;
-    if (!gereIC(u)) return res.status(403).send("Somente a coordenação de pesquisa emite o resultado do processo.");
+    // O resultado é o documento PUBLICADO do processo: qualquer pessoa do
+    // setor baixa o mesmo PDF. Por isso o resumo sai por um leitor neutro de
+    // gestão — sem identidade, para o papel de ninguém recortar as notas.
     const numero = String(req.query.edital || EDITAL.numero).trim();
     const todos = await lerProjetos();
-    const meu = quemIC(u);
+    const neutro = { email: "", cpf: "", gestao: true };
     const projetos = todos
       .filter((p) => String(p.edital || EDITAL.numero) === numero && p.status !== "rascunho")
-      .map((p) => resumirProjeto(p, meu));
+      .map((p) => resumirProjeto(p, neutro));
     const { gerarResultadoEditalPdf } = await import("./lib/pdf.js");
     const buffer = await gerarResultadoEditalPdf({
       edital: numero === EDITAL.numero ? EDITAL : { numero },
@@ -1492,6 +1502,75 @@ app.get("/api/ic/resultado.pdf", async (req, res) => {
   } catch (e) {
     console.error("Erro no PDF do resultado:", e);
     res.status(500).send("Erro ao gerar o PDF: " + e.message);
+  }
+});
+
+/**
+ * Planilha dos bolsistas de um edital (.xlsx), para a PROPPEX montar os
+ * contratos — as mesmas colunas do formulário que o setor já usava fora do
+ * sistema. Uma linha por bolsista de projeto aprovado com bolsa. Dados
+ * bancários de aluno: só a gestão baixa.
+ */
+app.get("/api/ic/bolsistas.xlsx", async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    if (!gereIC(u)) return res.status(403).send("Somente a coordenação de pesquisa exporta os bolsistas.");
+    const numero = String(req.query.edital || EDITAL.numero).trim();
+    const projetos = (await lerProjetos()).filter((p) =>
+      String(p.edital || EDITAL.numero) === numero &&
+      ["aprovado", "concluido"].includes(p.status) &&
+      p.fomento && p.fomento.tipo !== "voluntario");
+
+    const { default: ExcelJS } = await import("exceljs");
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Bolsistas");
+    ws.columns = [
+      { header: "Categoria de Bolsa", key: "categoria", width: 18 },
+      { header: "Curso", key: "curso", width: 22 },
+      { header: "Protocolo", key: "protocolo", width: 14 },
+      { header: "Projeto", key: "projeto", width: 50 },
+      { header: "Nome Completo do Orientador", key: "orientador", width: 32 },
+      { header: "CPF do Professor", key: "cpfProfessor", width: 16 },
+      { header: "Telefone (WhatsApp)", key: "telefoneProfessor", width: 18 },
+      { header: "E-mail do Orientador", key: "emailProfessor", width: 30 },
+      { header: "Nome Completo do Aluno", key: "aluno", width: 32 },
+      { header: "CPF do Aluno", key: "cpfAluno", width: 16 },
+      { header: "Telefone do Aluno", key: "telefoneAluno", width: 18 },
+      { header: "E-mail do Aluno", key: "emailAluno", width: 30 },
+      { header: "Banco do Aluno", key: "banco", width: 16 },
+      { header: "Agência", key: "agencia", width: 10 },
+      { header: "Conta Corrente", key: "conta", width: 16 },
+      { header: "Pix (vinculado à conta)", key: "pix", width: 24 },
+    ];
+    ws.getRow(1).font = { bold: true };
+    for (const p of projetos) {
+      const mod = modalidadeEfetivaIC(p);
+      for (const a of (p.alunos || []).filter((x) => x.bolsista)) {
+        ws.addRow({
+          categoria: mod?.nome || (p.fomento.tipo === "cnpq" ? "Bolsa CNPq" : "Bolsa UNIEGO"),
+          curso: (CURSOS.find((c) => c.slug === p.curso) || {}).nome || p.curso || "",
+          protocolo: p.numero || "",
+          projeto: p.titulo || "",
+          orientador: p.orientador?.nome || "",
+          cpfProfessor: formatarCpf(p.orientador?.cpf) || "",
+          telefoneProfessor: p.orientador?.telefone || "",
+          emailProfessor: p.orientador?.email || "",
+          aluno: a.nome || "",
+          cpfAluno: formatarCpf(a.cpf) || "",
+          telefoneAluno: a.telefone || "",
+          emailAluno: a.email || "",
+          banco: a.banco || "", agencia: a.agencia || "", conta: a.conta || "", pix: a.pix || "",
+        });
+      }
+    }
+    const buffer = await wb.xlsx.writeBuffer();
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="bolsistas-edital-${slug(numero)}.xlsx"`);
+    res.send(Buffer.from(buffer));
+  } catch (e) {
+    console.error("Erro na planilha de bolsistas:", e);
+    res.status(500).send("Erro ao gerar a planilha: " + e.message);
   }
 });
 
