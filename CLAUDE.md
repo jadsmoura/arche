@@ -72,9 +72,14 @@ public/
   (PROPPEX e coordenadores do setor "atas") vê todas. O checklist da Pauta Regulatória
   é calculado sobre todas as atas, mas para quem não é gestão devolve apenas data e
   número da última sessão, nunca o ponto de pauta nem o id da ata.
-- Fluxo das Atas (ARCHÉ AT): rascunho → minuta → em revisão → aprovada → registrada.
-  O número (`ATA-NDE-ENF-2026-003`) só é emitido ao sair do rascunho e nunca se repete.
-  Ata registrada é documento fechado. Toda leitura/gravação passa por `/api/atas/*`.
+- Fluxo das Atas (ARCHÉ AT): **rascunho → minuta → registrada**. "Em revisão" e "aprovada"
+  foram removidas (quem revisa e aprova é o mesmo órgão que lavra). O número
+  (`ATA-NDE-ENF-2026-003`) só é emitido ao sair do rascunho e nunca se repete.
+  **Ata registrada continua corrigível** por quem a lavrou e pela gestão: registrar de
+  novo gera o PDF retificado (`…-retificada-N.pdf`) ao lado do anterior no Drive, e a
+  alteração fica no histórico. O que não se pode é rebaixá-la — isso apagaria em silêncio
+  a prova de conformidade do órgão. Só ata registrada conta no checklist da Pauta
+  Regulatória. Toda leitura/gravação passa por `/api/atas/*`.
 - **O ARCHÉ AT não envia e-mail.** A ata vive no sistema: PDF gerado sob demanda em
   `/api/atas/:id/pdf` e cópia arquivada no Drive ao registrar. Quem precisa do documento
   entra e baixa. (A Extensão continua enviando e-mails; a regra é só das atas.)

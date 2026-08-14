@@ -16,7 +16,7 @@ import { getFiles, slug } from "./lib/files.js";
 import { varrer, varrerSeVencido, dispensar, situacao } from "./lib/cobranca.js";
 import {
   ATAS_KEY, ORGAOS, CURSOS, STATUS as ATA_STATUS, normalizarAta, validarAta,
-  numerar, tituloDe, anotar, encaminhamentos, orgaoDe, podeVerAta, podeEditarAta,
+  numerar, tituloDe, anotar, encaminhamentos, orgaoDe, podeVerAta, podeEditarAta, statusVigente,
 } from "./lib/atas.js";
 import {
   PAUTAS, MOMENTOS, CADENCIAS, RITUAL, checklistSemestral, pautasSugeridas, janelaDe,
@@ -740,8 +740,14 @@ function pastaDaAta(ata) {
 
 async function lerAtas() {
   const raw = await storage.get(ATAS_KEY);
-  try { const v = JSON.parse(raw || "[]"); return Array.isArray(v) ? v : []; }
-  catch { return []; }
+  let v = [];
+  try { v = JSON.parse(raw || "[]"); } catch { return []; }
+  if (!Array.isArray(v)) return [];
+  // o fluxo encolheu para rascunho → minuta → registrada; o que estava nas
+  // situações extintas volta a minuta já na leitura, e persiste na próxima
+  // gravação, sem migração em lote
+  for (const a of v) if (a && a.status) a.status = statusVigente(a.status);
+  return v;
 }
 
 let filaAtas = Promise.resolve();
@@ -960,20 +966,23 @@ app.post("/api/atas/:id/redigir", async (req, res) => {
   }
 });
 
-// Muda a situação (minuta → em revisão → aprovada). O registro tem rota
-// própria, porque emite PDF e dispara e-mails.
+// Volta a ata para rascunho ou marca a minuta como pronta. O registro tem
+// rota própria, porque emite o PDF e arquiva a cópia.
 app.post("/api/atas/:id/status", async (req, res) => {
   const u = await sessaoAtas(req, res);
   if (!u) return;
   const alvo = String(req.body?.status || "");
-  if (!["rascunho", "minuta", "revisao", "aprovada"].includes(alvo))
+  if (!["rascunho", "minuta"].includes(alvo))
     return res.status(400).json({ error: "Situação inválida" });
   const r = await comAtas((atas) => {
     const i = atas.findIndex((x) => x.id === req.params.id);
     if (i < 0 || !podeVer(u, atas[i])) return { erro: [404, "Ata não encontrada"], gravar: false };
     if (!podeEditar(u, atas[i])) return { erro: [403, "Sem permissão"], gravar: false };
-    if (alvo === "aprovada" && !gereAtas(u) && atas[i].secretaria?.email !== u.email)
-      return { erro: [403, "A aprovação cabe à secretaria da sessão ou à PROPPEX"], gravar: false };
+    // Rebaixar ata registrada apagaria em silêncio a prova de conformidade do
+    // órgão. Corrigir não exige isso: edita-se em cima e gera-se o PDF de novo.
+    if (atas[i].status === "registrada") {
+      return { erro: [400, "Ata registrada não volta atrás. Corrija o texto e gere o PDF novamente."], gravar: false };
+    }
     if (alvo !== "rascunho") {
       const erros = validarAta(atas[i]);
       if (erros.length) return { erro: [400, erros.join(" ")], gravar: false };
@@ -1014,14 +1023,17 @@ app.post("/api/atas/:id/registrar", async (req, res) => {
     const ata = (await lerAtas()).find((x) => x.id === req.params.id);
     if (!ata || !podeVer(u, ata)) return res.status(404).json({ error: "Ata não encontrada" });
     if (!podeEditar(u, ata)) return res.status(403).json({ error: "Sem permissão" });
-    if (ata.status === "registrada") return res.status(400).json({ error: "Esta ata já está registrada" });
     if (!ata.texto) return res.status(400).json({ error: "Gere a minuta antes de registrar" });
+    // registrar uma ata já registrada é retificação: gera PDF novo e arquiva
+    // ao lado do anterior, com sufixo, sem apagar o que já foi guardado
+    const retificacao = ata.status === "registrada";
+    const versao = (ata.historico || []).filter((h) => /registrou|retificou/.test(h.oQue || "")).length;
     const erros = validarAta(ata);
     if (erros.length) return res.status(400).json({ error: erros.join(" ") });
 
     const { gerarAtaPdf } = await import("./lib/pdf.js");
     const pdfBuffer = await gerarAtaPdf(ata);
-    const nomePdf = `${slug(ata.numero || ata.id)}.pdf`;
+    const nomePdf = `${slug(ata.numero || ata.id)}${retificacao ? `-retificada-${versao}` : ""}.pdf`;
     const pasta = pastaDaAta(ata);
 
     let arquivo = null;
@@ -1034,24 +1046,15 @@ app.post("/api/atas/:id/registrar", async (req, res) => {
     const r = await comAtas((atas) => {
       const i = atas.findIndex((x) => x.id === req.params.id);
       if (i < 0) return { erro: [404, "Ata não encontrada"], gravar: false };
-      // "Leitura e aprovação da ata da sessão anterior": registrar esta ata
-      // aprova aquela, que é como o rito funciona nos colegiados.
-      for (const p of atas[i].pauta || []) {
-        if (!p.ataAnterior) continue;
-        const j = atas.findIndex((x) => x.id === p.ataAnterior);
-        if (j < 0 || !["minuta", "revisao"].includes(atas[j].status)) continue;
-        atas[j] = anotar({ ...atas[j], status: "aprovada", atualizadoEm: new Date().toISOString() },
-          { quem: u.email, oQue: `aprovada na sessão de ${atas[i].sessao?.data || "—"}` });
-      }
       atas[i] = numerar(atas, anotar({
         ...atas[i], status: "registrada", pdf: arquivo,
-        registro: { em: new Date().toISOString(), por: u.email, pasta },
+        registro: { em: new Date().toISOString(), por: u.email, pasta, versao: versao + 1 },
         atualizadoEm: new Date().toISOString(), atualizadoPor: u.email,
-      }, { quem: u.email, oQue: "registrou a ata" }));
+      }, { quem: u.email, oQue: retificacao ? `retificou a ata (versão ${versao + 1})` : "registrou a ata" }));
       return { ata: atas[i] };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-    res.json({ ok: true, ata: r.ata, arquivada: !!arquivo, pasta });
+    res.json({ ok: true, ata: r.ata, arquivada: !!arquivo, pasta, retificacao });
   } catch (e) {
     console.error("Erro ao registrar a ata:", e);
     res.status(500).json({ error: e.message || "Erro ao registrar a ata" });

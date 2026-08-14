@@ -365,18 +365,32 @@ test("cada um vê só as atas que registrou; a gestão vê todas", async () => {
   assert.equal(podeVerAta({ email: "camila@uniego.edu.br" }, null), false);
 });
 
-test("edição segue a visibilidade e trava no registro", async () => {
-  const { podeEditarAta } = await import("../lib/atas.js");
+test("quem vê a ata edita, inclusive depois de registrada", async () => {
+  const { podeEditarAta, STATUS } = await import("../lib/atas.js");
   const dono = { email: "camila@uniego.edu.br" };
   const gestor = { email: "proppex@uniego.edu.br", gestao: true };
   const base = { criadoPor: "camila@uniego.edu.br" };
 
-  for (const status of ["rascunho", "minuta", "revisao", "aprovada"]) {
-    assert.equal(podeEditarAta(dono, { ...base, status }), true, `dono edita em ${status}`);
+  for (const status of STATUS) {
+    assert.equal(podeEditarAta(dono, { ...base, status }), true,
+      `quem lavrou corrige em ${status} — erro em ata aparece meses depois`);
+    assert.equal(podeEditarAta(gestor, { ...base, status }), true, `a PROPPEX corrige em ${status}`);
   }
-  assert.equal(podeEditarAta(dono, { ...base, status: "registrada" }), false,
-    "ata registrada é documento fechado para quem a lavrou");
-  assert.equal(podeEditarAta(gestor, { ...base, status: "registrada" }), true,
-    "só a gestão mexe em ata registrada");
-  assert.equal(podeEditarAta({ email: "outro@uniego.edu.br" }, { ...base, status: "rascunho" }), false);
+  assert.equal(podeEditarAta({ email: "outro@uniego.edu.br" }, { ...base, status: "rascunho" }), false,
+    "quem não vê a ata também não a edita");
+  assert.equal(podeEditarAta(dono, null), false);
+});
+
+test("o fluxo tem três situações e as extintas migram para minuta", async () => {
+  const { STATUS, statusVigente, normalizarAta } = await import("../lib/atas.js");
+  assert.deepEqual(STATUS, ["rascunho", "minuta", "registrada"]);
+  assert.equal(statusVigente("revisao"), "minuta");
+  assert.equal(statusVigente("aprovada"), "minuta");
+  for (const s of STATUS) assert.equal(statusVigente(s), s, `${s} não pode ser remapeado`);
+
+  // ata gravada no fluxo antigo, ao ser normalizada, cai numa situação válida
+  const antiga = normalizarAta({ ...bruta(), status: "aprovada" });
+  assert.equal(antiga.status, "minuta");
+  const registrada = normalizarAta({ ...bruta(), status: "registrada" });
+  assert.equal(registrada.status, "registrada", "o que já estava registrado continua registrado");
 });

@@ -174,8 +174,6 @@
   /* ------------------------- específico do ARCHÉ AT ---------------------- */
   .b-rascunho{background:#eceff3;color:var(--muted)}
   .b-minuta{background:var(--info-soft);color:var(--info)}
-  .b-revisao{background:var(--warn-soft);color:var(--warn)}
-  .b-aprovada{background:var(--roxo-soft);color:var(--roxo)}
   .b-registrada{background:var(--ok-soft);color:var(--ok)}
   .filtros{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
   .filtros select,.filtros input{width:auto;min-width:150px;font-size:13px;padding:8px 10px}
@@ -342,8 +340,8 @@ let META = { orgaos: [], cursos: [], status: [], gestao: false, eu: "", ia: "mod
 let LISTA = [], ENCS = [], ATUAL = null, PODE_EDITAR = true, ME = null;
 let SECAO = "painel";
 
-const ROTULO_STATUS = { rascunho: "Rascunho", minuta: "Minuta", revisao: "Em revisão", aprovada: "Aprovada", registrada: "Registrada" };
-const PASSOS = ["rascunho", "minuta", "revisao", "aprovada", "registrada"];
+const ROTULO_STATUS = { rascunho: "Rascunho", minuta: "Minuta", registrada: "Registrada" };
+const PASSOS = ["rascunho", "minuta", "registrada"];
 
 const SECOES = [
   { id: "painel", rot: "Painel", ic: '<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>' },
@@ -448,7 +446,7 @@ function renderPainel() {
     || '<div class="vazio">Nenhuma ata registrada ainda.</div>';
 
   const fila = LISTA.filter((a) => a.status !== "registrada").slice(0, 6).map((a) => {
-    const oQue = { rascunho: "completar e gerar a minuta", minuta: "revisar o texto", revisao: "aprovar na sessão seguinte", aprovada: "registrar a ata" }[a.status] || "";
+    const oQue = { rascunho: "completar a pauta e gerar a minuta", minuta: "revisar o texto e registrar" }[a.status] || "";
     return `<div class="linha" onclick="abrir('${a.id}')" style="cursor:pointer">
       <div class="ponto" style="background:${corStatus(a.status)}"></div>
       <div class="txt"><div class="p1">${esc(a.titulo)} · ${fmtD(a.sessao?.data)}</div><div class="p2">${oQue}</div></div>
@@ -459,7 +457,7 @@ function renderPainel() {
     .map((e) => `<div class="linha"><div class="ponto" style="background:${e.atrasado ? "var(--err)" : "var(--ok)"}"></div>
       <div class="txt"><div class="p1">${esc(e.acao)}</div>
       <div class="p2">${esc(e.responsavel || "sem responsável")} · ${esc(e.orgao)}</div></div>
-      <span class="badge ${e.atrasado ? "b-revisao" : "b-registrada"}" style="${e.atrasado ? "background:var(--err-soft);color:var(--err)" : ""}">${fmtD(e.prazo)}</span></div>`).join("")
+      <span class="badge b-registrada" style="${e.atrasado ? "background:var(--err-soft);color:var(--err)" : ""}">${fmtD(e.prazo)}</span></div>`).join("")
     || '<div class="vazio">Nenhum encaminhamento com prazo.</div>';
 
   const barras = META.orgaos.map((o) => {
@@ -477,7 +475,7 @@ function renderPainel() {
     <div class="kpis">
       ${kpi("Atas no sistema", total, `${doAno} em ${ano}`)}
       ${kpi("Registradas", porStatus("registrada"), "documento fechado", "var(--ok)")}
-      ${kpi("Em elaboração", porStatus("rascunho") + porStatus("minuta") + porStatus("revisao"), "aguardando revisão", "var(--warn)")}
+      ${kpi("Em elaboração", porStatus("rascunho") + porStatus("minuta"), "ainda sem registro", "var(--warn)")}
       ${kpi("Encaminhamentos", ENCS.length, `${atrasados} em atraso`, atrasados ? "var(--err)" : "var(--muted)")}
       ${kpi("Órgãos ativos", orgaos, "com ata no sistema")}
     </div>
@@ -495,14 +493,15 @@ function renderPainel() {
     </div>
     <div class="card">
       <div class="card-t">Como funciona</div>
-      <div class="card-s">Cinco passos, do registro da reunião ao arquivo definitivo.</div>
+      <div class="card-s">Do registro da reunião ao arquivo. A ata registrada continua corrigível —
+        basta gerar o PDF de novo depois da correção.</div>
       <div class="passos">
         <div class="p feito">1 · Abrir a reunião</div><div class="p feito">2 · Presenças e pauta</div>
-        <div class="p feito">3 · Gerar a minuta</div><div class="p feito">4 · Revisar e aprovar</div>
+        <div class="p feito">3 · Gerar a minuta</div><div class="p feito">4 · Revisar o texto</div>
         <div class="p feito">5 · Registrar e arquivar</div>
       </div>
       <div class="kv">A minuta é redigida ${META.ia === "modelo" ? "pelo gerador do ARCHÉ" : `por IA (${esc(META.ia)})`}
-        a partir dos campos preenchidos e <b>sempre volta para revisão humana</b> antes de virar ata aprovada.</div>
+        a partir dos campos preenchidos e <b>sempre volta para revisão humana</b> antes de a ata ser registrada.</div>
       ${META.ia !== "modelo" ? `<div class="kv" style="color:var(--muted);font-size:12.5px">
         Ao gerar a minuta ou usar o assistente de escrita, o conteúdo dos campos é enviado
         ao provedor de IA (${esc(META.ia)}) para processamento. Registre em ata apenas o que
@@ -525,7 +524,7 @@ async function carregarAlertasDoPainel() {
     el.classList.add("hide");
   }
 }
-const corStatus = (s) => ({ rascunho: "#a9b4c0", minuta: "var(--info)", revisao: "var(--warn)", aprovada: "var(--roxo)", registrada: "var(--ok)" }[s] || "var(--muted)");
+const corStatus = (s) => ({ rascunho: "#a9b4c0", minuta: "var(--info)", registrada: "var(--ok)" }[s] || "var(--muted)");
 
 /* ------------------------------- arquivo ------------------------------- */
 let FILTRO = { orgao: "", curso: "", ano: "", status: "", q: "" };
@@ -927,6 +926,8 @@ function renderEditor(alvo) {
     ${a.id ? `<div class="passos">${PASSOS.map((p, i) =>
       `<div class="p ${i === iPasso ? "on" : i < iPasso ? "feito" : ""}">${i + 1} · ${ROTULO_STATUS[p]}</div>`).join("")}</div>` : ""}
     ${!PODE_EDITAR ? '<div class="banner ba-warn">Você está vendo esta ata em modo de leitura.</div>' : ""}
+    ${a.status === "registrada" && PODE_EDITAR ? `<div class="banner ba-ok">Ata registrada. Ainda é possível corrigi-la —
+      ao terminar, clique em <b>Gerar o PDF corrigido</b> para o arquivo refletir a correção. Toda alteração fica no histórico.</div>` : ""}
     <div id="msg"></div>
 
     <div class="card">
@@ -1080,7 +1081,6 @@ async function renderSugestoes() {
   };
 
   // item de praxe do rito: a ata da sessão anterior é lida e aprovada nesta
-  const pendenteAnterior = ANTERIOR && ["minuta", "revisao"].includes(ANTERIOR.status);
   const anteriorMarcada = (ATUAL.pauta || []).some((p) => p.ataAnterior);
   const itemAnterior = ANTERIOR ? `<label class="chk-pauta ${anteriorMarcada ? "on" : ""}">
       <input type="checkbox" ${anteriorMarcada ? "checked" : ""} ${PODE_EDITAR ? "" : "disabled"}
@@ -1089,12 +1089,11 @@ async function renderSugestoes() {
         <span class="tt">Leitura e aprovação da ata da sessão anterior</span>
         <span class="md">${esc(ANTERIOR.numero)} · sessão ${esc(ANTERIOR.tipo || "ordinária")} de ${fmtD(ANTERIOR.data)}
           · situação atual: ${ROTULO_STATUS[ANTERIOR.status] || ANTERIOR.status}</span>
-        <span class="ev">${pendenteAnterior
-          ? "Ao registrar esta ata, a anterior passa automaticamente a <b>aprovada</b> — é assim que o rito funciona."
-          : "A ata anterior já está " + (ROTULO_STATUS[ANTERIOR.status] || ANTERIOR.status).toLowerCase() + "; o ponto fica como registro da leitura."}</span>
+        <span class="ev">Item de praxe da ordem do dia: o ponto fica na ata como registro de que a
+          sessão anterior foi lida e aprovada pelo órgão.</span>
       </span>
-      <span class="badge ${anteriorMarcada ? "e-em-dia" : pendenteAnterior ? "e-vencendo" : "e-fora-da-janela"}">${
-        anteriorMarcada ? "nesta ata" : pendenteAnterior ? "aguardando aprovação" : "de praxe"}</span>
+      <span class="badge ${anteriorMarcada ? "e-em-dia" : "e-fora-da-janela"}">${
+        anteriorMarcada ? "nesta ata" : "de praxe"}</span>
     </label>` : "";
 
   el.classList.remove("hide");
@@ -1260,7 +1259,7 @@ async function removerAnexo(i) {
 }
 
 function cardMinuta(a) {
-  const pode = PODE_EDITAR && a.status !== "registrada";
+  const pode = PODE_EDITAR;
   return `<div class="card">
     <div class="card-t">Texto da ata</div>
     <div class="card-s">Revise livremente antes de aprovar — o texto abaixo é o que vai para o PDF.</div>
@@ -1274,10 +1273,9 @@ function cardMinuta(a) {
         ${a.texto && pode ? `<button class="bt bt-ghost" onclick="redigir(true)">✨ Reescrever a minuta</button>` : ""}
         ${a.texto ? `<a class="bt bt-ghost" href="/api/atas/${a.id}/pdf" target="_blank">📄 Ver o PDF</a>` : ""}
       </div>
-      ${a.texto && pode && a.status === "minuta" ? `<button class="bt bt-warn" onclick="mudarStatus('revisao')">Enviar para revisão</button>` : ""}
-      ${a.texto && pode && a.status === "revisao" ? `<button class="bt bt-ok" onclick="mudarStatus('aprovada')">✓ Aprovar na sessão</button>` : ""}
-      ${a.texto && pode && a.status === "aprovada" ? `<button class="bt bt-pri" onclick="registrar()">🔒 Registrar a ata</button>` : ""}
-      ${a.status === "registrada" ? `<span class="badge b-registrada">registrada em ${fmtDH(a.registro?.em)}</span>` : ""}
+      ${a.texto && pode && a.status !== "registrada" ? `<button class="bt bt-pri" onclick="registrar()">🔒 Registrar a ata</button>` : ""}
+      ${a.status === "registrada" ? `<span class="badge b-registrada">registrada em ${fmtDH(a.registro?.em)}${a.registro?.versao > 1 ? ` · versão ${a.registro.versao}` : ""}</span>` : ""}
+      ${a.status === "registrada" && pode ? `<button class="bt bt-warn" onclick="registrar()">↻ Gerar o PDF corrigido</button>` : ""}
     </div>
     ${a.registro?.pasta ? `<div class="cnt">Cópia arquivada no Google Drive em <b>ARCHÉ/${esc(a.registro.pasta)}</b>.</div>` : ""}
   </div>`;
@@ -1405,18 +1403,24 @@ async function mudarStatus(status) {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
     });
     ATUAL = r.ata; await carregar(); cabecalho(); renderEditor("v-ata");
-    aviso(status === "aprovada" ? "Ata aprovada. Agora é possível registrá-la." : "Situação atualizada.", "ok");
+    aviso(status === "rascunho" ? "Ata devolvida para rascunho." : "Situação atualizada.", "ok");
   } catch (e) { aviso(e.message, "err"); }
 }
 async function registrar() {
-  if (!confirm("Registrar a ata? Depois disso ela vira documento fechado e não poderá mais ser editada.")) return;
+  const jaRegistrada = ATUAL.status === "registrada";
+  const pergunta = jaRegistrada
+    ? "Gerar o PDF corrigido? A versão anterior continua arquivada no Drive, ao lado da nova."
+    : "Registrar a ata? Ela passa a valer como documento do órgão — correções posteriores ficam no histórico.";
+  if (!confirm(pergunta)) return;
   try {
     aviso("Gerando o PDF e arquivando…", "warn");
+    await salvar({ silencioso: true });
     const r = await api(`/api/atas/${ATUAL.id}/registrar`, { method: "POST" });
     ATUAL = r.ata; await carregar(); cabecalho(); renderEditor("v-ata");
-    aviso(r.arquivada
-      ? `Ata ${ATUAL.numero} registrada. O PDF está disponível aqui e a cópia foi arquivada no Drive.`
-      : `Ata ${ATUAL.numero} registrada. O PDF está disponível aqui.`, "ok");
+    aviso((r.retificacao
+      ? `Ata ${ATUAL.numero} retificada (versão ${ATUAL.registro?.versao}).`
+      : `Ata ${ATUAL.numero} registrada.`)
+      + (r.arquivada ? " O PDF está aqui e a cópia foi arquivada no Drive." : " O PDF está disponível aqui."), "ok");
   } catch (e) { aviso(e.message, "err"); }
 }
 async function excluir() {

@@ -192,12 +192,14 @@ test("perto do fim do semestre a pauta passa a 'vencendo'", () => {
   assert.ok(p.diasRestantes <= 45);
 });
 
-test("só ata aprovada ou registrada vale como prova", () => {
-  for (const status of ["rascunho", "minuta", "revisao"]) {
+test("só ata REGISTRADA vale como prova", () => {
+  for (const status of ["rascunho", "minuta"]) {
     assert.equal(noNde([ata({ status, pautas: ["nde-ppc"] })], "nde-ppc").estado, "nunca",
-      `${status} não pode contar como prova`);
+      `${status} ainda pode mudar — não conta como prova`);
   }
-  assert.equal(noNde([ata({ status: "aprovada", pautas: ["nde-ppc"] })], "nde-ppc").estado, "em-dia");
+  // situações do fluxo antigo migram para minuta e, portanto, também não contam
+  assert.equal(noNde([ata({ status: "aprovada", pautas: ["nde-ppc"] })], "nde-ppc").estado, "nunca");
+  assert.equal(noNde([ata({ status: "registrada", pautas: ["nde-ppc"] })], "nde-ppc").estado, "em-dia");
 });
 
 test("o crédito não atravessa cursos nem órgãos", () => {
