@@ -335,3 +335,11 @@ test("cada PDF sai com o timbre da sua época, e o texto da pauta regulatória �
     assert.ok(!buf.includes(Buffer.from("undefined")), `PDF de ${data} traz "undefined"`);
   }
 });
+
+test("a data de corte é a da publicação da Portaria MEC nº 623/2025", async () => {
+  const { UNIEGO_DESDE, CREDENCIAMENTO, marcaEm } = await import("../lib/marca.js");
+  assert.equal(UNIEGO_DESDE, "2025-09-05");
+  assert.match(CREDENCIAMENTO.ato, /Portaria MEC nº 623, de 5 de setembro de 2025/);
+  assert.equal(marcaEm("2025-09-04").sigla, "FACEG", "véspera da publicação ainda é FACEG");
+  assert.equal(marcaEm("2025-09-05").sigla, "UNIEGO", "no dia da publicação já é UNIEGO");
+});

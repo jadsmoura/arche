@@ -617,10 +617,11 @@ function notaDoTimbre(data) {
   if (m.codigo === "uniego") {
     return '<div class="muted" style="margin-top:5px">Aceita datas anteriores, para regularizar o arquivo.</div>';
   }
+  const ato = META.marcas.credenciamento?.ato;
   return `<div class="muted" style="margin-top:5px;color:var(--warn);font-weight:600">
     Timbre da <b>${esc(m.sigla)}</b> — ${esc(m.nome)}.<br>
-    <span style="font-weight:400">A instituição transformou-se em ${esc(META.marcas.uniego.sigla)}
-    em ${fmtD(META.marcas.unieogDesde)}; a ata sai com o timbre da época.</span></div>`;
+    <span style="font-weight:400">A transformação em ${esc(META.marcas.uniego.sigla)} vigora desde
+    ${fmtD(META.marcas.unieogDesde)}${ato ? ` (${esc(ato)})` : ""}; a ata sai com o timbre da época.</span></div>`;
 }
 // Trocar de âmbito derruba um órgão que não pertença a ele.
 function trocarAmbito(curso) {

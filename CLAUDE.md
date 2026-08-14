@@ -55,7 +55,10 @@ public/
   comissões e "Outro órgão institucional". Os de nome livre (`nomeLivre`) exigem o nome
   e não têm pauta regulatória nem ciclo obrigatório — o ARCHÉ só registra e arquiva.
 - **Identidade institucional por data** (`lib/marca.js`): a instituição era FACEG até
-  `MARCA_UNIEGO_DESDE` (padrão `2025-10-01`) e UNIEGO a partir dali. Ata com sessão
+  04/09/2025 e é UNIEGO desde 05/09/2025 — data de publicação da **Portaria MEC nº 623,
+  de 5 de setembro de 2025**, que a credenciou por transformação da FACEG
+  (Parecer CNE/CES nº 95/2025, e-MEC nº 202404601, cód. 3789). O corte fica em
+  `MARCA_UNIEGO_DESDE`. Ata com sessão
   anterior sai com o logotipo, o nome e o rodapé da FACEG, e o texto diz "na Faculdade
   Evangélica de Goianésia". Vale só para as atas — os documentos da Extensão seguem
   com o timbre atual. Para corrigir a data de corte, mude a env var, não o código.

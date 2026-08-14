@@ -24,7 +24,7 @@ import {
 } from "./lib/pautas.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
 import { dataCivil, hojeLocalISO } from "./lib/datas.js";
-import { MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
+import { CREDENCIAMENTO, MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
 import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
   papelDe, modulosDe, MODULOS, verificarGoogle, criarCodigo, verificarCodigo,
@@ -724,7 +724,7 @@ const ATAS_META = {
   // identidade institucional por data: atas anteriores à transformação saem
   // com o timbre da FACEG (ver lib/marca.js)
   marcas: {
-    unieogDesde: UNIEGO_DESDE,
+    unieogDesde: UNIEGO_DESDE, credenciamento: CREDENCIAMENTO,
     faceg: { nome: MARCAS.faceg.nome, sigla: MARCAS.faceg.sigla },
     uniego: { nome: MARCAS.uniego.nome, sigla: MARCAS.uniego.sigla },
   },

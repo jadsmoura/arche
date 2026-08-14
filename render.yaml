@@ -40,10 +40,12 @@ services:
       # primeiro que responder (GEMINI_MODELO força um específico).
       - key: ATA_IA
         value: modelo
-      # Primeiro dia em que a instituição já era UNIEGO. Atas com sessão
-      # anterior a esta data saem com o timbre da FACEG.
+      # Primeiro dia em que a instituição já era UNIEGO: publicação da
+      # Portaria MEC nº 623, de 5 de setembro de 2025, que a credenciou por
+      # transformação da FACEG. Atas com sessão anterior saem com o timbre da
+      # FACEG.
       - key: MARCA_UNIEGO_DESDE
-        value: "2025-10-01"
+        value: "2025-09-05"
       # Caixa institucional que recebe cópia de toda ata registrada.
       # Em branco, cai no NOTIFY_EMAIL (extensao@uniego.edu.br).
       - key: ATAS_EMAIL
