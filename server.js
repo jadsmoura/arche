@@ -24,10 +24,12 @@ import {
 } from "./lib/pautas.js";
 import {
   IC_KEY, MODALIDADES as IC_MODALIDADES, STATUS as IC_STATUS, ROTULO_STATUS as IC_ROTULO_STATUS,
-  SITUACOES_ETAPA, TIPOS_RELATORIO, normalizarProjeto, validarProjeto,
+  SITUACOES_ETAPA, TIPOS_RELATORIO, CRITERIOS, RECOMENDACOES, normalizarProjeto, validarProjeto,
   numerar as numerarProjeto, anotar as anotarProjeto, resumir as resumirProjeto,
   papelNoProjeto, podeVerProjeto, podeEditarProjeto, podeGerirExecucao, podeAvaliar,
   podeEnviarRelatorio, podeValidarRelatorio, cronogramaDe, relatoriosDe, relatoriosPendentes,
+  podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto, notaFinal,
+  participaDeAlgum,
 } from "./lib/ic.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
 import { dataCivil, hojeLocalISO } from "./lib/datas.js";
@@ -109,7 +111,13 @@ app.use(async (req, res, next) => {
   if (req.method !== "GET" || !AREAS_PROTEGIDAS.test(req.path)) return next();
   const u = await usuarioDe(req, res);   // renova a sessão de quem está usando
   if (!u) return res.redirect("/entrar?next=" + encodeURIComponent(req.originalUrl));
-  if (u.papel === "pendente") return res.redirect("/entrar?pendente=1");
+  if (u.papel === "pendente") {
+    // exceção da IC: aluno indicado e avaliador ad hoc designado entram pelo
+    // convite, que já é nominal (ver sessaoIC). Vale só para este setor.
+    const convidado = req.path.startsWith("/pesquisa")
+      && participaDeAlgum(u.email, await lerProjetos());
+    if (!convidado) return res.redirect("/entrar?pendente=1");
+  }
   if (req.path.startsWith("/usuarios") && u.papel !== "gestor") return res.redirect("/");
   next();
 });
@@ -1191,25 +1199,39 @@ const quemIC = (u) => ({ email: u?.email, gestao: gereIC(u) });
 
 async function sessaoIC(req, res) {
   const u = await usuarioDe(req, res);
-  if (!u || u.papel === "pendente") {
+  if (!u) {
     res.status(403).json({ error: "Faça login para acessar a Iniciação Científica" });
+    return null;
+  }
+  // Conta pendente entra na IC se — e só se — já estiver em algum projeto:
+  // aluno indicado pela orientação ou avaliador designado pela coordenação.
+  // O convite é por e-mail exato e a visibilidade continua sendo a do papel.
+  if (u.papel === "pendente" && !participaDeAlgum(u.email, await lerProjetos())) {
+    res.status(403).json({ error: "Seu acesso ainda está pendente de aprovação da PROPPEX" });
     return null;
   }
   return u;
 }
 
 /**
- * Como a pessoa entra no setor: quem coordena, quem orienta, ou o aluno
- * indicado num projeto. A tela se monta a partir disto — o aluno não vê
- * submissão nem gestão, só o seu plano de trabalho e os seus relatórios.
+ * Como a pessoa entra no setor — é o que monta a tela. São quatro acessos:
+ * a gestão (pró-reitoria e coordenação de pesquisa), quem orienta, o aluno
+ * indicado e o avaliador ad hoc. Os três últimos vêm do próprio projeto:
+ * ninguém precisa cadastrar papel à parte.
  */
 function perfilIC(u, projetos) {
   if (gereIC(u)) return "gestao";
-  const papeis = projetos.map((p) => papelNoProjeto(quemIC(u), p)).filter(Boolean);
+  const meu = quemIC(u);
+  const papeis = projetos.map((p) => papelNoProjeto(meu, p)).filter(Boolean);
   if (papeis.includes("orientador")) return "orientador";
-  if (papeis.length && papeis.every((x) => x === "aluno")) return "aluno";
-  return "orientador";        // docente ainda sem projeto: pode submeter
+  if (!papeis.length) return "orientador";     // docente ainda sem projeto: pode submeter
+  if (papeis.every((x) => x === "aluno")) return "aluno";
+  if (papeis.every((x) => x === "avaliador")) return "avaliador";
+  return "orientador";                          // acumula papéis: vê o setor inteiro
 }
+
+/** Nenhuma resposta devolve o projeto cru: o sigilo do parecer é aplicado aqui. */
+const verProjeto = (u, p) => visaoDoProjeto(p, quemIC(u));
 
 app.get("/api/ic/meta", async (req, res) => {
   const u = await sessaoIC(req, res);
@@ -1218,6 +1240,7 @@ app.get("/api/ic/meta", async (req, res) => {
   res.json({
     cursos: CURSOS, modalidades: IC_MODALIDADES, status: IC_STATUS, rotulos: IC_ROTULO_STATUS,
     situacoesEtapa: SITUACOES_ETAPA, tiposRelatorio: TIPOS_RELATORIO,
+    criterios: CRITERIOS, recomendacoes: RECOMENDACOES,
     gestao: gereIC(u), eu: u.email, nome: u.nome || "", perfil: perfilIC(u, projetos),
   });
 });
@@ -1265,10 +1288,11 @@ app.get("/api/ic/:id", async (req, res) => {
   const p = (await lerProjetos()).find((x) => x.id === req.params.id);
   if (!p || !podeVerProjeto(meu, p)) return res.status(404).json({ error: "Projeto não encontrado" });
   res.json({
-    projeto: p, papel: papelNoProjeto(meu, p),
+    projeto: verProjeto(u, p), papel: papelNoProjeto(meu, p),
     podeEditar: podeEditarProjeto(meu, p), podeGerir: podeGerirExecucao(meu, p),
     podeAvaliar: podeAvaliar(meu, p), podeEnviar: podeEnviarRelatorio(meu, p),
     podeValidar: podeValidarRelatorio(meu, p),
+    podeDesignar: podeDesignarAvaliador(meu, p), podeDarParecer: podeDarParecer(meu, p),
   });
 });
 
@@ -1280,6 +1304,10 @@ app.post("/api/ic", async (req, res) => {
     if (!u) return;
     const b = req.body || {};
     const meu = quemIC(u);
+    // o convidado (aluno, avaliador) entra pelo convite, mas não abre projeto:
+    // submeter é da orientação, com conta aprovada
+    if (!b.id && u.papel === "pendente")
+      return res.status(403).json({ error: "Seu acesso ainda está pendente: só é possível submeter projeto com a conta aprovada" });
     const r = await comProjetos((projetos) => {
       const i = b.id ? projetos.findIndex((x) => x.id === b.id) : -1;
       const base = i >= 0 ? projetos[i] : null;
@@ -1299,7 +1327,7 @@ app.post("/api/ic", async (req, res) => {
       return { projeto };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-    res.json({ ok: true, projeto: r.projeto });
+    res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
   } catch (e) {
     console.error("Erro ao gravar projeto de IC:", e);
     res.status(500).json({ error: e.message || "Erro ao gravar o projeto" });
@@ -1324,7 +1352,7 @@ app.post("/api/ic/:id/submeter", async (req, res) => {
     return { projeto: projetos[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-  res.json({ ok: true, projeto: r.projeto });
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
 });
 
 // Avaliação de mérito: aprova, devolve para ajustes ou reprova.
@@ -1352,7 +1380,112 @@ app.post("/api/ic/:id/avaliar", async (req, res) => {
     return { projeto: projetos[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-  res.json({ ok: true, projeto: r.projeto });
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
+});
+
+// Designação de avaliador ad hoc: é a indicação pelo e-mail que dá o acesso,
+// como acontece com o aluno. Fora do @uniego.edu.br a conta nasce pendente e
+// a PROPPEX ainda precisa liberá-la em /usuarios/.
+app.post("/api/ic/:id/avaliadores", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const alvo = String(req.body?.email || "").trim().toLowerCase();
+  const nome = String(req.body?.nome || "").trim().slice(0, 120);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(alvo)) return res.status(400).json({ error: "E-mail inválido" });
+
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    if (!podeDesignarAvaliador(meu, projetos[i]))
+      return { erro: [403, "Só a coordenação designa avaliador"], gravar: false };
+    const p = projetos[i];
+    // ninguém avalia projeto de que participa
+    if (papelNoProjeto({ email: alvo }, p) === "orientador" || papelNoProjeto({ email: alvo }, p) === "aluno")
+      return { erro: [400, "Quem participa do projeto não pode avaliá-lo"], gravar: false };
+    if (ehAvaliadorDe({ email: alvo }, p)) return { erro: [400, "Esta pessoa já foi designada"], gravar: false };
+    if ((p.avaliacoes || []).length >= 5) return { erro: [400, "Limite de 5 avaliadores por projeto"], gravar: false };
+
+    projetos[i] = anotarProjeto({
+      ...p,
+      avaliacoes: [...(p.avaliacoes || []), {
+        email: alvo, nome, designadoEm: new Date().toISOString(), designadoPor: u.email,
+        situacao: "designado", notas: {}, recomendacao: "", parecer: "", entregueEm: "",
+      }],
+      atualizadoEm: new Date().toISOString(),
+    }, { quem: u.email, oQue: `designou ${alvo} como avaliador`, sigilo: true });
+    return { projeto: projetos[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
+});
+
+app.delete("/api/ic/:id/avaliadores/:email", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const alvo = decodeURIComponent(req.params.email || "").toLowerCase();
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    if (!podeDesignarAvaliador(meu, projetos[i])) return { erro: [403, "Sem permissão"], gravar: false };
+    const atual = parecerDe(projetos[i], alvo);
+    if (!atual) return { erro: [404, "Avaliador não designado neste projeto"], gravar: false };
+    // parecer entregue faz parte do processo de seleção: não se apaga
+    if (atual.situacao === "entregue")
+      return { erro: [400, "Parecer já entregue — dispensar apagaria a prova da seleção"], gravar: false };
+    projetos[i] = anotarProjeto({
+      ...projetos[i],
+      avaliacoes: (projetos[i].avaliacoes || []).filter((a) => a.email !== alvo),
+      atualizadoEm: new Date().toISOString(),
+    }, { quem: u.email, oQue: `dispensou o avaliador ${alvo}`, sigilo: true });
+    return { projeto: projetos[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
+});
+
+// Parecer ad hoc: notas por critério, recomendação e texto. Também serve para
+// recusar a avaliação (impedimento, falta de aderência à área).
+app.post("/api/ic/:id/parecer", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const b = req.body || {};
+  const recusar = !!b.recusar;
+  const texto = String(b.parecer || "").trim().slice(0, 20000);
+  const recomendacao = String(b.recomendacao || "");
+
+  if (recusar && texto.length < 10) return res.status(400).json({ error: "Diga por que está recusando a avaliação." });
+  if (!recusar) {
+    if (!RECOMENDACOES.some((r) => r.codigo === recomendacao))
+      return res.status(400).json({ error: "Escolha a recomendação." });
+    if (texto.length < 200) return res.status(400).json({ error: "O parecer precisa de ao menos 200 caracteres." });
+    for (const c of CRITERIOS) {
+      const n = Number(b.notas?.[c.codigo]);
+      if (!Number.isFinite(n) || n < 0 || n > 10)
+        return res.status(400).json({ error: `Dê uma nota de 0 a 10 em "${c.nome}".` });
+    }
+  }
+
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    if (!podeDarParecer(meu, projetos[i]))
+      return { erro: [403, "Parecer é de quem foi designado, e só enquanto o projeto está em avaliação"], gravar: false };
+    const lista = (projetos[i].avaliacoes || []).map((a) => a.email !== u.email ? a : {
+      ...a,
+      situacao: recusar ? "recusado" : "entregue",
+      notas: recusar ? {} : Object.fromEntries(CRITERIOS.map((c) => [c.codigo, Number(b.notas[c.codigo])])),
+      recomendacao: recusar ? "" : recomendacao,
+      parecer: texto, entregueEm: new Date().toISOString(),
+    });
+    projetos[i] = anotarProjeto({ ...projetos[i], avaliacoes: lista, atualizadoEm: new Date().toISOString() },
+      { quem: u.email, oQue: recusar ? "recusou a avaliação" : "entregou o parecer ad hoc", sigilo: true });
+    return { projeto: projetos[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto), nota: notaFinal(parecerDe(r.projeto, u.email)) });
 });
 
 // Relatório do aluno indicado — parcial ou final.
@@ -1388,7 +1521,7 @@ app.post("/api/ic/:id/relatorio", async (req, res) => {
     return { projeto: projetos[i], relatorio: novo };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-  res.json({ ok: true, projeto: r.projeto, relatorio: r.relatorio });
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto), relatorio: r.relatorio });
 });
 
 app.post("/api/ic/:id/relatorio/:rid/anexo", upload.single("file"), async (req, res) => {
@@ -1417,7 +1550,7 @@ app.post("/api/ic/:id/relatorio/:rid/anexo", upload.single("file"), async (req, 
       return { projeto: projetos[i] };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-    res.json({ ok: true, projeto: r.projeto });
+    res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
   } catch (e) {
     console.error("Erro ao anexar ao relatório de IC:", e);
     res.status(500).json({ error: e.message || "Erro ao anexar o arquivo" });
@@ -1456,7 +1589,7 @@ app.post("/api/ic/:id/relatorio/:rid/validar", async (req, res) => {
     return { projeto: projetos[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-  res.json({ ok: true, projeto: r.projeto });
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
 });
 
 app.delete("/api/ic/:id", async (req, res) => {

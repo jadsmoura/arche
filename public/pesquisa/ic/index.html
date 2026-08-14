@@ -201,6 +201,7 @@
         <section id="v-painel" class="hide"></section>
         <section id="v-submissao" class="hide"></section>
         <section id="v-gestao" class="hide"></section>
+        <section id="v-avaliacao" class="hide"></section>
         <section id="v-cronograma" class="hide"></section>
         <section id="v-relatorios" class="hide"></section>
         <section id="v-projeto" class="hide"></section>
@@ -227,18 +228,25 @@ let PROJETOS = [], ETAPAS = [], RELS = { relatorios: [], pendentes: [] };
 let ATUAL = null, PODE = {}, ME = null, SECAO = "painel";
 let FILTRO = { status: "", curso: "", q: "" };
 
+// Quatro acessos, uma barra lateral só: cada perfil vê as guias que usa.
+//   gestao     — tudo
+//   orientador — submissão, gestão dos seus projetos, cronograma, relatórios
+//   aluno      — cronograma e relatórios (só os dele)
+//   avaliador  — avaliação dos projetos que recebeu, e nada mais
 const SECOES = [
   { id: "painel", grupo: "INÍCIO", rot: "Painel", ic: '<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>' },
-  { id: "submissao", grupo: "PROJETOS", rot: "Submissão", ic: '<path d="M12 5v14M5 12h14"/>', semAluno: true },
-  { id: "gestao", grupo: "PROJETOS", rot: "Gestão", ic: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8"/>', semAluno: true },
-  { id: "cronograma", grupo: "ACOMPANHAMENTO", rot: "Cronograma", ic: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/>' },
-  { id: "relatorios", grupo: "ACOMPANHAMENTO", rot: "Relatórios", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 13h8M8 17h5"/>' },
+  { id: "submissao", grupo: "PROJETOS", rot: "Submissão", ic: '<path d="M12 5v14M5 12h14"/>', perfis: ["gestao", "orientador"] },
+  { id: "gestao", grupo: "PROJETOS", rot: "Gestão", ic: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8"/>', perfis: ["gestao", "orientador"] },
+  { id: "avaliacao", grupo: "SELEÇÃO", rot: "Avaliação", ic: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', perfis: ["gestao", "avaliador"] },
+  { id: "cronograma", grupo: "ACOMPANHAMENTO", rot: "Cronograma", ic: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/>', perfis: ["gestao", "orientador", "aluno"] },
+  { id: "relatorios", grupo: "ACOMPANHAMENTO", rot: "Relatórios", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 13h8M8 17h5"/>', perfis: ["gestao", "orientador", "aluno"] },
 ];
 
 const TITULOS = {
   painel: ["Painel", "Situação dos projetos de Iniciação Científica."],
   submissao: ["Submissão de projeto", "Preencha a proposta e submeta à avaliação da PROPPEX."],
   gestao: ["Gestão de projetos", "Projetos submetidos, em execução e concluídos."],
+  avaliacao: ["Avaliação da seleção", "Parecer ad hoc dos projetos submetidos."],
   cronograma: ["Cronograma", "Todas as atividades dos projetos num só lugar."],
   relatorios: ["Relatórios", "Parciais e finais: o aluno envia, a orientação valida."],
   projeto: ["Projeto", ""],
@@ -260,6 +268,8 @@ const cursoNome = (slug) => (META.cursos.find((c) => c.slug === slug) || {}).nom
 const modNome = (c) => (META.modalidades.find((m) => m.codigo === c) || {}).nome || c || "—";
 const chip = (s) => `<span class="badge b-${esc(s)}">${esc(META.rotulos[s] || s)}</span>`;
 const ehAluno = () => META.perfil === "aluno";
+const ehAvaliador = () => META.perfil === "avaliador";
+const recNome = (c) => (META.recomendacoes.find((r) => r.codigo === c) || {}).nome || c || "—";
 
 async function sair() {
   try { await fetch("/auth/sair", { method: "POST" }); } catch { /* ignora */ }
@@ -270,11 +280,12 @@ async function sair() {
 function montarSidebar() {
   let grupo = "";
   $("menu").innerHTML = SECOES
-    .filter((s) => !(ehAluno() && s.semAluno))
+    .filter((s) => !s.perfis || s.perfis.includes(META.perfil))
     .map((s) => {
       const cab = s.grupo !== grupo ? `<div class="side-lab">${s.grupo}</div>` : "";
       grupo = s.grupo;
-      const n = s.id === "relatorios" ? RELS.relatorios.filter((r) => r.podeValidar).length : 0;
+      const n = s.id === "relatorios" ? RELS.relatorios.filter((r) => r.podeValidar).length
+        : s.id === "avaliacao" ? PROJETOS.filter((p) => p.aDarParecer).length : 0;
       return `${cab}<button class="side-item" data-s="${s.id}" onclick="nav('${s.id}')">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${s.ic}</svg>
         ${s.rot}${n ? `<span class="tag">${n}</span>` : ""}</button>`;
@@ -282,7 +293,8 @@ function montarSidebar() {
 
   const ini = (ME?.nome || ME?.email || "?").trim()[0]?.toUpperCase() || "?";
   const foto = ME?.perfil?.foto;
-  const papel = META.gestao ? "coordenação" : ehAluno() ? "aluno de IC" : "orientação";
+  const papel = META.gestao ? "coordenação"
+    : ehAluno() ? "aluno de IC" : ehAvaliador() ? "avaliador ad hoc" : "orientação";
   $("rodape-usuario").innerHTML = ME ? `
     <a class="av" href="/perfil/" title="Meu perfil">${foto ? `<img src="${esc(foto)}" alt="">` : esc(ini)}</a>
     <div style="min-width:0">
@@ -296,7 +308,7 @@ function montarSidebar() {
 function nav(secao, id) {
   SECAO = secao;
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === secao);
-  for (const v of ["painel", "submissao", "gestao", "cronograma", "relatorios", "projeto"]) $("v-" + v).classList.add("hide");
+  for (const v of ["painel", "submissao", "gestao", "avaliacao", "cronograma", "relatorios", "projeto"]) $("v-" + v).classList.add("hide");
   // submissão e projeto compartilham o editor (mesmos ids): a seção que sai
   // do ar é esvaziada, senão getElementById acha os campos escondidos
   for (const v of ["submissao", "projeto"]) if (v !== secao) $("v-" + v).innerHTML = "";
@@ -308,6 +320,7 @@ function nav(secao, id) {
   if (secao === "painel") renderPainel();
   if (secao === "submissao") { ATUAL = novoProjeto(); PODE = { podeEditar: true, papel: "orientador" }; renderEditor("v-submissao"); }
   if (secao === "gestao") renderGestao();
+  if (secao === "avaliacao") renderAvaliacao();
   if (secao === "cronograma") renderCronograma();
   if (secao === "relatorios") renderRelatorios();
   $("v-" + secao).classList.remove("hide");
@@ -353,15 +366,21 @@ function renderPainel() {
   const aValidar = RELS.relatorios.filter((r) => r.podeValidar);
   const minhasPendencias = RELS.pendentes;
 
+  const aDarParecer = meus.filter((p) => p.aDarParecer);
   const kpis = ehAluno()
     ? [["Projetos", meus.length, "em que você foi indicado"],
        ["Atividades", ETAPAS.length, "no seu plano de trabalho"],
        ["Em atraso", atrasadas.length, "atividades vencidas"],
        ["Relatórios a enviar", minhasPendencias.length, "parciais e finais"]]
-    : [["Em avaliação", cont("submetido"), "aguardando a PROPPEX"],
-       ["Em execução", cont("aprovado"), "projetos aprovados"],
-       ["Atividades em atraso", atrasadas.length, "no cronograma"],
-       ["Relatórios a validar", aValidar.length, "enviados pelos alunos"]];
+    : ehAvaliador()
+      ? [["Designados a você", meus.length, "projetos da seleção"],
+         ["Parecer pendente", aDarParecer.length, "aguardando você"],
+         ["Pareceres entregues", meus.filter((p) => p.meuParecer?.situacao === "entregue").length, "já respondidos"],
+         ["Recusados", meus.filter((p) => p.meuParecer?.situacao === "recusado").length, "por impedimento"]]
+      : [["Em avaliação", cont("submetido"), "aguardando a PROPPEX"],
+         ["Em execução", cont("aprovado"), "projetos aprovados"],
+         ["Atividades em atraso", atrasadas.length, "no cronograma"],
+         ["Relatórios a validar", aValidar.length, "enviados pelos alunos"]];
 
   $("v-painel").innerHTML = `
     <div class="kpis">${kpis.map(([l, v, d]) => `
@@ -371,8 +390,10 @@ function renderPainel() {
     ${!meus.length ? `<div class="card"><div class="card-t">Comece por aqui</div>
       <div class="card-s">${ehAluno()
         ? "Você ainda não foi indicado em nenhum projeto. Quem orienta faz a indicação pelo seu e-mail."
-        : "Nenhum projeto ainda. A submissão abre o rascunho, que você preenche no seu tempo."}</div>
-      ${ehAluno() ? "" : `<button class="bt bt-pri" onclick="nav('submissao')">＋ Submeter projeto</button>`}</div>` : ""}
+        : ehAvaliador()
+          ? "Nenhum projeto designado a você. A coordenação designa os avaliadores dentro de cada projeto."
+          : "Nenhum projeto ainda. A submissão abre o rascunho, que você preenche no seu tempo."}</div>
+      ${ehAluno() || ehAvaliador() ? "" : `<button class="bt bt-pri" onclick="nav('submissao')">＋ Submeter projeto</button>`}</div>` : ""}
 
     <div class="duplo">
       <div class="card">
@@ -448,6 +469,64 @@ function renderGestao() {
         ${p.atrasadas ? `<span class="badge b-atrasada">${p.atrasadas} atrasada(s)</span>` : ""}
         ${chip(p.status)}
       </div>`).join("") || `<div class="card"><div class="vazio">Nenhum projeto com esses filtros.</div></div>`}`;
+}
+
+/* ------------------------- avaliação da seleção ------------------------ */
+function renderAvaliacao() {
+  const emSelecao = PROJETOS.filter((p) => p.status === "submetido");
+  // o que passou pelas mãos do avaliador continua à vista depois da decisão:
+  // o parecer é dele e ele precisa poder reler o que assinou
+  const meus = PROJETOS.filter((p) => p.meuParecer);
+  const aFazer = meus.filter((p) => p.aDarParecer);
+  const feitos = meus.filter((p) => !p.aDarParecer);
+
+  const cartao = (p, comPlacar) => `
+    <div class="bloco ${p.aDarParecer ? "meu" : ""}">
+      <div class="bloco-cab">
+        <span class="num">${esc(p.numero || "—")}</span>
+        <span class="t">${esc(p.titulo || "(sem título)")}</span>
+        ${p.meuParecer ? `<span class="badge b-${p.meuParecer.situacao === "entregue" ? "validado" : p.meuParecer.situacao === "recusado" ? "reprovado" : "enviado"}">${esc({ designado: "parecer pendente", entregue: "parecer entregue", recusado: "avaliação recusada" }[p.meuParecer.situacao])}</span>` : ""}
+      </div>
+      <div class="muted">${esc(cursoNome(p.curso))} · ${esc(modNome(p.modalidade))}${p.edital ? ` · ${esc(p.edital)}` : ""}${
+        p.orientador ? ` · orientação: ${esc(p.orientador.nome || p.orientador.email)}` : ""}</div>
+      ${comPlacar && p.placar ? `<div class="muted" style="margin-top:6px">
+        ${p.placar.entregues}/${p.placar.designados} parecer(es) entregue(s)${p.placar.recusados ? ` · ${p.placar.recusados} recusa(s)` : ""}
+        ${p.placar.media !== null ? ` · nota média <b>${p.placar.media}</b>` : ""}
+        ${p.placar.entregues ? ` · ${p.placar.recomendam} recomenda(m), ${p.placar.ressalvas} com ressalvas, ${p.placar.contra} contra` : ""}</div>` : ""}
+      <div class="exp"><button class="bt ${p.aDarParecer ? "bt-pri" : "bt-ghost"}" onclick="abrir('${esc(p.id)}')">
+        ${p.aDarParecer ? "Dar parecer" : "Abrir o projeto"}</button></div>
+    </div>`;
+
+  $("v-avaliacao").innerHTML = `
+    <div class="tut"><details><summary>Como funciona a avaliação ad hoc</summary>
+      <ol>
+        <li>A coordenação designa os avaliadores <b>dentro de cada projeto</b>, pelo e-mail — é a designação que dá o acesso.</li>
+        <li>O avaliador vê apenas os projetos que recebeu, e neles só a proposta: nada de relatórios, histórico ou parecer dos colegas.</li>
+        <li>São quatro notas de 0 a 10 e uma recomendação. A nota final é a média simples dos critérios.</li>
+        <li>Havendo impedimento, o avaliador <b>recusa</b> a avaliação dizendo o motivo — não fica travando a seleção.</li>
+        <li>A orientação nunca sabe quem avaliou: recebe a decisão da coordenação, e é a ela que responde.</li>
+      </ol></details></div>
+
+    ${aFazer.length ? `<div class="card">
+      <div class="card-t">Aguardando o seu parecer</div>
+      <div class="card-s">${aFazer.length} projeto(s).</div>
+      ${aFazer.map((p) => cartao(p, false)).join("")}
+    </div>` : ""}
+
+    ${feitos.length ? `<div class="card">
+      <div class="card-t">Já passaram por você</div>
+      <div class="card-s">Pareceres entregues, avaliações recusadas e projetos cuja seleção já foi decidida.</div>
+      ${feitos.map((p) => cartao(p, false)).join("")}
+    </div>` : ""}
+
+    ${META.gestao ? `<div class="card">
+      <div class="card-t">Projetos em seleção</div>
+      <div class="card-s">${emSelecao.length} projeto(s) submetido(s) aguardando decisão.</div>
+      ${emSelecao.map((p) => cartao(p, true)).join("") || `<div class="vazio">Nenhum projeto em avaliação no momento.</div>`}
+    </div>` : ""}
+
+    ${!meus.length && !META.gestao ? `<div class="card"><div class="vazio">
+      Nenhum projeto designado a você no momento.</div></div>` : ""}`;
 }
 
 /* ------------------------------ cronograma ----------------------------- */
@@ -619,16 +698,20 @@ function renderEditor(alvo) {
       <textarea ${ro} oninput="campo('metodologia',this.value)">${esc(p.metodologia || "")}</textarea>
 
       <div class="sec-t">Orientação</div>
+      ${PODE.papel === "avaliador" ? `
+      <div class="muted">Identificação omitida: o parecer ad hoc julga a proposta, não as pessoas.</div>` : `
       <div class="grid3">
         <div><label>Nome *</label><input ${ro} value="${esc(p.orientador?.nome || "")}" oninput="sub('orientador','nome',this.value)"></div>
         <div><label>E-mail *</label><input type="email" ${ro} value="${esc(p.orientador?.email || "")}" oninput="sub('orientador','email',this.value)"></div>
         <div><label>Titulação</label><input ${ro} value="${esc(p.orientador?.titulacao || "")}" oninput="sub('orientador','titulacao',this.value)" placeholder="Doutor(a)"></div>
-      </div>
+      </div>`}
     </div>
 
     <div class="card">
-      <div class="card-t">Alunos indicados</div>
-      <div class="card-s">O e-mail é o que dá ao aluno acesso ao próprio cronograma e aos relatórios — use o mesmo com que ele entra no ARCHÉ.</div>
+      <div class="card-t">${PODE.papel === "avaliador" ? "Plano do aluno" : "Alunos indicados"}</div>
+      <div class="card-s">${PODE.papel === "avaliador"
+        ? "Quantos alunos a proposta prevê e se há bolsa — os nomes ficam de fora."
+        : "O e-mail é o que dá ao aluno acesso ao próprio cronograma e aos relatórios — use o mesmo com que ele entra no ARCHÉ."}</div>
       <div class="rolo"><table class="pt">
         <thead><tr><th style="width:32%">Nome</th><th style="width:30%">E-mail</th><th>Matrícula</th><th>Bolsista</th><th></th></tr></thead>
         <tbody id="tb-alunos"></tbody>
@@ -646,18 +729,20 @@ function renderEditor(alvo) {
       ${ger ? `<div class="exp"><button class="bt bt-sec" onclick="addEtapa()">＋ Adicionar atividade</button></div>` : ""}
     </div>
 
-    ${p.id ? renderRelatoriosDoProjeto(p) : ""}
+    ${p.id ? renderAvaliacaoDoProjeto(p) : ""}
+    ${p.id && PODE.papel !== "avaliador" ? renderRelatoriosDoProjeto(p) : ""}
 
     <div class="card">
       <div class="exp">
         ${ger ? `<button class="bt bt-pri" onclick="salvar()">Salvar</button>` : ""}
-        ${ed ? `<button class="bt bt-ok" onclick="submeter()">Submeter à avaliação</button>` : ""}
+        ${ed && ["rascunho", "devolvido"].includes(p.status || "rascunho")
+          ? `<button class="bt bt-ok" onclick="submeter()">Submeter à avaliação</button>` : ""}
         ${PODE.podeAvaliar ? `
           <button class="bt bt-ok" onclick="avaliar('aprovado')">✓ Aprovar</button>
           <button class="bt bt-sec" onclick="avaliar('devolvido')">Devolver para ajustes</button>
           <button class="bt bt-err" onclick="avaliar('reprovado')">Reprovar</button>` : ""}
         ${p.id && ed && !p.numero ? `<button class="bt bt-ghost" onclick="excluir()">Excluir rascunho</button>` : ""}
-        <button class="bt bt-ghost" onclick="nav('${novo ? "painel" : "gestao"}')">Voltar</button>
+        <button class="bt bt-ghost" onclick="nav('${novo ? "painel" : ehAvaliador() ? "avaliacao" : "gestao"}')">Voltar</button>
       </div>
       ${p.historico?.length ? `<div class="muted" style="margin-top:14px">Último registro: ${esc(p.historico.at(-1).oQue)} — ${esc(p.historico.at(-1).quem)} em ${fmtDH(p.historico.at(-1).quando)}</div>` : ""}
     </div>`;
@@ -697,6 +782,140 @@ function desenharEtapas() {
     </tr>`).join("") || `<tr><td colspan="6" class="muted">Nenhuma atividade. O cronograma é obrigatório para submeter.</td></tr>`;
 }
 function addEtapa() { ATUAL.cronograma = [...(ATUAL.cronograma || []), { atividade: "", responsavel: "", inicio: "", fim: "", situacao: "prevista" }]; desenharEtapas(); }
+
+/* ------------------ avaliação ad hoc dentro do projeto ----------------- */
+function renderAvaliacaoDoProjeto(p) {
+  const meu = (p.avaliacoes || []).find((a) => a.email === META.eu);
+  const gestao = PODE.podeDesignar;
+
+  // o que a orientação vê: quantos avaliadores, sem nome e sem parecer
+  if (!gestao && PODE.papel !== "avaliador") {
+    if (!p.avaliadoresDesignados) return "";
+    return `<div class="card">
+      <div class="card-t">Avaliação da seleção</div>
+      <div class="card-s">O parecer ad hoc é sigiloso: a decisão que vale para você é a da coordenação.</div>
+      <div class="kv">${p.pareceresEntregues} de ${p.avaliadoresDesignados} parecer(es) já entregue(s).</div>
+    </div>`;
+  }
+
+  const notas = (a) => META.criterios.map((c) =>
+    `<div class="kv">${esc(c.nome)}: <b>${a.notas?.[c.codigo] ?? "—"}</b></div>`).join("");
+  const media = (a) => {
+    const v = META.criterios.map((c) => a.notas?.[c.codigo]).filter((n) => typeof n === "number");
+    return v.length ? Math.round((v.reduce((s, n) => s + n, 0) / v.length) * 10) / 10 : "—";
+  };
+
+  const formulario = () => {
+    if (!PODE.podeDarParecer) return "";
+    const a = meu || {};
+    const entregue = a.situacao === "entregue";
+    return `<div class="bloco meu">
+      <div class="bloco-cab"><span class="t">${entregue ? "Seu parecer (pode ser refeito enquanto a seleção não decide)" : "Seu parecer"}</span></div>
+      <div class="grid2">
+        ${META.criterios.map((c) => `<div>
+          <label>${esc(c.nome)} <span class="muted">(0 a 10)</span></label>
+          <input type="number" min="0" max="10" step="0.5" id="nota-${c.codigo}" value="${a.notas?.[c.codigo] ?? ""}">
+        </div>`).join("")}
+      </div>
+      <label>Recomendação</label>
+      <select id="rec-parecer">
+        <option value="">— escolha —</option>
+        ${META.recomendacoes.map((r) => `<option value="${r.codigo}" ${a.recomendacao === r.codigo ? "selected" : ""}>${esc(r.nome)}</option>`).join("")}
+      </select>
+      <label>Parecer * <span class="muted">(mínimo de 200 caracteres; é o que fundamenta a decisão)</span></label>
+      <textarea id="txt-parecer" style="min-height:170px">${esc(a.parecer || "")}</textarea>
+      <div class="exp">
+        <button class="bt bt-pri" onclick="enviarParecer(false)">${entregue ? "Reenviar parecer" : "Entregar parecer"}</button>
+        <button class="bt bt-ghost" onclick="enviarParecer(true)">Recusar a avaliação</button>
+      </div>
+    </div>`;
+  };
+
+  return `<div class="card">
+    <div class="card-t">Avaliação ad hoc</div>
+    <div class="card-s">${gestao
+      ? "Designe pelo e-mail quem vai avaliar. A designação é o que dá acesso ao projeto — e só a este."
+      : "Você foi designado para avaliar esta proposta. A orientação não saberá quem avaliou."}</div>
+
+    ${gestao ? `
+      <div class="rolo"><table class="pt">
+        <thead><tr><th style="width:34%">Avaliador</th><th>Situação</th><th>Nota</th><th>Recomendação</th><th></th></tr></thead>
+        <tbody>${(p.avaliacoes || []).map((a) => `<tr>
+          <td>${esc(a.nome || "—")}<div class="muted">${esc(a.email)}</div></td>
+          <td>${esc({ designado: "aguardando", entregue: "parecer entregue", recusado: "recusou" }[a.situacao] || a.situacao)}</td>
+          <td>${a.situacao === "entregue" ? `<b>${media(a)}</b>` : "—"}</td>
+          <td>${a.situacao === "entregue" ? esc(recNome(a.recomendacao)) : "—"}</td>
+          <td>${a.situacao === "entregue" ? "" : `<button class="rm" title="dispensar" onclick="dispensarAvaliador('${esc(a.email)}')">×</button>`}</td>
+        </tr>`).join("") || `<tr><td colspan="5" class="muted">Nenhum avaliador designado.</td></tr>`}</tbody>
+      </table></div>
+      <div class="grid3" style="margin-top:6px">
+        <div><label>Nome do avaliador</label><input id="av-nome" placeholder="Profa. Dra. Fulana de Tal"></div>
+        <div><label>E-mail *</label><input id="av-email" type="email" placeholder="avaliador@instituicao.br"></div>
+        <div style="display:flex;align-items:flex-end"><button class="bt bt-sec" onclick="designarAvaliador()">＋ Designar</button></div>
+      </div>
+      <div class="muted" style="margin-top:8px">Avaliador de fora da UNIEGO precisa de conta aprovada em
+        <a href="/usuarios/">Gestão de acessos</a> para entrar — a designação sozinha não libera o login.</div>
+
+      ${(p.avaliacoes || []).filter((a) => a.situacao === "entregue" || a.situacao === "recusado").map((a) => `
+        <div class="bloco">
+          <div class="bloco-cab"><span class="t">${esc(a.nome || a.email)}</span>
+            <span class="badge b-${a.situacao === "entregue" ? "validado" : "reprovado"}">${a.situacao === "entregue" ? "parecer entregue" : "recusou a avaliação"}</span>
+            ${a.situacao === "entregue" ? `<span class="prazo">nota ${media(a)} · ${esc(recNome(a.recomendacao))}</span>` : ""}</div>
+          ${a.situacao === "entregue" ? notas(a) : ""}
+          <div class="kv" style="white-space:pre-wrap;margin-top:8px">${esc(a.parecer || "")}</div>
+        </div>`).join("")}
+    ` : ""}
+
+    ${formulario()}
+    ${!gestao && meu && !PODE.podeDarParecer ? `<div class="banner ba-info">
+      ${meu.situacao === "entregue" ? "Seu parecer foi entregue. A decisão final é da coordenação."
+        : meu.situacao === "recusado" ? "Você recusou esta avaliação."
+        : "Este projeto não está mais em fase de seleção."}</div>` : ""}
+  </div>`;
+}
+
+async function designarAvaliador() {
+  const email = $("av-email").value.trim(), nome = $("av-nome").value.trim();
+  if (!email) return aviso("Informe o e-mail do avaliador.", "warn");
+  try {
+    await api(`/api/ic/${ATUAL.id}/avaliadores`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, nome }),
+    });
+    await carregar(); montarSidebar(); await abrir(ATUAL.id);
+    aviso(`${nome || email} designado(a) para avaliar este projeto.`);
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+async function dispensarAvaliador(email) {
+  if (!confirm(`Dispensar ${email} da avaliação deste projeto?`)) return;
+  try {
+    await api(`/api/ic/${ATUAL.id}/avaliadores/${encodeURIComponent(email)}`, { method: "DELETE" });
+    await carregar(); montarSidebar(); await abrir(ATUAL.id);
+    aviso("Avaliador dispensado.");
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+async function enviarParecer(recusar) {
+  const parecer = $("txt-parecer").value.trim();
+  const corpo = { recusar, parecer };
+  if (recusar) {
+    if (parecer.length < 10) return aviso("Escreva no campo do parecer o motivo da recusa.", "warn");
+    if (!confirm("Recusar esta avaliação? A coordenação será informada do motivo.")) return;
+  } else {
+    corpo.recomendacao = $("rec-parecer").value;
+    corpo.notas = {};
+    for (const c of META.criterios) corpo.notas[c.codigo] = $("nota-" + c.codigo).value;
+    if (!corpo.recomendacao) return aviso("Escolha a recomendação.", "warn");
+    if (parecer.length < 200) return aviso("O parecer precisa de ao menos 200 caracteres.", "warn");
+  }
+  try {
+    const r = await api(`/api/ic/${ATUAL.id}/parecer`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
+    });
+    await carregar(); montarSidebar(); await abrir(ATUAL.id);
+    aviso(recusar ? "Avaliação recusada." : `Parecer entregue — nota final ${r.nota}.`);
+  } catch (e) { aviso(e.message, "err"); }
+}
 
 /* ------------------- relatórios dentro do projeto ---------------------- */
 function renderRelatoriosDoProjeto(p) {
@@ -814,15 +1033,21 @@ async function excluir() {
     const r = await fetch("/api/me");
     if (r.status === 401) { location.href = "/entrar?next=" + encodeURIComponent(location.pathname); return; }
     ME = await r.json();
-    if (ME.papel === "pendente") { location.href = "/entrar?pendente=1"; return; }
+    // conta pendente NÃO é barrada aqui: o aluno indicado e o avaliador ad hoc
+    // entram pelo convite. Quem decide é o servidor, em /api/ic/meta — se a
+    // pessoa não estiver em projeto nenhum, ele responde 403 e a mensagem
+    // aparece na tela.
     META = await api("/api/ic/meta");
     await carregar();
   } catch (e) {
     $("aviso").innerHTML = `<div class="banner ba-err">${esc(e.message || "Falha ao carregar o setor")}</div>`;
+    $("subtitulo").textContent = "";
+    return;                                  // sem META não há tela a montar
   }
   montarSidebar();
   nav("painel");
-  $("dir-info").textContent = META.gestao ? "coordenação de pesquisa" : ehAluno() ? "aluno de IC" : "orientação";
+  $("dir-info").textContent = META.gestao ? "coordenação de pesquisa"
+    : ehAluno() ? "aluno de IC" : ehAvaliador() ? "avaliador ad hoc" : "orientação";
 })();
 </script>
 <script src="/assets/arche-nav.js" defer></script>

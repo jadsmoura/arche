@@ -4,10 +4,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  MODALIDADES, STATUS, numeroProjeto, proximoSequencial, numerar,
+  MODALIDADES, STATUS, CRITERIOS, numeroProjeto, proximoSequencial, numerar,
   normalizarProjeto, validarProjeto, papelNoProjeto, podeVerProjeto, podeEditarProjeto,
   podeGerirExecucao, podeAvaliar, podeEnviarRelatorio, podeValidarRelatorio,
   cronogramaDe, etapaAtrasada, relatoriosDe, relatoriosPendentes, resumir, anotar,
+  podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto,
+  notaFinal, placarPareceres, participaDeAlgum,
 } from "../lib/ic.js";
 
 /* -------------------------------- fixtura ------------------------------- */
@@ -149,6 +151,118 @@ test("relatório: o aluno indicado envia, a orientação valida", () => {
   assert.equal(podeValidarRelatorio(PROF, p), true);
   assert.equal(podeValidarRelatorio(PROPPEX, p), true);
   assert.equal(podeValidarRelatorio(ALUNO, p), false, "ninguém valida o próprio relatório");
+});
+
+/* --------------------------- avaliação ad hoc --------------------------- */
+const AD1 = { email: "ana@ufg.br", gestao: false };
+const AD2 = { email: "bruno@ufg.br", gestao: false };
+
+function emSelecao(pareceres = []) {
+  return {
+    ...novo(), id: "p1", numero: "IC-2026-001", status: "submetido",
+    avaliacoes: [
+      { email: AD1.email, nome: "Ana", situacao: "designado", notas: {}, recomendacao: "", parecer: "" },
+      ...pareceres,
+    ],
+    historico: [
+      { quando: "2026-01-01T00:00:00.000Z", quem: PROF.email, oQue: "submeteu à avaliação" },
+      { quando: "2026-01-02T00:00:00.000Z", quem: PROPPEX.email, oQue: `designou ${AD1.email} como avaliador`, sigilo: true },
+    ],
+  };
+}
+
+test("o avaliador designado entra no projeto; quem não foi, não", () => {
+  const p = emSelecao();
+  assert.equal(papelNoProjeto(AD1, p), "avaliador");
+  assert.equal(podeVerProjeto(AD1, p), true);
+  assert.equal(papelNoProjeto(AD2, p), null);
+  assert.equal(podeVerProjeto(AD2, p), false);
+  assert.equal(ehAvaliadorDe(AD1, p), true);
+  assert.equal(participaDeAlgum(AD1.email, [p]), true, "a designação é o que dá acesso ao setor");
+  assert.equal(participaDeAlgum(AD2.email, [p]), false);
+});
+
+test("designar é da gestão; dar parecer é de quem foi designado, e só na seleção", () => {
+  const p = emSelecao();
+  assert.equal(podeDesignarAvaliador(PROPPEX, p), true);
+  assert.equal(podeDesignarAvaliador(PROF, p), false, "a orientação não escolhe quem a avalia");
+
+  assert.equal(podeDarParecer(AD1, p), true);
+  assert.equal(podeDarParecer(AD2, p), false);
+  assert.equal(podeDarParecer(PROF, p), false, "ninguém dá parecer no próprio projeto");
+  assert.equal(podeDarParecer(ALUNO, p), false);
+  assert.equal(podeDarParecer(AD1, { ...p, status: "aprovado" }), false, "decidido o mérito, a janela fecha");
+  assert.equal(podeDarParecer(AD1, { ...p, avaliacoes: [{ email: AD1.email, situacao: "recusado" }] }), false,
+    "quem recusou não volta a avaliar");
+});
+
+test("o avaliador julga a proposta, não as pessoas, e não vê o parecer do colega", () => {
+  const p = emSelecao([
+    { email: AD2.email, nome: "Bruno", situacao: "entregue", parecer: "Parecer do colega", recomendacao: "recomendado", notas: { merito: 9 } },
+  ]);
+  const vista = visaoDoProjeto(p, AD1);
+
+  assert.equal(vista.orientador, null, "sem o nome de quem orienta");
+  assert.ok(vista.alunos.every((a) => !a.email && /^Aluno \d+$/.test(a.nome)), "alunos anonimizados");
+  assert.ok(vista.cronograma.every((e) => !e.responsavel), "o plano fica, o e-mail do responsável sai");
+  assert.deepEqual(vista.relatorios, []);
+  assert.deepEqual(vista.historico, []);
+  assert.equal(vista.avaliacoes.length, 1);
+  assert.equal(vista.avaliacoes[0].email, AD1.email, "só o próprio registro");
+  assert.ok(!JSON.stringify(vista).includes("Parecer do colega"), "parecer alheio ancoraria o julgamento");
+});
+
+test("a orientação não sabe quem avaliou — nem pela lista, nem pelo histórico", () => {
+  const p = emSelecao([{ email: AD2.email, situacao: "entregue", parecer: "x", recomendacao: "recomendado", notas: {} }]);
+  for (const u of [PROF, ALUNO]) {
+    const vista = visaoDoProjeto(p, u);
+    assert.equal(vista.avaliacoes, undefined, "a lista de avaliadores some");
+    assert.equal(vista.avaliadoresDesignados, 2, "fica só a contagem");
+    assert.equal(vista.pareceresEntregues, 1);
+    assert.ok(!JSON.stringify(vista).includes(AD1.email), "nenhum vestígio no histórico");
+    assert.equal(vista.historico.length, 1, "a linha da designação é sigilosa");
+  }
+  assert.equal(visaoDoProjeto(p, PROPPEX).avaliacoes.length, 2, "a gestão vê tudo, porque decide");
+});
+
+test("a nota final é a média dos critérios; o placar soma os pareceres", () => {
+  assert.equal(notaFinal({ notas: { merito: 9, metodologia: 8, viabilidade: 9.5, formacao: 9 } }), 8.9);
+  assert.equal(notaFinal({ notas: {} }), null, "sem nota não se inventa média");
+  assert.equal(notaFinal({ notas: { merito: 10 } }), 10, "conta só o que foi preenchido");
+
+  const p = emSelecao([
+    { email: AD2.email, situacao: "entregue", recomendacao: "recomendado", notas: Object.fromEntries(CRITERIOS.map((c) => [c.codigo, 8])) },
+    { email: "carla@ufg.br", situacao: "entregue", recomendacao: "nao_recomendado", notas: Object.fromEntries(CRITERIOS.map((c) => [c.codigo, 4])) },
+    { email: "davi@ufg.br", situacao: "recusado", notas: {} },
+  ]);
+  const placar = placarPareceres(p);
+  assert.equal(placar.designados, 4);
+  assert.equal(placar.entregues, 2);
+  assert.equal(placar.recusados, 1);
+  assert.equal(placar.media, 6, "média entre 8 e 4");
+  assert.equal(placar.recomendam, 1);
+  assert.equal(placar.contra, 1);
+});
+
+test("o parecer ad hoc não vem do formulário do projeto", () => {
+  const base = emSelecao();
+  const p = normalizarProjeto({ ...bruto(), avaliacoes: [{ email: "invasor@x.br", situacao: "entregue" }] },
+    { base, autor: PROF.email });
+  assert.equal(p.avaliacoes.length, 1);
+  assert.equal(p.avaliacoes[0].email, AD1.email, "a lista de avaliadores só muda pelas rotas próprias");
+});
+
+test("quem coordena e foi designado avaliador continua coordenando", () => {
+  const p = { ...emSelecao(), avaliacoes: [{ email: PROPPEX.email, situacao: "designado", notas: {} }] };
+  assert.equal(papelNoProjeto(PROPPEX, p), "gestao");
+  assert.equal(podeDarParecer(PROPPEX, p), true, "mas o parecer que der é dele, como qualquer outro");
+  assert.ok(parecerDe(p, PROPPEX.email));
+});
+
+test("o avaliador não acompanha a execução de projeto alheio", () => {
+  const p = { ...emSelecao(), status: "aprovado", relatorios: [{ id: "r1", tipo: "parcial", aluno: ALUNO.email, situacao: "enviado" }] };
+  assert.deepEqual(cronogramaDe([p], AD1), [], "cronograma é da execução, não da seleção");
+  assert.deepEqual(relatoriosDe([p], AD1), []);
 });
 
 /* ------------------------------ cronograma ------------------------------ */

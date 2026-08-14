@@ -72,17 +72,34 @@ public/
 - Fluxo da IC (ARCHÉ IC): **rascunho → submetido → aprovado (em execução) → concluído**,
   com desvios para `devolvido` (volta a ser editável) e `reprovado`. O protocolo
   `IC-AAAA-NNN` sai na submissão e nunca se repete. Submetida, a **proposta fecha**;
-  alunos e cronograma seguem editáveis pela orientação. Papéis (`lib/ic.js`): o
-  ORIENTADOR submete, indica alunos e mantém o cronograma; a GESTÃO (gestor ou
-  coordenador do módulo "pesquisa") avalia o mérito; o ALUNO INDICADO envia os
-  relatórios **parcial e final**, e quem valida ou devolve é a orientação — nunca o
-  próprio aluno, nem a orientação no lugar dele. Validados todos os finais, o projeto
-  passa a concluído. **O e-mail do aluno indicado é o que lhe dá acesso**: ele vê só
-  as atividades sob a sua responsabilidade e os seus relatórios; nada dos colegas. O
-  aluno precisa de conta aprovada em `/usuarios/` (fora do `@uniego.edu.br`, o acesso
-  nasce pendente). A tela de Cronograma reúne **todos os projetos num só lugar**, com
-  esse mesmo recorte. Não há guia de bolsas nem de comunicação — a bolsa é um campo do
+  alunos e cronograma seguem editáveis pela orientação. Validados todos os relatórios
+  finais, o projeto passa a concluído. A tela de Cronograma reúne **todos os projetos
+  num só lugar**. Não há guia de bolsas nem de comunicação — a bolsa é um campo do
   aluno indicado.
+- **Quatro acessos na IC** (`papelNoProjeto` em `lib/ic.js`), e três deles nascem do
+  próprio projeto — não há cadastro de papel à parte:
+  1. **gestão** — pró-reitor e coordenação de pesquisa (gestor geral ou coordenador do
+     módulo `pesquisa`): vê tudo, designa avaliadores e decide o mérito;
+  2. **orientador** — submete, indica alunos, mantém o cronograma e valida os
+     relatórios dos seus alunos;
+  3. **aluno indicado** — envia os relatórios **parcial e final**; quem valida ou
+     devolve é a orientação, nunca o próprio aluno nem a orientação no lugar dele;
+  4. **avaliador ad hoc** — designado pela gestão **projeto a projeto**, dá parecer
+     durante a seleção (4 critérios de 0 a 10 + recomendação; a nota é a média) ou
+     recusa por impedimento. Não participa da execução: cronograma e relatórios não
+     aparecem para ele.
+- **O e-mail é o convite** na IC: indicar um aluno ou designar um avaliador dá acesso
+  ao setor mesmo com a conta ainda `pendente` (`participaDeAlgum`), e só aos projetos
+  em que a pessoa está. O convidado não abre projeto novo — submeter exige conta
+  aprovada. Vale só para `/pesquisa`; nos demais setores `pendente` continua barrado.
+- **Sigilo do parecer ad hoc** (`visaoDoProjeto` em `lib/ic.js`, aplicado no servidor
+  em toda resposta que devolve projeto): a orientação e o aluno **nunca sabem quem
+  avaliou** — some a lista de avaliadores, os pareceres e as linhas de histórico
+  marcadas com `sigilo: true`; ficam só as contagens e a decisão da coordenação. O
+  avaliador **não vê o parecer dos colegas** (ancoraria o julgamento), nem relatórios,
+  nem histórico, e recebe a proposta **sem os nomes** da orientação e dos alunos. Quem
+  participa do projeto não pode avaliá-lo. Parecer entregue não se apaga: é prova da
+  seleção.
 - **Acervo por autor** (`podeVerAta`/`podeEditarAta` em `lib/atas.js`): cada usuário só
   enxerga as atas que ele mesmo registrou. Constar como secretaria ou participante NÃO
   dá acesso — quem precisa de cópia recebe o PDF por e-mail no registro. Só a gestão
