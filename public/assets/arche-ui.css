@@ -73,6 +73,13 @@ main{flex:1;max-width:1080px;margin:0 auto;width:100%;padding:52px 26px 40px}
 a.card:hover,.card.hoverable:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg);border-color:var(--brand-2)}
 .card-ic{width:52px;height:52px;border-radius:13px;display:grid;place-items:center;background:var(--wash);border:1px solid var(--wash2);color:var(--brand-2);margin-bottom:16px}
 .card.b .card-ic{background:var(--accent-wash)}
+/* Nome do módulo ao lado do ícone — o mesmo letreiro que a pessoa vai
+   encontrar dentro do setor (ARCHÉ AT, ARCHÉ EX, ARCHÉ IC). */
+.card-topo{display:flex;align-items:center;gap:13px;margin-bottom:16px}
+.card-topo .card-ic{margin-bottom:0;flex:none}
+.card-mod{font-family:'Archivo',sans-serif;font-weight:800;font-size:15.5px;letter-spacing:.03em;
+  color:var(--brand);line-height:1}
+.card-mod b{color:var(--accent-deep);font-weight:800}
 .card-num{position:absolute;top:22px;right:24px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted-2);font-weight:600}
 .card-t{font-family:'Archivo',sans-serif;font-size:20px;font-weight:700;letter-spacing:-.01em;color:var(--ink);line-height:1.2}
 .card-sub{font-size:12px;color:var(--brand-2);font-weight:600;margin-top:3px;letter-spacing:.01em}
