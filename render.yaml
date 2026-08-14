@@ -35,7 +35,9 @@ services:
         generateValue: true
       # ARCHÉ AT — Atas e Colegiados.
       # ATA_IA: "modelo" (padrão, custo zero), "gemini" ou "anthropic".
-      # Basta preencher a chave correspondente no painel para ligar a IA.
+      # Basta colar GEMINI_API_KEY no painel do Render e trocar para "gemini":
+      # o adaptador percorre os modelos Flash da camada gratuita e usa o
+      # primeiro que responder (GEMINI_MODELO força um específico).
       - key: ATA_IA
         value: modelo
       # Caixa institucional que recebe cópia de toda ata registrada.

@@ -166,3 +166,37 @@ test("quem está só parcialmente atrasado fica abaixo de quem nunca se reuniu",
   assert.equal(cpa.severidade, "alta", "a CPA não registrou nada");
   assert.ok(a.indexOf(cpa) < a.indexOf(psi), "o pior tem de vir primeiro na lista");
 });
+
+/* ------------- órgãos institucionais nunca carregam curso --------------- */
+test("os órgãos que não são de curso aparecem uma vez só, sem curso", () => {
+  const a = gerarAlertas([], { hoje: HOJE });                 // 12 cursos reais
+  const institucionais = ["CONSU", "CONSEPE", "PROPPEX", "PROAC", "REITORIA", "CPA"];
+  for (const cod of institucionais) {
+    const seus = a.filter((x) => x.orgao === cod);
+    assert.ok(seus.length, `${cod} deveria gerar alerta`);
+    assert.ok(seus.every((x) => x.curso === ""), `${cod} não pode ser vinculado a curso`);
+    assert.equal(seus.filter((x) => x.tipo === "ciclo").length, 1,
+      `${cod} deve aparecer uma vez, não uma por curso`);
+    assert.ok(!/—/.test(seus[0].titulo), `${cod} não deve exibir sufixo de curso: ${seus[0].titulo}`);
+  }
+  // e os de curso aparecem uma vez por curso
+  for (const cod of ["NDE", "COLEGIADO"]) {
+    assert.equal(a.filter((x) => x.orgao === cod && x.tipo === "ciclo").length, CURSOS.length);
+  }
+});
+
+test("a ata de um órgão institucional não é creditada a curso nenhum", () => {
+  const doConsu = ata({ orgao: "CONSU", curso: "psicologia", pautas: ["consu-pdi"] });
+  assert.equal(doConsu.curso, "", "a normalização descarta o curso num órgão institucional");
+  const a = gerarAlertas([doConsu], { hoje: HOJE });
+  assert.ok(!a.some((x) => x.orgao === "CONSU" && x.tipo === "ciclo"), "o CONSU cumpriu o ciclo");
+  assert.ok(a.some((x) => x.orgao === "NDE" && x.curso === "psicologia"),
+    "e isso não regularizou nada em Psicologia");
+});
+
+test("o alerta diz o semestre a que se refere", () => {
+  const a = gerarAlertas([], { cursos: CURSO, hoje: HOJE });
+  assert.ok(a.every((x) => x.janela), "todo alerta precisa dizer de que semestre fala");
+  assert.match(so(a, "ciclo")[0].detalhe, /Nenhuma ata registrada no semestre 2026-S2/);
+  assert.match(so(a, "ciclo")[0].acao, /Cobrar o registro/);
+});

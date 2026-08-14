@@ -73,6 +73,8 @@ public/
 - O arquivamento da via assinada é do próprio órgão; o ARCHÉ guarda a cópia gerada.
 - Redação da ata por IA é **opcional**: sem `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` o gerador
   determinístico assume, e qualquer falha de IA cai nele em vez de derrubar o fluxo.
+  O adaptador do Gemini tenta os modelos Flash em ordem (o Google aposenta versões:
+  o `gemini-2.5-flash` sai em 16/10/2026), então basta a chave para funcionar.
 
 ## Identidade visual
 
