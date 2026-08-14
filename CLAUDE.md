@@ -94,7 +94,10 @@ public/
 - Fluxo da IC (ARCHÉ IC): **rascunho → submetido → aprovado (em execução) → concluído**,
   com desvios para `devolvido` (volta a ser editável) e `reprovado`. O protocolo
   `IC-AAAA-NNN` sai na submissão e nunca se repete. Submetida, a **proposta fecha**;
-  alunos e cronograma seguem editáveis pela orientação. Validados todos os relatórios
+  cronograma segue editável pela orientação. **A proposta não pede aluno**: a indicação
+  acontece DEPOIS da aprovação, dentro do projeto — e é aí que o aluno indicado (pelo
+  e-mail) passa a acessar o sistema discente, com o cronograma e a entrega dos
+  relatórios parcial e final. Validados todos os relatórios
   finais, o projeto passa a concluído. A tela de Cronograma reúne **todos os projetos
   num só lugar**. Não há guia de bolsas nem de comunicação — a bolsa é um campo do
   aluno indicado.

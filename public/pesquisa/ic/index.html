@@ -1101,17 +1101,18 @@ function renderEditor(alvo) {
       </div>`}
     </div>
 
+    ${!["aprovado", "concluido"].includes(p.status) || PODE.papel === "avaliador" ? "" : `
     <div class="card">
-      <div class="card-t">${PODE.papel === "avaliador" ? "Plano do aluno" : "Alunos indicados"}</div>
-      <div class="card-s">${PODE.papel === "avaliador"
-        ? "Quantos alunos a proposta prevê e se há bolsa — os nomes ficam de fora."
-        : "O e-mail é o que dá ao aluno acesso ao próprio cronograma e aos relatórios — use o mesmo com que ele entra no ARCHÉ."}</div>
+      <div class="card-t">Indicação de alunos</div>
+      <div class="card-s">A proposta não pede aluno: a indicação acontece <b>depois da aprovação</b>, aqui.
+        O e-mail é o que abre o sistema para o aluno — o cronograma e a entrega dos relatórios parcial e
+        final. Marque <b>Bolsista</b> em quem recebe a bolsa; a ficha do contrato abre logo abaixo.</div>
       <div class="rolo"><table class="pt">
         <thead><tr><th style="width:26%">Nome</th><th style="width:26%">E-mail</th><th>Matrícula</th><th>Período</th><th>Bolsista</th><th></th></tr></thead>
         <tbody id="tb-alunos"></tbody>
       </table></div>
       ${ger ? `<div class="exp"><button class="bt bt-sec" onclick="addAluno()">＋ Indicar aluno</button></div>` : ""}
-    </div>
+    </div>`}
 
     ${renderIndicacaoBolsista(p, ger)}
 
@@ -1151,6 +1152,7 @@ function renderEditor(alvo) {
 }
 
 function desenharAlunos() {
+  if (!$("tb-alunos")) return;   // antes da aprovação a indicação não existe
   const ger = PODE.podeGerir || PODE.podeEditar;
   $("tb-alunos").innerHTML = (ATUAL.alunos || []).map((a, i) => `
     <tr>
