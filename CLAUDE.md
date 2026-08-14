@@ -58,6 +58,13 @@ public/
   entram por demanda: contam como registro dos temas que tratam, mas não fecham o ciclo.
   Cadência por tema: `semestral` ou `anual` (com o semestre em que vence).
   Ao alterar o catálogo, preserve os `id` — são a chave do vínculo gravado nas atas.
+- O ARCHÉ **não convoca reunião nem cobra ninguém por e-mail**: `lib/alertas.js` monta a
+  lista de órgãos e cursos fora de dia e a mostra à gestão (painel do ARCHÉ AT e tela
+  Acompanhamento). A cobrança da regularização é da PROPPEX. Órgão que nunca registrou
+  ata entra sempre como urgente, faltem 5 ou 150 dias para o fim do semestre.
+- Presenças são digitadas a cada sessão pelo responsável — **não há cadastro fixo de
+  composição de órgão**, por decisão do dono (lista fixa emperra o processo).
+- O arquivamento da via assinada é do próprio órgão; o ARCHÉ guarda a cópia gerada.
 - Redação da ata por IA é **opcional**: sem `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` o gerador
   determinístico assume, e qualquer falha de IA cai nele em vez de derrubar o fluxo.
 

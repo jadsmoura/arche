@@ -247,13 +247,14 @@ test("órgãos conhecidos têm sigla e o desconhecido não resolve", () => {
 });
 
 /* ------------------------- documentos da sessão -------------------------- */
-test("convocação, lista de presença e ata geram PDF válido", async () => {
-  const { gerarAtaPdf, gerarConvocacaoPdf, gerarPresencaPdf } = await import("../lib/pdf.js");
+test("ata e lista de presença geram PDF válido, com anexos listados", async () => {
+  const { gerarAtaPdf, gerarPresencaPdf } = await import("../lib/pdf.js");
   const a = numerar([], nova({
     pauta: [{ titulo: "Atualização do PPC", pautaMec: "nde-ppc", deliberacao: "Aprovada." }],
   }));
   a.texto = redigirPorModelo(a);
-  for (const [rot, gerar] of [["ata", gerarAtaPdf], ["convocação", gerarConvocacaoPdf], ["presença", gerarPresencaPdf]]) {
+  a.anexos = [{ name: "parecer-01.pdf", link: "/api/files/x", em: "2026-08-10T12:00:00.000Z" }];
+  for (const [rot, gerar] of [["ata", gerarAtaPdf], ["presença", gerarPresencaPdf]]) {
     const buf = await gerar(a);
     assert.ok(Buffer.isBuffer(buf), `${rot} não devolveu Buffer`);
     assert.equal(buf.subarray(0, 5).toString(), "%PDF-", `${rot} não é PDF`);
@@ -261,11 +262,9 @@ test("convocação, lista de presença e ata geram PDF válido", async () => {
   }
 });
 
-test("os documentos não quebram com ata mínima (sem pauta nem participantes)", async () => {
-  const { gerarConvocacaoPdf, gerarPresencaPdf } = await import("../lib/pdf.js");
+test("a lista de presença não quebra com ata mínima (sem pauta nem participantes)", async () => {
+  const { gerarPresencaPdf } = await import("../lib/pdf.js");
   const vazia = normalizarAta({ orgao: "CONSU", sessao: { data: "2026-05-05" } });
-  for (const gerar of [gerarConvocacaoPdf, gerarPresencaPdf]) {
-    const buf = await gerar(vazia);
-    assert.equal(buf.subarray(0, 5).toString(), "%PDF-");
-  }
+  const buf = await gerarPresencaPdf(vazia);
+  assert.equal(buf.subarray(0, 5).toString(), "%PDF-");
 });

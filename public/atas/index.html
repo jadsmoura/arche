@@ -237,6 +237,24 @@
   .doc .txt{flex:1;min-width:0}
   .doc .t1{font-size:13.5px;font-weight:600;color:var(--ink)}
   .doc .t2{font-size:11.5px;color:var(--muted);margin-top:1px}
+  .al{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-left-width:3px;
+    border-radius:10px;padding:12px 14px;margin-bottom:8px;background:#fff}
+  .al.alta{border-left-color:var(--err)} .al.media{border-left-color:var(--warn)} .al.baixa{border-left-color:var(--muted-2)}
+  .al .tt{font-size:13.5px;font-weight:600;color:var(--ink)}
+  .al .de{font-size:12.5px;color:var(--ink-soft);margin-top:3px;line-height:1.5}
+  .al .ac{font-size:11.5px;color:var(--muted);margin-top:4px}
+  .al .tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:5px;
+    padding:2px 7px;background:#eef1f5;color:var(--muted);white-space:nowrap}
+  .resp{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden}
+  .resp>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px 14px;
+    font-size:13.5px;font-weight:600;color:var(--ink);background:#fbfcfd}
+  .resp>summary::-webkit-details-marker{display:none}
+  .resp>summary:hover{background:#f3f6f9}
+  .resp .corpo{padding:10px 14px 4px}
+  .pill{font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px}
+  .p-alta{background:var(--err-soft);color:var(--err)}
+  .p-media{background:var(--warn-soft);color:var(--warn)}
+  .p-baixa{background:#eef1f5;color:var(--muted)}
   .pauta-item{border:1px solid var(--line);border-left:3px solid var(--line);border-radius:10px;
     padding:14px 16px;margin-bottom:10px;background:#fff}
   .pauta-item.em-dia{border-left-color:var(--ok)}
@@ -448,6 +466,8 @@ function renderPainel() {
     || '<div class="vazio">Sem atas para distribuir.</div>';
 
   $("v-painel").innerHTML = `
+    ${META.gestao ? '<div class="card" id="painel-alertas"><div class="card-t">Alertas de regularização</div>'
+      + '<div class="card-s">Carregando…</div></div>' : ""}
     <div class="kpis">
       ${kpi("Atas no sistema", total, `${doAno} em ${ano}`)}
       ${kpi("Registradas", porStatus("registrada"), "documento fechado", "var(--ok)")}
@@ -479,6 +499,21 @@ function renderPainel() {
         a partir dos campos preenchidos e <b>sempre volta para revisão humana</b> antes de virar ata aprovada.</div>
       <div class="exp"><button class="bt bt-pri" onclick="nav('nova')">＋ Abrir nova reunião</button></div>
     </div>`;
+  if (META.gestao) carregarAlertasDoPainel();
+}
+
+// O painel da gestão abre com o que está devendo — é o primeiro que a PROPPEX vê.
+async function carregarAlertasDoPainel() {
+  const el = $("painel-alertas");
+  if (!el) return;
+  try {
+    const d = await api("/api/atas/alertas");
+    el.innerHTML = `<div class="card-t">Alertas de regularização · ${esc(d.resumo.janela)}</div>
+      <div class="card-s">Órgãos e cursos fora de dia. A cobrança é da PROPPEX — o sistema só aponta.</div>
+      ${blocoAlertas(d, { limite: 6 })}`;
+  } catch {
+    el.classList.add("hide");
+  }
 }
 const corStatus = (s) => ({ rascunho: "#a9b4c0", minuta: "var(--info)", revisao: "var(--warn)", aprovada: "var(--roxo)", registrada: "var(--ok)" }[s] || "var(--muted)");
 
@@ -514,7 +549,7 @@ function renderArquivo() {
         <div class="nm">${esc(a.numero || "— sem número —")}
           <div class="cs">${esc(a.titulo)} · sessão ${esc(a.sessao?.tipo || "")} de ${fmtD(a.sessao?.data)}
             · ${a.participantes} participante(s) · ${a.pontos} ponto(s)</div></div>
-        ${a.assinada ? '<span class="badge e-em-dia" title="via assinada no sistema">🖊 assinada</span>' : ""}
+        ${a.anexos ? `<span class="badge e-fora-da-janela" title="documentos anexos">📎 ${a.anexos}</span>` : ""}
         <span class="badge b-${a.status}">${ROTULO_STATUS[a.status] || a.status}</span>
       </div>`).join("") || '<div class="card"><div class="vazio">Nenhuma ata encontrada com esses filtros.</div></div>'}`;
 }
@@ -548,10 +583,12 @@ const ROT_ESTADO = { "em-dia": "em dia", pendente: "a fazer", vencendo: "vencend
   nunca: "nunca tratada", "fora-da-janela": "não vence neste semestre" };
 let REG = { orgao: "NDE", curso: "psicologia", dados: null, carregando: false };
 
-async function buscarPautas(orgao, curso) {
-  const q = `orgao=${encodeURIComponent(orgao)}&curso=${encodeURIComponent(curso || "")}`;
+async function buscarPautas(orgao, curso, excluir) {
+  const q = `orgao=${encodeURIComponent(orgao)}&curso=${encodeURIComponent(curso || "")}`
+    + (excluir ? `&excluir=${encodeURIComponent(excluir)}` : "");
   return api("/api/atas/pauta-regulatoria?" + q);
 }
+let ANTERIOR = null;
 function orgaoPorCurso(cod) { return !!META.orgaos.find((o) => o.codigo === cod)?.porCurso; }
 const CAD_ROT = (k) => (META.cadencias?.[k]?.rot || k);
 const MOM_ROT = (k) => (META.momentos?.[k]?.rot || k);
@@ -641,6 +678,38 @@ async function renderRegulatoria() {
     </div>`;
 }
 
+/* ------------------------------- alertas -------------------------------- */
+const ROT_TIPO = { ciclo: "sessão em falta", pautas: "pauta obrigatória",
+  "ata-parada": "ata não registrada", encaminhamento: "encaminhamento vencido" };
+
+function cartaoAlerta(a) {
+  return `<div class="al ${a.severidade}">
+    <div style="flex:1;min-width:0">
+      <div class="tt">${esc(a.titulo)}</div>
+      <div class="de">${esc(a.detalhe)}</div>
+      <div class="ac">${a.ataId ? `<a onclick="abrir('${a.ataId}')" style="cursor:pointer">abrir a ata</a> · ` : ""}${esc(a.acao)}</div>
+    </div>
+    <span class="tag">${ROT_TIPO[a.tipo] || a.tipo}</span>
+  </div>`;
+}
+
+function blocoAlertas(d, { limite = 0 } = {}) {
+  const r = d.resumo;
+  if (!r.total) return '<div class="banner ba-ok">Nenhuma pendência: todos os órgãos estão em dia neste semestre.</div>';
+  const lista = limite ? d.alertas.slice(0, limite) : d.alertas;
+  return `
+    <div class="lg" style="margin-bottom:12px">
+      <span><i class="bolinha" style="background:var(--err)"></i> ${r.alta} urgente(s)</span>
+      <span><i class="bolinha" style="background:var(--warn)"></i> ${r.media} em atenção</span>
+      <span><i class="bolinha" style="background:var(--muted-2)"></i> ${r.baixa} no radar</span>
+      <span class="muted">· ${r.porTipo.ciclo} sessão(ões) · ${r.porTipo.pautas} pauta(s)
+        · ${r.porTipo["ata-parada"]} ata(s) parada(s) · ${r.porTipo.encaminhamento} encaminhamento(s)</span>
+    </div>
+    ${lista.map(cartaoAlerta).join("")}
+    ${limite && d.alertas.length > limite
+      ? `<button class="verTodas" onclick="nav('conformidade')">ver todos os ${d.alertas.length} alertas →</button>` : ""}`;
+}
+
 /* ------------------------ acompanhamento (PROPPEX) ---------------------- */
 async function renderConformidade() {
   const el = $("v-conformidade");
@@ -671,12 +740,33 @@ async function renderConformidade() {
       <div class="kpi"><div class="l">Sessões extraordinárias</div>
         <div class="v">${d.ciclos.reduce((n, c) => n + c.extraordinarias, 0)}</div>
         <div class="d">registradas por demanda</div></div>
-      <div class="kpi"><div class="l">Vias assinadas</div>
-        <div class="v" style="color:${d.assinaturas.assinadas === d.assinaturas.registradas ? "var(--ok)" : "var(--warn)"}">${d.assinaturas.assinadas}/${d.assinaturas.registradas}</div>
-        <div class="d">atas registradas com a via digitalizada</div></div>
+      <div class="kpi"><div class="l">Alertas de regularização</div>
+        <div class="v" style="color:${d.resumo.alta ? "var(--err)" : d.resumo.total ? "var(--warn)" : "var(--ok)"}">${d.resumo.total}</div>
+        <div class="d" style="color:${d.resumo.alta ? "var(--err)" : "var(--muted)"}">${d.resumo.alta} urgente(s)</div></div>
       <div class="kpi"><div class="l">Curso mais em dia</div>
         <div class="v" style="font-size:20px">${esc(d.cursos[0]?.nome || "—")}</div>
         <div class="d" style="color:var(--ok)">${d.cursos[0]?.percentual ?? 0}% do checklist de NDE e Colegiado</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">Quem regularizar</div>
+      <div class="card-s">Agrupado por órgão e curso — abra para ver o que está pendente e cobrar.</div>
+      ${d.responsaveis.length ? d.responsaveis.map((g) => `<details class="resp">
+        <summary>
+          <span style="flex:1;min-width:0">${esc(g.titulo)}</span>
+          ${g.alta ? `<span class="pill p-alta">${g.alta} urgente(s)</span>` : ""}
+          ${g.media ? `<span class="pill p-media">${g.media} em atenção</span>` : ""}
+          ${g.baixa ? `<span class="pill p-baixa">${g.baixa}</span>` : ""}
+        </summary>
+        <div class="corpo">${g.alertas.map(cartaoAlerta).join("")}</div>
+      </details>`).join("")
+      : '<div class="banner ba-ok">Nenhuma pendência: todos os órgãos estão em dia neste semestre.</div>'}
+    </div>
+
+    <div class="card">
+      <div class="card-t">Todos os alertas</div>
+      <div class="card-s">Do mais urgente para o menos, na janela ${esc(d.janela)}.</div>
+      ${blocoAlertas(d)}
     </div>
 
     <div class="card">
@@ -731,17 +821,6 @@ async function renderConformidade() {
           }).join("")}</tr>`).join("")}</tbody>
       </table></div>
     </div>
-
-    ${d.assinaturas.pendentes.length ? `<div class="card">
-      <div class="card-t">Atas sem a via assinada</div>
-      <div class="card-s">Registradas no sistema, mas ainda sem o PDF digitalizado com as assinaturas.</div>
-      <table class="pt"><thead><tr><th>Ata</th><th>Órgão</th><th>Curso</th><th>Sessão</th></tr></thead>
-      <tbody>${d.assinaturas.pendentes.map((a) => `<tr>
-        <td><a onclick="abrir('${a.id}')" style="cursor:pointer">${esc(a.numero || "—")}</a></td>
-        <td>${esc(a.orgao)}</td>
-        <td>${esc(META.cursos.find((c) => c.slug === a.curso)?.nome || "—")}</td>
-        <td>${fmtD(a.data)}</td></tr>`).join("")}</tbody></table>
-    </div>` : ""}
 
     <div class="card">
       <div class="card-t">Temas institucionais</div>
@@ -894,7 +973,7 @@ async function renderSugestoes() {
   const porCurso = orgaoPorCurso(ATUAL.orgao);
   if (porCurso && !ATUAL.curso) return;
   let d;
-  try { d = await buscarPautas(ATUAL.orgao, porCurso ? ATUAL.curso : ""); }
+  try { d = await buscarPautas(ATUAL.orgao, porCurso ? ATUAL.curso : "", ATUAL.id); }
   catch { return; }
   SUGESTOES = d.pautas;
 
@@ -903,6 +982,7 @@ async function renderSugestoes() {
   const extra = ATUAL.sessao?.tipo === "extraordinária";
   const daVez = r.proximoMomento;
   const cobradas = d.pautas.filter((p) => p.exigidaAgora);
+  ANTERIOR = d.anterior || null;
   const marcadas = cobradas.filter((p) => usadas.has(p.id)).length;
   const grupos = r.momentos.length > 1 ? r.momentos : ["livre"];
 
@@ -923,6 +1003,24 @@ async function renderSugestoes() {
     </label>`;
   };
 
+  // item de praxe do rito: a ata da sessão anterior é lida e aprovada nesta
+  const pendenteAnterior = ANTERIOR && ["minuta", "revisao"].includes(ANTERIOR.status);
+  const anteriorMarcada = (ATUAL.pauta || []).some((p) => p.ataAnterior);
+  const itemAnterior = ANTERIOR ? `<label class="chk-pauta ${anteriorMarcada ? "on" : ""}">
+      <input type="checkbox" ${anteriorMarcada ? "checked" : ""} ${PODE_EDITAR ? "" : "disabled"}
+        onchange="alternarAtaAnterior(this.checked)">
+      <span class="txt">
+        <span class="tt">Leitura e aprovação da ata da sessão anterior</span>
+        <span class="md">${esc(ANTERIOR.numero)} · sessão ${esc(ANTERIOR.tipo || "ordinária")} de ${fmtD(ANTERIOR.data)}
+          · situação atual: ${ROTULO_STATUS[ANTERIOR.status] || ANTERIOR.status}</span>
+        <span class="ev">${pendenteAnterior
+          ? "Ao registrar esta ata, a anterior passa automaticamente a <b>aprovada</b> — é assim que o rito funciona."
+          : "A ata anterior já está " + (ROTULO_STATUS[ANTERIOR.status] || ANTERIOR.status).toLowerCase() + "; o ponto fica como registro da leitura."}</span>
+      </span>
+      <span class="badge ${anteriorMarcada ? "e-em-dia" : pendenteAnterior ? "e-vencendo" : "e-fora-da-janela"}">${
+        anteriorMarcada ? "nesta ata" : pendenteAnterior ? "aguardando aprovação" : "de praxe"}</span>
+    </label>` : "";
+
   el.classList.remove("hide");
   el.innerHTML = `
     <div class="card-t">Pautas obrigatórias do semestre ${esc(r.janela)}</div>
@@ -933,6 +1031,8 @@ async function renderSugestoes() {
               : `Esta será a sessão de <b>${esc(MOM_ROT(daVez).toLowerCase())}</b>.`}
       <b>Marque abaixo o que a reunião abordou</b> — cada item marcado vira um ponto de pauta.</div>
     <div class="cnt">${marcadas} de ${cobradas.length} pauta(s) do semestre marcada(s) nesta ata.</div>
+    ${itemAnterior ? `<div class="grupo-mom"><div class="grupo-t">
+      <span class="mom mom-livre">Ordem do dia</span> <span>item de praxe</span></div>${itemAnterior}</div>` : ""}
     ${grupos.map((m) => {
       const doGrupo = cobradas.filter((p) => p.momento === m);
       if (!doGrupo.length) return "";
@@ -941,6 +1041,34 @@ async function renderSugestoes() {
         ${doGrupo.map(caixa).join("")}</div>`;
     }).join("")}
     ${cobradas.length ? "" : '<div class="banner ba-ok">Este órgão não tem pauta obrigatória vencendo neste semestre.</div>'}`;
+}
+
+// A leitura da ata anterior vira o primeiro ponto da ordem do dia.
+function alternarAtaAnterior(ligar) {
+  const i = (ATUAL.pauta || []).findIndex((p) => p.ataAnterior);
+  if (!ligar) {
+    if (i >= 0) {
+      const p = ATUAL.pauta[i];
+      if ((p.discussao || p.deliberacao) && !confirm("Este ponto já tem conteúdo. Remover mesmo assim?")) {
+        renderSugestoes(); return;
+      }
+      ATUAL.pauta.splice(i, 1);
+      if (!ATUAL.pauta.length) addPonto();
+    }
+    renderPauta(); renderSugestoes(); return;
+  }
+  if (i >= 0 || !ANTERIOR) { renderSugestoes(); return; }
+  const ponto = {
+    titulo: `Leitura e aprovação da ata da sessão anterior (${ANTERIOR.numero})`,
+    ataAnterior: ANTERIOR.id, pautaMec: "", discussao: "",
+    deliberacao: "Lida e aprovada por unanimidade.",
+    votacao: { houve: false, favor: 0, contra: 0, abstencoes: 0 },
+    encaminhamento: { acao: "", responsavel: "", prazo: "" },
+  };
+  const vazio = ATUAL.pauta.findIndex((x) => !x.titulo && !x.discussao);
+  if (vazio >= 0) ATUAL.pauta.splice(vazio, 1);
+  ATUAL.pauta.unshift(ponto);          // é sempre o primeiro item da ordem do dia
+  renderPauta(); renderSugestoes();
 }
 
 // Marcar cria o ponto; desmarcar remove — mas nunca apaga texto já escrito.
@@ -977,66 +1105,63 @@ function incluirPauta(id) {
   $("pauta").lastElementChild?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-// Os papéis que circulam fora do sistema: convocação e lista de presença
-// antes da sessão; a via assinada depois dela.
+// Os papéis que circulam fora do sistema e os documentos apreciados na sessão.
 function cardDocumentos(a) {
-  const pronta = a.sessao?.data && (a.participantes || []).length;
+  const anexos = a.anexos || [];
   const doc = (ic, t1, t2, acoes) => `<div class="doc"><span class="ic">${ic}</span>
     <span class="txt"><span class="t1">${t1}</span><span class="t2">${t2}</span></span>${acoes}</div>`;
   return `<div class="card">
     <div class="card-t">Documentos da sessão</div>
-    <div class="card-s">Os papéis que circulam fora do sistema — todos com o timbrado institucional.</div>
+    <div class="card-s">A lista de presença é para assinar na mesa. A cópia da ata fica no acervo da PROPPEX;
+      o arquivamento da via assinada é do próprio órgão.</div>
 
-    ${doc("📨", "Convocação", a.convocacao
-      ? `enviada em ${fmtDH(a.convocacao.em)} para ${esc(a.convocacao.enviadoPara || "—")}`
-      : "ordem do dia e horário, para circular antes da reunião",
-      `<a class="bt bt-ghost" href="/api/atas/${a.id}/convocacao" target="_blank">PDF</a>
-       ${PODE_EDITAR && pronta ? `<button class="bt bt-sec" onclick="convocar()">✉ Enviar aos membros</button>` : ""}`)}
-
-    ${doc("✍", "Lista de presença", "para assinar na mesa, com linhas em branco para quem chegar depois",
+    ${doc("✍", "Lista de presença", "linhas de assinatura por membro, com espaço para quem chegar depois",
       `<a class="bt bt-ghost" href="/api/atas/${a.id}/presenca" target="_blank">PDF</a>`)}
 
-    ${a.status === "registrada" ? doc("📄", "Ata registrada",
-      `${esc(a.numero)} · registrada em ${fmtDH(a.registro?.em)}`,
+    ${a.texto ? doc("📄", a.status === "registrada" ? "Ata registrada" : "Ata (prévia)",
+      a.status === "registrada"
+        ? `${esc(a.numero)} · registrada em ${fmtDH(a.registro?.em)}`
+        : "como ficará o documento com o texto atual",
       `<a class="bt bt-ghost" href="/api/atas/${a.id}/pdf" target="_blank">PDF</a>`) : ""}
 
-    ${a.status === "registrada" ? doc("🖊", "Via assinada", a.assinada
-      ? `enviada em ${fmtDH(a.assinada.em)} por ${esc(a.assinada.por)}`
-      : "digitalize a ata assinada e devolva ao sistema — é a via que o avaliador pede",
-      a.assinada
-        ? `<a class="bt bt-ok" href="${esc(a.assinada.link)}" target="_blank">Ver</a>
-           ${PODE_EDITAR ? `<button class="bt bt-ghost" onclick="$('assinada-arq').click()">Substituir</button>` : ""}`
-        : `<button class="bt bt-pri" onclick="$('assinada-arq').click()">⬆ Enviar assinada</button>`) : ""}
+    ${doc("📎", "Documentos anexos",
+      anexos.length ? `${anexos.length} arquivo(s) vinculado(s) a esta ata`
+                    : "pareceres, planilhas, minutas — o que foi apreciado na sessão",
+      PODE_EDITAR ? `<button class="bt bt-sec" onclick="$('anexo-arq').click()">⬆ Anexar</button>` : "")}
 
-    <input type="file" id="assinada-arq" class="hide" accept="application/pdf,image/*" onchange="enviarAssinada(this)">
+    ${anexos.length ? `<div style="margin-top:4px">${anexos.map((x, i) => `<div class="ciclo">
+        <span style="flex:1;min-width:0"><a href="${esc(x.link)}" target="_blank">${esc(x.name)}</a>
+          <span class="muted"> · ${fmtDH(x.em)}</span></span>
+        ${PODE_EDITAR ? `<span class="rm" style="cursor:pointer;color:var(--err);font-weight:700"
+          onclick="removerAnexo(${i})">✕</span>` : ""}</div>`).join("")}</div>` : ""}
+
+    <input type="file" id="anexo-arq" class="hide" onchange="enviarAnexo(this)">
   </div>`;
 }
 
-async function convocar() {
-  if (!confirm("Enviar a convocação por e-mail a todos os membros com e-mail cadastrado?")) return;
-  try {
-    aviso("Gerando e enviando a convocação…", "warn");
-    await salvar({ silencioso: true });
-    const r = await api(`/api/atas/${ATUAL.id}/convocar`, { method: "POST" });
-    ATUAL = r.ata; await carregar(); cabecalho(); renderEditor("v-ata");
-    aviso(`Convocação enviada para ${r.enviadoPara}.`, "ok");
-  } catch (e) { aviso(e.message, "err"); }
-}
-
-async function enviarAssinada(input) {
+async function enviarAnexo(input) {
   const arquivo = input.files?.[0];
   input.value = "";
   if (!arquivo) return;
   if (arquivo.size > 20 * 1024 * 1024) { aviso("Arquivo acima de 20 MB.", "err"); return; }
   try {
-    aviso("Enviando a via assinada…", "warn");
+    aviso("Enviando o anexo…", "warn");
+    await salvar({ silencioso: true });
     const fd = new FormData();
     fd.append("file", arquivo);
-    const r = await fetch(`/api/atas/${ATUAL.id}/assinada`, { method: "POST", body: fd });
+    const r = await fetch(`/api/atas/${ATUAL.id}/anexo`, { method: "POST", body: fd });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || `Falha (${r.status})`);
     ATUAL = j.ata; await carregar(); cabecalho(); renderEditor("v-ata");
-    aviso("Via assinada anexada à ata. O arquivo fica no acervo da PROPPEX.", "ok");
+    aviso(`"${arquivo.name}" anexado à ata.`, "ok");
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+async function removerAnexo(i) {
+  if (!confirm("Remover este anexo da ata?")) return;
+  try {
+    const j = await api(`/api/atas/${ATUAL.id}/anexo/${i}`, { method: "DELETE" });
+    ATUAL = j.ata; await carregar(); cabecalho(); renderEditor("v-ata");
   } catch (e) { aviso(e.message, "err"); }
 }
 
