@@ -47,6 +47,12 @@ public/
 - **Setores protegidos** (exigem login): `/extensao`, `/pesquisa`, `/inovacao`, `/atas`, `/usuarios`.
   **Avaliação (`/arche/`) é ABERTA** — não adicionar login nela.
 - Gestores gerais fixos: `jadsonbelem@gmail.com` e `jadson.moura@uniego.edu.br` (lib/auth.js).
+- **Coordenação por setor** (`/usuarios/`, ação `coordenar`): o gestor geral designa
+  coordenadores para qualquer um dos quatro módulos — `extensao`, `pesquisa`, `inovacao`
+  e `atas`. Dentro do setor marcado a pessoa tem o alcance da PROPPEX (no ARCHÉ AT, vê
+  as atas de todos os órgãos, o Acompanhamento e os alertas); fora dele é submissora, e
+  a gestão de acessos continua exclusiva dos gestores gerais. Cada setor decide isso
+  lendo `modulos` da sessão (`gereAtas`, `gereIC`) — nunca o papel sozinho.
 - Contas `@uniego.edu.br` entram como submissoras automaticamente; outras aguardam aprovação.
 - Fluxo da Extensão: proposta → aprovação (nº `EXT-AAAA-NNN`) → relatório final →
   participantes (3/3 completa) → certificados → registrada. Não alterar o formato do nº.

@@ -24,6 +24,15 @@
   .muted{color:var(--muted);font-size:13px}
   .add{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
   .add input{flex:1;min-width:220px;width:auto}
+  .mods{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;margin:10px 0}
+  .mod{display:flex;align-items:flex-start;gap:9px;margin:0;padding:9px 11px;border:1px solid var(--line);
+    border-radius:9px;background:#fff;cursor:pointer;font-size:13.5px;font-weight:400;color:var(--ink);
+    text-transform:none;letter-spacing:0;transition:.15s}
+  .mod:hover{border-color:var(--brand-2);background:var(--wash)}
+  .mod:has(input:checked){border-color:var(--brand-2);background:var(--accent-wash)}
+  .mod b{font-weight:600}
+  .mod .dica{display:block;font-size:11.5px;color:var(--muted);line-height:1.4;margin-top:2px}
+  .designar{border:1px dashed var(--line-strong);border-radius:11px;padding:14px 16px;margin-top:14px;background:#fbfcfd}
 </style>
 </head>
 <body>
@@ -42,20 +51,29 @@
       <span class="topo-s">Gestão de acessos — PROPPEX / UNIEGO</span>
     </div>
     <nav class="topo-nav">
-      <a href="/extensao/">← Extensão</a>
       <a href="/">← Voltar ao portal</a>
     </nav>
   </div>
 </header>
 <main>
   <h1>Gestão de acessos</h1>
-  <div class="sub">Aprovações de submissores e papéis de gestor. Contas <b>@uniego.edu.br</b> entram automaticamente como submissoras.</div>
+  <div class="sub">Quem entra, quem submete e quem gere cada setor — Extensão, Pesquisa/IC, Inovação e
+    Atas e Colegiados. Contas <b>@uniego.edu.br</b> entram automaticamente como submissoras.</div>
   <div id="conteudo" class="muted">Carregando…</div>
 </main>
 <script>
 const $=(id)=>document.getElementById(id);
 const esc=(s)=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const MODULOS=[["extensao","Extensão"],["pesquisa","Pesquisa / IC"],["inovacao","Inovação"],["atas","Atas e Colegiados"]];
+/* Cada módulo é um setor do portal. Quem coordena um módulo tem, ali dentro,
+   o mesmo alcance da PROPPEX — daí valer a pena dizer o que isso significa,
+   em vez de deixar quatro caixinhas soltas na tela. */
+const MODULOS=[
+  ["extensao","Extensão","vê todas as ações, aprova propostas e emite os números"],
+  ["pesquisa","Pesquisa / IC","vê todos os projetos, designa avaliadores e decide o mérito"],
+  ["inovacao","Inovação","gestão do setor de inovação (em construção)"],
+  ["atas","Atas e Colegiados","vê as atas de todos os órgãos, o Acompanhamento e os alertas de regularização"],
+];
+const rotulo=(m)=>(MODULOS.find(x=>x[0]===m)||[m,m])[1];
 const FIXOS=["jadsonbelem@gmail.com","jadson.moura@uniego.edu.br"];
 async function agir(acao,email,modulos){
   const r=await fetch("/api/usuarios",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,email,modulos})});
@@ -70,10 +88,13 @@ function coordenar(email){
   agir("coordenar",e,marcados);
 }
 const cssId=(e)=>e.replace(/[^a-z0-9]/gi,"_");
-const chips=(mods)=>mods.map(m=>`<span class="badge" style="background:var(--cyan-soft);color:var(--teal)">${(MODULOS.find(x=>x[0]===m)||[m,m])[1]}</span>`).join(" ");
-function checkboxes(cls,marcados=[]){
-  return MODULOS.map(([v,l])=>`<label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;text-transform:none;letter-spacing:0;margin:0 10px 0 0;color:var(--ink)">
-    <input type="checkbox" class="${cls}" value="${v}" ${marcados.includes(v)?"checked":""} style="width:auto"> ${l}</label>`).join("");
+const chips=(mods)=>mods.map(m=>`<span class="badge" style="background:var(--cyan-soft);color:var(--teal)">${rotulo(m)}</span>`).join(" ");
+function checkboxes(cls,marcados=[],comDica=false){
+  return `<div class="mods">${MODULOS.map(([v,l,dica])=>`
+    <label class="mod">
+      <input type="checkbox" class="${cls}" value="${v}" ${marcados.includes(v)?"checked":""}>
+      <span><b>${l}</b>${comDica?`<span class="dica">${dica}</span>`:""}</span>
+    </label>`).join("")}</div>`;
 }
 function render(u){
   const coords=Object.entries(u.coordenadores||{});
@@ -88,17 +109,22 @@ function render(u){
     </div>
 
     <div class="card"><div class="sec">🧭 Coordenadores — gestão por módulo (${coords.length})</div>
-      <div class="muted" style="margin-bottom:8px">Coordenadores têm painel de gestão apenas nos módulos marcados. Não gerenciam usuários.</div>
+      <div class="muted" style="margin-bottom:8px">Dentro dos setores marcados, o coordenador tem o mesmo alcance
+        da PROPPEX: enxerga o que todos registraram e decide. Fora deles, é submissor como qualquer outro —
+        e a gestão de acessos, esta tela, continua só com os gestores gerais.</div>
       ${coords.length?coords.map(([e,mods])=>`<div class="u"><span class="em">${esc(e)}</span> ${chips(mods)}
         <span style="flex-basis:100%"></span>
-        <span>${checkboxes("chk-"+cssId(e),mods)}</span>
+        <span style="flex-basis:100%">${checkboxes("chk-"+cssId(e),mods)}</span>
         <button class="bt bt-pri" onclick="coordenar('${esc(e)}')">💾 Atualizar</button>
         <button class="bt bt-err" onclick="agir('remover','${esc(e)}')">✕ Revogar</button></div>`).join("")
       :'<div class="muted">Nenhum coordenador designado ainda.</div>'}
-      <div class="add" style="align-items:center">
-        <input id="coord-email" list="emails" type="email" placeholder="e-mail do coordenador (dentre os cadastrados)">
+      <div class="designar">
+        <div style="font-weight:600;font-size:14px;margin-bottom:2px">Designar coordenador</div>
+        <div class="muted" style="margin-bottom:8px">Informe o e-mail e marque os setores que a pessoa vai gerir.
+          Pode ser mais de um.</div>
+        <input id="coord-email" list="emails" type="email" placeholder="e-mail da pessoa (ex.: coordenador@uniego.edu.br)">
         <datalist id="emails">${conhecidos.map(e=>`<option value="${esc(e)}">`).join("")}</datalist>
-        <span>${checkboxes("chk-novo")}</span>
+        ${checkboxes("chk-novo",[],true)}
         <button class="bt bt-ok" onclick="coordenar()">＋ Designar coordenador</button>
       </div>
     </div>

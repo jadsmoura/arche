@@ -104,6 +104,11 @@ input,select,textarea{width:100%;border:1.5px solid var(--line);border-radius:10
   transition:border-color .2s,box-shadow .2s}
 textarea{min-height:84px;resize:vertical;line-height:1.55}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent-deep);box-shadow:0 0 0 3px rgba(64,113,126,.12)}
+/* Caixa de marcar não é campo de texto: sem a largura total nem o recheio,
+   senão ela incha e o rótulo fica longe do quadradinho que se clica. */
+input[type="checkbox"],input[type="radio"]{width:auto;padding:0;border:0;border-radius:0;
+  box-shadow:none;accent-color:var(--brand-2);vertical-align:middle;flex:none;margin:0}
+input[type="checkbox"]:focus,input[type="radio"]:focus{box-shadow:0 0 0 3px rgba(64,113,126,.25)}
 select{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:38px;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%232d6a6a' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 12px center}

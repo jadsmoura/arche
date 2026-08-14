@@ -4,8 +4,9 @@ import assert from "node:assert/strict";
 import {
   hashSenha, conferirSenha, senhaFraca, emitirCookie, lerSessao, limparCookie,
   renovarSessao, registrarFalha, bloqueado, limparFalhas, iniciarAuth,
-  definirSenha, temSenha, validarSenhaDe,
+  definirSenha, temSenha, validarSenhaDe, MODULOS, papelDe, modulosDe, carregarUsuarios,
 } from "../lib/auth.js";
+import { podeVerAta } from "../lib/atas.js";
 
 function resFalso() {
   const headers = {};
@@ -112,4 +113,46 @@ test("limite de tentativas de senha", () => {
   assert.equal(bloqueado(chave), true);
   limparFalhas(chave);
   assert.equal(bloqueado(chave), false, "acerto libera a conta");
+});
+
+/* ------------------------- coordenação por setor ------------------------- */
+test("os quatro setores podem ter coordenação designada", () => {
+  assert.deepEqual(MODULOS, ["extensao", "pesquisa", "inovacao", "atas"],
+    "atas entra na lista como qualquer outro setor");
+});
+
+test("coordenador de um setor gere aquele setor, e só aquele", async () => {
+  const base = { gestores: [], coordenadores: { "coord@uniego.edu.br": ["atas"] }, aprovados: [], pendentes: [] };
+  const u = await carregarUsuarios(storageFalso({ "auth-usuarios-v1": JSON.stringify(base) }));
+
+  assert.equal(papelDe("coord@uniego.edu.br", u), "coordenador");
+  assert.deepEqual(modulosDe("coord@uniego.edu.br", u), ["atas"]);
+
+  // é a lista de módulos que o setor consulta para dizer quem é gestão ali
+  const gereAtas = (email) => modulosDe(email, u).includes("atas");
+  assert.equal(gereAtas("coord@uniego.edu.br"), true);
+  assert.equal(gereAtas("professor@uniego.edu.br"), false);
+
+  // e é isso que abre o acervo inteiro das atas para essa pessoa
+  const ata = { criadoPor: "outra.pessoa@uniego.edu.br" };
+  assert.equal(podeVerAta({ email: "coord@uniego.edu.br", gestao: gereAtas("coord@uniego.edu.br") }, ata), true);
+  assert.equal(podeVerAta({ email: "professor@uniego.edu.br", gestao: false }, ata), false);
+});
+
+test("a coordenação de um setor não vaza para os outros", async () => {
+  const u = await carregarUsuarios(storageFalso({ "auth-usuarios-v1": JSON.stringify({
+    gestores: [], coordenadores: { "so.atas@uniego.edu.br": ["atas"] }, aprovados: [], pendentes: [] }) }));
+  const mods = modulosDe("so.atas@uniego.edu.br", u);
+  assert.ok(mods.includes("atas"));
+  for (const outro of ["extensao", "pesquisa", "inovacao"]) {
+    assert.ok(!mods.includes(outro), `coordenar atas não pode dar gestão em ${outro}`);
+  }
+});
+
+test("gestor geral tem todos os setores; os fixos da PROPPEX não se perdem", async () => {
+  const u = await carregarUsuarios(storageFalso({}));
+  assert.ok(u.gestores.includes("jadsonbelem@gmail.com"));
+  assert.deepEqual(modulosDe("jadsonbelem@gmail.com", u), MODULOS, "gestor geral gere tudo");
+  assert.equal(papelDe("qualquer@uniego.edu.br", u), "aprovado", "conta institucional entra como submissora");
+  assert.equal(papelDe("externo@gmail.com", u), "pendente");
 });
