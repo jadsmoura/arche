@@ -23,6 +23,7 @@ lib/pdf.js           Relatório final, proposta e ata em PDF (timbrado oficial U
 lib/atas.js          ARCHÉ AT: órgãos, numeração das atas, normalização e validação
 lib/pautas.js        Catálogo da Pauta Regulatória (indicadores INEP) e conformidade
 lib/redator.js       Redação da minuta da ata: modelo (padrão) | gemini | anthropic
+lib/assistente.js    Assistente de escrita dos campos da ata (só ARCHÉ AT)
 lib/marca.js         Identidade institucional por data (FACEG até set/2025; UNIEGO depois)
 lib/alertas.js       Alertas de regularização das atas para a PROPPEX
 lib/mailer.js        E-mails via Gmail API (remetente "ARCHÉ · PROPPEX")
@@ -96,6 +97,11 @@ public/
   determinístico assume, e qualquer falha de IA cai nele em vez de derrubar o fluxo.
   O adaptador do Gemini tenta os modelos Flash em ordem (o Google aposenta versões:
   o `gemini-2.5-flash` sai em 16/10/2026), então basta a chave para funcionar.
+- **Assistente de escrita** (`lib/assistente.js` + `public/assets/arche-ia.js`): botões de
+  IA nos campos longos das atas. Vale **só no ARCHÉ AT** — proposta e relatório da Extensão
+  ficam de fora por decisão do dono, para não induzir dependência num texto que é autoria
+  do professor. O assistente **nunca cria conteúdo**: exige texto do autor (mín. 15
+  caracteres) e só reescreve. Sem chave de IA, os botões não aparecem.
 
 ## Identidade visual
 

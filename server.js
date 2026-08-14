@@ -1147,6 +1147,57 @@ app.delete("/api/atas/:id", async (req, res) => {
   res.json({ ok: true });
 });
 
+/* ===================== ASSISTENTE DE ESCRITA (IA) ======================= */
+// Ajuda a redigir os campos longos dos formulários — proposta e relatório da
+// extensão, pontos de pauta das atas. Nunca cria conteúdo do zero: reescreve
+// o que o professor digitou (ver lib/assistente.js).
+const IA_LIMITE = { chamadas: 40, janelaMs: 10 * 60 * 1000 };
+const iaUso = new Map();   // email -> [timestamps]
+
+function iaExcedeu(email) {
+  const agora = Date.now();
+  const recentes = (iaUso.get(email) || []).filter((t) => agora - t < IA_LIMITE.janelaMs);
+  if (recentes.length >= IA_LIMITE.chamadas) { iaUso.set(email, recentes); return true; }
+  recentes.push(agora);
+  iaUso.set(email, recentes);
+  if (iaUso.size > 500) for (const [k, v] of iaUso) if (!v.some((t) => agora - t < IA_LIMITE.janelaMs)) iaUso.delete(k);
+  return false;
+}
+
+// A interface consulta isto para saber se deve mostrar os botões.
+app.get("/api/ia/estado", async (req, res) => {
+  const u = await usuarioDe(req, res);
+  if (!u || u.papel === "pendente") return res.status(403).json({ error: "Faça login" });
+  const { catalogo } = await import("./lib/assistente.js");
+  res.json(catalogo());
+});
+
+app.post("/api/ia/assistente", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u || u.papel === "pendente") return res.status(403).json({ error: "Faça login" });
+    if (iaExcedeu(u.email)) {
+      return res.status(429).json({
+        error: "Muitos pedidos ao assistente em pouco tempo. Espere alguns minutos.",
+      });
+    }
+    const { assistir } = await import("./lib/assistente.js");
+    const r = await assistir({
+      campo: req.body?.campo, acao: req.body?.acao,
+      texto: req.body?.texto, contexto: req.body?.contexto,
+    });
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    console.error("[ia] assistente:", e.message);
+    // erro de uso (texto curto, campo inválido) é 400; falha do provedor é 502
+    const doUsuario = /assistente melhora|não reconhecid[ao]|não está configurado|ao menos/i.test(e.message);
+    res.status(doUsuario ? 400 : 502).json({
+      error: doUsuario ? e.message
+        : "O assistente não conseguiu responder agora. O texto que você escreveu está preservado.",
+    });
+  }
+});
+
 app.get("/api/files/*", async (req, res) => {
   try {
     const fileId = decodeURIComponent(req.params[0]);

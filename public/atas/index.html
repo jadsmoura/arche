@@ -989,11 +989,11 @@ function renderEditor(alvo) {
       <div class="card-t">Pauta e deliberações</div>
       <div class="card-s">Anote em tópicos — a redação em prosa é feita depois, automaticamente.</div>
       <label>Informes <span class="muted">(comunicações da presidência, sem deliberação)</span></label>
-      <textarea ${ro} oninput="campo('informes',this.value)" style="min-height:60px">${esc(a.informes || "")}</textarea>
+      <textarea ${ro} data-ia="atas.informes" oninput="campo('informes',this.value)" style="min-height:60px">${esc(a.informes || "")}</textarea>
       <div id="pauta" style="margin-top:18px"></div>
       <button class="bt bt-sec" ${ro} onclick="addPonto()">＋ Adicionar ponto de pauta</button>
       <label style="margin-top:18px">Outras ocorrências</label>
-      <textarea ${ro} oninput="campo('observacoes',this.value)" style="min-height:60px">${esc(a.observacoes || "")}</textarea>
+      <textarea ${ro} data-ia="atas.observacoes" oninput="campo('observacoes',this.value)" style="min-height:60px">${esc(a.observacoes || "")}</textarea>
     </div>
 
     ${a.id ? cardDocumentos(a) : ""}
@@ -1337,9 +1337,11 @@ function renderPauta() {
       ((META.pautas || []).find((x) => x.id === p.pautaMec)?.refs || [])
         .map((r) => `<span class="ref">${r.inst === "curso" ? "CURSO" : "IES"} ${esc(r.num)} · ${esc(r.nome)}</span>`).join("")}</div>` : ""}
     <label>Notas da discussão <span class="muted">(tópicos bastam)</span></label>
-    <textarea ${ro} oninput="setPonto(${i},'discussao',this.value)" style="min-height:70px">${esc(p.discussao || "")}</textarea>
+    <textarea ${ro} data-ia="atas.discussao" data-ia-ponto="${i}"
+      oninput="setPonto(${i},'discussao',this.value)" style="min-height:70px">${esc(p.discussao || "")}</textarea>
     <label>Deliberação</label>
-    <textarea ${ro} oninput="setPonto(${i},'deliberacao',this.value)" style="min-height:52px">${esc(p.deliberacao || "")}</textarea>
+    <textarea ${ro} data-ia="atas.deliberacao" data-ia-ponto="${i}"
+      oninput="setPonto(${i},'deliberacao',this.value)" style="min-height:52px">${esc(p.deliberacao || "")}</textarea>
     <label class="chk"><input type="checkbox" ${ro} ${p.votacao?.houve ? "checked" : ""}
       onchange="setVoto(${i},'houve',this.checked);renderPauta()"> houve votação</label>
     ${p.votacao?.houve ? `<div class="votos">
@@ -1425,6 +1427,23 @@ async function sair() {
   location.href = "/";
 }
 
+/* ------------------------ contexto para o assistente -------------------- */
+// O assistente usa isto só para dar coerência ao texto (órgão, tipo de sessão,
+// título do ponto). Nunca para preencher o campo: o conteúdo vem do que a
+// pessoa digitou.
+window.archeIAContexto = function (campo, el) {
+  if (!ATUAL) return null;
+  const ctx = {
+    "Órgão": tituloDaAta(ATUAL),
+    "Tipo de sessão": ATUAL.sessao?.tipo || "ordinária",
+    "Data da sessão": fmtD(ATUAL.sessao?.data),
+  };
+  const i = Number(el?.dataset?.iaPonto);
+  const ponto = Number.isInteger(i) ? ATUAL.pauta?.[i] : null;
+  if (ponto?.titulo) ctx["Ponto de pauta"] = ponto.titulo;
+  return ctx;
+};
+
 /* --------------------------------- início ------------------------------- */
 (async () => {
   try {
@@ -1444,5 +1463,6 @@ async function sair() {
 })();
 </script>
 <script src="/assets/arche-nav.js" defer></script>
+<script src="/assets/arche-ia.js" defer></script>
 </body>
 </html>
