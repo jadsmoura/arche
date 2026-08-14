@@ -1258,9 +1258,9 @@ async function sessaoIC(req, res) {
  * indicado e o avaliador ad hoc. Os três últimos vêm do próprio projeto:
  * ninguém precisa cadastrar papel à parte.
  */
-function perfilIC(u, projetos) {
-  if (gereIC(u)) return "gestao";
-  const meu = quemIC(u);
+function perfilIC(u, projetos, quem = null) {
+  const meu = quem || quemIC(u);
+  if (meu.gestao) return "gestao";
   const papeis = projetos.map((p) => papelNoProjeto(meu, p)).filter(Boolean);
   if (papeis.includes("orientador")) return "orientador";
   if (!papeis.length) return "orientador";     // docente ainda sem projeto: pode submeter
@@ -1274,6 +1274,57 @@ function perfilIC(u, projetos) {
  * segunda proposta não deveria digitar tudo de novo. Devolve a produção mais
  * recente que a pessoa informou em qualquer projeto seu.
  */
+/**
+ * "Ver como" — a coordenação abre o setor pelos olhos de outra pessoa, para
+ * conferir o que ela enxerga (é a pergunta que chega no suporte: "o professor
+ * diz que não vê o projeto dele"). Não é um atalho de permissão: o alvo é
+ * tratado como quem ele é, sem gestão, e as regras de sigilo valem iguais.
+ * Vale só para leitura — a trava de escrita está no middleware abaixo.
+ */
+async function visaoComo(req, u) {
+  const alvo = String(req.query?.como || "").trim().toLowerCase();
+  if (!alvo || !gereIC(u)) return null;
+  // "cpf:00000000000" — quem ainda não tem conta, mas já está em projeto
+  // importado: mostra o que a pessoa vai encontrar quando se cadastrar
+  if (alvo.startsWith("cpf:")) {
+    return { email: "", cpf: normalizarCpf(alvo.slice(4)), gestao: false, simulado: true };
+  }
+  const perfis = await carregarPerfis();
+  return { email: alvo, cpf: perfis[alvo]?.cpf || "", gestao: false, simulado: true };
+}
+
+// Nada se grava enquanto se olha pelos olhos de outro: o histórico do projeto
+// diria que foi a pessoa quem mexeu, e não foi.
+app.use("/api/ic", (req, res, next) => {
+  if (req.method !== "GET" && req.query?.como) {
+    return res.status(403).json({ error: "Você está vendo como outra pessoa — esta visualização é somente leitura." });
+  }
+  next();
+});
+
+/**
+ * Quem é quem no setor, para a coordenação escolher por quais olhos olhar.
+ * Sai dos próprios projetos: não há cadastro de papel à parte.
+ */
+function pessoasDoSetor(projetos) {
+  // A chave é o e-mail; quem ainda não tem conta entra pelo CPF, que é como
+  // o projeto importado o identifica (ver visaoComo).
+  const põe = (mapa, { email, cpf, nome }) => {
+    const k = String(email || "").toLowerCase() || (cpf ? `cpf:${cpf}` : "");
+    if (!k) return;
+    const atual = mapa.get(k) || { id: k, email: email || "", semConta: !email, nome: "", projetos: 0 };
+    mapa.set(k, { ...atual, nome: atual.nome || nome || "", projetos: atual.projetos + 1 });
+  };
+  const orientadores = new Map(), alunos = new Map(), avaliadores = new Map();
+  for (const p of projetos || []) {
+    põe(orientadores, { email: p.orientador?.email || p.criadoPor, cpf: p.orientador?.cpf, nome: p.orientador?.nome });
+    for (const a of p.alunos || []) põe(alunos, a);
+    for (const a of p.avaliacoes || []) põe(avaliadores, a);
+  }
+  const lista = (m) => [...m.values()].sort((a, b) => (a.nome || a.email).localeCompare(b.nome || b.email, "pt-BR"));
+  return { orientadores: lista(orientadores), alunos: lista(alunos), avaliadores: lista(avaliadores) };
+}
+
 /** Catálogo do edital mais o que já foi informado à mão, num array só. */
 function todosOsGrupos(projetos) {
   const { certificados, informados } = gruposConhecidos(projetos);
@@ -1294,6 +1345,8 @@ app.get("/api/ic/meta", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
   const projetos = await lerProjetos();
+  const como = await visaoComo(req, u);
+  const meu = como || quemIC(u);
   res.json({
     cursos: CURSOS, modalidades: IC_MODALIDADES, status: IC_STATUS, rotulos: IC_ROTULO_STATUS,
     situacoesEtapa: SITUACOES_ETAPA, tiposRelatorio: TIPOS_RELATORIO,
@@ -1306,8 +1359,12 @@ app.get("/api/ic/meta", async (req, res) => {
     titulacoes: TITULACOES, blocosProducao: BLOCOS_PRODUCAO,
     // a produção acadêmica é a mesma para todos os projetos do professor:
     // o formulário já abre com o que ele informou da última vez
-    producaoAnterior: producaoMaisRecente(projetos, u),
-    gestao: gereIC(u), eu: u.email, nome: u.nome || "", perfil: perfilIC(u, projetos),
+    producaoAnterior: como ? null : producaoMaisRecente(projetos, u),
+    gestao: meu.gestao, eu: meu.email, nome: como ? "" : (u.nome || ""),
+    perfil: perfilIC(u, projetos, meu),
+    // quem a coordenação pode simular, e por quais olhos está olhando agora
+    ...(gereIC(u) ? { pessoas: pessoasDoSetor(projetos) } : {}),
+    ...(como ? { simulando: como.email } : {}),
   });
 });
 
@@ -1315,10 +1372,10 @@ app.get("/api/ic/meta", async (req, res) => {
 app.get("/api/ic", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
-  const meu = quemIC(u);
+  const meu = (await visaoComo(req, u)) || quemIC(u);
   const projetos = (await lerProjetos()).filter((p) => podeVerProjeto(meu, p));
   res.json({
-    gestao: gereIC(u), eu: u.email,
+    gestao: meu.gestao, eu: meu.email,
     projetos: projetos.map((p) => resumirProjeto(p, meu))
       .sort((a, b) => String(b.atualizadoEm || "").localeCompare(String(a.atualizadoEm || ""))),
   });
@@ -1329,32 +1386,33 @@ app.get("/api/ic", async (req, res) => {
 app.get("/api/ic/cronograma", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
-  res.json({ etapas: cronogramaDe(await lerProjetos(), quemIC(u)), eu: u.email, hoje: hojeLocalISO() });
+  const meu = (await visaoComo(req, u)) || quemIC(u);
+  res.json({ etapas: cronogramaDe(await lerProjetos(), meu), eu: meu.email, hoje: hojeLocalISO() });
 });
 
 app.get("/api/ic/relatorios", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
   const projetos = await lerProjetos();
-  const meu = quemIC(u);
+  const meu = (await visaoComo(req, u)) || quemIC(u);
   res.json({
     relatorios: relatoriosDe(projetos, meu),
     pendentes: projetos.filter((p) => podeVerProjeto(meu, p)).flatMap((p) =>
       relatoriosPendentes(p)
-        .filter((x) => papelNoProjeto(meu, p) !== "aluno" || x.aluno === u.email)
+        .filter((x) => papelNoProjeto(meu, p) !== "aluno" || x.aluno === meu.email)
         .map((x) => ({ ...x, projetoId: p.id, numero: p.numero, titulo: p.titulo }))),
-    eu: u.email,
+    eu: meu.email,
   });
 });
 
 app.get("/api/ic/:id", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
-  const meu = quemIC(u);
+  const meu = (await visaoComo(req, u)) || quemIC(u);
   const p = (await lerProjetos()).find((x) => x.id === req.params.id);
   if (!p || !podeVerProjeto(meu, p)) return res.status(404).json({ error: "Projeto não encontrado" });
   res.json({
-    projeto: verProjeto(u, p), papel: papelNoProjeto(meu, p),
+    projeto: visaoDoProjeto(p, meu), papel: papelNoProjeto(meu, p),
     podeEditar: podeEditarProjeto(meu, p), podeGerir: podeGerirExecucao(meu, p),
     podeAvaliar: podeAvaliar(meu, p), podeEnviar: podeEnviarRelatorio(meu, p),
     podeValidar: podeValidarRelatorio(meu, p),

@@ -120,6 +120,14 @@ public/
   aluno sem e-mail (não conseguirá enviar relatório), planilha de produção em branco,
   CEP/CEUA sem protocolo. O formulário do edital não coletou e-mail nem CPF dos alunos —
   por isso `validarProjeto` aceita aluno identificado só por nome e matrícula.
+- **Ver como** (`visaoComo` no server): a coordenação abre o ARCHÉ IC pelos olhos de
+  qualquer pessoa do setor — professor, aluno ou avaliador — para conferir o que ela
+  enxerga. Não é atalho de permissão: o alvo é tratado como quem é (`gestao: false`),
+  e as mesmas funções de recorte e sigilo valem, então a simulação não mente. É
+  **somente leitura** — um middleware recusa qualquer escrita com `?como=`, senão o
+  histórico do projeto diria que foi a pessoa quem mexeu. Quem ainda não tem conta
+  pode ser simulado pelo CPF (`como=cpf:000…`), que é como o projeto importado o
+  identifica: mostra o que ele encontrará ao se cadastrar.
 - **CPF é a chave do que vem de fora** (`lib/cpf.js`): o perfil (`/perfil/`) pede o CPF,
   guardado só em dígitos e **único por conta** (dois cadastros com o mesmo CPF são
   recusados — o segundo herdaria os projetos do primeiro); alterar CPF já gravado só

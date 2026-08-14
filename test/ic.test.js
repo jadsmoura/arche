@@ -267,6 +267,37 @@ test("o avaliador não acompanha a execução de projeto alheio", () => {
   assert.deepEqual(relatoriosDe([p], AD1), []);
 });
 
+test("ver como outra pessoa é a visão dela, não uma versão enfeitada dela", () => {
+  // A coordenação simula trocando apenas a identidade da leitura; tudo o mais
+  // — papel, visibilidade e sigilo — sai das mesmas funções. É o que garante
+  // que a simulação não minta sobre o que a pessoa enxerga.
+  const p = emSelecao([{ email: AD2.email, situacao: "entregue", parecer: "sigiloso", recomendacao: "recomendado", notas: {} }]);
+  const simulando = (quem) => ({ email: quem.email, cpf: quem.cpf || "", gestao: false });
+
+  const comoOrientador = visaoDoProjeto(p, simulando(PROF));
+  assert.deepEqual(comoOrientador, visaoDoProjeto(p, PROF), "idêntica à visão real da orientação");
+  assert.equal(comoOrientador.avaliacoes, undefined, "a coordenação, simulando, também deixa de ver quem avaliou");
+  assert.ok(!JSON.stringify(comoOrientador).includes("sigiloso"));
+
+  const comoAvaliador = visaoDoProjeto(p, simulando(AD1));
+  assert.deepEqual(comoAvaliador, visaoDoProjeto(p, AD1));
+  assert.equal(comoAvaliador.orientador, null, "e vê a proposta sem os nomes, como o avaliador vê");
+
+  assert.equal(papelNoProjeto(simulando(ALUNO), p), "aluno");
+  assert.equal(podeDesignarAvaliador(simulando(PROPPEX), p), false,
+    "simulando alguém sem gestão, os poderes de gestão não vão junto");
+});
+
+test("simular por CPF mostra o que a pessoa verá antes mesmo de ter conta", () => {
+  const p = normalizarProjeto(bruto({
+    orientador: { nome: "Prof. Sem Conta", email: "", cpf: "390.533.447-05" },
+  }), { autor: "" });
+  const porCpf = { email: "", cpf: "39053344705", gestao: false };
+  assert.equal(papelNoProjeto(porCpf, p), "orientador");
+  assert.equal(podeVerProjeto(porCpf, p), true);
+  assert.equal(podeVerProjeto({ email: "", cpf: "11144477735", gestao: false }, p), false, "CPF de outro não abre nada");
+});
+
 /* ------------------------------ cronograma ------------------------------ */
 test("o cronograma junta os projetos, mas o aluno só vê o plano dele", () => {
   const a = { ...emExecucao(), id: "p1" };

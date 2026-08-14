@@ -235,6 +235,9 @@ let META = { cursos: [], modalidades: [], status: [], rotulos: {}, gestao: false
 const gruposConhecidos = () => [...(META.certificados || []), ...(META.informados || [])];
 let PROJETOS = [], ETAPAS = [], RELS = { relatorios: [], pendentes: [] };
 let ATUAL = null, PODE = {}, ME = null, SECAO = "painel";
+// "ver como": a coordenação abre o setor pelos olhos de outra pessoa. Guardado
+// na aba (sessionStorage) para sobreviver ao F5 sem grudar entre sessões.
+let COMO = sessionStorage.getItem("arche-ic-como") || "";
 let FILTRO = { status: "", curso: "", linha: "", grupo: "", q: "" };
 
 // Quatro acessos, uma barra lateral só: cada perfil vê as guias que usa.
@@ -262,15 +265,23 @@ const TITULOS = {
 };
 
 /* ------------------------------- infra --------------------------------- */
+/* Enquanto se olha pelos olhos de outra pessoa, o recorte é feito no
+   servidor — não basta esconder menu, senão a tela mentiria sobre o que a
+   pessoa vê (o sigilo do parecer ad hoc é o caso mais claro). */
+function comQuem(url) {
+  if (!COMO) return url;
+  return url + (url.includes("?") ? "&" : "?") + "como=" + encodeURIComponent(COMO);
+}
+
 async function api(url, opcoes) {
-  const r = await fetch(url, opcoes);
+  const r = await fetch(!opcoes || (opcoes.method || "GET") === "GET" ? comQuem(url) : url, opcoes);
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || `Falha (${r.status})`);
   return j;
 }
 function aviso(msg, tipo = "ok") {
-  $("aviso").innerHTML = `<div class="banner ba-${tipo}">${esc(msg)}</div>`;
-  if (tipo === "ok") setTimeout(() => { if ($("aviso").textContent === msg) $("aviso").innerHTML = ""; }, 6000);
+  $("aviso").innerHTML = faixaVerComo() + `<div class="banner ba-${tipo}">${esc(msg)}</div>`;
+  if (tipo === "ok") setTimeout(() => { if ($("aviso").textContent.includes(msg)) $("aviso").innerHTML = faixaVerComo(); }, 6000);
   window.scrollTo(0, 0);
 }
 const cursoNome = (slug) => (META.cursos.find((c) => c.slug === slug) || {}).nome || slug || "—";
@@ -327,6 +338,56 @@ function montarSidebar() {
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === SECAO);
 }
 
+/* ---------------------------- ver como -------------------------------- */
+function montarVerComo() {
+  const alvo = $("dir-info");
+  if (!alvo) return;
+  if (!META.pessoas) { alvo.textContent = rotuloPerfil(); return; }
+
+  const grupo = (rot, gente) => gente.length
+    ? `<optgroup label="${rot}">${gente.map((p) => `<option value="${esc(p.id)}" ${COMO === p.id ? "selected" : ""}>${
+        esc(p.nome || p.email)}${p.projetos > 1 ? ` (${p.projetos})` : ""}${p.semConta ? " · sem conta" : ""}</option>`).join("")}</optgroup>`
+    : "";
+  alvo.innerHTML = `
+    <label style="margin:0;display:flex;align-items:center;gap:7px;text-transform:none;letter-spacing:0;font-size:12.5px">
+      Ver como
+      <select style="width:auto;min-width:190px;font-size:12.5px;padding:6px 8px" onchange="verComo(this.value)">
+        <option value="">Coordenação (você)</option>
+        ${grupo("Professor orientador", META.pessoas.orientadores)}
+        ${grupo("Aluno indicado", META.pessoas.alunos)}
+        ${grupo("Avaliador ad hoc", META.pessoas.avaliadores)}
+      </select>
+    </label>`;
+}
+
+const rotuloPerfil = () => META.gestao ? "coordenação de pesquisa"
+  : ehAluno() ? "aluno de IC" : ehAvaliador() ? "avaliador ad hoc" : "orientação";
+
+function faixaVerComo() {
+  if (!COMO) return "";
+  const quem = [...(META.pessoas?.orientadores || []), ...(META.pessoas?.alunos || []), ...(META.pessoas?.avaliadores || [])]
+    .find((p) => p.id === COMO);
+  return `<div class="banner ba-warn" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span>Você está vendo o setor como <b>${esc(quem?.nome || COMO)}</b>
+      (${esc(rotuloPerfil())})${quem?.semConta ? " — pessoa ainda sem conta: é o que ela encontrará ao se cadastrar com o CPF" : ""}
+      — somente leitura, nada aqui grava em nome dela.</span>
+    <button class="bt bt-ghost" style="margin-left:auto" onclick="verComo('')">Voltar a ver como coordenação</button>
+  </div>`;
+}
+
+async function verComo(email) {
+  COMO = email || "";
+  if (COMO) sessionStorage.setItem("arche-ic-como", COMO); else sessionStorage.removeItem("arche-ic-como");
+  try {
+    META = await api("/api/ic/meta");
+    await carregar();
+  } catch (e) { aviso(e.message, "err"); }
+  montarSidebar(); montarVerComo();
+  // a seção em que se estava pode não existir para a outra pessoa
+  const vale = SECOES.filter((x) => !x.perfis || x.perfis.includes(META.perfil)).map((x) => x.id);
+  nav(vale.includes(SECAO) ? SECAO : "painel");
+}
+
 function nav(secao, id) {
   SECAO = secao;
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === secao);
@@ -337,7 +398,7 @@ function nav(secao, id) {
 
   const [t, s] = TITULOS[secao] || ["", ""];
   $("titulo").textContent = t; $("subtitulo").textContent = s; $("crumb").textContent = t;
-  $("aviso").innerHTML = "";
+  $("aviso").innerHTML = faixaVerComo();
 
   if (secao === "painel") renderPainel();
   if (secao === "submissao") { ATUAL = novoProjeto(); PODE = { podeEditar: true, papel: "orientador" }; renderEditor("v-submissao"); }
@@ -1352,9 +1413,8 @@ async function excluir() {
     return;                                  // sem META não há tela a montar
   }
   montarSidebar();
+  montarVerComo();
   nav("painel");
-  $("dir-info").textContent = META.gestao ? "coordenação de pesquisa"
-    : ehAluno() ? "aluno de IC" : ehAvaliador() ? "avaliador ad hoc" : "orientação";
 })();
 </script>
 <script src="/assets/arche-nav.js" defer></script>
