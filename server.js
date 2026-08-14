@@ -788,7 +788,7 @@ app.get("/api/atas", async (req, res) => {
       titulo: tituloDe(a), status: a.status, sessao: a.sessao, ano: a.ano,
       presidencia: a.presidencia, secretaria: a.secretaria,
       participantes: (a.participantes || []).length,
-      pontos: (a.pauta || []).length, temTexto: !!a.texto, pdf: a.pdf, registro: a.registro,
+      pontos: (a.pauta || []).length, temTexto: !!a.texto, pdf: a.pdf, assinada: a.assinada, convocacao: a.convocacao, registro: a.registro,
       criadoEm: a.criadoEm, criadoPor: a.criadoPor, atualizadoEm: a.atualizadoEm,
     })).sort((x, y) => String(y.sessao?.data || "").localeCompare(String(x.sessao?.data || ""))),
     encaminhamentos: encaminhamentos(atas).filter((e) => e.prazo),
@@ -821,10 +821,19 @@ app.get("/api/atas/conformidade", async (req, res) => {
   if (!u) return;
   if (!gereAtas(u)) return res.status(403).json({ error: "Acompanhamento restrito à gestão" });
   const atas = await lerAtas();
+  const registradas = atas.filter((a) => a.status === "registrada");
   res.json({
     ...matrizConformidade(atas),
     cursos: placarPorCurso(atas),
     ciclos: ciclosDoSemestre(atas),
+    // a via assinada é o documento que o avaliador pede na visita
+    assinaturas: {
+      registradas: registradas.length,
+      assinadas: registradas.filter((a) => a.assinada).length,
+      pendentes: registradas.filter((a) => !a.assinada)
+        .map((a) => ({ id: a.id, numero: a.numero, orgao: a.orgao, curso: a.curso, data: a.sessao?.data }))
+        .sort((x, y) => String(x.data).localeCompare(String(y.data))),
+    },
   });
 });
 
@@ -1013,6 +1022,104 @@ app.post("/api/atas/:id/registrar", async (req, res) => {
   } catch (e) {
     console.error("Erro ao registrar a ata:", e);
     res.status(500).json({ error: e.message || "Erro ao registrar a ata" });
+  }
+});
+
+// Convocação e lista de presença: os papéis que circulam ANTES da sessão.
+app.get("/api/atas/:id/:documento(convocacao|presenca)", async (req, res) => {
+  try {
+    const u = await sessaoAtas(req, res);
+    if (!u) return;
+    const ata = (await lerAtas()).find((x) => x.id === req.params.id);
+    if (!ata || !podeVer(u, ata)) return res.status(404).send("Ata não encontrada");
+    const { gerarConvocacaoPdf, gerarPresencaPdf } = await import("./lib/pdf.js");
+    const conv = req.params.documento === "convocacao";
+    const buffer = await (conv ? gerarConvocacaoPdf(ata) : gerarPresencaPdf(ata));
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition",
+      `inline; filename="${conv ? "convocacao" : "presenca"}-${slug(ata.numero || ata.id)}.pdf"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro no documento da sessão:", e);
+    res.status(500).send("Erro ao gerar o documento: " + e.message);
+  }
+});
+
+// Envia a convocação por e-mail aos membros já inscritos na sessão.
+app.post("/api/atas/:id/convocar", async (req, res) => {
+  try {
+    const u = await sessaoAtas(req, res);
+    if (!u) return;
+    const ata = (await lerAtas()).find((x) => x.id === req.params.id);
+    if (!ata || !podeEditar(u, ata)) return res.status(404).json({ error: "Ata não encontrada" });
+    if (!ata.sessao?.data || !(ata.participantes || []).length)
+      return res.status(400).json({ error: "Informe a data e os membros antes de convocar" });
+
+    const { gerarConvocacaoPdf } = await import("./lib/pdf.js");
+    const pdfBuffer = await gerarConvocacaoPdf(ata);
+    const { enviarEmail, emailConvocacao } = await import("./lib/mailer.js");
+    const destinos = [
+      ...(ata.participantes || []).map((p) => p.email),
+      ata.secretaria?.email, ata.criadoPor,
+    ];
+    const enviadoPara = await enviarEmail({
+      ...emailConvocacao(ata, { titulo: tituloDe(ata), para: destinos }),
+      anexos: [{ nome: `convocacao-${slug(ata.numero || ata.id)}.pdf`, tipo: "application/pdf", conteudo: pdfBuffer }],
+    });
+
+    const r = await comAtas((atas) => {
+      const i = atas.findIndex((x) => x.id === req.params.id);
+      if (i < 0) return { erro: [404, "Ata não encontrada"], gravar: false };
+      atas[i] = anotar({ ...atas[i], convocacao: { em: new Date().toISOString(), por: u.email, enviadoPara } },
+        { quem: u.email, oQue: "enviou a convocação" });
+      return { ata: atas[i] };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, ata: r.ata, enviadoPara });
+  } catch (e) {
+    console.error("Erro ao convocar:", e);
+    res.status(500).json({ error: e.message || "Erro ao enviar a convocação" });
+  }
+});
+
+// A via assinada volta para o sistema: é ela que o avaliador pede na visita.
+// Fica anexada à ata registrada e visível para a PROPPEX.
+app.post("/api/atas/:id/assinada", upload.single("file"), async (req, res) => {
+  try {
+    const u = await sessaoAtas(req, res);
+    if (!u) return;
+    if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
+    const ata = (await lerAtas()).find((x) => x.id === req.params.id);
+    if (!ata || !podeVer(u, ata)) return res.status(404).json({ error: "Ata não encontrada" });
+    // quem participou da sessão pode devolver a via assinada, mesmo depois de
+    // registrada — é justamente aí que a assinatura acontece
+    if (!(gereAtas(u) || ata.criadoPor === u.email || ata.secretaria?.email === u.email))
+      return res.status(403).json({ error: "Sem permissão para anexar a via assinada" });
+    if (ata.status !== "registrada")
+      return res.status(400).json({ error: "Registre a ata antes de anexar a via assinada" });
+
+    const pasta = `atas/${slug(orgaoDe(ata.orgao)?.sigla || "geral")}${ata.curso ? "/" + slug(ata.curso) : ""}/${ata.ano || "sem-ano"}/assinadas`;
+    const arquivo = await files.save({
+      buffer: req.file.buffer,
+      originalName: `assinada-${slug(ata.numero || ata.id)}${path.extname(req.file.originalname) || ".pdf"}`,
+      prefix: pasta,
+    });
+
+    const r = await comAtas((atas) => {
+      const i = atas.findIndex((x) => x.id === req.params.id);
+      if (i < 0) return { erro: [404, "Ata não encontrada"], gravar: false };
+      atas[i] = anotar({
+        ...atas[i],
+        assinada: { ...arquivo, em: new Date().toISOString(), por: u.email },
+        atualizadoEm: new Date().toISOString(),
+      }, { quem: u.email, oQue: "anexou a via assinada" });
+      return { ata: atas[i] };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, ata: r.ata });
+  } catch (e) {
+    console.error("Erro ao anexar a via assinada:", e);
+    res.status(500).json({ error: e.message || "Erro ao anexar o arquivo" });
   }
 });
 

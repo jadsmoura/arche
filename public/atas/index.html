@@ -218,6 +218,25 @@
   .ciclo{display:flex;align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid var(--line-2);font-size:13px}
   .ciclo:last-child{border-bottom:0}
   .ciclo .n{font-family:Sora,sans-serif;font-weight:700;font-size:13px;min-width:44px;text-align:right}
+  .grupo-mom{margin-bottom:16px}
+  .grupo-t{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:12px;color:var(--muted);font-weight:600}
+  .chk-pauta{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;
+    padding:12px 14px;margin-bottom:8px;cursor:pointer;background:#fff;transition:border-color .15s,background .15s}
+  .chk-pauta:hover{border-color:var(--brand-3)}
+  .chk-pauta.on{border-color:var(--ok);background:#f6fbf8}
+  .chk-pauta.feita{opacity:.7}
+  .chk-pauta input{width:18px;height:18px;margin:1px 0 0;flex:none;accent-color:var(--brand)}
+  .chk-pauta .txt{flex:1;min-width:0;display:block}
+  .chk-pauta .tt{display:block;font-size:13.5px;font-weight:600;color:var(--ink);line-height:1.35}
+  .chk-pauta .md{display:block;font-size:11.5px;color:var(--muted);margin-top:3px}
+  .chk-pauta .ev{display:block;font-size:12px;color:var(--ink-soft);margin-top:6px;line-height:1.5}
+  .chk-pauta.on .ev{color:var(--ink-soft)}
+  .doc{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line-2)}
+  .doc:last-child{border-bottom:0}
+  .doc .ic{width:34px;height:34px;border-radius:9px;background:var(--info-soft);display:grid;place-items:center;flex:none;font-size:16px}
+  .doc .txt{flex:1;min-width:0}
+  .doc .t1{font-size:13.5px;font-weight:600;color:var(--ink)}
+  .doc .t2{font-size:11.5px;color:var(--muted);margin-top:1px}
   .pauta-item{border:1px solid var(--line);border-left:3px solid var(--line);border-radius:10px;
     padding:14px 16px;margin-bottom:10px;background:#fff}
   .pauta-item.em-dia{border-left-color:var(--ok)}
@@ -495,6 +514,7 @@ function renderArquivo() {
         <div class="nm">${esc(a.numero || "— sem número —")}
           <div class="cs">${esc(a.titulo)} · sessão ${esc(a.sessao?.tipo || "")} de ${fmtD(a.sessao?.data)}
             · ${a.participantes} participante(s) · ${a.pontos} ponto(s)</div></div>
+        ${a.assinada ? '<span class="badge e-em-dia" title="via assinada no sistema">🖊 assinada</span>' : ""}
         <span class="badge b-${a.status}">${ROTULO_STATUS[a.status] || a.status}</span>
       </div>`).join("") || '<div class="card"><div class="vazio">Nenhuma ata encontrada com esses filtros.</div></div>'}`;
 }
@@ -642,7 +662,7 @@ async function renderConformidade() {
   const cicloInst = d.ciclos.filter((c) => !c.curso);
 
   el.innerHTML = `
-    <div class="kpis" style="grid-template-columns:repeat(4,1fr)">
+    <div class="kpis" style="grid-template-columns:repeat(5,1fr)">
       <div class="kpi"><div class="l">Checklist do semestre ${esc(d.janela)}</div><div class="v">${d.percentual}%</div>
         <div class="d">${d.emDia} de ${d.total} temas cobrados até ${fmtD(d.fimDaJanela)}</div></div>
       <div class="kpi"><div class="l">Sessões em falta</div>
@@ -651,6 +671,9 @@ async function renderConformidade() {
       <div class="kpi"><div class="l">Sessões extraordinárias</div>
         <div class="v">${d.ciclos.reduce((n, c) => n + c.extraordinarias, 0)}</div>
         <div class="d">registradas por demanda</div></div>
+      <div class="kpi"><div class="l">Vias assinadas</div>
+        <div class="v" style="color:${d.assinaturas.assinadas === d.assinaturas.registradas ? "var(--ok)" : "var(--warn)"}">${d.assinaturas.assinadas}/${d.assinaturas.registradas}</div>
+        <div class="d">atas registradas com a via digitalizada</div></div>
       <div class="kpi"><div class="l">Curso mais em dia</div>
         <div class="v" style="font-size:20px">${esc(d.cursos[0]?.nome || "—")}</div>
         <div class="d" style="color:var(--ok)">${d.cursos[0]?.percentual ?? 0}% do checklist de NDE e Colegiado</div></div>
@@ -708,6 +731,17 @@ async function renderConformidade() {
           }).join("")}</tr>`).join("")}</tbody>
       </table></div>
     </div>
+
+    ${d.assinaturas.pendentes.length ? `<div class="card">
+      <div class="card-t">Atas sem a via assinada</div>
+      <div class="card-s">Registradas no sistema, mas ainda sem o PDF digitalizado com as assinaturas.</div>
+      <table class="pt"><thead><tr><th>Ata</th><th>Órgão</th><th>Curso</th><th>Sessão</th></tr></thead>
+      <tbody>${d.assinaturas.pendentes.map((a) => `<tr>
+        <td><a onclick="abrir('${a.id}')" style="cursor:pointer">${esc(a.numero || "—")}</a></td>
+        <td>${esc(a.orgao)}</td>
+        <td>${esc(META.cursos.find((c) => c.slug === a.curso)?.nome || "—")}</td>
+        <td>${fmtD(a.data)}</td></tr>`).join("")}</tbody></table>
+    </div>` : ""}
 
     <div class="card">
       <div class="card-t">Temas institucionais</div>
@@ -823,6 +857,7 @@ function renderEditor(alvo) {
       <textarea ${ro} oninput="campo('observacoes',this.value)" style="min-height:60px">${esc(a.observacoes || "")}</textarea>
     </div>
 
+    ${a.id ? cardDocumentos(a) : ""}
     ${a.id ? cardMinuta(a) : ""}
 
     <div class="barra-acoes">
@@ -851,6 +886,8 @@ function pautasDoOrgaoLocal() {
 // Lista as pautas que o órgão ainda não tratou na janela vigente e oferece
 // incluí-las como ponto com um clique. É o "para que não se esqueçam".
 let SUGESTOES = null;
+// Checklist do semestre com caixas de seleção: o responsável marca o que a
+// reunião abordou e o ponto de pauta é criado (ou removido) na hora.
 async function renderSugestoes() {
   const el = $("card-sugestoes");
   if (!el || !ATUAL?.orgao) return;
@@ -864,40 +901,65 @@ async function renderSugestoes() {
   const r = d.ritual;
   const usadas = new Set((ATUAL.pauta || []).map((p) => p.pautaMec).filter(Boolean));
   const extra = ATUAL.sessao?.tipo === "extraordinária";
-  // numa sessão do ciclo, o momento em que o órgão está puxa os temas da vez
   const daVez = r.proximoMomento;
-  const faltando = d.pautas
-    .filter((p) => p.exigidaAgora && p.estado !== "em-dia" && !usadas.has(p.id))
-    .sort((a, b) => (a.momento === daVez ? 0 : 1) - (b.momento === daVez ? 0 : 1)
-      || ["nunca", "vencendo", "pendente"].indexOf(a.estado) - ["nunca", "vencendo", "pendente"].indexOf(b.estado));
-  const jaNesta = d.pautas.filter((p) => usadas.has(p.id));
+  const cobradas = d.pautas.filter((p) => p.exigidaAgora);
+  const marcadas = cobradas.filter((p) => usadas.has(p.id)).length;
+  const grupos = r.momentos.length > 1 ? r.momentos : ["livre"];
+
+  const caixa = (p) => {
+    const on = usadas.has(p.id);
+    const feita = p.estado === "em-dia" && !on;   // já coberta por outra ata do semestre
+    return `<label class="chk-pauta ${on ? "on" : ""} ${feita ? "feita" : ""}">
+      <input type="checkbox" ${on ? "checked" : ""} ${PODE_EDITAR ? "" : "disabled"}
+        onchange="alternarPauta('${p.id}',this.checked)">
+      <span class="txt">
+        <span class="tt">${esc(p.titulo)}</span>
+        <span class="md">${esc(quandoVence(p))} · prazo ${fmtD(p.fimDaJanela)}
+          · ${p.refs.map((x) => `${x.inst === "curso" ? "Curso" : "IES"} ${esc(x.num)}`).join(", ")}
+          ${feita ? ` · <b style="color:var(--ok)">já registrada em ${fmtD(p.ultima?.data)}</b>` : ""}</span>
+        <span class="ev">${esc(p.evidencia)}</span>
+      </span>
+      <span class="badge e-${on ? "em-dia" : p.estado}">${on ? "nesta ata" : ROT_ESTADO[p.estado]}</span>
+    </label>`;
+  };
 
   el.classList.remove("hide");
   el.innerHTML = `
-    <div class="card-t">Checklist do semestre ${esc(r.janela)}</div>
+    <div class="card-t">Pautas obrigatórias do semestre ${esc(r.janela)}</div>
     <div class="card-s">${esc(META.orgaos.find((o) => o.codigo === ATUAL.orgao)?.nome || "")} registrou
       <b>${r.ordinarias} de ${r.exigidas}</b> sessão(ões) ordinária(s) neste semestre${r.extraordinarias ? ` e ${r.extraordinarias} extraordinária(s)` : ""}.
-      ${extra ? "Esta é uma sessão <b>extraordinária</b>: entra por demanda e não fecha o ciclo, mas os temas que tratar contam como registro."
+      ${extra ? "Esta é uma sessão <b>extraordinária</b>: entra por demanda e não fecha o ciclo, mas os temas que marcar aqui contam como registro."
               : r.completo ? "O ciclo já está cumprido — esta sessão é um reforço."
-              : `Esta será a sessão de <b>${esc(MOM_ROT(daVez).toLowerCase())}</b>.`}</div>
-    ${jaNesta.length ? `<div class="banner ba-ok">✓ Esta ata já cobre ${jaNesta.length} tema(s) do checklist:
-      ${jaNesta.map((p) => esc(p.titulo)).join(" · ")}</div>` : ""}
-    ${faltando.length ? faltando.slice(0, 8).map((p) => `<div class="pauta-item ${p.estado}">
-        <div style="display:flex;gap:12px;align-items:flex-start">
-          <div style="flex:1;min-width:0">
-            <div class="tt">${chipMomento(p.momento)}${esc(p.titulo)}</div>
-            <div class="md">${esc(quandoVence(p))} · prazo desta janela: ${fmtD(p.fimDaJanela)}
-              ${p.ultima ? ` · última vez em ${fmtD(p.ultima.data)}` : " · nunca tratada"}
-              · ${p.refs.map((x) => `${x.inst === "curso" ? "Curso" : "IES"} ${esc(x.num)}`).join(", ")}</div>
-          </div>
-          <span class="badge e-${p.estado}">${ROT_ESTADO[p.estado]}</span>
-          ${PODE_EDITAR ? `<button class="bt bt-sec" style="padding:7px 12px;font-size:12.5px"
-            onclick="incluirPauta('${p.id}')">＋ incluir</button>` : ""}
-        </div>
-        <div class="porque">${esc(p.evidencia)}</div>
-      </div>`).join("")
-      : '<div class="banner ba-ok">Nenhuma pendência: o checklist deste semestre está completo para este órgão.</div>'}
-    ${faltando.length > 8 ? `<div class="cnt">e mais ${faltando.length - 8} — veja em “Pauta regulatória”.</div>` : ""}`;
+              : `Esta será a sessão de <b>${esc(MOM_ROT(daVez).toLowerCase())}</b>.`}
+      <b>Marque abaixo o que a reunião abordou</b> — cada item marcado vira um ponto de pauta.</div>
+    <div class="cnt">${marcadas} de ${cobradas.length} pauta(s) do semestre marcada(s) nesta ata.</div>
+    ${grupos.map((m) => {
+      const doGrupo = cobradas.filter((p) => p.momento === m);
+      if (!doGrupo.length) return "";
+      return `<div class="grupo-mom">
+        <div class="grupo-t">${chipMomento(m)} <span>${doGrupo.filter((p) => usadas.has(p.id)).length}/${doGrupo.length} marcada(s)</span></div>
+        ${doGrupo.map(caixa).join("")}</div>`;
+    }).join("")}
+    ${cobradas.length ? "" : '<div class="banner ba-ok">Este órgão não tem pauta obrigatória vencendo neste semestre.</div>'}`;
+}
+
+// Marcar cria o ponto; desmarcar remove — mas nunca apaga texto já escrito.
+function alternarPauta(id, ligar) {
+  if (ligar) { incluirPauta(id); return; }
+  const i = (ATUAL.pauta || []).findIndex((p) => p.pautaMec === id);
+  if (i < 0) { renderSugestoes(); return; }
+  const p = ATUAL.pauta[i];
+  const temConteudo = p.discussao || p.deliberacao || p.encaminhamento?.acao;
+  if (temConteudo) {
+    if (!confirm("Este ponto já tem conteúdo. Desvincular da pauta obrigatória e manter o texto?")) {
+      renderSugestoes(); return;
+    }
+    p.pautaMec = "";
+  } else {
+    ATUAL.pauta.splice(i, 1);
+    if (!ATUAL.pauta.length) addPonto();
+  }
+  renderPauta(); renderSugestoes();
 }
 
 function incluirPauta(id) {
@@ -913,6 +975,69 @@ function incluirPauta(id) {
   if (vazio >= 0) ATUAL.pauta[vazio] = ponto; else ATUAL.pauta.push(ponto);
   renderPauta(); renderSugestoes();
   $("pauta").lastElementChild?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+// Os papéis que circulam fora do sistema: convocação e lista de presença
+// antes da sessão; a via assinada depois dela.
+function cardDocumentos(a) {
+  const pronta = a.sessao?.data && (a.participantes || []).length;
+  const doc = (ic, t1, t2, acoes) => `<div class="doc"><span class="ic">${ic}</span>
+    <span class="txt"><span class="t1">${t1}</span><span class="t2">${t2}</span></span>${acoes}</div>`;
+  return `<div class="card">
+    <div class="card-t">Documentos da sessão</div>
+    <div class="card-s">Os papéis que circulam fora do sistema — todos com o timbrado institucional.</div>
+
+    ${doc("📨", "Convocação", a.convocacao
+      ? `enviada em ${fmtDH(a.convocacao.em)} para ${esc(a.convocacao.enviadoPara || "—")}`
+      : "ordem do dia e horário, para circular antes da reunião",
+      `<a class="bt bt-ghost" href="/api/atas/${a.id}/convocacao" target="_blank">PDF</a>
+       ${PODE_EDITAR && pronta ? `<button class="bt bt-sec" onclick="convocar()">✉ Enviar aos membros</button>` : ""}`)}
+
+    ${doc("✍", "Lista de presença", "para assinar na mesa, com linhas em branco para quem chegar depois",
+      `<a class="bt bt-ghost" href="/api/atas/${a.id}/presenca" target="_blank">PDF</a>`)}
+
+    ${a.status === "registrada" ? doc("📄", "Ata registrada",
+      `${esc(a.numero)} · registrada em ${fmtDH(a.registro?.em)}`,
+      `<a class="bt bt-ghost" href="/api/atas/${a.id}/pdf" target="_blank">PDF</a>`) : ""}
+
+    ${a.status === "registrada" ? doc("🖊", "Via assinada", a.assinada
+      ? `enviada em ${fmtDH(a.assinada.em)} por ${esc(a.assinada.por)}`
+      : "digitalize a ata assinada e devolva ao sistema — é a via que o avaliador pede",
+      a.assinada
+        ? `<a class="bt bt-ok" href="${esc(a.assinada.link)}" target="_blank">Ver</a>
+           ${PODE_EDITAR ? `<button class="bt bt-ghost" onclick="$('assinada-arq').click()">Substituir</button>` : ""}`
+        : `<button class="bt bt-pri" onclick="$('assinada-arq').click()">⬆ Enviar assinada</button>`) : ""}
+
+    <input type="file" id="assinada-arq" class="hide" accept="application/pdf,image/*" onchange="enviarAssinada(this)">
+  </div>`;
+}
+
+async function convocar() {
+  if (!confirm("Enviar a convocação por e-mail a todos os membros com e-mail cadastrado?")) return;
+  try {
+    aviso("Gerando e enviando a convocação…", "warn");
+    await salvar({ silencioso: true });
+    const r = await api(`/api/atas/${ATUAL.id}/convocar`, { method: "POST" });
+    ATUAL = r.ata; await carregar(); cabecalho(); renderEditor("v-ata");
+    aviso(`Convocação enviada para ${r.enviadoPara}.`, "ok");
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+async function enviarAssinada(input) {
+  const arquivo = input.files?.[0];
+  input.value = "";
+  if (!arquivo) return;
+  if (arquivo.size > 20 * 1024 * 1024) { aviso("Arquivo acima de 20 MB.", "err"); return; }
+  try {
+    aviso("Enviando a via assinada…", "warn");
+    const fd = new FormData();
+    fd.append("file", arquivo);
+    const r = await fetch(`/api/atas/${ATUAL.id}/assinada`, { method: "POST", body: fd });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Falha (${r.status})`);
+    ATUAL = j.ata; await carregar(); cabecalho(); renderEditor("v-ata");
+    aviso("Via assinada anexada à ata. O arquivo fica no acervo da PROPPEX.", "ok");
+  } catch (e) { aviso(e.message, "err"); }
 }
 
 function cardMinuta(a) {

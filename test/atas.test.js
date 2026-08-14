@@ -245,3 +245,27 @@ test("órgãos conhecidos têm sigla e o desconhecido não resolve", () => {
   assert.equal(orgaoDe("PROAC").nome, "Pró-Reitoria Acadêmica");
   assert.equal(orgaoDe("inexistente"), null);
 });
+
+/* ------------------------- documentos da sessão -------------------------- */
+test("convocação, lista de presença e ata geram PDF válido", async () => {
+  const { gerarAtaPdf, gerarConvocacaoPdf, gerarPresencaPdf } = await import("../lib/pdf.js");
+  const a = numerar([], nova({
+    pauta: [{ titulo: "Atualização do PPC", pautaMec: "nde-ppc", deliberacao: "Aprovada." }],
+  }));
+  a.texto = redigirPorModelo(a);
+  for (const [rot, gerar] of [["ata", gerarAtaPdf], ["convocação", gerarConvocacaoPdf], ["presença", gerarPresencaPdf]]) {
+    const buf = await gerar(a);
+    assert.ok(Buffer.isBuffer(buf), `${rot} não devolveu Buffer`);
+    assert.equal(buf.subarray(0, 5).toString(), "%PDF-", `${rot} não é PDF`);
+    assert.ok(buf.length > 3000, `${rot} saiu pequeno demais (${buf.length} bytes)`);
+  }
+});
+
+test("os documentos não quebram com ata mínima (sem pauta nem participantes)", async () => {
+  const { gerarConvocacaoPdf, gerarPresencaPdf } = await import("../lib/pdf.js");
+  const vazia = normalizarAta({ orgao: "CONSU", sessao: { data: "2026-05-05" } });
+  for (const gerar of [gerarConvocacaoPdf, gerarPresencaPdf]) {
+    const buf = await gerar(vazia);
+    assert.equal(buf.subarray(0, 5).toString(), "%PDF-");
+  }
+});
