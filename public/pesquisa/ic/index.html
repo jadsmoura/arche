@@ -769,6 +769,11 @@ function renderClassificacao() {
       <div class="card-s">${doEdital.length} proposta(s) · ${doutores.length} de professores doutores · ${comNota} com nota final.
         A nota final soma o projeto (0–100) com o currículo (0–100). Os documentos do processo estão em
         <a href="#" onclick="nav('editais');return false">Editais e Resultados</a>.</div>
+      <div class="exp" style="margin-bottom:6px">
+        <a class="bt bt-ghost" href="/api/ic/bolsistas.xlsx?edital=${encodeURIComponent(e.numero)}"
+          title="Uma linha por bolsista, com CPF, contato e dados bancários — para montar os contratos">
+          📇 Bolsistas para contrato (Excel)</a>
+      </div>
       ${quadro("Classificação — professores doutores", doutores)}
       ${quadro("Classificação geral — todos os professores", geral)}
 
@@ -796,9 +801,6 @@ function renderEditais() {
           📜 Edital (PDF)</a>` : `<span class="muted">Documento do edital ainda não arquivado.</span>`}
         <a class="bt bt-sec" href="/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}" target="_blank" rel="noopener">
           📄 Resultado do processo (PDF)</a>
-        ${META.gestao ? `<a class="bt bt-ghost" href="/api/ic/bolsistas.xlsx?edital=${encodeURIComponent(e.numero)}"
-          title="Uma linha por bolsista, com CPF, contato e dados bancários — para montar os contratos">
-          📇 Bolsistas para contrato (Excel)</a>` : ""}
       </div>
       <div class="muted" style="margin-top:10px">O resultado sai sempre com os dados de agora — emitido na hora,
         com as duas classificações (doutores e geral).${META.gestao ? ` A lista dos projetos está na guia
@@ -1378,7 +1380,9 @@ async function decidirSelecao(tipo) {
    CPF, telefone e a conta que vai receber a bolsa. O avaliador e os colegas
    de projeto nunca veem esses campos (o recorte é do servidor). */
 function renderIndicacaoBolsista(p, ger) {
-  if (!p.id || !p.fomento || p.fomento.tipo === "voluntario") return "";
+  // só depois do resultado: projeto aprovado com bolsa marcada na seleção
+  if (!p.id || !["aprovado", "concluido"].includes(p.status)) return "";
+  if (!p.fomento || p.fomento.tipo === "voluntario") return "";
   if (PODE.papel === "avaliador") return "";
   const bolsistas = (p.alunos || []).map((a, i) => [a, i]).filter(([a]) => a.bolsista);
   const ro = ger ? "" : "disabled";

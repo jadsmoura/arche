@@ -154,9 +154,10 @@ public/
   `avaliar` + `fomento`. Bolsa concedida abre a **Indicação do bolsista** no projeto:
   a orientação preenche CPF, telefone, banco, agência, conta e Pix de cada aluno
   bolsista (campos do aluno em `normalizarAluno`; nunca aparecem para o avaliador nem
-  para os colegas de projeto). Falta de dado vira pendência `bolsista-incompleto`. A
-  PROPPEX exporta tudo em `GET /api/ic/bolsistas.xlsx` (só gestão) para montar os
-  contratos — as mesmas colunas do formulário antigo do Google.
+  para os colegas de projeto). Falta de dado vira pendência `bolsista-incompleto`. A ficha
+  só abre com o projeto APROVADO (resultado dado). A PROPPEX exporta tudo em
+  `GET /api/ic/bolsistas.xlsx` (só gestão; botão na guia Projetos, nunca na
+  Editais e Resultados, que é de todos) — as mesmas colunas do formulário antigo.
 - **Grupo de pesquisa** (DGP/CNPq): a proposta indica **apenas o nome do grupo**. Por
   decisão do dono, **não se pergunta o papel** de quem submete no grupo — professores
   submetem propostas ligadas a grupos que não lideram — e por isso **não há a pontuação
