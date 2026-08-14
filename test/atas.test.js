@@ -2,6 +2,7 @@
    redator determinístico. Nada aqui toca em rede ou armazenamento. */
 import test from "node:test";
 import assert from "node:assert/strict";
+import zlib from "node:zlib";
 import {
   numeroAta, proximoSequencial, numerar, serieDe, siglaCurso, normalizarAta,
   validarAta, tituloDe, quorum, encaminhamentos, anotar, orgaoDe,
@@ -260,6 +261,77 @@ test("ata e lista de presença geram PDF válido, com anexos listados", async ()
     assert.equal(buf.subarray(0, 5).toString(), "%PDF-", `${rot} não é PDF`);
     assert.ok(buf.length > 3000, `${rot} saiu pequeno demais (${buf.length} bytes)`);
   }
+});
+
+/* Lê de volta o que foi desenhado no PDF: cada trecho de texto com a posição
+   em que o PDFKit o escreveu. Serve para conferir o desenho das colunas, que
+   é onde nome e cargo longos se sobrepunham. */
+function trechosDoPdf(buf) {
+  const s = buf.toString("latin1"), fora = [];
+  const re = /stream\r?\n/g;
+  let m, pagina = 0;
+  while ((m = re.exec(s))) {
+    const ini = m.index + m[0].length, fim = s.indexOf("endstream", ini);
+    let t;
+    try { t = zlib.inflateSync(Buffer.from(s.slice(ini, fim), "latin1")).toString("latin1"); } catch { continue; }
+    if (!t.includes("Tm")) continue;             // fluxo sem texto (imagem, fonte)
+    pagina += 1;                                 // cada página tem o seu fluxo
+    let x = 0, y = 0;
+    for (const linha of t.split("\n")) {
+      const tm = linha.match(/^1 0 0 1 ([\d.-]+) ([\d.-]+) Tm$/);
+      if (tm) { x = +tm[1]; y = +tm[2]; continue; }
+      if (!/T[Jj]$/.test(linha.trim())) continue;
+      const txt = [...linha.matchAll(/<([0-9a-fA-F]+)>/g)]
+        .map((h) => Buffer.from(h[1], "hex").toString("latin1")).join("");
+      if (txt.trim()) fora.push({ pagina, x, y, txt });
+    }
+  }
+  return fora;
+}
+
+test("nome e cargo longos não sobrepõem linhas no quadro de presença", async () => {
+  const { gerarAtaPdf, gerarPresencaPdf } = await import("../lib/pdf.js");
+  const longo = "Maria Aparecida dos Santos Silva Pereira Gonçalves de Albuquerque Vasconcelos";
+  const a = numerar([], nova({
+    presidencia: { nome: longo, cargo: "Coordenação do Curso de Enfermagem" },
+    participantes: [
+      { nome: longo, condicao: "membro", cargo: "Coordenação de Ação Comunitária e Extensão Universitária", presenca: "presente" },
+      { nome: "Ana", condicao: "convidado", presenca: "justificada" },
+      { nome: longo, condicao: "suplente", cargo: "Núcleo Docente Estruturante", presenca: "presente" },
+    ],
+  }));
+  a.texto = redigirPorModelo(a);
+
+  for (const [rot, gerar] of [["ata", gerarAtaPdf], ["presença", gerarPresencaPdf]]) {
+    const porColuna = new Map();
+    for (const t of trechosDoPdf(await gerar(a))) {
+      const col = `${t.pagina}:${Math.round(t.x)}`;
+      if (!porColuna.has(col)) porColuna.set(col, []);
+      porColuna.get(col).push(t);
+    }
+    for (const [col, trechos] of porColuna) {
+      trechos.sort((p, q) => q.y - p.y);
+      for (let i = 1; i < trechos.length; i++) {
+        const dist = trechos[i - 1].y - trechos[i].y;
+        assert.ok(dist >= 8,
+          `${rot}: "${trechos[i - 1].txt}" e "${trechos[i].txt}" a ${dist.toFixed(1)}pt na coluna ${col}`);
+      }
+    }
+  }
+});
+
+test("a ata não carrega o rodapé de procedência do sistema", async () => {
+  const { gerarAtaPdf } = await import("../lib/pdf.js");
+  const a = numerar([], nova({}));
+  a.texto = redigirPorModelo(a);
+  a.redacao = { provedor: "gemini" };
+  a.registro = { em: "2026-08-10T12:00:00.000Z" };
+  const escrito = trechosDoPdf(await gerarAtaPdf(a)).map((t) => t.txt).join(" ");
+  // o documento é do órgão: situação e provedor da minuta ficam só na tela
+  assert.ok(!/emitido pelo ARCH/.test(escrito), "a ata voltou a citar o ARCHÉ como emissor");
+  assert.ok(!/minuta redigida por/.test(escrito), "a ata voltou a citar o provedor da minuta");
+  assert.ok(!/situação:/.test(escrito), "a ata voltou a citar a situação do registro");
+  assert.match(escrito, /ATA DE REUNI/, "o extrator não leu o texto do PDF");
 });
 
 test("a lista de presença não quebra com ata mínima (sem pauta nem participantes)", async () => {
