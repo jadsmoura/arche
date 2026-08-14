@@ -783,6 +783,11 @@ function renderBolsistas() {
     return `<div class="card">
       <div class="card-t">Ciclo ${esc(ciclo)}</div>
       <div class="card-s">${totalAlunos} aluno(s) em ${comAlunos.length} projeto(s) em execução.</div>
+      ${META.gestao ? `<div class="exp" style="margin-bottom:6px">
+        <a class="bt bt-ghost" href="/api/ic/bolsistas.xlsx?edital=${encodeURIComponent(ciclo)}"
+          title="Uma linha por bolsista, com CPF, contato e dados bancários — para montar os contratos">
+          📇 Bolsistas para contrato (Excel)</a>
+      </div>` : ""}
       ${corpo || `<div class="vazio">Nenhum aluno indicado neste ciclo ainda — a indicação abre com a aprovação do projeto.</div>`}
     </div>`;
   }).join("") || `<div class="card"><div class="vazio">Nenhum projeto em execução ainda. Os alunos aparecem aqui
@@ -864,11 +869,6 @@ function renderClassificacao() {
       <div class="card-s">${doEdital.length} proposta(s) · ${doutores.length} de professores doutores · ${comNota} com nota final.
         A nota final soma o projeto (0–100) com o currículo (0–100). Os documentos do processo estão em
         <a href="#" onclick="nav('editais');return false">Editais e Resultados</a>.</div>
-      <div class="exp" style="margin-bottom:6px">
-        <a class="bt bt-ghost" href="/api/ic/bolsistas.xlsx?edital=${encodeURIComponent(e.numero)}"
-          title="Uma linha por bolsista, com CPF, contato e dados bancários — para montar os contratos">
-          📇 Bolsistas para contrato (Excel)</a>
-      </div>
       ${quadro("Classificação — professores doutores", doutores)}
       ${quadro("Classificação geral — todos os professores", geral)}
 

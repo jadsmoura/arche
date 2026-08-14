@@ -173,7 +173,7 @@ public/
   bolsista (campos do aluno em `normalizarAluno`; nunca aparecem para o avaliador nem
   para os colegas de projeto). Falta de dado vira pendência `bolsista-incompleto`. A ficha
   só abre com o projeto APROVADO (resultado dado). A PROPPEX exporta tudo em
-  `GET /api/ic/bolsistas.xlsx` (só gestão; botão na guia Projetos, nunca na
+  `GET /api/ic/bolsistas.xlsx` (só gestão; botão na guia Bolsistas e Voluntários, por ciclo, nunca na
   Editais e Resultados, que é de todos) — as mesmas colunas do formulário antigo.
 - **Grupo de pesquisa** (DGP/CNPq): a proposta indica **apenas o nome do grupo**. Por
   decisão do dono, **não se pergunta o papel** de quem submete no grupo — professores
