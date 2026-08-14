@@ -48,8 +48,10 @@ public/
   `atas/<curso>/<órgão>/<ano>/` e `atas/institucional/<órgão>/<ano>/`).
 - Estado do app em chaves `/api/estado` (ex.: `extensao-acoes-v1`); chaves `auth-*`, `sys-*`
   e `atas-*` são internas e invisíveis pela API.
-- No ARCHÉ AT o **curso é escolhido antes do órgão**: com curso entram NDE e Colegiado;
-  sem curso, os conselhos superiores, pró-reitorias, CPA e comissões.
+- No ARCHÉ AT o **curso é escolhido antes do órgão**: com curso entram NDE, Colegiado e
+  "Outro órgão do curso"; sem curso, os conselhos superiores, pró-reitorias, CPA,
+  comissões e "Outro órgão institucional". Os de nome livre (`nomeLivre`) exigem o nome
+  e não têm pauta regulatória nem ciclo obrigatório — o ARCHÉ só registra e arquiva.
 - **Datas passadas são aceitas** de propósito, para os órgãos regularizarem o arquivo.
   Numa ata retroativa, o checklist cobrado e o ciclo de sessões são os do semestre
   DA SESSÃO, não os do semestre corrente (`/api/atas/pauta-regulatoria?data=…`).

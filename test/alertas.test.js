@@ -200,3 +200,11 @@ test("o alerta diz o semestre a que se refere", () => {
   assert.match(so(a, "ciclo")[0].detalhe, /Nenhuma ata registrada no semestre 2026-S2/);
   assert.match(so(a, "ciclo")[0].acao, /Cobrar o registro/);
 });
+
+test("órgão não previsto não gera alerta de regularização", () => {
+  const a = gerarAlertas([], { hoje: HOJE });
+  for (const cod of ["OUTRO", "OUTRO_CURSO", "COMISSAO"]) {
+    assert.equal(a.filter((x) => x.orgao === cod).length, 0,
+      `${cod} não tem obrigação do INEP a cobrar`);
+  }
+});

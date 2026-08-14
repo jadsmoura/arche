@@ -335,3 +335,17 @@ test("a numeração retroativa respeita a série do ano da sessão", () => {
   assert.deepEqual(atas.map((a) => a.numero),
     ["ATA-NDE-PSI-2024-001", "ATA-NDE-PSI-2024-002", "ATA-NDE-PSI-2025-001"]);
 });
+
+/* --------------------- órgãos sem pauta regulatória --------------------- */
+test("órgão não previsto não tem checklist nem entra no ciclo obrigatório", () => {
+  for (const cod of ["OUTRO_CURSO", "OUTRO", "COMISSAO"]) {
+    assert.equal(pautasDoOrgao(cod).length, 0, `${cod} não deve ter pauta do INEP`);
+    assert.equal(ritualDe(cod).ordinarias, 0, `${cod} não deve exigir sessão`);
+    const ck = checklistSemestral([], { orgao: cod, curso: "direito", hoje: HOJE });
+    assert.equal(ck.exigidas, 0);
+    assert.equal(ck.percentual, 100, "sem obrigação, o checklist está completo por definição");
+    assert.equal(ck.ritual.completo, true);
+  }
+  assert.ok(!ciclosDoSemestre([], { hoje: HOJE }).some((c) => c.orgao === "OUTRO"),
+    "não entra no acompanhamento de ciclos da PROPPEX");
+});

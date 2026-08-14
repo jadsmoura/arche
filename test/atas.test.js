@@ -268,3 +268,26 @@ test("a lista de presença não quebra com ata mínima (sem pauta nem participan
   const buf = await gerarPresencaPdf(vazia);
   assert.equal(buf.subarray(0, 5).toString(), "%PDF-");
 });
+
+/* ----------------------- órgãos não previstos ---------------------------- */
+test("há escape para órgão não listado, no curso e no institucional", () => {
+  const doCurso = orgaoDe("OUTRO_CURSO"), institucional = orgaoDe("OUTRO");
+  assert.equal(doCurso.porCurso, true);
+  assert.equal(institucional.porCurso, false);
+  for (const o of [doCurso, institucional]) assert.equal(o.nomeLivre, true, "exige nome próprio");
+});
+
+test("órgão não previsto exige nome e recebe número na própria série", () => {
+  const semNome = normalizarAta(bruta({ orgao: "OUTRO_CURSO", orgaoNome: "" }));
+  assert.ok(validarAta(semNome).some((e) => e.includes("nome do órgão")));
+
+  const nucleo = normalizarAta(bruta({ orgao: "OUTRO_CURSO", orgaoNome: "Núcleo de Práticas Jurídicas", curso: "direito" }));
+  assert.deepEqual(validarAta(nucleo), []);
+  const numerada = numerar([], nucleo);
+  assert.equal(numerada.numero, `ATA-ORG-DIR-${numerada.ano}-001`);
+  assert.equal(tituloDe(numerada), "Núcleo de Práticas Jurídicas — Direito");
+
+  const camara = normalizarAta(bruta({ orgao: "OUTRO", orgaoNome: "Câmara de Pós-Graduação", curso: "direito" }));
+  assert.equal(camara.curso, "", "órgão institucional não carrega curso");
+  assert.equal(numerar([], camara).numero, `ATA-ORG-${camara.ano}-001`);
+});

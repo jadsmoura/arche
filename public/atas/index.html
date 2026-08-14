@@ -914,9 +914,11 @@ function renderEditor(alvo) {
           ${["ordinária", "extraordinária", "solene"].map((t) => `<option ${a.sessao.tipo === t ? "selected" : ""}>${t}</option>`).join("")}
         </select></div>
       </div>
-      <div class="${o?.nomeLivre ? "" : "hide"}"><label>Nome da comissão ou grupo de trabalho *</label>
+      <div class="${o?.nomeLivre ? "" : "hide"}"><label>Nome do órgão *</label>
         <input id="f-orgao-nome" ${ro} value="${esc(a.orgaoNome || "")}" oninput="campo('orgaoNome',this.value)"
-          placeholder="Ex.: Comissão de Autoavaliação Institucional"></div>
+          placeholder="Ex.: Comissão de Autoavaliação · Núcleo de Práticas Jurídicas · Câmara de Pós-Graduação">
+        <div class="muted" style="margin-top:5px">Órgão sem pauta regulatória: o ARCHÉ registra e arquiva as atas,
+          sem checklist do INEP.</div></div>
       <div class="grid3">
         <div><label>Data da sessão *</label><input type="date" ${ro} value="${esc(a.sessao.data || "")}"
             onchange="sub('sessao','data',this.value);renderEditor('${alvo}')">
@@ -1051,6 +1053,16 @@ async function renderSugestoes() {
     </label>` : "";
 
   el.classList.remove("hide");
+  // Órgão sem obrigação do INEP (comissões e os "outro órgão"): nada a cobrar,
+  // então o cartão vira só uma nota, sem checklist nem contagem de sessões.
+  if (!r.exigidas && !cobradas.length) {
+    el.innerHTML = `<div class="card-t">Pauta livre</div>
+      <div class="card-s">Este órgão não tem pauta regulatória nem ciclo de sessões a cumprir —
+        o ARCHÉ registra, numera e arquiva as atas dele do mesmo jeito.</div>
+      ${itemAnterior ? `<div class="grupo-mom"><div class="grupo-t">
+        <span class="mom mom-livre">Ordem do dia</span> <span>item de praxe</span></div>${itemAnterior}</div>` : ""}`;
+    return;
+  }
   el.innerHTML = `
     <div class="card-t">Pautas obrigatórias do semestre ${esc(r.janela)}</div>
     ${d.retroativa ? `<div class="banner ba-warn" style="margin:8px 0 12px">
