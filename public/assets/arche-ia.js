@@ -183,8 +183,11 @@
 
     var origem = document.createElement("span");
     origem.className = "ia-nota";
+    // quem escreve a ata precisa saber por onde o texto passou
     origem.textContent = "gerado por " + (r.provedor || "IA")
-      + (r.modelo ? " · " + r.modelo : "") + " — confira antes de usar";
+      + (r.modelo ? " · " + r.modelo : "")
+      + (r.provedor === "gemini" ? " — o texto passou pelos servidores do Google" : "")
+      + " · confira antes de usar";
 
     rod.appendChild(usar); rod.appendChild(refazer); rod.appendChild(descartar); rod.appendChild(origem);
     painel.appendChild(t); painel.appendChild(saida); painel.appendChild(rod);

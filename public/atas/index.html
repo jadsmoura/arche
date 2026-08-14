@@ -503,6 +503,10 @@ function renderPainel() {
       </div>
       <div class="kv">A minuta é redigida ${META.ia === "modelo" ? "pelo gerador do ARCHÉ" : `por IA (${esc(META.ia)})`}
         a partir dos campos preenchidos e <b>sempre volta para revisão humana</b> antes de virar ata aprovada.</div>
+      ${META.ia !== "modelo" ? `<div class="kv" style="color:var(--muted);font-size:12.5px">
+        Ao gerar a minuta ou usar o assistente de escrita, o conteúdo dos campos é enviado
+        ao provedor de IA (${esc(META.ia)}) para processamento. Registre em ata apenas o que
+        pode circular fora da instituição.</div>` : ""}
       <div class="exp"><button class="bt bt-pri" onclick="nav('nova')">＋ Abrir nova reunião</button></div>
     </div>`;
   if (META.gestao) carregarAlertasDoPainel();
