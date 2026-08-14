@@ -442,7 +442,7 @@ function renderPainel() {
     || '<div class="vazio">Nenhuma ata registrada ainda.</div>';
 
   const fila = LISTA.filter((a) => a.status !== "registrada").slice(0, 6).map((a) => {
-    const oQue = { rascunho: "completar e gerar a minuta", minuta: "revisar o texto", revisao: "aprovar na sessão seguinte", aprovada: "registrar e enviar" }[a.status] || "";
+    const oQue = { rascunho: "completar e gerar a minuta", minuta: "revisar o texto", revisao: "aprovar na sessão seguinte", aprovada: "registrar a ata" }[a.status] || "";
     return `<div class="linha" onclick="abrir('${a.id}')" style="cursor:pointer">
       <div class="ponto" style="background:${corStatus(a.status)}"></div>
       <div class="txt"><div class="p1">${esc(a.titulo)} · ${fmtD(a.sessao?.data)}</div><div class="p2">${oQue}</div></div>
@@ -493,7 +493,7 @@ function renderPainel() {
       <div class="passos">
         <div class="p feito">1 · Abrir a reunião</div><div class="p feito">2 · Presenças e pauta</div>
         <div class="p feito">3 · Gerar a minuta</div><div class="p feito">4 · Revisar e aprovar</div>
-        <div class="p feito">5 · Registrar e enviar</div>
+        <div class="p feito">5 · Registrar e arquivar</div>
       </div>
       <div class="kv">A minuta é redigida ${META.ia === "modelo" ? "pelo gerador do ARCHÉ" : `por IA (${esc(META.ia)})`}
         a partir dos campos preenchidos e <b>sempre volta para revisão humana</b> antes de virar ata aprovada.</div>
@@ -1249,10 +1249,9 @@ function cardMinuta(a) {
       </div>
       ${a.texto && pode && a.status === "minuta" ? `<button class="bt bt-warn" onclick="mudarStatus('revisao')">Enviar para revisão</button>` : ""}
       ${a.texto && pode && a.status === "revisao" ? `<button class="bt bt-ok" onclick="mudarStatus('aprovada')">✓ Aprovar na sessão</button>` : ""}
-      ${a.texto && pode && a.status === "aprovada" ? `<button class="bt bt-pri" onclick="registrar()">📬 Registrar e enviar</button>` : ""}
+      ${a.texto && pode && a.status === "aprovada" ? `<button class="bt bt-pri" onclick="registrar()">🔒 Registrar a ata</button>` : ""}
       ${a.status === "registrada" ? `<span class="badge b-registrada">registrada em ${fmtDH(a.registro?.em)}</span>` : ""}
     </div>
-    ${a.registro?.enviadoPara ? `<div class="cnt">Enviada por e-mail para: ${esc(a.registro.enviadoPara)}</div>` : ""}
     ${a.registro?.pasta ? `<div class="cnt">Cópia arquivada no Google Drive em <b>ARCHÉ/${esc(a.registro.pasta)}</b>.</div>` : ""}
   </div>`;
 }
@@ -1381,17 +1380,14 @@ async function mudarStatus(status) {
   } catch (e) { aviso(e.message, "err"); }
 }
 async function registrar() {
-  const participantes = confirm("Enviar a ata também para todos os participantes com e-mail?\n\nOK = enviar a todos · Cancelar = só presidência, secretaria e PROPPEX");
+  if (!confirm("Registrar a ata? Depois disso ela vira documento fechado e não poderá mais ser editada.")) return;
   try {
-    aviso("Gerando o PDF e enviando…", "warn");
-    const r = await api(`/api/atas/${ATUAL.id}/registrar`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enviarParticipantes: participantes }),
-    });
+    aviso("Gerando o PDF e arquivando…", "warn");
+    const r = await api(`/api/atas/${ATUAL.id}/registrar`, { method: "POST" });
     ATUAL = r.ata; await carregar(); cabecalho(); renderEditor("v-ata");
-    aviso(r.falhaEmail
-      ? `Ata registrada, mas o e-mail falhou: ${r.falhaEmail}. O PDF continua disponível aqui.`
-      : `Ata ${ATUAL.numero} registrada e enviada para ${r.enviadoPara}.`, r.falhaEmail ? "warn" : "ok");
+    aviso(r.arquivada
+      ? `Ata ${ATUAL.numero} registrada. O PDF está disponível aqui e a cópia foi arquivada no Drive.`
+      : `Ata ${ATUAL.numero} registrada. O PDF está disponível aqui.`, "ok");
   } catch (e) { aviso(e.message, "err"); }
 }
 async function excluir() {

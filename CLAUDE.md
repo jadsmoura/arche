@@ -74,6 +74,9 @@ public/
 - Fluxo das Atas (ARCHÉ AT): rascunho → minuta → em revisão → aprovada → registrada.
   O número (`ATA-NDE-ENF-2026-003`) só é emitido ao sair do rascunho e nunca se repete.
   Ata registrada é documento fechado. Toda leitura/gravação passa por `/api/atas/*`.
+- **O ARCHÉ AT não envia e-mail.** A ata vive no sistema: PDF gerado sob demanda em
+  `/api/atas/:id/pdf` e cópia arquivada no Drive ao registrar. Quem precisa do documento
+  entra e baixa. (A Extensão continua enviando e-mails; a regra é só das atas.)
 - **Pauta Regulatória** (`lib/pautas.js`): temas que os instrumentos do INEP esperam ver
   debatidos em ata. Cada tema pertence a **um único órgão** (competência exclusiva: o
   currículo é do NDE, a gestão do curso é do Colegiado, a autoavaliação é da CPA).

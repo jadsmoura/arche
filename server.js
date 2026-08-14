@@ -1004,8 +1004,9 @@ app.get("/api/atas/:id/pdf", async (req, res) => {
   }
 });
 
-// Registro definitivo: gera o PDF, arquiva no Drive (ATAS/<órgão>/<ano>/) e
-// envia por e-mail a quem presidiu, a quem secretariou e à PROPPEX.
+// Registro definitivo: fecha a ata, gera o PDF e arquiva a cópia no Drive.
+// Nada sai por e-mail — o documento fica no sistema, para download por quem o
+// registrou e pela PROPPEX.
 app.post("/api/atas/:id/registrar", async (req, res) => {
   try {
     const u = await sessaoAtas(req, res);
@@ -1030,24 +1031,6 @@ app.post("/api/atas/:id/registrar", async (req, res) => {
       console.error("Falha ao arquivar a ata no Drive:", e.message);
     }
 
-    // destinatários: secretaria, quem abriu a reunião, o registro da PROPPEX
-    // e os participantes com e-mail (cada um recebe a própria ata).
-    const proppex = process.env.ATAS_EMAIL || process.env.NOTIFY_EMAIL || "extensao@uniego.edu.br";
-    const destinos = [ata.secretaria?.email, ata.criadoPor, u.email, proppex];
-    if (req.body?.enviarParticipantes) destinos.push(...(ata.participantes || []).map((p) => p.email));
-
-    let enviadoPara = null, falhaEmail = null;
-    try {
-      const { enviarEmail, emailAtaRegistrada } = await import("./lib/mailer.js");
-      enviadoPara = await enviarEmail({
-        ...emailAtaRegistrada(ata, { titulo: tituloDe(ata), para: destinos }),
-        anexos: [{ nome: nomePdf, tipo: "application/pdf", conteudo: pdfBuffer }],
-      });
-    } catch (e) {
-      falhaEmail = e.message;
-      console.error("Falha ao enviar a ata por e-mail:", e.message);
-    }
-
     const r = await comAtas((atas) => {
       const i = atas.findIndex((x) => x.id === req.params.id);
       if (i < 0) return { erro: [404, "Ata não encontrada"], gravar: false };
@@ -1062,13 +1045,13 @@ app.post("/api/atas/:id/registrar", async (req, res) => {
       }
       atas[i] = numerar(atas, anotar({
         ...atas[i], status: "registrada", pdf: arquivo,
-        registro: { em: new Date().toISOString(), por: u.email, enviadoPara, pasta },
+        registro: { em: new Date().toISOString(), por: u.email, pasta },
         atualizadoEm: new Date().toISOString(), atualizadoPor: u.email,
       }, { quem: u.email, oQue: "registrou a ata" }));
       return { ata: atas[i] };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-    res.json({ ok: true, ata: r.ata, enviadoPara, arquivada: !!arquivo, falhaEmail });
+    res.json({ ok: true, ata: r.ata, arquivada: !!arquivo, pasta });
   } catch (e) {
     console.error("Erro ao registrar a ata:", e);
     res.status(500).json({ error: e.message || "Erro ao registrar a ata" });

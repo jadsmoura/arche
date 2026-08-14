@@ -46,10 +46,6 @@ services:
       # FACEG.
       - key: MARCA_UNIEGO_DESDE
         value: "2025-09-05"
-      # Caixa institucional que recebe cópia de toda ata registrada.
-      # Em branco, cai no NOTIFY_EMAIL (extensao@uniego.edu.br).
-      - key: ATAS_EMAIL
-        sync: false
       - key: GEMINI_API_KEY
         sync: false
       - key: ANTHROPIC_API_KEY
