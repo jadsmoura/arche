@@ -29,8 +29,9 @@ import {
   papelNoProjeto, podeVerProjeto, podeEditarProjeto, podeGerirExecucao, podeAvaliar,
   podeEnviarRelatorio, podeValidarRelatorio, cronogramaDe, relatoriosDe, relatoriosPendentes,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto, notaFinal,
-  participaDeAlgum,
+  participaDeAlgum, vincularPorCpf,
 } from "./lib/ic.js";
+import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
 import { dataCivil, hojeLocalISO } from "./lib/datas.js";
 import { CREDENCIAMENTO, MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
@@ -115,7 +116,7 @@ app.use(async (req, res, next) => {
     // exceção da IC: aluno indicado e avaliador ad hoc designado entram pelo
     // convite, que já é nominal (ver sessaoIC). Vale só para este setor.
     const convidado = req.path.startsWith("/pesquisa")
-      && participaDeAlgum(u.email, await lerProjetos());
+      && participaDeAlgum(u.email, await lerProjetos(), (await carregarPerfis())[u.email]?.cpf || "");
     if (!convidado) return res.redirect("/entrar?pendente=1");
   }
   if (req.path.startsWith("/usuarios") && u.papel !== "gestor") return res.redirect("/");
@@ -151,10 +152,27 @@ app.post("/api/perfil", async (req, res) => {
 
   const perfis = await carregarPerfis();
   const antes = perfis[u.email] || {};
+
+  // CPF: é por ele que projetos vindos de fora (planilha da submissão
+  // anterior) encontram o dono. Guarda-se só os dígitos, e um CPF não pode
+  // pertencer a duas contas — senão a segunda herdaria os projetos da
+  // primeira. Uma vez gravado, só a PROPPEX corrige.
+  let cpf = antes.cpf || "";
+  if (b.cpf !== undefined && soDigitos(b.cpf) !== soDigitos(antes.cpf)) {
+    const novo = normalizarCpf(b.cpf);
+    if (soDigitos(b.cpf) && !novo) return res.status(400).json({ error: "CPF inválido" });
+    if (antes.cpf && novo !== antes.cpf && u.papel !== "gestor")
+      return res.status(400).json({ error: "O CPF já cadastrado só pode ser alterado pela PROPPEX" });
+    const dono = Object.entries(perfis).find(([mail, p]) => mail !== u.email && p?.cpf && p.cpf === novo);
+    if (novo && dono) return res.status(409).json({ error: "Este CPF já está cadastrado em outra conta" });
+    cpf = novo;
+  }
+
   perfis[u.email] = {
     ...antes,
     // identificação
     nome: txt(b.nome), tratamento: txt(b.tratamento, 60), titulacao: txt(b.titulacao, 20),
+    cpf,
     // vínculo institucional
     funcao: txt(b.funcao), curso: txt(b.curso), vinculo: txt(b.vinculo, 40),
     matricula: txt(b.matricula, 40),
@@ -171,7 +189,19 @@ app.post("/api/perfil", async (req, res) => {
     atualizadoEm: new Date().toISOString(),
   };
   await storage.set(PERFIS_KEY, JSON.stringify(perfis));
-  res.json({ ok: true, perfil: perfis[u.email] });
+
+  // Com o CPF conhecido, os projetos importados da submissão anterior passam
+  // a ter dono: o e-mail é escrito no projeto e ele aparece para o professor
+  // já na próxima tela, na situação em que foi importado.
+  let vinculados = 0;
+  if (cpf) {
+    const r = await comProjetos((projetos) => {
+      const v = vincularPorCpf(projetos, { email: u.email, cpf });
+      return { ...v, gravar: v.vinculados > 0 };   // sem vínculo, nada a regravar
+    });
+    vinculados = r.vinculados || 0;
+  }
+  res.json({ ok: true, perfil: perfis[u.email], projetosVinculados: vinculados });
 });
 
 // Foto do perfil. O navegador já envia a imagem redimensionada; aqui só
@@ -1195,7 +1225,9 @@ function comProjetos(fn) {
 
 // Gestão do setor: gestor geral ou coordenador designado para "pesquisa".
 const gereIC = (u) => !!u && (u.papel === "gestor" || u.modulos?.includes("pesquisa"));
-const quemIC = (u) => ({ email: u?.email, gestao: gereIC(u) });
+// O CPF entra junto com o e-mail: projeto importado da submissão anterior
+// chega sem e-mail e só encontra o dono pelo CPF do perfil.
+const quemIC = (u) => ({ email: u?.email, cpf: u?.cpf || "", gestao: gereIC(u) });
 
 async function sessaoIC(req, res) {
   const u = await usuarioDe(req, res);
@@ -1206,11 +1238,13 @@ async function sessaoIC(req, res) {
   // Conta pendente entra na IC se — e só se — já estiver em algum projeto:
   // aluno indicado pela orientação ou avaliador designado pela coordenação.
   // O convite é por e-mail exato e a visibilidade continua sendo a do papel.
-  if (u.papel === "pendente" && !participaDeAlgum(u.email, await lerProjetos())) {
+  const cpf = (await carregarPerfis())[u.email]?.cpf || "";
+  const eu = { ...u, cpf };
+  if (u.papel === "pendente" && !participaDeAlgum(u.email, await lerProjetos(), cpf)) {
     res.status(403).json({ error: "Seu acesso ainda está pendente de aprovação da PROPPEX" });
     return null;
   }
-  return u;
+  return eu;
 }
 
 /**
@@ -1381,6 +1415,66 @@ app.post("/api/ic/:id/avaliar", async (req, res) => {
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
   res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
+});
+
+/**
+ * Importação do banco da submissão anterior (só a PROPPEX).
+ * Cada projeto entra pelo CPF de quem orienta — sem depender de e-mail, que
+ * a planilha não tem — e na situação informada (por padrão, `submetido`).
+ * Quando o professor se cadastra e grava o CPF, o projeto aparece para ele
+ * já submetido, com o protocolo emitido (ver vincularPorCpf).
+ *
+ * É idempotente: `origem.id` identifica a linha da planilha, e reimportar o
+ * mesmo arquivo atualiza em vez de duplicar. Nada aqui apaga projeto.
+ */
+app.post("/api/ic/importar", async (req, res) => {
+  const u = await exigirGestor(req, res);
+  if (!u) return;
+  const lote = Array.isArray(req.body?.projetos) ? req.body.projetos : null;
+  if (!lote) return res.status(400).json({ error: "Envie { projetos: [...] }" });
+  if (lote.length > 500) return res.status(400).json({ error: "Limite de 500 projetos por lote" });
+
+  const origem = String(req.body?.origem || "submissao-anterior").slice(0, 60);
+  const situacao = String(req.body?.status || "submetido");
+  if (!IC_STATUS.includes(situacao)) return res.status(400).json({ error: "Situação inválida" });
+  const simulacao = !!req.body?.simular;
+
+  const r = await comProjetos((projetos) => {
+    const relatorio = { criados: 0, atualizados: 0, semCpf: 0, invalidos: [] };
+    lote.forEach((bruto, linha) => {
+      const cpf = normalizarCpf(bruto?.orientador?.cpf ?? bruto?.cpf);
+      if (!cpf) { relatorio.semCpf++; relatorio.invalidos.push({ linha: linha + 1, erro: "CPF de quem orienta ausente ou inválido" }); return; }
+
+      const chave = String(bruto?.origemId ?? bruto?.id ?? `${origem}:${linha + 1}`);
+      const i = projetos.findIndex((p) => p.origem?.lote === origem && p.origem?.id === chave);
+      const base = i >= 0 ? projetos[i] : null;
+
+      let p = normalizarProjeto({
+        ...bruto,
+        orientador: { ...(bruto?.orientador || {}), cpf },
+        alunos: (bruto?.alunos || []).map((a) => ({ ...a, cpf: normalizarCpf(a?.cpf) })),
+      }, { base, autor: "" });
+
+      const erros = validarProjeto(p);
+      if (erros.length && situacao !== "rascunho") {
+        relatorio.invalidos.push({ linha: linha + 1, titulo: p.titulo, erro: erros.join(" ") });
+        return;
+      }
+      p = {
+        ...p, status: situacao,
+        origem: { lote: origem, id: chave, importadoEm: new Date().toISOString(), por: u.email },
+        // o projeto nasce sem dono de e-mail: quem o reivindica é o CPF
+        criadoPor: base?.criadoPor || "",
+      };
+      if (situacao !== "rascunho") p = numerarProjeto(projetos, p);
+      p = anotarProjeto(p, { quem: u.email, oQue: base ? `reimportado de ${origem}` : `importado de ${origem}` });
+
+      if (simulacao) { base ? relatorio.atualizados++ : relatorio.criados++; return; }
+      if (i >= 0) { projetos[i] = p; relatorio.atualizados++; } else { projetos.push(p); relatorio.criados++; }
+    });
+    return { ...relatorio, gravar: !simulacao };
+  });
+  res.json({ ok: true, simulacao, ...r });
 });
 
 // Designação de avaliador ad hoc: é a indicação pelo e-mail que dá o acesso,

@@ -113,7 +113,13 @@
       <div><label for="funcao">Função / cargo *</label><input id="funcao" placeholder="Ex.: Docente do Curso, Coordenador(a)…"></div>
       <div><label for="curso">Curso / departamento *</label><select id="curso"></select></div>
     </div>
-    <label for="matricula">Matrícula / SIAPE</label><input id="matricula" placeholder="Opcional">
+    <div class="grid2">
+      <div><label for="matricula">Matrícula / SIAPE</label><input id="matricula" placeholder="Opcional"></div>
+      <div><label for="cpf">CPF</label><input id="cpf" inputmode="numeric" placeholder="000.000.000-00" autocomplete="off"></div>
+    </div>
+    <div class="dica" id="cpf-dica">O CPF liga a você os projetos já cadastrados pela PROPPEX — os de
+      Iniciação Científica submetidos em editais anteriores aparecem na sua conta assim que você o informar.
+      Ele não aparece para outros usuários.</div>
   </div>
 
   <!-- contato -->
@@ -177,14 +183,37 @@
 const CURSOS=["Administração","Agronomia","Ciências Contábeis","Direito","Educação Física","Enfermagem",
 "Engenharia Civil","Engenharia de Software","Engenharia Mecânica","Medicina Veterinária","Odontologia",
 "Psicologia","Institucional / PROPPEX"];
-const CAMPOS=["nome","tratamento","titulacao","vinculo","funcao","curso","matricula",
+const CAMPOS=["nome","tratamento","titulacao","vinculo","funcao","curso","matricula","cpf",
   "telefone","whatsapp","emailAlternativo","lattes","orcid","resumo"];
+
+/* CPF: máscara na digitação e conferência dos dígitos verificadores aqui
+   mesmo — errar o CPF significa não encontrar os próprios projetos, e é
+   melhor a pessoa saber disso antes de salvar. O servidor confere de novo. */
+const soDig=(v)=>String(v||"").replace(/\D/g,"");
+function fmtCPF(v){const d=soDig(v).slice(0,11);
+  return d.replace(/^(\d{3})(\d)/,"$1.$2").replace(/^(\d{3})\.(\d{3})(\d)/,"$1.$2.$3")
+          .replace(/\.(\d{3})(\d{1,2})$/,".$1-$2");}
+function cpfValido(v){const d=soDig(v);
+  if(d.length!==11||/^(\d)\1{10}$/.test(d))return false;
+  for(const [ate,pos] of [[9,10],[10,11]]){let s=0;
+    for(let i=0;i<ate;i++)s+=Number(d[i])*(pos-i);
+    if((s*10)%11%10!==Number(d[ate]))return false;}
+  return true;}
 const NEXT=new URLSearchParams(location.search).get("next")||"/";
 const $=(id)=>document.getElementById(id);
 let ME=null, TEM_SENHA=false;
 
 $("curso").innerHTML='<option value="">Selecione…</option>'+CURSOS.map(c=>`<option>${c}</option>`).join("");
 $("resumo").addEventListener("input",()=>{ $("resumo-cont").textContent=$("resumo").value.length; });
+$("cpf").addEventListener("input",function(){
+  this.value=fmtCPF(this.value);
+  const d=soDig(this.value);
+  const ruim=d.length===11&&!cpfValido(d);
+  this.style.borderColor=ruim?"#c62828":"";
+  $("cpf-dica").textContent=ruim
+    ? "Esse CPF não confere — verifique os dígitos."
+    : "O CPF liga a você os projetos já cadastrados pela PROPPEX — os de Iniciação Científica submetidos em editais anteriores aparecem na sua conta assim que você o informar. Ele não aparece para outros usuários.";
+});
 
 function iniciais(nome,email){
   const base=(nome||"").trim()||String(email||"").split("@")[0].replace(/[._-]/g," ");
@@ -206,6 +235,7 @@ fetch("/api/me").then(async r=>{
   $("conta").innerHTML=`Conta: <b>${ME.email}</b><span class="papel">${papel}</span>`;
   const p=ME.perfil||{};
   for(const c of CAMPOS) if($(c)&&p[c]!=null) $(c).value=p[c];
+  if($("cpf").value) $("cpf").value=fmtCPF($("cpf").value);   // guardado só em dígitos
   $("resumo-cont").textContent=$("resumo").value.length;
   TEM_SENHA=!!ME.temSenha;
   $("senha-estado").textContent=TEM_SENHA
@@ -222,6 +252,10 @@ async function salvar(){
     $("msg").style.color="var(--err)"; $("msg").textContent="Preencha nome, função e curso.";
     (!dados.nome?$("nome"):!dados.funcao?$("funcao"):$("curso")).focus(); return;
   }
+  if(dados.cpf&&!cpfValido(dados.cpf)){
+    $("msg").style.color="var(--err)"; $("msg").textContent="CPF inválido — confira os dígitos.";
+    $("cpf").focus(); return;
+  }
   $("bt").disabled=true; $("msg").style.color="var(--muted)"; $("msg").textContent="Salvando…";
   try{
     const r=await fetch("/api/perfil",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -230,7 +264,11 @@ async function salvar(){
     $("bt").disabled=false;
     if(!r.ok) throw new Error(j.error||"falha ao salvar");
     ME.perfil=j.perfil;
-    $("msg").style.color="var(--ok)"; $("msg").textContent="✓ Perfil salvo.";
+    $("msg").style.color="var(--ok)";
+    // o vínculo por CPF é o que faz o projeto da submissão anterior aparecer
+    $("msg").textContent = j.projetosVinculados
+      ? `✓ Perfil salvo. ${j.projetosVinculados} projeto(s) de IC foram vinculados ao seu CPF.`
+      : "✓ Perfil salvo.";
     if(NEXT!=="/"&&NEXT!==location.pathname) setTimeout(()=>location.href=NEXT,700);
     else setTimeout(()=>{ $("msg").textContent=""; },3000);
   }catch(e){

@@ -22,6 +22,7 @@ lib/exports.js       Registro de Atividade (.docx) e Planilha de Certificados (.
 lib/pdf.js           Relatório final, proposta e ata em PDF (timbrado oficial UNIEGO)
 lib/atas.js          ARCHÉ AT: órgãos, numeração das atas, normalização e validação
 lib/ic.js            ARCHÉ IC: projetos de IC, cronograma, relatórios e permissões
+lib/cpf.js           CPF: validação, normalização e a chave de vínculo dos importados
 lib/pautas.js        Catálogo da Pauta Regulatória (indicadores INEP) e conformidade
 lib/redator.js       Redação da minuta da ata: modelo (padrão) | gemini | anthropic
 lib/assistente.js    Assistente de escrita dos campos da ata (só ARCHÉ AT)
@@ -88,6 +89,16 @@ public/
      durante a seleção (4 critérios de 0 a 10 + recomendação; a nota é a média) ou
      recusa por impedimento. Não participa da execução: cronograma e relatórios não
      aparecem para ele.
+- **CPF é a chave do que vem de fora** (`lib/cpf.js`): o perfil (`/perfil/`) pede o CPF,
+  guardado só em dígitos e **único por conta** (dois cadastros com o mesmo CPF são
+  recusados — o segundo herdaria os projetos do primeiro); alterar CPF já gravado só
+  a PROPPEX. `POST /api/ic/importar` (gestor) carrega o banco de submissões anteriores
+  identificando cada projeto pelo **CPF de quem orienta**, sem depender de e-mail, que
+  a planilha não tem; `origem.lote`+`origem.id` tornam a reimportação idempotente
+  (atualiza, não duplica) e sobrevivem a edições. Quando a pessoa grava o CPF no
+  perfil, `vincularPorCpf` escreve o e-mail dela nos projetos que a esperavam e eles
+  aparecem na conta já na situação importada. O vínculo **nunca sobrescreve** e-mail
+  existente. Enviar `simular: true` faz a conferência sem gravar nada.
 - **O e-mail é o convite** na IC: indicar um aluno ou designar um avaliador dá acesso
   ao setor mesmo com a conta ainda `pendente` (`participaDeAlgum`), e só aos projetos
   em que a pessoa está. O convidado não abre projeto novo — submeter exige conta
