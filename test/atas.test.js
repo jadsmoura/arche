@@ -124,9 +124,10 @@ test("ata completa passa na validação", () => {
 test("validação cobra órgão, curso, data, presenças e pauta", () => {
   const vazia = normalizarAta({});
   const erros = validarAta(vazia).join(" ");
-  for (const t of ["órgão", "data da sessão", "início", "local", "presidiu", "secretariou", "participantes", "pauta"]) {
+  for (const t of ["órgão", "data da sessão", "início", "local", "presidiu", "participantes", "pauta"]) {
     assert.ok(erros.toLowerCase().includes(t.toLowerCase()), `faltou cobrar "${t}" em: ${erros}`);
   }
+  assert.ok(!/secretari/i.test(erros), "a secretaria é opcional e não pode travar a ata");
 });
 
 test("comissão exige nome próprio e sessão futura é recusada", () => {
@@ -318,6 +319,32 @@ test("nome e cargo longos não sobrepõem linhas no quadro de presença", async 
       }
     }
   }
+});
+
+test("secretaria em branco some da ata; preenchida, aparece nos três lugares", async () => {
+  const { gerarAtaPdf, gerarPresencaPdf } = await import("../lib/pdf.js");
+  const monta = (secretaria) => {
+    const a = numerar([], normalizarAta(bruta({ secretaria })));
+    a.texto = redigirPorModelo(a);
+    return a;
+  };
+  const escritoEm = async (gerar, a) => trechosDoPdf(await gerar(a)).map((t) => t.txt).join(" ");
+
+  const semNome = monta({ nome: "", email: "" });
+  assert.deepEqual(validarAta(semNome), [], "sem secretaria a ata continua válida");
+  assert.ok(!/secretari/i.test(semNome.texto), `o texto citou a secretaria: ${semNome.texto}`);
+  assert.match(semNome.texto, /da qual se lavrou a presente ata/, "falta a forma impessoal do fecho");
+  for (const gerar of [gerarAtaPdf, gerarPresencaPdf]) {
+    assert.ok(!/Secretaria/i.test(await escritoEm(gerar, semNome)), "o PDF trouxe o campo vazio");
+  }
+
+  const com = monta({ nome: "Prof. Lucas", email: "" });
+  assert.match(com.texto, /secretariada por Prof\. Lucas/);
+  assert.match(com.texto, /da qual eu, Prof\. Lucas, lavrei/);
+  const naAta = await escritoEm(gerarAtaPdf, com);
+  assert.match(naAta, /Secretaria: *Prof\. Lucas/, "falta no quadro de identificação");
+  assert.match(naAta, /Secretaria da sessão/, "falta a linha de assinatura");
+  assert.match(await escritoEm(gerarPresencaPdf, com), /Secretaria da sessão/);
 });
 
 test("a ata não carrega o rodapé de procedência do sistema", async () => {

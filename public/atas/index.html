@@ -970,7 +970,7 @@ function renderEditor(alvo) {
       <div class="grid2">
         <div><label>Presidiu a sessão *</label><input ${ro} value="${esc(a.presidencia?.nome || "")}" oninput="sub('presidencia','nome',this.value)"></div>
         <div><label>Cargo de quem presidiu</label><input ${ro} value="${esc(a.presidencia?.cargo || "")}" oninput="sub('presidencia','cargo',this.value)" placeholder="Coordenador(a) do curso"></div>
-        <div><label>Secretariou a sessão *</label><input ${ro} value="${esc(a.secretaria?.nome || "")}" oninput="sub('secretaria','nome',this.value)"></div>
+        <div><label>Secretariou a sessão <span class="muted">(em branco, não sai na ata)</span></label><input ${ro} value="${esc(a.secretaria?.nome || "")}" oninput="sub('secretaria','nome',this.value)"></div>
         <div><label>E-mail de quem secretariou</label><input type="email" ${ro} value="${esc(a.secretaria?.email || "")}" oninput="sub('secretaria','email',this.value)"></div>
       </div>
     </div>
