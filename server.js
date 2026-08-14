@@ -16,7 +16,7 @@ import { getFiles, slug } from "./lib/files.js";
 import { varrer, varrerSeVencido, dispensar, situacao } from "./lib/cobranca.js";
 import {
   ATAS_KEY, ORGAOS, CURSOS, STATUS as ATA_STATUS, normalizarAta, validarAta,
-  numerar, tituloDe, anotar, encaminhamentos, orgaoDe,
+  numerar, tituloDe, anotar, encaminhamentos, orgaoDe, podeVerAta, podeEditarAta,
 } from "./lib/atas.js";
 import {
   PAUTAS, MOMENTOS, CADENCIAS, RITUAL, checklistSemestral, pautasSugeridas, janelaDe,
@@ -759,22 +759,11 @@ function comAtas(fn) {
 
 // Gestão do setor: gestor geral ou coordenador designado para "atas".
 const gereAtas = (u) => !!u && (u.papel === "gestor" || u.modulos?.includes("atas"));
-// Quem enxerga a ata: a gestão, quem a criou, quem secretariou e quem consta
-// como participante com o próprio e-mail.
-function podeVer(u, a) {
-  if (gereAtas(u)) return true;
-  if (!u) return false;
-  return a.criadoPor === u.email
-    || a.secretaria?.email === u.email
-    || (a.participantes || []).some((p) => p.email && p.email === u.email);
-}
-// Quem edita: a gestão, quem criou e quem secretariou — e nunca depois de
-// registrada (a ata registrada é documento fechado).
-function podeEditar(u, a) {
-  if (!u) return false;
-  if (a.status === "registrada" && !gereAtas(u)) return false;
-  return gereAtas(u) || a.criadoPor === u.email || a.secretaria?.email === u.email;
-}
+// A regra de visibilidade vive em lib/atas.js, onde é testável: cada usuário
+// só enxerga as atas que registrou; a gestão enxerga todas.
+const quem = (u) => ({ email: u?.email, gestao: gereAtas(u) });
+const podeVer = (u, a) => podeVerAta(quem(u), a);
+const podeEditar = (u, a) => podeEditarAta(quem(u), a);
 
 async function sessaoAtas(req, res) {
   const u = await usuarioDe(req, res);
@@ -838,8 +827,19 @@ app.get("/api/atas/pauta-regulatoria", async (req, res) => {
   const anterior = atas
     .filter((a) => a.orgao === orgao && (!escopoCurso || (a.curso || "") === curso)
       && a.id !== String(req.query.excluir || "") && a.numero && a.sessao?.data
-      && a.sessao.data <= referencia)
+      && a.sessao.data <= referencia
+      && podeVer(u, a))
     .sort((x, y) => String(y.sessao.data).localeCompare(String(x.sessao.data)))[0] || null;
+  // O checklist precisa dizer se o ÓRGÃO já tratou o tema, mesmo que a ata seja
+  // de outro colega — mas sem entregar o conteúdo dela. Para quem não é gestão,
+  // ficam a data e o número; o ponto de pauta e o vínculo com a ata, não.
+  if (!gereAtas(u)) {
+    const enxugar = (r) => r && { data: r.data, numero: r.numero, tipo: r.tipo };
+    for (const p of ck.pautas) {
+      p.ultima = enxugar(p.ultima);
+      p.historico = (p.historico || []).map(enxugar);
+    }
+  }
   res.json({
     orgao, curso, ...ck,
     referencia, retroativa, janelaAtual: janelaDe(hojeReal),

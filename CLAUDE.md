@@ -65,6 +65,12 @@ public/
 - **Datas passadas são aceitas** de propósito, para os órgãos regularizarem o arquivo.
   Numa ata retroativa, o checklist cobrado e o ciclo de sessões são os do semestre
   DA SESSÃO, não os do semestre corrente (`/api/atas/pauta-regulatoria?data=…`).
+- **Acervo por autor** (`podeVerAta`/`podeEditarAta` em `lib/atas.js`): cada usuário só
+  enxerga as atas que ele mesmo registrou. Constar como secretaria ou participante NÃO
+  dá acesso — quem precisa de cópia recebe o PDF por e-mail no registro. Só a gestão
+  (PROPPEX e coordenadores do setor "atas") vê todas. O checklist da Pauta Regulatória
+  é calculado sobre todas as atas, mas para quem não é gestão devolve apenas data e
+  número da última sessão, nunca o ponto de pauta nem o id da ata.
 - Fluxo das Atas (ARCHÉ AT): rascunho → minuta → em revisão → aprovada → registrada.
   O número (`ATA-NDE-ENF-2026-003`) só é emitido ao sair do rascunho e nunca se repete.
   Ata registrada é documento fechado. Toda leitura/gravação passa por `/api/atas/*`.

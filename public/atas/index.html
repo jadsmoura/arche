@@ -544,7 +544,10 @@ function renderArquivo() {
       <input placeholder="Buscar por número, órgão ou nome…" value="${esc(FILTRO.q)}" oninput="filtrar('q',this.value)">
       <button class="bt bt-pri" onclick="nav('nova')">＋ Nova reunião</button>
     </div>
-    <div class="cnt">${f.length} ata(s) de ${LISTA.length}.</div>
+    <div class="cnt">${f.length} ata(s) de ${LISTA.length}.
+      ${META.gestao
+        ? "Como gestão, você vê as atas de todos os órgãos."
+        : "Você vê aqui as atas que registrou; a PROPPEX acompanha as de todos."}</div>
     ${f.map((a) => `<div class="item" onclick="abrir('${a.id}')">
         <div class="nm">${esc(a.numero || "— sem número —")}
           <div class="cs">${esc(a.titulo)} · sessão ${esc(a.sessao?.tipo || "")} de ${fmtD(a.sessao?.data)}

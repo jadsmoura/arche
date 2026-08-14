@@ -343,3 +343,40 @@ test("a data de corte é a da publicação da Portaria MEC nº 623/2025", async 
   assert.equal(marcaEm("2025-09-04").sigla, "FACEG", "véspera da publicação ainda é FACEG");
   assert.equal(marcaEm("2025-09-05").sigla, "UNIEGO", "no dia da publicação já é UNIEGO");
 });
+
+/* ------------------------------ permissões ------------------------------ */
+test("cada um vê só as atas que registrou; a gestão vê todas", async () => {
+  const { podeVerAta } = await import("../lib/atas.js");
+  const ata = {
+    criadoPor: "camila@uniego.edu.br",
+    secretaria: { email: "lucas@uniego.edu.br" },
+    participantes: [{ nome: "Marta", email: "marta@uniego.edu.br" }],
+    status: "registrada",
+  };
+  assert.equal(podeVerAta({ email: "camila@uniego.edu.br" }, ata), true, "quem registrou vê");
+  assert.equal(podeVerAta({ email: "lucas@uniego.edu.br" }, ata), false,
+    "constar como secretaria não dá acesso ao acervo do colega");
+  assert.equal(podeVerAta({ email: "marta@uniego.edu.br" }, ata), false,
+    "ter participado da sessão não dá acesso");
+  assert.equal(podeVerAta({ email: "outro@uniego.edu.br" }, ata), false);
+  assert.equal(podeVerAta({ email: "qualquer@uniego.edu.br", gestao: true }, ata), true,
+    "a PROPPEX vê tudo");
+  assert.equal(podeVerAta({}, ata), false, "sem e-mail, nada");
+  assert.equal(podeVerAta({ email: "camila@uniego.edu.br" }, null), false);
+});
+
+test("edição segue a visibilidade e trava no registro", async () => {
+  const { podeEditarAta } = await import("../lib/atas.js");
+  const dono = { email: "camila@uniego.edu.br" };
+  const gestor = { email: "proppex@uniego.edu.br", gestao: true };
+  const base = { criadoPor: "camila@uniego.edu.br" };
+
+  for (const status of ["rascunho", "minuta", "revisao", "aprovada"]) {
+    assert.equal(podeEditarAta(dono, { ...base, status }), true, `dono edita em ${status}`);
+  }
+  assert.equal(podeEditarAta(dono, { ...base, status: "registrada" }), false,
+    "ata registrada é documento fechado para quem a lavrou");
+  assert.equal(podeEditarAta(gestor, { ...base, status: "registrada" }), true,
+    "só a gestão mexe em ata registrada");
+  assert.equal(podeEditarAta({ email: "outro@uniego.edu.br" }, { ...base, status: "rascunho" }), false);
+});
