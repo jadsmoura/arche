@@ -208,6 +208,16 @@
   .e-pendente{background:var(--info-soft);color:var(--info)}
   .e-vencendo{background:var(--warn-soft);color:var(--warn)}
   .e-nunca{background:var(--err-soft);color:var(--err)}
+  .e-fora-da-janela{background:#eceff3;color:var(--muted)}
+  .pauta-item.fora-da-janela{border-left-color:#cfd6de;opacity:.72}
+  .mom{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    border-radius:5px;padding:2px 7px;margin-right:6px}
+  .mom-abertura{background:#e8f4fa;color:#40717e}
+  .mom-encerramento{background:#ecebf6;color:#5e5091}
+  .mom-livre{background:#eef1f5;color:#7c8794}
+  .ciclo{display:flex;align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid var(--line-2);font-size:13px}
+  .ciclo:last-child{border-bottom:0}
+  .ciclo .n{font-family:Sora,sans-serif;font-weight:700;font-size:13px;min-width:44px;text-align:right}
   .pauta-item{border:1px solid var(--line);border-left:3px solid var(--line);border-radius:10px;
     padding:14px 16px;margin-bottom:10px;background:#fff}
   .pauta-item.em-dia{border-left-color:var(--ok)}
@@ -514,7 +524,8 @@ function renderEncaminhamentos() {
 }
 
 /* -------------------------- pauta regulatória --------------------------- */
-const ROT_ESTADO = { "em-dia": "em dia", pendente: "a fazer", vencendo: "vencendo", nunca: "nunca tratada" };
+const ROT_ESTADO = { "em-dia": "em dia", pendente: "a fazer", vencendo: "vencendo",
+  nunca: "nunca tratada", "fora-da-janela": "não vence neste semestre" };
 let REG = { orgao: "NDE", curso: "psicologia", dados: null, carregando: false };
 
 async function buscarPautas(orgao, curso) {
@@ -522,6 +533,11 @@ async function buscarPautas(orgao, curso) {
   return api("/api/atas/pauta-regulatoria?" + q);
 }
 function orgaoPorCurso(cod) { return !!META.orgaos.find((o) => o.codigo === cod)?.porCurso; }
+const CAD_ROT = (k) => (META.cadencias?.[k]?.rot || k);
+const MOM_ROT = (k) => (META.momentos?.[k]?.rot || k);
+const chipMomento = (m) => `<span class="mom mom-${m}">${esc(MOM_ROT(m))}</span>`;
+// Descrição da cobrança: "Todo semestre" ou "Uma vez por ano · 2º semestre".
+const quandoVence = (p) => CAD_ROT(p.cadencia) + (p.cadencia === "anual" && p.semestre ? ` · ${p.semestre}º semestre` : "");
 
 async function renderRegulatoria() {
   const el = $("v-regulatoria");
@@ -542,37 +558,68 @@ async function renderRegulatoria() {
   catch (e) { el.innerHTML = cab + `<div class="banner ba-err">${esc(e.message)}</div>`; return; }
   REG.dados = d;
 
+  const r = d.ritual;
   const conta = (est) => d.pautas.filter((p) => p.estado === est).length;
-  const itens = d.pautas.slice().sort((a, b) =>
-    (["nunca", "vencendo", "pendente", "em-dia"].indexOf(a.estado) - ["nunca", "vencendo", "pendente", "em-dia"].indexOf(b.estado))
-    || a.titulo.localeCompare(b.titulo));
+  const ordem = ["nunca", "vencendo", "pendente", "em-dia", "fora-da-janela"];
+  const grupos = r.momentos.length > 1 ? r.momentos : ["livre"];
+
+  const item = (p) => `<div class="pauta-item ${p.estado}">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <div class="tt">${esc(p.titulo)}</div>
+          <div class="md">${esc(quandoVence(p))} · prazo desta janela: ${fmtD(p.fimDaJanela)}
+            ${p.ultima ? ` · última vez em ${fmtD(p.ultima.data)}${p.ultima.numero ? " (" + esc(p.ultima.numero) + ")" : ""}` : " · sem registro"}</div>
+          <div>${p.refs.map((x) => `<span class="ref">${x.inst === "curso" ? "CURSO" : "IES"} ${esc(x.num)} · conceito ${x.nivel}</span>`).join("")}</div>
+        </div>
+        <span class="badge e-${p.estado}">${ROT_ESTADO[p.estado]}</span>
+      </div>
+      <div class="porque"><b>Por que entra na pauta:</b> ${esc(p.porque)}<br>
+        <b>O que a ata precisa registrar:</b> ${esc(p.evidencia)}</div>
+    </div>`;
 
   el.innerHTML = cab + `
-    <div class="stat">
-      <div class="s"><b style="color:var(--ok)">${conta("em-dia")}</b><span>em dia nesta janela</span></div>
-      <div class="s"><b style="color:var(--info)">${conta("pendente")}</b><span>ainda a fazer</span></div>
-      <div class="s"><b style="color:var(--warn)">${conta("vencendo")}</b><span>vencendo</span></div>
-      <div class="s"><b style="color:var(--err)">${conta("nunca")}</b><span>nunca tratadas</span></div>
-    </div>
     <div class="card">
-      <div class="card-t">Pautas obrigatórias — ${esc(META.orgaos.find((o) => o.codigo === REG.orgao)?.nome || "")}${porCurso ? " · " + esc(META.cursos.find((c) => c.slug === REG.curso)?.nome || "") : ""}</div>
-      <div class="card-s">Cada item traz o indicador do instrumento que ele atende e o que a ata precisa registrar.</div>
-      ${itens.map((p) => `<div class="pauta-item ${p.estado}">
-        <div style="display:flex;gap:10px;align-items:flex-start">
-          <div style="flex:1;min-width:0">
-            <div class="tt">${esc(p.titulo)}</div>
-            <div class="md">${PERIOD_ROT(p.periodicidade)} · janela ${esc(p.janela)} (até ${fmtD(p.fimDaJanela)})
-              ${p.ultima ? ` · última vez em ${fmtD(p.ultima.data)}${p.ultima.numero ? " (" + esc(p.ultima.numero) + ")" : ""}` : " · sem registro"}</div>
-            <div>${p.refs.map((r) => `<span class="ref">${r.inst === "curso" ? "CURSO" : "IES"} ${esc(r.num)} · conceito ${r.nivel}</span>`).join("")}</div>
-          </div>
-          <span class="badge e-${p.estado}">${ROT_ESTADO[p.estado]}</span>
-        </div>
-        <div class="porque"><b>Por que entra na pauta:</b> ${esc(p.porque)}<br>
-          <b>O que a ata precisa registrar:</b> ${esc(p.evidencia)}</div>
-      </div>`).join("")}
+      <div class="card-t">Ciclo do semestre ${esc(r.janela)}</div>
+      <div class="card-s">Toda sessão ordinária do ciclo precisa estar registrada em ata; as extraordinárias entram por demanda e não substituem essas.</div>
+      <div class="stat" style="margin-bottom:6px">
+        <div class="s"><b style="color:${r.completo ? "var(--ok)" : "var(--warn)"}">${r.ordinarias}/${r.exigidas}</b><span>sessões ordinárias</span></div>
+        <div class="s"><b>${r.extraordinarias}</b><span>extraordinárias</span></div>
+        <div class="s"><b style="color:${d.percentual >= 100 ? "var(--ok)" : "var(--warn)"}">${d.percentual}%</b><span>do checklist do semestre</span></div>
+        <div class="s"><b>${d.emDia}/${d.exigidas}</b><span>pautas cobradas em dia</span></div>
+      </div>
+      ${r.completo
+        ? '<div class="banner ba-ok">Ciclo de sessões cumprido neste semestre.</div>'
+        : `<div class="banner ba-warn">Faltam ${r.faltam} sessão(ões) ordinária(s) neste semestre — a próxima é a de
+           <b>${esc(MOM_ROT(r.proximoMomento).toLowerCase())}</b>, com prazo até ${fmtD(d.pautas[0]?.fimDaJanela)}.</div>`}
+      ${r.sessoes.length ? `<div style="margin-top:6px">${r.sessoes.map((x) => `<div class="ciclo">
+          <span class="badge ${x.tipo === "extraordinária" ? "e-pendente" : "e-em-dia"}">${esc(x.tipo)}</span>
+          <span style="flex:1">${esc(x.numero || "sem número")}</span>
+          <span class="n">${fmtD(x.data)}</span></div>`).join("")}</div>` : ""}
+    </div>
+
+    ${grupos.map((m) => {
+      const doGrupo = d.pautas.filter((p) => p.momento === m)
+        .sort((a, b) => ordem.indexOf(a.estado) - ordem.indexOf(b.estado) || a.titulo.localeCompare(b.titulo));
+      if (!doGrupo.length) return "";
+      return `<div class="card">
+        <div class="card-t">${chipMomento(m)} ${esc(MOM_ROT(m))}</div>
+        <div class="card-s">${doGrupo.filter((p) => p.exigidaAgora).length} tema(s) cobrado(s) neste semestre
+          · ${doGrupo.filter((p) => p.estado === "em-dia").length} já registrado(s).</div>
+        ${doGrupo.map(item).join("")}</div>`;
+    }).join("")}
+
+    <div class="card">
+      <div class="card-t">Resumo</div>
+      <div class="card-s">Contagem por situação, considerando só o que é cobrado no semestre corrente.</div>
+      <div class="lg">
+        <span><i class="bolinha" style="background:var(--ok)"></i> ${conta("em-dia")} em dia</span>
+        <span><i class="bolinha" style="background:var(--info)"></i> ${conta("pendente")} a fazer</span>
+        <span><i class="bolinha" style="background:var(--warn)"></i> ${conta("vencendo")} vencendo</span>
+        <span><i class="bolinha" style="background:var(--err)"></i> ${conta("nunca")} nunca tratadas</span>
+        <span><i class="bolinha" style="background:#cfd6de"></i> ${conta("fora-da-janela")} fora da janela</span>
+      </div>
     </div>`;
 }
-const PERIOD_ROT = (k) => (META.periodicidades?.[k]?.rot || k);
 
 /* ------------------------ acompanhamento (PROPPEX) ---------------------- */
 async function renderConformidade() {
@@ -582,39 +629,77 @@ async function renderConformidade() {
   try { d = await api("/api/atas/conformidade"); }
   catch (e) { el.innerHTML = `<div class="banner ba-err">${esc(e.message)}</div>`; return; }
 
-  const cor = { "em-dia": "var(--ok)", pendente: "var(--info)", vencendo: "var(--warn)", nunca: "var(--err)" };
+  const cor = { "em-dia": "var(--ok)", pendente: "var(--info)", vencendo: "var(--warn)",
+    nunca: "var(--err)", "fora-da-janela": "#cfd6de" };
   const cursos = META.cursos;
-  const porCurso = d.linhas.filter((l) => l.total > 1);
-  const inst = d.linhas.filter((l) => l.total === 1);
+  const nomeOrgao = (c) => META.orgaos.find((o) => o.codigo === c)?.nome || c;
+  const porCurso = d.linhas.filter((l) => l.porCurso);
+  const inst = d.linhas.filter((l) => !l.porCurso);
+
+  // ciclo de sessões: quem ainda não se reuniu neste semestre
+  const devendo = d.ciclos.filter((c) => !c.completo);
+  const cicloCurso = d.ciclos.filter((c) => c.curso);
+  const cicloInst = d.ciclos.filter((c) => !c.curso);
 
   el.innerHTML = `
-    <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
-      <div class="kpi"><div class="l">Conformidade geral</div><div class="v">${d.percentual}%</div>
-        <div class="d">${d.emDia} de ${d.total} obrigações na janela atual</div></div>
-      <div class="kpi"><div class="l">Pautas catalogadas</div><div class="v">${new Set(d.linhas.map((l) => l.pauta)).size}</div>
-        <div class="d">extraídas dos instrumentos do INEP</div></div>
+    <div class="kpis" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi"><div class="l">Checklist do semestre ${esc(d.janela)}</div><div class="v">${d.percentual}%</div>
+        <div class="d">${d.emDia} de ${d.total} temas cobrados até ${fmtD(d.fimDaJanela)}</div></div>
+      <div class="kpi"><div class="l">Sessões em falta</div>
+        <div class="v" style="color:${devendo.length ? "var(--err)" : "var(--ok)"}">${devendo.reduce((n, c) => n + c.faltam, 0)}</div>
+        <div class="d">${devendo.length} órgão(s) com ciclo aberto</div></div>
+      <div class="kpi"><div class="l">Sessões extraordinárias</div>
+        <div class="v">${d.ciclos.reduce((n, c) => n + c.extraordinarias, 0)}</div>
+        <div class="d">registradas por demanda</div></div>
       <div class="kpi"><div class="l">Curso mais em dia</div>
         <div class="v" style="font-size:20px">${esc(d.cursos[0]?.nome || "—")}</div>
-        <div class="d" style="color:var(--ok)">${d.cursos[0]?.percentual ?? 0}% das pautas de NDE e Colegiado</div></div>
+        <div class="d" style="color:var(--ok)">${d.cursos[0]?.percentual ?? 0}% do checklist de NDE e Colegiado</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">Ciclo de sessões — semestre ${esc(d.janela)}</div>
+      <div class="card-s">NDE, Colegiado e CPA devem registrar duas sessões ordinárias (abertura e encerramento);
+        os demais órgãos, uma. Extraordinárias entram por demanda e não contam para o ciclo.</div>
+      <table class="pt"><thead><tr><th>Órgão</th><th>Ordinárias</th><th>Extraordinárias</th><th>Próxima sessão do ciclo</th><th>Situação</th></tr></thead>
+        <tbody>${cicloInst.map((c) => `<tr>
+          <td>${esc(nomeOrgao(c.orgao))}</td>
+          <td>${c.ordinarias}/${c.exigidas}</td><td>${c.extraordinarias}</td>
+          <td>${c.completo ? "—" : esc(MOM_ROT(c.proximoMomento))}</td>
+          <td><span class="badge ${c.completo ? "e-em-dia" : "e-nunca"}">${c.completo ? "ciclo cumprido" : "faltam " + c.faltam}</span></td>
+        </tr>`).join("")}</tbody></table>
+      <div class="cnt">Por curso:</div>
+      <div class="rolagem"><table class="matriz">
+        <thead><tr><th class="esq">Órgão</th>${cursos.map((c) => `<th title="${esc(c.nome)}">${esc(c.sigla)}</th>`).join("")}</tr></thead>
+        <tbody>${["NDE", "COLEGIADO"].map((o) => `<tr>
+          <td class="esq"><b>${esc(nomeOrgao(o))}</b><div class="muted">${ritualTexto(o)}</div></td>
+          ${cursos.map((c) => {
+            const cc = cicloCurso.find((x) => x.orgao === o && x.curso === c.slug);
+            const ok = cc?.completo;
+            return `<td title="${esc(c.nome)} — ${cc?.ordinarias || 0} de ${cc?.exigidas || 0} sessões">
+              <span style="font-weight:600;font-size:11px;color:${ok ? "var(--ok)" : "var(--err)"}">${cc?.ordinarias || 0}/${cc?.exigidas || 0}</span></td>`;
+          }).join("")}</tr>`).join("")}</tbody>
+      </table></div>
     </div>
 
     <div class="card">
       <div class="card-t">Placar por curso</div>
-      <div class="card-s">Pautas de NDE e Colegiado cumpridas na janela vigente.</div>
-      ${d.cursos.map((c) => `<div class="barra"><div class="cab"><span>${esc(c.nome)}</span>
-        <span>${c.emDia}/${c.total} · ${c.percentual}%</span></div>
+      <div class="card-s">Temas de NDE e Colegiado cobrados neste semestre e já registrados em ata.</div>
+      ${d.cursos.map((c) => `<div class="barra"><div class="cab">
+        <span>${esc(c.nome)}${c.sessoesFaltando ? ` <span class="muted">· devendo ${c.sessoesFaltando} sessão(ões)</span>` : ""}</span>
+        <span>${c.emDia}/${c.exigidas} · ${c.percentual}%</span></div>
         <div class="tr"><i style="width:${c.percentual}%;background:${c.percentual >= 70 ? "var(--ok)" : c.percentual >= 40 ? "var(--warn)" : "var(--err)"}"></i></div></div>`).join("")}
     </div>
 
     <div class="card">
       <div class="card-t">Matriz por curso</div>
-      <div class="card-s">Cada quadrinho é uma obrigação de um órgão num curso, na janela vigente.</div>
+      <div class="card-s">Cada quadrinho é um tema de um órgão num curso, na janela vigente.</div>
       <div class="lg">${Object.entries(cor).map(([k, v]) => `<span><i class="bolinha" style="background:${v}"></i> ${ROT_ESTADO[k]}</span>`).join("")}</div>
       <div class="rolagem"><table class="matriz">
-        <thead><tr><th class="esq">Pauta · órgão</th>
+        <thead><tr><th class="esq">Tema · órgão</th>
           ${cursos.map((c) => `<th title="${esc(c.nome)}">${esc(c.sigla)}</th>`).join("")}</tr></thead>
         <tbody>${porCurso.map((l) => `<tr>
-          <td class="esq"><b>${esc(l.titulo)}</b><div class="muted">${esc(l.orgao)} · ${PERIOD_ROT(l.periodicidade)}</div></td>
+          <td class="esq">${chipMomento(l.momento)}<b>${esc(l.titulo)}</b>
+            <div class="muted">${esc(nomeOrgao(l.orgao))} · ${esc(cadTexto(l))}</div></td>
           ${cursos.map((c) => {
             const cel = l.celulas.find((x) => x.curso === c.slug);
             const est = cel?.estado || "nunca";
@@ -625,16 +710,22 @@ async function renderConformidade() {
     </div>
 
     <div class="card">
-      <div class="card-t">Pautas institucionais</div>
+      <div class="card-t">Temas institucionais</div>
       <div class="card-s">CONSU, CONSEPE, CPA, PROPPEX, PROAC e Reitoria.</div>
-      <table class="pt"><thead><tr><th>Pauta</th><th>Órgão</th><th>Periodicidade</th><th>Última sessão</th><th>Situação</th></tr></thead>
+      <table class="pt"><thead><tr><th>Tema</th><th>Órgão</th><th>Quando</th><th>Última sessão</th><th>Situação</th></tr></thead>
       <tbody>${inst.map((l) => { const c = l.celulas[0]; return `<tr>
-        <td>${esc(l.titulo)}<div class="muted">${l.refs.map((r) => `${r.inst === "curso" ? "Curso" : "IES"} ${r.num}`).join(" · ")}</div></td>
-        <td>${esc(l.orgao)}</td><td>${PERIOD_ROT(l.periodicidade)}</td>
+        <td>${chipMomento(l.momento)}${esc(l.titulo)}
+          <div class="muted">${l.refs.map((r) => `${r.inst === "curso" ? "Curso" : "IES"} ${r.num}`).join(" · ")}</div></td>
+        <td>${esc(l.orgao)}</td><td>${esc(cadTexto(l))}</td>
         <td>${c?.ultima ? fmtD(c.ultima.data) : "—"}</td>
         <td><span class="badge e-${c?.estado || "nunca"}">${ROT_ESTADO[c?.estado || "nunca"]}</span></td></tr>`; }).join("")}</tbody></table>
     </div>`;
 }
+const ritualTexto = (o) => {
+  const r = META.ritual?.[o];
+  return r ? `${r.ordinarias} sessão(ões) ordinária(s) por semestre` : "";
+};
+const cadTexto = (l) => CAD_ROT(l.cadencia) + (l.cadencia === "anual" && l.semestre ? ` · ${l.semestre}º sem.` : "");
 
 /* -------------------------------- editor -------------------------------- */
 async function abrir(id) {
@@ -682,7 +773,7 @@ function renderEditor(alvo) {
         <div class="${o?.nomeLivre ? "" : "hide"}"><label>Nome da comissão *</label>
           <input id="f-orgao-nome" ${ro} value="${esc(a.orgaoNome || "")}" oninput="campo('orgaoNome',this.value)"
             placeholder="Ex.: Comissão de Autoavaliação Institucional"></div>
-        <div><label>Tipo de sessão</label><select id="f-tipo" ${ro} onchange="sub('sessao','tipo',this.value)">
+        <div><label>Tipo de sessão</label><select id="f-tipo" ${ro} onchange="sub('sessao','tipo',this.value);renderSugestoes()">
           ${["ordinária", "extraordinária", "solene"].map((t) => `<option ${a.sessao.tipo === t ? "selected" : ""}>${t}</option>`).join("")}
         </select></div>
       </div>
@@ -754,7 +845,7 @@ function renderEditor(alvo) {
 // Pautas do catálogo que cabem ao órgão desta ata (para o seletor do ponto).
 function pautasDoOrgaoLocal() {
   const cod = ATUAL?.orgao;
-  return (META.pautas || []).filter((p) => p.orgaos.includes(cod));
+  return (META.pautas || []).filter((p) => p.orgao === cod);
 }
 
 // Lista as pautas que o órgão ainda não tratou na janela vigente e oferece
@@ -765,31 +856,39 @@ async function renderSugestoes() {
   if (!el || !ATUAL?.orgao) return;
   const porCurso = orgaoPorCurso(ATUAL.orgao);
   if (porCurso && !ATUAL.curso) return;
-  try {
-    const d = await buscarPautas(ATUAL.orgao, porCurso ? ATUAL.curso : "");
-    SUGESTOES = d.pautas;
-  } catch { return; }
+  let d;
+  try { d = await buscarPautas(ATUAL.orgao, porCurso ? ATUAL.curso : ""); }
+  catch { return; }
+  SUGESTOES = d.pautas;
 
+  const r = d.ritual;
   const usadas = new Set((ATUAL.pauta || []).map((p) => p.pautaMec).filter(Boolean));
-  const faltando = SUGESTOES
-    .filter((p) => p.estado !== "em-dia" && !usadas.has(p.id))
-    .sort((a, b) => a.diasRestantes - b.diasRestantes);
-  const jaNesta = SUGESTOES.filter((p) => usadas.has(p.id));
+  const extra = ATUAL.sessao?.tipo === "extraordinária";
+  // numa sessão do ciclo, o momento em que o órgão está puxa os temas da vez
+  const daVez = r.proximoMomento;
+  const faltando = d.pautas
+    .filter((p) => p.exigidaAgora && p.estado !== "em-dia" && !usadas.has(p.id))
+    .sort((a, b) => (a.momento === daVez ? 0 : 1) - (b.momento === daVez ? 0 : 1)
+      || ["nunca", "vencendo", "pendente"].indexOf(a.estado) - ["nunca", "vencendo", "pendente"].indexOf(b.estado));
+  const jaNesta = d.pautas.filter((p) => usadas.has(p.id));
 
   el.classList.remove("hide");
   el.innerHTML = `
-    <div class="card-t">Pauta regulatória sugerida</div>
-    <div class="card-s">Temas que os instrumentos do INEP esperam ver debatidos por este órgão e que ainda
-      não foram tratados na janela vigente.</div>
-    ${jaNesta.length ? `<div class="banner ba-ok">✓ Esta ata já atende ${jaNesta.length} pauta(s) regulatória(s):
+    <div class="card-t">Checklist do semestre ${esc(r.janela)}</div>
+    <div class="card-s">${esc(META.orgaos.find((o) => o.codigo === ATUAL.orgao)?.nome || "")} registrou
+      <b>${r.ordinarias} de ${r.exigidas}</b> sessão(ões) ordinária(s) neste semestre${r.extraordinarias ? ` e ${r.extraordinarias} extraordinária(s)` : ""}.
+      ${extra ? "Esta é uma sessão <b>extraordinária</b>: entra por demanda e não fecha o ciclo, mas os temas que tratar contam como registro."
+              : r.completo ? "O ciclo já está cumprido — esta sessão é um reforço."
+              : `Esta será a sessão de <b>${esc(MOM_ROT(daVez).toLowerCase())}</b>.`}</div>
+    ${jaNesta.length ? `<div class="banner ba-ok">✓ Esta ata já cobre ${jaNesta.length} tema(s) do checklist:
       ${jaNesta.map((p) => esc(p.titulo)).join(" · ")}</div>` : ""}
     ${faltando.length ? faltando.slice(0, 8).map((p) => `<div class="pauta-item ${p.estado}">
         <div style="display:flex;gap:12px;align-items:flex-start">
           <div style="flex:1;min-width:0">
-            <div class="tt">${esc(p.titulo)}</div>
-            <div class="md">${PERIOD_ROT(p.periodicidade)} · prazo desta janela: ${fmtD(p.fimDaJanela)}
+            <div class="tt">${chipMomento(p.momento)}${esc(p.titulo)}</div>
+            <div class="md">${esc(quandoVence(p))} · prazo desta janela: ${fmtD(p.fimDaJanela)}
               ${p.ultima ? ` · última vez em ${fmtD(p.ultima.data)}` : " · nunca tratada"}
-              · ${p.refs.map((r) => `${r.inst === "curso" ? "Curso" : "IES"} ${esc(r.num)}`).join(", ")}</div>
+              · ${p.refs.map((x) => `${x.inst === "curso" ? "Curso" : "IES"} ${esc(x.num)}`).join(", ")}</div>
           </div>
           <span class="badge e-${p.estado}">${ROT_ESTADO[p.estado]}</span>
           ${PODE_EDITAR ? `<button class="bt bt-sec" style="padding:7px 12px;font-size:12.5px"
@@ -797,7 +896,7 @@ async function renderSugestoes() {
         </div>
         <div class="porque">${esc(p.evidencia)}</div>
       </div>`).join("")
-      : '<div class="banner ba-ok">Nenhuma pendência: este órgão está em dia com a pauta regulatória da janela.</div>'}
+      : '<div class="banner ba-ok">Nenhuma pendência: o checklist deste semestre está completo para este órgão.</div>'}
     ${faltando.length > 8 ? `<div class="cnt">e mais ${faltando.length - 8} — veja em “Pauta regulatória”.</div>` : ""}`;
 }
 

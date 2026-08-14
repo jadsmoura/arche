@@ -50,9 +50,13 @@ public/
 - Fluxo das Atas (ARCHÉ AT): rascunho → minuta → em revisão → aprovada → registrada.
   O número (`ATA-NDE-ENF-2026-003`) só é emitido ao sair do rascunho e nunca se repete.
   Ata registrada é documento fechado. Toda leitura/gravação passa por `/api/atas/*`.
-- **Pauta Regulatória**: `lib/pautas.js` guarda os temas que os instrumentos do INEP
-  esperam ver debatidos em ata, com periodicidade. O sistema sugere as pautas pendentes
-  ao abrir a reunião e a PROPPEX acompanha a conformidade por curso e por órgão.
+- **Pauta Regulatória** (`lib/pautas.js`): temas que os instrumentos do INEP esperam ver
+  debatidos em ata. Cada tema pertence a **um único órgão** (competência exclusiva: o
+  currículo é do NDE, a gestão do curso é do Colegiado, a autoavaliação é da CPA).
+  Ciclo: todo órgão registra ≥1 ata **ordinária** por semestre; NDE, Colegiado e CPA
+  registram 2 (abertura e encerramento) — ver `RITUAL`. Sessões **extraordinárias**
+  entram por demanda: contam como registro dos temas que tratam, mas não fecham o ciclo.
+  Cadência por tema: `semestral` ou `anual` (com o semestre em que vence).
   Ao alterar o catálogo, preserve os `id` — são a chave do vínculo gravado nas atas.
 - Redação da ata por IA é **opcional**: sem `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` o gerador
   determinístico assume, e qualquer falha de IA cai nele em vez de derrubar o fluxo.

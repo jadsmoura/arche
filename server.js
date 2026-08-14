@@ -19,8 +19,8 @@ import {
   numerar, tituloDe, anotar, encaminhamentos, orgaoDe,
 } from "./lib/atas.js";
 import {
-  PAUTAS, PERIODICIDADES, pautaDe, situacaoPautas, pautasSugeridas,
-  matrizConformidade, placarPorCurso, proximosPrazos,
+  PAUTAS, MOMENTOS, CADENCIAS, RITUAL, checklistSemestral, pautasSugeridas,
+  matrizConformidade, placarPorCurso, ciclosDoSemestre, proximosPrazos,
 } from "./lib/pautas.js";
 import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
@@ -770,7 +770,7 @@ app.get("/api/atas/meta", async (req, res) => {
   const u = await sessaoAtas(req, res);
   if (!u) return;
   res.json({
-    ...ATAS_META, pautas: PAUTAS, periodicidades: PERIODICIDADES,
+    ...ATAS_META, pautas: PAUTAS, momentos: MOMENTOS, cadencias: CADENCIAS, ritual: RITUAL,
     gestao: gereAtas(u), eu: u.email, ia: (await import("./lib/redator.js")).provedorAtivo(),
   });
 });
@@ -807,9 +807,9 @@ app.get("/api/atas/pauta-regulatoria", async (req, res) => {
   const curso = String(req.query.curso || "");
   if (!orgaoDe(orgao)) return res.status(400).json({ error: "Informe um órgão válido" });
   const atas = await lerAtas();
+  const ck = checklistSemestral(atas, { orgao, curso });
   res.json({
-    orgao, curso,
-    pautas: situacaoPautas(atas, { orgao, curso }),
+    orgao, curso, ...ck,
     sugeridas: pautasSugeridas(atas, { orgao, curso }).map((p) => p.id),
     prazos: proximosPrazos(atas, { orgao, curso }),
   });
@@ -821,7 +821,11 @@ app.get("/api/atas/conformidade", async (req, res) => {
   if (!u) return;
   if (!gereAtas(u)) return res.status(403).json({ error: "Acompanhamento restrito à gestão" });
   const atas = await lerAtas();
-  res.json({ ...matrizConformidade(atas), cursos: placarPorCurso(atas) });
+  res.json({
+    ...matrizConformidade(atas),
+    cursos: placarPorCurso(atas),
+    ciclos: ciclosDoSemestre(atas),
+  });
 });
 
 app.get("/api/atas/:id", async (req, res) => {
