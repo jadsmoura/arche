@@ -19,13 +19,17 @@ lib/storage.js       Estado key-value (Google Drive em prod: _estado.json; local
 lib/files.js         Uploads → Google Drive (pasta ARCHÉ, por curso)
 lib/auth.js          Sessão por cookie HMAC; papéis: gestor > coordenador > aprovado > pendente
 lib/exports.js       Registro de Atividade (.docx) e Planilha de Certificados (.xlsx)
-lib/pdf.js           Relatório final em PDF com timbrado oficial UNIEGO
+lib/pdf.js           Relatório final, proposta e ata em PDF (timbrado oficial UNIEGO)
+lib/atas.js          ARCHÉ AT: órgãos, numeração das atas, normalização e validação
+lib/pautas.js        Catálogo da Pauta Regulatória (indicadores INEP) e conformidade
+lib/redator.js       Redação da minuta da ata: modelo (padrão) | gemini | anthropic
 lib/mailer.js        E-mails via Gmail API (remetente "ARCHÉ · PROPPEX")
 templates/           Template xlsx de certificados + logo UNIEGO (não alterar estrutura)
 public/
   index.html         Portal (2 seções: Gestão PROPPEX | Avaliação Institucional)
   extensao/          Módulo Extensão (SPA vanilla JS) — propostas, relatórios, participantes
   pesquisa/ic/       Iniciação Científica (runtime DC — editar só o markup/bloco text/x-dc)
+  atas/              ARCHÉ AT — Atas e Colegiados (SPA vanilla, mesmo desenho do EX)
   arche/             Avaliação Institucional (app COMPILADO do Manus — NÃO refatorar;
                      alterações só por append de <script>/<style> no fim dos html)
   entrar/ perfil/ usuarios/   Login (código por e-mail + Google), perfil, gestão de acessos
@@ -33,7 +37,7 @@ public/
 
 ## Regras de negócio essenciais
 
-- **Setores protegidos** (exigem login): `/extensao`, `/pesquisa`, `/inovacao`, `/usuarios`.
+- **Setores protegidos** (exigem login): `/extensao`, `/pesquisa`, `/inovacao`, `/atas`, `/usuarios`.
   **Avaliação (`/arche/`) é ABERTA** — não adicionar login nela.
 - Gestores gerais fixos: `jadsonbelem@gmail.com` e `jadson.moura@uniego.edu.br` (lib/auth.js).
 - Contas `@uniego.edu.br` entram como submissoras automaticamente; outras aguardam aprovação.
@@ -41,8 +45,17 @@ public/
   participantes (3/3 completa) → certificados → registrada. Não alterar o formato do nº.
 - Uploads e estado são organizados **por curso** no Google Drive — preservar os prefixos
   usados em server.js (`extensao/<curso>/…`, `dossie/<curso>/…` etc.).
-- Estado do app em chaves `/api/estado` (ex.: `extensao-acoes-v1`); chaves `auth-*` são
-  internas e invisíveis pela API.
+- Estado do app em chaves `/api/estado` (ex.: `extensao-acoes-v1`); chaves `auth-*`, `sys-*`
+  e `atas-*` são internas e invisíveis pela API.
+- Fluxo das Atas (ARCHÉ AT): rascunho → minuta → em revisão → aprovada → registrada.
+  O número (`ATA-NDE-ENF-2026-003`) só é emitido ao sair do rascunho e nunca se repete.
+  Ata registrada é documento fechado. Toda leitura/gravação passa por `/api/atas/*`.
+- **Pauta Regulatória**: `lib/pautas.js` guarda os temas que os instrumentos do INEP
+  esperam ver debatidos em ata, com periodicidade. O sistema sugere as pautas pendentes
+  ao abrir a reunião e a PROPPEX acompanha a conformidade por curso e por órgão.
+  Ao alterar o catálogo, preserve os `id` — são a chave do vínculo gravado nas atas.
+- Redação da ata por IA é **opcional**: sem `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` o gerador
+  determinístico assume, e qualquer falha de IA cai nele em vez de derrubar o fluxo.
 
 ## Identidade visual
 

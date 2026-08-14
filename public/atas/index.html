@@ -204,6 +204,32 @@
     background:#f4f6f9;border:1px solid var(--line);border-radius:20px;padding:4px 11px}
   .hist{font-size:12px;color:var(--muted);line-height:1.9}
   .hist b{color:var(--ink-soft);font-weight:600}
+  .e-em-dia{background:var(--ok-soft);color:var(--ok)}
+  .e-pendente{background:var(--info-soft);color:var(--info)}
+  .e-vencendo{background:var(--warn-soft);color:var(--warn)}
+  .e-nunca{background:var(--err-soft);color:var(--err)}
+  .pauta-item{border:1px solid var(--line);border-left:3px solid var(--line);border-radius:10px;
+    padding:14px 16px;margin-bottom:10px;background:#fff}
+  .pauta-item.em-dia{border-left-color:var(--ok)}
+  .pauta-item.pendente{border-left-color:var(--info)}
+  .pauta-item.vencendo{border-left-color:var(--warn)}
+  .pauta-item.nunca{border-left-color:var(--err)}
+  .pauta-item .tt{font-weight:600;font-size:14px;color:var(--ink);margin-bottom:3px}
+  .pauta-item .md{font-size:12px;color:var(--muted);line-height:1.6}
+  .pauta-item .porque{font-size:12.5px;color:var(--ink-soft);background:#f7f9fb;border-radius:8px;
+    padding:9px 12px;margin-top:9px;line-height:1.55}
+  .ref{display:inline-block;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;font-weight:600;
+    background:var(--accent-wash,#e6f5fa);color:var(--brand);border-radius:5px;padding:2px 7px;margin:3px 4px 0 0}
+  .matriz{width:100%;border-collapse:collapse;font-size:12px}
+  .matriz th{background:#f7f9fb;color:var(--muted);padding:8px 6px;font-size:10.5px;font-weight:600;
+    border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+  .matriz th.esq{text-align:left;min-width:250px;position:sticky;left:0;background:#f7f9fb;z-index:1}
+  .matriz td{border-bottom:1px solid var(--line-2);padding:6px;text-align:center}
+  .matriz td.esq{text-align:left;position:sticky;left:0;background:#fff;z-index:1}
+  .rolagem{overflow-x:auto;margin:0 -6px;padding:0 6px}
+  .bolinha{display:inline-block;width:15px;height:15px;border-radius:5px}
+  .lg{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:12px 0 4px}
+  .lg span{display:flex;align-items:center;gap:6px}
   /* itens de grade não podem ser mais largos que a coluna: sem isto, um
      título longo com white-space:nowrap estoura a página no celular */
   .duplo>*,.kpis>*,.stat>*,.grid2>*,.grid3>*{min-width:0}
@@ -239,6 +265,8 @@
         <section id="v-nova" class="hide"></section>
         <section id="v-arquivo" class="hide"></section>
         <section id="v-encaminhamentos" class="hide"></section>
+        <section id="v-regulatoria" class="hide"></section>
+        <section id="v-conformidade" class="hide"></section>
         <section id="v-ata" class="hide"></section>
       </div>
     </div>
@@ -268,13 +296,15 @@ const SECOES = [
   { id: "painel", rot: "Painel", ic: '<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>' },
   { id: "nova", rot: "Nova reunião", ic: '<path d="M12 5v14M5 12h14"/>' },
   { id: "arquivo", rot: "Arquivo de atas", ic: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8"/>' },
+  { id: "regulatoria", rot: "Pauta regulatória", ic: '<path d="M9 2h6a2 2 0 0 1 2 2v2h2a1 1 0 0 1 1 1v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a1 1 0 0 1 1-1h2V4a2 2 0 0 1 2-2z"/><path d="M9 13l2 2 4-4"/>' },
+  { id: "conformidade", rot: "Acompanhamento", ic: '<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>', gestao: true },
   { id: "encaminhamentos", rot: "Encaminhamentos", ic: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>' },
   { id: "acessos", rot: "Gestão de acessos", ic: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>', gestor: true },
 ];
 
 function montarSidebar() {
   $("menu").innerHTML = SECOES
-    .filter((s) => !s.gestor || (ME && ME.papel === "gestor"))
+    .filter((s) => (!s.gestor || (ME && ME.papel === "gestor")) && (!s.gestao || META.gestao))
     .map((s) => `<button class="side-item" data-s="${s.id}" onclick="nav('${s.id}')">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${s.ic}</svg>
       ${s.rot}</button>`).join("");
@@ -293,7 +323,7 @@ function montarSidebar() {
 function nav(secao, id) {
   SECAO = secao;
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === secao);
-  for (const v of ["painel", "nova", "arquivo", "encaminhamentos", "ata"]) $("v-" + v).classList.add("hide");
+  for (const v of ["painel", "nova", "arquivo", "encaminhamentos", "regulatoria", "conformidade", "ata"]) $("v-" + v).classList.add("hide");
   // "nova" e "ata" usam o mesmo editor (mesmos ids): a seção que sai do ar é
   // esvaziada, senão getElementById passa a devolver os campos escondidos.
   for (const v of ["nova", "ata"]) if (v !== secao) $("v-" + v).innerHTML = "";
@@ -304,6 +334,8 @@ function nav(secao, id) {
     nova: ["Nova reunião", "Registre a sessão; a minuta é redigida a partir destes campos."],
     arquivo: ["Arquivo de atas", "Todas as atas a que você tem acesso."],
     encaminhamentos: ["Encaminhamentos", "Tarefas deliberadas em sessão, com responsável e prazo."],
+    regulatoria: ["Pauta regulatória", "Temas que os instrumentos do INEP/MEC esperam ver debatidos e registrados em ata."],
+    conformidade: ["Acompanhamento da PROPPEX", "Quais cursos e órgãos estão cumprindo a pauta regulatória."],
     ata: ["Ata", ""],
   };
   const [t, s] = titulos[secao] || ["", ""];
@@ -314,6 +346,8 @@ function nav(secao, id) {
   if (secao === "nova") { ATUAL = novaAta(); PODE_EDITAR = true; renderEditor("v-nova"); $("v-nova").classList.remove("hide"); }
   if (secao === "arquivo") { renderArquivo(); $("v-arquivo").classList.remove("hide"); }
   if (secao === "encaminhamentos") { renderEncaminhamentos(); $("v-encaminhamentos").classList.remove("hide"); }
+  if (secao === "regulatoria") { renderRegulatoria(); $("v-regulatoria").classList.remove("hide"); }
+  if (secao === "conformidade") { renderConformidade(); $("v-conformidade").classList.remove("hide"); }
   if (secao === "ata") { $("v-ata").classList.remove("hide"); }
   window.scrollTo(0, 0);
 }
@@ -479,6 +513,129 @@ function renderEncaminhamentos() {
     </div>`;
 }
 
+/* -------------------------- pauta regulatória --------------------------- */
+const ROT_ESTADO = { "em-dia": "em dia", pendente: "a fazer", vencendo: "vencendo", nunca: "nunca tratada" };
+let REG = { orgao: "NDE", curso: "psicologia", dados: null, carregando: false };
+
+async function buscarPautas(orgao, curso) {
+  const q = `orgao=${encodeURIComponent(orgao)}&curso=${encodeURIComponent(curso || "")}`;
+  return api("/api/atas/pauta-regulatoria?" + q);
+}
+function orgaoPorCurso(cod) { return !!META.orgaos.find((o) => o.codigo === cod)?.porCurso; }
+
+async function renderRegulatoria() {
+  const el = $("v-regulatoria");
+  const porCurso = orgaoPorCurso(REG.orgao);
+  const cab = `
+    <div class="filtros">
+      <select onchange="REG.orgao=this.value;renderRegulatoria()">
+        ${META.orgaos.map((o) => `<option value="${o.codigo}" ${REG.orgao === o.codigo ? "selected" : ""}>${esc(o.nome)}</option>`).join("")}
+      </select>
+      <select class="${porCurso ? "" : "hide"}" onchange="REG.curso=this.value;renderRegulatoria()">
+        ${META.cursos.map((c) => `<option value="${c.slug}" ${REG.curso === c.slug ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}
+      </select>
+    </div>`;
+  el.innerHTML = cab + '<div class="card"><div class="vazio">Carregando…</div></div>';
+
+  let d;
+  try { d = await buscarPautas(REG.orgao, porCurso ? REG.curso : ""); }
+  catch (e) { el.innerHTML = cab + `<div class="banner ba-err">${esc(e.message)}</div>`; return; }
+  REG.dados = d;
+
+  const conta = (est) => d.pautas.filter((p) => p.estado === est).length;
+  const itens = d.pautas.slice().sort((a, b) =>
+    (["nunca", "vencendo", "pendente", "em-dia"].indexOf(a.estado) - ["nunca", "vencendo", "pendente", "em-dia"].indexOf(b.estado))
+    || a.titulo.localeCompare(b.titulo));
+
+  el.innerHTML = cab + `
+    <div class="stat">
+      <div class="s"><b style="color:var(--ok)">${conta("em-dia")}</b><span>em dia nesta janela</span></div>
+      <div class="s"><b style="color:var(--info)">${conta("pendente")}</b><span>ainda a fazer</span></div>
+      <div class="s"><b style="color:var(--warn)">${conta("vencendo")}</b><span>vencendo</span></div>
+      <div class="s"><b style="color:var(--err)">${conta("nunca")}</b><span>nunca tratadas</span></div>
+    </div>
+    <div class="card">
+      <div class="card-t">Pautas obrigatórias — ${esc(META.orgaos.find((o) => o.codigo === REG.orgao)?.nome || "")}${porCurso ? " · " + esc(META.cursos.find((c) => c.slug === REG.curso)?.nome || "") : ""}</div>
+      <div class="card-s">Cada item traz o indicador do instrumento que ele atende e o que a ata precisa registrar.</div>
+      ${itens.map((p) => `<div class="pauta-item ${p.estado}">
+        <div style="display:flex;gap:10px;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <div class="tt">${esc(p.titulo)}</div>
+            <div class="md">${PERIOD_ROT(p.periodicidade)} · janela ${esc(p.janela)} (até ${fmtD(p.fimDaJanela)})
+              ${p.ultima ? ` · última vez em ${fmtD(p.ultima.data)}${p.ultima.numero ? " (" + esc(p.ultima.numero) + ")" : ""}` : " · sem registro"}</div>
+            <div>${p.refs.map((r) => `<span class="ref">${r.inst === "curso" ? "CURSO" : "IES"} ${esc(r.num)} · conceito ${r.nivel}</span>`).join("")}</div>
+          </div>
+          <span class="badge e-${p.estado}">${ROT_ESTADO[p.estado]}</span>
+        </div>
+        <div class="porque"><b>Por que entra na pauta:</b> ${esc(p.porque)}<br>
+          <b>O que a ata precisa registrar:</b> ${esc(p.evidencia)}</div>
+      </div>`).join("")}
+    </div>`;
+}
+const PERIOD_ROT = (k) => (META.periodicidades?.[k]?.rot || k);
+
+/* ------------------------ acompanhamento (PROPPEX) ---------------------- */
+async function renderConformidade() {
+  const el = $("v-conformidade");
+  el.innerHTML = '<div class="card"><div class="vazio">Calculando…</div></div>';
+  let d;
+  try { d = await api("/api/atas/conformidade"); }
+  catch (e) { el.innerHTML = `<div class="banner ba-err">${esc(e.message)}</div>`; return; }
+
+  const cor = { "em-dia": "var(--ok)", pendente: "var(--info)", vencendo: "var(--warn)", nunca: "var(--err)" };
+  const cursos = META.cursos;
+  const porCurso = d.linhas.filter((l) => l.total > 1);
+  const inst = d.linhas.filter((l) => l.total === 1);
+
+  el.innerHTML = `
+    <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi"><div class="l">Conformidade geral</div><div class="v">${d.percentual}%</div>
+        <div class="d">${d.emDia} de ${d.total} obrigações na janela atual</div></div>
+      <div class="kpi"><div class="l">Pautas catalogadas</div><div class="v">${new Set(d.linhas.map((l) => l.pauta)).size}</div>
+        <div class="d">extraídas dos instrumentos do INEP</div></div>
+      <div class="kpi"><div class="l">Curso mais em dia</div>
+        <div class="v" style="font-size:20px">${esc(d.cursos[0]?.nome || "—")}</div>
+        <div class="d" style="color:var(--ok)">${d.cursos[0]?.percentual ?? 0}% das pautas de NDE e Colegiado</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">Placar por curso</div>
+      <div class="card-s">Pautas de NDE e Colegiado cumpridas na janela vigente.</div>
+      ${d.cursos.map((c) => `<div class="barra"><div class="cab"><span>${esc(c.nome)}</span>
+        <span>${c.emDia}/${c.total} · ${c.percentual}%</span></div>
+        <div class="tr"><i style="width:${c.percentual}%;background:${c.percentual >= 70 ? "var(--ok)" : c.percentual >= 40 ? "var(--warn)" : "var(--err)"}"></i></div></div>`).join("")}
+    </div>
+
+    <div class="card">
+      <div class="card-t">Matriz por curso</div>
+      <div class="card-s">Cada quadrinho é uma obrigação de um órgão num curso, na janela vigente.</div>
+      <div class="lg">${Object.entries(cor).map(([k, v]) => `<span><i class="bolinha" style="background:${v}"></i> ${ROT_ESTADO[k]}</span>`).join("")}</div>
+      <div class="rolagem"><table class="matriz">
+        <thead><tr><th class="esq">Pauta · órgão</th>
+          ${cursos.map((c) => `<th title="${esc(c.nome)}">${esc(c.sigla)}</th>`).join("")}</tr></thead>
+        <tbody>${porCurso.map((l) => `<tr>
+          <td class="esq"><b>${esc(l.titulo)}</b><div class="muted">${esc(l.orgao)} · ${PERIOD_ROT(l.periodicidade)}</div></td>
+          ${cursos.map((c) => {
+            const cel = l.celulas.find((x) => x.curso === c.slug);
+            const est = cel?.estado || "nunca";
+            return `<td title="${esc(c.nome)} — ${ROT_ESTADO[est]}${cel?.ultima ? " (última: " + fmtD(cel.ultima.data) + ")" : ""}">
+              <i class="bolinha" style="background:${cor[est]}"></i></td>`;
+          }).join("")}</tr>`).join("")}</tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">Pautas institucionais</div>
+      <div class="card-s">CONSU, CONSEPE, CPA, PROPPEX, PROAC e Reitoria.</div>
+      <table class="pt"><thead><tr><th>Pauta</th><th>Órgão</th><th>Periodicidade</th><th>Última sessão</th><th>Situação</th></tr></thead>
+      <tbody>${inst.map((l) => { const c = l.celulas[0]; return `<tr>
+        <td>${esc(l.titulo)}<div class="muted">${l.refs.map((r) => `${r.inst === "curso" ? "Curso" : "IES"} ${r.num}`).join(" · ")}</div></td>
+        <td>${esc(l.orgao)}</td><td>${PERIOD_ROT(l.periodicidade)}</td>
+        <td>${c?.ultima ? fmtD(c.ultima.data) : "—"}</td>
+        <td><span class="badge e-${c?.estado || "nunca"}">${ROT_ESTADO[c?.estado || "nunca"]}</span></td></tr>`; }).join("")}</tbody></table>
+    </div>`;
+}
+
 /* -------------------------------- editor -------------------------------- */
 async function abrir(id) {
   try {
@@ -518,7 +675,7 @@ function renderEditor(alvo) {
           <option value="">— escolha —</option>
           ${META.orgaos.map((x) => `<option value="${x.codigo}" ${a.orgao === x.codigo ? "selected" : ""}>${esc(x.nome)}</option>`).join("")}
         </select></div>
-        <div class="${o?.porCurso ? "" : "hide"}"><label>Curso *</label><select id="f-curso" ${ro} onchange="campo('curso',this.value)">
+        <div class="${o?.porCurso ? "" : "hide"}"><label>Curso *</label><select id="f-curso" ${ro} onchange="campo('curso',this.value);renderSugestoes()">
           <option value="">— escolha —</option>
           ${META.cursos.map((c) => `<option value="${c.slug}" ${a.curso === c.slug ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}
         </select></div>
@@ -562,6 +719,8 @@ function renderEditor(alvo) {
       <div class="cnt" id="quorum"></div>
     </div>
 
+    <div class="card hide" id="card-sugestoes"></div>
+
     <div class="card">
       <div class="card-t">Pauta e deliberações</div>
       <div class="card-s">Anote em tópicos — a redação em prosa é feita depois, automaticamente.</div>
@@ -589,7 +748,72 @@ function renderEditor(alvo) {
       <div class="hist">${a.historico.slice().reverse().slice(0, 12)
         .map((h) => `${fmtDH(h.quando)} — <b>${esc(h.quem)}</b> ${esc(h.oQue)}`).join("<br>")}</div></div>` : ""}`;
 
-  renderParticipantes(); renderPauta();
+  renderParticipantes(); renderPauta(); renderSugestoes();
+}
+
+// Pautas do catálogo que cabem ao órgão desta ata (para o seletor do ponto).
+function pautasDoOrgaoLocal() {
+  const cod = ATUAL?.orgao;
+  return (META.pautas || []).filter((p) => p.orgaos.includes(cod));
+}
+
+// Lista as pautas que o órgão ainda não tratou na janela vigente e oferece
+// incluí-las como ponto com um clique. É o "para que não se esqueçam".
+let SUGESTOES = null;
+async function renderSugestoes() {
+  const el = $("card-sugestoes");
+  if (!el || !ATUAL?.orgao) return;
+  const porCurso = orgaoPorCurso(ATUAL.orgao);
+  if (porCurso && !ATUAL.curso) return;
+  try {
+    const d = await buscarPautas(ATUAL.orgao, porCurso ? ATUAL.curso : "");
+    SUGESTOES = d.pautas;
+  } catch { return; }
+
+  const usadas = new Set((ATUAL.pauta || []).map((p) => p.pautaMec).filter(Boolean));
+  const faltando = SUGESTOES
+    .filter((p) => p.estado !== "em-dia" && !usadas.has(p.id))
+    .sort((a, b) => a.diasRestantes - b.diasRestantes);
+  const jaNesta = SUGESTOES.filter((p) => usadas.has(p.id));
+
+  el.classList.remove("hide");
+  el.innerHTML = `
+    <div class="card-t">Pauta regulatória sugerida</div>
+    <div class="card-s">Temas que os instrumentos do INEP esperam ver debatidos por este órgão e que ainda
+      não foram tratados na janela vigente.</div>
+    ${jaNesta.length ? `<div class="banner ba-ok">✓ Esta ata já atende ${jaNesta.length} pauta(s) regulatória(s):
+      ${jaNesta.map((p) => esc(p.titulo)).join(" · ")}</div>` : ""}
+    ${faltando.length ? faltando.slice(0, 8).map((p) => `<div class="pauta-item ${p.estado}">
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <div class="tt">${esc(p.titulo)}</div>
+            <div class="md">${PERIOD_ROT(p.periodicidade)} · prazo desta janela: ${fmtD(p.fimDaJanela)}
+              ${p.ultima ? ` · última vez em ${fmtD(p.ultima.data)}` : " · nunca tratada"}
+              · ${p.refs.map((r) => `${r.inst === "curso" ? "Curso" : "IES"} ${esc(r.num)}`).join(", ")}</div>
+          </div>
+          <span class="badge e-${p.estado}">${ROT_ESTADO[p.estado]}</span>
+          ${PODE_EDITAR ? `<button class="bt bt-sec" style="padding:7px 12px;font-size:12.5px"
+            onclick="incluirPauta('${p.id}')">＋ incluir</button>` : ""}
+        </div>
+        <div class="porque">${esc(p.evidencia)}</div>
+      </div>`).join("")
+      : '<div class="banner ba-ok">Nenhuma pendência: este órgão está em dia com a pauta regulatória da janela.</div>'}
+    ${faltando.length > 8 ? `<div class="cnt">e mais ${faltando.length - 8} — veja em “Pauta regulatória”.</div>` : ""}`;
+}
+
+function incluirPauta(id) {
+  const p = (META.pautas || []).find((x) => x.id === id);
+  if (!p) return;
+  // ponto em branco no fim da lista é reaproveitado, para não deixar buraco
+  const vazio = ATUAL.pauta.findIndex((x) => !x.titulo && !x.discussao);
+  const ponto = {
+    titulo: p.titulo, pautaMec: p.id, discussao: "", deliberacao: "",
+    votacao: { houve: false, favor: 0, contra: 0, abstencoes: 0 },
+    encaminhamento: { acao: "", responsavel: "", prazo: "" },
+  };
+  if (vazio >= 0) ATUAL.pauta[vazio] = ponto; else ATUAL.pauta.push(ponto);
+  renderPauta(); renderSugestoes();
+  $("pauta").lastElementChild?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function cardMinuta(a) {
@@ -665,6 +889,14 @@ function renderPauta() {
     <div class="cabeca"><span class="num">PONTO ${i + 1}</span>
       ${PODE_EDITAR ? `<button class="rm" onclick="rmPonto(${i})">remover</button>` : ""}</div>
     <input ${ro} value="${esc(p.titulo)}" oninput="setPonto(${i},'titulo',this.value)" placeholder="Título do ponto de pauta *">
+    <label>Pauta regulatória <span class="muted">— vincule quando o ponto atender a um indicador do MEC</span></label>
+    <select ${ro} onchange="setPonto(${i},'pautaMec',this.value);renderSugestoes()">
+      <option value="">— não se aplica —</option>
+      ${pautasDoOrgaoLocal().map((x) => `<option value="${x.id}" ${p.pautaMec === x.id ? "selected" : ""}>${esc(x.titulo)}</option>`).join("")}
+    </select>
+    ${p.pautaMec ? `<div class="md" style="font-size:11.5px;color:var(--muted);margin-top:5px">${
+      ((META.pautas || []).find((x) => x.id === p.pautaMec)?.refs || [])
+        .map((r) => `<span class="ref">${r.inst === "curso" ? "CURSO" : "IES"} ${esc(r.num)} · ${esc(r.nome)}</span>`).join("")}</div>` : ""}
     <label>Notas da discussão <span class="muted">(tópicos bastam)</span></label>
     <textarea ${ro} oninput="setPonto(${i},'discussao',this.value)" style="min-height:70px">${esc(p.discussao || "")}</textarea>
     <label>Deliberação</label>

@@ -19,6 +19,10 @@ import {
   numerar, tituloDe, anotar, encaminhamentos, orgaoDe,
 } from "./lib/atas.js";
 import {
+  PAUTAS, PERIODICIDADES, pautaDe, situacaoPautas, pautasSugeridas,
+  matrizConformidade, placarPorCurso, proximosPrazos,
+} from "./lib/pautas.js";
+import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
   papelDe, modulosDe, MODULOS, verificarGoogle, criarCodigo, verificarCodigo,
   iniciarAuth, definirSenha, temSenha, validarSenhaDe, senhaFraca,
@@ -765,7 +769,10 @@ async function sessaoAtas(req, res) {
 app.get("/api/atas/meta", async (req, res) => {
   const u = await sessaoAtas(req, res);
   if (!u) return;
-  res.json({ ...ATAS_META, gestao: gereAtas(u), eu: u.email, ia: (await import("./lib/redator.js")).provedorAtivo() });
+  res.json({
+    ...ATAS_META, pautas: PAUTAS, periodicidades: PERIODICIDADES,
+    gestao: gereAtas(u), eu: u.email, ia: (await import("./lib/redator.js")).provedorAtivo(),
+  });
 });
 
 // Lista enxuta (sem o corpo do texto, que pode ter dezenas de milhares de
@@ -786,6 +793,35 @@ app.get("/api/atas", async (req, res) => {
     })).sort((x, y) => String(y.sessao?.data || "").localeCompare(String(x.sessao?.data || ""))),
     encaminhamentos: encaminhamentos(atas).filter((e) => e.prazo),
   });
+});
+
+/* ---------------------- ARCHÉ AT — PAUTA REGULATÓRIA -------------------- */
+// Situação das pautas obrigatórias de um órgão (e curso, quando for o caso).
+// A conformidade é calculada sobre TODAS as atas, não só as que o usuário
+// enxerga: um professor precisa saber que o tema já foi tratado pelo órgão
+// mesmo sem ter acesso ao inteiro teor daquela ata.
+app.get("/api/atas/pauta-regulatoria", async (req, res) => {
+  const u = await sessaoAtas(req, res);
+  if (!u) return;
+  const orgao = String(req.query.orgao || "").toUpperCase();
+  const curso = String(req.query.curso || "");
+  if (!orgaoDe(orgao)) return res.status(400).json({ error: "Informe um órgão válido" });
+  const atas = await lerAtas();
+  res.json({
+    orgao, curso,
+    pautas: situacaoPautas(atas, { orgao, curso }),
+    sugeridas: pautasSugeridas(atas, { orgao, curso }).map((p) => p.id),
+    prazos: proximosPrazos(atas, { orgao, curso }),
+  });
+});
+
+// Painel de acompanhamento da PROPPEX: quais cursos e órgãos estão em dia.
+app.get("/api/atas/conformidade", async (req, res) => {
+  const u = await sessaoAtas(req, res);
+  if (!u) return;
+  if (!gereAtas(u)) return res.status(403).json({ error: "Acompanhamento restrito à gestão" });
+  const atas = await lerAtas();
+  res.json({ ...matrizConformidade(atas), cursos: placarPorCurso(atas) });
 });
 
 app.get("/api/atas/:id", async (req, res) => {
