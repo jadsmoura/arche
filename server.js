@@ -1299,6 +1299,7 @@ async function sessaoIC(req, res) {
  */
 function perfilIC(u, projetos, quem = null) {
   const meu = quem || quemIC(u);
+  if (meu.perfilGenerico) return meu.perfilGenerico;   // visão genérica do "ver como"
   if (meu.gestao) return "gestao";
   const papeis = projetos.map((p) => papelNoProjeto(meu, p)).filter(Boolean);
   if (papeis.includes("orientador")) return "orientador";
@@ -1323,6 +1324,12 @@ function perfilIC(u, projetos, quem = null) {
 async function visaoComo(req, u) {
   const alvo = String(req.query?.como || "").trim().toLowerCase();
   if (!alvo || !gereIC(u)) return null;
+  // "perfil:orientador" / "perfil:aluno" — a visão GENÉRICA do perfil, sem
+  // pessoa: um professor (ou aluno) recém-chegado, ainda sem projeto. É como
+  // a coordenação confere a cara de cada acesso sem escolher alguém real.
+  if (alvo === "perfil:orientador" || alvo === "perfil:aluno") {
+    return { email: "", cpf: "", gestao: false, simulado: true, perfilGenerico: alvo.slice(7) };
+  }
   // "cpf:00000000000" — quem ainda não tem conta, mas já está em projeto
   // importado: mostra o que a pessoa vai encontrar quando se cadastrar
   if (alvo.startsWith("cpf:")) {

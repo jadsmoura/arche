@@ -199,7 +199,9 @@ public/
   **somente leitura** — um middleware recusa qualquer escrita com `?como=`, senão o
   histórico do projeto diria que foi a pessoa quem mexeu. Quem ainda não tem conta
   pode ser simulado pelo CPF (`como=cpf:000…`), que é como o projeto importado o
-  identifica: mostra o que ele encontrará ao se cadastrar.
+  identifica: mostra o que ele encontrará ao se cadastrar. Há também as **visões
+  genéricas** (`como=perfil:orientador` / `perfil:aluno`): um professor ou aluno
+  recém-chegado, sem projeto — a cara de cada acesso, sem os dados de ninguém.
 - **CPF é a chave do que vem de fora** (`lib/cpf.js`): o perfil (`/perfil/`) pede o CPF,
   guardado só em dígitos e **único por conta** (dois cadastros com o mesmo CPF são
   recusados — o segundo herdaria os projetos do primeiro); alterar CPF já gravado só

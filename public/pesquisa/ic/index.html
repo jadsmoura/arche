@@ -368,7 +368,11 @@ function montarVerComo() {
     <label style="margin:0;display:flex;align-items:center;gap:7px;text-transform:none;letter-spacing:0;font-size:12.5px">
       Ver como
       <select style="width:auto;min-width:190px;font-size:12.5px;padding:6px 8px" onchange="verComo(this.value)">
-        <option value="">Coordenação (você)</option>
+        <option value="">Como gestor — a sua visão</option>
+        <optgroup label="Visões genéricas (avaliar cada acesso)">
+          <option value="perfil:orientador" ${COMO === "perfil:orientador" ? "selected" : ""}>Como professor — visão genérica</option>
+          <option value="perfil:aluno" ${COMO === "perfil:aluno" ? "selected" : ""}>Como aluno — visão genérica</option>
+        </optgroup>
         ${grupo("Professor orientador", META.pessoas.orientadores)}
         ${grupo("Aluno indicado", META.pessoas.alunos)}
         ${grupo("Avaliador ad hoc", META.pessoas.avaliadores)}
@@ -381,6 +385,14 @@ const rotuloPerfil = () => META.gestao ? "coordenação de pesquisa"
 
 function faixaVerComo() {
   if (!COMO) return "";
+  if (COMO.startsWith("perfil:")) {
+    const rot = COMO === "perfil:aluno" ? "um aluno" : "um professor";
+    return `<div class="banner ba-warn" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span>Você está vendo o setor como <b>${rot} genérico</b>, recém-chegado e ainda sem projeto —
+        é a cara do acesso, não os dados de alguém. Somente leitura.</span>
+      <button class="bt bt-ghost" style="margin-left:auto" onclick="verComo('')">Voltar a ver como gestor</button>
+    </div>`;
+  }
   const quem = [...(META.pessoas?.orientadores || []), ...(META.pessoas?.alunos || []), ...(META.pessoas?.avaliadores || [])]
     .find((p) => p.id === COMO);
   return `<div class="banner ba-warn" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
