@@ -140,7 +140,33 @@ function render(u){
     <div class="card"><div class="sec">👑 Gestores gerais (${u.gestores.length})</div>
       ${u.gestores.map(e=>`<div class="u"><span class="em">${esc(e)}</span><span class="badge b-g">gestor geral</span>
         ${FIXOS.includes(e)?'<span class="muted">fixo (PROPPEX)</span>':`<button class="bt bt-err" onclick="agir('remover','${esc(e)}')">✕ Remover</button>`}</div>`).join("")}
+    </div>
+
+    <div class="card"><div class="sec">🔑 Senha provisória</div>
+      <div class="muted" style="margin-bottom:8px">Para quem perdeu o acesso ao e-mail e não consegue receber o
+        código de entrada. A senha que você definir <b>vale 7 dias</b> e serve para um único fim: a pessoa entra
+        com ela e é obrigada a criar a própria senha ali mesmo, antes de seguir. Repasse a senha por um canal
+        seguro (pessoalmente ou por telefone). Conta de gestor não entra aqui.</div>
+      <div class="add">
+        <input id="sp-email" list="emails" type="email" placeholder="e-mail da pessoa">
+        <input id="sp-senha" type="text" placeholder="senha provisória (mín. 8 caracteres)" autocomplete="off">
+        <button class="bt bt-ok" onclick="senhaProvisoria()">🔑 Definir</button>
+      </div>
+      <div class="muted" id="sp-aviso" style="margin-top:8px"></div>
     </div>`;
+}
+async function senhaProvisoria(){
+  const email=$("sp-email").value.trim(), senha=$("sp-senha").value;
+  if(!email){alert("Informe o e-mail.");return;}
+  if(!senha){alert("Digite a senha provisória.");return;}
+  if(!confirm(`Definir senha provisória para ${email}?\n\nEla vale 7 dias e obriga a troca no primeiro acesso.`))return;
+  const r=await fetch("/api/usuarios/senha",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({email,senha})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){alert("Falha: "+(j.error||r.status));return;}
+  $("sp-senha").value="";
+  $("sp-aviso").innerHTML=`✓ Senha provisória definida para <b>${esc(j.email)}</b>. Vale ${j.validaDias} dias —
+    no primeiro acesso a pessoa cria a senha definitiva. Anote e repasse com segurança; ela não aparece de novo.`;
 }
 fetch("/api/usuarios").then(async r=>{
   if(!r.ok){$("conteudo").innerHTML="Acesso restrito à PROPPEX.";return;}

@@ -54,6 +54,12 @@ public/
   a gestão de acessos continua exclusiva dos gestores gerais. Cada setor decide isso
   lendo `modulos` da sessão (`gereAtas`, `gereIC`) — nunca o papel sozinho.
 - Contas `@uniego.edu.br` entram como submissoras automaticamente; outras aguardam aprovação.
+- **Senha provisória** (`POST /api/usuarios/senha`, só gestores gerais): para quem perdeu o
+  acesso ao e-mail. Vale **7 dias** e obriga a troca no primeiro login (`/auth/senha`
+  devolve `trocarSenha: true`; o `/entrar` esconde o "agora não"). Quando a pessoa define
+  a própria senha a marca `provisoria` some sozinha. Conta de gestor não recebe senha
+  provisória — um gestor não redefine a senha do outro. Rota separada da de papéis de
+  propósito: a de papéis reconstrói as listas, e resetar senha não pode rebaixar ninguém.
 - Fluxo da Extensão: proposta → aprovação (nº `EXT-AAAA-NNN`) → relatório final →
   participantes (3/3 completa) → certificados → registrada. Não alterar o formato do nº.
 - Uploads e estado são organizados **por curso** no Google Drive — preservar os prefixos
@@ -131,8 +137,11 @@ public/
   (0–100) sem formulário — ela tem **precedência** sobre a média dos pareceres, fica no
   histórico (sigilosa) e some da visão do avaliador e da orientação. `{ nota: null }`
   desfaz. Nos próximos editais o caminho é o parecer pelo sistema.
-- **Guia Editais** (SPA, só gestão): o histórico dos processos por ano — cada edital com
-  resumo, botão do resultado em PDF e os dois quadros de classificação.
+- **Guias da seleção** (SPA, só gestão): **Projetos** traz as duas classificações de cada
+  edital em tabela (posição, protocolo, título, professor, titulação, categoria de
+  submissão — a modalidade —, NP, CL, total); **Editais e Resultados** traz os documentos
+  para download — o edital como publicado (`DOCUMENTOS_EDITAIS` em lib/edital.js →
+  `public/pesquisa/docs/`) e o resultado em PDF, ano a ano.
 - **Grupo de pesquisa** (DGP/CNPq): a proposta indica **apenas o nome do grupo**. Por
   decisão do dono, **não se pergunta o papel** de quem submete no grupo — professores
   submetem propostas ligadas a grupos que não lideram — e por isso **não há a pontuação

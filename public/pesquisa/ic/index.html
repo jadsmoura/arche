@@ -207,6 +207,7 @@
         <section id="v-submissao" class="hide"></section>
         <section id="v-gestao" class="hide"></section>
         <section id="v-avaliacao" class="hide"></section>
+        <section id="v-classificacao" class="hide"></section>
         <section id="v-editais" class="hide"></section>
         <section id="v-cronograma" class="hide"></section>
         <section id="v-relatorios" class="hide"></section>
@@ -255,7 +256,8 @@ const SECOES = [
   { id: "submissao", grupo: "PROJETOS", rot: "Submissão", ic: '<path d="M12 5v14M5 12h14"/>', perfis: ["gestao", "orientador"] },
   { id: "gestao", grupo: "PROJETOS", rot: "Gestão", ic: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8"/>', perfis: ["gestao", "orientador"] },
   { id: "avaliacao", grupo: "SELEÇÃO", rot: "Avaliação", ic: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', perfis: ["gestao", "avaliador"] },
-  { id: "editais", grupo: "SELEÇÃO", rot: "Editais", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 12h8M8 16h8"/>', perfis: ["gestao"] },
+  { id: "classificacao", grupo: "SELEÇÃO", rot: "Projetos", ic: '<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>', perfis: ["gestao"] },
+  { id: "editais", grupo: "SELEÇÃO", rot: "Editais e Resultados", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 12h8M8 16h8"/>', perfis: ["gestao"] },
   { id: "cronograma", grupo: "ACOMPANHAMENTO", rot: "Cronograma", ic: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/>', perfis: ["gestao", "orientador", "aluno"] },
   { id: "relatorios", grupo: "ACOMPANHAMENTO", rot: "Relatórios", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 13h8M8 17h5"/>', perfis: ["gestao", "orientador", "aluno"] },
 ];
@@ -265,7 +267,8 @@ const TITULOS = {
   submissao: ["Submissão de projeto", "Preencha a proposta e submeta à avaliação da PROPPEX."],
   gestao: ["Gestão de projetos", "Projetos submetidos, em execução e concluídos."],
   avaliacao: ["Avaliação da seleção", "Parecer ad hoc dos projetos submetidos."],
-  editais: ["Editais", "O histórico dos processos seletivos, ano a ano, com as classificações."],
+  classificacao: ["Projetos do edital", "Todos os projetos de cada processo seletivo, em ordem de classificação."],
+  editais: ["Editais e Resultados", "Os documentos de cada processo, ano a ano: o edital e o resultado."],
   cronograma: ["Cronograma", "Todas as atividades dos projetos num só lugar."],
   relatorios: ["Relatórios", "Parciais e finais: o aluno envia, a orientação valida."],
   projeto: ["Projeto", ""],
@@ -406,7 +409,7 @@ function nav(secao, modo) {
   // a inclusão manual vale só para o formulário aberto por ela
   MANUAL = secao === "submissao" && modo === "manual";
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === secao);
-  for (const v of ["painel", "submissao", "gestao", "avaliacao", "editais", "cronograma", "relatorios", "projeto"]) $("v-" + v).classList.add("hide");
+  for (const v of ["painel", "submissao", "gestao", "avaliacao", "classificacao", "editais", "cronograma", "relatorios", "projeto"]) $("v-" + v).classList.add("hide");
   // submissão e projeto compartilham o editor (mesmos ids): a seção que sai
   // do ar é esvaziada, senão getElementById acha os campos escondidos
   for (const v of ["submissao", "projeto"]) if (v !== secao) $("v-" + v).innerHTML = "";
@@ -428,6 +431,7 @@ function nav(secao, modo) {
   }
   if (secao === "gestao") renderGestao();
   if (secao === "avaliacao") renderAvaliacao();
+  if (secao === "classificacao") renderClassificacao();
   if (secao === "editais") renderEditais();
   if (secao === "cronograma") renderCronograma();
   if (secao === "relatorios") renderRelatorios();
@@ -681,20 +685,21 @@ function renderAvaliacao() {
       Nenhum projeto designado a você no momento.</div></div>` : ""}`;
 }
 
-/* -------------------------------- editais ------------------------------ */
-/* O histórico dos processos seletivos, ano a ano. Cada edital traz o resumo,
-   o botão do resultado em PDF e as duas classificações: primeiro os
-   professores doutores (bolsa CNPq exige doutorado), depois a geral, com
-   todos — doutores inclusive. A nota final é projeto + currículo. */
-function renderEditais() {
-  const anoDe = (n) => Number(String(n).split("/").pop()) || 0;
-  const editais = (META.editais || [])
-    .slice()
-    .sort((a, b) => anoDe(b.numero) - anoDe(a.numero) || String(b.numero).localeCompare(String(a.numero)));
+/* --------------------- projetos do edital (classificação) -------------- */
+/* As listas de cada processo seletivo, com o que a coordenação precisa ver
+   lado a lado: título do projeto, quem orienta, a categoria de submissão
+   (modalidade do edital: PIBIC/CNPq, PBIC/UNIEGO, PBIE…) e as notas. Duas
+   classificações por edital: primeiro os professores doutores (bolsa CNPq
+   exige doutorado), depois a geral, com todos — doutores inclusive. */
+const anoDoEdital = (n) => Number(String(n).split("/").pop()) || 0;
+const editaisOrdenados = () => (META.editais || [])
+  .slice()
+  .sort((a, b) => anoDoEdital(b.numero) - anoDoEdital(a.numero) || String(b.numero).localeCompare(String(a.numero)));
 
-  // a mesma ordem do PDF: nota final desc; empate pela nota do projeto;
-  // sem nota final vai para o fim, na ordem do protocolo
-  const ordenar = (lista) => lista.slice().sort((a, b) => {
+// a mesma ordem do PDF: nota final desc; empate pela nota do projeto;
+// sem nota final vai para o fim, na ordem do protocolo
+function ordenarClassificacao(lista) {
+  return lista.slice().sort((a, b) => {
     const na = a.classificacao?.total, nb = b.classificacao?.total;
     if (typeof na === "number" && typeof nb === "number") {
       if (na !== nb) return nb - na;
@@ -705,30 +710,35 @@ function renderEditais() {
     }
     return String(a.numero || "").localeCompare(String(b.numero || ""));
   });
+}
+// o mesmo entendimento de normalizarTitulacao no servidor: projeto gravado
+// antes da normalização pode trazer "Doutora"/"Dr." — o quadro não pode
+// divergir do PDF por causa de grafia
+const ehDoutor = (v) => /^(dr|dra|doutor|doutora|doutorado|pos-?doutor)/
+  .test(String(v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim());
+
+function renderClassificacao() {
   const titNome = (c) => (META.titulacoes.find((t) => t.codigo === c) || {}).nome || c || "—";
-  // o mesmo entendimento de normalizarTitulacao no servidor: projeto gravado
-  // antes da normalização pode trazer "Doutora"/"Dr." — o quadro não pode
-  // divergir do PDF por causa de grafia
-  const ehDoutor = (v) => /^(dr|dra|doutor|doutora|doutorado|pos-?doutor)/
-    .test(String(v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim());
 
   const quadro = (rotulo, lista) => {
     let pos = 0;
     return `<div class="sec-t">${rotulo}</div>
     ${lista.length ? `<div class="rolo"><table class="pt">
-      <thead><tr><th style="width:5%"></th><th style="width:13%">Protocolo</th><th>Orientação</th>
-        <th style="width:12%">Titulação</th><th style="width:9%">Projeto</th><th style="width:9%">Currículo</th>
-        <th style="width:10%">Nota final</th><th style="width:14%">Resultado</th></tr></thead>
+      <thead><tr><th style="width:4%"></th><th style="width:11%">Protocolo</th><th style="width:24%">Título</th>
+        <th style="width:16%">Professor(a)</th><th style="width:9%">Titulação</th><th style="width:13%">Categoria</th>
+        <th style="width:6%">NP</th><th style="width:6%">CL</th><th style="width:6%">Total</th><th style="width:11%">Resultado</th></tr></thead>
       <tbody>${lista.map((p) => {
         const comNota = p.classificacao?.total != null;
         if (comNota) pos += 1;
         const resultado = p.fomento ? fomentoNome(p.fomento.tipo)
           : { reprovado: "Não recomendado", devolvido: "Devolvido", submetido: "Em avaliação" }[p.status] || "—";
-        return `<tr style="cursor:pointer" onclick="abrir('${esc(p.id)}')" title="${esc(p.titulo || "")}">
+        return `<tr style="cursor:pointer" onclick="abrir('${esc(p.id)}')">
           <td>${comNota ? pos + "º" : "—"}</td>
           <td><b style="color:var(--brand-2)">${esc(p.numero || "—")}</b></td>
+          <td>${esc(p.titulo || "(sem título)")}</td>
           <td>${esc(p.orientador?.nome || p.orientador?.email || "—")}</td>
           <td>${esc(titNome(p.orientador?.titulacao))}</td>
+          <td>${esc(modVigente(p))}</td>
           <td>${p.classificacao?.np ?? "—"}${p.notaDireta ? ' <span class="muted" title="nota atribuída pela coordenação">✎</span>' : ""}</td>
           <td>${p.classificacao?.cl ?? "—"}</td>
           <td><b>${comNota ? p.classificacao.total : "—"}</b></td>
@@ -738,24 +748,45 @@ function renderEditais() {
     </table></div>` : `<div class="muted" style="margin-bottom:10px">Nenhuma proposta neste quadro.</div>`}`;
   };
 
-  $("v-editais").innerHTML = editais.map((e) => {
+  $("v-classificacao").innerHTML = editaisOrdenados().map((e) => {
     const doEdital = PROJETOS.filter((p) => (p.edital || META.edital?.numero) === e.numero && p.status !== "rascunho");
-    const doutores = ordenar(doEdital.filter((p) => ehDoutor(p.orientador?.titulacao)));
-    const geral = ordenar(doEdital);
-    const bolsas = doEdital.filter((p) => p.fomento && p.fomento.tipo !== "voluntario").length;
+    const doutores = ordenarClassificacao(doEdital.filter((p) => ehDoutor(p.orientador?.titulacao)));
+    const geral = ordenarClassificacao(doEdital);
     const comNota = doEdital.filter((p) => p.classificacao?.total != null).length;
     return `<div class="card">
       <div class="card-t">Edital ${esc(e.numero)}${e.vigente ? ' <span class="badge b-aprovado">vigente</span>' : ""}</div>
-      <div class="card-s">${doEdital.length} proposta(s) · ${doutores.length} de professores doutores ·
-        ${comNota} com nota final · ${bolsas} bolsa(s) concedida(s).</div>
-      <div class="exp" style="margin-bottom:6px">
-        <a class="bt bt-ghost" href="/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}" target="_blank" rel="noopener">
-          Resultado do processo (PDF)</a>
-      </div>
+      <div class="card-s">${doEdital.length} proposta(s) · ${doutores.length} de professores doutores · ${comNota} com nota final.
+        A nota final soma o projeto (0–100) com o currículo (0–100). Os documentos do processo estão em
+        <a href="#" onclick="nav('editais');return false">Editais e Resultados</a>.</div>
       ${quadro("Classificação — professores doutores", doutores)}
       ${quadro("Classificação geral — todos os professores", geral)}
     </div>`;
   }).join("") || `<div class="card"><div class="vazio">Nenhum edital com propostas ainda.</div></div>`;
+}
+
+/* --------------------------- editais e resultados ----------------------- */
+/* O arquivo do processo, ano a ano: o EDITAL como foi publicado e o
+   RESULTADO em PDF timbrado — os dois para download. As listas de projetos
+   ficam na guia Projetos. */
+function renderEditais() {
+  $("v-editais").innerHTML = editaisOrdenados().map((e) => {
+    const doEdital = PROJETOS.filter((p) => (p.edital || META.edital?.numero) === e.numero && p.status !== "rascunho");
+    const bolsas = doEdital.filter((p) => p.fomento && p.fomento.tipo !== "voluntario").length;
+    return `<div class="card">
+      <div class="card-t">Edital ${esc(e.numero)}${e.vigente ? ' <span class="badge b-aprovado">vigente</span>' : ""}</div>
+      <div class="card-s">Ano ${anoDoEdital(e.numero) || "—"} · ${doEdital.length} proposta(s) ·
+        ${bolsas} bolsa(s) concedida(s).</div>
+      <div class="exp">
+        ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">
+          📜 Edital (PDF)</a>` : `<span class="muted">Documento do edital ainda não arquivado.</span>`}
+        <a class="bt bt-sec" href="/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}" target="_blank" rel="noopener">
+          📄 Resultado do processo (PDF)</a>
+      </div>
+      <div class="muted" style="margin-top:10px">O resultado sai sempre com os dados de agora — emitido na hora,
+        com as duas classificações (doutores e geral). A lista dos projetos está na guia
+        <a href="#" onclick="nav('classificacao');return false">Projetos</a>.</div>
+    </div>`;
+  }).join("") || `<div class="card"><div class="vazio">Nenhum edital registrado ainda.</div></div>`;
 }
 
 /* ------------------------------ cronograma ----------------------------- */

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   hashSenha, conferirSenha, senhaFraca, emitirCookie, lerSessao, limparCookie,
   renovarSessao, registrarFalha, bloqueado, limparFalhas, iniciarAuth,
-  definirSenha, temSenha, validarSenhaDe, MODULOS, papelDe, modulosDe, carregarUsuarios,
+  definirSenha, temSenha, validarSenhaDe, senhaInfo, MODULOS, papelDe, modulosDe, carregarUsuarios,
 } from "../lib/auth.js";
 import { podeVerAta } from "../lib/atas.js";
 
@@ -155,4 +155,31 @@ test("gestor geral tem todos os setores; os fixos da PROPPEX não se perdem", as
   assert.deepEqual(modulosDe("jadsonbelem@gmail.com", u), MODULOS, "gestor geral gere tudo");
   assert.equal(papelDe("qualquer@uniego.edu.br", u), "aprovado", "conta institucional entra como submissora");
   assert.equal(papelDe("externo@gmail.com", u), "pendente");
+});
+
+test("senha provisória: marcada, com autor, e a marca some quando a pessoa troca", async () => {
+  const st = storageFalso();
+  await definirSenha(st, "prof@uniego.edu.br", "temporaria1", { provisoria: true, por: "jadsonbelem@gmail.com" });
+  assert.equal(await validarSenhaDe(st, "prof@uniego.edu.br", "temporaria1"), true,
+    "a senha provisória entra como qualquer outra — quem força a troca é o fluxo de login");
+  let info = await senhaInfo(st, "prof@uniego.edu.br");
+  assert.equal(info.provisoria, true);
+  assert.equal(info.por, "jadsonbelem@gmail.com", "fica dito quem colocou");
+  assert.ok(info.atualizadoEm, "a data é o que faz a validade de 7 dias");
+
+  // a pessoa define a própria senha: a marca desaparece sozinha
+  await definirSenha(st, "prof@uniego.edu.br", "minhasenhadefinitiva");
+  info = await senhaInfo(st, "prof@uniego.edu.br");
+  assert.equal(info.provisoria, false, "senha definida pelo dono não é provisória");
+  assert.equal(await validarSenhaDe(st, "prof@uniego.edu.br", "temporaria1"), false, "a provisória morre na troca");
+  assert.equal(await validarSenhaDe(st, "prof@uniego.edu.br", "minhasenhadefinitiva"), true);
+});
+
+test("senhaInfo nunca expõe o hash", async () => {
+  const st = storageFalso();
+  assert.deepEqual(await senhaInfo(st, "ninguem@x.br"), { tem: false });
+  await definirSenha(st, "a@uniego.edu.br", "minhasenha123");
+  const info = await senhaInfo(st, "a@uniego.edu.br");
+  assert.equal(info.tem, true);
+  assert.ok(!JSON.stringify(info).includes("scrypt"), "o hash não sai daqui");
 });

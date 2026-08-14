@@ -255,6 +255,14 @@ $("f-senha").addEventListener("submit", async (ev) => {
   try {
     const j = await post("/auth/senha", { email: EMAIL, senha });
     livre(bt);
+    if (j.ok && j.trocarSenha) {
+      // senha provisória colocada pela PROPPEX: entra, mas só segue depois
+      // de criar a senha definitiva — sem a saída "agora não"
+      $("bt-depois").hidden = true;
+      aviso("ok", "Você entrou com uma <b>senha provisória</b>. Crie agora a sua senha definitiva para continuar.");
+      etapa("et-nova", "nova");
+      return;
+    }
     if (j.ok) return entrou(j);
     erroCampo("senha", (j.error || "Não foi possível entrar.") + " Você também pode entrar com um código por e-mail.");
   } catch {
@@ -344,6 +352,7 @@ function trocarConta(){
   limpaAviso(); REDEFININDO = false;
   $("senha").value = ""; $("codigo").value = "";
   erroCampo("senha", ""); erroCampo("codigo", "");
+  $("bt-depois").hidden = false;   // a troca obrigatória vale só para a senha provisória
   etapa("et-email", "email");
 }
 $("bt-trocar").addEventListener("click", trocarConta);

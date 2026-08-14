@@ -36,6 +36,7 @@ import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import {
   EDITAL, LINHAS, GRUPOS_PESQUISA, FOMENTOS, TITULACOES, BLOCOS_PRODUCAO,
   pontuarProducao, normalizarProducao, notaClassificacao, modalidadePor, gruposConhecidos,
+  DOCUMENTOS_EDITAIS,
 } from "./lib/edital.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
 import { dataCivil, hojeLocalISO } from "./lib/datas.js";
@@ -43,7 +44,7 @@ import { CREDENCIAMENTO, MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
 import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
   papelDe, modulosDe, MODULOS, verificarGoogle, criarCodigo, verificarCodigo,
-  iniciarAuth, definirSenha, temSenha, validarSenhaDe, senhaFraca,
+  iniciarAuth, definirSenha, temSenha, validarSenhaDe, senhaFraca, senhaInfo,
   registrarFalha, bloqueado, limparFalhas,
 } from "./lib/auth.js";
 
@@ -350,6 +351,21 @@ app.post("/auth/senha", async (req, res) => {
     return res.status(400).json({ ok: false, error: "Senha incorreta." });
   }
   limparFalhas(chaveEmail); limparFalhas(chaveIp);
+
+  // Senha provisória (colocada pela PROPPEX): vale por 7 dias e só serve
+  // para entrar UMA vez e definir a senha definitiva — o front recebe
+  // `trocarSenha` e não deixa seguir sem trocar.
+  const info = await senhaInfo(storage, email);
+  if (info.provisoria) {
+    const idade = Date.now() - Date.parse(info.atualizadoEm || 0);
+    if (!Number.isFinite(idade) || idade > 7 * 24 * 60 * 60 * 1000) {
+      return res.status(400).json({ ok: false, error: "A senha provisória expirou. Peça uma nova à PROPPEX ou entre com um código por e-mail." });
+    }
+    emitirCookie(res, { email, nome: email });
+    const usuarios = await carregarUsuarios(storage);
+    return res.json({ ok: true, papel: papelDe(email, usuarios), trocarSenha: true });
+  }
+
   emitirCookie(res, { email, nome: email });
   const usuarios = await carregarUsuarios(storage);
   res.json({ ok: true, papel: papelDe(email, usuarios) });
@@ -428,6 +444,29 @@ app.post("/api/usuarios", async (req, res) => {
   else if (acao !== "remover") return res.status(400).json({ error: "ação inválida" });
   await salvarUsuarios(storage, u); // gestores fixos são re-garantidos no carregar
   res.json(await carregarUsuarios(storage));
+});
+
+/**
+ * Senha provisória colocada pelo gestor — para quem perdeu o acesso ao
+ * e-mail e não consegue receber o código. Rota separada da de papéis de
+ * propósito: aquela reconstrói as listas de papel, e um "resetar senha"
+ * não pode ter o efeito colateral de rebaixar ninguém. A senha vale 7 dias
+ * e obriga a troca no primeiro login. Conta de gestor fica de fora: gestor
+ * troca a própria senha no perfil — um não redefine a do outro.
+ */
+app.post("/api/usuarios/senha", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  const e = String(req.body?.email || "").trim().toLowerCase();
+  const senha = String(req.body?.senha || "");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return res.status(400).json({ error: "E-mail inválido" });
+  const u = await carregarUsuarios(storage);
+  if (papelDe(e, u) === "gestor")
+    return res.status(400).json({ error: "Conta de gestor não recebe senha provisória — o gestor troca a própria senha no perfil." });
+  const fraca = senhaFraca(senha);
+  if (fraca) return res.status(400).json({ error: fraca });
+  await definirSenha(storage, e, senha, { provisoria: true, por: g.email });
+  console.log(`[auth] senha provisória definida para ${e} por ${g.email}`);
+  res.json({ ok: true, email: e, validaDias: 7 });
 });
 
 // Curso de origem do upload: campo explícito no form, ou deduzido da página
@@ -1337,8 +1376,10 @@ function editaisConhecidos(projetos) {
     if (p.status === "rascunho") continue;
     mapa.set(n, (mapa.get(n) || 0) + 1);
   }
-  return [...mapa].map(([numero, projetos]) => ({ numero, projetos, vigente: numero === EDITAL.numero }))
-    .sort((a, b) => b.numero.localeCompare(a.numero, "pt-BR"));
+  return [...mapa].map(([numero, projetos]) => ({
+    numero, projetos, vigente: numero === EDITAL.numero,
+    documento: DOCUMENTOS_EDITAIS[numero] || null,
+  })).sort((a, b) => b.numero.localeCompare(a.numero, "pt-BR"));
 }
 
 /** Catálogo do edital mais o que já foi informado à mão, num array só. */
