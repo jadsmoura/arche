@@ -13,9 +13,10 @@
 
   var MODULOS = [
     { href: "/",             rot: "Portal",            teste: function (p) { return p === "/" || p === "/index.html"; } },
+    // mesma ordem dos cartões do portal
+    { href: "/atas/",        rot: "Atas",              teste: function (p) { return p.indexOf("/atas") === 0; } },
     { href: "/extensao/",    rot: "Extensão",          teste: function (p) { return p.indexOf("/extensao") === 0; } },
     { href: "/pesquisa/ic/", rot: "Pesquisa · IC",     teste: function (p) { return p.indexOf("/pesquisa") === 0; } },
-    { href: "/atas/",        rot: "Atas",              teste: function (p) { return p.indexOf("/atas") === 0; } },
     { href: "/arche/",       rot: "Avaliação",         teste: function (p) { return p.indexOf("/arche") === 0; } },
   ];
   var caminho = location.pathname;
