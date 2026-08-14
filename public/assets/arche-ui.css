@@ -44,27 +44,8 @@ a{text-decoration:none;color:inherit}
 .topo-nav .quem{color:var(--muted);font-size:12px;padding:7px 4px}
 .topo-inner:has(.topo-nav) img.p{margin-left:0}
 
-/* ---- Conta do usuário na barra superior ---- */
-.topo-conta{display:flex;align-items:center;gap:9px}
-.topo-conta .av{width:32px;height:32px;border-radius:50%;background:var(--brand-3);color:#fff;
-  display:grid;place-items:center;font-weight:700;font-size:13px;flex:none;overflow:hidden;
-  font-family:'Archivo',sans-serif}
-.topo-conta .av img{width:100%;height:100%;object-fit:cover;display:block}
-.topo-conta .id{display:flex;flex-direction:column;line-height:1.25;max-width:150px}
-.topo-conta .id b{font-size:12.5px;color:var(--brand-ink);font-weight:700;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.topo-conta .id span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-.topo-conta a.perfil{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:10px;transition:.15s}
-.topo-conta a.perfil:hover{background:var(--wash)}
-.topo-conta .sair{background:none;border:0;color:var(--muted);font-size:11.5px;font-weight:600;
-  cursor:pointer;padding:6px 8px;border-radius:8px;font-family:inherit;transition:.15s}
-.topo-conta .sair:hover{color:var(--err);background:var(--err-soft)}
-.bt-entrar{display:inline-flex;align-items:center;gap:7px;background:var(--brand);color:#fff;
-  font-weight:700;font-size:13px;padding:9px 16px;border-radius:9px;transition:.15s}
-.bt-entrar:hover{background:var(--brand-2);color:#fff}
-@media(max-width:760px){
-  .topo-conta .id{display:none}
-}
+/* A conta do usuário saiu daqui: ela vive na barra institucional escura,
+   montada por assets/arche-nav.js, para ser a mesma em todos os setores. */
 
 /* ---- Letreiro ARCHÉ ---- */
 .arche-wm{display:inline-flex;align-items:center;gap:9px}

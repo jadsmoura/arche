@@ -27,7 +27,6 @@
       </span>
       <span class="topo-s">Portal de gestão das demandas da PROPPEX — UNIEGO</span>
     </div>
-    <nav class="topo-nav" id="conta" aria-label="Conta do usuário"></nav>
     <img class="p" src="/assets/logo-proppex.png" alt="PROPPEX — Pró-Reitoria de Pesquisa, Pós-Graduação e Extensão">
   </div>
 </header>
@@ -148,55 +147,8 @@
   <span class="sep"></span>
   <img class="p" src="/assets/logo-proppex.png" alt="PROPPEX">
 </footer>
-<script>
-/* Conta do usuário na barra superior: quem está logado, atalho para o perfil
-   e saída. Sem sessão, mostra o convite para entrar — os setores de gestão
-   exigem login de qualquer forma, e é melhor descobrir isso aqui. */
-(function () {
-  var el = document.getElementById("conta");
-  var esc = function (t) {
-    return String(t == null ? "" : t).replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-    });
-  };
-  var PAPEL = { gestor: "PROPPEX", coordenador: "Coordenação", aprovado: "Docente", pendente: "Acesso pendente" };
-
-  function entrar() {
-    el.innerHTML = '<a class="bt-entrar" href="/entrar/?next=%2F">'
-      + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"'
-      + ' stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>'
-      + '<path d="M10 17l5-5-5-5M15 12H3"/></svg>Entrar</a>';
-  }
-
-  function logado(me) {
-    var nome = (me.perfil && me.perfil.nome) || me.nome || me.email || "";
-    if (nome.indexOf("@") > 0) nome = nome.split("@")[0];      // conta sem perfil preenchido
-    var curto = String(nome).trim().split(/\s+/).slice(0, 2).join(" ");
-    var foto = me.perfil && me.perfil.foto;
-    var inicial = String(curto || "?").trim().charAt(0).toUpperCase() || "?";
-    el.innerHTML = '<div class="topo-conta">'
-      + '<a class="perfil" href="/perfil/" title="Meu perfil">'
-      + '<span class="av">' + (foto ? '<img src="' + esc(foto) + '" alt="">' : esc(inicial)) + '</span>'
-      + '<span class="id"><b>' + esc(curto) + '</b><span>' + esc(PAPEL[me.papel] || me.papel) + '</span></span>'
-      + '</a><button class="sair" type="button">sair</button></div>';
-    el.querySelector(".sair").onclick = function () {
-      var bt = this;
-      bt.disabled = true; bt.textContent = "saindo…";
-      // redesenha a barra em vez de recarregar: o resto da página não depende
-      // da sessão, e o recarregamento é lento e às vezes não repinta a tempo.
-      // Se a saída falhar, recarrega para a tela mostrar o estado verdadeiro.
-      fetch("/auth/sair", { method: "POST" })
-        .then(function (r) { if (r.ok) entrar(); else location.reload(); })
-        .catch(function () { location.reload(); });
-    };
-  }
-
-  fetch("/api/me")
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (me) { if (me && me.email) logado(me); else entrar(); })
-    .catch(entrar);
-})();
-</script>
+<!-- A conta do usuário vive na barra institucional (assets/arche-nav.js),
+     igual em todos os setores da gestão da PROPPEX. -->
 <script src="/assets/arche-nav.js" defer></script>
 </body>
 </html>
