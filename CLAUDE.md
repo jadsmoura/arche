@@ -128,6 +128,15 @@ public/
   `CERTIFICADOS_EXTERNO`, no topo da SPA.
 - Fluxo da Extensão: proposta → aprovação (nº `EXT-AAAA-NNN`) → relatório final →
   participantes (3/3 completa) → certificados → registrada. Não alterar o formato do nº.
+- **Atraso do relatório e ciclo na Extensão** (guia Relatórios): o **ciclo de uma ação é o
+  ano em que ela ENCERRA** (`anoDaAcao`, por `periodoFim`) — é o que a PROPPEX usa para
+  fechar o exercício —, e o filtro por ciclo se monta das próprias ações. Ação aprovada com
+  o período encerrado e sem relatório é `pendente` (`statusReal`); `atrasoRelatorio` conta
+  os dias corridos desde o encerramento. Na guia Relatórios a lista vem **do mais atrasado
+  para o menos**, com os dias ao lado, e a gestão vê antes de tudo **quem deve o quê**
+  (`quemDeveRelatorio`), agrupado por responsável: a cobrança automática já manda o e-mail
+  (lib/cobranca.js), o que faltava era enxergar de quem se está esperando sem abrir ação
+  por ação. O bloco é só da gestão — o professor vê as suas na própria lista.
 - Uploads e estado são organizados **por curso** no Google Drive — preservar os prefixos
   usados em server.js (`extensao/<curso>/…`, `dossie/<curso>/…`,
   `atas/<curso>/<órgão>/<ano>/` e `atas/institucional/<órgão>/<ano>/`).

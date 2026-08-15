@@ -274,7 +274,7 @@
         <section id="v-acoes" class="hide">
           <div class="stat" id="stats"></div>
           <div class="card">
-            <div class="grid2">
+            <div class="grid3">
               <div><label style="margin-top:0">Filtrar por curso</label><select id="l-curso"></select></div>
               <div><label style="margin-top:0">Filtrar por situação</label>
                 <select id="l-status">
@@ -286,8 +286,11 @@
                   <option value="relatorio-entregue">Relatório entregue</option>
                   <option value="registrada">Registrada</option>
                 </select></div>
+              <!-- o ciclo da ação é o ano em que ela encerra -->
+              <div><label style="margin-top:0">Filtrar por ciclo</label><select id="l-ano"></select></div>
             </div>
           </div>
+          <div id="devedores"></div>
           <div id="lista"></div>
         </section>
 
@@ -345,6 +348,7 @@ async function carregar(){
     const p = a.participantes || (a.participantes = {});
     p.inscritos = p.inscritos || []; p.palestrantes = p.palestrantes || []; p.comissao = p.comissao || [];
   }
+  montarAnos();   // a lista de ciclos sai das próprias ações
 }
 /* Grava as ações que esta tela conhece. O servidor aceita uma a uma, só as
    que a pessoa pode editar, e não apaga o que não veio no corpo — a lista
@@ -779,14 +783,34 @@ async function enviarProposta(){
 /* ============================== LISTA =================================== */
 function montarFiltros(){
   $("l-curso").innerHTML = '<option value="">Todos os cursos</option>'+CURSOS.map(c=>`<option>${c}</option>`).join("");
+  montarAnos();
   $("l-curso").onchange = renderLista; $("l-status").onchange = renderLista;
+  $("l-ano").onchange = renderLista;
 }
+/* O CICLO de uma ação é o ano em que ela encerra — é o que a PROPPEX usa para
+   fechar o exercício e o que separa o que ainda se cobra do arquivo. A lista
+   se refaz a cada carga (uma ação nova pode estrear um ano), preservando o
+   que estava escolhido. */
+function montarAnos(){
+  const el = $("l-ano"); if(!el) return;
+  const escolhido = el.value;
+  const anos = [...new Set(minhas().map(a=>anoDaAcao(a)).filter(Boolean))].sort().reverse();
+  el.innerHTML = '<option value="">Todos os ciclos</option>'+anos.map(a=>`<option>${a}</option>`).join("");
+  if(anos.includes(escolhido)) el.value = escolhido;
+}
+const anoDaAcao = (a)=>String(a?.proposta?.periodoFim||a?.proposta?.periodoInicio||a?.criadoEm||"").slice(0,4);
+// dias de atraso do relatório final (0 = ainda no prazo)
+const atrasoRelatorio = (a)=>{
+  if(statusReal(a)!=="pendente" || !a.proposta?.periodoFim) return 0;
+  const d = diasEntre(a.proposta.periodoFim);
+  return d<0 ? Math.abs(d) : 0;
+};
 function minhas(){
   // gestor vê tudo; submissor vê só as ações vinculadas ao seu e-mail
   return PROPPEX ? ACOES : ACOES.filter(a=>a.criadoPor && a.criadoPor===ME?.email);
 }
 function renderLista(){
-  const fc=$("l-curso").value, fs=$("l-status").value;
+  const fc=$("l-curso").value, fs=$("l-status").value, fa=$("l-ano").value;
   const universo = minhas();
   const st = {};
   let completas=0, incompletas=0;
@@ -799,16 +823,54 @@ function renderLista(){
      <div class="s" style="border-color:#ffe0b2"><b style="color:var(--warn)">${incompletas}</b><span>Incompletas</span></div>`
     + ["submetida","aprovada","pendente","relatorio-entregue","registrada"]
       .map(s=>`<div class="s"><b>${st[s]||0}</b><span>${STATUS_LABEL[s]}</span></div>`).join("");
-  const list = universo.filter(a=>(!fc||a.curso===fc)&&(!fs||statusReal(a)===fs)&&passaPreset(a))
-    .sort((a,b)=>(b.criadoEm||"").localeCompare(a.criadoEm||""));
+  const list = universo.filter(a=>(!fc||a.curso===fc)&&(!fs||statusReal(a)===fs)
+      &&(!fa||anoDaAcao(a)===fa)&&passaPreset(a))
+    // na guia Relatórios o que importa é quem está mais atrasado; nas demais,
+    // a ordem continua sendo a da chegada
+    .sort((a,b)=> SECAO==="relatorios"
+      ? (atrasoRelatorio(b)-atrasoRelatorio(a)) || (b.criadoEm||"").localeCompare(a.criadoEm||"")
+      : (b.criadoEm||"").localeCompare(a.criadoEm||""));
+  $("devedores").innerHTML = SECAO==="relatorios" ? quemDeveRelatorio(universo, fa) : "";
   $("lista").innerHTML = list.length ? list.map(a=>{
-    const s=statusReal(a);
+    const s=statusReal(a), atraso=atrasoRelatorio(a);
     return `<div class="item" onclick="nav('detalhe','${a.id}')">
       <div class="nm">${esc(a.proposta.nomeAtividade)}
         <div class="cs">${esc(a.curso)} · ${a.numeroAcao?("Ação "+a.numeroAcao):"sem número"} · ${fmt(a.proposta.periodoInicio)} a ${fmt(a.proposta.periodoFim)}</div>
         ${marcas(a)}</div>
+      ${atraso?`<span style="font-size:11.5px;font-weight:700;color:var(--warn);white-space:nowrap;margin-right:8px">${atraso} dia${atraso===1?"":"s"} de atraso</span>`:""}
       <span class="badge b-${s}">${STATUS_LABEL[s]}</span></div>`;
   }).join("") : '<div class="card muted">Nenhuma proposta encontrada com esses filtros.</div>';
+}
+
+/* Quem deve relatório, por professor. A cobrança automática já manda o
+   e-mail (lib/cobranca.js); o que faltava era a PROPPEX conseguir VER de
+   quem está esperando, sem abrir ação por ação. */
+function quemDeveRelatorio(universo, ano){
+  if(!PROPPEX) return "";
+  const devendo = universo.filter(a=>atrasoRelatorio(a)>0 && (!ano||anoDaAcao(a)===ano));
+  if(!devendo.length) return `<div class="banner ba-ok" style="margin-bottom:14px">
+    Nenhum relatório final em atraso${ano?` no ciclo ${esc(ano)}`:""}.</div>`;
+  const porPessoa = new Map();
+  for(const a of devendo){
+    const chave = a.criadoPor || "(sem responsável)";
+    const at = porPessoa.get(chave) || { nome:a.criadoPorNome||chave, email:a.criadoPor||"", acoes:[] };
+    at.acoes.push(a); porPessoa.set(chave, at);
+  }
+  const gente = [...porPessoa.values()]
+    .map(p=>({ ...p, pior: Math.max(...p.acoes.map(atrasoRelatorio)) }))
+    .sort((x,y)=>y.pior-x.pior);
+  return `<div class="card" style="border-color:#ffe0b2;background:#fffdf7">
+    <div class="card-t">Relatórios em atraso — ${devendo.length} ação(ões), ${gente.length} responsável(is)</div>
+    <div class="card-s">Ordenado pelo atraso mais antigo. A cobrança automática já envia o
+      lembrete por e-mail; esta lista é para saber de quem se está esperando.</div>
+    ${gente.map(p=>`<div class="linha" style="align-items:flex-start">
+      <div class="txt" style="flex:1">
+        <div class="p1">${esc(p.nome)}${p.email?` <span class="muted" style="font-weight:400">&lt;${esc(p.email)}&gt;</span>`:""}</div>
+        <div class="p2">${p.acoes.map(a=>`${esc(a.numeroAcao||a.proposta.nomeAtividade)} — ${atrasoRelatorio(a)} dia(s)`).join(" · ")}</div>
+      </div>
+      <span style="font-size:11.5px;font-weight:700;color:var(--warn);white-space:nowrap">${p.pior} dia(s)</span>
+    </div>`).join("")}
+  </div>`;
 }
 const fmt=(iso)=>iso?iso.split("-").reverse().join("/"):"—";
 
