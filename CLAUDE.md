@@ -237,6 +237,12 @@ public/
   projeto pelo orientador e pelo título do plano; a migração **completa** o registro que já
   existe (o nome veio do resultado publicado) sem sobrescrever campo preenchido. 2022 e 2023
   não têm alunos registrados.
+- **Exportar a lista de projetos** (`GET /api/ic/projetos.xlsx` e `.pdf`, só gestão;
+  botões na guia Gestão): a planilha traz uma linha por projeto (protocolo, situação,
+  título, curso, linha, modalidade, orientação com titulação e e-mail, grupo, alunos,
+  bolsa, NP/CL/nota final e vigência) e o PDF traz a **ficha completa de cada projeto**,
+  uma por página, com sumário. Os dois respeitam **os mesmos filtros da tela** — exporta-se
+  o que se está vendo, não a base inteira.
 - **Vitrine pública** (`/ic/` + `GET /api/publico/ic`): acesso livre com os editais, os
   documentos e a lista simplificada (título, curso, orientador, bolsista, modalidade) —
   nunca e-mail, CPF, nota ou dado bancário. Campos em branco enquanto o processo corre;

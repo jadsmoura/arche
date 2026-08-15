@@ -31,12 +31,12 @@ import {
   podeEnviarRelatorio, podeValidarRelatorio, cronogramaDe, relatoriosDe, relatoriosPendentes,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto, notaFinal,
   participaDeAlgum, vincularPorCpf, modalidadeEfetiva as modalidadeEfetivaIC,
-  producaoDoOrientador, prazosRelatorios,
+  producaoDoOrientador, prazosRelatorios, fomentoDe,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import { certificadosDe, destinatariosDoCiclo, certificavel } from "./lib/certificados.js";
 import {
-  EDITAL, LINHAS, GRUPOS_PESQUISA, FOMENTOS, TITULACOES, BLOCOS_PRODUCAO,
+  EDITAL, LINHAS, GRUPOS_PESQUISA, FOMENTOS, TITULACOES, BLOCOS_PRODUCAO, normalizarTitulacao,
   pontuarProducao, normalizarProducao, notaClassificacao, modalidadePor, gruposConhecidos,
   DOCUMENTOS_EDITAIS, RESULTADOS_EDITAIS,
 } from "./lib/edital.js";
@@ -2128,6 +2128,127 @@ app.get("/api/ic/certificados", async (req, res) => {
   } catch (e) {
     console.error("Erro ao listar certificados:", e);
     res.status(500).json({ error: "Falha ao carregar os certificados" });
+  }
+});
+
+/**
+ * EXPORTAÇÃO da lista de projetos (só gestão): planilha e fichas em PDF.
+ * Aceita os mesmos filtros da tela — exporta-se o que se está vendo, não a
+ * base inteira. Precisa vir antes de /api/ic/:id, senão viraria um id.
+ */
+function projetosFiltrados(projetos, q) {
+  const txt = (v) => String(v ?? "").toLowerCase();
+  const edital = String(q.edital || "").trim();
+  const busca = txt(q.q).trim();
+  return projetos.filter((p) => {
+    if (p.status === "rascunho") return false;
+    if (edital && edital !== "__todos" && String(p.edital || EDITAL.numero) !== edital) return false;
+    if (q.status && p.status !== q.status) return false;
+    if (q.curso && p.curso !== q.curso) return false;
+    if (q.linha && p.linha !== q.linha) return false;
+    if (q.titulacao && normalizarTitulacao(p.orientador?.titulacao) !== q.titulacao) return false;
+    if (q.grupo === "__com" && !p.grupoPesquisa) return false;
+    if (q.grupo === "__sem" && p.grupoPesquisa) return false;
+    if (q.grupo && !["__com", "__sem"].includes(q.grupo) && p.grupoPesquisa !== q.grupo) return false;
+    if (q.bolsa === "sem" && !(["aprovado", "concluido"].includes(p.status)
+      && (!p.fomento || p.fomento.tipo === "voluntario"))) return false;
+    if (q.bolsa && q.bolsa !== "sem" && p.fomento?.tipo !== q.bolsa) return false;
+    if (busca && !txt(`${p.numero} ${p.titulo} ${p.orientador?.nome} ${(p.alunos || []).map((a) => a.nome).join(" ")}`)
+      .includes(busca)) return false;
+    return true;
+  });
+}
+const resumoDosFiltros = (q) => [
+  q.edital && q.edital !== "__todos" ? `edital ${q.edital}` : "",
+  q.status ? `situação ${q.status}` : "", q.curso ? `curso ${q.curso}` : "",
+  q.linha ? `linha ${q.linha}` : "", q.titulacao ? `titulação ${q.titulacao}` : "",
+  q.bolsa ? `bolsa ${q.bolsa}` : "", q.grupo ? "com filtro de grupo" : "",
+  q.q ? `busca “${q.q}”` : "",
+].filter(Boolean).join(" · ");
+
+app.get("/api/ic/projetos.xlsx", async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    if (!gereIC(u)) return res.status(403).send("Exportação restrita à coordenação");
+    const neutro = { email: "", cpf: "", gestao: true };
+    const lista = projetosFiltrados(await lerProjetos(), req.query)
+      .map((p) => ({ ...p, resumo: resumirProjeto(p, neutro) }));
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "ARCHÉ · PROPPEX";
+    const ws = wb.addWorksheet("Projetos");
+    ws.columns = [
+      { header: "Protocolo", key: "numero", width: 15 },
+      { header: "Edital", key: "edital", width: 10 },
+      { header: "Situação", key: "status", width: 14 },
+      { header: "Título", key: "titulo", width: 58 },
+      { header: "Curso", key: "curso", width: 22 },
+      { header: "Linha", key: "linha", width: 10 },
+      { header: "Modalidade", key: "modalidade", width: 18 },
+      { header: "Orientador(a)", key: "orientador", width: 32 },
+      { header: "Titulação", key: "titulacao", width: 13 },
+      { header: "E-mail da orientação", key: "email", width: 32 },
+      { header: "Grupo de pesquisa", key: "grupo", width: 34 },
+      { header: "Alunos", key: "alunos", width: 38 },
+      { header: "Bolsa", key: "fomento", width: 14 },
+      { header: "NP", key: "np", width: 8 },
+      { header: "CL", key: "cl", width: 8 },
+      { header: "Nota final", key: "total", width: 11 },
+      { header: "Início", key: "inicio", width: 12 },
+      { header: "Término", key: "fim", width: 12 },
+    ];
+    ws.getRow(1).font = { bold: true };
+    ws.getRow(1).alignment = { vertical: "middle" };
+    for (const p of lista) {
+      const c = p.resumo.classificacao || {};
+      ws.addRow({
+        numero: p.numero || "", edital: p.edital || "", status: IC_ROTULO_STATUS[p.status] || p.status,
+        titulo: p.titulo || "", curso: (CURSOS.find((x) => x.slug === p.curso) || {}).nome || p.curso || "",
+        linha: (p.linha || "").toUpperCase(),
+        modalidade: p.modalidadeHistorica || modalidadeEfetivaIC(p)?.nome || "",
+        orientador: p.orientador?.nome || "", titulacao: normalizarTitulacao(p.orientador?.titulacao) || "",
+        email: p.orientador?.email || "", grupo: p.grupoPesquisa || "",
+        alunos: (p.alunos || []).map((a) => a.nome).filter(Boolean).join(", "),
+        fomento: p.fomento ? (fomentoDe(p.fomento.tipo)?.nome || p.fomento.tipo) : "",
+        np: c.np ?? "", cl: c.cl ?? "", total: c.total ?? "",
+        inicio: p.inicio || "", fim: p.fim || "",
+      });
+    }
+    ws.autoFilter = { from: "A1", to: { row: 1, column: ws.columns.length } };
+    ws.views = [{ state: "frozen", ySplit: 1 }];
+    const buffer = await wb.xlsx.writeBuffer();
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="projetos-ic-${slug(req.query.edital || "todos")}.xlsx"`);
+    res.send(Buffer.from(buffer));
+  } catch (e) {
+    console.error("Erro ao exportar projetos (xlsx):", e);
+    res.status(500).send("Erro ao gerar a planilha: " + e.message);
+  }
+});
+
+app.get("/api/ic/projetos.pdf", async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    if (!gereIC(u)) return res.status(403).send("Exportação restrita à coordenação");
+    const neutro = { email: "", cpf: "", gestao: true };
+    const lista = projetosFiltrados(await lerProjetos(), req.query).map((p) => {
+      const r = resumirProjeto(p, neutro);
+      return { ...p, classificacao: r.classificacao, producao: r.producao };
+    });
+    if (!lista.length) return res.status(404).send("Nenhum projeto com esses filtros.");
+    const { gerarProjetosPdf } = await import("./lib/pdf.js");
+    const buffer = await gerarProjetosPdf({
+      projetos: lista, emitidoPor: u.email, filtros: resumoDosFiltros(req.query),
+      titulo: req.query.edital && req.query.edital !== "__todos" ? `Edital ${req.query.edital}` : "",
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="fichas-projetos-${slug(req.query.edital || "todos")}.pdf"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro ao exportar projetos (pdf):", e);
+    res.status(500).send("Erro ao gerar o PDF: " + e.message);
   }
 });
 

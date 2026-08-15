@@ -754,6 +754,15 @@ async function avisarCertificados(edital) {
 }
 
 /* ------------------------------- gestão -------------------------------- */
+/* Exporta o que está na tela: a planilha (uma linha por projeto) e as
+   fichas em PDF (uma por página). Os filtros vão junto — exportar a base
+   inteira quando se está olhando um recorte seria surpresa ruim. */
+function exportarProjetos(formato) {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(FILTRO)) if (v) q.set(k, v);
+  window.open(`/api/ic/projetos.${formato}?${q}`, "_blank", "noopener");
+}
+
 function limparFiltros() {
   FILTRO = { status: "", curso: "", linha: "", grupo: "", q: "", titulacao: "", bolsa: "",
     edital: META.edital?.numero || "__todos" };
@@ -796,6 +805,10 @@ function renderGestao() {
         title="Documento timbrado com o resultado do processo seletivo">📄 Resultado do processo (PDF)</button>` : ""}
       ${META.gestao ? `<button class="bt bt-ghost" onclick="convidarProfessores()"
         title="E-mail aos professores dos projetos importados que ainda não criaram o usuário — o CPF no perfil é o que vincula os projetos">📧 Convidar professores</button>` : ""}
+      ${META.gestao ? `<button class="bt bt-ghost" onclick="exportarProjetos('xlsx')"
+        title="Planilha com os projetos que estão na tela, com os filtros aplicados">📊 Exportar em Excel</button>` : ""}
+      ${META.gestao ? `<button class="bt bt-ghost" onclick="exportarProjetos('pdf')"
+        title="Ficha completa de cada projeto, uma por página — com os filtros aplicados">📄 Exportar em PDF</button>` : ""}
       ${ME?.papel === "gestor" ? `<button class="bt bt-ghost" onclick="importarEdital(true)" title="Confere o arquivo sem gravar">Importar edital 01/2026</button>` : ""}
     </div>
 
