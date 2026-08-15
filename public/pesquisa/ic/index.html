@@ -1555,9 +1555,13 @@ function desenharEtapas() {
 }
 function addEtapa() { ATUAL.cronograma = [...(ATUAL.cronograma || []), { atividade: "", responsavel: "", inicio: "", fim: "", situacao: "prevista" }]; desenharEtapas(); }
 
-/** Grupos que aparecem nos projetos a que a pessoa tem acesso. */
+/** Grupos para o filtro: o catálogo completo (certificados no DGP e
+    informados à mão), mais qualquer um que apareça nos projetos à vista. */
 function gruposEmUso() {
-  const vistos = new Set(PROJETOS.map((p) => p.grupoPesquisa).filter(Boolean));
+  const vistos = new Set([
+    ...gruposConhecidos(),
+    ...PROJETOS.map((p) => p.grupoPesquisa).filter(Boolean),
+  ]);
   return [...vistos].sort((a, b) => a.localeCompare(b, "pt-BR"));
 }
 
