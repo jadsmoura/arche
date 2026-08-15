@@ -363,12 +363,23 @@ public/
   preenchido. A r2 de 2025 completou telefone e dados bancários da graduação. **CPF que
   não valida não entra** (Edileusa/2024 e Anna Gabrielly/2025 vieram errados da fonte — o
   aluno corrige na guia Bolsa). 2022 não tem alunos registrados.
-- **Os bolsistas do ENSINO MÉDIO saíram dos projetos** (`removerAlunosEnsinoMedio`, marca
-  `sys-ic-em-removidos-v1`, decisão do dono ago/2026): são de **outro programa de bolsas**,
-  ainda não modelado no ARCHÉ IC — apareciam nos projetos de 01/2025 porque o resultado
-  publicado os listava lá. Os 22, com tudo o que o formulário coletou (**inclusive escola e
-  responsável — são menores de idade**), estão estacionados em `dados/ic-em-2025-alunos.json`
-  aguardando o programa entrar no sistema. Não indexar esse arquivo em tela nenhuma até lá.
+- **ICEM — Iniciação Científica no Ensino Médio** (`lib/em.js` + guia "Ensino Médio", SÓ
+  gestão): **outro programa**, com outra lógica — o bolsista de EM **ACOMPANHA** projetos
+  de pesquisa para conhecer os cursos, a ciência e o UNIEGO, e **troca de projeto quando
+  quiser** (a coordenação de pesquisa o apresenta ao orientador e faz a troca). Por isso o
+  registro é DA PESSOA (`ic-em-v1`, chave interna), com **trajetória** de acompanhamentos
+  que nunca se apaga — o vigente é o trecho sem `ate`. Turmas por edital próprio (série
+  02/AAAA: 02/2024, 02/2025, 02/2026-ICEM; PDFs em `public/ic/docs/`), bolsas **12 CNPq
+  (R$ 300) + 12 UNIEGO (R$ 150)** com cota travada na rota, mais **voluntário sem cota**.
+  Relatório é **simplificado** (um por turma, registrado pela gestão) + **CONINT** em
+  outubro. **Menor de idade não tem conta no portal**: tudo é digitado pela gestão, e o
+  termo (5º modelo em lib/termos.js, `termoDoAlunoEM`) sai com o **Anexo 01 — autorização
+  do responsável** na página seguinte, assinado por aluno, responsável e coordenação de
+  pesquisa (`gerarTermosEMPdf`). As turmas sobem no arranque (`subirTurmasEM`,
+  `dados/ic-em-{2025,2026}-turma.json`): a trajetória aponta `origem.lote/id` do projeto
+  (o id real é de cada ambiente e resolve-se na importação). A remoção dos 22 dos projetos
+  de 01/2025 (`removerAlunosEnsinoMedio`, `sys-ic-em-removidos-v1`) usa
+  `dados/ic-em-2025-alunos.json` como lista — não apagar.
 - **Exportar a lista de projetos** (`GET /api/ic/projetos.xlsx` e `.pdf`, só gestão;
   botões na guia Gestão): a planilha traz uma linha por projeto (protocolo, situação,
   título, curso, linha, modalidade, orientação com titulação e e-mail, grupo, alunos,

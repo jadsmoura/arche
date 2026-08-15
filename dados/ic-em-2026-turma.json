@@ -1,0 +1,465 @@
+{
+ "programa": "PIBIC-EM — Iniciação Científica no Ensino Médio",
+ "turma": "2026/2027",
+ "edital": "02/2026",
+ "fonte": "Notas Finais — Edital 02/2026 Iniciação Científica Ensino Médio (planilha oficial da seleção)",
+ "observacao": "A turma que começa agora, na ordem de classificação da seleção (nota do histórico + entrevista). 24 bolsas: 12 CNPq e 12 UNIEGO — a atribuição é da gestão, na tela. Quatro candidatos constam como NC (não compareceram à entrevista): entram registrados, sem bolsa, para a gestão decidir. CPF, RG, responsável e conta chegam com o termo de compromisso.",
+ "bolsistas": [
+  {
+   "turma": "2026/2027",
+   "colocacao": 1,
+   "nome": "Lara Luísa Avelino Silva",
+   "telefone": "(62) 98476-7686",
+   "email": "laraedavi69@gmail.com",
+   "escola": "Couto Magalhães",
+   "serie": "3° ano",
+   "cursoInteresse": "Odontologia",
+   "notaSelecao": 93.67,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-1"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 2,
+   "nome": "Maria Eduarda Sena Torres",
+   "telefone": "(62) 98556-4016",
+   "email": "mariaotako110@gmail.com",
+   "escola": "Couto Magalhães Goianésia",
+   "serie": "2° ano",
+   "cursoInteresse": "Direito",
+   "notaSelecao": 93.07,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-2"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 3,
+   "nome": "Guilherme Mendonça Fajardo Silveira Filho",
+   "telefone": "(62) 98468-3994",
+   "email": "guifajardofilho02@gmail.com",
+   "escola": "Couto Magalhães",
+   "serie": "3° ano",
+   "cursoInteresse": "Engenharia Mecânica",
+   "notaSelecao": 91.67,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-3"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 4,
+   "nome": "Anna Luiza Martins Moraes",
+   "telefone": "(62) 98152-6390",
+   "email": "annaluizammoraesl@gmail.com",
+   "escola": "Colégio Couto Magalhães",
+   "serie": "3° ano",
+   "cursoInteresse": "Psicologia",
+   "notaSelecao": 91.2,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-4"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 5,
+   "nome": "Bárbara Martins Tavares",
+   "telefone": "(62) 98141-2973",
+   "email": "barbaramartins270608@gmail.com",
+   "escola": "Colégio Couto Magalhães",
+   "serie": "3° ano",
+   "cursoInteresse": "Administração",
+   "notaSelecao": 90.2,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-5"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 6,
+   "nome": "Maria Clara Rezende Oliveira",
+   "telefone": "(62) 98560-5957",
+   "email": "cloudforjjk2025@gmail.com",
+   "escola": "Colégio Couto Magalhães",
+   "serie": "3° ano",
+   "cursoInteresse": "Psicologia",
+   "notaSelecao": 89.8,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-6"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 7,
+   "nome": "Cristal Camargo",
+   "telefone": "(62) 98483-5629",
+   "email": "cristalcamargo709@gmail.com",
+   "escola": "Couto Magalhães",
+   "serie": "2° ano",
+   "cursoInteresse": "Agronomia",
+   "notaSelecao": 89.73,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-7"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 8,
+   "nome": "Nicolas Moreira Leão",
+   "telefone": "(62) 99886-0921",
+   "email": "ninaam2702@gmail.com",
+   "escola": "Colégio Couto Magalhães",
+   "serie": "3° ano",
+   "cursoInteresse": "Odontologia",
+   "notaSelecao": 89.53,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-8"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 9,
+   "nome": "Mariana Vidal Arantes",
+   "telefone": "(62) 99372-3895",
+   "email": "marianavidalarantes44@gmail.com",
+   "escola": "Colégio Couto Magalhães",
+   "serie": "2° ano",
+   "cursoInteresse": "Direito",
+   "notaSelecao": 88.27,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-9"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 10,
+   "nome": "Henrique Gonçalves Dias",
+   "telefone": "(62) 98605-3696",
+   "email": "henriquedias.goianesia@gmail.com",
+   "escola": "Colégio Couto Magalhães",
+   "serie": "3° ano",
+   "cursoInteresse": "Direito",
+   "notaSelecao": 87.8,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-10"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 11,
+   "nome": "Luísa Caetano Lopes",
+   "telefone": "(62) 99697-1615",
+   "email": "luisacaetanolopes@gmail.com",
+   "escola": "Colégio Couto Magalhães",
+   "serie": "2° ano",
+   "cursoInteresse": "Administração",
+   "notaSelecao": 87.53,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-11"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 12,
+   "nome": "Eduarda Silva De Jesus",
+   "telefone": "(62) 98434-9672",
+   "email": "eduardafortunatoc@gmail.com",
+   "escola": "Couto Magalhães de Goianésia",
+   "serie": "2° ano",
+   "cursoInteresse": "Direito",
+   "notaSelecao": 85.6,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-12"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 13,
+   "nome": "Ana Luiza Fonseca",
+   "telefone": "(62) 98497-6663",
+   "email": "analuizapfonseca7@gmail.com",
+   "escola": "Colégio Couto Magalhães",
+   "serie": "3° ano",
+   "cursoInteresse": "Enfermagem",
+   "notaSelecao": 85.4,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-13"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 14,
+   "nome": "Theo Gonçalves Moura",
+   "telefone": "(62) 98318-8903",
+   "email": "theogmourayt@gmail.com",
+   "escola": "Couto Magalhães Goianésia",
+   "serie": "3° ano",
+   "cursoInteresse": "Engenharia Software",
+   "notaSelecao": 85.07,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-14"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 15,
+   "nome": "Mariana Almeida Paiva",
+   "telefone": "(62) 99962-8692",
+   "email": "marianapaiva1@icloud.com",
+   "escola": "Colégio Couto Magalhães",
+   "serie": "2° ano",
+   "cursoInteresse": "Odontologia",
+   "notaSelecao": 84.87,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-15"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 16,
+   "nome": "Ana Júlia Campos Nelvam",
+   "telefone": "(62) 98122-5509",
+   "email": "ananelvam21@gmail.com",
+   "escola": "Colégio Couto Magalhães",
+   "serie": "2° ano",
+   "cursoInteresse": "Engenharia Civil",
+   "notaSelecao": 84.4,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-16"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 17,
+   "nome": "Anna Clara Policena Lopes",
+   "telefone": "(62) 98424-1138",
+   "email": "policenalopesannaclara2501@gmail.com",
+   "escola": "Colégio Couto Magalhaes",
+   "serie": "2° ano",
+   "cursoInteresse": "Odontologia",
+   "notaSelecao": 84.2,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-17"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 18,
+   "nome": "Elisa Costa Camargo",
+   "telefone": "(62) 98170-0094",
+   "email": "elisacamargo1608@gmail.com",
+   "escola": "Colégio Couto Magalhães",
+   "serie": "3° ano",
+   "cursoInteresse": "Odontologia",
+   "notaSelecao": 84.13,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-18"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 19,
+   "nome": "Laura Beatriz Macena Souza",
+   "telefone": "(62) 98573-2680",
+   "email": "laurabeatrizmacenasouza@gmail.com",
+   "escola": "Couto Magalhães",
+   "serie": "2° ano",
+   "cursoInteresse": "Psicologia",
+   "notaSelecao": 83.8,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-19"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 20,
+   "nome": "Marinna Menezes Faria",
+   "telefone": "(62) 98579-9119",
+   "email": "marinnamenezes252@gmail.com",
+   "escola": "Colégio Couto Magalhães",
+   "serie": "3° ano",
+   "cursoInteresse": "Direito",
+   "notaSelecao": 80.6,
+   "compareceu": true,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-20"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 21,
+   "nome": "Rafael Aleixo Scarano Coelho",
+   "telefone": "(11) 93955-4238",
+   "email": "rscaranocoelho@gmail.com",
+   "escola": "SESI",
+   "serie": "2° ano",
+   "cursoInteresse": "Engenharia Mecânica",
+   "notaSelecao": 61.73,
+   "compareceu": false,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-21"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 22,
+   "nome": "João Lucas de Andrade",
+   "telefone": "(62) 99822-8095",
+   "email": "jl76017088@gmail.com",
+   "escola": "Colégio Couto Magalhães",
+   "serie": "3° ano",
+   "cursoInteresse": "Engenharia Mecânica",
+   "notaSelecao": 59.27,
+   "compareceu": false,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-22"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 23,
+   "nome": "Gabriele Xavier Amado",
+   "telefone": "(19) 99884-7066",
+   "email": "gabixamado@gmail.com",
+   "escola": "Couto Magalhães",
+   "serie": "3° ano",
+   "cursoInteresse": "Administração",
+   "notaSelecao": 59.13,
+   "compareceu": false,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-23"
+   }
+  },
+  {
+   "turma": "2026/2027",
+   "colocacao": 24,
+   "nome": "Laura Beatriz de Moraes Londero da Silva",
+   "telefone": "(62) 98553-3554",
+   "email": "laurabsilva1808@gmail.com",
+   "escola": "Couto Magalhães",
+   "serie": "3° ano",
+   "cursoInteresse": "Psicologia",
+   "notaSelecao": 58,
+   "compareceu": false,
+   "bolsa": "",
+   "situacao": "ativo",
+   "trajetoria": [],
+   "origem": {
+    "lote": "em-2026",
+    "id": "sel-24"
+   }
+  }
+ ]
+}

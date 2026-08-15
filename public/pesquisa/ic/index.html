@@ -314,6 +314,7 @@
         <section id="v-classificacao" class="hide"></section>
         <section id="v-editais" class="hide"></section>
         <section id="v-bolsistas" class="hide"></section>
+        <section id="v-em" class="hide"></section>
         <section id="v-cronograma" class="hide"></section>
         <section id="v-relatorios" class="hide"></section>
         <section id="v-bolsas" class="hide"></section>
@@ -388,6 +389,7 @@ const SECOES = [
   { id: "bolsas", grupo: "SELEÇÃO", rot: "Bolsas", ic: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a2 2 0 0 1 0 4h-3a2 2 0 0 0 0 4h4"/>', perfis: ["gestao"] },
   { id: "editais", grupo: "SELEÇÃO", rot: "Editais e Resultados", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 12h8M8 16h8"/>' },
   { id: "bolsistas", grupo: "ACOMPANHAMENTO", rot: "Bolsistas e Voluntários", ic: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>', perfis: ["gestao", "orientador"] },
+  { id: "em", grupo: "ACOMPANHAMENTO", rot: "Ensino Médio", ic: '<path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1 2.7 3 6 3s6-2 6-3v-5"/>', perfis: ["gestao"] },
   { id: "cronograma", grupo: "ACOMPANHAMENTO", rot: "Cronograma", ic: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/>', perfis: ["orientador", "aluno"] },
   { id: "relatorios", grupo: "ACOMPANHAMENTO", rot: "Relatórios", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 13h8M8 17h5"/>', perfis: ["gestao", "orientador", "aluno"] },
   { id: "certificados", grupo: "ACOMPANHAMENTO", rot: "Certificados", ic: '<circle cx="12" cy="9" r="6"/><path d="M8.5 14.5L7 22l5-3 5 3-1.5-7.5"/>' },
@@ -402,6 +404,7 @@ const TITULOS = {
   avaliacao: ["Avaliação da seleção", "Parecer ad hoc dos projetos submetidos."],
   classificacao: ["Projetos do edital", "Todos os projetos de cada processo seletivo, em ordem de classificação."],
   bolsistas: ["Bolsistas e Voluntários", "Cada aluno em execução, com as metas do cronograma e as entregas — por ciclo."],
+  em: ["Iniciação Científica — Ensino Médio", "O programa ICEM: bolsistas que acompanham projetos para conhecer os cursos, a ciência e o UNIEGO."],
   bolsas: ["Bolsas", "Atribuição das bolsas conforme a disponibilidade orçamentária, em ordem de pontuação."],
   editais: ["Editais e Resultados", "Os documentos de cada processo, ano a ano: o edital e o resultado."],
   cronograma: ["Cronograma", "Todas as atividades dos projetos num só lugar."],
@@ -683,7 +686,7 @@ function nav(secao, modo) {
   // a inclusão manual vale só para o formulário aberto por ela
   MANUAL = secao === "submissao" && modo === "manual";
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === secao);
-  for (const v of ["painel", "submissao", "gestao", "meusprojetos", "bolsa", "avaliacao", "classificacao", "bolsas", "editais", "bolsistas", "cronograma", "relatorios", "certificados", "projeto"]) $("v-" + v).classList.add("hide");
+  for (const v of ["painel", "submissao", "gestao", "meusprojetos", "bolsa", "avaliacao", "classificacao", "bolsas", "editais", "bolsistas", "em", "cronograma", "relatorios", "certificados", "projeto"]) $("v-" + v).classList.add("hide");
   // submissão e projeto compartilham o editor (mesmos ids): a seção que sai
   // do ar é esvaziada, senão getElementById acha os campos escondidos
   for (const v of ["submissao", "projeto"]) if (v !== secao) $("v-" + v).innerHTML = "";
@@ -709,6 +712,7 @@ function nav(secao, modo) {
   if (secao === "avaliacao") renderAvaliacao();
   if (secao === "classificacao") renderClassificacao();
   if (secao === "bolsistas") renderBolsistas();
+  if (secao === "em") renderEM();
   if (secao === "editais") renderEditais();
   if (secao === "cronograma") renderCronograma();
   if (secao === "relatorios") renderRelatorios();
@@ -953,6 +957,144 @@ async function carregarUsuariosDoPortal() {
     if (SECAO === "painel") renderPainel();
   } catch { /* sem o resumo o painel segue igual — é um quadro a mais */ }
 }
+
+
+/* --------------------- ICEM — Iniciação Científica EM ------------------- */
+/* OUTRO programa: o bolsista do Ensino Médio ACOMPANHA projetos (e troca ao
+   longo do ano) para conhecer os cursos, a ciência e o UNIEGO. Quem conduz
+   é a coordenação — o aluno é menor e não tem conta no portal. A guia é o
+   posto de trabalho disso: bolsas 12+12, projeto acompanhado com a
+   trajetória, relatório simplificado e CONINT. */
+let EM = null, TURMA_EM = "";
+
+async function renderEM() {
+  const el = $("v-em");
+  if (!EM) {
+    el.innerHTML = '<div class="card"><div class="vazio">Carregando o programa…</div></div>';
+    try { EM = await api("/api/ic/em"); }
+    catch (e) { el.innerHTML = `<div class="banner ba-err">${esc(e.message)}</div>`; return; }
+  }
+  const turmas = (EM.turmas || []).slice().reverse();
+  if (!TURMA_EM || !turmas.some((t) => t.ciclo === TURMA_EM)) {
+    TURMA_EM = (turmas.find((t) => !t.encerrada) || turmas[0] || {}).ciclo || "";
+  }
+  const turma = turmas.find((t) => t.ciclo === TURMA_EM) || {};
+  const da = (EM.bolsistas || []).filter((b) => b.turma === TURMA_EM)
+    .sort((a, b) => (a.colocacao ?? 999) - (b.colocacao ?? 999) || a.nome.localeCompare(b.nome, "pt-BR"));
+  const cotas = (EM.cotas || {})[TURMA_EM] || [];
+  const atual = (b) => (b.trajetoria || []).find((e) => !e.ate) || null;
+  const ativos = da.filter((b) => b.situacao !== "desligado");
+  const comProjeto = ativos.filter((b) => atual(b));
+  const entregues = da.filter((b) => b.relatorio?.situacao === "entregue");
+
+  // projetos que podem ser acompanhados: os do ciclo da graduação em execução
+  const acompanhaveis = PROJETOS.filter((p) => ["aprovado", "concluido"].includes(p.status))
+    .sort((a, b) => cursoNome(a.curso).localeCompare(cursoNome(b.curso), "pt-BR")
+      || String(a.titulo).localeCompare(String(b.titulo), "pt-BR"));
+  const opcoesProjeto = (b) => {
+    const pa = atual(b);
+    return '<option value="">— sem projeto no momento —</option>' + acompanhaveis.map((p) =>
+      `<option value="${esc(p.id)}" ${pa?.projetoId === p.id ? "selected" : ""}>${esc(cursoNome(p.curso))} · ${esc(p.titulo.slice(0, 70))}${p.titulo.length > 70 ? "…" : ""}</option>`).join("");
+  };
+
+  const cartao = (b) => {
+    const pa = atual(b);
+    const passados = (b.trajetoria || []).filter((e) => e.ate);
+    return `<div class="bloco">
+      <div class="bloco-cab">
+        <span class="t">${b.colocacao ? b.colocacao + "º · " : ""}${esc(b.nome)}</span>
+        ${b.bolsa ? `<span class="badge b-${b.bolsa === "cnpq" ? "aprovado" : "validado"}">${esc((EM.bolsas.find((x) => x.codigo === b.bolsa) || {}).nome || b.bolsa)}</span>` : '<span class="badge b-rascunho">sem bolsa</span>'}
+        ${b.situacao === "desligado" ? '<span class="badge b-atrasada">desligado</span>' : ""}
+        ${b.compareceu === false ? '<span class="badge b-atrasada" title="Não compareceu à entrevista da seleção">NC na seleção</span>' : ""}
+      </div>
+      <div class="muted" style="margin-bottom:6px">
+        ${esc(b.escola || "escola não informada")}${b.serie ? ` · ${esc(b.serie)}` : ""}
+        ${b.cursoInteresse ? ` · interesse: ${esc(b.cursoInteresse)}` : ""}
+        ${b.notaSelecao != null ? ` · nota ${b.notaSelecao}` : ""}<br>
+        ${esc(b.telefone || "")}${b.email ? ` · ${esc(b.email)}` : ""}
+        ${b.responsavel?.nome ? `<br>Responsável: ${esc(b.responsavel.nome)}` : ""}
+      </div>
+
+      <div class="grid2" style="align-items:end">
+        <div><label>Bolsa</label>
+          <select onchange="emBolsa('${esc(b.id)}',this.value)">
+            <option value="">— sem bolsa —</option>
+            ${EM.bolsas.map((x) => `<option value="${x.codigo}" ${b.bolsa === x.codigo ? "selected" : ""}>${esc(x.nome)} — R$ ${x.valor}</option>`).join("")}
+          </select></div>
+        <div><label>Projeto que acompanha <span class="muted">(trocar aqui fecha o anterior e guarda a trajetória)</span></label>
+          <select onchange="emProjeto('${esc(b.id)}',this.value)">${opcoesProjeto(b)}</select></div>
+      </div>
+      ${pa ? `<div class="kv" style="margin-top:6px">Acompanha <b>${esc(pa.numero || "")}</b> ${esc(pa.titulo.slice(0, 80))} ·
+        orientação de ${esc(pa.orientador || "—")} · desde ${fmtD(pa.de)}</div>` : ""}
+      ${passados.length ? `<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">
+          Trajetória (${passados.length} anterior${passados.length > 1 ? "es" : ""})</summary>
+        ${passados.map((e) => `<div class="kv muted">• ${esc(e.numero || "")} ${esc(e.titulo.slice(0, 70))} · ${fmtD(e.de)} → ${fmtD(e.ate)}</div>`).join("")}
+      </details>` : ""}
+
+      <div class="exp" style="margin-top:8px;gap:6px">
+        <button class="bt ${b.relatorio?.situacao === "entregue" ? "bt-ghost" : "bt-sec"}"
+          onclick="emRelatorio('${esc(b.id)}','${b.relatorio?.situacao === "entregue" ? "pendente" : "entregue"}')">
+          ${b.relatorio?.situacao === "entregue" ? "✓ Relatório entregue — reabrir" : "Registrar relatório simplificado"}</button>
+        <button class="bt bt-ghost" onclick="emConint('${esc(b.id)}',${b.conint?.participou ? "false" : "true"})">
+          ${b.conint?.participou ? "✓ CONINT — desfazer" : "Participou do CONINT"}</button>
+      </div>
+    </div>`;
+  };
+
+  el.innerHTML = `
+    <div class="filtros" style="margin-bottom:14px">
+      <label style="margin:0;display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--muted)">
+        Turma
+        <select style="width:auto;min-width:240px" onchange="TURMA_EM=this.value;renderEM()">
+          ${turmas.map((t) => `<option value="${esc(t.ciclo)}" ${TURMA_EM === t.ciclo ? "selected" : ""}>Turma ${esc(t.ciclo)}${t.edital && t.edital !== "—" ? ` — Edital ${esc(t.edital)}` : ""}${t.encerrada ? " · encerrada" : " · atual"}</option>`).join("")}
+        </select>
+      </label>
+      ${turma.documento ? `<a class="bt bt-ghost" target="_blank" rel="noopener" href="${esc(turma.documento)}">📄 Edital</a>` : ""}
+      ${turma.resultado ? `<a class="bt bt-ghost" target="_blank" rel="noopener" href="${esc(turma.resultado)}">📄 Resultado</a>` : ""}
+      ${da.length ? `<a class="bt bt-ghost" target="_blank" rel="noopener" href="/api/ic/em/termos.pdf?turma=${encodeURIComponent(TURMA_EM)}"
+        title="Termo de cada bolsista com o Anexo 01 (autorização do responsável) — para a cerimônia de assinaturas">📝 Termos + autorização (PDF)</a>` : ""}
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="l">Bolsistas da turma</div><div class="v">${ativos.length}</div>
+        <div class="d">${da.length - ativos.length ? `${da.length - ativos.length} desligado(s)` : "todos ativos"}</div></div>
+      ${cotas.map((c) => `<div class="kpi"><div class="l">${esc(c.nome)}</div>
+        <div class="v" style="color:${c.usadas > c.cota ? "var(--err)" : c.usadas === c.cota ? "var(--ok)" : "var(--ink)"}">${c.usadas}<span style="font-size:16px;color:var(--muted)"> / ${c.cota}</span></div>
+        <div class="d">R$ ${c.valor} mensais</div></div>`).join("")}
+      <div class="kpi"><div class="l">${turma.encerrada ? "Relatórios entregues" : "Com projeto definido"}</div>
+        <div class="v">${turma.encerrada ? entregues.length : comProjeto.length}<span style="font-size:16px;color:var(--muted)"> / ${ativos.length}</span></div>
+        <div class="d">${turma.encerrada ? "relatório simplificado da turma" : "o aluno escolhe, a coordenação apresenta"}</div></div>
+    </div>
+
+    ${da.length && !turma.encerrada && comProjeto.length < ativos.length ? `<div class="banner ba-warn">
+      <b>${ativos.length - comProjeto.length} bolsista(s) ainda sem projeto.</b> O aluno escolhe o projeto e o curso;
+      a coordenação o apresenta ao orientador — e troca quando ele desejar.</div>` : ""}
+
+    <div class="card">
+      <div class="card-t">Turma ${esc(TURMA_EM)}</div>
+      <div class="card-s">${turma.encerrada
+        ? "Turma encerrada: o que resta é a entrega do relatório simplificado e o registro do CONINT."
+        : "Em curso: bolsa, projeto acompanhado e trajetória de cada bolsista."}</div>
+      ${da.map(cartao).join("") || '<div class="vazio">Nenhum bolsista nesta turma.</div>'}
+    </div>`;
+}
+
+async function emAcao(caminho, corpo, msg) {
+  try {
+    await api(caminho, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) });
+    EM = null; await renderEM();
+    if (msg) aviso(msg);
+  } catch (e) { aviso(e.message, "err"); EM = null; renderEM(); }
+}
+const emBolsa = (id, bolsa) => emAcao(`/api/ic/em/${id}/bolsa`, { bolsa },
+  bolsa ? "Bolsa atribuída." : "Bolsa desfeita.");
+const emProjeto = (id, projetoId) => emAcao(`/api/ic/em/${id}/projeto`, { projetoId },
+  projetoId ? "Acompanhamento registrado — a trajetória guarda o anterior." : "Acompanhamento encerrado.");
+const emRelatorio = (id, situacao) => emAcao(`/api/ic/em/${id}/relatorio`, { situacao },
+  situacao === "entregue" ? "Relatório simplificado registrado." : "Relatório reaberto.");
+const emConint = (id, participou) => emAcao(`/api/ic/em/${id}/conint`, { participou, ano: String(new Date().getFullYear()) },
+  participou ? "Participação no CONINT registrada." : "Registro desfeito.");
+/* --------------------- fim: ICEM ---------------------------------------- */
 
 /* ------------------------- panorama do ciclo ---------------------------- */
 /* O que a coordenação precisa acompanhar sem abrir projeto por projeto:

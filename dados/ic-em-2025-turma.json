@@ -1,0 +1,801 @@
+{
+ "programa": "PIBIC-EM — Iniciação Científica no Ensino Médio",
+ "turma": "2025/2026",
+ "fonte": "Formulário de indicação EM 2025/2026 + mala direta dos termos de compromisso (minuta PIBIC JR)",
+ "observacao": "A turma que encerrou: acompanharam projetos do edital 01/2025. O e-mail principal é o do próprio aluno (dos termos); emailFamilia guarda o contato da família quando era outro. São menores: o responsável está aqui, com CPF quando o termo o trouxe. A trajetória aponta origem.lote/origem.id do projeto (estável entre ambientes); o id real resolve-se na importação. As bolsas (CNPq/FACEG/voluntário) vêm do resultado publicado de 02/2025, que também deu o nome completo de Mariana Gonçalves Vieira. Cinco selecionados do resultado não assinaram termo nem preencheram o formulário e ficam fora do registro.",
+ "bolsistas": [
+  {
+   "turma": "2025/2026",
+   "nome": "Arthur Emanoel Lourenço Menezes",
+   "cpf": "70621442151",
+   "rg": "POLÍCIA CIVIL DE GOIAS - SIH",
+   "escola": "CEPMG José Carrilho",
+   "email": "arthur1emanoel@gmail.com",
+   "emailFamilia": "",
+   "telefone": "62984532878",
+   "cursoInteresse": "AGRONOMIA",
+   "responsavel": {
+    "nome": "Lamara Silva Lourenço",
+    "cpf": "02906794198"
+   },
+   "banco": "077-inter",
+   "agencia": "0001",
+   "conta": "397244029",
+   "pix": "70621442151",
+   "bolsa": "uniego",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-20",
+     "numero": "IC-2025-020",
+     "titulo": "Assistência técnica aos produtores de açaí de Goianésia",
+     "orientador": "Manoel Henrique Reis de Oliveira",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "70621442151"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Mariana Pereira Batista",
+   "cpf": "71381914136",
+   "rg": "8433644 SSPGO",
+   "escola": "CEPMG José Carrilho",
+   "email": "maripereirabsouzadej@gmail.com",
+   "emailFamilia": "",
+   "telefone": "98327-7180",
+   "cursoInteresse": "Agronomia",
+   "responsavel": {
+    "nome": "Camila Pereira",
+    "cpf": ""
+   },
+   "banco": "Banco do Brasil",
+   "agencia": "668-8",
+   "conta": "54275-X",
+   "pix": "71381914136",
+   "bolsa": "cnpq",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-7",
+     "numero": "IC-2025-007",
+     "titulo": "Micorriza arbuscular em genótipos de café cultivados em Cerrado",
+     "orientador": "Rodrigo Fernandes de Souza",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "71381914136"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Nicolas Barbeiro Fagundes",
+   "cpf": "08650238165",
+   "rg": "8281953",
+   "escola": "Colégio Tera",
+   "email": "fagundesnicolas721@gmail.com",
+   "emailFamilia": "",
+   "telefone": "62984773934",
+   "cursoInteresse": "Direito",
+   "responsavel": {
+    "nome": "Alisson Barbeiro",
+    "cpf": "03097551158"
+   },
+   "banco": "Banco do Brasil",
+   "agencia": "0668-8",
+   "conta": "54.274-1",
+   "pix": "234756",
+   "bolsa": "cnpq",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-15",
+     "numero": "IC-2025-015",
+     "titulo": "A utilização da linguagem simples no âmbito do Poder Judiciário: caminhos para a democratização da justiça",
+     "orientador": "Marlana Carla Peixoto Ribeiro",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "08650238165"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Anna Júlia Rodrigues de Sousa",
+   "cpf": "71024666174",
+   "rg": "órgão expedidor-ssp  rg-7104378",
+   "escola": "CEPMG José Carrilho",
+   "email": "rodriguesanajulia113@gmail.com",
+   "emailFamilia": "",
+   "telefone": "62985792138",
+   "cursoInteresse": "Direito",
+   "responsavel": {
+    "nome": "Neide Vicente de Sousa Rodrigues",
+    "cpf": "86791966149"
+   },
+   "banco": "Banco do Brasil",
+   "agencia": "6688",
+   "conta": "572586",
+   "pix": "rodriguesanajulia113@gmail.com",
+   "bolsa": "voluntario",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-15",
+     "numero": "IC-2025-015",
+     "titulo": "A utilização da linguagem simples no âmbito do Poder Judiciário: caminhos para a democratização da justiça",
+     "orientador": "Marlana Carla Peixoto Ribeiro",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "71024666174"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Letícia Gabryelle de Oliveira Silva",
+   "cpf": "70256090130",
+   "rg": " 8369670- SSP/GO",
+   "escola": "CEPMG José Carrilho",
+   "email": "leticia.gabryelle.0801@gmail.com",
+   "emailFamilia": "",
+   "telefone": "62 985406673",
+   "cursoInteresse": "Direito",
+   "responsavel": {
+    "nome": "Shirlei Gomes de Oliveira Ferreira",
+    "cpf": "02144855102"
+   },
+   "banco": "Nubank",
+   "agencia": "Nubank",
+   "conta": "Nubank",
+   "pix": "702.560.901-30 ",
+   "bolsa": "uniego",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-17",
+     "numero": "IC-2025-017",
+     "titulo": "A naturalização da violência contra a mulher no cotidiano brasileiro: silêncio, cultura e impunidade",
+     "orientador": "Sara Moraes Vieira",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "70256090130"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Rebeca Rezende Lacerda Farias",
+   "cpf": "71044346159",
+   "rg": "7480210 SSPGO",
+   "escola": "CEPMG José Carrilho",
+   "email": "rebecarezende773@gmail.com",
+   "emailFamilia": "",
+   "telefone": "62984146406",
+   "cursoInteresse": "Direito",
+   "responsavel": {
+    "nome": "Vilmar Alves Farias",
+    "cpf": "76358666134"
+   },
+   "banco": "Branco do Brasil",
+   "agencia": "06688",
+   "conta": "572462",
+   "pix": "62984146406",
+   "bolsa": "voluntario",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-17",
+     "numero": "IC-2025-017",
+     "titulo": "A naturalização da violência contra a mulher no cotidiano brasileiro: silêncio, cultura e impunidade",
+     "orientador": "Sara Moraes Vieira",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "71044346159"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Ana Cláudia Alexandre Araújo Camargo",
+   "cpf": "71018343105",
+   "rg": "7696279 SSPP",
+   "escola": "CEPMG José Carrilho",
+   "email": "ana.camargo10@aluno.educa.go.gov.br",
+   "emailFamilia": "",
+   "telefone": "(62) 9 9993-5109",
+   "cursoInteresse": "Enfermagem",
+   "responsavel": {
+    "nome": "Paula Cristina Camargo",
+    "cpf": "02278810103"
+   },
+   "banco": "007 - Inter",
+   "agencia": "0001",
+   "conta": "216468965",
+   "pix": "71018343105",
+   "bolsa": "uniego",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-3",
+     "numero": "IC-2025-003",
+     "titulo": "Avaliação da atividade bacteriana de um análogo de sulfonamida",
+     "orientador": "Osmar Nascimento Silva",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "71018343105"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Carla Cristina Nunes Silva",
+   "cpf": "71240106165",
+   "rg": "7654233 - SSPPC",
+   "escola": "CEPMG José Carrilho",
+   "email": "carlacris20150@gmail.com",
+   "emailFamilia": "rosangela7000@hotmail.com",
+   "telefone": "62999193613",
+   "cursoInteresse": "Enfermagem",
+   "responsavel": {
+    "nome": "Rosangela Nunes de Sousa",
+    "cpf": "82957673134"
+   },
+   "banco": "Caixa Econômica",
+   "agencia": "0792",
+   "conta": "721804578-3",
+   "pix": "712.401.061.65",
+   "bolsa": "uniego",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-3",
+     "numero": "IC-2025-003",
+     "titulo": "Avaliação da atividade bacteriana de um análogo de sulfonamida",
+     "orientador": "Osmar Nascimento Silva",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "71240106165"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Lara Luísa Avelino Silva",
+   "cpf": "05946858181",
+   "rg": "7316254",
+   "escola": "Colégio Couto Magalhães",
+   "email": "laraedavi@gmail.com",
+   "emailFamilia": "laraedavi69@gmail.com",
+   "telefone": "62984767686",
+   "cursoInteresse": "Enfermagem",
+   "responsavel": {
+    "nome": "Eliane",
+    "cpf": "93879636168"
+   },
+   "banco": "Banco do Brasil",
+   "agencia": "6688",
+   "conta": "54261-X",
+   "pix": "05946858181",
+   "bolsa": "cnpq",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-3",
+     "numero": "IC-2025-003",
+     "titulo": "Avaliação da atividade bacteriana de um análogo de sulfonamida",
+     "orientador": "Osmar Nascimento Silva",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "05946858181"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "João Pedro Medeiros",
+   "cpf": "70302096132",
+   "rg": "7217751 SSPGO",
+   "escola": "CEPMG José Carrilho",
+   "email": "jp.medeiros0605@gmail.com",
+   "emailFamilia": "eliana.ngj@gmail.com",
+   "telefone": "(62)981980036",
+   "cursoInteresse": "Enfermagem",
+   "responsavel": {
+    "nome": "Eliana Nunes Gomes jardim",
+    "cpf": "80238033104"
+   },
+   "banco": "Nubank",
+   "agencia": "0001",
+   "conta": "63601621-2",
+   "pix": "70302096132",
+   "bolsa": "uniego",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-3",
+     "numero": "IC-2025-003",
+     "titulo": "Avaliação da atividade bacteriana de um análogo de sulfonamida",
+     "orientador": "Osmar Nascimento Silva",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "70302096132"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Mariana Gonçalves Vieira",
+   "cpf": "71348909102",
+   "rg": "8358499 SSP-GO",
+   "escola": "Colégio Couto Magalhães",
+   "email": "marianagoncalvesvieira25@gmail.com",
+   "emailFamilia": "",
+   "telefone": "62985870259",
+   "cursoInteresse": "Enfermagem",
+   "responsavel": {
+    "nome": "Cristiano Carlos Vieira",
+    "cpf": "00114043108"
+   },
+   "banco": "Banco do Brasil",
+   "agencia": "668-8",
+   "conta": "55207-0",
+   "pix": "b66d754f-de0b-449f-a095-965f1144c25b",
+   "bolsa": "cnpq",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-3",
+     "numero": "IC-2025-003",
+     "titulo": "Avaliação da atividade bacteriana de um análogo de sulfonamida",
+     "orientador": "Osmar Nascimento Silva",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "71348909102"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Eloá Teresa Pereira Monteiro Dias",
+   "cpf": "05089139180",
+   "rg": "3630385 SSP-DF",
+   "escola": "CEPMG José Carrilho",
+   "email": "eloateresapmd@gmail.com",
+   "emailFamilia": "",
+   "telefone": "62 9393-0911",
+   "cursoInteresse": "Enfermagem",
+   "responsavel": {
+    "nome": "Cássia Cristina Pereira Monteiro Dias",
+    "cpf": "00159205182"
+   },
+   "banco": "Banco do Brasil",
+   "agencia": "0668-8",
+   "conta": "57.223-3",
+   "pix": "05089139180",
+   "bolsa": "cnpq",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-3",
+     "numero": "IC-2025-003",
+     "titulo": "Avaliação da atividade bacteriana de um análogo de sulfonamida",
+     "orientador": "Osmar Nascimento Silva",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "05089139180"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "LUIZA GABRIELLY TAVARES FREIRE",
+   "cpf": "70680637133",
+   "rg": "70680637133",
+   "escola": "CEPMG Silvio de Castro Ribeiro",
+   "email": "luizagod11@gmail.com",
+   "emailFamilia": "",
+   "telefone": "62 984489288",
+   "cursoInteresse": "Enfermagem",
+   "responsavel": {
+    "nome": "Luana Lorena Tavares Rocha",
+    "cpf": "01079861165"
+   },
+   "banco": "Caixa econômica",
+   "agencia": "Caixa econômica",
+   "conta": "574470815-0",
+   "pix": "70680637133",
+   "bolsa": "uniego",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-3",
+     "numero": "IC-2025-003",
+     "titulo": "Avaliação da atividade bacteriana de um análogo de sulfonamida",
+     "orientador": "Osmar Nascimento Silva",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "70680637133"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Gabriel Moisés Maximo da Silva",
+   "cpf": "08601254160",
+   "rg": "08601254160, SSP",
+   "escola": "CEPMG José Carrilho",
+   "email": "gabrielmoises2021@gmail.com",
+   "emailFamilia": "",
+   "telefone": "62986360820",
+   "cursoInteresse": "Engenharia Mecânica",
+   "responsavel": {
+    "nome": "Fernanda Rosa da Silva",
+    "cpf": "98946943149"
+   },
+   "banco": "Banco do Brasil",
+   "agencia": "0668-8",
+   "conta": "57.211-0",
+   "pix": "0d5c8d8b-268c-4545-ab0d-d2ee09a3b420",
+   "bolsa": "cnpq",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-19",
+     "numero": "IC-2025-019",
+     "titulo": "Desenvolvimento de um manipulador pneumático articulado de baixo custo com quatro graus de liberdade, controlado por microcontrolador ESP32 para fins educacionais",
+     "orientador": "Ivandro José de Freitas Rocha",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "08601254160"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Guilherme dos Santos Araujo",
+   "cpf": "05701398137",
+   "rg": "6157135  SSP",
+   "escola": "CEPMG José Carrilho",
+   "email": "guilhermesnaraujo@gmail.com",
+   "emailFamilia": "",
+   "telefone": "62986321089",
+   "cursoInteresse": "Engenharia Mecânica",
+   "responsavel": {
+    "nome": "Marilene Machado dos Santos",
+    "cpf": "89450582149"
+   },
+   "banco": "NUBANK",
+   "agencia": "NUBANK",
+   "conta": "NUBANK",
+   "pix": "62986321089",
+   "bolsa": "uniego",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-19",
+     "numero": "IC-2025-019",
+     "titulo": "Desenvolvimento de um manipulador pneumático articulado de baixo custo com quatro graus de liberdade, controlado por microcontrolador ESP32 para fins educacionais",
+     "orientador": "Ivandro José de Freitas Rocha",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "05701398137"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Sarah Quintanilha Alves",
+   "cpf": "71732486123",
+   "rg": "8281910",
+   "escola": "Colégio Couto Magalhães",
+   "email": "sarinhaquintanilha2@gmail.com",
+   "emailFamilia": "",
+   "telefone": "62996768485",
+   "cursoInteresse": "Medicina veterinária",
+   "responsavel": {
+    "nome": "Fábio Roberto Alves",
+    "cpf": "77964780115"
+   },
+   "banco": "Banco do Brasil",
+   "agencia": "0668-8",
+   "conta": "54.263-6",
+   "pix": "sarinhaquintanilha2@gmail.com",
+   "bolsa": "cnpq",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-16",
+     "numero": "IC-2025-016",
+     "titulo": "Aspectos de bem-estar na cadeia produtiva de equinos",
+     "orientador": "Naílla Crystine de Carvalho Dias",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "71732486123"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Isadora Eloá Barbosa Rocha",
+   "cpf": "70623950138",
+   "rg": "6571425",
+   "escola": "CEPMG José Carrilho",
+   "email": "cepmgisadoraeloa@gmail.com",
+   "emailFamilia": "",
+   "telefone": "62985208004",
+   "cursoInteresse": "Medicina veterinária",
+   "responsavel": {
+    "nome": "Ana Márcia Barbosa",
+    "cpf": "95120416187"
+   },
+   "banco": "Banco Brasil",
+   "agencia": "06688",
+   "conta": "542717",
+   "pix": "70623950138",
+   "bolsa": "cnpq",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-16",
+     "numero": "IC-2025-016",
+     "titulo": "Aspectos de bem-estar na cadeia produtiva de equinos",
+     "orientador": "Naílla Crystine de Carvalho Dias",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "70623950138"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Isabela Marques de Faria",
+   "cpf": "71142130185",
+   "rg": "7499026",
+   "escola": "CEPMG José Carrilho",
+   "email": "isabelaamrqs@gmail.com",
+   "emailFamilia": "",
+   "telefone": "62984531882",
+   "cursoInteresse": "Medicina veterinária",
+   "responsavel": {
+    "nome": "Thaiza Paula Marques Vieira",
+    "cpf": "03726530142"
+   },
+   "banco": "C6 Yellow",
+   "agencia": "0001",
+   "conta": "29258543-8",
+   "pix": "5562984531882",
+   "bolsa": "uniego",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-16",
+     "numero": "IC-2025-016",
+     "titulo": "Aspectos de bem-estar na cadeia produtiva de equinos",
+     "orientador": "Naílla Crystine de Carvalho Dias",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "71142130185"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Pamella Carvalho",
+   "cpf": "71180078110",
+   "rg": "8245728 SSP GO",
+   "escola": "Colégio Couto Magalhães",
+   "email": "carvalhoopamellaa@gmail.com",
+   "emailFamilia": "",
+   "telefone": "62985440670",
+   "cursoInteresse": "Medicina veterinária",
+   "responsavel": {
+    "nome": "Jose Roberto da Silva Júnior",
+    "cpf": "04515016164"
+   },
+   "banco": "Banco do Brasil",
+   "agencia": "06688",
+   "conta": "54278-4",
+   "pix": "71180078110",
+   "bolsa": "cnpq",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-16",
+     "numero": "IC-2025-016",
+     "titulo": "Aspectos de bem-estar na cadeia produtiva de equinos",
+     "orientador": "Naílla Crystine de Carvalho Dias",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "71180078110"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Stefanny Guedes dos Santos",
+   "cpf": "71141824140",
+   "rg": "8258026 SSP",
+   "escola": "CEPMG José Carrilho",
+   "email": "stefannyguedes844@gmail.com",
+   "emailFamilia": "",
+   "telefone": "62984883121",
+   "cursoInteresse": "Odontologia",
+   "responsavel": {
+    "nome": "Maria Luiza dos Santos",
+    "cpf": "98567225515"
+   },
+   "banco": "Banco do Brasil",
+   "agencia": "0668-8",
+   "conta": "54.266-0",
+   "pix": "62 984883121",
+   "bolsa": "cnpq",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-13",
+     "numero": "IC-2025-013",
+     "titulo": "O impacto na saúde bucal em dependentes de substâncias psicoativas em processo de reabilitação em uma comunidade terapêutica em Uruaçu, Goiás",
+     "orientador": "José Mateus dos Santos Junior",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "71141824140"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Elisa Costa Camargo",
+   "cpf": "09119806108",
+   "rg": "7500733 SSP-GO",
+   "escola": "Colégio Couto Magalhães",
+   "email": "elisacamargo1608@gmail.com",
+   "emailFamilia": "",
+   "telefone": "(62) 98170-0094",
+   "cursoInteresse": "Odontologia",
+   "responsavel": {
+    "nome": "Cláudia Carolina Costa Camargo",
+    "cpf": "04883706630"
+   },
+   "banco": "Banco do Brasil",
+   "agencia": "0668-8",
+   "conta": "54.264-4",
+   "pix": "09119806108",
+   "bolsa": "uniego",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-22",
+     "numero": "IC-2025-022",
+     "titulo": "Educação em saúde na terceira idade: um instrumento de transformação",
+     "orientador": "Camila Cardoso",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "09119806108"
+   }
+  },
+  {
+   "turma": "2025/2026",
+   "nome": "Anna Gabrielly Ferreira",
+   "cpf": "08633055105",
+   "rg": "7691470 SSPP",
+   "escola": "CEPMG José Carrilho",
+   "email": "annag9276@gmail.com",
+   "emailFamilia": "leilianemndes@gmail.com",
+   "telefone": "62985801977",
+   "cursoInteresse": "Psicologia",
+   "responsavel": {
+    "nome": "Leiliane Cristina Mendes Ferreira",
+    "cpf": "01499318162"
+   },
+   "banco": "Nubank",
+   "agencia": "Nubank",
+   "conta": "Nubank",
+   "pix": "Nubank",
+   "bolsa": "uniego",
+   "situacao": "concluido",
+   "trajetoria": [
+    {
+     "origemLote": "edital-01-2025",
+     "origemId": "res-2025-23",
+     "numero": "IC-2025-023",
+     "titulo": "Projeto de extensão — orientação vocacional, desenvolvimento juvenil e saúde mental",
+     "orientador": "Samuel Pinheiro Almeida",
+     "de": "2025-09-01",
+     "ate": "2026-08-31"
+    }
+   ],
+   "origem": {
+    "lote": "em-2025",
+    "id": "08633055105"
+   }
+  }
+ ],
+ "edital": "02/2025"
+}

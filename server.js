@@ -37,6 +37,10 @@ import {
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import {
+  TURMAS_EM, BOLSAS_EM, bolsaEmDe, turmaDe as turmaEmDe, turmaVigente as turmaEmVigente,
+  normalizarBolsistaEM, trocarProjeto, anotarEM, cotasDaTurma, projetoAtual as projetoAtualEM,
+} from "./lib/em.js";
+import {
   duplicidadesPorNome, podeFundir, fundirPerfil, fundirProjeto, fundirAcao, fundirAta, fundirPapeis,
 } from "./lib/fusao.js";
 import { certificadosDe, destinatariosDoCiclo, certificavel } from "./lib/certificados.js";
@@ -3075,6 +3079,184 @@ app.get("/api/ic/termo.pdf", async (req, res) => {
   }
 });
 
+
+/* ---------------------- ICEM — Iniciação Científica EM -------------------
+   OUTRO programa de bolsas, com outra lógica: o bolsista do Ensino Médio
+   ACOMPANHA projetos de pesquisa (e pode trocar ao longo do ano), não
+   pertence a eles. Quem conduz é a coordenação de pesquisa — a indicação é
+   da PROPPEX, o aluno escolhe o projeto e o curso. Tudo aqui é da GESTÃO:
+   bolsista de EM é menor de idade e não tem conta no portal.
+   Chave interna própria (ic-em-v1): fora do /api/estado, como o resto. */
+const EM_KEY = "ic-em-v1";
+async function lerBolsistasEM() {
+  const raw = await storage.get(EM_KEY);
+  return raw ? JSON.parse(raw) : [];
+}
+let filaEM = Promise.resolve();
+function comBolsistasEM(fn) {
+  const proxima = filaEM.then(async () => {
+    const lista = await lerBolsistasEM();
+    const r = await fn(lista);
+    if (r?.gravar !== false) {
+      await storage.set(EM_KEY, JSON.stringify(lista));
+      await storage.flush?.();
+    }
+    return r;
+  });
+  filaEM = proxima.catch(() => {});
+  return proxima;
+}
+
+app.get("/api/ic/em", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "O ICEM é conduzido pela coordenação de pesquisa." });
+  const bolsistas = await lerBolsistasEM();
+  res.json({
+    bolsistas, turmas: TURMAS_EM, bolsas: BOLSAS_EM,
+    cotas: Object.fromEntries(TURMAS_EM.map((t) => [t.ciclo, cotasDaTurma(bolsistas, t.ciclo)])),
+  });
+});
+
+/* Cria ou edita um bolsista — o cadastro é digitado pela gestão (o termo e
+   o formulário são a fonte; menor de idade não preenche o próprio portal). */
+app.post("/api/ic/em", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "O ICEM é conduzido pela coordenação de pesquisa." });
+  const b = req.body || {};
+  const r = await comBolsistasEM((lista) => {
+    const i = b.id ? lista.findIndex((x) => x.id === b.id) : -1;
+    if (b.id && i < 0) return { erro: [404, "Bolsista não encontrado"], gravar: false };
+    const base = i >= 0 ? lista[i] : null;
+    let novo = normalizarBolsistaEM(b, { base });
+    if (!novo.id) novo.id = "em_" + crypto.randomUUID().slice(0, 12);
+    if (!novo.nome) return { erro: [400, "Informe o nome do bolsista"], gravar: false };
+    // trajetória e histórico não passam pelo formulário: têm rotas próprias
+    if (base) { novo.trajetoria = base.trajetoria; novo.historico = base.historico; }
+    novo = anotarEM(novo, { quem: u.email, oQue: base ? "editou o cadastro" : "incluiu o bolsista" });
+    if (i >= 0) lista[i] = novo; else lista.push(novo);
+    return { bolsista: novo };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, bolsista: r.bolsista });
+});
+
+/* A troca de projeto: fecha o trecho aberto e abre o novo. `projetoId`
+   vazio só encerra (o aluno saiu de um projeto e ainda não escolheu outro). */
+app.post("/api/ic/em/:id/projeto", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "A troca de projeto é feita pela coordenação." });
+  const alvoId = String(req.body?.projetoId || "").trim();
+  let alvo = null;
+  if (alvoId) {
+    alvo = (await lerProjetos()).find((p) => p.id === alvoId);
+    if (!alvo) return res.status(404).json({ error: "Projeto não encontrado" });
+  }
+  const r = await comBolsistasEM((lista) => {
+    const i = lista.findIndex((x) => x.id === req.params.id);
+    if (i < 0) return { erro: [404, "Bolsista não encontrado"], gravar: false };
+    let b = trocarProjeto(lista[i], alvo ? {
+      projetoId: alvo.id, numero: alvo.numero, titulo: alvo.titulo,
+      orientador: alvo.orientador?.nome || "",
+    } : null);
+    b = anotarEM(b, { quem: u.email, oQue: alvo
+      ? `passou a acompanhar ${alvo.numero || alvo.titulo}`
+      : "encerrou o acompanhamento atual" });
+    lista[i] = b;
+    return { bolsista: b };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, bolsista: r.bolsista });
+});
+
+/* A bolsa (12 CNPq + 12 UNIEGO por turma): a cota trava a atribuição além
+   do teto — remanejar é tirar de um para dar a outro, como na graduação. */
+app.post("/api/ic/em/:id/bolsa", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "A bolsa é atribuída pela coordenação." });
+  const bolsa = String(req.body?.bolsa || "").trim();
+  if (bolsa && !bolsaEmDe(bolsa)) return res.status(400).json({ error: "Tipo de bolsa desconhecido" });
+  const r = await comBolsistasEM((lista) => {
+    const i = lista.findIndex((x) => x.id === req.params.id);
+    if (i < 0) return { erro: [404, "Bolsista não encontrado"], gravar: false };
+    if (bolsa) {
+      const tipo = bolsaEmDe(bolsa);
+      const usadas = lista.filter((x) => x.turma === lista[i].turma && x.id !== lista[i].id
+        && x.situacao !== "desligado" && x.bolsa === bolsa).length;
+      if (tipo.cota != null && usadas >= tipo.cota) {
+        return { erro: [400, `A cota de ${tipo.nome} (${tipo.cota}) está completa — desfaça uma atribuição para remanejar.`], gravar: false };
+      }
+    }
+    lista[i] = anotarEM({ ...lista[i], bolsa }, { quem: u.email,
+      oQue: bolsa ? `atribuiu ${bolsaEmDe(bolsa).nome}` : "desfez a bolsa" });
+    return { bolsista: lista[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, bolsista: r.bolsista });
+});
+
+/* O relatório simplificado (um por turma) e o CONINT: registro da gestão. */
+app.post("/api/ic/em/:id/relatorio", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "Registro da coordenação." });
+  const situacao = req.body?.situacao === "entregue" ? "entregue" : "pendente";
+  const r = await comBolsistasEM((lista) => {
+    const i = lista.findIndex((x) => x.id === req.params.id);
+    if (i < 0) return { erro: [404, "Bolsista não encontrado"], gravar: false };
+    lista[i] = anotarEM({ ...lista[i], relatorio: {
+      situacao, em: situacao === "entregue" ? new Date().toISOString() : "",
+      obs: String(req.body?.obs || "").trim().slice(0, 500),
+    } }, { quem: u.email, oQue: situacao === "entregue" ? "registrou a entrega do relatório simplificado" : "reabriu o relatório simplificado" });
+    return { bolsista: lista[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, bolsista: r.bolsista });
+});
+
+app.post("/api/ic/em/:id/conint", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "Registro da coordenação." });
+  const participou = req.body?.participou === true;
+  const r = await comBolsistasEM((lista) => {
+    const i = lista.findIndex((x) => x.id === req.params.id);
+    if (i < 0) return { erro: [404, "Bolsista não encontrado"], gravar: false };
+    lista[i] = anotarEM({ ...lista[i], conint: { participou, ano: String(req.body?.ano || "").trim().slice(0, 10) } },
+      { quem: u.email, oQue: participou ? "registrou a participação no CONINT" : "desfez o registro do CONINT" });
+    return { bolsista: lista[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, bolsista: r.bolsista });
+});
+
+/* Os termos de compromisso da turma, com o Anexo 01 (autorização do
+   responsável) na página seguinte de cada um. */
+app.get("/api/ic/em/termos.pdf", async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    if (!gereIC(u)) return res.status(403).send("Os termos do ICEM são emitidos pela coordenação.");
+    const turma = turmaEmDe(String(req.query.turma || "")) || turmaEmVigente();
+    const bolsistas = (await lerBolsistasEM())
+      .filter((b) => b.turma === turma.ciclo && b.situacao !== "desligado")
+      .sort((a, b) => (a.colocacao ?? 999) - (b.colocacao ?? 999) || a.nome.localeCompare(b.nome, "pt-BR"));
+    const { gerarTermosEMPdf } = await import("./lib/pdf.js");
+    const buffer = await gerarTermosEMPdf({
+      turma, bolsistas, assinaturas: await assinaturasParaPdf(), emitidoPor: u.nome || u.email,
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="termos-icem-${slug(turma.ciclo)}.pdf"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro nos termos do ICEM:", e);
+    res.status(500).send("Erro ao gerar os termos: " + e.message);
+  }
+});
+
 app.get("/api/ic/:id", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
@@ -4010,6 +4192,46 @@ async function removerAlunosEnsinoMedio() {
 }
 
 /**
+ * As turmas do ICEM sobem no arranque, uma vez cada (marca sys-* por
+ * arquivo). A trajetória dos bolsistas vem apontando origem.lote/origem.id
+ * do projeto acompanhado — o id real é de cada ambiente e resolve-se aqui.
+ * Reimportar não duplica: o bolsista casa por origem.id do próprio lote.
+ */
+const TURMAS_EM_LOTES = ["em-2025-turma", "em-2026-turma"];
+async function subirTurmasEM() {
+  for (const nome of TURMAS_EM_LOTES) {
+    const marca = `sys-ic-${nome}`;
+    try {
+      if (await storage.get(marca)) continue;
+      const arq = JSON.parse(
+        await readFile(path.join(__dirname, "dados", `ic-${nome}.json`), "utf8"));
+      const projetos = await lerProjetos();
+      const r = await comBolsistasEM((lista) => {
+        let novos = 0;
+        for (const b of arq.bolsistas || []) {
+          if (b.origem?.id && lista.some((x) => x.origem?.lote === b.origem.lote && x.origem?.id === b.origem.id)) continue;
+          const trajetoria = (b.trajetoria || []).map((e) => {
+            const p = e.projetoId ? { id: e.projetoId }
+              : projetos.find((x) => x.origem?.lote === e.origemLote && String(x.origem?.id) === String(e.origemId));
+            return p ? { projetoId: p.id, numero: e.numero, titulo: e.titulo,
+              orientador: e.orientador, de: e.de, ate: e.ate } : null;
+          }).filter(Boolean);
+          const novo = normalizarBolsistaEM({ ...b, trajetoria });
+          novo.id = "em_" + crypto.randomUUID().slice(0, 12);
+          lista.push(novo);
+          novos++;
+        }
+        return { novos, gravar: novos > 0 };
+      });
+      await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), ...r }));
+      console.log(`ARCHÉ IC · ICEM: ${r.novos} bolsista(s) da turma ${arq.turma} importado(s)`);
+    } catch (e) {
+      console.error(`Falha ao subir a turma ${nome} do ICEM:`, e.message);
+    }
+  }
+}
+
+/**
  * O CPF do professor se espalha pelos ciclos antigos. Os históricos foram
  * transcritos dos resultados publicados, onde a pessoa aparece só pelo
  * nome; o ciclo corrente veio do formulário, com CPF. Como é a mesma
@@ -4750,7 +4972,7 @@ app.listen(port, () => {
     for (const etapa of [
       subirLotesIniciais, aplicarAnexosIniciais, zerarAlunosIniciais,
       enquadrarCronogramasIniciais, subirArquivoHistorico, subirAlunosHistoricos,
-      removerAlunosEnsinoMedio,
+      removerAlunosEnsinoMedio, subirTurmasEM,
       propagarCpfOrientadores, identidadeInstitucionalDoProReitor, criarPreCadastros,
       aplicarAvaliacoesTranscritas,
     ]) {
