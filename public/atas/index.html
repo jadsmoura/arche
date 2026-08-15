@@ -1089,6 +1089,8 @@ function renderEditor(alvo) {
       <div class="exp">
         <button class="bt bt-sec" ${ro} onclick="addParticipante()">＋ Adicionar participante</button>
         <button class="bt bt-ghost" ${ro} onclick="colarParticipantes()">📋 Colar lista de nomes</button>
+        <button class="bt bt-ghost" ${ro} onclick="trazerDaUltimaAta()"
+          title="Copia os nomes da última sessão deste órgão — a presença você confere aqui">👥 Trazer os presentes da última sessão</button>
       </div>
       <div class="cnt" id="quorum"></div>
     </div>
@@ -1428,6 +1430,29 @@ function addParticipante() {
   const campos = $("tb-part").querySelectorAll("input");
   campos[campos.length - 4]?.focus();
 }
+/* Traz a composição da sessão anterior deste órgão. Não é cadastro fixo —
+   é cópia editável, e a presença de cada um volta a "presente" para ser
+   conferida na hora. Quem já está na lista não entra de novo. */
+async function trazerDaUltimaAta() {
+  if (!ATUAL.orgao) return aviso("Escolha o órgão antes de trazer a composição.", "warn");
+  try {
+    const r = await fetch(`/api/atas/ultimos-participantes?orgao=${encodeURIComponent(ATUAL.orgao)}`
+      + `&curso=${encodeURIComponent(ATUAL.curso || "")}`);
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Falha ao buscar");
+    if (!j.participantes.length) return aviso("Não há sessão anterior deste órgão com participantes registrados.", "warn");
+    const jaTem = new Set(ATUAL.participantes.map((p) => (p.nome || "").trim().toLowerCase()).filter(Boolean));
+    let n = 0;
+    for (const p of j.participantes) {
+      if (jaTem.has((p.nome || "").trim().toLowerCase())) continue;
+      ATUAL.participantes.push(p); n++;
+    }
+    renderParticipantes();
+    aviso(n ? `${n} nome(s) trazido(s) da sessão de ${fmtD(j.de?.data)}${j.de?.numero ? ` (${j.de.numero})` : ""}. `
+      + "Confira quem esteve presente." : "Todos os nomes da sessão anterior já estavam na lista.");
+  } catch (e) { aviso(e.message, "err"); }
+}
+
 function colarParticipantes() {
   const txt = prompt("Cole os nomes, um por linha (opcionalmente “Nome; cargo; e-mail”):");
   if (!txt) return;

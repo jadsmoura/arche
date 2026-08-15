@@ -497,9 +497,15 @@ app.get("/api/alertas", async (req, res) => {
     }
 
     if (u.modulos.includes("atas")) {
-      const deAtas = gerarAlertas(await lerAtas());
+      const atas = await lerAtas();
+      const deAtas = gerarAlertas(atas);
       if (deAtas.length) alertas.push({ setor: "Atas", n: deAtas.length, link: "/atas/",
         texto: `${deAtas.length} órgão(s) fora de dia com o registro de atas` });
+      // decisão tomada em ata com prazo vencido é o que mais se perde de vista
+      const vencidos = encaminhamentos(atas).filter((e) => e.atrasado);
+      if (vencidos.length) alertas.push({ setor: "Atas", n: vencidos.length, link: "/atas/",
+        texto: `${vencidos.length} encaminhamento(s) com prazo vencido`,
+        detalhe: vencidos.slice(0, 3).map((e) => `${e.orgao}: ${e.acao}`.slice(0, 70)).join(" · ") });
     }
 
     res.json({ alertas, total: alertas.reduce((s, a) => s + (a.n || 1), 0) });
@@ -1467,6 +1473,36 @@ app.get("/api/atas/alertas", async (req, res) => {
   const atas = await lerAtas();
   const alertas = gerarAlertas(atas);
   res.json({ alertas, resumo: resumoAlertas(alertas), responsaveis: porResponsavel(alertas) });
+});
+
+/**
+ * Os presentes da ÚLTIMA sessão do mesmo órgão — para não redigitar a mesma
+ * lista toda reunião. Não é cadastro fixo de composição (decisão do dono:
+ * lista fixa emperra o processo): é uma cópia editável, e a presença de
+ * cada um volta a "presente" para ser conferida na hora.
+ * Precisa vir antes de /api/atas/:id, senão viraria um id.
+ */
+app.get("/api/atas/ultimos-participantes", async (req, res) => {
+  const u = await sessaoAtas(req, res);
+  if (!u) return;
+  const orgao = String(req.query.orgao || "").trim();
+  const curso = String(req.query.curso || "").trim();
+  if (!orgao) return res.status(400).json({ error: "Informe o órgão" });
+  const atas = (await lerAtas())
+    .filter((a) => a.orgao === orgao && String(a.curso || "") === curso
+      && (a.participantes || []).length && podeVer(u, a))
+    .sort((a, b) => String(b.sessao?.data || "").localeCompare(String(a.sessao?.data || "")));
+  if (!atas.length) return res.json({ participantes: [], de: null });
+  const ref = atas[0];
+  res.json({
+    // só quem estava na mesa: nome, cargo, e-mail e condição. A presença é
+    // desta sessão, não da anterior — quem lavra confere um a um
+    participantes: (ref.participantes || []).map((p) => ({
+      nome: p.nome || "", cargo: p.cargo || "", email: p.email || "",
+      condicao: p.condicao || "membro", presenca: "presente",
+    })),
+    de: { numero: ref.numero || "", data: ref.sessao?.data || "" },
+  });
 });
 
 app.get("/api/atas/:id", async (req, res) => {
