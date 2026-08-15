@@ -187,6 +187,19 @@
   .tut li{margin-bottom:5px}
   .hide{display:none!important}
 
+  /* ---------------- devolutiva da seleção, colada ao projeto -------------- */
+  .proj-linha{margin-bottom:2px}
+  .proj-linha .item{margin-bottom:0}
+  .aval-rec{background:var(--info-soft);border:1px solid #cfe6f2;border-top:0;
+    border-radius:0 0 10px 10px;margin:-2px 0 12px;padding:0 14px}
+  .aval-rec summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--info);padding:9px 0}
+  .aval-rec summary:hover{color:var(--brand-2)}
+  .aval-rec[open] summary{border-bottom:1px solid #cfe6f2;margin-bottom:10px}
+  .aval-rec .aval-item{padding-bottom:10px;font-size:13px;color:var(--ink-soft)}
+  .aval-rec .aval-item + .aval-item{border-top:1px dashed #cfe6f2;padding-top:12px}
+  .aval-rec .aval-t{font-family:Sora,sans-serif;font-weight:700;font-size:12.5px;color:var(--brand)}
+  .aval-rec table{font-size:12.5px}
+
   /* --------------------------- ver como (picker) ------------------------- */
   /* A lista de pessoas do setor cresce a cada edital: numa caixa de seleção
      única viravam dezenas de linhas para rolar. Vira um botão que abre uma
@@ -1096,7 +1109,7 @@ function renderGestao() {
     <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">${lista.length} projeto(s)${
       (() => { const n = lista.filter((p) => p.grupoPesquisa).length;
         return n ? ` · ${n} vinculado(s) a grupo de pesquisa` : ""; })()}</div>
-    ${lista.map((p) => `
+    ${lista.map((p) => `<div class="proj-linha">
       <div class="item" onclick="abrir('${esc(p.id)}')">
         <div style="flex:1;min-width:0">
           <div class="nm">${esc(p.titulo || "(sem título)")}</div>
@@ -1113,7 +1126,39 @@ function renderGestao() {
         ${p.aValidar ? `<span class="badge b-enviado">${p.aValidar} a validar</span>` : ""}
         ${p.atrasadas ? `<span class="badge b-atrasada">${p.atrasadas} atrasada(s)</span>` : ""}
         ${chip(p.status)}
-      </div>`).join("") || `<div class="card"><div class="vazio">Nenhum projeto com esses filtros.</div></div>`}`;
+      </div>
+      ${blocoAvaliacaoRecebida(p)}
+    </div>`).join("") || `<div class="card"><div class="vazio">Nenhum projeto com esses filtros.</div></div>`}`;
+}
+
+/* A devolutiva da seleção, para quem submeteu (decisão do dono, ago/2026).
+   Fica colada ao projeto, recolhida: o professor abre quando quiser. Traz o
+   QUE o parecer disse — critérios, recomendação e texto —, nunca QUEM o
+   escreveu: a avaliação é cega, e o anonimato protege o parecerista. */
+function blocoAvaliacaoRecebida(p) {
+  const av = p.avaliacaoRecebida;
+  if (!av || !av.pareceres?.length) return "";
+  const varios = av.pareceres.length > 1;
+  return `<details class="aval-rec">
+    <summary>Avaliação recebida${av.nota != null ? ` — nota do projeto <b>${av.nota}</b>` : ""}${
+      varios ? ` · ${av.pareceres.length} pareceres` : ""}</summary>
+    ${av.pareceres.map((x, i) => `<div class="aval-item">
+      ${varios ? `<div class="aval-t">Parecer ${i + 1}</div>` : ""}
+      <table class="pt" style="margin:6px 0 8px">
+        <tbody>
+          ${(META.criterios || []).map((c) => `<tr><td>${esc(c.nome)}</td>
+            <td style="width:110px;text-align:right"><b>${x.notas?.[c.codigo] ?? "—"}</b>
+              <span class="muted">de ${c.peso}</span></td></tr>`).join("")}
+          <tr><td><b>Nota do projeto</b></td>
+            <td style="text-align:right"><b>${x.nota ?? "—"}</b> <span class="muted">de 100</span></td></tr>
+        </tbody>
+      </table>
+      ${x.recomendacao ? `<div style="margin-bottom:6px"><b>Recomendação:</b> ${esc(recNome(x.recomendacao))}</div>` : ""}
+      ${x.parecer ? `<div style="white-space:pre-wrap;line-height:1.6">${esc(x.parecer)}</div>` : ""}
+    </div>`).join("")}
+    <div class="muted" style="margin-top:10px">Quem avaliou não é identificado: a avaliação é cega.
+      A nota final do processo soma esta nota do projeto à pontuação do seu currículo.</div>
+  </details>`;
 }
 
 /* ------------------------- avaliação da seleção ------------------------ */

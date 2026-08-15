@@ -10,7 +10,7 @@ import {
   cronogramaDe, etapaAtrasada, relatoriosDe, relatoriosPendentes, resumir, anotar,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto,
   notaFinal, placarPareceres, participaDeAlgum, prazosRelatorios, pendenciasDoProjeto,
-  producaoDoOrientador, notaTranscrita, decidindoOProprio,
+  producaoDoOrientador, notaTranscrita, decidindoOProprio, avaliacaoRecebida,
 } from "../lib/ic.js";
 
 /* -------------------------------- fixtura ------------------------------- */
@@ -374,7 +374,10 @@ test("ver como outra pessoa é a visão dela, não uma versão enfeitada dela", 
   const comoOrientador = visaoDoProjeto(p, simulando(PROF));
   assert.deepEqual(comoOrientador, visaoDoProjeto(p, PROF), "idêntica à visão real da orientação");
   assert.equal(comoOrientador.avaliacoes, undefined, "a coordenação, simulando, também deixa de ver quem avaliou");
-  assert.ok(!JSON.stringify(comoOrientador).includes("sigiloso"));
+  // o QUE o parecer disse volta para quem submeteu (decisão do dono, ago/2026);
+  // QUEM o escreveu, nunca — a avaliação é cega
+  assert.match(JSON.stringify(comoOrientador.avaliacaoRecebida), /sigiloso/, "a devolutiva chega à orientação");
+  assert.ok(!JSON.stringify(comoOrientador).includes(AD2.email), "sem o e-mail de quem avaliou");
 
   const comoAvaliador = visaoDoProjeto(p, simulando(AD1));
   assert.deepEqual(comoAvaliador, visaoDoProjeto(p, AD1));
@@ -761,4 +764,40 @@ test("o CPF liga as contas: a pessoal também é 'proposta própria'", () => {
   // sem CPF gravado, a conta pessoal é gestão pura
   const semCpf = { email: "pessoal@gmail.com", cpf: "", gestao: true, gestorGeral: true };
   assert.equal(decidindoOProprio(semCpf, p), false);
+});
+
+/* ------- devolutiva da seleção para quem submeteu (ago/2026) -------------- */
+test("a orientação recebe as notas e o texto do parecer — sem saber de quem", () => {
+  const p = emSelecao([
+    { email: AD1.email, nome: "Parecerista Um", situacao: "entregue", recomendacao: "recomendado",
+      parecer: "Proposta bem delimitada.", notas: { merito: 18, objetivos: 9, fundamentacao: 8, metodologia: 17, viabilidade: 13, formacao: 12, redacao: 9 } },
+    { email: AD2.email, nome: "Parecerista Dois", situacao: "designado", parecer: "", notas: {} },
+  ]);
+  const visao = visaoDoProjeto(p, PROF);
+  const av = visao.avaliacaoRecebida;
+  assert.ok(av, "há devolutiva quando existe parecer entregue");
+  assert.equal(av.pareceres.length, 1, "parecer ainda não entregue não vaza");
+  assert.equal(av.pareceres[0].notas.merito, 18);
+  assert.match(av.pareceres[0].parecer, /bem delimitada/);
+  assert.equal(av.nota, 86);                       // 18+9+8+17+13+12+9
+  // nada que identifique quem avaliou
+  const cru = JSON.stringify(av);
+  for (const pista of [AD1.email, AD2.email, "Parecerista"]) {
+    assert.ok(!cru.includes(pista), `a devolutiva não pode conter "${pista}"`);
+  }
+});
+
+test("a nota transcrita também volta como devolutiva, e o aluno não a vê", () => {
+  const nt = notaTranscrita({
+    notas: { merito: 16, objetivos: 8, fundamentacao: 7, metodologia: 15, viabilidade: 12, formacao: 10, redacao: 8 },
+    recomendacao: "recomendado", parecer: "Tema relevante, recorte a aprimorar.",
+  }, { por: "avaliação do edital" });
+  const p = { ...emSelecao(), notaDireta: nt };
+  const daOrientacao = visaoDoProjeto(p, PROF).avaliacaoRecebida;
+  assert.equal(daOrientacao.nota, 76);
+  assert.match(daOrientacao.pareceres[0].parecer, /recorte a aprimorar/);
+  // o aluno entrou depois da seleção: a proposta é autoria da orientação
+  assert.equal(visaoDoProjeto(p, ALUNO).avaliacaoRecebida, undefined);
+  // e sem avaliação nenhuma não há quadro para abrir
+  assert.equal(avaliacaoRecebida(emSelecao()), null);
 });

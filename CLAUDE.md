@@ -496,12 +496,21 @@ public/
   aprovada. Vale só para `/pesquisa`; nos demais setores `pendente` continua barrado.
 - **Sigilo do parecer ad hoc** (`visaoDoProjeto` em `lib/ic.js`, aplicado no servidor
   em toda resposta que devolve projeto): a orientação e o aluno **nunca sabem quem
-  avaliou** — some a lista de avaliadores, os pareceres e as linhas de histórico
-  marcadas com `sigilo: true`; ficam só as contagens e a decisão da coordenação. O
+  avaliou** — some a lista de avaliadores e as linhas de histórico marcadas com
+  `sigilo: true`. O que é sigiloso é **QUEM avaliou, não o que o parecer disse**. O
   avaliador **não vê o parecer dos colegas** (ancoraria o julgamento), nem relatórios,
   nem histórico, e recebe a proposta **sem os nomes** da orientação e dos alunos. Quem
   participa do projeto não pode avaliá-lo. Parecer entregue não se apaga: é prova da
   seleção.
+- **Devolutiva da seleção** (`avaliacaoRecebida` em lib/ic.js; quadro recolhido sob cada
+  projeto na guia Gestão — decisão do dono, ago/2026): a **orientação** recebe as notas por
+  critério, a recomendação e o **texto do parecer** — sem devolutiva o professor não tem
+  como melhorar a próxima proposta. Vem anônima (avaliação cega: é o anonimato que protege
+  o parecerista) e reúne as duas origens sem distinguir por qual caminho a avaliação correu
+  — a nota transcrita de fora do sistema (`notaDireta`) e os pareceres entregues por aqui,
+  um item por parecerista. **Só a orientação**: o aluno entrou depois da seleção, e a
+  proposta é autoria de quem a submeteu. Parecer ainda não entregue não vaza, e sem nada
+  avaliado não há quadro.
 - **Acervo por autor** (`podeVerAta`/`podeEditarAta` em `lib/atas.js`): cada usuário só
   enxerga as atas que ele mesmo registrou. Constar como secretaria ou participante NÃO
   dá acesso — quem precisa de cópia recebe o PDF por e-mail no registro. Só a gestão
