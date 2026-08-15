@@ -840,6 +840,24 @@ test("a janela de contestação abre no preliminar e fecha em três dias", () =>
   assert.equal(comFinal.motivo, "resultado-final");
 });
 
+/* O registro de publicação nasceu sem `desde` — quem publicou antes desta
+   funcionalidade tem só `fase` e `em`. Sem a leitura de reserva, a janela
+   nunca abria para o edital que JÁ estava publicado, que é exatamente o
+   caso do 01/2026. */
+test("edital publicado antes de existir o prazo também abre a janela", () => {
+  const hoje = new Date().toISOString();
+  const antigo = { fase: "preliminar", em: hoje, por: "proppex@uniego.edu.br" };
+  const j = janelaContestacao(antigo);
+  assert.equal(j.aberta, true, "a data da publicação vale como início do prazo");
+  assert.ok(j.ate > hoje);
+  // e o registro antigo já em fase final continua fechando a janela
+  assert.equal(janelaContestacao({ fase: "final", em: hoje }).motivo, "resultado-final");
+  // o prazo conta da publicação, não de agora
+  const velho = { fase: "preliminar", em: new Date(Date.now() - 5 * 86400000).toISOString() };
+  assert.equal(janelaContestacao(velho).aberta, false);
+  assert.equal(janelaContestacao(velho).motivo, "prazo-encerrado");
+});
+
 test("contestar é da orientação, uma vez por projeto, e dentro do prazo", () => {
   const p = { ...emSelecao(), status: "aprovado" };
   const pub = publicadoEm(new Date().toISOString());
