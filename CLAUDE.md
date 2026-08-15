@@ -103,10 +103,20 @@ public/
 - Uploads e estado são organizados **por curso** no Google Drive — preservar os prefixos
   usados em server.js (`extensao/<curso>/…`, `dossie/<curso>/…`,
   `atas/<curso>/<órgão>/<ano>/` e `atas/institucional/<órgão>/<ano>/`).
-- Estado do app em chaves `/api/estado` (ex.: `extensao-acoes-v1`); chaves `auth-*`, `sys-*`,
-  `atas-*` e `ic-*` são internas e invisíveis pela API — quem guarda dado com recorte
-  por pessoa (atas, IC) precisa ficar fora do `/api/estado`, senão a lista inteira sai
-  por ali. Toda leitura/gravação passa por `/api/atas/*` e `/api/ic/*`.
+- Estado do app em chaves `/api/estado`; chaves `auth-*`, `sys-*`, `atas-*`, `ic-*` e
+  `ex-*` são internas e invisíveis pela API — quem guarda dado com recorte por pessoa
+  precisa ficar fora do `/api/estado`, senão a lista inteira sai por ali. Toda
+  leitura/gravação passa por `/api/atas/*`, `/api/ic/*` e `/api/extensao`.
+- **As ações de extensão saíram do `/api/estado`** (ago/2026): elas guardam CPF, telefone
+  e e-mail de participantes, e na chave pública qualquer conta aprovada baixava a base
+  inteira — exposição que cresceu quando o cadastro passou a ser aprovado sozinho. Agora
+  vivem em `ex-acoes-v1` (interna), com `GET /api/extensao` devolvendo só o que a pessoa
+  pode ver (professor: as suas, por `criadoPor` ou `proposta.respEmail`; gestão do módulo:
+  todas) e `POST /api/extensao` gravando **uma a uma, só as permitidas e sem apagar as
+  ausentes** — a lista do cliente é um recorte, e salvar não pode sumir com a ação alheia.
+  Número da ação, situação e apreciação são da gestão: no POST de quem não gere, esses
+  campos vêm do que está gravado. `migrarAcoesExtensao` move a base uma vez e esvazia a
+  chave antiga (deixá-la cheia manteria o vazamento).
 - No ARCHÉ AT o **curso é escolhido antes do órgão**: com curso entram NDE, Colegiado e
   "Outro órgão do curso"; sem curso, os conselhos superiores, pró-reitorias, CPA,
   comissões e "Outro órgão institucional". Os de nome livre (`nomeLivre`) exigem o nome

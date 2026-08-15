@@ -487,7 +487,7 @@ app.get("/api/alertas", async (req, res) => {
     }
 
     if (u.modulos.includes("extensao")) {
-      const acoes = JSON.parse((await storage.get("extensao-acoes-v1")) || "[]");
+      const acoes = await lerAcoes();
       const submetidas = acoes.filter((a) => a.status === "submetida").length;
       if (submetidas) alertas.push({ setor: "Extensão", n: submetidas, link: "/extensao/",
         texto: `${submetidas} proposta(s) aguardando aprovação` });
@@ -738,7 +738,7 @@ app.get("/api/usuarios/painel", async (req, res) => {
     const [usuarios, perfis, projetos, atas] = await Promise.all([
       carregarUsuarios(storage), carregarPerfis(), lerProjetos(), lerAtas(),
     ]);
-    const acoes = JSON.parse((await storage.get("extensao-acoes-v1")) || "[]");
+    const acoes = await lerAcoes();
     const novos = JSON.parse((await storage.get(CADASTROS_KEY)) || "[]");
 
     const conta = new Map();
@@ -882,7 +882,7 @@ function cursoFrom(req) {
 // Chaves internas do servidor: invisíveis e não graváveis pela API pública.
 // "auth-*" guarda sessão/usuários; "sys-*", registros operacionais (ex.: quais
 // ações já receberam cobrança de relatório).
-const CHAVES_INTERNAS = /^(auth-|sys-|atas-|ic-)/;
+const CHAVES_INTERNAS = /^(auth-|sys-|atas-|ic-|ex-)/;
 
 app.get("/api/estado", async (req, res) => {
   try {
@@ -1022,10 +1022,110 @@ app.post("/api/drive/upload-doc-institucional", upload.single("file"), async (re
 });
 
 /* ------------------------- EXTENSÃO: NOTIFICAÇÃO ------------------------ */
+/* ======================= ARCHÉ EX — ações de extensão ====================
+   As ações saíram do /api/estado (chave `ex-acoes-v1`, interna): elas
+   guardam CPF, telefone e e-mail de participantes, e ali qualquer conta
+   aprovada baixava a base inteira. Agora toda leitura e gravação passa por
+   estas rotas, com o mesmo recorte que atas e IC já usavam: o professor vê
+   e edita as SUAS ações; a gestão do módulo vê e edita todas.
+   ======================================================================== */
+const EX_KEY = "ex-acoes-v1";
+const EX_KEY_ANTIGA = "extensao-acoes-v1";
+
+async function lerAcoes() {
+  const raw = await storage.get(EX_KEY);
+  return raw ? JSON.parse(raw) : [];
+}
+// fila serializada: duas gravações simultâneas se perderiam uma à outra
+let filaEx = Promise.resolve();
+function comAcoes(fn) {
+  const proxima = filaEx.then(async () => {
+    const acoes = await lerAcoes();
+    const r = await fn(acoes);
+    if (r?.gravar !== false) {
+      await storage.set(EX_KEY, JSON.stringify(acoes));
+      await storage.flush?.();
+    }
+    return r;
+  });
+  filaEx = proxima.catch(() => {});
+  return proxima;
+}
+const gereEx = (u) => !!u?.modulos?.includes("extensao");
+// a ação é de quem a submeteu — pelo e-mail do responsável ou de quem criou
+const minhaAcao = (u, a) => {
+  const e = String(u?.email || "").toLowerCase();
+  return !!e && (String(a?.criadoPor || "").toLowerCase() === e
+    || String(a?.proposta?.respEmail || "").toLowerCase() === e);
+};
+const podeVerAcao = (u, a) => gereEx(u) || minhaAcao(u, a);
+
+async function sessaoEx(req, res) {
+  const u = await usuarioDe(req, res);
+  if (!u) { res.status(403).json({ error: "Faça login para acessar a Extensão" }); return null; }
+  if (u.papel === "pendente") {
+    res.status(403).json({ error: "Seu acesso ainda está pendente de aprovação da PROPPEX" });
+    return null;
+  }
+  return u;
+}
+
+/** A lista que a pessoa pode ver — nunca a base inteira. */
+app.get("/api/extensao", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const acoes = (await lerAcoes()).filter((a) => podeVerAcao(u, a));
+    res.json({ acoes, gestao: gereEx(u), eu: u.email });
+  } catch (e) {
+    console.error("Erro ao listar ações de extensão:", e);
+    res.status(500).json({ error: "Falha ao carregar as ações" });
+  }
+});
+
+/**
+ * Grava as ações que a pessoa mandou — uma a uma, e só as que ela pode
+ * editar. Nunca apaga o que não veio no corpo: a lista do cliente já é um
+ * recorte, e um "salvar" do professor não pode sumir com as ações alheias.
+ */
+app.post("/api/extensao", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const entrada = Array.isArray(req.body?.acoes) ? req.body.acoes : [];
+    if (!entrada.length) return res.status(400).json({ error: "Nada a gravar" });
+    const r = await comAcoes((acoes) => {
+      let gravadas = 0, recusadas = 0;
+      for (const nova of entrada) {
+        if (!nova?.id) { recusadas++; continue; }
+        const i = acoes.findIndex((x) => x.id === nova.id);
+        const base = i >= 0 ? acoes[i] : null;
+        // ação nova: quem submete é o dono. Ação existente: só o dono ou a gestão
+        if (base ? !podeVerAcao(u, base) : !minhaAcao(u, nova)) { recusadas++; continue; }
+        // o número da ação e a situação são decisão da gestão, não do formulário
+        const controlado = base && !gereEx(u)
+          ? { numeroAcao: base.numeroAcao, status: base.status, apreciacao: base.apreciacao,
+              criadoPor: base.criadoPor, criadoEm: base.criadoEm }
+          : {};
+        const final = { ...nova, ...controlado, atualizadoEm: new Date().toISOString() };
+        if (i >= 0) acoes[i] = final; else acoes.push(final);
+        gravadas++;
+      }
+      return { gravadas, recusadas, gravar: gravadas > 0 };
+    });
+    if (r.recusadas) console.warn(`[extensao] ${r.recusadas} ação(ões) recusada(s) de ${u.email}`);
+    const acoes = (await lerAcoes()).filter((a) => podeVerAcao(u, a));
+    res.json({ ok: true, ...r, acoes });
+  } catch (e) {
+    console.error("Erro ao gravar ação de extensão:", e);
+    res.status(500).json({ error: "Falha ao gravar" });
+  }
+});
+
 app.post("/api/extensao/notificar", async (req, res) => {
   try {
     const { id } = req.body || {};
-    const raw = await storage.get("extensao-acoes-v1");
+    const raw = await storage.get(EX_KEY);
     const acoes = raw ? JSON.parse(raw) : [];
     const acao = acoes.find((a) => a.id === id);
     if (!acao) return res.status(404).json({ error: "Ação não encontrada" });
@@ -1082,7 +1182,7 @@ app.post("/api/extensao/anexo", upload.single("file"), async (req, res) => {
       return res.status(403).json({ error: "Faça login para anexar arquivos" });
     if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
     const id = String(req.body.id || "");
-    const raw = await storage.get("extensao-acoes-v1");
+    const raw = await storage.get(EX_KEY);
     const acoes = raw ? JSON.parse(raw) : [];
     const acao = acoes.find((a) => a.id === id);
     if (!acao) return res.status(404).json({ error: "Ação não encontrada" });
@@ -1097,7 +1197,7 @@ app.post("/api/extensao/anexo", upload.single("file"), async (req, res) => {
     acao.portfolio = acao.portfolio || {};
     acao.portfolio.anexos = [...(acao.portfolio.anexos || []), anexo];
     acao.atualizadoEm = new Date().toISOString();
-    await storage.set("extensao-acoes-v1", JSON.stringify(acoes));
+    await storage.set(EX_KEY, JSON.stringify(acoes));
     res.json({ ok: true, anexo, anexos: acao.portfolio.anexos });
   } catch (error) {
     console.error("Erro no anexo do portfólio:", error);
@@ -1154,7 +1254,7 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
   try {
     if (!(await exigirGestao(req, res, "extensao"))) return;
     const { tipo, id } = req.params;
-    const raw = await storage.get("extensao-acoes-v1");
+    const raw = await storage.get(EX_KEY);
     const acoes = raw ? JSON.parse(raw) : [];
     const acao = acoes.find((a) => a.id === id);
     if (!acao) return res.status(404).send("Ação não encontrada");
@@ -2597,6 +2697,29 @@ async function zerarAlunosIniciais() {
   await storage.flush?.();
 }
 
+/**
+ * As ações de extensão saem da chave pública para a interna, uma vez só
+ * (marca sys-*). A chave antiga é ESVAZIADA depois da cópia: deixá-la com
+ * o conteúdo manteria a base aberta pelo /api/estado, que é justamente o
+ * que esta mudança fecha.
+ */
+async function migrarAcoesExtensao() {
+  const marca = "sys-ex-acoes-migradas-v1";
+  try {
+    if (await storage.get(marca)) return;
+    const antigo = await storage.get(EX_KEY_ANTIGA);
+    const jaTem = await storage.get(EX_KEY);
+    const acoes = antigo ? JSON.parse(antigo) : [];
+    if (acoes.length && !jaTem) await storage.set(EX_KEY, JSON.stringify(acoes));
+    if (antigo) await storage.set(EX_KEY_ANTIGA, "[]");
+    await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), acoes: acoes.length }));
+    await storage.flush?.();
+    console.log(`ARCHÉ EX · ${acoes.length} ação(ões) movida(s) para a chave interna`);
+  } catch (e) {
+    console.error("Falha ao migrar as ações de extensão:", e.message);
+  }
+}
+
 async function subirLotesIniciais() {
   for (const nome of LOTES_INICIAIS) {
     const marca = `sys-ic-lote-${nome}`;
@@ -3091,6 +3214,7 @@ app.listen(port, () => {
   // deles (e só depois: num arranque limpo os projetos precisam existir
   // primeiro), os anexos dos formulários — cronogramas e planilhas de
   // produção — são ligados a cada projeto.
+  migrarAcoesExtensao();
   subirLotesIniciais().then(aplicarAnexosIniciais).then(zerarAlunosIniciais).then(enquadrarCronogramasIniciais).then(subirArquivoHistorico);
   // Cobrança do relatório final: varre ao acordar e de hora em hora enquanto
   // o processo estiver vivo. O tráfego do portal também dispara (com throttle),

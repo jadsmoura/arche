@@ -307,7 +307,9 @@
 const CURSOS = ["Administração","Agronomia","Ciências Contábeis","Direito","Educação Física",
   "Enfermagem","Engenharia Civil","Engenharia de Software","Engenharia Mecânica",
   "Medicina Veterinária","Odontologia","Psicologia","Institucional / PROPPEX"];
-const KEY = "extensao-acoes-v1", KEYCFG = "extensao-config-v1";
+// as ações vêm de /api/extensao (recorte por pessoa); só a configuração
+// do setor continua no estado comum
+const KEYCFG = "extensao-config-v1";
 // GESTAO = o que a conta realmente é. PROPPEX = o que a tela está mostrando.
 // A PROPPEX pode assistir ao sistema como um professor veria — útil para
 // orientar docentes sem precisar de outra conta. É apenas uma visão: as
@@ -327,8 +329,13 @@ async function stSet(chave, valor){
   if(!r.ok) throw new Error("Falha ao salvar");
 }
 async function carregar(){
-  const v = await stGet(KEY);
-  ACOES = v?JSON.parse(v):[];
+  // As ações NÃO passam mais pelo /api/estado: elas guardam CPF e contato de
+  // participantes, e ali qualquer conta aprovada baixava a base inteira. O
+  // recorte agora é do servidor — o professor recebe as suas, a gestão todas.
+  const r = await fetch("/api/extensao");
+  if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error || "Falha ao carregar as ações");
+  const j = await r.json();
+  ACOES = j.acoes || [];
   // normaliza registros antigos/importados: sem isso, uma ação sem o bloco de
   // participantes quebra a tela de detalhe ao renderizar as listas
   for(const a of ACOES){
@@ -338,7 +345,16 @@ async function carregar(){
     p.inscritos = p.inscritos || []; p.palestrantes = p.palestrantes || []; p.comissao = p.comissao || [];
   }
 }
-async function salvar(){ await stSet(KEY, JSON.stringify(ACOES)); }
+/* Grava as ações que esta tela conhece. O servidor aceita uma a uma, só as
+   que a pessoa pode editar, e não apaga o que não veio no corpo — a lista
+   daqui é um recorte, e salvar não pode sumir com a ação de outro. */
+async function salvar(){
+  const r = await fetch("/api/extensao",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({acoes:ACOES})});
+  if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error || "Falha ao salvar");
+  const j = await r.json();
+  if(Array.isArray(j.acoes)) ACOES = j.acoes;
+}
 
 const $ = (id)=>document.getElementById(id);
 const esc = (s)=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
