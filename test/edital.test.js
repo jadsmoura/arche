@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   EDITAL, LINHAS, MODALIDADES, GRUPOS_PESQUISA, FOMENTOS, BLOCOS_PRODUCAO, ITENS_PRODUCAO,
-  PONTUACAO_MAXIMA, modalidadeDe, modalidadePor, modalidadeVigente, modalidadesDaLinha,
+  modalidadeDe, modalidadePor, modalidadeVigente, modalidadesDaLinha,
   normalizarTitulacao, titulacaoAtende, pontuarProducao, normalizarProducao, notaClassificacao,
   gruposConhecidos, normalizarGrupo, CRITERIOS_AVALIACAO, NOTA_MAXIMA_PROJETO, classificarProjetos,
 } from "../lib/edital.js";
@@ -60,34 +60,39 @@ test("cada modalidade cobra a titulação mínima do item 4.4", () => {
 });
 
 /* -------------------------- pontuação da produção ------------------------ */
-test("a planilha replica os pesos e os tetos da oficial", () => {
-  assert.equal(PONTUACAO_MAXIMA, 100);
-  assert.deepEqual(BLOCOS_PRODUCAO.map((b) => b.teto), [30, 60, 10]);
-  assert.equal(ITENS_PRODUCAO.length, 28);
-  assert.equal(new Set(ITENS_PRODUCAO.map((i) => i.codigo)).size, 28, "códigos não se repetem");
+test("a planilha replica os pesos da oficial e cobre a escala Qualis inteira", () => {
+  assert.equal(ITENS_PRODUCAO.length, 30);
+  assert.equal(new Set(ITENS_PRODUCAO.map((i) => i.codigo)).size, 30, "códigos não se repetem");
   assert.equal(ITENS_PRODUCAO.find((i) => i.codigo === "art-a1").peso, 4);
   assert.equal(ITENS_PRODUCAO.find((i) => i.codigo === "or-dout-conc").peso, 2.5);
   assert.equal(ITENS_PRODUCAO.find((i) => i.codigo === "banca-grad").peso, 0.2);
+  // A3 e A4 entraram depois, ENTRE os vizinhos já publicados: os pesos de
+  // A2 e B1 não podem ter mudado, senão o CL já apurado mudaria junto
+  const peso = (c) => ITENS_PRODUCAO.find((i) => i.codigo === c).peso;
+  assert.ok(peso("art-a2") > peso("art-a3") && peso("art-a3") > peso("art-a4") && peso("art-a4") > peso("art-b1"),
+    "a ordem do Qualis vale: A2 > A3 > A4 > B1");
+  assert.equal(peso("art-a2"), 3.7); assert.equal(peso("art-b1"), 3.4);
 });
 
-test("pontua por quantidade × peso, respeitando o teto de cada bloco", () => {
+test("a planilha não tem teto: quem produz mais pontua mais", () => {
+  // sem teto por bloco nem teto geral — o limite empilhava professores no
+  // mesmo número e o empate saía no critério de desempate, não na produção
+  assert.equal(BLOCOS_PRODUCAO.every((b) => b.teto === undefined), true);
+  const r = pontuarProducao({ "art-a1": 50 });          // 200 pontos
+  const b = r.blocos.find((x) => x.codigo === "bibliografica");
+  assert.equal(b.bruto, 200);
+  assert.equal(b.pontos, 200, "nada é cortado");
+  assert.equal(r.total, 200);
+  assert.ok(pontuarProducao({ "art-a1": 60 }).total > r.total, "produzir mais continua somando");
+});
+
+test("pontua por quantidade × peso, bloco a bloco", () => {
   const r = pontuarProducao({ "art-a1": 2, "art-b1": 3, livro: 1, "or-ic-conc": 4, "banca-grad": 10, evento: 5 });
   const bloco = (c) => r.blocos.find((b) => b.codigo === c);
   assert.equal(bloco("bibliografica").pontos, 20.7, "2×4 + 3×3,4 + 1×2,5");
   assert.equal(bloco("orientacoes").pontos, 6, "4×1,5");
   assert.equal(bloco("bancas").pontos, 7, "10×0,2 + 5×1");
   assert.equal(r.total, 33.7);
-});
-
-test("o teto corta o excesso, e o bruto continua à vista", () => {
-  const r = pontuarProducao({ "art-a1": 50 });          // 200 pontos brutos
-  const b = r.blocos.find((x) => x.codigo === "bibliografica");
-  assert.equal(b.bruto, 200);
-  assert.equal(b.pontos, 60, "o bloco tem teto de 60");
-  assert.equal(r.total, 60);
-
-  const cheia = pontuarProducao(Object.fromEntries(ITENS_PRODUCAO.map((i) => [i.codigo, 99])));
-  assert.equal(cheia.total, 100, "com tudo no máximo, a planilha fecha em 100");
 });
 
 test("quantidade inválida não pontua", () => {

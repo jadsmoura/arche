@@ -114,7 +114,10 @@ public/
 - Fluxo da IC (ARCHÉ IC): **rascunho → submetido → aprovado (em execução) → concluído**,
   com desvios para `devolvido` (volta a ser editável) e `reprovado`. O protocolo
   `IC-AAAA-NNN` sai na submissão e nunca se repete. Submetida, a **proposta fecha**;
-  cronograma segue editável pela orientação. **A proposta não pede aluno**: a indicação
+  cronograma segue editável pela orientação. O **cronograma se preenche por MÊS** (lista
+  de 1 a 12, rotulada com o mês da vigência): o que se grava continua sendo data — dia 1
+  do mês inicial, último dia do mês final —, para atraso, tela de Cronograma e PDF
+  seguirem iguais. **A proposta não pede aluno**: a indicação
   acontece DEPOIS da aprovação, dentro do projeto — nome, curso, período, e-mail e
   telefone. A proposta também **não pede datas nem os dados da orientação**: a vigência
   é a do CICLO, igual para todos (setembro → agosto; `EDITAL.vigencia` entra como padrão
@@ -154,8 +157,13 @@ public/
   **titulação mínima** do item 4.4 (PIBIC/CNPq exige doutor; as voluntárias, especialista),
   e a titulação chega como texto livre ("Doutora", "Dr.") — `normalizarTitulacao` resolve.
 - **Pontuação da produção acadêmica** (`pontuarProducao`): réplica da planilha oficial do
-  edital — 28 itens em 3 blocos, com pesos e tetos (30 + 60 + 10 = 100), no período de
-  2022 a 2026. Fica no projeto, mas é do coordenador — **atrelada à pessoa por e-mail OU
+  edital — 30 itens em 3 blocos, no período de 2022 a 2026 (item 7.3; o aviso na tela sai
+  de `producaoDe`/`producaoAte`). A escala Qualis inclui **A3 e A4**, que faltavam na
+  planilha publicada: entraram com peso ENTRE os vizinhos (3.6 e 3.5), sem alterar
+  nenhum peso já existente — mudar um peso mudaria o CL já apurado. **Não há teto**
+  (decisão do dono, ago/2026): limite empilhava professores no mesmo número e o empate
+  saía no critério de desempate, não na produção — cada bloco soma o que somar e o
+  currículo é a soma dos três. Fica no projeto, mas é do coordenador — **atrelada à pessoa por e-mail OU
   CPF** (`producaoDoOrientador` em lib/ic.js): o formulário do próximo projeto abre já
   preenchido com a planilha da última submissão (`producaoAnterior` em `/api/ic/meta`),
   editável para atualizar o que foi publicado no meio tempo. Na **inclusão manual**, a
@@ -164,9 +172,9 @@ public/
   planilha e origem, nada além) e nunca sobrescreve o que a gestão já tiver digitado.
   A planilha pode ser preenchida depois da submissão.
 - **Classificação por SOMA** (`notaClassificacao`, decisão do dono em ago/2026): a nota
-  final é **NP + CL**, teto 200 — NP é a nota do projeto (0–100: sete critérios com teto
+  final é **NP + CL** — NP é a nota do projeto (0–100: sete critérios com teto
   de pontos em `CRITERIOS_AVALIACAO`, a nota do parecer é a soma; entre pareceres vale a
-  média) e CL é a pontuação da planilha **em valor absoluto** (0–100, sem conversão).
+  média) e CL é a pontuação da planilha **em valor absoluto e sem teto**.
   Currículo sozinho não classifica: sem NP não há nota final (null, nunca zero). Há
   **dois quadros**: primeiro só os professores **doutores** (bolsa CNPq exige doutorado),
   depois o geral com todos — doutores inclusive (`classificarProjetos`; empate resolve

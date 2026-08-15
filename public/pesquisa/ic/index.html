@@ -346,8 +346,8 @@ const modVigente = (p) => (p.fomento?.modalidade ? modNome(p.fomento.modalidade)
 function pontuarProducao(q) {
   let total = 0;
   for (const b of META.blocosProducao) {
-    const bruto = b.itens.reduce((s, i) => s + (Math.max(0, Math.trunc(Number(q?.[i.codigo]) || 0))) * i.peso, 0);
-    total += Math.min(bruto, b.teto);
+    // a planilha não tem teto: cada bloco soma o que somar
+    total += b.itens.reduce((s, i) => s + (Math.max(0, Math.trunc(Number(q?.[i.codigo]) || 0))) * i.peso, 0);
   }
   return Math.round(total * 100) / 100;
 }
@@ -1501,9 +1501,9 @@ function renderEditor(alvo) {
 
     <div class="card">
       <div class="card-t">Cronograma</div>
-      <div class="card-s">O plano de trabalho: uma linha por atividade, com responsável e prazo. É daqui que sai a tela de Cronograma.</div>
+      <div class="card-s">O plano de trabalho: uma linha por atividade, com responsável e prazo. Os meses são os <b>da vigência</b> — mês 1 é ${mesRotulo(1)} e mês 12 é ${mesRotulo(12)}. É daqui que sai a tela de Cronograma.</div>
       <div class="rolo"><table class="pt">
-        <thead><tr><th style="width:34%">Atividade</th><th>Responsável</th><th>Início</th><th>Fim</th><th>Situação</th><th></th></tr></thead>
+        <thead><tr><th style="width:34%">Atividade</th><th>Responsável</th><th>Mês inicial</th><th>Mês final</th><th>Situação</th><th></th></tr></thead>
         <tbody id="tb-etapas"></tbody>
       </table></div>
       ${ger ? `<div class="exp"><button class="bt bt-sec" onclick="addEtapa()">＋ Adicionar atividade</button></div>` : ""}
@@ -1550,6 +1550,53 @@ function desenharAlunos() {
 }
 function addAluno() { ATUAL.alunos = [...(ATUAL.alunos || []), { nome: "", email: "", telefone: "", curso: cursoNome(ATUAL.curso), periodo: "", bolsista: false }]; desenharAlunos(); }
 
+/* ------------------------- meses da vigência ---------------------------
+   O cronograma se preenche por MÊS (1 a 12), não por data: a vigência é a
+   mesma para todos os projetos do ciclo (setembro → agosto), então o mês é
+   o que o professor realmente decide. O que se GRAVA continua sendo data —
+   primeiro dia do mês inicial, último dia do mês final —, para o resto do
+   sistema (atraso, tela de Cronograma, PDF) seguir funcionando igual. */
+function vigenciaDoProjeto() {
+  const v = META.edital?.vigencia || {};
+  return { inicio: ATUAL?.inicio || v.inicio || "2026-09-01", fim: ATUAL?.fim || v.fim || "2027-08-31" };
+}
+function mesDaVigencia(n) {
+  const base = new Date(vigenciaDoProjeto().inicio + "T12:00:00Z");
+  const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + (Number(n) - 1), 1, 12));
+  const ano = d.getUTCFullYear(), mes = d.getUTCMonth();
+  const ult = new Date(Date.UTC(ano, mes + 1, 0, 12));           // dia 0 do mês seguinte = último deste
+  const p2 = (x) => String(x).padStart(2, "0");
+  return {
+    inicio: `${ano}-${p2(mes + 1)}-01`,
+    fim: `${ano}-${p2(mes + 1)}-${p2(ult.getUTCDate())}`,
+    rotulo: `${["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][mes]}/${ano}`,
+  };
+}
+const mesRotulo = (n) => mesDaVigencia(n).rotulo;
+// de uma data gravada de volta para o número do mês (vazio se cair fora)
+function mesDaData(iso) {
+  if (!iso) return "";
+  const base = new Date(vigenciaDoProjeto().inicio + "T12:00:00Z");
+  const d = new Date(String(iso).slice(0, 10) + "T12:00:00Z");
+  if (Number.isNaN(+d)) return "";
+  const n = (d.getUTCFullYear() - base.getUTCFullYear()) * 12 + (d.getUTCMonth() - base.getUTCMonth()) + 1;
+  return n >= 1 && n <= 12 ? n : "";
+}
+function opcoesMes(sel) {
+  let out = `<option value="" ${!sel ? "selected" : ""}>— mês —</option>`;
+  for (let n = 1; n <= 12; n++) {
+    out += `<option value="${n}" ${String(sel) === String(n) ? "selected" : ""}>${n} · ${mesRotulo(n)}</option>`;
+  }
+  return out;
+}
+// mês escolhido → data gravada: início no primeiro dia, fim no último
+function mudouMes(i, qual, valor) {
+  const e = ATUAL.cronograma[i];
+  if (!valor) { e[qual] = ""; return; }
+  const m = mesDaVigencia(valor);
+  e[qual] = qual === "inicio" ? m.inicio : m.fim;
+}
+
 function desenharEtapas() {
   const ger = PODE.podeGerir || PODE.podeEditar;
   const ro = ger ? "" : "disabled";
@@ -1560,8 +1607,8 @@ function desenharEtapas() {
     <tr>
       <td><input ${ro} value="${esc(e.atividade || "")}" oninput="ATUAL.cronograma[${i}].atividade=this.value" placeholder="Revisão bibliográfica"></td>
       <td><select ${ro} onchange="ATUAL.cronograma[${i}].responsavel=this.value">${opcoes(e.responsavel)}</select></td>
-      <td><input type="date" ${ro} value="${esc(e.inicio || "")}" onchange="ATUAL.cronograma[${i}].inicio=this.value"></td>
-      <td><input type="date" ${ro} value="${esc(e.fim || "")}" onchange="ATUAL.cronograma[${i}].fim=this.value"></td>
+      <td><select ${ro} onchange="mudouMes(${i},'inicio',this.value)">${opcoesMes(mesDaData(e.inicio))}</select></td>
+      <td><select ${ro} onchange="mudouMes(${i},'fim',this.value)">${opcoesMes(mesDaData(e.fim))}</select></td>
       <td><select ${ro} onchange="ATUAL.cronograma[${i}].situacao=this.value">
         ${["prevista", "andamento", "concluida"].map((s) => `<option value="${s}" ${e.situacao === s ? "selected" : ""}>${{ prevista: "prevista", andamento: "em andamento", concluida: "concluída" }[s]}</option>`).join("")}
       </select></td>
@@ -1922,7 +1969,7 @@ function renderProducao(p, editavel) {
     <div class="card-t">Produção acadêmica do coordenador</div>
     <div class="card-s">Planilha de pontuação do edital, conferida contra o currículo Lattes.
       A pontuação entra <b>em valor absoluto</b> na classificação:
-      nota final = nota do projeto (0–100) + currículo (0–100).</div>
+      nota final = nota do projeto (0–100) + a pontuação do currículo, que <b>não tem teto</b>.</div>
 
     <div class="banner ba-warn" style="margin:10px 0">
       <b>Informe apenas a produção dos últimos ${(Number(ed.producaoAte) - Number(ed.producaoDe) + 1) || 5} anos
@@ -1950,7 +1997,7 @@ function renderProducao(p, editavel) {
         ${preenchida ? "Ver e editar os itens" : "Preencher a planilha"}
       </summary>
       ${META.blocosProducao.map((b) => `
-        <div class="sec-t">${esc(b.nome)} <span class="muted">(máximo ${b.teto} pontos)</span></div>
+        <div class="sec-t">${esc(b.nome)}</div>
         <div class="rolo"><table class="pt">
           <thead><tr><th style="width:56%">Item</th><th style="width:14%">Peso</th><th style="width:15%">Quantidade</th><th style="width:15%">Pontos</th></tr></thead>
           <tbody>${b.itens.map((i) => `<tr>
@@ -1964,8 +2011,8 @@ function renderProducao(p, editavel) {
     </details>
 
     <div class="stat" style="margin-top:16px">
-      ${META.blocosProducao.map((b) => `<div class="s"><b id="bl-${b.codigo}">—</b><span>${esc(b.nome)} (máx. ${b.teto})</span></div>`).join("")}
-      <div class="s" style="border-color:var(--brand-3)"><b id="prod-total">—</b><span>Pontuação (máx. 100)</span></div>
+      ${META.blocosProducao.map((b) => `<div class="s"><b id="bl-${b.codigo}">—</b><span>${esc(b.nome)}</span></div>`).join("")}
+      <div class="s" style="border-color:var(--brand-3)"><b id="prod-total">—</b><span>Pontuação do currículo</span></div>
     </div>
   </div>`;
 }
@@ -1989,14 +2036,9 @@ function pintarProducao() {
       const cel = $("pts-" + i.codigo);
       if (cel) cel.textContent = pts.toFixed(1);
     }
-    const pontos = Math.min(bruto, b.teto);
-    total += pontos;
+    total += bruto;
     const alvo = $("bl-" + b.codigo);
-    if (alvo) {
-      alvo.textContent = pontos.toFixed(1);
-      alvo.parentElement.style.borderColor = bruto > b.teto ? "var(--warn)" : "";
-      alvo.parentElement.title = bruto > b.teto ? `Somou ${bruto.toFixed(1)}, mas o bloco tem teto de ${b.teto}` : "";
-    }
+    if (alvo) alvo.textContent = bruto.toFixed(1);
   }
   $("prod-total").textContent = (Math.round(total * 100) / 100).toFixed(1);
 }

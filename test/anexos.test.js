@@ -45,29 +45,39 @@ test("as etapas têm forma de cronograma: atividade e datas ISO ou vazias", () =
   }
 });
 
-test("as quantidades de produção usam os códigos do edital e pontuam de 0 a 100", () => {
+test("as quantidades de produção usam os códigos do edital", () => {
   const codigos = new Set(ITENS_PRODUCAO.map((i) => i.codigo));
   for (const [id, p] of Object.entries(anexos.producoes)) {
     for (const [codigo, qtd] of Object.entries(p.quantidades)) {
       assert.ok(codigos.has(codigo), `${id}: código desconhecido "${codigo}"`);
       assert.ok(Number.isInteger(qtd) && qtd > 0 && qtd < 1000, `${id}: quantidade estranha em ${codigo}: ${qtd}`);
     }
+    // sem teto desde ago/2026: o que se cobra é que a soma seja um número
+    // são — quem produziu mais fica com mais, e é essa a intenção
     const total = pontuarProducao(p.quantidades).total;
-    assert.ok(total >= 0 && total <= 100, `${id}: pontuação ${total} fora da régua`);
+    assert.ok(Number.isFinite(total) && total >= 0, `${id}: pontuação inválida (${total})`);
   }
 });
 
-test("os totais conferidos à mão continuam saindo da leitura", () => {
-  // Amostras verificadas contra o total impresso na própria planilha (modo
+test("a leitura das planilhas continua batendo com o total impresso", () => {
+  // Amostras conferidas contra o total impresso na própria planilha (modo
   // íntegro) ou recalculadas quando o professor digitou no lugar da fórmula.
+  // O total impresso trazia os TETOS da planilha oficial (30/60/10); o
+  // sistema não os aplica mais, então o que se compara aqui é a LEITURA:
+  // reaplicando os tetos históricos, o número tem de bater igual ao de antes.
+  const TETOS = { orientacoes: 30, bibliografica: 60, bancas: 10 };
+  const comTetoAntigo = (q) => Math.round(pontuarProducao(q).blocos
+    .reduce((s, b) => s + Math.min(b.bruto, TETOS[b.codigo]), 0) * 100) / 100;
   const casos = [
-    ["15NN9UYafOLLg-r5MsWEY_luW34l9wGbn", 64.4],   // Marlana (março) — planilha íntegra
-    ["1WNVqvJFHtoyoP45M9Gs2fy9RAbz84Wp4", 71.2],   // Marlana (abril) — planilha íntegra
-    ["1aRfaJus_ooRU855EjMz4GmQKS797z7jq", 83.3],   // Eduardo — PDF assinado, íntegro
-    ["1eStakqLiqYWr4NYSXJeeXtPbyn7QagPv", 84.9],   // Kenia — digitou no total; nota justa
-    ["1ni3eXxNcp4LlynIa7K4gJBIommaVtoBy", 47.1],   // Keren — idem
+    ["15NN9UYafOLLg-r5MsWEY_luW34l9wGbn", 64.4, 76.8],    // Marlana (março) — planilha íntegra
+    ["1WNVqvJFHtoyoP45M9Gs2fy9RAbz84Wp4", 71.2, 83.6],    // Marlana (abril) — planilha íntegra
+    ["1aRfaJus_ooRU855EjMz4GmQKS797z7jq", 83.3, 127.3],   // Eduardo — PDF assinado, íntegro
+    ["1eStakqLiqYWr4NYSXJeeXtPbyn7QagPv", 84.9, 84.9],    // Kenia — digitou no total; nota justa
+    ["1ni3eXxNcp4LlynIa7K4gJBIommaVtoBy", 47.1, 47.1],    // Keren — idem
   ];
-  for (const [id, esperado] of casos) {
-    assert.equal(pontuarProducao(anexos.producoes[id].quantidades).total, esperado, id);
+  for (const [id, impresso, atual] of casos) {
+    const q = anexos.producoes[id].quantidades;
+    assert.equal(comTetoAntigo(q), impresso, `${id}: a leitura mudou (com os tetos da planilha)`);
+    assert.equal(pontuarProducao(q).total, atual, `${id}: pontuação atual, sem teto`);
   }
 });
