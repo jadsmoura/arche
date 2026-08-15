@@ -3966,6 +3966,50 @@ async function subirAlunosHistoricos() {
 }
 
 /**
+ * Os bolsistas do ENSINO MÉDIO saem dos projetos de graduação (decisão do
+ * dono, ago/2026): eles são de OUTRO programa de bolsas, ainda não modelado
+ * no ARCHÉ IC, e apareciam misturados aos alunos da graduação porque o
+ * resultado publicado os listava nos mesmos projetos. Os dados completos
+ * deles ficam estacionados em dados/ic-em-2025-alunos.json, prontos para o
+ * dia em que o programa entrar no sistema. Remove por CPF ou por nome
+ * exato, e registra na marca quem saiu de onde.
+ */
+async function removerAlunosEnsinoMedio() {
+  const marca = "sys-ic-em-removidos-v1";
+  try {
+    if (await storage.get(marca)) return;
+    const arq = JSON.parse(
+      await readFile(path.join(__dirname, "dados", "ic-em-2025-alunos.json"), "utf8"));
+    const chaveNome = (v) => String(v || "").trim().toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ");
+    const cpfs = new Set((arq.alunos || []).map((a) => soDigitos(a.cpf)).filter(Boolean));
+    const nomes = new Set((arq.alunos || []).map((a) => chaveNome(a.nome)).filter(Boolean));
+
+    const r = await comProjetos((projetos) => {
+      let tocados = 0;
+      const removidos = [];
+      for (let i = 0; i < projetos.length; i++) {
+        const p = projetos[i];
+        if (p.edital !== "01/2025") continue;
+        const antes = p.alunos || [];
+        const ficam = antes.filter((a) =>
+          !(cpfs.has(soDigitos(a.cpf)) || nomes.has(chaveNome(a.nome))));
+        if (ficam.length === antes.length) continue;
+        for (const a of antes) if (!ficam.includes(a)) removidos.push({ nome: a.nome, projeto: p.numero });
+        projetos[i] = normalizarProjeto({ ...p, alunos: ficam }, { base: p, autor: p.criadoPor || "" });
+        tocados++;
+      }
+      return { tocados, removidos, gravar: tocados > 0 };
+    });
+    await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), ...r }));
+    await storage.flush?.();
+    console.log(`ARCHÉ IC · Ensino Médio: ${r.removidos.length} bolsista(s) separado(s) de ${r.tocados} projeto(s)`);
+  } catch (e) {
+    console.error("Falha ao separar os bolsistas do Ensino Médio:", e.message);
+  }
+}
+
+/**
  * O CPF do professor se espalha pelos ciclos antigos. Os históricos foram
  * transcritos dos resultados publicados, onde a pessoa aparece só pelo
  * nome; o ciclo corrente veio do formulário, com CPF. Como é a mesma
@@ -4706,6 +4750,7 @@ app.listen(port, () => {
     for (const etapa of [
       subirLotesIniciais, aplicarAnexosIniciais, zerarAlunosIniciais,
       enquadrarCronogramasIniciais, subirArquivoHistorico, subirAlunosHistoricos,
+      removerAlunosEnsinoMedio,
       propagarCpfOrientadores, identidadeInstitucionalDoProReitor, criarPreCadastros,
       aplicarAvaliacoesTranscritas,
     ]) {

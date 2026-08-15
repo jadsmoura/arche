@@ -1,22 +1,9 @@
 {
  "lote": "edital-01-2025",
- "fonte": "Formulários de indicação de bolsista 2025/2026 (graduação e Ensino Médio), respostas oficiais",
- "observacao": "Segunda rodada do lote 01/2025: os bolsistas do Ensino Médio (que não têm termo em PDF) entram com e-mail, CPF, RG e conta; os da graduação ganham telefone e dados bancários que o termo não trazia. Completa e nunca sobrescreve.",
+ "fonte": "Formulário de indicação de bolsista 2025/2026 (graduação), respostas oficiais",
+ "observacao": "Segunda rodada do lote 01/2025: completa telefone e dados bancários dos bolsistas da graduação, que o termo em PDF não trazia. Completa e nunca sobrescreve. Os bolsistas do Ensino Médio são de OUTRO programa e não entram aqui (ver dados/ic-em-2025-alunos.json).",
  "alunos": {
   "res-2025-20": [
-   {
-    "nome": "Arthur Emanoel Lourenço Menezes",
-    "cpf": "70621442151",
-    "rg": "POLÍCIA CIVIL DE GOIAS - SIH",
-    "email": "arthur1emanoel@gmail.com",
-    "telefone": "62984532878",
-    "banco": "077-inter",
-    "agencia": "0001",
-    "conta": "397244029",
-    "pix": "70621442151",
-    "curso": "CEPMG José Carrilho (Ensino Médio)",
-    "bolsista": true
-   },
    {
     "nome": "Jean Carlos Ferreira",
     "cpf": "04249081150",
@@ -31,19 +18,6 @@
   ],
   "res-2025-7": [
    {
-    "nome": "Mariana Pereira Batista",
-    "cpf": "71381914136",
-    "rg": "8433644 SSPGO",
-    "email": "maripereirabsouzadej@gmail.com",
-    "telefone": "98327-7180",
-    "banco": "Banco do Brasil",
-    "agencia": "668-8",
-    "conta": "54275-X",
-    "pix": "71381914136",
-    "curso": "CEPMG José Carrilho (Ensino Médio)",
-    "bolsista": true
-   },
-   {
     "nome": "Geovana Francisca Silva",
     "cpf": "71098196120",
     "telefone": "(62)983117186",
@@ -56,32 +30,6 @@
    }
   ],
   "res-2025-15": [
-   {
-    "nome": "Nicolas Barbeiro Fagundes",
-    "cpf": "08650238165",
-    "rg": "8281953",
-    "email": "fagundesnicolas721@gmail.com",
-    "telefone": "62984773934",
-    "banco": "Banco do Brasil",
-    "agencia": "0668-8",
-    "conta": "54.274-1",
-    "pix": "234756",
-    "curso": "Colégio Tera (Ensino Médio)",
-    "bolsista": true
-   },
-   {
-    "nome": "Anna Júlia Rodrigues de Sousa",
-    "cpf": "71024666174",
-    "rg": "órgão expedidor-ssp rg-7104378",
-    "email": "rodriguesanajulia113@gmail.com",
-    "telefone": "62985792138",
-    "banco": "Banco do Brasil",
-    "agencia": "6688",
-    "conta": "572586",
-    "pix": "rodriguesanajulia113@gmail.com",
-    "curso": "CEPMG José Carrilho (Ensino Médio)",
-    "bolsista": true
-   },
    {
     "nome": "Glenda Santos Oliveira",
     "cpf": "70722893132",
@@ -96,32 +44,6 @@
   ],
   "res-2025-17": [
    {
-    "nome": "Letícia Gabryelle de Oliveira Silva",
-    "cpf": "70256090130",
-    "rg": "8369670- SSP/GO",
-    "email": "leticia.gabryelle.0801@gmail.com",
-    "telefone": "62 985406673",
-    "banco": "Nubank",
-    "agencia": "Nubank",
-    "conta": "Nubank",
-    "pix": "702.560.901-30",
-    "curso": "CEPMG José Carrilho (Ensino Médio)",
-    "bolsista": true
-   },
-   {
-    "nome": "Rebeca Rezende Lacerda Farias",
-    "cpf": "71044346159",
-    "rg": "7480210 SSPGO",
-    "email": "rebecarezende773@gmail.com",
-    "telefone": "62984146406",
-    "banco": "Branco do Brasil",
-    "agencia": "06688",
-    "conta": "572462",
-    "pix": "62984146406",
-    "curso": "CEPMG José Carrilho (Ensino Médio)",
-    "bolsista": true
-   },
-   {
     "nome": "Maria Eduarda Lemes Lopes",
     "cpf": "03012339183",
     "telefone": "62985285201",
@@ -134,97 +56,6 @@
    }
   ],
   "res-2025-3": [
-   {
-    "nome": "Ana Cláudia Alexandre Araújo Camargo",
-    "cpf": "71018343105",
-    "rg": "7696279 SSPP",
-    "email": "ana.camargo10@aluno.educa.go.gov.br",
-    "telefone": "(62) 9 9993-5109",
-    "banco": "007 - Inter",
-    "agencia": "0001",
-    "conta": "216468965",
-    "pix": "71018343105",
-    "curso": "CEPMG José Carrilho (Ensino Médio)",
-    "bolsista": true
-   },
-   {
-    "nome": "Carla Cristina Nunes Silva",
-    "cpf": "71240106165",
-    "rg": "7654233 - SSPPC",
-    "email": "rosangela7000@hotmail.com",
-    "telefone": "62999193613",
-    "banco": "Caixa Econômica",
-    "agencia": "0792",
-    "conta": "721804578-3",
-    "pix": "712.401.061.65",
-    "curso": "CEPMG José Carrilho (Ensino Médio)",
-    "bolsista": true
-   },
-   {
-    "nome": "Lara Luísa Avelino Silva",
-    "cpf": "05946858181",
-    "rg": "7316254",
-    "email": "laraedavi69@gmail.com",
-    "telefone": "62984767686",
-    "banco": "Banco do Brasil",
-    "agencia": "6688",
-    "conta": "54261-X",
-    "pix": "05946858181",
-    "curso": "Colégio Couto Magalhães (Ensino Médio)",
-    "bolsista": true
-   },
-   {
-    "nome": "João Pedro Medeiros",
-    "cpf": "70302096132",
-    "rg": "7217751 SSPGO",
-    "email": "eliana.ngj@gmail.com",
-    "telefone": "(62)981980036",
-    "banco": "Nubank",
-    "agencia": "0001",
-    "conta": "63601621-2",
-    "pix": "70302096132",
-    "curso": "CEPMG José Carrilho (Ensino Médio)",
-    "bolsista": true
-   },
-   {
-    "nome": "Mariana",
-    "cpf": "71348909102",
-    "rg": "8358499 SSP-GO",
-    "email": "marianagoncalvesvieira25@gmail.com",
-    "telefone": "62985870259",
-    "banco": "Banco do Brasil",
-    "agencia": "668-8",
-    "conta": "55207-0",
-    "pix": "b66d754f-de0b-449f-a095-965f1144c25b",
-    "curso": "Colégio Couto Magalhães (Ensino Médio)",
-    "bolsista": true
-   },
-   {
-    "nome": "Eloá Teresa Pereira Monteiro Dias",
-    "cpf": "05089139180",
-    "rg": "3630385 SSP-DF",
-    "email": "eloateresapmd@gmail.com",
-    "telefone": "62 9393-0911",
-    "banco": "Banco do Brasil",
-    "agencia": "0668-8",
-    "conta": "57.223-3",
-    "pix": "05089139180",
-    "curso": "CEPMG José Carrilho (Ensino Médio)",
-    "bolsista": true
-   },
-   {
-    "nome": "LUIZA GABRIELLY TAVARES FREIRE",
-    "cpf": "70680637133",
-    "rg": "70680637133",
-    "email": "luizagod11@gmail.com",
-    "telefone": "62 984489288",
-    "banco": "Caixa econômica",
-    "agencia": "Caixa econômica",
-    "conta": "574470815-0",
-    "pix": "70680637133",
-    "curso": "CEPMG Silvio de Castro Ribeiro (Ensino Médio)",
-    "bolsista": true
-   },
    {
     "nome": "Higor Gustavo Vieira Sampaio",
     "cpf": "71668360160",
@@ -239,32 +70,6 @@
   ],
   "res-2025-19": [
    {
-    "nome": "Gabriel Moisés Maximo da Silva",
-    "cpf": "08601254160",
-    "rg": "08601254160, SSP",
-    "email": "gabrielmoises2021@gmail.com",
-    "telefone": "62986360820",
-    "banco": "Banco do Brasil",
-    "agencia": "0668-8",
-    "conta": "57.211-0",
-    "pix": "0d5c8d8b-268c-4545-ab0d-d2ee09a3b420",
-    "curso": "CEPMG José Carrilho (Ensino Médio)",
-    "bolsista": true
-   },
-   {
-    "nome": "Guilherme dos Santos Araujo",
-    "cpf": "05701398137",
-    "rg": "6157135 SSP",
-    "email": "guilhermesnaraujo@gmail.com",
-    "telefone": "62986321089",
-    "banco": "NUBANK",
-    "agencia": "NUBANK",
-    "conta": "NUBANK",
-    "pix": "62986321089",
-    "curso": "CEPMG José Carrilho (Ensino Médio)",
-    "bolsista": true
-   },
-   {
     "nome": "Artur Carvalho",
     "cpf": "05366829178",
     "telefone": "(62) 98513-2298",
@@ -277,58 +82,6 @@
    }
   ],
   "res-2025-16": [
-   {
-    "nome": "Sarah Quintanilha Alves",
-    "cpf": "71732486123",
-    "rg": "8281910",
-    "email": "sarinhaquintanilha2@gmail.com",
-    "telefone": "62996768485",
-    "banco": "Banco do Brasil",
-    "agencia": "0668-8",
-    "conta": "54.263-6",
-    "pix": "sarinhaquintanilha2@gmail.com",
-    "curso": "Colégio Couto Magalhães (Ensino Médio)",
-    "bolsista": true
-   },
-   {
-    "nome": "Isadora Eloá Barbosa Rocha",
-    "cpf": "70623950138",
-    "rg": "6571425",
-    "email": "cepmgisadoraeloa@gmail.com",
-    "telefone": "62985208004",
-    "banco": "Banco Brasil",
-    "agencia": "06688",
-    "conta": "542717",
-    "pix": "70623950138",
-    "curso": "CEPMG José Carrilho (Ensino Médio)",
-    "bolsista": true
-   },
-   {
-    "nome": "Isabela Marques de Faria",
-    "cpf": "71142130185",
-    "rg": "7499026",
-    "email": "isabelaamrqs@gmail.com",
-    "telefone": "62984531882",
-    "banco": "C6 Yellow",
-    "agencia": "0001",
-    "conta": "29258543-8",
-    "pix": "5562984531882",
-    "curso": "CEPMG José Carrilho (Ensino Médio)",
-    "bolsista": true
-   },
-   {
-    "nome": "Pamella Carvalho",
-    "cpf": "71180078110",
-    "rg": "8245728 SSP GO",
-    "email": "carvalhoopamellaa@gmail.com",
-    "telefone": "62985440670",
-    "banco": "Banco do Brasil",
-    "agencia": "06688",
-    "conta": "54278-4",
-    "pix": "71180078110",
-    "curso": "Colégio Couto Magalhães (Ensino Médio)",
-    "bolsista": true
-   },
    {
     "nome": "Emilly Vitória Menezes Oliveira",
     "cpf": "03740868180",
@@ -343,19 +96,6 @@
   ],
   "res-2025-13": [
    {
-    "nome": "Stefanny Guedes dos Santos",
-    "cpf": "71141824140",
-    "rg": "8258026 SSP",
-    "email": "stefannyguedes844@gmail.com",
-    "telefone": "62984883121",
-    "banco": "Banco do Brasil",
-    "agencia": "0668-8",
-    "conta": "54.266-0",
-    "pix": "62 984883121",
-    "curso": "CEPMG José Carrilho (Ensino Médio)",
-    "bolsista": true
-   },
-   {
     "nome": "Ranniele de Jesus Queiroz",
     "cpf": "03723809138",
     "telefone": "62984004899",
@@ -369,19 +109,6 @@
   ],
   "res-2025-22": [
    {
-    "nome": "Elisa Costa Camargo",
-    "cpf": "09119806108",
-    "rg": "7500733 SSP-GO",
-    "email": "elisacamargo1608@gmail.com",
-    "telefone": "(62) 98170-0094",
-    "banco": "Banco do Brasil",
-    "agencia": "0668-8",
-    "conta": "54.264-4",
-    "pix": "09119806108",
-    "curso": "Colégio Couto Magalhães (Ensino Médio)",
-    "bolsista": true
-   },
-   {
     "nome": "Leticia Mirelle Silva",
     "cpf": "06751321180",
     "telefone": "62 9 99888984",
@@ -390,21 +117,6 @@
     "agencia": "0001",
     "conta": "26411363-3",
     "pix": "06751321180",
-    "bolsista": true
-   }
-  ],
-  "res-2025-23": [
-   {
-    "nome": "Anna Gabrielly Ferreira",
-    "cpf": "08633055105",
-    "rg": "7691470 SSPP",
-    "email": "leilianemndes@gmail.com",
-    "telefone": "62985801977",
-    "banco": "Nubank",
-    "agencia": "Nubank",
-    "conta": "Nubank",
-    "pix": "Nubank",
-    "curso": "CEPMG José Carrilho (Ensino Médio)",
     "bolsista": true
    }
   ],

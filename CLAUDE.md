@@ -360,11 +360,15 @@ public/
   `sys-ic-alunos-*` — um arquivo por RODADA, com o `lote` declarado dentro do JSON),
   casados ao projeto pelo orientador e pelo título do plano; a migração **completa** o
   registro que já existe (o nome veio do resultado publicado) sem sobrescrever campo
-  preenchido. Os 22 "sem e-mail" de 2025 eram os bolsistas do **Ensino Médio** (não têm
-  termo em PDF — vieram do formulário próprio, com escola em `curso`); a r2 de 2025 também
-  completou telefone e dados bancários da graduação. **CPF que não valida não entra**
-  (Edileusa/2024 e Anna Gabrielly/2025 vieram errados da fonte — o aluno corrige na guia
-  Bolsa). 2022 não tem alunos registrados.
+  preenchido. A r2 de 2025 completou telefone e dados bancários da graduação. **CPF que
+  não valida não entra** (Edileusa/2024 e Anna Gabrielly/2025 vieram errados da fonte — o
+  aluno corrige na guia Bolsa). 2022 não tem alunos registrados.
+- **Os bolsistas do ENSINO MÉDIO saíram dos projetos** (`removerAlunosEnsinoMedio`, marca
+  `sys-ic-em-removidos-v1`, decisão do dono ago/2026): são de **outro programa de bolsas**,
+  ainda não modelado no ARCHÉ IC — apareciam nos projetos de 01/2025 porque o resultado
+  publicado os listava lá. Os 22, com tudo o que o formulário coletou (**inclusive escola e
+  responsável — são menores de idade**), estão estacionados em `dados/ic-em-2025-alunos.json`
+  aguardando o programa entrar no sistema. Não indexar esse arquivo em tela nenhuma até lá.
 - **Exportar a lista de projetos** (`GET /api/ic/projetos.xlsx` e `.pdf`, só gestão;
   botões na guia Gestão): a planilha traz uma linha por projeto (protocolo, situação,
   título, curso, linha, modalidade, orientação com titulação e e-mail, grupo, alunos,
