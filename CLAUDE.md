@@ -336,7 +336,12 @@ public/
   a partir de 2 meses antes. Projeto ATRASADO = prazo vencido com relatório faltando.
 - **Guia Bolsas** (só gestão): a distribuição das bolsas, feita **à mão** conforme a cota
   que a presidência liberar. Lista os projetos **aprovados** do ciclo em ordem de pontuação
-  (NP + CL), em **três blocos** — só doutores, todos, só especialistas. O mesmo projeto
+  (NP + CL), em blocos por **dois critérios que decidem coisas diferentes**: a **titulação**
+  (doutores, todos, especialistas) diz QUEM pode receber cada bolsa (item 4.4); a **linha**
+  (Iniciação Científica, Inovação Tecnológica, Iniciação à Extensão) diz O QUE cada bolsa
+  atende — PIBITI só existe para IT, PROBEX só para IE, e distribuir olhando só a titulação
+  daria bolsa de linha errada. Cada bloco de linha diz quais bolsas são próprias dela; a
+  coluna Linha aparece em todos. O mesmo projeto
   aparece em mais de um bloco de propósito (é assim que se compara dentro e fora do
   recorte), e a concessão é do **projeto**: marcar num bloco marca em todos, que é o que
   impede conceder duas bolsas ao mesmo. `POST /api/ic/:id/fomento` com `tipo` vazio

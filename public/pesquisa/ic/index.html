@@ -1335,8 +1335,8 @@ function renderBolsas() {
       <summary>${rotulo}<span class="qt">${lista.length} projeto(s)</span><span class="seta">▼</span></summary>
       ${dica ? `<div class="muted" style="padding:8px 14px 0">${dica}</div>` : ""}
       ${lista.length ? `<div class="rolo" style="padding:6px 12px 10px"><table class="pt">
-        <thead><tr><th style="width:4%"></th><th style="width:11%">Protocolo</th><th style="width:30%">Título</th>
-          <th style="width:17%">Professor(a)</th><th style="width:8%">Titulação</th>
+        <thead><tr><th style="width:4%"></th><th style="width:11%">Protocolo</th><th style="width:25%">Título</th>
+          <th style="width:15%">Professor(a)</th><th style="width:8%">Titulação</th><th style="width:7%">Linha</th>
           <th style="width:6%">NP</th><th style="width:6%">CL</th><th style="width:6%">Total</th>
           <th style="width:12%">Bolsa</th></tr></thead>
         <tbody>${lista.map((p) => {
@@ -1350,6 +1350,7 @@ function renderBolsas() {
             <td>${esc(p.titulo || "(sem título)")}</td>
             <td>${esc(p.orientador?.nome || p.orientador?.email || "—")}</td>
             <td>${esc(titNomeBolsa(p.orientador?.titulacao))}</td>
+            <td>${esc((META.linhas.find((l) => l.codigo === p.linha) || {}).sigla || "—")}</td>
             <td>${p.classificacao?.np ?? "—"}</td>
             <td>${p.classificacao?.cl ?? "—"}</td>
             <td><b>${comNota ? p.classificacao.total : "—"}</b></td>
@@ -1368,13 +1369,21 @@ function renderBolsas() {
   const especialistas = ordenarClassificacao(aprovados.filter((p) =>
     titulacaoCodigo(p.orientador?.titulacao) === "especialista"));
   const todos = ordenarClassificacao(aprovados);
+  /* A titulação diz QUEM pode receber; a linha diz O QUE cada bolsa atende —
+     PIBITI só existe para Inovação Tecnológica, PROBEX só para Iniciação à
+     Extensão. Distribuir olhando só a titulação daria bolsa de linha errada,
+     por isso os mesmos projetos aparecem também recortados por linha. */
+  const bolsasDaLinha = (cod) => (META.modalidades || [])
+    .filter((m) => m.linha === cod && m.fomento).map((m) => m.nome).join(", ");
 
   $("v-bolsas").innerHTML = `
     <div class="tut"><details><summary>Como a atribuição funciona</summary>
       <ol>
         <li>A lista traz os projetos <b>aprovados</b> do ciclo, em ordem de pontuação (NP + CL).</li>
-        <li>São três recortes do <b>mesmo conjunto</b>: só doutores, todos e só especialistas — um
-          projeto de doutor aparece no primeiro e no segundo, de propósito.</li>
+        <li>São recortes do <b>mesmo conjunto</b>, por dois critérios que decidem coisas diferentes:
+          a <b>titulação</b> (doutores, todos, especialistas) diz <b>quem</b> pode receber cada bolsa;
+          a <b>linha</b> (IC, IT, IE) diz <b>o que</b> cada bolsa atende — PIBITI só existe para Inovação
+          Tecnológica, PROBEX só para Iniciação à Extensão. Um projeto aparece em vários blocos, de propósito.</li>
         <li>A bolsa é do <b>projeto</b>: marcar num bloco marca em todos, e é isso que impede
           conceder duas bolsas ao mesmo projeto.</li>
         <li><b>Bolsa CNPq exige doutorado</b> (item 4.4 do edital) — o sistema avisa se a titulação não atender.</li>
@@ -1400,7 +1409,14 @@ function renderBolsas() {
       a atribuição das bolsas acontece depois da decisão de mérito.</div></div>` : `
       ${bloco("Professores doutores", doutores, "As bolsas do CNPq exigem doutorado (item 4.4).")}
       ${bloco("Todos os professores", todos, "O mesmo projeto marcado acima aparece marcado aqui.")}
-      ${bloco("Professores especialistas", especialistas, "")}`}`;
+      ${bloco("Professores especialistas", especialistas, "")}
+      ${(META.linhas || []).map((l) => bloco(
+        l.nome,
+        ordenarClassificacao(aprovados.filter((p) => (p.linha || "") === l.codigo)),
+        bolsasDaLinha(l.codigo)
+          ? `Bolsas próprias desta linha: <b>${esc(bolsasDaLinha(l.codigo))}</b>. O voluntário vale para as três.`
+          : "",
+      )).join("")}`}`;
 }
 const titNomeBolsa = (v) => ({ doutor: "Doutor", mestre: "Mestre", especialista: "Especialista" })[titulacaoCodigo(v)] || "—";
 
