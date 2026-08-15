@@ -354,12 +354,17 @@ public/
   (`sys-assinaturas-v1`, base64), NÃO no repositório: em produção o disco é efêmero e
   trocar de reitor não pode exigir um deploy. Sem imagem, sai a linha em branco e nada
   quebra; os demais documentos seguem para assinatura à mão. A gestão avisa por e-mail, ciclo a ciclo (`POST /api/ic/certificados/avisar`),
-  cruzando o nome com os perfis para achar quem dá para avisar. Os bolsistas de 2024 e 2025
-  entraram com CPF (e 2025 também com e-mail) pelos **termos de compromisso assinados**
-  (`dados/ic-edital-01-{2024,2025}-alunos.json`, marcas `sys-ic-alunos-*`), casados ao
-  projeto pelo orientador e pelo título do plano; a migração **completa** o registro que já
-  existe (o nome veio do resultado publicado) sem sobrescrever campo preenchido. 2022 e 2023
-  não têm alunos registrados.
+  cruzando o nome com os perfis para achar quem dá para avisar. Os bolsistas de **2023, 2024
+  e 2025** entraram com CPF, e-mail, telefone e conta pelos **termos de compromisso
+  assinados e pelos formulários de indicação** (`dados/ic-edital-01-*-alunos.json`, marcas
+  `sys-ic-alunos-*` — um arquivo por RODADA, com o `lote` declarado dentro do JSON),
+  casados ao projeto pelo orientador e pelo título do plano; a migração **completa** o
+  registro que já existe (o nome veio do resultado publicado) sem sobrescrever campo
+  preenchido. Os 22 "sem e-mail" de 2025 eram os bolsistas do **Ensino Médio** (não têm
+  termo em PDF — vieram do formulário próprio, com escola em `curso`); a r2 de 2025 também
+  completou telefone e dados bancários da graduação. **CPF que não valida não entra**
+  (Edileusa/2024 e Anna Gabrielly/2025 vieram errados da fonte — o aluno corrige na guia
+  Bolsa). 2022 não tem alunos registrados.
 - **Exportar a lista de projetos** (`GET /api/ic/projetos.xlsx` e `.pdf`, só gestão;
   botões na guia Gestão): a planilha traz uma linha por projeto (protocolo, situação,
   título, curso, linha, modalidade, orientação com titulação e e-mail, grupo, alunos,

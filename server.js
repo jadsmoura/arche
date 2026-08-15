@@ -3907,7 +3907,12 @@ async function migrarAcoesExtensao() {
  * que faz o certificado achar o dono, e nada aqui pode sobrescrever o que a
  * gestão tenha ajustado depois.
  */
-const LOTES_ALUNOS = ["edital-01-2024", "edital-01-2025"];
+/* Cada entrada é um ARQUIVO, com marca própria — o lote (origem.lote dos
+   projetos) vem de dentro do JSON, porque um mesmo ciclo pode receber mais
+   de uma rodada: a r2 de 2025 traz os bolsistas do Ensino Médio (que não
+   têm termo em PDF — vieram do formulário de indicação) e completa os da
+   graduação com telefone e conta. */
+const LOTES_ALUNOS = ["edital-01-2024", "edital-01-2025", "edital-01-2023", "edital-01-2025-r2"];
 async function subirAlunosHistoricos() {
   for (const nome of LOTES_ALUNOS) {
     const marca = `sys-ic-alunos-${nome}`;
@@ -3921,20 +3926,28 @@ async function subirAlunosHistoricos() {
       // o que a gestão ajustou vale mais que o documento de origem.
       const chaveNome = (v) => String(v || "").trim().toLowerCase()
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+      const lote = arq.lote || nome;
       const r = await comProjetos((projetos) => {
         let tocados = 0, completados = 0, novos = 0;
         for (const [origemId, alunos] of Object.entries(arq.alunos || {})) {
-          const i = projetos.findIndex((p) => p.origem?.lote === nome && p.origem?.id === String(origemId));
+          const i = projetos.findIndex((p) => p.origem?.lote === lote && p.origem?.id === String(origemId));
           if (i < 0) continue;
           const base = projetos[i];
           const lista = (base.alunos || []).slice();
           let mexeu = false;
           for (const novo of alunos) {
-            const j = lista.findIndex((a) => chaveNome(a.nome) === chaveNome(novo.nome));
+            const j = lista.findIndex((a) => chaveNome(a.nome) === chaveNome(novo.nome)
+              || (a.cpf && novo.cpf && soDigitos(a.cpf) === soDigitos(novo.cpf)));
             if (j >= 0) {
               const antes = lista[j];
-              const junto = { ...antes, cpf: antes.cpf || novo.cpf, email: antes.email || novo.email,
-                curso: antes.curso || novo.curso, bolsista: antes.bolsista || novo.bolsista };
+              // completa TODOS os campos que o documento traz e o registro não
+              // tem — inclusive os do cadastro do bolsista (telefone, RG e
+              // conta), que o certificado e o termo usam. Nada é sobrescrito.
+              const junto = { ...antes };
+              for (const c of ["cpf", "email", "curso", "telefone", "rg", "banco", "agencia", "conta", "pix"]) {
+                if (!junto[c] && novo[c]) junto[c] = novo[c];
+              }
+              junto.bolsista = antes.bolsista || !!novo.bolsista;
               if (JSON.stringify(junto) !== JSON.stringify(antes)) { lista[j] = junto; mexeu = true; completados++; }
             } else { lista.push(novo); mexeu = true; novos++; }
           }
