@@ -1397,10 +1397,9 @@ function renderEditor(alvo) {
           ${campoGrupo(p, roGer)}</div>
       </div>
 
-      <div class="grid2">
-        <div><label>Início previsto</label><input type="date" ${ro} value="${esc(p.inicio || "")}" onchange="campo('inicio',this.value)"></div>
-        <div><label>Término previsto</label><input type="date" ${ro} value="${esc(p.fim || "")}" onchange="campo('fim',this.value)"></div>
-      </div>
+      <div class="kv" style="margin:12px 0"><b>Vigência do plano de trabalho:</b>
+        ${fmtD(p.inicio || META.edital?.vigencia?.inicio)} a ${fmtD(p.fim || META.edital?.vigencia?.fim)}
+        <span class="muted">— igual para todos os projetos do ciclo (setembro a agosto do ano seguinte).</span></div>
 
       <label>Linha de pesquisa</label>
       <input ${ro} value="${esc(p.linhaPesquisa || "")}" oninput="campo('linhaPesquisa',this.value)">
@@ -1450,7 +1449,12 @@ function renderEditor(alvo) {
 
       <div class="sec-t">Orientação</div>
       ${PODE.papel === "avaliador" ? `
-      <div class="muted">Identificação omitida: o parecer ad hoc julga a proposta, não as pessoas.</div>` : `
+      <div class="muted">Identificação omitida: o parecer ad hoc julga a proposta, não as pessoas.</div>`
+      : novo && !MANUAL ? `
+      <div class="kv" style="margin:10px 0">A proposta é submetida na sua conta:
+        <b>${esc(ME?.nome || META.eu)}</b> (${esc(META.eu)}). Nome, titulação, telefone e Currículo
+        Lattes saem do seu <a href="/perfil/" target="_blank" rel="noopener">perfil</a> — mantenha-o
+        atualizado. A indicação de alunos acontece depois da aprovação.</div>` : `
       <div class="grid3">
         <div><label>Nome *</label><input ${ro} value="${esc(p.orientador?.nome || "")}" oninput="sub('orientador','nome',this.value)"></div>
         <div><label>E-mail *</label><input type="email" ${ro} value="${esc(p.orientador?.email || "")}"

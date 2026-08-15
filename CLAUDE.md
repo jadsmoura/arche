@@ -102,7 +102,11 @@ public/
   `IC-AAAA-NNN` sai na submissão e nunca se repete. Submetida, a **proposta fecha**;
   cronograma segue editável pela orientação. **A proposta não pede aluno**: a indicação
   acontece DEPOIS da aprovação, dentro do projeto — nome, curso, período, e-mail e
-  telefone. Ao salvar, **o aluno recebe o convite por e-mail** (`convidarAlunosIC`) com o
+  telefone. A proposta também **não pede datas nem os dados da orientação**: a vigência
+  é a do CICLO, igual para todos (setembro → agosto; `EDITAL.vigencia` entra como padrão
+  em `normalizarProjeto`), e nome, titulação, telefone, Lattes e CPF de quem submete
+  saem do PERFIL (`/perfil/`) na criação. O card Orientação só aparece na inclusão
+  manual (a coordenação identifica o professor) e no projeto já aberto. Ao salvar, **o aluno recebe o convite por e-mail** (`convidarAlunosIC`) com o
   link de entrada; ele cria o usuário e **ele mesmo** completa documentos, dados
   bancários e Pix (`POST /api/ic/:id/meus-dados` — só o próprio aluno grava).
   **Documentos e conta são do aluno** (`alunosVisiveis`): a orientação vê só o contato

@@ -1855,6 +1855,24 @@ app.post("/api/ic", async (req, res) => {
         return res.status(400).json({ error: "Escreva o motivo da inclusão manual — ele fica no histórico do projeto" });
       }
     }
+
+    // A submissão não pede os dados da orientação: o projeto nasce na CONTA
+    // de quem submete, e nome, titulação, telefone, Lattes e CPF saem do
+    // PERFIL (/perfil/), que o próprio professor mantém. Vale só para o
+    // projeto novo do professor — na inclusão manual a coordenação informa
+    // quem orienta, e a edição preserva o que o projeto já tem.
+    if (!b.id && !manual) {
+      const perfil = (await carregarPerfis())[u.email] || {};
+      b.orientador = {
+        ...(b.orientador || {}),
+        nome: String(b.orientador?.nome || perfil.nome || u.nome || "").trim(),
+        email: u.email,
+        titulacao: b.orientador?.titulacao || perfil.titulacao || "",
+        telefone: b.orientador?.telefone || perfil.telefone || perfil.whatsapp || "",
+        lattes: b.orientador?.lattes || perfil.lattes || "",
+        cpf: b.orientador?.cpf || perfil.cpf || "",
+      };
+    }
     const r = await comProjetos((projetos) => {
       const i = b.id ? projetos.findIndex((x) => x.id === b.id) : -1;
       const base = i >= 0 ? projetos[i] : null;
