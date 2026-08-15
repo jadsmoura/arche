@@ -678,6 +678,8 @@ function renderGestao() {
         title="Pedido de inclusão fora do prazo deferido pela pró-reitoria">＋ Incluir por outro professor</button>` : ""}
       ${META.gestao ? `<button class="bt bt-ghost" onclick="baixarResultado()"
         title="Documento timbrado com o resultado do processo seletivo">Resultado do processo (PDF)</button>` : ""}
+      ${META.gestao ? `<button class="bt bt-ghost" onclick="convidarProfessores()"
+        title="E-mail aos professores dos projetos importados que ainda não criaram o usuário — o CPF no perfil é o que vincula os projetos">📧 Convidar professores</button>` : ""}
       ${ME?.papel === "gestor" ? `<button class="bt bt-ghost" onclick="importarEdital(true)" title="Confere o arquivo sem gravar">Importar edital 01/2026</button>` : ""}
     </div>
     <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">${lista.length} projeto(s)${
@@ -1015,6 +1017,36 @@ async function publicarResultado(numero, fase) {
     aviso(fase === "preliminar" ? `Resultado preliminar do Edital ${numero} publicado.`
       : fase === "final" ? `Resultado final do Edital ${numero} publicado.`
         : `Publicação do resultado do Edital ${numero} recolhida.`);
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+/* Convite de cadastro aos professores importados — só a gestão. Primeiro a
+   simulação (a lista de quem receberia), depois a confirmação e o envio.
+   Quem já criou usuário e informou o CPF não entra; quem já foi convidado
+   só recebe de novo se a gestão mandar reenviar. */
+async function convidarProfessores() {
+  const post = (corpo) => api("/api/ic/convidar-professores", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
+  });
+  try {
+    const s = await post({ simular: true });
+    const li = (x) => `• ${x.nome || x.email}${x.email ? ` — ${x.email}` : ""} (${x.projetos} projeto${x.projetos > 1 ? "s" : ""})`;
+    const rodape = (n) => `${n ? `\n\n${n} professor(es) sem e-mail no formulário — convite impossível por aqui.` : ""}`;
+    if (!s.novos.length && !s.jaConvidados.length) {
+      aviso(`Ninguém a convidar: os professores do ciclo já estão vinculados ou já entraram.${rodape(s.semEmail.length)}`);
+      return;
+    }
+    let reenviar = false;
+    if (!s.novos.length) {
+      if (!confirm(`Todos os ${s.jaConvidados.length} professor(es) pendentes já receberam o convite:\n\n${s.jaConvidados.map(li).join("\n")}\n\nReenviar o e-mail a eles?`)) return;
+      reenviar = true;
+    } else if (!confirm(`Convidar ${s.novos.length} professor(es) por e-mail?\n\n${s.novos.map(li).join("\n")}${s.jaConvidados.length ? `\n\n(${s.jaConvidados.length} já convidado(s) antes não recebem de novo.)` : ""}${rodape(s.semEmail.length)}\n\nO e-mail explica o cadastro e lembra do CPF no perfil — é ele que vincula os projetos à conta.`)) return;
+    const r = await post({ reenviar });
+    if (!r.enviados.length && r.falhas?.length) {
+      aviso(`Nenhum convite saiu — ${r.falhas.length} falha(s) de envio: ${r.falhas[0].erro}`, "err");
+      return;
+    }
+    aviso(`Convite enviado a ${r.enviados.length} professor(es)${r.falhas?.length ? ` — ${r.falhas.length} falhou(aram), veja o log` : ""}.`);
   } catch (e) { aviso(e.message, "err"); }
 }
 

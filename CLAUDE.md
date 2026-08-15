@@ -255,6 +255,14 @@ public/
   perfil, `vincularPorCpf` escreve o e-mail dela nos projetos que a esperavam e eles
   aparecem na conta já na situação importada. O vínculo **nunca sobrescreve** e-mail
   existente. Enviar `simular: true` faz a conferência sem gravar nada.
+- **Convite de cadastro aos professores importados** (`POST /api/ic/convidar-professores`,
+  só gestão; botão na guia Gestão): um e-mail por pessoa (CPF), no endereço que ela
+  digitou no formulário do edital (`origem.emailFormulario`), com os títulos dos seus
+  projetos e o passo a passo — criar o usuário e **informar o CPF no perfil**, que é o
+  que vincula os projetos à conta. `simular: true` devolve a lista sem enviar (é o que
+  alimenta a confirmação da tela); quem já foi convidado só recebe de novo com
+  `reenviar: true`; professor já vinculado (projeto com e-mail) nunca entra. O registro
+  dos envios fica em `sys-ic-convites-professores-v1`, fora do `/api/estado`.
 - **Anexos do formulário viram dado do projeto** (`aplicarAnexosIniciais`,
   `dados/ic-<lote>-anexos.json`): os cronogramas e planilhas de produção que os
   professores anexaram ao formulário foram lidos arquivo a arquivo e entram numa

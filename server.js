@@ -508,6 +508,98 @@ app.post("/api/ic/resultado/publicar", async (req, res) => {
   res.json({ ok: true, edital: numero, fase });
 });
 
+/**
+ * Convite por e-mail aos PROFESSORES dos projetos importados que ainda não
+ * criaram usuário. O projeto os espera pelo CPF (vincularPorCpf); o e-mail
+ * veio do formulário do edital e ficou em origem.emailFormulario. Um convite
+ * por pessoa, com todos os seus projetos. `simular: true` devolve a lista
+ * sem enviar; quem já recebeu só recebe de novo com `reenviar: true` (o
+ * registro do envio fica em chave sys-*, fora do /api/estado).
+ */
+const CONVITES_PROF_KEY = "sys-ic-convites-professores-v1";
+app.post("/api/ic/convidar-professores", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "Só a coordenação convida os professores" });
+  const simular = req.body?.simular === true;
+  const reenviar = req.body?.reenviar === true;
+  const { enviarEmail, RE_EMAIL } = await import("./lib/mailer.js");
+
+  const projetos = await lerProjetos();
+  const doCiclo = projetos.filter((p) =>
+    String(p.edital || EDITAL.numero) === EDITAL.numero && p.status !== "rascunho");
+  const porCpf = new Map();
+  for (const p of doCiclo) {
+    const cpf = p.orientador?.cpf || "";
+    if (!cpf || p.orientador?.email) continue;     // sem CPF não há vínculo; com e-mail já entrou
+    const email = String(p.origem?.emailFormulario || "").trim().toLowerCase();
+    if (!porCpf.has(cpf)) porCpf.set(cpf, { cpf, nome: p.orientador?.nome || "", email, titulos: [] });
+    const g = porCpf.get(cpf);
+    if (!g.email && email) g.email = email;
+    g.titulos.push(p.titulo || p.numero || "(sem título)");
+  }
+
+  const registro = JSON.parse((await storage.get(CONVITES_PROF_KEY)) || "{}");
+  const resumo = (x) => ({ nome: x.nome, email: x.email, projetos: x.titulos.length });
+  const todos = [...porCpf.values()];
+  const semEmail = todos.filter((x) => !RE_EMAIL.test(x.email));
+  const jaConvidados = todos.filter((x) => RE_EMAIL.test(x.email) && registro[x.cpf]);
+  const novos = todos.filter((x) => RE_EMAIL.test(x.email) && !registro[x.cpf]);
+  if (simular) {
+    return res.json({
+      simulado: true,
+      novos: novos.map(resumo), jaConvidados: jaConvidados.map(resumo),
+      semEmail: semEmail.map((x) => ({ nome: x.nome, projetos: x.titulos.length })),
+    });
+  }
+
+  const base = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
+  // depois de entrar, a pessoa cai direto no perfil — onde o CPF se informa
+  const link = `${base}/entrar?next=${encodeURIComponent("/perfil/")}`;
+  const alvo = reenviar ? [...novos, ...jaConvidados] : novos;
+  const enviados = [], falhas = [];
+  for (const d of alvo) {
+    try {
+      await enviarEmail({
+        para: d.email,
+        assunto: "[ARCHÉ] Edital 01/2026 — crie o seu acesso para acompanhar seus projetos",
+        corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:560px">
+          <p>Olá, <b>${d.nome || "professor(a)"}</b>!</p>
+          <p>Sua(s) proposta(s) submetida(s) ao <b>Edital 01/2026</b> de Iniciação Científica,
+            Inovação Tecnológica e Iniciação à Extensão já está(ão) registrada(s) no <b>ARCHÉ</b>,
+            o portal de gestão da PROPPEX — UNIEGO:</p>
+          <p style="background:#eef3f5;border-radius:10px;padding:12px 16px">
+            ${d.titulos.map((t) => `• ${t}`).join("<br>")}</p>
+          <p><b>Próximos passos:</b></p>
+          <ol style="padding-left:20px">
+            <li><b>Crie o seu usuário</b> — entre com a sua conta Google ou receba um código
+              de acesso por e-mail.</li>
+            <li><b>Informe o seu CPF no Perfil</b> — é o CPF que vincula automaticamente os
+              seus projetos à sua conta. Sem ele, os projetos não aparecem. Você pode criar a
+              conta com qualquer e-mail: o vínculo é pelo CPF.</li>
+            <li>Acompanhe tudo no setor <b>Pesquisa · IC</b>: a situação da seleção, o
+              cronograma e, com o projeto aprovado, a indicação dos alunos e os relatórios.</li>
+          </ol>
+          <p><a href="${link}" style="display:inline-block;background:#1c3742;color:#fff;text-decoration:none;
+            padding:12px 22px;border-radius:10px;font-weight:600">Entrar no ARCHÉ</a></p>
+          <p style="color:#5b7280;font-size:12px">Se o botão não abrir, copie e cole: ${link}<br>
+            PROPPEX — Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária · UNIEGO</p></div>`,
+      });
+      registro[d.cpf] = { email: d.email, em: new Date().toISOString(), por: u.email };
+      enviados.push(resumo(d));
+      console.log(`[ic] convite de cadastro enviado a ${d.email}`);
+    } catch (e) {
+      falhas.push({ ...resumo(d), erro: e.message });
+      console.error(`[ic] convite de cadastro a ${d.email} falhou:`, e.message);
+    }
+  }
+  if (enviados.length) {
+    await storage.set(CONVITES_PROF_KEY, JSON.stringify(registro));
+    await storage.flush?.();
+  }
+  res.json({ enviados, falhas, semEmail: semEmail.map((x) => ({ nome: x.nome, projetos: x.titulos.length })) });
+});
+
 /* usuários (somente gestor) */
 app.get("/api/usuarios", async (req, res) => {
   if (!(await exigirGestor(req, res))) return;
