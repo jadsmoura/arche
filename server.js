@@ -2123,6 +2123,9 @@ app.get("/api/ic/certificados", async (req, res) => {
           return { edital, total, avisaveis: destinatarios.length, semEmail };
         });
       resp.ciclos = ciclos;
+      const ass = await lerAssinaturas();
+      resp.assinaturas = Object.fromEntries(Object.keys(QUEM_ASSINA)
+        .map((k) => [k, ass[k] ? { em: ass[k].em, arquivo: ass[k].arquivo } : null]));
     }
     res.json(resp);
   } catch (e) {
@@ -2265,6 +2268,70 @@ async function emailsPorNome() {
   return mapa;
 }
 
+/* ---------------------- assinaturas dos certificados ---------------------
+   A assinatura digitalizada é ENVIADA PELO PRÓPRIO SISTEMA, não colocada no
+   repositório: em produção o disco é efêmero (cada deploy recria o
+   contêiner), e trocar de reitor não pode exigir um deploy. Fica no estado
+   interno, em base64, e só o gestor geral grava.
+   ========================================================================= */
+const ASSINATURAS_KEY = "sys-assinaturas-v1";
+const QUEM_ASSINA = { proreitor: "Pró-Reitor", reitor: "Reitor" };
+
+async function lerAssinaturas() {
+  const raw = await storage.get(ASSINATURAS_KEY);
+  return raw ? JSON.parse(raw) : {};
+}
+/** As imagens como Buffer, do jeito que o gerador de PDF precisa. */
+async function assinaturasParaPdf() {
+  const guardadas = await lerAssinaturas();
+  const out = {};
+  for (const [quem, a] of Object.entries(guardadas)) {
+    if (a?.base64) { try { out[quem] = Buffer.from(a.base64, "base64"); } catch { /* ignora */ } }
+  }
+  return out;
+}
+
+app.post("/api/ic/assinatura", upload.single("file"), async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  const quem = String(req.body?.quem || "").trim();
+  if (!QUEM_ASSINA[quem]) return res.status(400).json({ error: "Informe de quem é a assinatura" });
+  if (!req.file) return res.status(400).json({ error: "Nenhuma imagem enviada" });
+  // PNG com fundo transparente é o que fica bom sobre a linha; JPG passa,
+  // mas o retângulo branco aparece — por isso o aviso na tela
+  if (!/^image\/(png|jpeg)$/.test(req.file.mimetype || ""))
+    return res.status(400).json({ error: "Envie uma imagem PNG (de preferência com fundo transparente)" });
+  if (req.file.size > 2 * 1024 * 1024)
+    return res.status(400).json({ error: "Imagem muito grande — até 2 MB" });
+  const todas = await lerAssinaturas();
+  todas[quem] = {
+    base64: req.file.buffer.toString("base64"), tipo: req.file.mimetype,
+    arquivo: req.file.originalname || "", em: new Date().toISOString(), por: g.email,
+  };
+  await storage.set(ASSINATURAS_KEY, JSON.stringify(todas));
+  await storage.flush?.();
+  console.log(`[ic] assinatura de ${quem} enviada por ${g.email}`);
+  res.json({ ok: true, quem, tamanho: req.file.size });
+});
+
+app.delete("/api/ic/assinatura/:quem", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  const todas = await lerAssinaturas();
+  delete todas[req.params.quem];
+  await storage.set(ASSINATURAS_KEY, JSON.stringify(todas));
+  await storage.flush?.();
+  res.json({ ok: true });
+});
+
+/** A imagem guardada, para a gestão conferir o que vai sair no documento. */
+app.get("/api/ic/assinatura/:quem", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  const a = (await lerAssinaturas())[req.params.quem];
+  if (!a?.base64) return res.status(404).send("Sem assinatura enviada");
+  res.setHeader("Content-Type", a.tipo || "image/png");
+  res.setHeader("Cache-Control", "no-store");
+  res.send(Buffer.from(a.base64, "base64"));
+});
+
 /** O documento em si — só sai para quem tem direito a ele. */
 app.get("/api/ic/certificado.pdf", async (req, res) => {
   try {
@@ -2276,7 +2343,7 @@ app.get("/api/ic/certificado.pdf", async (req, res) => {
     const cert = meus.find((c) => c.codigo === String(req.query.codigo || ""));
     if (!cert) return res.status(404).send("Certificado não encontrado para a sua conta.");
     const { gerarCertificadoPdf } = await import("./lib/pdf.js");
-    const buffer = await gerarCertificadoPdf(cert);
+    const buffer = await gerarCertificadoPdf({ ...cert, assinaturas: await assinaturasParaPdf() });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition",
       `inline; filename="certificado-${cert.tipo}-${slug(cert.numero || cert.edital)}.pdf"`);

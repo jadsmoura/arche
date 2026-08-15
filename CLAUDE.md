@@ -228,9 +228,11 @@ public/
   em paisagem com o **timbre da época** (`marcaEm` pela data de encerramento da vigência:
   FACEG até 04/09/2025, UNIEGO depois) e um código de validação derivado do que ele
   afirma. Assinam o **pró-reitor e o reitor** — só no certificado a assinatura entra
-  **digitalizada**, de `templates/assinatura-{reitor,proreitor}.png` (arquivo opcional: sem
-  ele sai a linha em branco, e nada quebra); os demais documentos seguem para assinatura à
-  mão. A gestão avisa por e-mail, ciclo a ciclo (`POST /api/ic/certificados/avisar`),
+  **digitalizada**. As imagens são **enviadas pela própria tela** (guia Certificados, card
+  "Assinaturas do certificado", só gestor geral) e ficam no estado interno
+  (`sys-assinaturas-v1`, base64), NÃO no repositório: em produção o disco é efêmero e
+  trocar de reitor não pode exigir um deploy. Sem imagem, sai a linha em branco e nada
+  quebra; os demais documentos seguem para assinatura à mão. A gestão avisa por e-mail, ciclo a ciclo (`POST /api/ic/certificados/avisar`),
   cruzando o nome com os perfis para achar quem dá para avisar. Os bolsistas de 2024 e 2025
   entraram com CPF (e 2025 também com e-mail) pelos **termos de compromisso assinados**
   (`dados/ic-edital-01-{2024,2025}-alunos.json`, marcas `sys-ic-alunos-*`), casados ao

@@ -704,6 +704,7 @@ async function renderCertificados() {
       certificados de todas as edições em que você participou. Sem o CPF, só aparecem os ciclos
       ligados a este e-mail.</div>` : ""}
 
+    ${META.gestao ? renderAssinaturas() : ""}
     ${META.gestao ? renderAvisoCertificados() : ""}
 
     ${meus.length ? [...porEdital].map(([edital, lista]) => `<div class="card">
@@ -715,6 +716,64 @@ async function renderCertificados() {
         <div class="card-s">Os certificados saem quando o ciclo é concluído. Se você participou de
         edições anteriores e nada aparece aqui, confira o CPF no seu perfil — é por ele que o
         sistema encontra a sua participação.</div></div>`}`;
+}
+
+/* Só o gestor geral: a assinatura digitalizada que sai NO CERTIFICADO. Fica
+   guardada no sistema (não no repositório) — em produção o disco é efêmero,
+   e trocar de reitor não pode depender de um deploy. */
+function renderAssinaturas() {
+  const a = CERTS?.assinaturas || {};
+  const cartao = (quem, rotulo, nome) => {
+    const tem = a[quem];
+    return `<div class="linha">
+      <div class="txt">
+        <div class="p1">${rotulo} — ${esc(nome)}</div>
+        <div class="p2">${tem
+          ? `enviada em ${fmtDH(tem.em)}${tem.arquivo ? ` · ${esc(tem.arquivo)}` : ""}`
+          : "nenhuma imagem enviada — o certificado sai com a linha em branco"}</div>
+      </div>
+      ${tem ? `<img src="/api/ic/assinatura/${quem}?t=${Date.now()}" alt="assinatura"
+        style="height:38px;max-width:150px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px">` : ""}
+      <label class="bt bt-sec" style="cursor:pointer;margin:0">
+        ${tem ? "Trocar" : "Enviar"} imagem
+        <input type="file" accept="image/png,image/jpeg" style="display:none"
+          onchange="enviarAssinatura('${quem}', this)">
+      </label>
+      ${tem ? `<button class="bt bt-err" onclick="removerAssinatura('${quem}')">✕</button>` : ""}
+    </div>`;
+  };
+  return `<div class="card">
+    <div class="card-t">Assinaturas do certificado</div>
+    <div class="card-s">A imagem entra sobre a linha, no certificado — e só nele: proposta,
+      relatório e resultado continuam saindo para assinatura à mão. Use <b>PNG com fundo
+      transparente</b> e traço escuro (JPG funciona, mas o retângulo branco aparece). Até 2 MB.</div>
+    ${cartao("proreitor", "Pró-Reitor", "Dr. Jadson Belem de Moura")}
+    ${cartao("reitor", "Reitor", "Dr. José Mateus dos Santos")}
+  </div>`;
+}
+
+async function enviarAssinatura(quem, input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append("file", file); fd.append("quem", quem);
+  try {
+    const r = await fetch("/api/ic/assinatura", { method: "POST", body: fd });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Falha (${r.status})`);
+    await renderCertificados();
+    aviso("Assinatura enviada. Baixe um certificado para conferir como ficou.");
+  } catch (e) { aviso(e.message, "err"); }
+  input.value = "";
+}
+
+async function removerAssinatura(quem) {
+  if (!confirm("Remover esta assinatura? O certificado volta a sair com a linha em branco.")) return;
+  try {
+    await api(`/api/ic/assinatura/${quem}`, { method: "DELETE" });
+    await renderCertificados();
+    aviso("Assinatura removida.");
+  } catch (e) { aviso(e.message, "err"); }
 }
 
 /* Só a gestão: avisar por e-mail, ciclo a ciclo, que os certificados saíram. */
