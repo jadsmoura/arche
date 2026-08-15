@@ -241,7 +241,7 @@ let ATUAL = null, PODE = {}, ME = null, SECAO = "painel";
 // "ver como": a coordenação abre o setor pelos olhos de outra pessoa. Guardado
 // na aba (sessionStorage) para sobreviver ao F5 sem grudar entre sessões.
 let COMO = sessionStorage.getItem("arche-ic-como") || "";
-let FILTRO = { status: "", curso: "", linha: "", grupo: "", q: "", edital: "" };
+let FILTRO = { status: "", curso: "", linha: "", grupo: "", q: "", edital: "", titulacao: "", bolsa: "" };
 // Inclusão manual: a coordenação abre a submissão em nome de outro professor
 // (pedido fora do prazo deferido pela pró-reitoria). Vale só para o formulário
 // aberto agora — some assim que o projeto é salvo ou a tela troca.
@@ -647,6 +647,14 @@ function renderGestao() {
       || (FILTRO.grupo === "__sem" && !p.grupoPesquisa)
       || p.grupoPesquisa === FILTRO.grupo) &&
     (FILTRO.edital === "__todos" || (p.edital || META.edital?.numero) === FILTRO.edital) &&
+    (!FILTRO.titulacao || titulacaoCodigo(p.orientador?.titulacao) === FILTRO.titulacao) &&
+    // o recorte da bolsa lê a DECISÃO da seleção: "sem bolsa" são os
+    // aprovados voluntários ou sem fomento — quem ainda espera decisão
+    // (em avaliação) não entra em nenhum dos três
+    (!FILTRO.bolsa
+      || (FILTRO.bolsa === "sem"
+        ? ["aprovado", "concluido"].includes(p.status) && (!p.fomento || p.fomento.tipo === "voluntario")
+        : p.fomento?.tipo === FILTRO.bolsa)) &&
     (!FILTRO.q || `${p.numero || ""} ${p.titulo} ${p.orientador?.nome || ""} ${(p.alunos || []).map((a) => a.nome).join(" ")}`
       .toLowerCase().includes(FILTRO.q.toLowerCase())));
 
@@ -671,6 +679,18 @@ function renderGestao() {
         <option value="__com" ${FILTRO.grupo === "__com" ? "selected" : ""}>Vinculados a algum grupo</option>
         <option value="__sem" ${FILTRO.grupo === "__sem" ? "selected" : ""}>Sem grupo</option>
         ${gruposEmUso().map((g) => `<option value="${esc(g)}" ${FILTRO.grupo === g ? "selected" : ""}>${esc(g)}</option>`).join("")}
+      </select>
+      <select onchange="FILTRO.titulacao=this.value;renderGestao()" title="Titulação de quem orienta">
+        <option value="">Titulação: todos</option>
+        <option value="doutor" ${FILTRO.titulacao === "doutor" ? "selected" : ""}>Professores doutores</option>
+        <option value="mestre" ${FILTRO.titulacao === "mestre" ? "selected" : ""}>Professores mestres</option>
+        <option value="especialista" ${FILTRO.titulacao === "especialista" ? "selected" : ""}>Professores especialistas</option>
+      </select>
+      <select onchange="FILTRO.bolsa=this.value;renderGestao()" title="Fomento decidido na seleção">
+        <option value="">Bolsa: todas</option>
+        <option value="cnpq" ${FILTRO.bolsa === "cnpq" ? "selected" : ""}>Com bolsa CNPq</option>
+        <option value="uniego" ${FILTRO.bolsa === "uniego" ? "selected" : ""}>Com bolsa UNIEGO</option>
+        <option value="sem" ${FILTRO.bolsa === "sem" ? "selected" : ""}>Sem bolsa (voluntários e submissão livre)</option>
       </select>
       ${(META.editais || []).length > 1 ? `
       <select onchange="FILTRO.edital=this.value;renderGestao()" title="Ciclo (edital) a mostrar">
@@ -893,8 +913,15 @@ function ordenarClassificacao(lista) {
 // o mesmo entendimento de normalizarTitulacao no servidor: projeto gravado
 // antes da normalização pode trazer "Doutora"/"Dr." — o quadro não pode
 // divergir do PDF por causa de grafia
-const ehDoutor = (v) => /^(dr|dra|doutor|doutora|doutorado|pos-?doutor)/
-  .test(String(v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim());
+const titulacaoCodigo = (v) => {
+  const t = String(v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  if (!t) return "";
+  if (/^(dr|dra|doutor|doutora|doutorado|pos-?doutor)/.test(t)) return "doutor";
+  if (/^(me|ms|mestr)/.test(t)) return "mestre";
+  if (/^(esp|especialis|pos-?graduad)/.test(t)) return "especialista";
+  return "";
+};
+const ehDoutor = (v) => titulacaoCodigo(v) === "doutor";
 
 function renderClassificacao() {
   const titNome = (c) => (META.titulacoes.find((t) => t.codigo === c) || {}).nome || c || "—";
