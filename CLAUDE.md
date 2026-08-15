@@ -33,6 +33,7 @@ lib/pautas.js        Catálogo da Pauta Regulatória (indicadores INEP) e confor
 lib/redator.js       Redação da minuta da ata: modelo (padrão) | gemini | anthropic
 lib/assistente.js    Assistente de escrita dos campos da ata (só ARCHÉ AT)
 lib/marca.js         Identidade institucional por data (FACEG até set/2025; UNIEGO depois)
+lib/portaria.js      Portaria do ARCHÉ AV: senha compartilhada e link de acesso (sem login)
 lib/alertas.js       Alertas de regularização das atas para a PROPPEX
 lib/mailer.js        E-mails via Gmail API (remetente "ARCHÉ · PROPPEX")
 templates/           Template xlsx de certificados + logo UNIEGO (não alterar estrutura)
@@ -55,7 +56,18 @@ public/
 ## Regras de negócio essenciais
 
 - **Setores protegidos** (exigem login): `/extensao`, `/pesquisa`, `/inovacao`, `/atas`, `/usuarios`.
-  **Avaliação (`/arche/`) é ABERTA** — não adicionar login nela.
+  **Avaliação (`/arche/`) continua SEM login** — não criar conta, papel nem sessão nela.
+- **Portaria da Avaliação** (`lib/portaria.js`, decisão do dono em ago/2026): como o cartão do
+  módulo fica na página inicial, à vista de qualquer visitante, a entrada pede uma **senha
+  compartilhada** (`AV_SENHA`, "uniego" por padrão) — só para barrar quem chegou ali por acaso.
+  Não é login e não pode virar um: o selo (cookie `arche_av`) não guarda e-mail nem papel, e não
+  abre nenhum setor da gestão. Passam **sem digitar nada** quem já está logado no ARCHÉ
+  (professores, coordenações, gestão) e quem chega pelo **link de acesso** (`/arche/?acesso=…`),
+  que é o que a PROPPEX manda ao **avaliador do MEC** — ele não tem conta e não vai criar uma.
+  O link aparece na página inicial só para gestor geral (`GET /api/av/link`) e se invalida em
+  bloco trocando `AV_LINK_VERSAO`. A mesma portaria vale para as APIs que o módulo usa
+  (`/api/estado*` nas chaves abertas e os três `/api/drive/upload*`), senão bastaria pular a
+  tela e ler tudo pela API. Para trocar a senha, mude a env var — não o código.
 - Gestores gerais fixos: `jadsonbelem@gmail.com` e `jadson.moura@uniego.edu.br` (lib/auth.js),
   com os **mesmos privilégios**. A identidade ACADÊMICA do pró-reitor (projetos que orienta,
   certificados) vive na conta **institucional** — a pessoal é só de gestão

@@ -49,6 +49,10 @@ import {
   iniciarAuth, definirSenha, temSenha, validarSenhaDe, senhaFraca, senhaInfo,
   registrarFalha, bloqueado, limparFalhas, FUNCOES, normalizarFuncao,
 } from "./lib/auth.js";
+import {
+  AREA_AV, chaveAcesso, destinoSeguro, emitirSelo, lerSelo, linkAcesso,
+  paginaPortaria, senhaConfere,
+} from "./lib/portaria.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, "public");
@@ -129,6 +133,48 @@ app.use(async (req, res, next) => {
   }
   if (req.path.startsWith("/usuarios") && u.papel !== "gestor") return res.redirect("/");
   next();
+});
+
+/* ---------------------- PORTARIA DA AVALIAÇÃO (ARCHÉ AV) ------------------
+   A Avaliação continua SEM login, como sempre: quem avalia (MEC) e quem
+   alimenta o dossiê não tem conta no portal e não vai criar uma. O que mudou
+   é que o cartão dela fica na PÁGINA INICIAL, à vista de qualquer visitante —
+   então entra uma senha compartilhada só para barrar a passagem de quem caiu
+   ali sem ter o que fazer. Não é login: o selo não identifica ninguém.
+   Passam sem digitar nada quem chega pelo link de acesso (`?acesso=…`, o que
+   se manda ao avaliador) e quem já está logado no ARCHÉ. */
+const liberadoNaAv = (req) => !!lerSelo(req) || !!lerSessao(req);
+
+app.use((req, res, next) => {
+  if (!AREA_AV.test(req.path)) return next();
+  if (req.query.acesso !== undefined && String(req.query.acesso) === chaveAcesso()) {
+    emitirSelo(res, "link");
+    // tira a chave da barra de endereços: o link circula por e-mail, e não há
+    // razão para ela ficar no histórico do navegador de quem recebeu
+    const limpo = new URL(req.originalUrl, "http://arche");
+    limpo.searchParams.delete("acesso");
+    return res.redirect(limpo.pathname + limpo.search);
+  }
+  if (liberadoNaAv(req)) return next();
+  if (req.method !== "GET") return res.status(403).json({ error: "Acesso restrito" });
+  res.status(401).type("html").send(paginaPortaria(destinoSeguro(req.originalUrl)));
+});
+
+// Abrir a porta pela senha. Erra a senha, não entra — e nada mais acontece:
+// não há conta para bloquear nem sessão para criar.
+app.post("/api/av/entrar", (req, res) => {
+  if (!senhaConfere(req.body?.senha))
+    return res.status(401).json({ error: "Senha incorreta." });
+  emitirSelo(res, "senha");
+  res.json({ ok: true, next: destinoSeguro(req.body?.next) });
+});
+
+// O link para mandar a quem não tem conta (avaliadores do MEC, sobretudo).
+// Só a gestão geral vê — é ele que dispensa a senha.
+app.get("/api/av/link", async (req, res) => {
+  const u = await usuarioDe(req);
+  if (!u || u.papel !== "gestor") return res.status(403).json({ error: "Acesso restrito" });
+  res.json({ url: linkAcesso(process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`) });
 });
 
 app.get("/api/authcfg", (_req, res) => res.json({ googleClientId: process.env.GOOGLE_WEB_CLIENT_ID || null }));
@@ -912,6 +958,9 @@ app.get("/api/estado", async (req, res) => {
   try {
     const chave = stateKey(req);
     if (CHAVES_INTERNAS.test(chave)) return res.status(404).json({ error: "nf" });
+    // as chaves abertas são as da Avaliação: a porta é a mesma da portaria,
+    // senão bastaria pular a tela e ler tudo pela API
+    if (!liberadoNaAv(req)) return res.status(403).json({ error: "Acesso restrito" });
     // Os setores de gestão guardam dados pessoais (e-mail, telefone e CPF de
     // participantes): a LEITURA também exige sessão. As chaves da Avaliação
     // Institucional continuam abertas, como manda a regra do projeto.
@@ -933,6 +982,7 @@ app.get("/api/estado", async (req, res) => {
 const CHAVES_PROTEGIDAS = /^(extensao-|pesquisa-|inovacao-|auth-usuarios)/;
 async function podeEscrever(req, chave) {
   if (CHAVES_INTERNAS.test(chave)) return false; // só o próprio servidor grava
+  if (!liberadoNaAv(req)) return false;          // portaria da Avaliação
   if (!CHAVES_PROTEGIDAS.test(chave)) return true;
   const u = await usuarioDe(req);
   return !!u && u.papel !== "pendente";
@@ -980,6 +1030,7 @@ app.delete("/api/estado", async (req, res) => {
 
 app.get("/api/estado/list", async (req, res) => {
   try {
+    if (!liberadoNaAv(req)) return res.status(403).json({ error: "Acesso restrito" });
     const keys = (await storage.list(String(req.query.prefixo || "")))
       .filter((k) => !CHAVES_INTERNAS.test(k));
     res.json({ keys });
@@ -989,6 +1040,11 @@ app.get("/api/estado/list", async (req, res) => {
 });
 
 /* ------------------------------- UPLOADS -------------------------------- */
+// Os três uploads abaixo são da Avaliação e do dossiê: valem a mesma portaria
+// das páginas, senão a barreira só existiria na tela.
+app.use(["/api/drive/upload", "/api/drive/upload-avaliacao", "/api/drive/upload-doc-institucional"],
+  (req, res, next) => (liberadoNaAv(req) ? next() : res.status(403).json({ error: "Acesso restrito" })));
+
 app.post("/api/drive/upload", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
