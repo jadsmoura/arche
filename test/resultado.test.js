@@ -123,19 +123,34 @@ test("o resultado agrupa por categoria de bolsa e traz a coluna curso", async ()
   assert.ok(pos("IC-2026-022") > uniego && pos("IC-2026-022") < vol);
 });
 
-test("no preliminar o agrupamento é pela modalidade PRETENDIDA, e diz isso", async () => {
+/* No preliminar a bolsa ainda não existe — é com este documento que a PROPPEX
+   vai à presidência definir a cota. A categoria ali é a LINHA da proposta
+   (correção do dono, ago/2026). */
+test("no preliminar o agrupamento é por LINHA, não por bolsa", async () => {
   const { gerarResultadoEditalPdf } = await import("../lib/pdf.js");
   const buf = await gerarResultadoEditalPdf({
     edital: EDITAL, fase: "preliminar",
     projetos: [
-      proj({ numero: "IC-2026-031", modalidade: "pibic-cnpq", classificacao: { np: 90, cl: 60, total: 150 } }),
-      proj({ numero: "IC-2026-032", modalidade: "", classificacao: { np: 70, cl: 40, total: 110 } }),
+      proj({ numero: "IC-2026-031", linha: "ic", modalidade: "pibic-cnpq", classificacao: { np: 90, cl: 60, total: 150 } }),
+      proj({ numero: "IC-2026-032", linha: "it", modalidade: "pibiti-cnpq", classificacao: { np: 80, cl: 40, total: 120 } }),
+      proj({ numero: "IC-2026-033", linha: "ie", modalidade: "", classificacao: { np: 70, cl: 40, total: 110 } }),
+      proj({ numero: "IC-2026-034", linha: "", modalidade: "", classificacao: { np: 60, cl: 30, total: 90 } }),
     ],
   });
-  const t = textoDoPdf(buf).join(" ");
-  assert.match(t, /Modalidade pretendida/, "o rótulo diz que a bolsa ainda não foi concedida");
-  assert.match(t, /Sem modalidade pretendida indicada/, "quem não indicou modalidade tem quadro próprio");
+  const linhas = textoDoPdf(buf);
+  const t = linhas.join(" ");
+  const pos = (n) => linhas.findIndex((x) => x.includes(n));
+  // as três linhas do edital viram quadros, na ordem do catálogo. O subtítulo
+  // do cabeçalho também cita as três, e o travessão do título não sobrevive à
+  // leitura em latin1 — por isso a âncora é "nome + contagem" na MESMA linha
+  const cab = (nome) => linhas.findIndex((x) => x.includes(nome) && x.includes("proposta(s)"));
+  const ic = cab("Iniciação Científica"), it = cab("Inovação Tecnológica"), ie = cab("Iniciação à Extensão");
+  assert.ok(ic > 0 && it > ic && ie > it, "IC, depois IT, depois IE");
+  assert.ok(pos("Sem linha indicada") > ie, "proposta sem linha tem quadro próprio, ao fim");
+  // e nada de bolsa: nem modalidade pretendida, nem valor
+  assert.ok(!/Modalidade pretendida/.test(t), "o preliminar não fala em modalidade de bolsa");
   assert.ok(!/350 mensais/.test(t), "o preliminar não anuncia valor de bolsa");
+  assert.ok(!/PIBIC\/CNPq/.test(t), "a bolsa pretendida não aparece como categoria");
 });
 
 test("proposta sem nota de projeto sai sem nota final, não com zero", async () => {
