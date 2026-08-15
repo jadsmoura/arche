@@ -204,3 +204,37 @@ test("a função aceita o código, o nome por extenso e o cargo escrito à mão"
   assert.equal(funcaoNome("coord-ensino"), "Coordenação de Ensino");
   assert.equal(new Set(FUNCOES.map((f) => f.codigo)).size, FUNCOES.length, "códigos não se repetem");
 });
+
+/* --------- perfil completo: a etapa antes de entrar no setor ------------- */
+test("falta no perfil aponta campo a campo, e some quando tudo está lá", async () => {
+  const { faltaNoPerfil, perfilCompleto } = await import("../lib/auth.js");
+  const codigos = (p, o) => faltaNoPerfil(p, o).map((f) => f.campo).sort();
+
+  assert.deepEqual(codigos({}), ["cpf", "curso", "funcao", "nome", "telefone"]);
+  const professor = {
+    nome: "Marlana Carla", funcao: "professor", curso: "Direito",
+    cpf: "12345678909", telefone: "(62) 99999-0000",
+  };
+  // docente sem titulação não fecha: o edital cobra titulação mínima
+  assert.deepEqual(codigos(professor), ["titulacao"]);
+  assert.equal(perfilCompleto({ ...professor, titulacao: "mestre" }), true);
+  // secretaria não precisa de titulação
+  assert.equal(perfilCompleto({ ...professor, funcao: "secretaria", titulacao: "" }), true);
+  assert.equal(perfilCompleto({ ...professor, funcao: "outro", titulacao: "" }), true);
+});
+
+test("o CPF não se cobra do gestor geral — seria exigência impossível", async () => {
+  const { faltaNoPerfil } = await import("../lib/auth.js");
+  const base = { nome: "Jadson Belem de Moura", funcao: "professor", curso: "Agronomia",
+    telefone: "(62) 98888-0000", titulacao: "doutor" };
+  // a conta pessoal é só de gestão; o CPF vive na institucional, e um CPF não
+  // pode estar em duas contas — cobrar aqui deixaria a conta sem saída
+  assert.deepEqual(faltaNoPerfil(base, { gestorGeral: true }), []);
+  assert.deepEqual(faltaNoPerfil(base).map((f) => f.campo), ["cpf"]);
+});
+
+test("campo em branco ou só espaços conta como faltando", async () => {
+  const { faltaNoPerfil } = await import("../lib/auth.js");
+  const p = { nome: "  ", funcao: "professor", curso: "Direito", cpf: " ", telefone: "x", titulacao: "mestre" };
+  assert.deepEqual(faltaNoPerfil(p).map((f) => f.campo).sort(), ["cpf", "nome"]);
+});

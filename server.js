@@ -47,7 +47,7 @@ import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
   papelDe, modulosDe, MODULOS, verificarGoogle, criarCodigo, verificarCodigo,
   iniciarAuth, definirSenha, temSenha, validarSenhaDe, senhaFraca, senhaInfo,
-  registrarFalha, bloqueado, limparFalhas, FUNCOES, normalizarFuncao,
+  registrarFalha, bloqueado, limparFalhas, FUNCOES, normalizarFuncao, faltaNoPerfil,
 } from "./lib/auth.js";
 import {
   AREA_AV, chaveAcesso, destinoSeguro, emitirSelo, lerSelo, linkAcesso,
@@ -147,6 +147,15 @@ app.use(async (req, res, next) => {
     if (!convidado) return res.redirect("/entrar?pendente=1");
   }
   if (req.caminho.startsWith("/usuarios") && u.papel !== "gestor") return res.redirect("/");
+  // Perfil incompleto: uma etapa antes de entrar no setor (decisão do dono,
+  // ago/2026). Cada campo cobrado é usado em algum lugar — sem CPF a pessoa
+  // não encontra os próprios projetos, sem titulação a proposta não se
+  // enquadra na modalidade. Só barra quem realmente tem algo faltando, e a
+  // própria tela de perfil fica de fora (senão o caminho não teria saída).
+  const falta = faltaNoPerfil((await carregarPerfis())[u.email], { gestorGeral: u.papel === "gestor" });
+  if (falta.length) {
+    return res.redirect("/perfil/?completar=1&next=" + encodeURIComponent(req.originalUrl));
+  }
   next();
 });
 
@@ -204,7 +213,12 @@ app.get("/api/me", async (req, res) => {
   const u = await usuarioDe(req, res);
   if (!u) return res.status(401).json({ error: "não autenticado" });
   const perfis = await carregarPerfis();
-  res.json({ ...u, perfil: perfis[u.email] || null, temSenha: await temSenha(storage, u.email) });
+  res.json({
+    ...u, perfil: perfis[u.email] || null, temSenha: await temSenha(storage, u.email),
+    // o que falta para o perfil ficar completo — é o que a tela usa para
+    // pedir só o que falta, em vez de mandar a pessoa reler o formulário
+    perfilFalta: faltaNoPerfil(perfis[u.email], { gestorGeral: u.papel === "gestor" }),
+  });
 });
 
 // Ficha do usuário vinculada à conta (a chave é o e-mail da sessão).
@@ -216,8 +230,19 @@ app.post("/api/perfil", async (req, res) => {
   const u = await usuarioDe(req);
   if (!u) return res.status(401).json({ error: "não autenticado" });
   const b = req.body || {};
-  if (!txt(b.nome) || !txt(b.funcao) || !txt(b.curso))
-    return res.status(400).json({ error: "Preencha nome, função e curso" });
+  // A mesma régua que barra a entrada nos setores vale para gravar: se o
+  // formulário aceitasse um perfil incompleto, a pessoa salvaria, seria
+  // mandada de volta para cá e não sairia mais do lugar.
+  const falta = faltaNoPerfil(
+    { ...b, funcao: normalizarFuncao(b.funcao), cpf: soDigitos(b.cpf) },
+    { gestorGeral: u.papel === "gestor" },
+  );
+  if (falta.length) {
+    return res.status(400).json({
+      error: `Falta preencher: ${falta.map((f) => f.rotulo).join(", ")}.`,
+      falta: falta.map((f) => f.campo),
+    });
+  }
 
   const perfis = await carregarPerfis();
   const antes = perfis[u.email] || {};

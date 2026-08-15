@@ -100,6 +100,16 @@ public/
   submissor; ele acessa pelo próprio e-mail, sem senha definida por ninguém. Papéis e senha
   ficam na outra aba, de propósito. O **curso é gravado pelo NOME** nos dois lugares: duas
   grafias fariam a pessoa não conseguir salvar o próprio perfil depois de editada.
+- **Perfil incompleto barra a entrada nos setores** (`faltaNoPerfil` em lib/auth.js, decisão
+  do dono em ago/2026): quem tem campo faltando é levado ao `/perfil/` com
+  `?completar=1&next=…` antes de entrar em qualquer setor protegido, e a tela mostra a etapa
+  com o que falta apontado nos próprios campos. **Só barra quem tem algo faltando** — perfil
+  completo nunca vê a etapa. Obrigatórios: nome, função, curso, **CPF** e telefone; mais a
+  **titulação** de quem é docente (o edital cobra titulação mínima por modalidade;
+  secretaria e "outro" não). O CPF **não se cobra do gestor geral**: a conta pessoal da
+  pró-reitoria é só de gestão e um CPF não pode estar em duas contas — cobrar ali seria
+  exigência impossível de cumprir. `POST /api/perfil` aplica a MESMA régua: se o formulário
+  aceitasse perfil incompleto, a pessoa salvaria, voltaria à etapa e não sairia do lugar.
 - **Função na instituição** (`FUNCOES`/`normalizarFuncao` em lib/auth.js): o que a pessoa
   FAZ — professor, professor pesquisador, coordenador de curso, coordenador pedagógico,
   secretaria, as coordenações da PROPPEX (Pesquisa e Inovação, Extensão, Ação Comunitária)
