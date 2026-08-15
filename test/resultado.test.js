@@ -223,3 +223,30 @@ test("no preliminar o aprovado sai como 'Aprovada', mesmo já havendo fomento", 
   assert.match(t, /Aprovada/, "a coluna Resultado diz só a aprovação");
   assert.doesNotMatch(t, /PIBIC-CNPQ/, "a modalidade da bolsa fica para o final");
 });
+
+/* Pedido do dono (ago/2026): o preliminar é só os quadros por linha. Os dois
+   quadros de mérito repetiriam as mesmas propostas, e a marca de inclusão
+   fora do prazo é assunto do processo, não da divulgação preliminar. */
+test("o preliminar traz só os quadros por linha, sem mérito e sem a marca de inclusão", async () => {
+  const { gerarResultadoEditalPdf } = await import("../lib/pdf.js");
+  const projetos = [
+    proj({ numero: "IC-2026-041", linha: "ic", classificacao: { np: 90, cl: 60, total: 150 },
+      inclusaoManual: { motivo: "pedido deferido pelo pró-reitor", por: "proppex@uniego.edu.br" } }),
+    proj({ numero: "IC-2026-042", linha: "it", orientador: { nome: "M", titulacao: "mestre" },
+      classificacao: { np: 70, cl: 40, total: 110 } }),
+  ];
+  const prelim = textoDoPdf(await gerarResultadoEditalPdf({ edital: EDITAL, fase: "preliminar", projetos })).join(" ");
+  assert.ok(!/professores doutores/.test(prelim), "sem o quadro dos doutores");
+  assert.ok(!/Classifica..o geral/.test(prelim), "sem o quadro geral");
+  assert.ok(!/inclus.o deferida/.test(prelim), "sem a marca de inclusão fora do prazo");
+  // e o que tem de estar continua: os quadros por linha, com as duas propostas
+  assert.match(prelim, /Iniciação Científica/);
+  assert.match(prelim, /IC-2026-041/);
+  assert.match(prelim, /IC-2026-042/);
+
+  // no FINAL nada disso se perde: é o documento do processo encerrado
+  const fim = textoDoPdf(await gerarResultadoEditalPdf({ edital: EDITAL, projetos })).join(" ");
+  assert.match(fim, /professores doutores/);
+  assert.match(fim, /Classifica..o geral/);
+  assert.match(fim, /inclus.o deferida fora do prazo/);
+});
