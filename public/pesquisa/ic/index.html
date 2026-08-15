@@ -73,6 +73,22 @@
   .kpi .l{font-size:12px;color:var(--muted);font-weight:500;margin-bottom:10px}
   .kpi .v{font-family:Sora,sans-serif;font-weight:700;font-size:30px;color:var(--ink);line-height:1}
   .kpi .d{font-size:11.5px;font-weight:600;margin-top:7px;color:var(--muted)}
+  /* Barras do panorama: uma cor só, porque o que se compara é TAMANHO —
+     quem diz "quem é" é o rótulo da linha, não a cor. Marca fina, ponta
+     arredondada e o número direto ao lado, para não precisar de eixo. */
+  .barras{display:flex;flex-direction:column;gap:9px;margin-top:4px}
+  .barra{display:grid;grid-template-columns:minmax(110px,36%) 1fr auto;align-items:center;gap:10px}
+  .barra .rot{font-size:12.5px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .barra .trilho{height:10px;border-radius:5px;background:var(--trilho);overflow:hidden}
+  .barra .fill{height:100%;border-radius:5px;background:var(--brand-3);min-width:2px}
+  .barra .val{font-family:Sora,sans-serif;font-weight:700;font-size:13px;color:var(--ink);min-width:34px;text-align:right}
+  .barra .val span{font-weight:500;font-size:11px;color:var(--muted);margin-left:3px}
+  .barra:hover .fill{background:var(--brand-2)}
+  .quad{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px 18px}
+  .quad .qt{font-family:Sora,sans-serif;font-weight:600;font-size:14px;color:var(--ink);margin-bottom:2px}
+  .quad .qs{font-size:12px;color:var(--muted);margin-bottom:12px}
+  .grade2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+  @media(max-width:900px){.grade2{grid-template-columns:1fr}}
   .duplo{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;margin-bottom:20px}
   .duplo>*{min-width:0}
   @media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.duplo{grid-template-columns:1fr}}
@@ -823,6 +839,7 @@ function renderPainel() {
     </div>
 
     ${cicloAval}
+    ${panoramaDoCiclo(meus)}
 
     ${(() => {
       // o aluno recém-convidado não sabe o que o sistema espera dele: o
@@ -890,6 +907,122 @@ function renderPainel() {
     </div>` : ""}`;
 }
 const chip2 = (s) => `<span class="badge b-${esc(s)}">${esc({ prevista: "prevista", andamento: "em andamento", concluida: "concluída" }[s] || s)}</span>`;
+
+/* ------------------------- panorama do ciclo ---------------------------- */
+/* O que a coordenação precisa acompanhar sem abrir projeto por projeto:
+   quem já indicou aluno, quantos alunos já completaram o cadastro do
+   contrato, e como o edital se distribui por curso, titulação e linha.
+
+   Os gráficos são barras de UMA COR só: o que se compara aqui é tamanho, e
+   quem diz "quem é" é o rótulo da linha. Cor por categoria obrigaria a
+   consultar uma legenda para ler o próprio gráfico, sem dizer nada a mais. */
+const barras = (itens, { unidade = "" } = {}) => {
+  if (!itens.length) return `<div class="vazio">Sem dados neste ciclo.</div>`;
+  const max = Math.max(1, ...itens.map((i) => i.valor));
+  const total = itens.reduce((s, i) => s + i.valor, 0);
+  return `<div class="barras">${itens.map((i) => {
+    const pct = total ? Math.round((i.valor / total) * 100) : 0;
+    return `<div class="barra" title="${esc(i.rot)}: ${i.valor}${unidade ? " " + unidade : ""}${total ? ` — ${pct}% do total` : ""}">
+      <div class="rot">${esc(i.rot)}</div>
+      <div class="trilho"><div class="fill" style="width:${Math.round((i.valor / max) * 100)}%"></div></div>
+      <div class="val">${i.valor}${total ? `<span>${pct}%</span>` : ""}</div>
+    </div>`;
+  }).join("")}</div>`;
+};
+
+// a pessoa que orienta, como chave: e-mail quando há, nome quando não
+const chaveProf = (p) => String(p.orientador?.email || p.orientador?.nome || "").toLowerCase();
+
+function panoramaDoCiclo(meus) {
+  if (!META.gestao) return "";
+  const doCiclo = meus.filter((p) => p.status !== "rascunho");
+  if (!doCiclo.length) return "";
+  const emExecucao = doCiclo.filter((p) => ["aprovado", "concluido"].includes(p.status));
+
+  /* --- indicação e cadastro: o acompanhamento pedido pela pró-reitoria --- */
+  const profsAprovados = new Set(emExecucao.map(chaveProf).filter(Boolean));
+  const profsQueIndicaram = new Set(emExecucao.filter((p) => (p.alunos || []).length).map(chaveProf).filter(Boolean));
+  const alunos = emExecucao.flatMap((p) => p.alunos || []);
+  const completos = alunos.filter((a) => a.dadosCompletos ?? cadastroCompletoLocal(a));
+  const semEmail = alunos.filter((a) => !a.email);
+  const bolsistas = alunos.filter((a) => a.bolsista);
+  const pctInd = profsAprovados.size ? Math.round((profsQueIndicaram.size / profsAprovados.size) * 100) : 0;
+  const pctCad = alunos.length ? Math.round((completos.length / alunos.length) * 100) : 0;
+
+  /* ------------------------ distribuições do edital ---------------------- */
+  const contar = (lista, chave) => {
+    const m = new Map();
+    for (const x of lista) { const k = chave(x); if (!k) continue; m.set(k, (m.get(k) || 0) + 1); }
+    return [...m.entries()].map(([rot, valor]) => ({ rot, valor })).sort((a, b) => b.valor - a.valor);
+  };
+  const porCurso = contar(doCiclo, (p) => cursoNome(p.curso));
+  const porLinha = contar(doCiclo, (p) => linhaNome(p.linha));
+  const porStatus = contar(doCiclo, (p) => META.rotulos[p.status] || p.status);
+  // titulação conta PESSOAS, não projetos: quem submete dois planos é um
+  // professor só, e o quadro é sobre o corpo docente do edital
+  const profs = new Map();
+  for (const p of doCiclo) {
+    const k = chaveProf(p); if (!k || profs.has(k)) continue;
+    profs.set(k, titulacaoCodigo(p.orientador?.titulacao));
+  }
+  const rotTit = { doutor: "Doutores", mestre: "Mestres", especialista: "Especialistas", "": "Não informada" };
+  const porTitulacao = ["doutor", "mestre", "especialista", ""]
+    .map((c) => ({ rot: rotTit[c], valor: [...profs.values()].filter((x) => x === c).length }))
+    .filter((x) => x.valor);
+  const porBolsa = contar(emExecucao.filter((p) => p.fomento),
+    (p) => (p.fomento.modalidade ? modNome(p.fomento.modalidade) : fomentoNome(p.fomento.tipo)));
+
+  return `
+    <div class="card">
+      <div class="card-t">Indicação e cadastro dos alunos</div>
+      <div class="card-s">Onde cada projeto aprovado está: quem já indicou aluno e quem já completou o
+        cadastro que a PROPPEX usa para efetivar a bolsa.</div>
+      <div class="kpis" style="margin-bottom:0">
+        <div class="kpi"><div class="l">Professores que já indicaram</div>
+          <div class="v">${profsQueIndicaram.size}<span style="font-size:16px;color:var(--muted)"> / ${profsAprovados.size}</span></div>
+          <div class="d" style="color:${pctInd === 100 ? "var(--ok)" : "var(--warn)"}">${pctInd}% dos aprovados${
+            profsAprovados.size - profsQueIndicaram.size ? ` · faltam ${profsAprovados.size - profsQueIndicaram.size}` : ""}</div></div>
+        <div class="kpi"><div class="l">Alunos indicados</div>
+          <div class="v">${alunos.length}</div>
+          <div class="d">${bolsistas.length} bolsista(s) · ${alunos.length - bolsistas.length} voluntário(s)</div></div>
+        <div class="kpi"><div class="l">Cadastros enviados</div>
+          <div class="v" style="color:${alunos.length && pctCad === 100 ? "var(--ok)" : "var(--ink)"}">${completos.length}<span style="font-size:16px;color:var(--muted)"> / ${alunos.length}</span></div>
+          <div class="d" style="color:${alunos.length && pctCad === 100 ? "var(--ok)" : "var(--warn)"}">${pctCad}% completaram os próprios dados</div></div>
+        <div class="kpi"><div class="l">Sem e-mail na indicação</div>
+          <div class="v" style="color:${semEmail.length ? "var(--err)" : "var(--ok)"}">${semEmail.length}</div>
+          <div class="d">${semEmail.length ? "não recebem convite nem enviam relatório" : "todos os indicados têm acesso"}</div></div>
+      </div>
+    </div>
+
+    <div class="grade2">
+      <div class="quad">
+        <div class="qt">Projetos por curso</div>
+        <div class="qs">${doCiclo.length} proposta(s) no ciclo, fora os rascunhos.</div>
+        ${barras(porCurso)}
+      </div>
+      <div class="quad">
+        <div class="qt">Titulação de quem orienta</div>
+        <div class="qs">${profs.size} professor(es) no edital — cada um contado uma vez.</div>
+        ${barras(porTitulacao)}
+      </div>
+      <div class="quad">
+        <div class="qt">Categoria de submissão</div>
+        <div class="qs">Iniciação Científica, Inovação Tecnológica e Iniciação à Extensão.</div>
+        ${barras(porLinha)}
+      </div>
+      <div class="quad">
+        <div class="qt">Situação das propostas</div>
+        <div class="qs">Onde está cada uma neste momento do processo.</div>
+        ${barras(porStatus)}
+      </div>
+      ${porBolsa.length ? `<div class="quad" style="grid-column:1/-1">
+        <div class="qt">Bolsas concedidas por modalidade</div>
+        <div class="qs">Entre os projetos aprovados, o que a coordenação já distribuiu.</div>
+        ${barras(porBolsa)}
+      </div>` : ""}
+    </div>`;
+}
+
 
 /* ----------------------------- certificados ---------------------------- */
 /* Participação (aluno) e orientação (um por aluno orientado), dos ciclos

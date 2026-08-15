@@ -452,6 +452,14 @@ public/
   acento, caixa e espaço), para o mesmo grupo não virar duas linhas na lista. Grupo e
   planilha de produção **seguem editáveis depois da submissão** — são fato sobre o
   projeto, não argumento da proposta, e os 33 importados chegaram sem os dois.
+- **Panorama do ciclo no Painel** (`panoramaDoCiclo`, só gestão): o acompanhamento que
+  antes exigia abrir projeto por projeto — **professores que já indicaram aluno** (sobre o
+  total de aprovados), **alunos indicados**, **cadastros enviados** (quantos completaram os
+  próprios dados) e quantos ficaram **sem e-mail** na indicação; mais a distribuição do
+  edital por curso, por titulação de quem orienta (contando PESSOAS, não projetos), por
+  linha, por situação e por bolsa concedida. As barras são de **uma cor só**: o que se
+  compara é tamanho, e quem diz "quem é" é o rótulo da linha — cor por categoria obrigaria
+  a consultar legenda para ler o gráfico. Tudo se calcula do que a tela já carregou.
 - **Pendências** (`pendenciasDoProjeto`) não travam a submissão, mas aparecem em amarelo:
   aluno sem e-mail (não conseguirá enviar relatório), planilha de produção em branco,
   CEP/CEUA sem protocolo. O formulário do edital não coletou e-mail nem CPF dos alunos —
