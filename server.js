@@ -21,7 +21,7 @@ import {
 } from "./lib/atas.js";
 import {
   PAUTAS, MOMENTOS, CADENCIAS, RITUAL, checklistSemestral, pautasSugeridas, janelaDe,
-  matrizConformidade, placarPorCurso, ciclosDoSemestre, proximosPrazos,
+  matrizConformidade, placarPorCurso, ciclosDoSemestre, proximosPrazos, dossieConformidade,
 } from "./lib/pautas.js";
 import {
   IC_KEY, MODALIDADES as IC_MODALIDADES, STATUS as IC_STATUS, ROTULO_STATUS as IC_ROTULO_STATUS,
@@ -1786,6 +1786,31 @@ app.get("/api/atas/conformidade", async (req, res) => {
     ciclos: ciclosDoSemestre(atas),
     alertas, resumo: resumoAlertas(alertas), responsaveis: porResponsavel(alertas),
   });
+});
+
+/* O dossiê de conformidade em PDF: a resposta à pergunta que o avaliador do
+   INEP faz — onde está a ata que comprova este indicador. Um por curso
+   (NDE e Colegiado) e um institucional (conselhos, CPA, pró-reitorias). */
+app.get("/api/atas/dossie.pdf", async (req, res) => {
+  try {
+    const u = await sessaoAtas(req, res);
+    if (!u) return;
+    if (!gereAtas(u)) return res.status(403).send("O dossiê de conformidade é da gestão.");
+    const curso = String(req.query.curso || "").trim();
+    if (curso && !CURSOS.some((c) => c.slug === curso)) return res.status(400).send("Curso desconhecido.");
+    const atas = await lerAtas();
+    const dossie = dossieConformidade(atas, { curso });
+
+    const { gerarDossieConformidadePdf } = await import("./lib/pdf.js");
+    const buffer = await gerarDossieConformidadePdf({ dossie, emitidoPor: u.nome || u.email });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition",
+      `inline; filename="dossie-conformidade-${slug(curso || "institucional")}.pdf"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro no dossiê de conformidade:", e);
+    res.status(500).send("Erro ao gerar o dossiê: " + e.message);
+  }
 });
 
 // Alertas de regularização: é aqui que a PROPPEX vê quem está devendo ata.

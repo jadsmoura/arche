@@ -932,6 +932,18 @@ async function renderConformidade() {
     </div>
 
     <div class="card">
+      <div class="card-t">Dossiê de conformidade (PDF)</div>
+      <div class="card-s">O documento que se entrega ao avaliador: cada tema do instrumento do INEP
+        com <b>o número e a data da ata que o comprova</b>. Um por curso e um dos órgãos
+        institucionais. Só ata <b>registrada</b> entra — rascunho e minuta ainda podem mudar.</div>
+      <div class="exp" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <a class="bt bt-pri" target="_blank" rel="noopener" href="/api/atas/dossie.pdf">📄 Órgãos institucionais</a>
+        ${cursos.map((c) => `<a class="bt bt-ghost" target="_blank" rel="noopener"
+          href="/api/atas/dossie.pdf?curso=${encodeURIComponent(c.slug)}">${esc(c.nome)}</a>`).join("")}
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-t">Quem regularizar</div>
       <div class="card-s">Agrupado por órgão e curso — abra para ver o que está pendente e cobrar.</div>
       ${d.responsaveis.length ? d.responsaveis.map((g) => `<details class="resp">

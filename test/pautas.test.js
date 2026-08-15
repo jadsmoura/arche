@@ -6,7 +6,7 @@ import {
   PAUTAS, MOMENTOS, CADENCIAS, RITUAL, ritualDe, pautaDe, pautasDoOrgao,
   janelaDe, fimDaJanela, numeroDoSemestre, cobradaNoSemestre,
   situacaoPautas, checklistSemestral, ritualDoOrgao, pautasSugeridas,
-  matrizConformidade, placarPorCurso, ciclosDoSemestre, proximosPrazos,
+  matrizConformidade, placarPorCurso, ciclosDoSemestre, proximosPrazos, dossieConformidade,
 } from "../lib/pautas.js";
 import { ORGAOS, CURSOS, normalizarAta, numerar } from "../lib/atas.js";
 import { somaDias } from "../lib/datas.js";
@@ -428,4 +428,79 @@ test("as sugestões de B não repetem o que A já registrou", () => {
   assert.ok(!sug.includes("nde-ppc"));
   assert.ok(!sug.includes("nde-bibliografia"));
   assert.ok(sug.length, "o que falta continua sendo sugerido");
+});
+
+/* ------------------------ dossiê de conformidade ------------------------ */
+/* O dossiê é o documento que a PROPPEX entrega ao avaliador: não basta dizer
+   que o indicador está em dia — tem de dizer QUAL ata o comprova. */
+const ataProva = (id, orgao, curso, data, ids, extra = {}) => ({
+  id, numero: `ATA-${orgao}-2026-00${id.slice(-1)}`, orgao, curso, status: "registrada",
+  sessao: { data, tipo: "ordinária" },
+  pauta: ids.map((x, i) => ({ titulo: `Ponto ${i + 1}`, pautaMec: x, deliberacao: "Aprovado." })),
+  ...extra,
+});
+
+test("o dossiê do curso traz NDE e Colegiado, com a ata que comprova cada tema", () => {
+  const hoje = "2026-08-15";
+  const doNde = pautasDoOrgao("NDE").filter((p) => cobradaNoSemestre(p, hoje)).slice(0, 2);
+  const atas = [ataProva("d1", "NDE", "agronomia", "2026-08-05", doNde.map((p) => p.id))];
+  const d = dossieConformidade(atas, { curso: "agronomia", hoje });
+
+  assert.equal(d.escopo, "curso");
+  assert.deepEqual(d.orgaos.map((o) => o.orgao), ["NDE", "COLEGIADO"], "só os órgãos do curso");
+  const nde = d.orgaos.find((o) => o.orgao === "NDE");
+  for (const p of doNde) {
+    const t = nde.temas.find((x) => x.id === p.id);
+    assert.equal(t.estado, "em-dia");
+    assert.equal(t.provas[0].numero, "ATA-NDE-2026-001", "o tema aponta a ata que o registrou");
+    assert.equal(t.provas[0].data, "2026-08-05");
+  }
+  assert.equal(d.comprovados, doNde.length);
+  assert.ok(d.exigidos > d.comprovados, "o que não foi tratado continua contando como cobrado");
+  assert.ok(d.atas.includes("ATA-NDE-2026-001"), "a ata entra na lista do que sustenta o dossiê");
+});
+
+test("o dossiê institucional não mistura os órgãos do curso", () => {
+  const d = dossieConformidade([], { hoje: "2026-08-15" });
+  assert.equal(d.escopo, "institucional");
+  assert.ok(!d.orgaos.some((o) => ["NDE", "COLEGIADO"].includes(o.orgao)));
+  assert.ok(d.orgaos.some((o) => o.orgao === "CPA"), "a CPA é institucional");
+  assert.equal(d.comprovados, 0);
+  assert.equal(d.percentual, 0);
+});
+
+test("minuta não comprova nada: só ata registrada entra no dossiê", () => {
+  const hoje = "2026-08-15";
+  const alvo = pautasDoOrgao("NDE").find((p) => cobradaNoSemestre(p, hoje));
+  const minuta = ataProva("d2", "NDE", "agronomia", "2026-08-05", [alvo.id], { status: "minuta" });
+  const d = dossieConformidade([minuta], { curso: "agronomia", hoje });
+  const t = d.orgaos.find((o) => o.orgao === "NDE").temas.find((x) => x.id === alvo.id);
+  assert.notEqual(t.estado, "em-dia");
+  assert.equal(t.provas.length, 0);
+  assert.equal(d.atas.length, 0);
+});
+
+test("tema anual do outro semestre sai com a ata da última vez em que foi tratado", () => {
+  const hoje = "2026-08-15";           // 2º semestre
+  const anual1 = pautasDoOrgao("NDE").find((p) => p.cadencia === "anual" && p.semestre === 1);
+  const d = dossieConformidade(
+    [ataProva("d3", "NDE", "agronomia", "2026-02-20", [anual1.id])],
+    { curso: "agronomia", hoje });
+  const t = d.orgaos.find((o) => o.orgao === "NDE").temas.find((x) => x.id === anual1.id);
+  assert.equal(t.estado, "fora-da-janela", "não se cobra dele agora");
+  assert.equal(t.exigidaAgora, false);
+  assert.equal(t.provas[0].data, "2026-02-20", "mas a prova continua à mão para o avaliador");
+});
+
+test("o ciclo de sessões entra no dossiê, com as atas do semestre", () => {
+  const hoje = "2026-08-15";
+  const atas = [
+    ataProva("d4", "NDE", "agronomia", "2026-08-05", []),
+    { ...ataProva("d5", "NDE", "agronomia", "2026-08-20", []), sessao: { data: "2026-08-20", tipo: "extraordinária" } },
+  ];
+  const nde = dossieConformidade(atas, { curso: "agronomia", hoje }).orgaos.find((o) => o.orgao === "NDE");
+  assert.equal(nde.ritual.ordinarias, 1);
+  assert.equal(nde.ritual.extraordinarias, 1, "extraordinária conta à parte");
+  assert.equal(nde.ritual.faltam, 1, "e não fecha o ciclo");
+  assert.equal(nde.ritual.sessoes.length, 2);
 });

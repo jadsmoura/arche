@@ -617,6 +617,16 @@ public/
   entram por demanda: contam como registro dos temas que tratam, mas não fecham o ciclo.
   Cadência por tema: `semestral` ou `anual` (com o semestre em que vence).
   Ao alterar o catálogo, preserve os `id` — são a chave do vínculo gravado nas atas.
+- **Dossiê de conformidade** (`dossieConformidade` + `gerarDossieConformidadePdf`,
+  `GET /api/atas/dossie.pdf`, só gestão; botões na tela Acompanhamento): a matriz da tela
+  responde "quanto falta"; o dossiê responde o que o avaliador do INEP pergunta —
+  **onde está a ata que comprova este indicador**. Cada tema sai com a referência do
+  instrumento ("Curso 2.1", "IES 3.7"), a situação e o **número e a data da ata** que o
+  registrou; o ciclo de sessões do semestre vem junto, porque o instrumento cobra a
+  periodicidade e não só o tema. Um PDF por curso (NDE e Colegiado) e um dos órgãos
+  institucionais. Só ata **registrada** entra — minuta ainda pode mudar. Tema anual do
+  outro semestre aparece como "não cobrado neste semestre", mas **com a ata da última vez
+  em que foi tratado**: sem ela o avaliador conclui que nunca houve.
 - O ARCHÉ **não convoca reunião nem cobra ninguém por e-mail**: `lib/alertas.js` monta a
   lista de órgãos e cursos fora de dia e a mostra à gestão (painel do ARCHÉ AT e tela
   Acompanhamento). A cobrança da regularização é da PROPPEX. Órgão que nunca registrou
