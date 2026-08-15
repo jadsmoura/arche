@@ -187,6 +187,55 @@
   .tut li{margin-bottom:5px}
   .hide{display:none!important}
 
+  /* --------------------------- ver como (picker) ------------------------- */
+  /* A lista de pessoas do setor cresce a cada edital: numa caixa de seleção
+     única viravam dezenas de linhas para rolar. Vira um botão que abre uma
+     janela com busca — quem procura alguém digita três letras. */
+  .vc-bt{display:inline-flex;align-items:center;gap:7px;background:#fff;border:1px solid #cfd6de;
+    border-radius:8px;padding:6px 11px;font-size:12.5px;color:var(--muted);cursor:pointer}
+  .vc-bt:hover{border-color:var(--brand-3);color:var(--ink)}
+  .vc-bt b{color:var(--ink);font-weight:600}
+  .vc-bt.on{background:var(--warn-soft);border-color:#e8d3a8;color:#8a6420}
+  .vc-bt.on b{color:#6d4e19}
+  .ov{position:fixed;inset:0;background:rgba(28,55,66,.42);z-index:40;display:flex;
+    align-items:flex-start;justify-content:center;padding:60px 18px 24px;overflow-y:auto}
+  .ov-cx{background:#fff;border-radius:14px;width:100%;max-width:520px;padding:22px 22px 18px;
+    box-shadow:0 24px 60px rgba(18,38,50,.28)}
+  .ov-cab{display:flex;align-items:flex-start;gap:12px;margin-bottom:4px}
+  .ov-cab .t{font-family:Sora,sans-serif;font-weight:700;font-size:16px;flex:1}
+  .ov-x{background:none;border:0;font-size:20px;line-height:1;color:var(--muted-2);cursor:pointer;padding:0 2px}
+  .ov-x:hover{color:var(--ink)}
+  .vc-lab{font-size:10.5px;letter-spacing:.14em;font-weight:700;color:var(--muted-2);margin:18px 0 8px}
+  .vc-gen{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .vc-op{display:flex;flex-direction:column;gap:2px;text-align:left;background:#fff;border:1px solid var(--line);
+    border-radius:9px;padding:9px 12px;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink)}
+  .vc-op small{font-weight:400;font-size:11.5px;color:var(--muted)}
+  .vc-op:hover{border-color:var(--brand-3)}
+  .vc-op.on{background:var(--info-soft);border-color:#a8d5e8;color:var(--brand)}
+  .vc-abas{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 8px}
+  .vc-aba{background:#fff;border:1px solid var(--line);border-radius:20px;padding:4px 11px;font-size:11.5px;
+    color:var(--muted);cursor:pointer}
+  .vc-aba:hover{border-color:var(--brand-3);color:var(--ink)}
+  .vc-aba.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  .vc-lista{max-height:290px;overflow-y:auto;border:1px solid var(--line);border-radius:10px}
+  .vc-p{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:#fff;border:0;
+    border-bottom:1px solid var(--line-2);padding:9px 12px;cursor:pointer}
+  .vc-p:last-child{border-bottom:0}
+  .vc-p:hover,.vc-p.foco{background:var(--info-soft)}
+  .vc-p.on{background:var(--info-soft);box-shadow:inset 3px 0 0 var(--brand-3)}
+  .vc-ini{width:30px;height:30px;border-radius:50%;background:var(--trilho);color:var(--brand-3);flex:none;
+    display:grid;place-items:center;font-size:11.5px;font-weight:700}
+  .vc-p .nm{display:block;font-size:13px;font-weight:600;line-height:1.3;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vc-p .dt{display:block;font-size:11px;color:var(--muted);line-height:1.3;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vc-p .tags{margin-left:auto;display:flex;gap:4px;flex:none}
+  .vc-tag{font-size:10px;font-weight:700;border-radius:20px;padding:2px 7px;background:var(--trilho);color:var(--muted)}
+  .vc-tag.o{background:var(--info-soft);color:var(--info)}
+  .vc-tag.a{background:var(--ok-soft);color:var(--ok)}
+  .vc-tag.v{background:var(--roxo-soft);color:var(--roxo)}
+  .vc-vazio{padding:22px 14px;text-align:center;color:var(--muted);font-size:12.5px}
+
   @media(max-width:760px){
     .app{flex-direction:column}
     .side{width:100%;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center}
@@ -240,6 +289,9 @@
     </div>
   </div>
 </div>
+
+<!-- Escolha de por quais olhos olhar o setor (só a coordenação a enxerga). -->
+<div class="ov hide" id="ovComo"></div>
 
 <script>
 /* ======================================================================
@@ -396,30 +448,142 @@ function montarSidebar() {
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === SECAO);
 }
 
-/* ---------------------------- ver como -------------------------------- */
+/* ---------------------------- ver como ----------------------------------
+   A coordenação olha o setor pelos olhos de quem precisar conferir. São duas
+   coisas diferentes: as VISÕES GENÉRICAS — a cara de cada um dos três
+   acessos, sem os dados de ninguém — e as PESSOAS do setor, que crescem a
+   cada edital. Por isso a escolha saiu de uma caixa de seleção única (que já
+   passava de cem linhas para rolar) e virou uma janela com busca: quem
+   procura alguém digita três letras.
+   ---------------------------------------------------------------------- */
+const GENERICAS = [
+  { id: "", rot: "A sua visão", det: "coordenação de pesquisa", curto: "gestor" },
+  { id: "perfil:orientador", rot: "Professor", det: "genérica, ainda sem projeto",
+    curto: "professor genérico", faixa: "um professor recém-chegado, ainda sem projeto" },
+  { id: "perfil:aluno", rot: "Aluno", det: "genérica, ainda sem projeto",
+    curto: "aluno genérico", faixa: "um aluno recém-chegado, ainda sem projeto" },
+  { id: "perfil:avaliador", rot: "Avaliador ad hoc", det: "genérica, sem designação",
+    curto: "avaliador genérico", faixa: "um avaliador ad hoc, ainda sem projeto designado" },
+];
+const PAPEL_VC = {
+  orientador: { rot: "Professor", cls: "o" },
+  aluno: { rot: "Aluno", cls: "a" },
+  avaliador: { rot: "Avaliador", cls: "v" },
+};
+let VC = { busca: "", aba: "todos" };
+
+/* As três listas do servidor viram uma só: quem acumula papéis (o professor
+   que também avalia) aparecia repetido, uma vez em cada grupo. */
+function vcPessoas() {
+  const m = new Map();
+  const juntar = (lista, papel) => (lista || []).forEach((p) => {
+    const a = m.get(p.id) || { ...p, papeis: [], contagem: {} };
+    a.nome = a.nome || p.nome; a.semConta = a.semConta || p.semConta;
+    if (!a.papeis.includes(papel)) a.papeis.push(papel);
+    a.contagem[papel] = p.projetos || 0;
+    m.set(p.id, a);
+  });
+  juntar(META.pessoas?.orientadores, "orientador");
+  juntar(META.pessoas?.alunos, "aluno");
+  juntar(META.pessoas?.avaliadores, "avaliador");
+  return [...m.values()].sort((a, b) => (a.nome || a.email).localeCompare(b.nome || b.email, "pt-BR"));
+}
+
+const semAcento = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const vcRotulo = (id) => {
+  const g = GENERICAS.find((x) => x.id === id);
+  if (g) return g.curto;
+  const p = vcPessoas().find((x) => x.id === id);
+  return (p?.nome || p?.email || id).split(" ").slice(0, 2).join(" ");
+};
+
 function montarVerComo() {
   const alvo = $("dir-info");
   if (!alvo) return;
   if (!META.pessoas) { alvo.textContent = rotuloPerfil(); return; }
+  alvo.innerHTML = `<button class="vc-bt ${COMO ? "on" : ""}" onclick="abrirVerComo()"
+      title="Ver o setor por outros olhos">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/></svg>
+    Ver como <b>${esc(vcRotulo(COMO))}</b></button>`;
+}
 
-  const grupo = (rot, gente) => gente.length
-    ? `<optgroup label="${rot}">${gente.map((p) => `<option value="${esc(p.id)}" ${COMO === p.id ? "selected" : ""}>${
-        esc(p.nome || p.email)}${p.projetos > 1 ? ` (${p.projetos})` : ""}${p.semConta ? " · sem conta" : ""}</option>`).join("")}</optgroup>`
-    : "";
-  alvo.innerHTML = `
-    <label style="margin:0;display:flex;align-items:center;gap:7px;text-transform:none;letter-spacing:0;font-size:12.5px">
-      Ver como
-      <select style="width:auto;min-width:190px;font-size:12.5px;padding:6px 8px" onchange="verComo(this.value)">
-        <option value="">Como gestor — a sua visão</option>
-        <optgroup label="Visões genéricas (avaliar cada acesso)">
-          <option value="perfil:orientador" ${COMO === "perfil:orientador" ? "selected" : ""}>Como professor — visão genérica</option>
-          <option value="perfil:aluno" ${COMO === "perfil:aluno" ? "selected" : ""}>Como aluno — visão genérica</option>
-        </optgroup>
-        ${grupo("Professor orientador", META.pessoas.orientadores)}
-        ${grupo("Aluno indicado", META.pessoas.alunos)}
-        ${grupo("Avaliador ad hoc", META.pessoas.avaliadores)}
-      </select>
-    </label>`;
+function abrirVerComo() {
+  VC = { busca: "", aba: "todos" };
+  const ov = $("ovComo");
+  ov.innerHTML = `<div class="ov-cx">
+    <div class="ov-cab">
+      <div style="flex:1">
+        <div class="t">Ver o setor por outros olhos</div>
+        <div class="card-s" style="margin:3px 0 0">Somente leitura — nada aqui grava em nome de ninguém.</div>
+      </div>
+      <button class="ov-x" data-fechar="1" title="Fechar">×</button>
+    </div>
+    <div class="vc-lab">VISÕES GENÉRICAS — A CARA DE CADA ACESSO</div>
+    <div class="vc-gen">${GENERICAS.map((g) => `<button class="vc-op ${COMO === g.id ? "on" : ""}"
+      data-vc="${esc(g.id)}">${esc(g.rot)}<small>${esc(g.det)}</small></button>`).join("")}</div>
+    <div class="vc-lab">PESSOA DO SETOR</div>
+    <input id="vcBusca" placeholder="Procurar por nome ou e-mail…" autocomplete="off"
+      oninput="VC.busca=this.value;renderVcLista()" onkeydown="vcTecla(event)">
+    <div class="vc-abas" id="vcAbas"></div>
+    <div class="vc-lista" id="vcLista"></div>
+  </div>`;
+  ov.classList.remove("hide");
+  // um só ouvinte para a janela inteira: fundo fecha, opção escolhe, aba filtra
+  ov.onclick = (ev) => {
+    if (ev.target === ov || ev.target.closest("[data-fechar]")) return fecharVerComo();
+    const op = ev.target.closest("[data-vc]");
+    if (op) { fecharVerComo(); verComo(op.dataset.vc); return; }
+    const aba = ev.target.closest("[data-aba]");
+    if (aba) { VC.aba = aba.dataset.aba; renderVcAbas(); renderVcLista(); }
+  };
+  document.addEventListener("keydown", vcEscapa);
+  renderVcAbas(); renderVcLista();
+  $("vcBusca").focus();
+}
+
+function fecharVerComo() {
+  $("ovComo").classList.add("hide");
+  document.removeEventListener("keydown", vcEscapa);
+}
+const vcEscapa = (ev) => { if (ev.key === "Escape") fecharVerComo(); };
+/* Enter na busca leva ao primeiro da lista: achou digitando, não precisa
+   tirar a mão do teclado para clicar. */
+function vcTecla(ev) {
+  if (ev.key !== "Enter") return;
+  ev.preventDefault();
+  const p = $("vcLista").querySelector("[data-vc]");
+  if (p) { fecharVerComo(); verComo(p.dataset.vc); }
+}
+
+function renderVcAbas() {
+  const gente = vcPessoas();
+  const conta = (k) => (k === "todos" ? gente.length : gente.filter((p) => p.papeis.includes(k)).length);
+  $("vcAbas").innerHTML = [["todos", "Todos"], ["orientador", "Professores"],
+    ["aluno", "Alunos"], ["avaliador", "Avaliadores"]]
+    .map(([k, rot]) => `<button class="vc-aba ${VC.aba === k ? "on" : ""}" data-aba="${k}">${rot} ${conta(k)}</button>`)
+    .join("");
+}
+
+function renderVcLista() {
+  const busca = semAcento(VC.busca).trim();
+  const gente = vcPessoas()
+    .filter((p) => VC.aba === "todos" || p.papeis.includes(VC.aba))
+    .filter((p) => !busca || semAcento(`${p.nome || ""} ${p.email || ""}`).includes(busca));
+  $("vcLista").innerHTML = gente.length ? gente.map((p) => {
+    const nome = p.nome || p.email || p.id;
+    const ini = nome.trim().split(/\s+/).slice(0, 2).map((x) => x[0] || "").join("").toUpperCase() || "?";
+    const det = p.semConta ? "ainda sem conta — o vínculo é pelo CPF" : (p.email || "—");
+    const tags = p.papeis.map((k) => `<span class="vc-tag ${PAPEL_VC[k].cls}">${PAPEL_VC[k].rot}${
+      p.contagem[k] > 1 ? ` ${p.contagem[k]}` : ""}</span>`).join("");
+    return `<button class="vc-p ${COMO === p.id ? "on" : ""}" data-vc="${esc(p.id)}">
+      <span class="vc-ini">${esc(ini)}</span>
+      <span style="min-width:0;flex:1">
+        <span class="nm">${esc(nome)}</span>
+        <span class="dt">${esc(det)}</span></span>
+      <span class="tags">${tags}</span></button>`;
+  }).join("") : `<div class="vc-vazio">Ninguém encontrado${VC.busca ? ` com “${esc(VC.busca)}”` : " neste grupo"}.</div>`;
 }
 
 const rotuloPerfil = () => META.gestao ? "coordenação de pesquisa"
@@ -428,15 +592,14 @@ const rotuloPerfil = () => META.gestao ? "coordenação de pesquisa"
 function faixaVerComo() {
   if (!COMO) return "";
   if (COMO.startsWith("perfil:")) {
-    const rot = COMO === "perfil:aluno" ? "um aluno" : "um professor";
+    const g = GENERICAS.find((x) => x.id === COMO);
     return `<div class="banner ba-warn" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span>Você está vendo o setor como <b>${rot} genérico</b>, recém-chegado e ainda sem projeto —
+      <span>Você está vendo o setor como <b>${esc(g?.faixa || "um perfil genérico")}</b> —
         é a cara do acesso, não os dados de alguém. Somente leitura.</span>
       <button class="bt bt-ghost" style="margin-left:auto" onclick="verComo('')">Voltar a ver como gestor</button>
     </div>`;
   }
-  const quem = [...(META.pessoas?.orientadores || []), ...(META.pessoas?.alunos || []), ...(META.pessoas?.avaliadores || [])]
-    .find((p) => p.id === COMO);
+  const quem = vcPessoas().find((p) => p.id === COMO);
   return `<div class="banner ba-warn" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <span>Você está vendo o setor como <b>${esc(quem?.nome || COMO)}</b>
       (${esc(rotuloPerfil())})${quem?.semConta ? " — pessoa ainda sem conta: é o que ela encontrará ao se cadastrar com o CPF" : ""}
@@ -2076,7 +2239,24 @@ function renderSelecao(p) {
       atribui aqui a nota do projeto (0 a 100), sem formulário. Havendo pareceres no sistema, a nota
       atribuída tem precedência sobre a média deles.</div>
     ${p.notaDireta ? `<div class="banner ba-info">Nota atribuída: <b>${p.notaDireta.valor}</b> · por
-      ${esc(p.notaDireta.por)} em ${fmtDH(p.notaDireta.em)}${p.notaDireta.observacao ? ` — ${esc(p.notaDireta.observacao)}` : ""}</div>` : ""}
+      ${esc(p.notaDireta.por)} em ${fmtDH(p.notaDireta.em)}${p.notaDireta.observacao ? ` — ${esc(p.notaDireta.observacao)}` : ""}</div>
+    ${p.notaDireta.notas ? `<details class="tut" open>
+      <summary>Parecer da avaliação${p.notaDireta.transcrita ? " — transcrito da seleção do edital" : ""}</summary>
+      <table class="pt" style="margin:12px 0 10px">
+        <tbody>
+          ${(META.criterios || []).map((c) => `<tr><td>${esc(c.nome)}</td>
+            <td style="width:110px;text-align:right"><b>${p.notaDireta.notas[c.codigo] ?? "—"}</b>
+              <span class="muted">de ${c.peso}</span></td></tr>`).join("")}
+          <tr><td><b>Nota do projeto</b></td>
+            <td style="text-align:right"><b>${p.notaDireta.valor}</b> <span class="muted">de 100</span></td></tr>
+        </tbody>
+      </table>
+      ${p.notaDireta.recomendacao ? `<div style="margin-bottom:8px"><b>Recomendação:</b>
+        ${esc(recNome(p.notaDireta.recomendacao))}</div>` : ""}
+      ${p.notaDireta.parecer ? `<div style="white-space:pre-wrap;line-height:1.6">${esc(p.notaDireta.parecer)}</div>` : ""}
+      <div class="muted" style="margin-top:10px">O parecer fica com a coordenação: a orientação vê a
+        decisão, não o texto nem a nota de cada critério.</div>
+    </details>` : ""}` : ""}
     <div class="grid3">
       <div><label>Nota do projeto (0 a 100)</label>
         <input type="number" min="0" max="100" step="0.5" id="nota-direta" value="${p.notaDireta?.valor ?? ""}"></div>

@@ -420,12 +420,12 @@ const SECOES = [
   {k:"cobrancas",    rot:"Cobranças",      ic:IC.cobrancas,    tit:"Cobrança automática de relatórios",
    sub:"Lembretes enviados aos responsáveis um dia após o encerramento da ação.", gestao:true},
   {k:"certificados", rot:"Certificados",   ic:IC.certificados, tit:"Certificados de eventos",
-   sub:"A emissão é feita no sistema de eventos da AEE — aberto aqui dentro."},
+   sub:"A emissão é feita no sistema de eventos da AEE, que abre em outra janela."},
 ];
 // A certificação dos eventos de extensão roda FORA do ARCHÉ, no sistema da
-// AEE. A guia abre a página aqui dentro (mantendo a barra lateral); se o
-// outro sistema recusar a moldura — muitos recusam, por segurança —, o
-// botão de abrir em nova aba resolve, e a tela diz isso antes de acontecer.
+// AEE. A guia não tenta mais embutir a página: o login de lá pede a janela
+// própria (cookies de terceiro), e uma moldura em branco só confundiria quem
+// vem emitir certificado. A guia diz onde é e leva até lá.
 const CERTIFICADOS_EXTERNO = "https://eventoscae.aee.edu.br/portal/login";
 let SECAO = "painel";
 
@@ -515,23 +515,27 @@ function nav(secao, id){
    ======================================================================== */
 function renderCertificados(){
   $("v-certificados").innerHTML = `
-    <div class="banner ba-info" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <span style="flex:1;min-width:260px"><b>Sistema de certificação de eventos (AEE).</b>
-        A emissão dos certificados de extensão acontece fora do ARCHÉ, e você entra com o
-        login daquele sistema. Se a página não carregar aqui dentro, abra em outra aba —
-        alguns sistemas não permitem ser exibidos dentro de outro.</span>
+    <div class="card" style="text-align:center;padding:38px 26px">
+      <div style="width:52px;height:52px;border-radius:14px;background:var(--info-soft);color:var(--info);
+        display:grid;place-items:center;margin:0 auto 16px">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+          stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5"/>
+          <path d="M8.5 13.5 7 22l5-2.5L17 22l-1.5-8.5"/></svg>
+      </div>
+      <div class="card-t" style="font-size:17px">Certificados dos eventos de extensão</div>
+      <div class="card-s" style="max-width:520px;margin:8px auto 22px">
+        A emissão é feita no <b>sistema de eventos da AEE</b>, fora do ARCHÉ — com o login
+        daquele sistema. Ele exige a janela própria para entrar, então abrimos numa nova.
+      </div>
       <a class="bt bt-pri" href="${CERTIFICADOS_EXTERNO}" target="_blank" rel="noopener">
-        Abrir em nova aba ↗</a>
+        Abrir o sistema de certificados ↗</a>
+      <div class="muted" style="margin-top:16px;font-size:12px;word-break:break-all">
+        ${CERTIFICADOS_EXTERNO}</div>
     </div>
-    <div class="card" style="padding:0;overflow:hidden">
-      <iframe src="${CERTIFICADOS_EXTERNO}" title="Sistema de certificação de eventos"
-        style="width:100%;height:calc(100vh - 280px);min-height:460px;border:0;display:block"
-        referrerpolicy="no-referrer"></iframe>
-    </div>
-    <div class="muted" style="margin-top:8px;text-align:center">
-      Página em branco acima? O sistema da AEE pode não permitir a exibição aqui dentro, e o
-      login costuma exigir a aba própria —
-      <a href="${CERTIFICADOS_EXTERNO}" target="_blank" rel="noopener">abrir em nova aba</a>.
+    <div class="banner ba-info">
+      <b>Por que fora do ARCHÉ?</b> A certificação de eventos é do sistema da AEE, que já
+      guarda os inscritos e a frequência de cada evento. O ARCHÉ cuida da ação de extensão —
+      proposta, aprovação, relatório e participantes; o certificado sai de lá.
     </div>`;
 }
 

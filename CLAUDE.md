@@ -115,11 +115,11 @@ public/
   provisória — um gestor não redefine a senha do outro. Rota separada da de papéis de
   propósito: a de papéis reconstrói as listas, e resetar senha não pode rebaixar ninguém.
 - **Certificados da Extensão são de OUTRO sistema** (eventos da AEE,
-  `https://eventoscae.aee.edu.br/portal/login`): a guia Certificados do ARCHÉ EX abre a
-  página embutida, para não tirar a pessoa do portal, com aviso de que é sistema externo e
-  o botão "Abrir em nova aba" sempre à mão — se o servidor de lá recusar a moldura (ou o
-  login exigir contexto próprio, o que é comum com cookies SameSite), o botão é o caminho.
-  O endereço fica em `CERTIFICADOS_EXTERNO`, no topo da SPA.
+  `https://eventoscae.aee.edu.br/portal/login`): a guia Certificados do ARCHÉ EX **não
+  embute** a página — o login de lá pede a janela própria (cookies de terceiro), e uma
+  moldura em branco só confundiria quem vem emitir certificado. A guia diz onde a emissão
+  acontece, por que é fora do ARCHÉ, e leva até lá em **nova janela**. O endereço fica em
+  `CERTIFICADOS_EXTERNO`, no topo da SPA.
 - Fluxo da Extensão: proposta → aprovação (nº `EXT-AAAA-NNN`) → relatório final →
   participantes (3/3 completa) → certificados → registrada. Não alterar o formato do nº.
 - Uploads e estado são organizados **por curso** no Google Drive — preservar os prefixos
@@ -240,6 +240,17 @@ public/
   (0–100) sem formulário — ela tem **precedência** sobre a média dos pareceres, fica no
   histórico (sigilosa) e some da visão do avaliador e da orientação. `{ nota: null }`
   desfaz. Nos próximos editais o caminho é o parecer pelo sistema.
+- **Pareceres do edital 01/2026, transcritos** (`notaTranscrita` em lib/ic.js +
+  `aplicarAvaliacoesTranscritas` no server, `dados/ic-avaliacoes-01-2026.json`, marca
+  `sys-ic-avaliacoes-01-2026`): os avaliadores pontuaram os **mesmos sete critérios** numa
+  planilha e escreveram o parecer de cada projeto. Isso entra em `notaDireta`, agora com o
+  detalhe junto — critérios, recomendação e o texto do parecer —, casado pelo **protocolo**.
+  A nota **não é lida** da planilha: é sempre a SOMA dos critérios (professor que digitou o
+  total à mão não pauta a nota), e critério faltando descarta o registro inteiro. Não
+  sobrescreve nota já atribuída no sistema nem projeto com parecer entregue por aqui, e o
+  registro fica sigiloso como qualquer parecer. **Transcrever não decide**: aprovar ou
+  reprovar continua sendo ato da gestão, projeto a projeto — é a decisão que marca o
+  projeto como avaliado e libera a publicação do resultado.
 - **Certificados da IC** (`lib/certificados.js` + `gerarCertificadoPdf`; guia Certificados,
   sempre COM LOGIN — decisão do dono, ago/2026): quem tem direito ao quê sai dos próprios
   projetos, sem cadastro à parte — o aluno de um projeto **concluído** ganha o certificado
@@ -365,8 +376,15 @@ public/
   histórico do projeto diria que foi a pessoa quem mexeu. Quem ainda não tem conta
   pode ser simulado pelo CPF (`como=cpf:000…`), que é como o projeto importado o
   identifica: mostra o que ele encontrará ao se cadastrar. Há também as **visões
-  genéricas** (`como=perfil:orientador` / `perfil:aluno`): um professor ou aluno
-  recém-chegado, sem projeto — a cara de cada acesso, sem os dados de ninguém.
+  genéricas** (`como=perfil:` + `orientador`, `aluno` ou `avaliador`, em
+  `PERFIS_GENERICOS`): um professor, aluno ou avaliador ad hoc recém-chegado, sem
+  projeto nenhum — a cara de cada um dos três acessos, sem os dados de ninguém.
+  A escolha **não é mais uma caixa de seleção**: são quase 60 pessoas por edital, e a
+  lista única virava rolagem. Um botão no topo abre uma janela com as visões genéricas
+  em destaque e a **busca por nome ou e-mail** (abas por papel, Enter escolhe o
+  primeiro, Esc fecha). As três listas do servidor (`pessoasDoSetor`) são fundidas numa
+  só no cliente (`vcPessoas`): quem acumula papéis aparece **uma vez**, com as etiquetas
+  de todos — antes saía repetido em cada grupo.
 - **Pré-cadastro** (`criarPreCadastros` + `propagarCpfOrientadores`, marcas `sys-*`): a
   PROPPEX já sabe quem são as pessoas dos editais — nome, CPF e e-mail vieram do
   formulário e dos termos de compromisso. Em vez de esperar cada um digitar tudo, o perfil

@@ -31,7 +31,7 @@ import {
   podeEnviarRelatorio, podeValidarRelatorio, cronogramaDe, relatoriosDe, relatoriosPendentes,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto, notaFinal,
   participaDeAlgum, vincularPorCpf, modalidadeEfetiva as modalidadeEfetivaIC,
-  producaoDoOrientador, prazosRelatorios, fomentoDe,
+  producaoDoOrientador, prazosRelatorios, fomentoDe, notaTranscrita,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import { certificadosDe, destinatariosDoCiclo, certificavel } from "./lib/certificados.js";
@@ -1927,13 +1927,16 @@ function perfilIC(u, projetos, quem = null) {
  * tratado como quem ele é, sem gestão, e as regras de sigilo valem iguais.
  * Vale só para leitura — a trava de escrita está no middleware abaixo.
  */
+const PERFIS_GENERICOS = ["orientador", "aluno", "avaliador"];
+
 async function visaoComo(req, u) {
   const alvo = String(req.query?.como || "").trim().toLowerCase();
   if (!alvo || !gereIC(u)) return null;
-  // "perfil:orientador" / "perfil:aluno" — a visão GENÉRICA do perfil, sem
-  // pessoa: um professor (ou aluno) recém-chegado, ainda sem projeto. É como
-  // a coordenação confere a cara de cada acesso sem escolher alguém real.
-  if (alvo === "perfil:orientador" || alvo === "perfil:aluno") {
+  // "perfil:orientador" / "perfil:aluno" / "perfil:avaliador" — a visão
+  // GENÉRICA do perfil, sem pessoa: um professor (ou aluno, ou avaliador ad
+  // hoc) recém-chegado, ainda sem projeto nenhum. É como a coordenação confere
+  // a cara de cada um dos três acessos sem escolher alguém real.
+  if (PERFIS_GENERICOS.includes(alvo.replace(/^perfil:/, "")) && alvo.startsWith("perfil:")) {
     return { email: "", cpf: "", gestao: false, simulado: true, perfilGenerico: alvo.slice(7) };
   }
   // "cpf:00000000000" — quem ainda não tem conta, mas já está em projeto
@@ -3436,6 +3439,68 @@ async function aplicarAnexosIniciais() {
   }
 }
 
+/**
+ * Pareceres do edital 01/2026, transcritos. A seleção correu FORA do sistema:
+ * os avaliadores pontuaram os mesmos sete critérios numa planilha e
+ * escreveram o parecer de cada projeto. Isso entra em `notaDireta` — o campo
+ * da nota atribuída pela coordenação —, agora com o detalhe junto: critérios,
+ * recomendação e o texto do parecer.
+ *
+ * O casamento é pelo PROTOCOLO, que é único e não se repete. Três cuidados:
+ *   - nota já atribuída no sistema NÃO é sobrescrita: se a coordenação
+ *     regravou, quem manda é ela, não um arquivo de deploy;
+ *   - projeto com parecer entregue pelo sistema também fica de fora — ali o
+ *     caminho normal funcionou e a média dos pareceres é a nota;
+ *   - a marca `sys-*` faz isto rodar UMA vez; apagá-la reimporta.
+ * A nota NÃO decide nada: aprovar ou reprovar continua sendo ato da gestão,
+ * projeto a projeto, na guia Avaliação.
+ */
+const AVALIACOES_TRANSCRITAS = ["01-2026"];
+
+async function aplicarAvaliacoesTranscritas() {
+  for (const ciclo of AVALIACOES_TRANSCRITAS) {
+    const marca = `sys-ic-avaliacoes-${ciclo}`;
+    try {
+      if (await storage.get(marca)) continue;
+      let doc;
+      try {
+        doc = JSON.parse(await readFile(path.join(__dirname, "dados", `ic-avaliacoes-${ciclo}.json`), "utf8"));
+      } catch { continue; }                       // ciclo sem arquivo de pareceres
+      const porProtocolo = new Map();
+      for (const a of doc.avaliacoes || []) porProtocolo.set(String(a.protocolo || "").trim(), a);
+
+      const r = await comProjetos((projetos) => {
+        const usados = new Set();
+        let postas = 0, mantidas = 0;
+        for (let i = 0; i < projetos.length; i++) {
+          const p = projetos[i];
+          const reg = porProtocolo.get(String(p.numero || "").trim());
+          if (!reg) continue;
+          usados.add(p.numero);
+          const temParecer = (p.avaliacoes || []).some((a) => a.situacao === "entregue");
+          if (p.notaDireta || temParecer) { mantidas++; continue; }
+          const nt = notaTranscrita(reg, { por: "avaliação do edital (parecer transcrito)" });
+          if (!nt) continue;
+          projetos[i] = anotarProjeto({ ...p, notaDireta: nt, atualizadoEm: new Date().toISOString() }, {
+            quem: "sistema (pareceres do edital)",
+            oQue: `registrou a nota do projeto vinda da avaliação do edital: ${nt.valor}`,
+            sigilo: true,          // nota e parecer não aparecem para a orientação
+          });
+          postas++;
+        }
+        const semProjeto = [...porProtocolo.keys()].filter((n) => !usados.has(n));
+        return { postas, mantidas, semProjeto, gravar: postas > 0 };
+      });
+      await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), ...r }));
+      console.log(`ARCHÉ IC · pareceres ${ciclo}: ${r.postas} nota(s) registrada(s)` +
+        `${r.mantidas ? `, ${r.mantidas} projeto(s) já tinham nota e ficaram como estavam` : ""}` +
+        `${r.semProjeto.length ? `, sem projeto correspondente: ${r.semProjeto.join(", ")}` : ""}`);
+    } catch (e) {
+      console.error(`ARCHÉ IC · falha ao aplicar os pareceres do ciclo ${ciclo}:`, e.message);
+    }
+  }
+}
+
 // Designação de avaliador ad hoc: é a indicação pelo e-mail que dá o acesso,
 // como acontece com o aluno. Fora do @uniego.edu.br a conta nasce pendente e
 // a PROPPEX ainda precisa liberá-la em /usuarios/.
@@ -3859,7 +3924,8 @@ app.listen(port, () => {
   // produção — são ligados a cada projeto.
   migrarAcoesExtensao();
   subirLotesIniciais().then(aplicarAnexosIniciais).then(zerarAlunosIniciais).then(enquadrarCronogramasIniciais).then(subirArquivoHistorico).then(subirAlunosHistoricos)
-    .then(propagarCpfOrientadores).then(identidadeInstitucionalDoProReitor).then(criarPreCadastros);
+    .then(propagarCpfOrientadores).then(identidadeInstitucionalDoProReitor).then(criarPreCadastros)
+    .then(aplicarAvaliacoesTranscritas);
   // Cobrança do relatório final: varre ao acordar e de hora em hora enquanto
   // o processo estiver vivo. O tráfego do portal também dispara (com throttle),
   // o que cobre as hibernações do plano free.

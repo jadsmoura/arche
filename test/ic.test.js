@@ -10,7 +10,7 @@ import {
   cronogramaDe, etapaAtrasada, relatoriosDe, relatoriosPendentes, resumir, anotar,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto,
   notaFinal, placarPareceres, participaDeAlgum, prazosRelatorios, pendenciasDoProjeto,
-  producaoDoOrientador,
+  producaoDoOrientador, notaTranscrita,
 } from "../lib/ic.js";
 
 /* -------------------------------- fixtura ------------------------------- */
@@ -652,4 +652,61 @@ test("o certificado de orientação é de quem orientou, não de quem está olha
   assert.equal(daMarlana[0].aluno, "Glenda");
   const doJadson = certificadosDe(projetos, { cpf: "", email: "jadson@x.com", nome: "Jadson Belem de Moura" });
   assert.equal(doJadson[0].aluno, "Amanda");
+});
+
+/* -------- pareceres do edital transcritos (a seleção correu em planilha) --- */
+const PARECER_PLANILHA = {
+  protocolo: "IC-2026-001",
+  notas: { merito: 16, objetivos: 8, fundamentacao: 7, metodologia: 15, viabilidade: 12, formacao: 10, redacao: 8 },
+  recomendacao: "recomendado",
+  parecer: "O projeto aborda tema social e juridicamente relevante…",
+};
+
+test("a nota transcrita é a SOMA dos critérios, não o total da planilha", () => {
+  const nt = notaTranscrita({ ...PARECER_PLANILHA, valor: 999 }, { por: "avaliação do edital" });
+  assert.equal(nt.valor, 76);            // 16+8+7+15+12+10+8
+  assert.equal(nt.valor, notaFinal(nt)); // mesma conta do parecer feito no sistema
+  assert.equal(nt.transcrita, true);
+  assert.equal(nt.recomendacao, "recomendado");
+  assert.match(nt.parecer, /tema social/);
+  assert.ok(nt.em);
+});
+
+test("critério faltando não vira avaliação pela metade", () => {
+  const { merito, ...semMerito } = PARECER_PLANILHA.notas;
+  assert.equal(notaTranscrita({ ...PARECER_PLANILHA, notas: semMerito }), null);
+  assert.equal(notaTranscrita({}), null);
+  assert.equal(notaTranscrita(null), null);
+});
+
+test("critério acima do teto é aparado, e negativo vira zero", () => {
+  const nt = notaTranscrita({
+    ...PARECER_PLANILHA,
+    notas: { ...PARECER_PLANILHA.notas, merito: 50, redacao: -3 },
+  });
+  assert.equal(nt.notas.merito, 20);     // teto do critério
+  assert.equal(nt.notas.redacao, 0);
+  assert.ok(nt.valor <= 100);
+});
+
+test("recomendação fora do catálogo não entra", () => {
+  assert.equal(notaTranscrita({ ...PARECER_PLANILHA, recomendacao: "talvez" }).recomendacao, "");
+  assert.equal(notaTranscrita({ ...PARECER_PLANILHA, recomendacao: "ressalvas" }).recomendacao, "ressalvas");
+});
+
+test("a nota transcrita atravessa a normalização do projeto sem perder o parecer", () => {
+  const nt = notaTranscrita(PARECER_PLANILHA, { por: "avaliação do edital" });
+  const p = normalizarProjeto(bruto(), { base: { ...novo(), notaDireta: nt } });
+  assert.equal(p.notaDireta.valor, 76);
+  assert.equal(p.notaDireta.notas.metodologia, 15);
+  assert.match(p.notaDireta.parecer, /tema social/);
+  assert.equal(p.notaDireta.transcrita, true);
+});
+
+test("o parecer transcrito não escapa para a orientação nem para o aluno", () => {
+  const nt = notaTranscrita(PARECER_PLANILHA, { por: "avaliação do edital" });
+  const p = { ...novo(), status: "submetido", notaDireta: nt };
+  assert.equal(visaoDoProjeto(p, PROF).notaDireta, undefined);
+  assert.equal(visaoDoProjeto(p, ALUNO).notaDireta, undefined);
+  assert.equal(visaoDoProjeto(p, PROPPEX).notaDireta.valor, 76);
 });
