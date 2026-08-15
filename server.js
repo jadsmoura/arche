@@ -3950,9 +3950,22 @@ app.listen(port, () => {
   // primeiro), os anexos dos formulários — cronogramas e planilhas de
   // produção — são ligados a cada projeto.
   migrarAcoesExtensao();
-  subirLotesIniciais().then(aplicarAnexosIniciais).then(zerarAlunosIniciais).then(enquadrarCronogramasIniciais).then(subirArquivoHistorico).then(subirAlunosHistoricos)
-    .then(propagarCpfOrientadores).then(identidadeInstitucionalDoProReitor).then(criarPreCadastros)
-    .then(aplicarAvaliacoesTranscritas);
+  // A ORDEM importa (num arranque limpo os projetos precisam existir antes de
+  // qualquer coisa que os altere), mas uma etapa que falhe não pode levar as
+  // seguintes junto: encadeadas por .then, um erro no meio fazia as de baixo
+  // sumirem em silêncio — e ninguém percebe uma migração que não rodou. Cada
+  // uma corre na sua vez, e o que quebrar fica dito no log.
+  (async () => {
+    for (const etapa of [
+      subirLotesIniciais, aplicarAnexosIniciais, zerarAlunosIniciais,
+      enquadrarCronogramasIniciais, subirArquivoHistorico, subirAlunosHistoricos,
+      propagarCpfOrientadores, identidadeInstitucionalDoProReitor, criarPreCadastros,
+      aplicarAvaliacoesTranscritas,
+    ]) {
+      try { await etapa(); }
+      catch (e) { console.error(`ARCHÉ · falha na migração ${etapa.name}:`, e?.stack || e); }
+    }
+  })();
   // Cobrança do relatório final: varre ao acordar e de hora em hora enquanto
   // o processo estiver vivo. O tráfego do portal também dispara (com throttle),
   // o que cobre as hibernações do plano free.
