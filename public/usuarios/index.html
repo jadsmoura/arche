@@ -270,11 +270,15 @@ function renderPainel(){
         <button class="bt bt-pri" onclick="abrirFicha('')">＋ Incluir usuário</button>
       </div>
       <div class="muted" style="margin-bottom:10px">${lista.length} de ${PAINEL.usuarios.length} usuário(s)${
-        semNome?` · <b>${semNome}</b> ainda sem cadastro preenchido`:""}.</div>
+        semNome?` · <b>${semNome}</b> ainda sem cadastro preenchido`:""}${
+        (()=>{const n=PAINEL.usuarios.filter(u=>u.preCadastro).length;
+          return n?` · <b>${n}</b> em pré-cadastro (a PROPPEX preencheu; a pessoa ainda não entrou)`:"";})()}.</div>
       <div class="rolo"><table class="us">
         <thead><tr><th>Pessoa</th><th>Função</th><th>Curso</th><th>Setores em uso</th><th>Papel</th><th></th></tr></thead>
         <tbody>${lista.map(u=>`<tr>
-          <td><div class="nm">${esc(u.nome||"— sem cadastro —")}</div><div class="em">${esc(u.email)}</div></td>
+          <td><div class="nm">${esc(u.nome||"— sem cadastro —")}
+            ${u.preCadastro?'<span class="badge" style="background:var(--warn-soft);color:var(--warn)">pré-cadastro</span>':""}</div>
+            <div class="em">${esc(u.email)}</div></td>
           <td>${esc(funcaoNome(u.funcao,u.funcaoOutro))}</td>
           <td>${u.curso?esc(cursoNome(u.curso)):"—"}</td>
           <td>${u.setores.length?u.setores.map(k=>`<span class="setor">${esc(SETOR_NOME[k])} · ${u.uso[k]}</span>`).join(""):'<span class="muted">—</span>'}</td>

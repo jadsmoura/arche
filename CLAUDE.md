@@ -329,6 +329,17 @@ public/
   identifica: mostra o que ele encontrará ao se cadastrar. Há também as **visões
   genéricas** (`como=perfil:orientador` / `perfil:aluno`): um professor ou aluno
   recém-chegado, sem projeto — a cara de cada acesso, sem os dados de ninguém.
+- **Pré-cadastro** (`criarPreCadastros` + `propagarCpfOrientadores`, marcas `sys-*`): a
+  PROPPEX já sabe quem são as pessoas dos editais — nome, CPF e e-mail vieram do
+  formulário e dos termos de compromisso. Em vez de esperar cada um digitar tudo, o perfil
+  **nasce pronto** e marcado com `preCadastro: true`, com a conta já aprovada. Entrando
+  com aquele e-mail, está tudo lá; entrando com OUTRO e informando o CPF, o pré-cadastro é
+  **transferido** para a conta nova em vez de barrar por "CPF já cadastrado" — recusar
+  deixaria a pessoa fora dos próprios projetos. Registro já reivindicado (alguém entrou e
+  salvou) continua recusando, e a marca some na primeira gravação da própria pessoa.
+  `propagarCpfOrientadores` espalha o CPF conhecido do professor pelos ciclos antigos
+  (transcritos só com o nome), trocando o vínculo fraco por nome pela chave forte.
+  O painel de usuários marca quem ainda não reivindicou.
 - **CPF é a chave do que vem de fora** (`lib/cpf.js`): o perfil (`/perfil/`) pede o CPF,
   guardado só em dígitos e **único por conta** (dois cadastros com o mesmo CPF são
   recusados — o segundo herdaria os projetos do primeiro); alterar CPF já gravado só

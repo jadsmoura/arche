@@ -1687,8 +1687,12 @@ function mudouMes(i, qual, valor) {
 function desenharEtapas() {
   const ger = PODE.podeGerir || PODE.podeEditar;
   const ro = ger ? "" : "disabled";
-  const opcoes = (sel) => `<option value="" ${!sel ? "selected" : ""}>orientação</option>` +
-    (ATUAL.alunos || []).filter((a) => a.email).map((a) =>
+  // Na submissão o aluno ainda não existe (a indicação vem depois da
+  // aprovação): por isso "Aluno" é uma opção genérica. Indicados os alunos,
+  // cada nome entra na lista e a atividade pode ser atribuída a um deles.
+  const opcoes = (sel) => `<option value="" ${!sel ? "selected" : ""}>Professor Orientador</option>`
+    + `<option value="aluno" ${sel === "aluno" ? "selected" : ""}>Aluno</option>`
+    + (ATUAL.alunos || []).filter((a) => a.email).map((a) =>
       `<option value="${esc(a.email)}" ${sel === a.email ? "selected" : ""}>${esc(a.nome || a.email)}</option>`).join("");
   $("tb-etapas").innerHTML = (ATUAL.cronograma || []).map((e, i) => `
     <tr>

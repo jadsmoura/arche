@@ -166,18 +166,34 @@ app.post("/api/perfil", async (req, res) => {
   // pertencer a duas contas — senão a segunda herdaria os projetos da
   // primeira. Uma vez gravado, só a PROPPEX corrige.
   let cpf = antes.cpf || "";
+  let herdado = null;
   if (b.cpf !== undefined && soDigitos(b.cpf) !== soDigitos(antes.cpf)) {
     const novo = normalizarCpf(b.cpf);
     if (soDigitos(b.cpf) && !novo) return res.status(400).json({ error: "CPF inválido" });
     if (antes.cpf && novo !== antes.cpf && u.papel !== "gestor")
       return res.status(400).json({ error: "O CPF já cadastrado só pode ser alterado pela PROPPEX" });
     const dono = Object.entries(perfis).find(([mail, p]) => mail !== u.email && p?.cpf && p.cpf === novo);
-    if (novo && dono) return res.status(409).json({ error: "Este CPF já está cadastrado em outra conta" });
+    // PRÉ-CADASTRO: o CPF pode estar num registro que a PROPPEX criou a
+    // partir dos documentos do edital, num e-mail que a pessoa não usa mais.
+    // Nesse caso o certo é TRANSFERIR para a conta de quem está entrando —
+    // recusar deixaria a pessoa fora dos próprios projetos. Registro já
+    // reivindicado (alguém entrou e salvou) continua recusando.
+    if (novo && dono && dono[1]?.preCadastro) {
+      herdado = { email: dono[0], perfil: dono[1] };
+      delete perfis[dono[0]];
+      console.log(`[perfil] pré-cadastro de ${dono[0]} transferido para ${u.email} (mesmo CPF)`);
+    } else if (novo && dono) {
+      return res.status(409).json({ error: "Este CPF já está cadastrado em outra conta" });
+    }
     cpf = novo;
   }
 
   perfis[u.email] = {
+    // o que veio do pré-cadastro preenche o que a pessoa não informou
+    ...(herdado ? { curso: herdado.perfil.curso, funcao: herdado.perfil.funcao } : {}),
     ...antes,
+    // a marca some assim que a própria pessoa salva: o registro passa a ser dela
+    preCadastro: false,
     // identificação
     nome: txt(b.nome), tratamento: txt(b.tratamento, 60), titulacao: txt(b.titulacao, 20),
     cpf,
@@ -782,6 +798,7 @@ app.get("/api/usuarios/painel", async (req, res) => {
         curso: perfil.curso || "", telefone: perfil.telefone || "", lattes: perfil.lattes || "",
         titulacao: perfil.titulacao || "", matricula: perfil.matricula || "",
         temCpf: !!perfil.cpf, temPerfil: !!perfil.nome,
+        preCadastro: !!perfil.preCadastro,
         papel: papelDe(c.email, usuarios),
         modulos: modulosDe(c.email, usuarios),
         uso: c.uso,
@@ -2925,6 +2942,115 @@ async function subirAlunosHistoricos() {
   }
 }
 
+/**
+ * O CPF do professor se espalha pelos ciclos antigos. Os históricos foram
+ * transcritos dos resultados publicados, onde a pessoa aparece só pelo
+ * nome; o ciclo corrente veio do formulário, com CPF. Como é a mesma
+ * pessoa, o CPF conhecido preenche os registros antigos e o vínculo deixa
+ * de depender de grafia de nome — passa a ser pela chave forte.
+ * Nunca sobrescreve CPF já gravado.
+ */
+async function propagarCpfOrientadores() {
+  const marca = "sys-ic-cpf-orientadores-v1";
+  try {
+    if (await storage.get(marca)) return;
+    const chaveNome = (v) => String(v || "").trim().toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+    const r = await comProjetos((projetos) => {
+      const cpfPorNome = new Map();
+      for (const p of projetos) {
+        const o = p.orientador || {};
+        if (o.cpf && o.nome) cpfPorNome.set(chaveNome(o.nome), o.cpf);
+      }
+      let tocados = 0;
+      for (let i = 0; i < projetos.length; i++) {
+        const o = projetos[i].orientador || {};
+        if (o.cpf || !o.nome) continue;
+        const cpf = cpfPorNome.get(chaveNome(o.nome));
+        if (!cpf) continue;
+        projetos[i] = { ...projetos[i], orientador: { ...o, cpf } };
+        tocados++;
+      }
+      return { tocados, professores: cpfPorNome.size, gravar: tocados > 0 };
+    });
+    await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), ...r }));
+    console.log(`ARCHÉ IC · CPF do orientador propagado a ${r.tocados} projeto(s) de ciclos anteriores`);
+  } catch (e) {
+    console.error("Falha ao propagar CPF dos orientadores:", e.message);
+  }
+}
+
+/**
+ * PRÉ-CADASTRO: a PROPPEX já sabe quem são estas pessoas — nome, CPF e
+ * e-mail vieram dos documentos oficiais (formulário do edital e termos de
+ * compromisso). Em vez de esperar cada um digitar tudo de novo, o perfil
+ * nasce pronto e marcado como `preCadastro`. Quando a pessoa entra com
+ * aquele e-mail, está tudo lá; se entrar com outro e informar o CPF, o
+ * pré-cadastro é TRANSFERIDO para a conta dela (ver /api/perfil).
+ * A marca some na primeira vez que a própria pessoa salva o perfil.
+ */
+async function criarPreCadastros() {
+  const marca = "sys-ic-precadastros-v1";
+  try {
+    if (await storage.get(marca)) return;
+    const projetos = await lerProjetos();
+    const perfis = await carregarPerfis();
+    const usuarios = await carregarUsuarios(storage);
+    const conhecidos = new Map();       // e-mail → { nome, cpf, curso, papel }
+    const juntar = (email, dados) => {
+      const e = String(email || "").trim().toLowerCase();
+      if (!e.includes("@") || perfis[e]) return;      // quem já tem perfil não é tocado
+      const antes = conhecidos.get(e) || {};
+      conhecidos.set(e, {
+        nome: antes.nome || dados.nome || "",
+        cpf: antes.cpf || dados.cpf || "",
+        curso: antes.curso || dados.curso || "",
+        papel: antes.papel || dados.papel,
+      });
+    };
+    for (const p of projetos) {
+      const o = p.orientador || {};
+      juntar(o.email || p.origem?.emailFormulario, {
+        nome: o.nome, cpf: o.cpf, curso: cursoNomeDe(p.curso), papel: "professor",
+      });
+      for (const a of p.alunos || []) {
+        juntar(a.email, { nome: a.nome, cpf: a.cpf, curso: a.curso || cursoNomeDe(p.curso), papel: "aluno" });
+      }
+    }
+    // CPF é único por conta: se dois registros trouxerem o mesmo, nenhum leva
+    const porCpf = new Map();
+    for (const [email, d] of conhecidos) {
+      if (!d.cpf) continue;
+      porCpf.set(d.cpf, (porCpf.get(d.cpf) || 0) + 1);
+      if (Object.values(perfis).some((p) => p?.cpf === d.cpf)) d.cpf = "";   // já é de alguém
+    }
+    let criados = 0;
+    for (const [email, d] of conhecidos) {
+      if (!d.nome) continue;
+      perfis[email] = {
+        nome: d.nome, cpf: porCpf.get(d.cpf) === 1 ? d.cpf : "", curso: d.curso || "",
+        funcao: d.papel === "aluno" ? "" : "professor",
+        preCadastro: true, criadoEm: new Date().toISOString(),
+        criadoPor: "sistema (pré-cadastro a partir dos documentos do edital)",
+      };
+      // já aprovado: o convite é o próprio e-mail, e ninguém precisa esperar
+      if (papelDe(email, usuarios) === "pendente") usuarios.aprovados.push(email);
+      criados++;
+    }
+    if (criados) {
+      await storage.set(PERFIS_KEY, JSON.stringify(perfis));
+      usuarios.aprovados = [...new Set(usuarios.aprovados)];
+      await salvarUsuarios(storage, usuarios);
+    }
+    await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), criados }));
+    await storage.flush?.();
+    console.log(`ARCHÉ IC · ${criados} pré-cadastro(s) criado(s) a partir dos documentos do edital`);
+  } catch (e) {
+    console.error("Falha ao criar os pré-cadastros:", e.message);
+  }
+}
+const cursoNomeDe = (slug) => (CURSOS.find((c) => c.slug === slug) || {}).nome || "";
+
 async function subirLotesIniciais() {
   for (const nome of LOTES_INICIAIS) {
     const marca = `sys-ic-lote-${nome}`;
@@ -3420,7 +3546,8 @@ app.listen(port, () => {
   // primeiro), os anexos dos formulários — cronogramas e planilhas de
   // produção — são ligados a cada projeto.
   migrarAcoesExtensao();
-  subirLotesIniciais().then(aplicarAnexosIniciais).then(zerarAlunosIniciais).then(enquadrarCronogramasIniciais).then(subirArquivoHistorico).then(subirAlunosHistoricos);
+  subirLotesIniciais().then(aplicarAnexosIniciais).then(zerarAlunosIniciais).then(enquadrarCronogramasIniciais).then(subirArquivoHistorico).then(subirAlunosHistoricos)
+    .then(propagarCpfOrientadores).then(criarPreCadastros);
   // Cobrança do relatório final: varre ao acordar e de hora em hora enquanto
   // o processo estiver vivo. O tráfego do portal também dispara (com throttle),
   // o que cobre as hibernações do plano free.
