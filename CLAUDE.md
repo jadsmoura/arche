@@ -350,6 +350,17 @@ public/
   devolver é conversa com um professor, não ato de massa; e reprovar exige o motivo, que é
   o mesmo texto para todas — motivos diferentes pedem decisão caso a caso. **A bolsa fica
   de fora**: aprovar é o mérito, a cota vem depois, na guia Bolsas.
+- **O gestor que também submete não decide o próprio projeto** (`papelNoProjeto` devolve
+  "orientador" antes de olhar a bandeira de gestão; casa por e-mail **ou CPF**, então a
+  conta pessoal do pró-reitor cai na mesma regra se o CPF estiver nos dois perfis). É
+  conflito de interesse, e vale para o pró-reitor como para qualquer um: **quem conclui
+  essas propostas é outro gestor do setor** — o caminho institucional é designar a
+  coordenação de pesquisa em `/usuarios/` (ação `coordenar`, módulo `pesquisa`), e os dois
+  decidem as propostas um do outro. `resumir` devolve `podeDecidir`/`souParte` para a tela
+  saber disso ANTES de oferecer o botão: a fila de decisão separa essas propostas num aviso
+  à parte (elas não somem — a gestão precisa saber que existem) e o lote recusa com o
+  motivo verdadeiro, não com "situação não aceita decisão". Pelo mesmo sigilo, no projeto
+  que ele orienta o pró-reitor **não vê a nota nem o parecer** — ali ele é a orientação.
 - **Grupo de pesquisa** (DGP/CNPq): a proposta indica **apenas o nome do grupo**. Por
   decisão do dono, **não se pergunta o papel** de quem submete no grupo — professores
   submetem propostas ligadas a grupos que não lideram — e por isso **não há a pontuação

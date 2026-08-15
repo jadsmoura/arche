@@ -710,3 +710,27 @@ test("o parecer transcrito não escapa para a orientação nem para o aluno", ()
   assert.equal(visaoDoProjeto(p, ALUNO).notaDireta, undefined);
   assert.equal(visaoDoProjeto(p, PROPPEX).notaDireta.valor, 76);
 });
+
+/* ---- conflito de interesse: o gestor que também submete (ago/2026) ------- */
+test("quem participa do projeto não o decide, nem sendo a gestão", () => {
+  const meu = { ...novo(), status: "submetido", numero: "IC-2026-036" };
+  const proReitor = { email: PROF.email, gestao: true };   // gestão E orientação
+  assert.equal(papelNoProjeto(proReitor, meu), "orientador");
+  assert.equal(podeAvaliar(proReitor, meu), false);
+  // a tela precisa saber disso ANTES de oferecer o botão
+  const r = resumir(meu, proReitor);
+  assert.equal(r.podeDecidir, false);
+  assert.equal(r.souParte, "orientador");
+  // outro gestor do setor decide normalmente
+  const outro = { email: "coordenacao.pesquisa@uniego.edu.br", gestao: true };
+  assert.equal(podeAvaliar(outro, meu), true);
+  assert.equal(resumir(meu, outro).podeDecidir, true);
+});
+
+test("o CPF também barra: conta diferente, mesma pessoa", () => {
+  const p = { ...novo(), status: "submetido",
+    orientador: { nome: "Pró-reitor", email: "institucional@uniego.edu.br", cpf: "11144477735" } };
+  const pessoal = { email: "pessoal@gmail.com", cpf: "11144477735", gestao: true };
+  assert.equal(podeAvaliar(pessoal, p), false, "o CPF liga as duas contas");
+  assert.equal(podeAvaliar({ email: "pessoal@gmail.com", cpf: "", gestao: true }, p), true);
+});

@@ -1438,7 +1438,7 @@ function marcarUm(id, marcado) {
 }
 function marcarLote(marcar) {
   const doEdital = PROJETOS.filter((p) => (p.edital || META.edital?.numero) === CICLO_SEL
-    && p.status === "submetido");
+    && p.status === "submetido" && p.podeDecidir !== false);
   for (const p of doEdital) { if (marcar) SEL_LOTE.add(p.id); else SEL_LOTE.delete(p.id); }
   renderClassificacao();
 }
@@ -1566,8 +1566,23 @@ function renderClassificacao() {
      ela é distribuída depois, na guia Bolsas, conforme a cota. */
   const filaDecisao = (doEdital) => {
     if (!META.gestao) return "";
-    const pendentes = ordenarClassificacao(doEdital.filter((p) => p.status === "submetido"));
-    if (!pendentes.length) return "";
+    const aguardando = ordenarClassificacao(doEdital.filter((p) => p.status === "submetido"));
+    if (!aguardando.length) return "";
+    // Quem participa do projeto não o julga — e o pró-reitor que submete cai
+    // nisso todo ciclo. Estas propostas não somem da fila (ele precisa saber
+    // que existem): ficam à parte, sem caixa para marcar, dizendo quem decide.
+    const pendentes = aguardando.filter((p) => p.podeDecidir !== false);
+    const meus = aguardando.filter((p) => p.podeDecidir === false);
+    const blocoMeus = meus.length ? `<div class="banner ba-warn" style="margin-top:14px">
+      <b>${meus.length} proposta(s) que você não decide</b> — você consta como
+      ${esc({ orientador: "orientação", aluno: "aluno", avaliador: "avaliador" }[meus[0].souParte] || "parte")}
+      nelas, e ninguém julga o próprio projeto. Quem decide é outro gestor do setor: designe a
+      <b>coordenação de pesquisa</b> em <a href="/usuarios/">Gestão de acessos</a> e ela conclui
+      estas.<div style="margin-top:8px;font-size:12.5px">${meus.map((p) =>
+        `${esc(p.numero || "—")} · ${esc(p.titulo || "")}`).join("<br>")}</div></div>` : "";
+    if (!pendentes.length) return `<div class="card" style="border-color:#cfe6f2;background:#f7fbfd">
+      <div class="card-t">Decisão do ciclo</div>
+      <div class="card-s">Nada aguardando a sua decisão neste ciclo.</div>${blocoMeus}</div>`;
     const marcadas = pendentes.filter((p) => SEL_LOTE.has(p.id)).length;
     return `<div class="card" style="border-color:#cfe6f2;background:#f7fbfd">
       <div class="card-t">Decisão do ciclo — ${pendentes.length} proposta(s) aguardando</div>
@@ -1595,6 +1610,7 @@ function renderClassificacao() {
           <td><b>${p.classificacao?.total ?? "—"}</b></td>
         </tr>`).join("")}</tbody>
       </table></div>
+      ${blocoMeus}
     </div>`;
   };
 

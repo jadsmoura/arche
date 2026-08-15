@@ -2992,7 +2992,15 @@ app.post("/api/ic/decidir-lote", async (req, res) => {
       alvo.delete(projetos[i].id);
       const p = projetos[i];
       if (!podeAvaliar(meu, p)) {
-        ignorados.push({ numero: p.numero || p.id, motivo: `situação "${IC_ROTULO_STATUS[p.status] || p.status}" não aceita decisão` });
+        // o motivo verdadeiro importa: quase sempre é conflito de interesse
+        // (o gestor que também submete), não a situação do projeto
+        const papel = papelNoProjeto(meu, p);
+        ignorados.push({
+          numero: p.numero || p.id,
+          motivo: papel && papel !== "gestao"
+            ? "você participa deste projeto — quem decide é outro gestor do setor"
+            : `situação "${IC_ROTULO_STATUS[p.status] || p.status}" não aceita decisão`,
+        });
         continue;
       }
       projetos[i] = anotarProjeto({
