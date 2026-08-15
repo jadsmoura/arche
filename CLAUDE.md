@@ -19,7 +19,11 @@ lib/storage.js       Estado key-value (Google Drive em prod: _estado.json; local
 lib/files.js         Uploads → Google Drive (pasta ARCHÉ, por curso)
 lib/auth.js          Sessão por cookie HMAC; papéis: gestor > coordenador > aprovado > pendente
 lib/exports.js       Registro de Atividade (.docx) e Planilha de Certificados (.xlsx)
-lib/pdf.js           Relatório final, proposta e ata em PDF (timbrado oficial UNIEGO)
+lib/pdf.js           Relatório final, proposta e ata em PDF (timbrado oficial UNIEGO).
+                     Assinaturas institucionais no catálogo ASSINA (trocar nome/cargo é lá):
+                     resultado da IC = coord. de pesquisa + pró-reitor + reitor; Extensão =
+                     responsável + coordenação da ação (curso livre → Extensão; demais →
+                     Ação Comunitária) + pró-reitor + reitor
 lib/atas.js          ARCHÉ AT: órgãos, numeração das atas, normalização e validação
 lib/ic.js            ARCHÉ IC: projetos de IC, cronograma, relatórios e permissões
 lib/cpf.js           CPF: validação, normalização e a chave de vínculo dos importados
