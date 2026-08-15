@@ -2923,6 +2923,60 @@ app.post("/api/ic/:id/avaliar", async (req, res) => {
 });
 
 /**
+ * A mesma decisão, para VÁRIAS propostas de uma vez (só a coordenação).
+ *
+ * O edital 01/2026 tem 40 propostas com parecer: decidir uma a uma é abrir
+ * quarenta telas para repetir o mesmo clique, e é o que separa a coordenação
+ * de publicar o resultado. As regras não afrouxam por ser em lote — cada
+ * projeto passa por `podeAvaliar` e ganha a sua linha de histórico —, e o que
+ * não puder ser decidido volta dito na resposta, com o motivo, em vez de
+ * falhar em silêncio.
+ *
+ * A BOLSA continua de fora: quem aprova não concede: a distribuição é feita
+ * depois, na guia Bolsas, conforme a cota que a presidência liberar.
+ */
+app.post("/api/ic/decidir-lote", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  if (!meu.gestao) return res.status(403).json({ error: "Só a coordenação decide a seleção" });
+  const decisao = String(req.body?.decisao || "");
+  const parecer = String(req.body?.parecer || "").trim().slice(0, 8000);
+  const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map((x) => String(x)))];
+  if (!["aprovado", "reprovado"].includes(decisao))
+    return res.status(400).json({ error: "Em lote só cabe aprovar ou reprovar — devolver é caso a caso" });
+  if (!ids.length) return res.status(400).json({ error: "Nenhuma proposta marcada" });
+  if (ids.length > 300) return res.status(400).json({ error: "Marque no máximo 300 propostas por vez" });
+  if (decisao === "reprovado" && parecer.length < 10)
+    return res.status(400).json({ error: "Escreva o motivo: quem recebe precisa saber por quê." });
+
+  const r = await comProjetos((projetos) => {
+    const alvo = new Set(ids);
+    const aplicados = [], ignorados = [];
+    const agora = new Date().toISOString();
+    for (let i = 0; i < projetos.length; i++) {
+      if (!alvo.has(projetos[i].id)) continue;
+      alvo.delete(projetos[i].id);
+      const p = projetos[i];
+      if (!podeAvaliar(meu, p)) {
+        ignorados.push({ numero: p.numero || p.id, motivo: `situação "${IC_ROTULO_STATUS[p.status] || p.status}" não aceita decisão` });
+        continue;
+      }
+      projetos[i] = anotarProjeto({
+        ...p, status: decisao,
+        fomento: decisao === "aprovado" ? p.fomento : null,   // reprovar mata a bolsa
+        avaliacao: { decisao, parecer, por: u.email, em: agora },
+        atualizadoEm: agora,
+      }, { quem: u.email, oQue: `avaliou em lote: ${decisao}` });
+      aplicados.push(projetos[i].numero || projetos[i].id);
+    }
+    for (const perdido of alvo) ignorados.push({ numero: perdido, motivo: "projeto não encontrado" });
+    return { aplicados, ignorados, gravar: aplicados.length > 0 };
+  });
+  res.json({ ok: true, aplicados: r.aplicados.length, ignorados: r.ignorados });
+});
+
+/**
  * Importação do banco da submissão anterior (só a PROPPEX).
  * Cada projeto entra pelo CPF de quem orienta — sem depender de e-mail, que
  * a planilha não tem — e na situação informada (por padrão, `submetido`).

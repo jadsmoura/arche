@@ -332,6 +332,15 @@ public/
   só abre com o projeto APROVADO (resultado dado). A PROPPEX exporta tudo em
   `GET /api/ic/bolsistas.xlsx` (só gestão; botão na guia Bolsistas e Voluntários, por ciclo, nunca na
   Editais e Resultados, que é de todos) — as mesmas colunas do formulário antigo.
+- **Decisão em lote** (`POST /api/ic/decidir-lote`, só gestão; fila no topo da guia Projetos):
+  com 40 propostas com parecer, decidir uma a uma é abrir quarenta telas para repetir o
+  mesmo clique. A fila lista as que **aguardam decisão**, na ordem da classificação, e
+  aprova ou reprova as marcadas de uma vez — cada projeto passa pelo mesmo `podeAvaliar` e
+  ganha a sua linha de histórico, e o que não puder ser decidido volta dito na resposta,
+  com o motivo, em vez de falhar em silêncio. Em lote só cabem **aprovar e reprovar**:
+  devolver é conversa com um professor, não ato de massa; e reprovar exige o motivo, que é
+  o mesmo texto para todas — motivos diferentes pedem decisão caso a caso. **A bolsa fica
+  de fora**: aprovar é o mérito, a cota vem depois, na guia Bolsas.
 - **Grupo de pesquisa** (DGP/CNPq): a proposta indica **apenas o nome do grupo**. Por
   decisão do dono, **não se pergunta o papel** de quem submete no grupo — professores
   submetem propostas ligadas a grupos que não lideram — e por isso **não há a pontuação

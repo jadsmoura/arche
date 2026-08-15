@@ -1427,6 +1427,48 @@ async function atribuirBolsa(id, tipo, sel) {
 /* Ordenação por coluna das classificações. O estado é um só para os três
    quadros: eles mostram recortes do MESMO conjunto, e vê-los com critérios
    diferentes ao mesmo tempo confunde mais do que ajuda. */
+/* ------------------------- decisão em lote ------------------------------ */
+/* As propostas marcadas na fila de decisão. Vive fora do render porque a
+   tela se remonta a cada clique; é limpa ao trocar de ciclo, senão uma marca
+   de outro edital viajaria escondida até o botão de decidir. */
+const SEL_LOTE = new Set();
+function marcarUm(id, marcado) {
+  if (marcado) SEL_LOTE.add(id); else SEL_LOTE.delete(id);
+  renderClassificacao();
+}
+function marcarLote(marcar) {
+  const doEdital = PROJETOS.filter((p) => (p.edital || META.edital?.numero) === CICLO_SEL
+    && p.status === "submetido");
+  for (const p of doEdital) { if (marcar) SEL_LOTE.add(p.id); else SEL_LOTE.delete(p.id); }
+  renderClassificacao();
+}
+
+/* Decidir várias de uma vez. Aprovar não concede bolsa nenhuma — é o passo
+   que o edital chama de resultado do mérito; a cota vem depois. */
+async function decidirLote(decisao) {
+  const ids = [...SEL_LOTE];
+  if (!ids.length) return;
+  let parecer = "";
+  if (decisao === "reprovado") {
+    parecer = (prompt(`Motivo da reprovação de ${ids.length} proposta(s).\n\nEle vai para quem submeteu, e é o mesmo texto para todas — se os motivos forem diferentes, decida uma a uma.`) || "").trim();
+    if (parecer.length < 10) return aviso("Escreva o motivo: quem recebe precisa saber por quê.", "err");
+  } else if (!confirm(`Aprovar ${ids.length} proposta(s)?\n\nA bolsa NÃO é concedida aqui: depois de aprovar, use a guia Bolsas para distribuir conforme a cota liberada pela presidência.`)) {
+    return;
+  }
+  try {
+    const r = await api("/api/ic/decidir-lote", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, decisao, parecer }),
+    });
+    SEL_LOTE.clear();
+    await carregar();
+    renderClassificacao();
+    aviso(`${r.aplicados} proposta(s) ${decisao === "aprovado" ? "aprovada(s)" : "reprovada(s)"}.`
+      + (r.ignorados?.length ? ` ${r.ignorados.length} sem alteração: ${r.ignorados.map((x) => `${x.numero} (${x.motivo})`).join("; ")}.` : ""),
+      r.ignorados?.length ? "warn" : "ok");
+  } catch (e) { aviso(e.message, "err"); }
+}
+
 let ORD_CLASS = { col: null, dir: 1 };
 function ordenarPor(col) {
   if (ORD_CLASS.col !== col) ORD_CLASS = { col, dir: 1 };
@@ -1518,10 +1560,48 @@ function renderClassificacao() {
     </details>`;
   };
 
+  /* A fila de decisão do ciclo. Os quadros abaixo são o documento; isto aqui
+     é o trabalho: com quarenta propostas com parecer, decidir uma a uma é
+     abrir quarenta telas para repetir o mesmo clique. A bolsa não entra —
+     ela é distribuída depois, na guia Bolsas, conforme a cota. */
+  const filaDecisao = (doEdital) => {
+    if (!META.gestao) return "";
+    const pendentes = ordenarClassificacao(doEdital.filter((p) => p.status === "submetido"));
+    if (!pendentes.length) return "";
+    const marcadas = pendentes.filter((p) => SEL_LOTE.has(p.id)).length;
+    return `<div class="card" style="border-color:#cfe6f2;background:#f7fbfd">
+      <div class="card-t">Decisão do ciclo — ${pendentes.length} proposta(s) aguardando</div>
+      <div class="card-s">Marque as propostas e decida de uma vez, na ordem da classificação.
+        A <b>bolsa não é decidida aqui</b>: depois de aprovar, a distribuição é feita na guia
+        Bolsas, conforme a cota. Reprovar exige o motivo, que vai para quem submeteu.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <button class="bt bt-ghost" onclick="marcarLote(${marcadas < pendentes.length})">${
+          marcadas < pendentes.length ? `Marcar todas (${pendentes.length})` : "Desmarcar todas"}</button>
+        <span class="muted" style="margin-left:2px">${marcadas} marcada(s)</span>
+        <span style="flex:1"></span>
+        <button class="bt bt-pri" onclick="decidirLote('aprovado')" ${marcadas ? "" : "disabled"}>✓ Aprovar marcadas</button>
+        <button class="bt bt-err" onclick="decidirLote('reprovado')" ${marcadas ? "" : "disabled"}>✕ Reprovar marcadas</button>
+      </div>
+      <div class="rolo" style="max-height:340px;overflow:auto"><table class="pt">
+        <thead><tr><th style="width:4%"></th><th style="width:12%">Protocolo</th><th style="width:44%">Título</th>
+          <th style="width:24%">Professor(a)</th><th style="width:8%">NP</th><th style="width:8%">Total</th></tr></thead>
+        <tbody>${pendentes.map((p) => `<tr>
+          <td><input type="checkbox" style="width:auto;margin:0" ${SEL_LOTE.has(p.id) ? "checked" : ""}
+            onchange="marcarUm('${esc(p.id)}',this.checked)"></td>
+          <td><b style="color:var(--brand-2)">${esc(p.numero || "—")}</b></td>
+          <td>${esc(p.titulo || "(sem título)")}</td>
+          <td>${esc(p.orientador?.nome || p.orientador?.email || "—")}</td>
+          <td>${p.classificacao?.np ?? "—"}</td>
+          <td><b>${p.classificacao?.total ?? "—"}</b></td>
+        </tr>`).join("")}</tbody>
+      </table></div>
+    </div>`;
+  };
+
   const seletor = `<div class="filtros" style="margin-bottom:14px">
     <label style="margin:0;display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--muted)">
       Ciclo
-      <select style="width:auto;min-width:220px" onchange="CICLO_SEL=this.value;renderClassificacao()">
+      <select style="width:auto;min-width:220px" onchange="CICLO_SEL=this.value;SEL_LOTE.clear();renderClassificacao()">
         ${editais.map((e) => `<option value="${esc(e.numero)}" ${CICLO_SEL === e.numero ? "selected" : ""}>Edital ${esc(e.numero)}${e.vigente ? " — vigente" : ""} · ${e.projetos} projeto(s)</option>`).join("")}
       </select>
     </label>
@@ -1532,7 +1612,7 @@ function renderClassificacao() {
     const doutores = ordenarClassificacao(doEdital.filter((p) => ehDoutor(p.orientador?.titulacao)));
     const geral = ordenarClassificacao(doEdital);
     const comNota = doEdital.filter((p) => p.classificacao?.total != null).length;
-    return `<div class="card">
+    return filaDecisao(doEdital) + `<div class="card">
       <div class="card-t">Edital ${esc(e.numero)}${e.vigente ? ' <span class="badge b-aprovado">vigente</span>' : ""}</div>
       <div class="card-s">${doEdital.length} proposta(s) · ${doutores.length} de professores doutores · ${comNota} com nota final.
         A nota final soma o projeto (0–100) com o currículo (0–100). Os documentos do processo estão em
