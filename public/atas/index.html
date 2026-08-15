@@ -141,6 +141,22 @@
     color:var(--brand-3);background:var(--wash);border:1px solid var(--line);border-radius:8px;
     padding:6px 11px;transition:.15s;white-space:nowrap}
   .item .pdf:hover{background:var(--accent-wash);border-color:var(--brand-3);color:var(--brand)}
+  /* arquivo agrupado por categoria — cursos e órgãos institucionais — para
+     as atas de origens diferentes não se misturarem numa lista só */
+  details.grupo{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
+  details.grupo>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;
+    padding:14px 18px;font-weight:600;font-size:14px;color:var(--ink);user-select:none;transition:background .15s}
+  details.grupo>summary::-webkit-details-marker{display:none}
+  details.grupo>summary:hover{background:var(--wash)}
+  details.grupo>summary .qt{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--brand-3);
+    background:var(--wash);border:1px solid var(--line);border-radius:20px;padding:3px 10px;white-space:nowrap}
+  details.grupo>summary .seta{font-size:10px;color:var(--muted);transition:transform .2s}
+  details.grupo[open]>summary .seta{transform:rotate(180deg)}
+  details.grupo .corpo{padding:4px 14px 12px;border-top:1px solid var(--line)}
+  details.grupo .corpo .item{border:0;border-bottom:1px solid var(--line);border-radius:0;margin:0;background:none;padding:13px 6px}
+  details.grupo .corpo .item:last-child{border-bottom:0}
+  details.grupo .corpo .item:hover{box-shadow:none;background:var(--wash)}
+  .suborgao{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--brand-3);font-weight:700;margin:14px 6px 4px}
   .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px}
   .stat .s{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
   .stat .s b{font-family:Sora,sans-serif;font-size:22px;display:block;color:var(--ink);line-height:1.1}
@@ -556,11 +572,22 @@ function renderArquivo() {
       <input placeholder="Buscar por número, órgão ou nome…" value="${esc(FILTRO.q)}" oninput="filtrar('q',this.value)">
       <button class="bt bt-pri" onclick="nav('nova')">＋ Nova reunião</button>
     </div>
-    <div class="cnt">${f.length} ata(s) de ${LISTA.length}.
+    <div class="cnt">${f.length} ata(s) de ${LISTA.length}, por curso e por órgão.
       ${META.gestao
         ? "Como gestão, você vê as atas de todos os órgãos."
         : "Você vê aqui as atas que registrou; a PROPPEX acompanha as de todos."}</div>
-    ${f.map((a) => `<div class="item" onclick="abrir('${a.id}')">
+    ${gruposDoArquivo(f)}`;
+}
+
+/* O arquivo em CATEGORIAS, para as atas não se misturarem: primeiro cada
+   curso (com os seus órgãos — NDE, Colegiado… — separados dentro), depois
+   os órgãos institucionais. Categorias recolhidas por padrão; com filtro ou
+   busca ativos (ou uma categoria só), abrem sozinhas. */
+function gruposDoArquivo(f) {
+  if (!f.length) return '<div class="card"><div class="vazio">Nenhuma ata encontrada com esses filtros.</div></div>';
+  const orgNome = (cod) => (META.orgaos.find((o) => o.codigo === cod) || {}).nome || cod || "Órgão";
+  const cursoNm = (slug) => (META.cursos.find((c) => c.slug === slug) || {}).nome || slug;
+  const item = (a) => `<div class="item" onclick="abrir('${a.id}')">
         <div class="nm">${esc(a.numero || "— sem número —")}
           <div class="cs">${esc(a.titulo)} · sessão ${esc(a.sessao?.tipo || "")} de ${fmtD(a.sessao?.data)}
             · ${a.participantes} participante(s) · ${a.pontos} ponto(s)</div></div>
@@ -572,7 +599,40 @@ function renderArquivo() {
           // sem texto ainda não há PDF; o lugar fica reservado para as
           // situações da coluna não dançarem de uma linha para a outra
           : `<span class="pdf" aria-hidden="true" style="visibility:hidden">📄 PDF</span>`}
-      </div>`).join("") || '<div class="card"><div class="vazio">Nenhuma ata encontrada com esses filtros.</div></div>'}`;
+      </div>`;
+
+  const porCurso = new Map(), inst = new Map();
+  for (const a of f) {
+    const mapa = a.curso ? porCurso : inst;
+    const chave = a.curso || a.orgao || "?";
+    if (!mapa.has(chave)) mapa.set(chave, []);
+    mapa.get(chave).push(a);
+  }
+  const total = porCurso.size + inst.size;
+  const aberto = (FILTRO.orgao || FILTRO.curso || FILTRO.ano || FILTRO.status || FILTRO.q || total === 1) ? " open" : "";
+  const grupo = (rotulo, atas, corpo) => `<details class="grupo"${aberto}>
+      <summary>${rotulo}<span class="qt">${atas.length} ata(s)</span><span class="seta">▼</span></summary>
+      <div class="corpo">${corpo}</div>
+    </details>`;
+
+  const blocos = [];
+  for (const [slug, atas] of [...porCurso].sort((x, y) => cursoNm(x[0]).localeCompare(cursoNm(y[0]), "pt-BR"))) {
+    // dentro do curso, um sub-bloco por órgão: o NDE não se mistura ao Colegiado
+    const porOrgao = new Map();
+    for (const a of atas) {
+      if (!porOrgao.has(a.orgao)) porOrgao.set(a.orgao, []);
+      porOrgao.get(a.orgao).push(a);
+    }
+    const corpo = [...porOrgao]
+      .sort((x, y) => orgNome(x[0]).localeCompare(orgNome(y[0]), "pt-BR"))
+      .map(([o, as]) => `<div class="suborgao">${esc(orgNome(o))}</div>` + as.map(item).join(""))
+      .join("");
+    blocos.push(grupo(`🎓 ${esc(cursoNm(slug))}`, atas, corpo));
+  }
+  for (const [o, atas] of [...inst].sort((x, y) => orgNome(x[0]).localeCompare(orgNome(y[0]), "pt-BR"))) {
+    blocos.push(grupo(`🏛️ ${esc(orgNome(o))}`, atas, atas.map(item).join("")));
+  }
+  return blocos.join("");
 }
 function filtrar(campo, valor) { FILTRO[campo] = valor; renderArquivo(); }
 
