@@ -2403,6 +2403,28 @@ function renderEditais() {
           : `O resultado será divulgado pela PROPPEX quando o ciclo de avaliações terminar.${META.gestao ? " A publicação (preliminar e final) se faz no Painel." : ""}`}${META.gestao ? ` A lista dos projetos está na guia
         <a href="#" onclick="nav('classificacao');return false">Projetos</a>.` : ""}</div>
     </div>`).join("") || `<div class="card"><div class="vazio">Nenhum edital registrado ainda.</div></div>`;
+
+  // ICEM — outro programa, com série própria (02/AAAA): os documentos vêm do
+  // arquivo publicado; o resultado do ciclo vigente aparece como "em breve"
+  const em = META.editaisEM || [];
+  if (em.length) $("v-editais").innerHTML += `
+    <div class="card">
+      <div class="card-t">Iniciação Científica no Ensino Médio — ICEM</div>
+      <div class="card-s">Os editais do programa de bolsas para estudantes do Ensino Médio
+        (série 02/AAAA), um por turma.</div>
+      ${em.map((e) => `<div style="border-top:1px solid var(--linha);padding:12px 0 4px;margin-top:12px">
+        <div style="font-weight:700">Edital ${esc(e.numero)} · turma ${esc(e.ciclo)}
+          ${e.vigente ? ' <span class="badge b-aprovado">vigente</span>' : ""}</div>
+        <div class="exp" style="margin-top:8px">
+          ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📜 Edital (PDF)</a>`
+            : `<span class="muted">Documento do edital ainda não arquivado.</span>`}
+          ${e.resultadoDocumento
+            ? `<a class="bt bt-sec" href="${esc(e.resultadoDocumento)}" target="_blank" rel="noopener">📄 Resultado do processo (PDF)</a>`
+            : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default"
+                title="O resultado será divulgado pela PROPPEX ao fim da seleção">⏳ Resultado em breve</button>`}
+        </div>
+      </div>`).join("")}
+    </div>`;
 }
 
 /* Publicar (ou recolher) o resultado do processo — só a gestão. Duas fases:

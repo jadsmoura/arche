@@ -650,6 +650,7 @@ app.get("/api/publico/ic", async (req, res) => {
     res.json({
       instituicao: "Centro Universitário Evangélico de Goianésia — UNIEGO",
       editais: editaisConhecidos(projetos, await resultadosPublicados(), await termosPublicados()),
+      editaisEM: editaisEMParaLista(),
       projetos: projetos
         .filter((p) => p.status !== "rascunho")
         .map((p) => ({
@@ -2416,6 +2417,17 @@ function editaisConhecidos(projetos, publicados = {}, termos = {}) {
   })).sort((a, b) => b.numero.localeCompare(a.numero, "pt-BR"));
 }
 
+/**
+ * Os editais do ICEM (Ensino Médio) na página de Editais e Resultados: outro
+ * programa, com série própria (02/AAAA) e documentos já publicados — por isso
+ * a lista sai do catálogo de turmas (lib/em.js), não dos projetos. O ciclo
+ * vigente ainda não tem resultado: aparece "em breve" até o PDF ser arquivado.
+ */
+const editaisEMParaLista = () => TURMAS_EM.map((t) => ({
+  numero: t.edital, ciclo: t.ciclo, vigente: !t.encerrada,
+  documento: t.documento || null, resultadoDocumento: t.resultado || null,
+})).sort((a, b) => b.ciclo.localeCompare(a.ciclo, "pt-BR"));
+
 /** Catálogo do edital mais o que já foi informado à mão, num array só. */
 function todosOsGrupos(projetos) {
   const { certificados, informados } = gruposConhecidos(projetos);
@@ -2460,6 +2472,7 @@ app.get("/api/ic/meta", async (req, res) => {
     // os editais (números, contagens e documentos) são de todos; a lista de
     // pessoas para o "ver como" segue só com a coordenação
     editais: editaisConhecidos(projetos, await resultadosPublicados(), await termosPublicados()),
+    editaisEM: editaisEMParaLista(),
     ...(gereIC(u) ? { pessoas: pessoasDoSetor(projetos) } : {}),
     ...(como ? { simulando: como.email } : {}),
   });

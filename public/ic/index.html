@@ -105,6 +105,25 @@ fetch("/api/publico/ic").then(async (r) => {
       </table></div></details>` : `<p style="color:var(--muted);font-size:13.5px">As submissões deste edital ainda não foram registradas.</p>`}
     </div>`;
   }).join("") || '<div class="card"><p style="color:var(--muted)">Nenhum edital publicado ainda.</p></div>';
+
+  // ICEM — os editais do Ensino Médio (série 02/AAAA), com os documentos do
+  // arquivo; o resultado da turma vigente sai como "em breve" até publicar
+  const em = (j.editaisEM || []).slice();
+  if (em.length) document.getElementById("conteudo").innerHTML += `<div class="card" style="padding:24px">
+    <div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:19px">Iniciação Científica no Ensino Médio — ICEM</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:3px">O programa de bolsas para estudantes do
+      Ensino Médio acompanharem projetos de pesquisa do UNIEGO — editais próprios, um por turma.</div>
+    ${em.map((e) => `<div style="border-top:1px solid var(--linha,#dde4e8);padding-top:14px;margin-top:14px">
+      <div style="font-weight:700">Edital ${esc(e.numero)} · turma ${esc(e.ciclo)}
+        ${e.vigente ? '<span class="selo b" style="vertical-align:2px">vigente</span>' : ""}</div>
+      <div class="exp">
+        ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📜 Edital (PDF)</a>` : ""}
+        ${e.resultadoDocumento
+          ? `<a class="bt bt-sec" href="${esc(e.resultadoDocumento)}" target="_blank" rel="noopener">📄 Resultado do processo (PDF)</a>`
+          : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default" title="O resultado será divulgado pela PROPPEX ao fim da seleção">⏳ Resultado em breve</button>`}
+      </div>
+    </div>`).join("")}
+  </div>`;
 }).catch(() => {
   document.getElementById("conteudo").innerHTML = '<div class="card"><p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente em instantes.</p></div>';
 });
