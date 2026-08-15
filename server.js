@@ -118,20 +118,35 @@ app.use((_req, _res, next) => {
   varrerSeVencido(storage, "trafego");
 });
 
+/* O caminho que os guardas olham tem de ser o MESMO que o servidor de
+   arquivos resolve. `req.path` vem cru do pedido — sem decodificar `%2f` nem
+   colapsar `//` —, enquanto o express.static decodifica e normaliza antes de
+   procurar o arquivo. Sem esta linha, `//usuarios/` e `/arche%2findex.html`
+   passavam ao largo da guarda e caíam direto no disco: a SPA da gestão abria
+   sem login. Normaliza-se uma vez, e todo guarda daqui para baixo compara
+   contra `req.caminho`. */
+app.use((req, res, next) => {
+  let bruto;
+  try { bruto = decodeURIComponent(req.path); }
+  catch { return res.status(400).send("Endereço inválido"); }   // %ZZ: recusa de saída
+  req.caminho = path.posix.normalize(bruto);
+  next();
+});
+
 // Setores de gestão exigem login (Avaliação Institucional continua aberta).
 const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios)(\/|$)/;
 app.use(async (req, res, next) => {
-  if (req.method !== "GET" || !AREAS_PROTEGIDAS.test(req.path)) return next();
+  if (req.method !== "GET" || !AREAS_PROTEGIDAS.test(req.caminho)) return next();
   const u = await usuarioDe(req, res);   // renova a sessão de quem está usando
   if (!u) return res.redirect("/entrar?next=" + encodeURIComponent(req.originalUrl));
   if (u.papel === "pendente") {
     // exceção da IC: aluno indicado e avaliador ad hoc designado entram pelo
     // convite, que já é nominal (ver sessaoIC). Vale só para este setor.
-    const convidado = req.path.startsWith("/pesquisa")
+    const convidado = req.caminho.startsWith("/pesquisa")
       && participaDeAlgum(u.email, await lerProjetos(), (await carregarPerfis())[u.email]?.cpf || "");
     if (!convidado) return res.redirect("/entrar?pendente=1");
   }
-  if (req.path.startsWith("/usuarios") && u.papel !== "gestor") return res.redirect("/");
+  if (req.caminho.startsWith("/usuarios") && u.papel !== "gestor") return res.redirect("/");
   next();
 });
 
@@ -146,7 +161,7 @@ app.use(async (req, res, next) => {
 const liberadoNaAv = (req) => !!lerSelo(req) || !!lerSessao(req);
 
 app.use((req, res, next) => {
-  if (!AREA_AV.test(req.path)) return next();
+  if (!AREA_AV.test(req.caminho)) return next();
   if (req.query.acesso !== undefined && String(req.query.acesso) === chaveAcesso()) {
     emitirSelo(res, "link");
     // tira a chave da barra de endereços: o link circula por e-mail, e não há
@@ -3900,6 +3915,14 @@ app.get("/healthz", async (_req, res) => {
 app.use(express.static(PUBLIC));
 
 /* --------------------- ENCERRAMENTO E TAREFAS DE FUNDO ------------------- */
+// Rede de segurança: no Express 4, uma promessa rejeitada dentro de um handler
+// async NÃO vira erro de requisição — sobe como unhandledRejection e o Node
+// encerra o processo. Num portal institucional, derrubar o serviço é pior do
+// que falhar uma requisição: registra e segue de pé. Não substitui tratar o
+// erro na origem; é o que evita que um descuido futuro tire o site do ar.
+process.on("unhandledRejection", (e) => {
+  console.error("ARCHÉ · promessa rejeitada sem tratamento:", e?.stack || e);
+});
 // O Render hiberna o serviço no plano free: sem este flush, qualquer gravação
 // feita nos instantes anteriores ao desligamento morre em memória.
 for (const sinal of ["SIGTERM", "SIGINT"]) {

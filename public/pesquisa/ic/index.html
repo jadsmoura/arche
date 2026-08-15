@@ -415,6 +415,10 @@ const ehAvaliador = () => META.perfil === "avaliador";
 const recNome = (c) => (META.recomendacoes.find((r) => r.codigo === c) || {}).nome || c || "—";
 
 async function sair() {
+  // o "ver como" mora no sessionStorage, que sobrevive à troca de usuário na
+  // mesma aba: sem limpar aqui, quem entrasse depois abriria o setor com a
+  // faixa de simulação de alguém que não é ele
+  sessionStorage.removeItem("arche-ic-como");
   try { await fetch("/auth/sair", { method: "POST" }); } catch { /* ignora */ }
   location.href = "/";
 }
@@ -608,13 +612,24 @@ function faixaVerComo() {
   </div>`;
 }
 
+/* A troca é tudo ou nada: se a busca falhar no meio, a tela voltava a dizer
+   "você está vendo como fulano" com os dados de outra pessoa na frente. COMO
+   precisa valer DURANTE as buscas (é ele que vai no ?como=), mas só se
+   consolida quando as duas voltam. */
 async function verComo(email) {
+  const anterior = COMO;
   COMO = email || "";
-  if (COMO) sessionStorage.setItem("arche-ic-como", COMO); else sessionStorage.removeItem("arche-ic-como");
+  let meta;
   try {
-    META = await api("/api/ic/meta");
+    meta = await api("/api/ic/meta");
     await carregar();
-  } catch (e) { aviso(e.message, "err"); }
+  } catch (e) {
+    COMO = anterior;              // nada mudou: a tela segue coerente
+    aviso(e.message, "err");
+    return;                       // sem META nova não há tela a remontar
+  }
+  META = meta;
+  if (COMO) sessionStorage.setItem("arche-ic-como", COMO); else sessionStorage.removeItem("arche-ic-como");
   montarSidebar(); montarVerComo();
   // a seção em que se estava pode não existir para a outra pessoa
   const vale = SECOES.filter((x) => !x.perfis || x.perfis.includes(META.perfil)).map((x) => x.id);
@@ -2870,6 +2885,10 @@ async function excluir() {
     // pessoa não estiver em projeto nenhum, ele responde 403 e a mensagem
     // aparece na tela.
     META = await api("/api/ic/meta");
+    // "ver como" guardado na aba não atravessa a troca de usuário: só a gestão
+    // recebe META.pessoas, então quem não a recebeu não está simulando ninguém
+    // (o servidor já ignorou o ?como= — este META é o da pessoa de verdade)
+    if (COMO && !META.pessoas) { COMO = ""; sessionStorage.removeItem("arche-ic-como"); }
     await carregar();
   } catch (e) {
     $("aviso").innerHTML = `<div class="banner ba-err">${esc(e.message || "Falha ao carregar o setor")}</div>`;

@@ -57,6 +57,12 @@ public/
 
 - **Setores protegidos** (exigem login): `/extensao`, `/pesquisa`, `/inovacao`, `/atas`, `/usuarios`.
   **Avaliação (`/arche/`) continua SEM login** — não criar conta, papel nem sessão nela.
+- **Todo guarda compara `req.caminho`, nunca `req.path`**: o `req.path` chega CRU (sem
+  decodificar `%2f`, sem colapsar `//`) e o `express.static` resolve o caminho já
+  decodificado e normalizado — a diferença fazia `//usuarios/` e `/arche%2findex.html`
+  passarem ao largo da guarda e caírem direto no disco, servindo a SPA da gestão **sem
+  login** (achado da revisão adversarial de ago/2026). Um middleware normaliza uma vez, no
+  topo, e recusa com 400 o que nem decodifica.
 - **Portaria da Avaliação** (`lib/portaria.js`, decisão do dono em ago/2026): como o cartão do
   módulo fica na página inicial, à vista de qualquer visitante, a entrada pede uma **senha
   compartilhada** (`AV_SENHA`, "uniego" por padrão) — só para barrar quem chegou ali por acaso.

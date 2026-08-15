@@ -90,3 +90,37 @@ test("a tela da portaria não vaza a senha nem o link de acesso", () => {
   assert.ok(!html.includes(senhaAv()));
   assert.ok(!html.includes(chaveAcesso()));
 });
+
+/* ------- o que a revisão adversarial de ago/2026 encontrou (e ficou) ------ */
+test("o favicon do portal não fica atrás da portaria", () => {
+  // é o ícone de TODAS as páginas (index, /entrar, a própria portaria):
+  // trancá-lo deixava o portal inteiro sem ícone para quem não passou
+  assert.equal(AREA_AV.test("/arche/favicon.svg"), false);
+  assert.equal(AREA_AV.test("/arche/favicon.svg.map"), true, "só o arquivo exato sai");
+  assert.equal(AREA_AV.test("/arche/dossie/favicon.svg"), true);
+});
+
+test("a tela da portaria não deixa o endereço pedido fechar o <script>", () => {
+  const veneno = '/arche/x"></script><script>alert(1)</script>';
+  const html = paginaPortaria(destinoSeguro(veneno));
+  const bloco = html.slice(html.indexOf("const dest ="));
+  // o </script> do endereço não pode aparecer antes do fim do bloco de script
+  assert.equal(bloco.indexOf("</script>"), bloco.lastIndexOf("</script>"),
+    "o endereço injetou um fechamento de script");
+  assert.ok(html.includes("\\u003C"), "o < do endereço sai escapado");
+});
+
+test("cookie ilegível é cookie inválido — nunca uma exceção", async () => {
+  const { lerSessao, conferirSelo, decodificarCookie } = await import("../lib/auth.js");
+  // "%" solto derrubava o processo inteiro: decodeURIComponent lança, e quem
+  // chamava era um middleware async (promessa rejeitada = Node encerra)
+  assert.equal(decodificarCookie("%"), "%");
+  assert.equal(lerSessao({ headers: { cookie: "arche_sessao=%" } }), null);
+  assert.equal(lerSelo({ headers: { cookie: "arche_av=%E0%A4%A" } }), null);
+  // assinatura com caractere multibyte: mesmo comprimento em caracteres,
+  // outro em bytes — estourava dentro do timingSafeEqual
+  const res = { setHeader: () => {} };
+  emitirSelo(res, "senha");
+  assert.equal(conferirSelo("corpo.ç".padEnd(20, "x")), null);
+  assert.equal(lerSessao({ headers: { cookie: "arche_sessao=a.çççççççççççççççççççççççççççççççççççççççççç" } }), null);
+});
