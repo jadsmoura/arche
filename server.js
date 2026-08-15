@@ -4094,7 +4094,11 @@ async function migrarAcoesExtensao() {
    de uma rodada: a r2 de 2025 traz os bolsistas do Ensino Médio (que não
    têm termo em PDF — vieram do formulário de indicação) e completa os da
    graduação com telefone e conta. */
-const LOTES_ALUNOS = ["edital-01-2024", "edital-01-2025", "edital-01-2023", "edital-01-2025-r2"];
+const LOTES_ALUNOS = ["edital-01-2024", "edital-01-2025", "edital-01-2023", "edital-01-2025-r2",
+  // as planilhas de indicação de bolsista do Drive (ago/2026): 2022 inteiro —
+  // o resultado publicado não nomeava bolsistas — e as rodadas que completam
+  // 2023, 2024 e 2025 com quem não assinou termo (voluntários inclusive)
+  "edital-01-2022", "edital-01-2023-r2", "edital-01-2024-r2", "edital-01-2025-r3"];
 async function subirAlunosHistoricos() {
   for (const nome of LOTES_ALUNOS) {
     const marca = `sys-ic-alunos-${nome}`;

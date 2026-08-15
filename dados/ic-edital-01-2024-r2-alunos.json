@@ -1,0 +1,250 @@
+{
+ "lote": "edital-01-2024",
+ "fonte": "Formulário 'Indicação de Bolsista / Voluntário — Pibic Faceg (respostas)' de 2024 (Google Drive da PROPPEX)",
+ "observacao": "Segunda rodada de 2024: acrescenta Isabelly (Pibic/CNPq), Talita (Pibic/CNPq) e Gabriel (voluntário), que não estavam nos termos, e completa dados bancários dos demais. O CPF de Edileusa segue inválido na fonte e fica de fora.",
+ "alunos": {
+  "res-2024-4": [
+   {
+    "nome": "Isabelly Rodrigues Ferreira",
+    "cpf": "03456679130",
+    "email": "isaunieva@gmail.com",
+    "curso": "Direito",
+    "telefone": "62 99810-2506",
+    "banco": "Banco do Brasil",
+    "agencia": "0668-8",
+    "conta": "54.112-5",
+    "bolsista": true
+   }
+  ],
+  "res-2024-3": [
+   {
+    "nome": "Talita Gil Soares Araújo",
+    "cpf": "05073096185",
+    "email": "talitagil98@gmail.com",
+    "curso": "Odontologia",
+    "telefone": "62 996004159",
+    "banco": "Banco do Brasil",
+    "agencia": "2341-8",
+    "conta": "36731-1",
+    "bolsista": true
+   }
+  ],
+  "res-2024-15": [
+   {
+    "nome": "Amanda Carrilho Lopes de Castro",
+    "cpf": "03346626130",
+    "email": "amandacarrilhodecastro@hotmail.com",
+    "curso": "Agronomia",
+    "telefone": "(64)999675955",
+    "banco": "Santander",
+    "agencia": "2961",
+    "conta": "02033150-0",
+    "pix": "64999675955",
+    "bolsista": true
+   }
+  ],
+  "res-2024-14": [
+   {
+    "nome": "Edileusa da Silva Peres",
+    "email": "edileusadiv2@hotmail.com",
+    "curso": "Direito",
+    "telefone": "963.228.611-15",
+    "banco": "Banco Brasil",
+    "agencia": "0668-8",
+    "conta": "24.649-2",
+    "bolsista": true
+   }
+  ],
+  "res-2024-20": [
+   {
+    "nome": "Ana Clara de Freitas Mendes",
+    "cpf": "70944362117",
+    "email": "anaclarafmendes2004@gmail.com",
+    "curso": "Direito",
+    "telefone": "62986253822",
+    "banco": "Santander",
+    "agencia": "2053",
+    "conta": "000010297061",
+    "pix": "70944362117",
+    "bolsista": true
+   }
+  ],
+  "res-2024-19": [
+   {
+    "nome": "Kessylla Victoria Rodrigues de Moura",
+    "cpf": "08042754167",
+    "email": "kessylla2002@gmail.com",
+    "curso": "Odontologia",
+    "telefone": "62985906814",
+    "banco": "Nubank",
+    "agencia": "0001",
+    "conta": "39730914-5",
+    "pix": "08042754167",
+    "bolsista": true
+   }
+  ],
+  "res-2024-16": [
+   {
+    "nome": "Aline Silva de Jesus",
+    "cpf": "71021010154",
+    "email": "alinesjesus9@gmail.com",
+    "curso": "Odontologia",
+    "telefone": "62 98579-6597",
+    "banco": "Caixa Econômica",
+    "agencia": "3267",
+    "conta": "000776276664-3",
+    "bolsista": true
+   }
+  ],
+  "res-2024-17": [
+   {
+    "nome": "Natiele Alves luz",
+    "cpf": "71013851170",
+    "email": "natiele123luz@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "(62)984240325",
+    "banco": "Banco do Brasil",
+    "agencia": "0668-8",
+    "conta": "50456-4",
+    "pix": "natiele123luz@gmail.com",
+    "bolsista": true
+   }
+  ],
+  "res-2024-12": [
+   {
+    "nome": "Vitor Hugo Alves Silva",
+    "cpf": "71281203190",
+    "email": "vitorhalvessilva@gmail.com",
+    "curso": "Direito",
+    "telefone": "62 98605-7812",
+    "banco": "Nu Pagamentos S.A. - Instituição de Pagamento",
+    "agencia": "0001",
+    "conta": "25563727-6",
+    "pix": "vitorhuguinho91@gmail.com",
+    "bolsista": true
+   }
+  ],
+  "res-2024-18": [
+   {
+    "nome": "Matheus Damasceno Louredo Silva",
+    "cpf": "70915303140",
+    "email": "matheus160105@hotmail.com",
+    "curso": "Direito",
+    "telefone": "6298634-7113",
+    "banco": "Sicoob",
+    "agencia": "5024",
+    "conta": "12369-2",
+    "pix": "19160470000140",
+    "bolsista": true
+   }
+  ],
+  "res-2024-13": [
+   {
+    "nome": "Vítor Henrique Moreira Moreno",
+    "cpf": "05052623127",
+    "email": "vitor.hmoreno8@gmail.com",
+    "curso": "Odontologia",
+    "telefone": "62 920008298",
+    "banco": "0260 - Nu Pagamentos S.A. - Instituição de Pagamento",
+    "agencia": "0001",
+    "conta": "14006451-2",
+    "pix": "05052623127",
+    "bolsista": true
+   }
+  ],
+  "res-2024-21": [
+   {
+    "nome": "Mateus Henrique Venâncio Costa",
+    "cpf": "70975437100",
+    "email": "mateushvc659@gmail.com",
+    "curso": "Engenharia Mecânica",
+    "telefone": "62985559210",
+    "banco": "PicPay Serviços S.A",
+    "agencia": "0001",
+    "conta": "23758505-7",
+    "pix": "mateushvc659@gmail.com",
+    "bolsista": true
+   }
+  ],
+  "res-2024-23": [
+   {
+    "nome": "Murilo Henrique Jesus Miranda",
+    "cpf": "70914245147",
+    "email": "jesusmurilohenrique@gmail.com",
+    "curso": "Engenharia Mecânica",
+    "telefone": "62982384503",
+    "banco": "077 - INTER",
+    "agencia": "0001",
+    "conta": "8733369-4",
+    "pix": "70914245147",
+    "bolsista": true
+   }
+  ],
+  "res-2024-22": [
+   {
+    "nome": "João Augusto Patrício",
+    "cpf": "09463906142",
+    "email": "jo84877304@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "(62)984877304",
+    "banco": "Sicredi",
+    "agencia": "0914",
+    "conta": "74420-8",
+    "pix": "jo84877304@gmail.com",
+    "bolsista": true
+   }
+  ],
+  "res-2024-9": [
+   {
+    "nome": "Ághata Cristine Neves Reis",
+    "cpf": "70947780157",
+    "email": "aghataneves@hotmail.com",
+    "curso": "Enfermagem",
+    "telefone": "62985554470",
+    "banco": "Bradesco",
+    "agencia": "243",
+    "conta": "11839-7",
+    "pix": "70947780157",
+    "bolsista": true
+   }
+  ],
+  "res-2024-10": [
+   {
+    "nome": "Rita de Cássia Thatylla Costa",
+    "cpf": "70416962190",
+    "email": "ritadcassiatc@gmail.com",
+    "curso": "Enfermagem",
+    "telefone": "(62) 984667724",
+    "banco": "Caixa",
+    "agencia": "0792",
+    "conta": "000579655201-1",
+    "pix": "+5562984667724",
+    "bolsista": true
+   }
+  ],
+  "res-2024-31": [
+   {
+    "nome": "Gabriel Gomes de Lima",
+    "cpf": "70975679104",
+    "email": "gabrielgomelimaii99@gmail.com",
+    "curso": "Engenharia Mecânica",
+    "telefone": "62 98138-5353",
+    "bolsista": false
+   }
+  ],
+  "res-2024-11": [
+   {
+    "nome": "Maralice Machado Daris",
+    "cpf": "70509479111",
+    "email": "maralicemachadodaris@gmail.com",
+    "curso": "Enfermagem",
+    "telefone": "62985099597",
+    "banco": "Santander",
+    "agencia": "2053",
+    "conta": "01029544-7",
+    "pix": "70509479111",
+    "bolsista": true
+   }
+  ]
+ }
+}

@@ -1,0 +1,341 @@
+{
+ "lote": "edital-01-2025",
+ "fonte": "Formulário 'Formulário de indicação de bolsista (respostas)' de 2025 (Google Drive da PROPPEX)",
+ "observacao": "Terceira rodada de 2025: acrescenta Maria Clara Souza Félix (Proex, projeto do Samuel) e Michele Brandão de Oliveira (segunda aluna do projeto do José Mateus Júnior). A resposta de fev/2026 indicando Guilherme de Siqueira Silva não casa com projeto da orientadora que a enviou e aguarda decisão da PROPPEX.",
+ "alunos": {
+  "res-2025-11": [
+   {
+    "nome": "Paulo linneker Gonçalves",
+    "cpf": "03411666188",
+    "email": "paulolinneker@icloud.com",
+    "curso": "Engenharia Mecânica",
+    "telefone": "+55 62 98484-7310",
+    "banco": "Neon",
+    "agencia": "0655",
+    "conta": "20674195-2",
+    "pix": "034.116.661-88",
+    "bolsista": true
+   }
+  ],
+  "res-2025-16": [
+   {
+    "nome": "Emilly Vitória Menezes Oliveira",
+    "cpf": "03740868180",
+    "email": "emillymenezess.vet@gmail.com",
+    "curso": "Medicina Veterinária",
+    "telefone": "62 8510-9231",
+    "banco": "077-Inter",
+    "agencia": "0001",
+    "conta": "250445859",
+    "pix": "03740868180",
+    "bolsista": true
+   }
+  ],
+  "res-2025-5": [
+   {
+    "nome": "Kauane Lorraine Pereira Santos",
+    "cpf": "07775447176",
+    "email": "kauane.12lorraine.122@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "62999947351",
+    "banco": "Banco do Brasil",
+    "agencia": "0529-0",
+    "conta": "43.218-0",
+    "pix": "kauane.12lorraine.122@gmail.com",
+    "bolsista": true
+   }
+  ],
+  "res-2025-13": [
+   {
+    "nome": "Ranniele de Jesus Queiroz",
+    "cpf": "03723809138",
+    "email": "rannielequeiroz2@gmail.com",
+    "curso": "Odontologia",
+    "telefone": "62984004899",
+    "banco": "Banco Brasil",
+    "agencia": "668-8",
+    "conta": "57203-9",
+    "pix": "rannielequeiroz2@gmail.com",
+    "bolsista": true
+   },
+   {
+    "nome": "Michele Brandão de Oliveira",
+    "cpf": "08147320116",
+    "email": "62981431280",
+    "curso": "Odontologia",
+    "telefone": "62981431280",
+    "banco": "Bradesco",
+    "agencia": "243",
+    "conta": "11326-3",
+    "pix": "62981431280",
+    "bolsista": true
+   }
+  ],
+  "res-2025-8": [
+   {
+    "nome": "José Otávio da Silva",
+    "cpf": "70980680123",
+    "email": "jjoseotavio18@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "(62)98592-9284",
+    "banco": "Banco do Brasil",
+    "agencia": "668-8",
+    "conta": "57204-7",
+    "pix": "jjoseotavio18@gmail.com",
+    "bolsista": true
+   }
+  ],
+  "res-2025-3": [
+   {
+    "nome": "Higor Gustavo Vieira Sampaio",
+    "cpf": "71668360160",
+    "email": "higorgustavo.gsia.0@gmail.com",
+    "curso": "Enfermagem",
+    "telefone": "62 984653476",
+    "banco": "Banco do Brasil",
+    "agencia": "0668-8",
+    "conta": "57205-5",
+    "pix": "71668360160",
+    "bolsista": true
+   }
+  ],
+  "res-2025-17": [
+   {
+    "nome": "Maria Eduarda Lemes Lopes",
+    "cpf": "03012339183",
+    "email": "mariaeduardalemes.faceg@gmail.com",
+    "curso": "Direito",
+    "telefone": "62985285201",
+    "banco": "0260 - nubank",
+    "agencia": "0001",
+    "conta": "92698433-0",
+    "pix": "03012339183",
+    "bolsista": true
+   }
+  ],
+  "res-2025-22": [
+   {
+    "nome": "Leticia Mirelle Silva",
+    "cpf": "06751321180",
+    "email": "leticia.mirelle15@gmail.com",
+    "curso": "Odontologia",
+    "telefone": "62 9 99888984",
+    "banco": "0260 Nu Pagamentos S.A.",
+    "agencia": "0001",
+    "conta": "26411363-3",
+    "pix": "06751321180",
+    "bolsista": true
+   }
+  ],
+  "res-2025-15": [
+   {
+    "nome": "Glenda Santos Oliveira",
+    "cpf": "70722893132",
+    "email": "glendasantos144@gmail.com",
+    "curso": "Direito",
+    "telefone": "62 98505-4990",
+    "banco": "Itaú",
+    "agencia": "4379",
+    "conta": "69563-0",
+    "pix": "70722893132",
+    "bolsista": true
+   }
+  ],
+  "res-2025-18": [
+   {
+    "nome": "Beatriz Araújo Borges",
+    "cpf": "71221477110",
+    "email": "biaborges799@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "62984158299",
+    "banco": "Nu Pagamentos S.A",
+    "agencia": "0001",
+    "conta": "72539920-3",
+    "pix": "62984158299",
+    "bolsista": true
+   }
+  ],
+  "res-2025-4": [
+   {
+    "nome": "Hellen Kariny Batista Caixeta",
+    "cpf": "71532756143",
+    "email": "hellemcaryne11@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "(62)98268-9545",
+    "banco": "Banco do Brasil",
+    "agencia": "50492-2",
+    "conta": "668-8",
+    "pix": "71532756143",
+    "bolsista": true
+   }
+  ],
+  "res-2025-1": [
+   {
+    "nome": "João Pedro Costa Venâncio Camargo",
+    "cpf": "70746504128",
+    "email": "joaopedrocamargogsis@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "(62)981329853",
+    "banco": "Banco do Brasil",
+    "agencia": "6052005-1",
+    "conta": "668-8",
+    "pix": "joaopedrocamargogsis@gmail.com",
+    "bolsista": true
+   }
+  ],
+  "res-2025-7": [
+   {
+    "nome": "Geovana Francisca Silva",
+    "cpf": "71098196120",
+    "email": "geo053424@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "(62)983117186",
+    "banco": "Banco do Brasil",
+    "agencia": "50444-0",
+    "conta": "668-8",
+    "pix": "62983117186",
+    "bolsista": true
+   }
+  ],
+  "res-2025-6": [
+   {
+    "nome": "Osiel Barbosa Camargo",
+    "cpf": "70968874150",
+    "email": "osielbkamargo@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "62 983436728",
+    "banco": "Banco do Brasil",
+    "agencia": "57065-6",
+    "conta": "668-8",
+    "pix": "5c489365-0a1b-4884-9021-abba7debaf0f",
+    "bolsista": true
+   }
+  ],
+  "res-2025-2": [
+   {
+    "nome": "Sophia Laura Pereira Pessoa",
+    "cpf": "07573613156",
+    "email": "sophiapess3@gmail.com",
+    "curso": "Direito",
+    "telefone": "62986017532",
+    "banco": "Banco do Brasil",
+    "agencia": "668-8",
+    "conta": "57225-0",
+    "pix": "0badcffa-9e21-4e92-9b1f-bb0ed5accd20",
+    "bolsista": true
+   }
+  ],
+  "res-2025-9": [
+   {
+    "nome": "Isaque Gabriel Esmeraldo Ferreira",
+    "cpf": "70633948195",
+    "email": "isaquegabriel1324@gmail.com",
+    "curso": "Engenharia Mecânica",
+    "telefone": "62 8527-8203",
+    "banco": "Banco do Brasil",
+    "agencia": "46.147-4",
+    "conta": "0668-8",
+    "pix": "isaquegabriel1324@gmail.com",
+    "bolsista": true
+   }
+  ],
+  "res-2025-10": [
+   {
+    "nome": "Michelle Cabral França",
+    "cpf": "03418275176",
+    "email": "cabral-psi@hotmail.com",
+    "curso": "Odontologia",
+    "telefone": "98528-6693",
+    "banco": "NU pagamentos",
+    "agencia": "0001",
+    "conta": "11246532-4",
+    "pix": "6298528-6693",
+    "bolsista": true
+   }
+  ],
+  "res-2025-14": [
+   {
+    "nome": "Gabriella Leticia Teixeira Santos",
+    "cpf": "70964195194",
+    "email": "gabi.leticia1004@gmail.com",
+    "curso": "Direito",
+    "telefone": "(62) 98422-2805",
+    "banco": "Sicredi - 748",
+    "agencia": "0914",
+    "conta": "17223-2",
+    "pix": "70964195194",
+    "bolsista": true
+   }
+  ],
+  "res-2025-20": [
+   {
+    "nome": "Jean Carlos Ferreira",
+    "cpf": "04249081150",
+    "email": "84845057j@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "62984845057",
+    "banco": "Itaú",
+    "agencia": "4379",
+    "conta": "66016-2",
+    "pix": "62984845057",
+    "bolsista": true
+   }
+  ],
+  "res-2025-19": [
+   {
+    "nome": "Artur Carvalho",
+    "cpf": "05366829178",
+    "email": "arturcarvalhoorlando17@gmail.com",
+    "curso": "Engenharia Mecânica",
+    "telefone": "(62) 98513-2298",
+    "banco": "Santander",
+    "agencia": "2053",
+    "conta": "01015633-5",
+    "pix": "arturcarvalhoorlando17@gmail.com",
+    "bolsista": true
+   }
+  ],
+  "res-2025-21": [
+   {
+    "nome": "Maria Júlia Rodrigues Melo",
+    "cpf": "04152811137",
+    "email": "mariajuliarodriguesmelo@gmail.com",
+    "curso": "Direito",
+    "telefone": "62981374326",
+    "banco": "Banco do Brasil",
+    "agencia": "0668-8",
+    "conta": "552380",
+    "pix": "mariajuliarodriguesmelo@gmail.com",
+    "bolsista": true
+   }
+  ],
+  "res-2025-12": [
+   {
+    "nome": "Marcos Leandro Faria Dos Santos",
+    "cpf": "70747604126",
+    "email": "leandromarcos0803@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "6298621-7846",
+    "banco": "Sicoob",
+    "agencia": "5024",
+    "conta": "1084518",
+    "pix": "Leandromarcos0803@gmail.com",
+    "bolsista": true
+   }
+  ],
+  "res-2025-23": [
+   {
+    "nome": "Maria Clara Souza Félix",
+    "cpf": "70802790119",
+    "email": "contato.mariaclarasf@gmail.com",
+    "curso": "Psicologia",
+    "telefone": "(62) 9 8607-3672",
+    "banco": "Nubank",
+    "agencia": "0001",
+    "conta": "89957863-8",
+    "pix": "contato.mariaclarasf@gmail.com",
+    "bolsista": true
+   }
+  ]
+ }
+}

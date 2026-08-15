@@ -1,0 +1,346 @@
+{
+ "lote": "edital-01-2023",
+ "fonte": "Formulário 'Indicação de Bolsista / Voluntário — Pibic Faceg (respostas)' de 2023 (Google Drive da PROPPEX)",
+ "observacao": "Segunda rodada de 2023: acrescenta os alunos que não assinaram termo no rar (Rodolfo, Yago e Yasmin — os dois últimos voluntários) e completa banco, conta e telefone dos demais. O CPF digitado por Mariana Luísa não valida e ficou de fora (ela corrige na guia Bolsa).",
+ "alunos": {
+  "res-2023-14": [
+   {
+    "nome": "Nathaliany T. Miranda e Sousa",
+    "cpf": "05779697140",
+    "email": "nathaliannymirandaesousa@gmail.com",
+    "curso": "Direito",
+    "telefone": "(62) 996845281",
+    "banco": "0260 - Nubank",
+    "agencia": "0001",
+    "conta": "47297737-9",
+    "pix": "05779697140",
+    "bolsista": true
+   }
+  ],
+  "res-2023-24": [
+   {
+    "nome": "Mariana Luísa Costa Salgado",
+    "email": "marianaluisa2010@hotmail.com",
+    "curso": "Agronomia",
+    "telefone": "62999852985",
+    "banco": "Nubank - 0260",
+    "agencia": "0001",
+    "conta": "37698937-5",
+    "pix": "05100434104",
+    "bolsista": true
+   }
+  ],
+  "res-2023-15": [
+   {
+    "nome": "Danilo Arantes Pereira",
+    "cpf": "04728621111",
+    "email": "danilloarantespereira10@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "62982612282",
+    "banco": "Nubank - 0260",
+    "agencia": "0001",
+    "conta": "69495275-3",
+    "pix": "62982612282",
+    "bolsista": true
+   }
+  ],
+  "res-2023-16": [
+   {
+    "nome": "Tainara Pereira de Morais",
+    "cpf": "07257984166",
+    "email": "tainaramorais149@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "62999065210",
+    "banco": "Itaú",
+    "agencia": "4379",
+    "conta": "57842-2",
+    "pix": "62999065210",
+    "bolsista": true
+   }
+  ],
+  "res-2023-12": [
+   {
+    "nome": "Andréia Fernandes de Souza",
+    "cpf": "07677056105",
+    "email": "andreiafsouza1202@gmail.com",
+    "curso": "Odontologia",
+    "telefone": "62999358703",
+    "banco": "0260- Nu Pagamentos S.A.",
+    "agencia": "0001",
+    "conta": "84535287-7",
+    "pix": "62999358703",
+    "bolsista": true
+   }
+  ],
+  "res-2023-10": [
+   {
+    "nome": "Renata Souza de Jesus",
+    "cpf": "70348341130",
+    "email": "renatajde@outlook.com",
+    "curso": "Odontologia",
+    "telefone": "62985689730",
+    "banco": "Nubank - 0260",
+    "agencia": "0001",
+    "conta": "42674622-7",
+    "pix": "renatajde@outlook.com",
+    "bolsista": true
+   }
+  ],
+  "res-2023-1": [
+   {
+    "nome": "Beatriz Rodrigues Souza",
+    "cpf": "07870727610",
+    "email": "biarodriguessouza05@gmail.com",
+    "curso": "Direito",
+    "telefone": "62996145878",
+    "banco": "001",
+    "agencia": "0668-8",
+    "conta": "50443-2",
+    "pix": "62996145878",
+    "bolsista": true
+   }
+  ],
+  "res-2023-2": [
+   {
+    "nome": "Lorrane da Conceição Leite",
+    "cpf": "05939152597",
+    "email": "lorraneconceicaoleite653@gmail.com",
+    "curso": "Direito",
+    "telefone": "62984473348",
+    "banco": "001",
+    "agencia": "0668-8",
+    "conta": "50.445-9",
+    "pix": "lorraneconceicaoleite653@gmail.com",
+    "bolsista": true
+   }
+  ],
+  "res-2023-13": [
+   {
+    "nome": "Talita Gil Soares Araújo",
+    "cpf": "05073096185",
+    "email": "talitagil98@gmail.com",
+    "curso": "Odontologia",
+    "telefone": "62996004159",
+    "banco": "0260",
+    "agencia": "0001",
+    "conta": "93025857-4",
+    "pix": "05073096185",
+    "bolsista": true
+   }
+  ],
+  "res-2023-23": [
+   {
+    "nome": "Amanda Ferraz Assis Ferreira",
+    "cpf": "70303328142",
+    "email": "amandaferraz.af7@gmail.com",
+    "curso": "Engenharia Civl",
+    "telefone": "62985277038",
+    "banco": "INTER - 077",
+    "agencia": "0001",
+    "conta": "17683888-0",
+    "pix": "amandaferraz.af7@gmail.com",
+    "bolsista": true
+   }
+  ],
+  "res-2023-17": [
+   {
+    "nome": "Lucas Martins Miranda",
+    "cpf": "70060158123",
+    "email": "lucasmpht@gmail.com",
+    "curso": "Direito",
+    "telefone": "(62) 99274 9495",
+    "banco": "Bradesco",
+    "agencia": "243",
+    "conta": "17575-7",
+    "pix": "62992749475",
+    "bolsista": true
+   }
+  ],
+  "res-2023-18": [
+   {
+    "nome": "Luís Fernando Gonçalves Lacerda",
+    "cpf": "08539315181",
+    "email": "luisfernandogoncalveslacerda@gmail.com",
+    "curso": "Direito",
+    "telefone": "(62) 98576-5243",
+    "banco": "Banco do Brasil",
+    "agencia": "0668-8",
+    "conta": "44.505-3",
+    "pix": "08539315181",
+    "bolsista": true
+   }
+  ],
+  "res-2023-19": [
+   {
+    "nome": "Millena Xavier Freire",
+    "cpf": "71012916197",
+    "email": "millenaxf@gmail.com",
+    "curso": "Engenharia Mecânica",
+    "telefone": "(62) 98601-3494",
+    "banco": "Santander",
+    "agencia": "2053",
+    "conta": "01022765-9",
+    "pix": "Celular (62) 98601-3494 / Banco: Caixa",
+    "bolsista": true
+   }
+  ],
+  "res-2023-22": [
+   {
+    "nome": "Matheus Herik Bento de Andrade",
+    "cpf": "04958930132",
+    "email": "matheusengcivil21@gmail.com",
+    "curso": "Engenharia Civl",
+    "telefone": "62984365580",
+    "banco": "Caixa Econômica Federal",
+    "agencia": "0792",
+    "conta": "000785255192-1",
+    "pix": "04958930132",
+    "bolsista": true
+   }
+  ],
+  "res-2023-20": [
+   {
+    "nome": "André Ferreira Pimenta",
+    "cpf": "13031995643",
+    "email": "andrepimentamg38@gmail.com",
+    "curso": "Engenharia Mecânica",
+    "telefone": "62982915734",
+    "banco": "NuBank",
+    "agencia": "0001",
+    "conta": "32813231-8",
+    "pix": "andrepimentamg38@gmail.com",
+    "bolsista": true
+   }
+  ],
+  "res-2023-21": [
+   {
+    "nome": "Rodolfo Galvão Sales Andrade",
+    "cpf": "70634972197",
+    "email": "rodolfosalles258@gmail.com",
+    "curso": "Engenharia Mecânica",
+    "telefone": "62983301930",
+    "banco": "Nubank",
+    "agencia": "0001",
+    "conta": "25843522-1",
+    "pix": "62983301930",
+    "bolsista": true
+   }
+  ],
+  "res-2023-32": [
+   {
+    "nome": "Yago Silva Ferreira",
+    "cpf": "04900862177",
+    "email": "yagosilva775@hotmail.com",
+    "curso": "Engenharia Mecânica",
+    "telefone": "62999955915",
+    "banco": "Itaú",
+    "agencia": "5533",
+    "conta": "15426-5",
+    "pix": "62999955915",
+    "bolsista": false
+   }
+  ],
+  "res-2023-3": [
+   {
+    "nome": "Carlos Humberto dos Santos Júnior",
+    "cpf": "07148015189",
+    "email": "carlos.humbertojr@outlook.com",
+    "curso": "Odontologia",
+    "telefone": "98574-7172",
+    "banco": "Banco do Brasil",
+    "agencia": "0668-8",
+    "conta": "50468-8",
+    "bolsista": true
+   }
+  ],
+  "res-2023-4": [
+   {
+    "nome": "Helem Cristina Fonseca",
+    "cpf": "70706770145",
+    "email": "fonseca.helem@gmail.com",
+    "curso": "Enfermagem",
+    "telefone": "98594-2553",
+    "banco": "Banco do Brasil",
+    "agencia": "0668-8",
+    "conta": "50457-2",
+    "bolsista": true
+   }
+  ],
+  "res-2023-28": [
+   {
+    "nome": "Yasmin Rodrigues Caponi",
+    "cpf": "00788233157",
+    "email": "yasmin_caponi@hotmail.com",
+    "curso": "Enfermagem",
+    "telefone": "984646076",
+    "agencia": "Voluntário",
+    "bolsista": false
+   }
+  ],
+  "res-2023-6": [
+   {
+    "nome": "Celso Filho dias Costa",
+    "cpf": "03203223198",
+    "email": "celsofilho321@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "62 9532-2313",
+    "agencia": "x",
+    "bolsista": true
+   }
+  ],
+  "res-2023-7": [
+   {
+    "nome": "Hellen Kariny Batista Caixeta",
+    "cpf": "71532756143",
+    "email": "hellemcaryne11@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "62 8268-9545",
+    "bolsista": true
+   }
+  ],
+  "res-2023-8": [
+   {
+    "nome": "Rafael Mendonça Ribeiro",
+    "cpf": "03579784129",
+    "email": "rafaelmribeiro93@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "62 9927-0832",
+    "bolsista": true
+   }
+  ],
+  "res-2023-9": [
+   {
+    "nome": "Geovana Francisca Silva",
+    "cpf": "71098196120",
+    "email": "geo053424@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "62 8311-7186",
+    "bolsista": true
+   }
+  ],
+  "res-2023-5": [
+   {
+    "nome": "Natiele Alves Luz",
+    "cpf": "71013851170",
+    "email": "natiele123luz@gmail.com",
+    "curso": "Agronomia",
+    "telefone": "62 8424-0325",
+    "bolsista": true
+   }
+  ],
+  "res-2023-33": [
+   {
+    "nome": "Luana Dias de Castro",
+    "cpf": "05979847197",
+    "email": "luana.dcastro2000@gmail.com",
+    "curso": "Engenharia Civl",
+    "telefone": "62981171730",
+    "banco": "Caixa Econômica Federal",
+    "agencia": "3267",
+    "conta": "000781551804-5",
+    "pix": "059.798.471-97",
+    "bolsista": true
+   }
+  ]
+ }
+}

@@ -1,0 +1,249 @@
+{
+ "lote": "edital-01-2022",
+ "fonte": "Formulário 'Indicação de Bolsista (respostas)' do edital 01/2022 (Google Drive da PROPPEX)",
+ "observacao": "Bolsistas do edital 01/2022 casados ao projeto pelo orientador e pelo título do plano. O resultado publicado não nomeava bolsistas — este formulário é a única fonte. João Victor Nascimento Oliveira enviou duas respostas com CPFs diferentes; vale a resposta final (28/09/2022, CPF 04632851159, com a conta do Banco do Brasil exigida pela bolsa CNPq). Os projetos PIVIC de 2022 não têm indicação registrada em fonte nenhuma.",
+ "alunos": {
+  "res-2022-3": [
+   {
+    "nome": "João Victor Nascimento Oliveira",
+    "cpf": "04632851159",
+    "curso": "Odontologia",
+    "banco": "Banco do Brasil",
+    "agencia": "458-8",
+    "conta": "40.372-5",
+    "bolsista": true
+   }
+  ],
+  "res-2022-18": [
+   {
+    "nome": "Caroline Vital Mendanha",
+    "cpf": "07389794143",
+    "curso": "Direito",
+    "banco": "Caixa Econômica Federal",
+    "agencia": "0792",
+    "conta": "000779969556-1",
+    "bolsista": true
+   }
+  ],
+  "res-2022-2": [
+   {
+    "nome": "João Augusto Lourenço Gontijo",
+    "cpf": "70397131100",
+    "curso": "Direito",
+    "banco": "Banco do Brasil",
+    "agencia": "668-8",
+    "conta": "47169-0",
+    "bolsista": true
+   }
+  ],
+  "res-2022-9": [
+   {
+    "nome": "Thaynara da Silva Barbosa",
+    "cpf": "70386302103",
+    "curso": "Agronomia",
+    "banco": "Itau",
+    "agencia": "4379",
+    "conta": "47655-1",
+    "bolsista": true
+   }
+  ],
+  "res-2022-10": [
+   {
+    "nome": "Joaquim Neto Silva Silvério",
+    "cpf": "01045684104",
+    "curso": "Agronomia",
+    "banco": "Caixa Economica Federal",
+    "agencia": "4221",
+    "conta": "4624-2",
+    "bolsista": true
+   }
+  ],
+  "res-2022-20": [
+   {
+    "nome": "Rafael Mendonça Ribeiro",
+    "cpf": "03579784129",
+    "curso": "Agronomia",
+    "banco": "Banco do Brasil",
+    "agencia": "0668-8",
+    "conta": "24.840-1",
+    "bolsista": true
+   }
+  ],
+  "res-2022-21": [
+   {
+    "nome": "Thaynara Vaz Dias",
+    "cpf": "06931470167",
+    "curso": "Agronomia",
+    "banco": "Banco do Brasil",
+    "agencia": "8182-5",
+    "conta": "1.931-3",
+    "bolsista": true
+   }
+  ],
+  "res-2022-12": [
+   {
+    "nome": "Brenno Kaíque Dias Moura",
+    "cpf": "05218112100",
+    "curso": "Odontologia",
+    "banco": "0260. Nu Pagamentos S.A",
+    "agencia": "0001",
+    "conta": "15900813-3",
+    "bolsista": true
+   }
+  ],
+  "res-2022-15": [
+   {
+    "nome": "NURIA RAFAELLA ARAGAO VASCONCELOS",
+    "cpf": "70855418141",
+    "curso": "Agronomia",
+    "banco": "NEXT",
+    "agencia": "3728",
+    "conta": "734915-7",
+    "bolsista": true
+   }
+  ],
+  "res-2022-14": [
+   {
+    "nome": "Daniel Lucas Alves de Oliveira",
+    "cpf": "70594055180",
+    "curso": "Agronomia",
+    "banco": "Inter",
+    "agencia": "0001",
+    "conta": "11357823-7",
+    "bolsista": true
+   }
+  ],
+  "res-2022-5": [
+   {
+    "nome": "NATHALLY RIBEIRO LIMA",
+    "cpf": "70560150180",
+    "curso": "Odontologia",
+    "banco": "CAIXA ECONÔMICA FEDERAL",
+    "agencia": "0792",
+    "conta": "0008746302822",
+    "bolsista": true
+   }
+  ],
+  "res-2022-6": [
+   {
+    "nome": "Wanndo Rafael Batista Nogueira",
+    "cpf": "70652087108",
+    "curso": "Direito",
+    "banco": "Banco Do Brasil",
+    "agencia": "0668-8",
+    "conta": "47178-X",
+    "bolsista": true
+   }
+  ],
+  "res-2022-16": [
+   {
+    "nome": "REGINALDO JONAS REIS FILHO",
+    "cpf": "06698546119",
+    "curso": "Direito",
+    "banco": "CAIXA ECONÔMICA FEDERAL",
+    "agencia": "1845",
+    "conta": "19032-1",
+    "bolsista": true
+   }
+  ],
+  "res-2022-17": [
+   {
+    "nome": "SAMUEL CEZAR SANTANA RIBEIRO",
+    "cpf": "06845492123",
+    "curso": "Direito",
+    "banco": "Caixa Econômica Federal",
+    "agencia": "3267",
+    "conta": "6042-1",
+    "bolsista": true
+   }
+  ],
+  "res-2022-1": [
+   {
+    "nome": "Gabriela Alves Aragão",
+    "cpf": "07731594106",
+    "curso": "Enfermagem",
+    "banco": "Banco do Brasil",
+    "agencia": "0668-8",
+    "conta": "47166-6",
+    "bolsista": true
+   }
+  ],
+  "res-2022-11": [
+   {
+    "nome": "Carlos Humberto dos Santos Júnior",
+    "cpf": "07148015189",
+    "curso": "Odontologia",
+    "banco": "Santander",
+    "agencia": "2053",
+    "conta": "01024744-4",
+    "bolsista": true
+   }
+  ],
+  "res-2022-22": [
+   {
+    "nome": "Joene Aparecida Patrício",
+    "cpf": "07534339154",
+    "curso": "Agronomia",
+    "banco": "Banco do Brasil",
+    "agencia": "0668-8",
+    "conta": "47185-2",
+    "bolsista": true
+   }
+  ],
+  "res-2022-4": [
+   {
+    "nome": "Mateus Nolêto Dos Santos",
+    "cpf": "02431126293",
+    "curso": "Engenharia Mecânica",
+    "banco": "Banco do Brasil",
+    "agencia": "0668-8",
+    "conta": "0",
+    "bolsista": true
+   }
+  ],
+  "res-2022-19": [
+   {
+    "nome": "Matheus Nascimento Santos",
+    "cpf": "70857697188",
+    "curso": "Agronomia",
+    "banco": "0260 - Nu Pagamentos S.A",
+    "agencia": "61595811-8",
+    "conta": "0001",
+    "bolsista": true
+   }
+  ],
+  "res-2022-13": [
+   {
+    "nome": "Gabriella Barbosa Rodrigues",
+    "cpf": "06068716163",
+    "curso": "Odontologia",
+    "banco": "Caixa Econômica",
+    "agencia": "0792",
+    "conta": "00039863-1",
+    "bolsista": true
+   }
+  ],
+  "res-2022-8": [
+   {
+    "nome": "Kamilly Lauany Sousa Araújo",
+    "cpf": "70721442188",
+    "curso": "Direito",
+    "banco": "Nubank",
+    "agencia": "0001",
+    "conta": "20875206-7",
+    "bolsista": true
+   }
+  ],
+  "res-2022-7": [
+   {
+    "nome": "Jeniffer Raniely Batista Sousa",
+    "cpf": "70863302130",
+    "curso": "Agronomia",
+    "banco": "Santander",
+    "agencia": "2053",
+    "conta": "01013791-2",
+    "bolsista": true
+   }
+  ]
+ }
+}
