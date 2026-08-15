@@ -10,7 +10,7 @@ import {
   cronogramaDe, etapaAtrasada, relatoriosDe, relatoriosPendentes, resumir, anotar,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto,
   notaFinal, placarPareceres, participaDeAlgum, prazosRelatorios, pendenciasDoProjeto,
-  producaoDoOrientador, notaTranscrita,
+  producaoDoOrientador, notaTranscrita, decidindoOProprio,
 } from "../lib/ic.js";
 
 /* -------------------------------- fixtura ------------------------------- */
@@ -712,13 +712,13 @@ test("o parecer transcrito não escapa para a orientação nem para o aluno", ()
 });
 
 /* ---- conflito de interesse: o gestor que também submete (ago/2026) ------- */
-test("quem participa do projeto não o decide, nem sendo a gestão", () => {
+test("o coordenador de módulo não decide a proposta em que ele é parte", () => {
   const meu = { ...novo(), status: "submetido", numero: "IC-2026-036" };
-  const proReitor = { email: PROF.email, gestao: true };   // gestão E orientação
-  assert.equal(papelNoProjeto(proReitor, meu), "orientador");
-  assert.equal(podeAvaliar(proReitor, meu), false);
+  const coord = { email: PROF.email, gestao: true };        // coordena E orienta
+  assert.equal(papelNoProjeto(coord, meu), "orientador");
+  assert.equal(podeAvaliar(coord, meu), false);
   // a tela precisa saber disso ANTES de oferecer o botão
-  const r = resumir(meu, proReitor);
+  const r = resumir(meu, coord);
   assert.equal(r.podeDecidir, false);
   assert.equal(r.souParte, "orientador");
   // outro gestor do setor decide normalmente
@@ -727,10 +727,38 @@ test("quem participa do projeto não o decide, nem sendo a gestão", () => {
   assert.equal(resumir(meu, outro).podeDecidir, true);
 });
 
-test("o CPF também barra: conta diferente, mesma pessoa", () => {
+/* Decisão do dono (ago/2026): o gestor geral decide a própria proposta — o
+   mérito veio de parecer ad hoc, fora do sistema, e o que ele pratica é o ato
+   administrativo. Sem isso, as propostas do pró-reitor ficavam sem ninguém
+   que pudesse concluí-las e o edital não fechava. */
+test("o gestor geral decide a própria proposta, e isso fica marcado", () => {
+  const meu = { ...novo(), status: "submetido", numero: "IC-2026-036" };
+  const proReitor = { email: PROF.email, gestao: true, gestorGeral: true };
+  assert.equal(papelNoProjeto(proReitor, meu), "orientador");
+  assert.equal(podeAvaliar(proReitor, meu), true);
+  assert.equal(decidindoOProprio(proReitor, meu), true);
+  const r = resumir(meu, proReitor);
+  assert.equal(r.podeDecidir, true);
+  assert.equal(r.souParte, "orientador", "a tela ainda precisa dizer que a proposta é dele");
+  // no projeto alheio ele decide como gestão, sem a marca
+  const alheio = { ...novo(), status: "submetido", orientador: { email: "outro@uniego.edu.br" }, criadoPor: "outro@uniego.edu.br" };
+  assert.equal(decidindoOProprio(proReitor, alheio), false);
+});
+
+test("decidir não é julgar: o parecer sobre a própria proposta continua barrado", () => {
+  const meu = { ...novo(), status: "submetido" };
+  const proReitor = { email: PROF.email, gestao: true, gestorGeral: true };
+  assert.equal(podeDarParecer(proReitor, meu), false, "ninguém dá parecer sobre o próprio projeto");
+  assert.equal(podeDesignarAvaliador(proReitor, meu), false, "nem escolhe quem o avalia");
+});
+
+test("o CPF liga as contas: a pessoal também é 'proposta própria'", () => {
   const p = { ...novo(), status: "submetido",
     orientador: { nome: "Pró-reitor", email: "institucional@uniego.edu.br", cpf: "11144477735" } };
-  const pessoal = { email: "pessoal@gmail.com", cpf: "11144477735", gestao: true };
-  assert.equal(podeAvaliar(pessoal, p), false, "o CPF liga as duas contas");
-  assert.equal(podeAvaliar({ email: "pessoal@gmail.com", cpf: "", gestao: true }, p), true);
+  const pessoal = { email: "pessoal@gmail.com", cpf: "11144477735", gestao: true, gestorGeral: true };
+  assert.equal(decidindoOProprio(pessoal, p), true, "o CPF liga as duas contas");
+  assert.equal(podeAvaliar(pessoal, p), true);
+  // sem CPF gravado, a conta pessoal é gestão pura
+  const semCpf = { email: "pessoal@gmail.com", cpf: "", gestao: true, gestorGeral: true };
+  assert.equal(decidindoOProprio(semCpf, p), false);
 });

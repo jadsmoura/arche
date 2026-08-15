@@ -31,7 +31,7 @@ import {
   podeEnviarRelatorio, podeValidarRelatorio, cronogramaDe, relatoriosDe, relatoriosPendentes,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto, notaFinal,
   participaDeAlgum, vincularPorCpf, modalidadeEfetiva as modalidadeEfetivaIC,
-  producaoDoOrientador, prazosRelatorios, fomentoDe, notaTranscrita,
+  producaoDoOrientador, prazosRelatorios, fomentoDe, notaTranscrita, decidindoOProprio,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import { certificadosDe, destinatariosDoCiclo, certificavel } from "./lib/certificados.js";
@@ -1925,7 +1925,12 @@ function comProjetos(fn) {
 const gereIC = (u) => !!u && (u.papel === "gestor" || u.modulos?.includes("pesquisa"));
 // O CPF entra junto com o e-mail: projeto importado da submissão anterior
 // chega sem e-mail e só encontra o dono pelo CPF do perfil.
-const quemIC = (u) => ({ email: u?.email, cpf: u?.cpf || "", gestao: gereIC(u) });
+// `gestorGeral` é o que autoriza decidir a própria proposta (ver podeAvaliar
+// em lib/ic.js): é a autoridade final do processo, e o mérito quem julgou foi
+// o parecerista ad hoc. Coordenador de módulo não tem essa prerrogativa.
+const quemIC = (u) => ({
+  email: u?.email, cpf: u?.cpf || "", gestao: gereIC(u), gestorGeral: u?.papel === "gestor",
+});
 
 async function sessaoIC(req, res) {
   const u = await usuarioDe(req, res);
@@ -2942,13 +2947,22 @@ app.post("/api/ic/:id/avaliar", async (req, res) => {
     if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
     if (!podeAvaliar(meu, projetos[i]))
       return { erro: [403, "Só a coordenação avalia — projetos submetidos ou em execução (o concluído é definitivo)"], gravar: false };
+    // o gestor geral decide a própria proposta (o mérito é do parecer ad hoc),
+    // e isso fica dito no registro e no histórico — é o que sustenta o ato
+    const proprio = decidindoOProprio(meu, projetos[i]);
     projetos[i] = anotarProjeto({
       ...projetos[i], status: decisao,
       // reprovado ou devolvido, a concessão de bolsa morre junto com a decisão
       fomento: decisao === "aprovado" ? projetos[i].fomento : null,
-      avaliacao: { decisao, parecer, por: u.email, em: new Date().toISOString() },
+      avaliacao: {
+        decisao, parecer, por: u.email, em: new Date().toISOString(),
+        ...(proprio ? { proprioProjeto: true } : {}),
+      },
       atualizadoEm: new Date().toISOString(),
-    }, { quem: u.email, oQue: `avaliou: ${decisao}` });
+    }, {
+      quem: u.email,
+      oQue: `avaliou: ${decisao}${proprio ? " (decisão do gestor geral sobre proposta própria; mérito julgado por parecer ad hoc)" : ""}`,
+    });
     return { projeto: projetos[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
@@ -3003,12 +3017,16 @@ app.post("/api/ic/decidir-lote", async (req, res) => {
         });
         continue;
       }
+      const proprio = decidindoOProprio(meu, p);
       projetos[i] = anotarProjeto({
         ...p, status: decisao,
         fomento: decisao === "aprovado" ? p.fomento : null,   // reprovar mata a bolsa
-        avaliacao: { decisao, parecer, por: u.email, em: agora },
+        avaliacao: { decisao, parecer, por: u.email, em: agora, ...(proprio ? { proprioProjeto: true } : {}) },
         atualizadoEm: agora,
-      }, { quem: u.email, oQue: `avaliou em lote: ${decisao}` });
+      }, {
+        quem: u.email,
+        oQue: `avaliou em lote: ${decisao}${proprio ? " (decisão do gestor geral sobre proposta própria; mérito julgado por parecer ad hoc)" : ""}`,
+      });
       aplicados.push(projetos[i].numero || projetos[i].id);
     }
     for (const perdido of alvo) ignorados.push({ numero: perdido, motivo: "projeto não encontrado" });

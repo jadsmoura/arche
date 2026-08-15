@@ -1568,17 +1568,17 @@ function renderClassificacao() {
     if (!META.gestao) return "";
     const aguardando = ordenarClassificacao(doEdital.filter((p) => p.status === "submetido"));
     if (!aguardando.length) return "";
-    // Quem participa do projeto não o julga — e o pró-reitor que submete cai
-    // nisso todo ciclo. Estas propostas não somem da fila (ele precisa saber
-    // que existem): ficam à parte, sem caixa para marcar, dizendo quem decide.
+    // O gestor geral decide também as propostas em que ele é parte — o mérito
+    // veio de parecer ad hoc, e o que ele pratica é o ato administrativo (fica
+    // marcado como tal no histórico). Para o COORDENADOR de módulo a regra
+    // continua: acima dele há quem decida, e essas ficam à parte.
     const pendentes = aguardando.filter((p) => p.podeDecidir !== false);
     const meus = aguardando.filter((p) => p.podeDecidir === false);
     const blocoMeus = meus.length ? `<div class="banner ba-warn" style="margin-top:14px">
       <b>${meus.length} proposta(s) que você não decide</b> — você consta como
       ${esc({ orientador: "orientação", aluno: "aluno", avaliador: "avaliador" }[meus[0].souParte] || "parte")}
-      nelas, e ninguém julga o próprio projeto. Quem decide é outro gestor do setor: designe a
-      <b>coordenação de pesquisa</b> em <a href="/usuarios/">Gestão de acessos</a> e ela conclui
-      estas.<div style="margin-top:8px;font-size:12.5px">${meus.map((p) =>
+      nelas. Quem decide é o <b>gestor geral</b> do portal (a pró-reitoria).
+      <div style="margin-top:8px;font-size:12.5px">${meus.map((p) =>
         `${esc(p.numero || "—")} · ${esc(p.titulo || "")}`).join("<br>")}</div></div>` : "";
     if (!pendentes.length) return `<div class="card" style="border-color:#cfe6f2;background:#f7fbfd">
       <div class="card-t">Decisão do ciclo</div>
@@ -1604,7 +1604,9 @@ function renderClassificacao() {
           <td><input type="checkbox" style="width:auto;margin:0" ${SEL_LOTE.has(p.id) ? "checked" : ""}
             onchange="marcarUm('${esc(p.id)}',this.checked)"></td>
           <td><b style="color:var(--brand-2)">${esc(p.numero || "—")}</b></td>
-          <td>${esc(p.titulo || "(sem título)")}</td>
+          <td>${esc(p.titulo || "(sem título)")}${p.souParte
+            ? ` <span class="badge" style="background:var(--warn-soft);color:var(--warn)"
+                title="Você é parte nesta proposta — a decisão fica registrada como decisão sobre proposta própria">sua proposta</span>` : ""}</td>
           <td>${esc(p.orientador?.nome || p.orientador?.email || "—")}</td>
           <td>${p.classificacao?.np ?? "—"}</td>
           <td><b>${p.classificacao?.total ?? "—"}</b></td>
@@ -2314,11 +2316,16 @@ function renderPendencias(p) {
 /* O resultado da seleção quanto à bolsa. As oito modalidades do edital são
    o cruzamento linha × fomento: marcada a bolsa, a modalidade sai sozinha. */
 function renderSelecao(p) {
-  const gestao = PODE.podeDesignar;
-  if (!gestao && !p.fomento) return "";
+  const gestao = PODE.podeDesignar;           // coordenação DESTE projeto
+  const decide = PODE.podeAvaliar;            // pode dar a decisão da seleção
+  // O gestor geral decide a própria proposta (o mérito foi julgado por parecer
+  // ad hoc), mas não faz aqui o que seria julgar-se: atribuir a própria nota e
+  // designar quem o avalia seguem com a coordenação — e o servidor recusa.
+  const proprio = decide && !gestao;
+  if (!gestao && !decide && !p.fomento) return "";
   const cls = p.classificacao;
 
-  if (!gestao) {
+  if (!gestao && !decide) {
     return `<div class="card">
       <div class="card-t">Resultado da seleção</div>
       <div class="kv"><b>${esc(fomentoNome(p.fomento.tipo))}</b>${p.fomento.modalidade ? ` · ${esc(modNome(p.fomento.modalidade))}` : ""}</div>
@@ -2333,6 +2340,11 @@ function renderSelecao(p) {
       ${esc(linhaNome(p.linha))} + bolsa CNPq = ${esc(modNome((META.modalidades.find((m) => m.linha === p.linha && m.fomento === "cnpq") || {}).codigo))}.
       Concedida a bolsa, a orientação indica o bolsista na ficha que abre no projeto.</div>
 
+    ${proprio ? `<div class="banner ba-warn"><b>Esta proposta é sua.</b> Você decide como gestor geral —
+      o mérito foi julgado por <b>parecer ad hoc</b>, fora do sistema, e o que se pratica aqui é o ato
+      administrativo. A decisão fica registrada no histórico <b>como decisão sobre proposta própria</b>.
+      Atribuir a nota e designar avaliador continuam com a coordenação: nisso ninguém se julga.</div>` : ""}
+
     ${p.fomento ? `<div class="banner ba-ok">Definido: <b>${esc(fomentoNome(p.fomento.tipo))}</b>${
       p.fomento.modalidade ? ` — ${esc(modNome(p.fomento.modalidade))}` : ""} · por ${esc(p.fomento.por)} em ${fmtDH(p.fomento.em)}</div>`
       : p.status === "reprovado" ? `<div class="banner ba-err">Projeto reprovado na seleção.</div>` : ""}
@@ -2344,7 +2356,7 @@ function renderSelecao(p) {
       <button class="bt bt-err" onclick="decidirSelecao('reprovado')">✕ Reprovado</button>
     </div>
 
-    ${p.status === "rascunho" ? "" : `
+    ${p.status === "rascunho" || proprio ? "" : `
     <div class="sec-t">Nota do projeto</div>
     <div class="muted" style="margin-bottom:8px">Na seleção conduzida fora do sistema, a coordenação
       atribui aqui a nota do projeto (0 a 100), sem formulário. Havendo pareceres no sistema, a nota
