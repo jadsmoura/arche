@@ -502,16 +502,22 @@ function incluirManualmente() {
 
 /* -------------------------------- painel ------------------------------- */
 function renderPainel() {
-  const meus = PROJETOS;
+  // o Painel é do CICLO VIGENTE: o arquivo dos editais anteriores não entra
+  // aqui — ele vive nas guias Gestão, Projetos e Bolsistas, atrás do filtro
+  // de ciclo
+  const vigente = META.edital?.numero || "";
+  const meus = PROJETOS.filter((p) => (p.edital || vigente) === vigente);
+  const idsCiclo = new Set(meus.map((p) => p.id));
+  const etapasCiclo = ETAPAS.filter((e) => idsCiclo.has(e.projetoId));
   const cont = (s) => meus.filter((p) => p.status === s).length;
-  const atrasadas = ETAPAS.filter((e) => e.situacao !== "concluida" && e.fim && e.fim < hojeISO());
+  const atrasadas = etapasCiclo.filter((e) => e.situacao !== "concluida" && e.fim && e.fim < hojeISO());
   const aValidar = RELS.relatorios.filter((r) => r.podeValidar);
   const minhasPendencias = RELS.pendentes;
 
   const aDarParecer = meus.filter((p) => p.aDarParecer);
   const kpis = ehAluno()
     ? [["Projetos", meus.length, "em que você foi indicado"],
-       ["Atividades", ETAPAS.length, "no seu plano de trabalho"],
+       ["Atividades", etapasCiclo.length, "no seu plano de trabalho"],
        ["Em atraso", atrasadas.length, "atividades vencidas"],
        ["Relatórios a enviar", minhasPendencias.length, "parciais e finais"]]
     : ehAvaliador()
@@ -522,22 +528,21 @@ function renderPainel() {
       : META.gestao
         ? [["Em avaliação", cont("submetido"), "aguardando a PROPPEX"],
            ["Em execução", cont("aprovado"), "projetos aprovados"],
-           ["Relatórios em atraso", PROJETOS.filter((p) => p.prazoRelatorios?.atrasado).length, "projetos fora do prazo"],
+           ["Relatórios em atraso", meus.filter((p) => p.prazoRelatorios?.atrasado).length, "projetos fora do prazo"],
            ["Relatórios a validar", aValidar.length, "enviados pelos alunos"]]
         : [["Em avaliação", cont("submetido"), "aguardando a PROPPEX"],
            ["Em execução", cont("aprovado"), "projetos aprovados"],
            ["Atividades em atraso", atrasadas.length, "no cronograma"],
            ["Relatórios a validar", aValidar.length, "enviados pelos alunos"]];
 
-  const foraDoPrazo = META.gestao ? PROJETOS.filter((p) => p.prazoRelatorios?.atrasado) : [];
+  const foraDoPrazo = META.gestao ? meus.filter((p) => p.prazoRelatorios?.atrasado) : [];
 
   // Avaliação do ciclo (só a gestão): quantos projetos do edital vigente já
   // têm decisão — e, com todos avaliados, os botões de publicação do
   // resultado, na ordem do processo: preliminar (só os aprovados, para
   // definir as bolsas com a presidência) e depois o final (com a bolsa).
   const cicloAval = META.gestao ? (() => {
-    const vigente = META.edital?.numero || "";
-    const doCiclo = PROJETOS.filter((p) => (p.edital || vigente) === vigente && p.status !== "rascunho" && p.status !== "devolvido");
+    const doCiclo = meus.filter((p) => p.status !== "rascunho" && p.status !== "devolvido");
     const avaliados = doCiclo.filter((p) => ["aprovado", "reprovado", "concluido"].includes(p.status));
     const fase = ((META.editais || []).find((e) => e.numero === vigente) || {}).resultadoFase || null;
     const completo = doCiclo.length > 0 && avaliados.length === doCiclo.length;
@@ -588,7 +593,8 @@ function renderPainel() {
     <div class="duplo">
       <div class="card">
         <div class="card-t">Projetos</div>
-        <div class="card-s">${meus.length} projeto(s) a que você tem acesso.</div>
+        <div class="card-s">${meus.length} projeto(s) do ciclo ${esc(vigente)} — o arquivo dos
+          editais anteriores está na guia Gestão, no filtro de ciclo.</div>
         ${meus.slice(0, 6).map((p) => `
           <div class="linha" style="cursor:pointer" onclick="abrir('${esc(p.id)}')">
             <div class="txt">
@@ -602,7 +608,7 @@ function renderPainel() {
       <div class="card">
         <div class="card-t">Próximas atividades</div>
         <div class="card-s">Do cronograma, a partir de hoje.</div>
-        ${ETAPAS.filter((e) => e.situacao !== "concluida").slice(0, 7).map((e) => `
+        ${etapasCiclo.filter((e) => e.situacao !== "concluida").slice(0, 7).map((e) => `
           <div class="linha">
             <div class="txt">
               <div class="p1">${esc(e.atividade)}</div>
