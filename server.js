@@ -46,7 +46,7 @@ import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
   papelDe, modulosDe, MODULOS, verificarGoogle, criarCodigo, verificarCodigo,
   iniciarAuth, definirSenha, temSenha, validarSenhaDe, senhaFraca, senhaInfo,
-  registrarFalha, bloqueado, limparFalhas,
+  registrarFalha, bloqueado, limparFalhas, FUNCOES, normalizarFuncao,
 } from "./lib/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -180,8 +180,10 @@ app.post("/api/perfil", async (req, res) => {
     // identificação
     nome: txt(b.nome), tratamento: txt(b.tratamento, 60), titulacao: txt(b.titulacao, 20),
     cpf,
+    // função vem do catálogo (lib/auth.js); o texto livre só sobrevive em "outro"
+    funcaoOutro: normalizarFuncao(b.funcao) === "outro" ? txt(b.funcaoOutro, 120) : "",
     // vínculo institucional
-    funcao: txt(b.funcao), curso: txt(b.curso), vinculo: txt(b.vinculo, 40),
+    funcao: normalizarFuncao(b.funcao), curso: txt(b.curso), vinculo: txt(b.vinculo, 40),
     matricula: txt(b.matricula, 40),
     // contato
     telefone: txt(b.telefone, 40), whatsapp: txt(b.whatsapp, 40),
@@ -723,6 +725,131 @@ app.post("/api/usuarios", async (req, res) => {
  * e obriga a troca no primeiro login. Conta de gestor fica de fora: gestor
  * troca a própria senha no perfil — um não redefine a do outro.
  */
+/**
+ * PAINEL DE USUÁRIOS (só gestor geral): quem está cadastrado, o que cada um
+ * faz na instituição, o papel no sistema e — o que a gestão mais pergunta —
+ * QUE SETORES a pessoa realmente usa. "Cadastrado" aqui é a união de tudo o
+ * que identifica alguém: perfil preenchido, lista de papéis, cadastro novo
+ * e quem aparece nos projetos de IC (o convidado que ainda não entrou).
+ */
+app.get("/api/usuarios/painel", async (req, res) => {
+  try {
+    const g = await exigirGestor(req, res); if (!g) return;
+    const [usuarios, perfis, projetos, atas] = await Promise.all([
+      carregarUsuarios(storage), carregarPerfis(), lerProjetos(), lerAtas(),
+    ]);
+    const acoes = JSON.parse((await storage.get("extensao-acoes-v1")) || "[]");
+    const novos = JSON.parse((await storage.get(CADASTROS_KEY)) || "[]");
+
+    const conta = new Map();
+    const de = (email) => {
+      const e = String(email || "").trim().toLowerCase();
+      if (!e || !e.includes("@")) return null;
+      if (!conta.has(e)) conta.set(e, { email: e, uso: { pesquisa: 0, extensao: 0, atas: 0 } });
+      return conta.get(e);
+    };
+    // 1. quem tem perfil, papel ou cadastro registrado
+    for (const e of Object.keys(perfis)) de(e);
+    for (const e of [...usuarios.gestores, ...usuarios.aprovados, ...Object.keys(usuarios.coordenadores)]) de(e);
+    for (const p of usuarios.pendentes) de(p.email);
+    for (const c of novos) de(c.email);
+    // 2. uso real de cada setor
+    for (const p of projetos) {
+      for (const e of [p.orientador?.email, p.criadoPor, ...(p.alunos || []).map((a) => a.email),
+        ...(p.avaliacoes || []).map((a) => a.email)]) {
+        const c = de(e); if (c) c.uso.pesquisa += 1;
+      }
+    }
+    for (const a of acoes) { const c = de(a?.proposta?.respEmail); if (c) c.uso.extensao += 1; }
+    for (const a of atas) { const c = de(a?.criadoPor); if (c) c.uso.atas += 1; }
+
+    const quandoNovo = Object.fromEntries(novos.map((c) => [c.email, c.quando]));
+    const pendente = Object.fromEntries(usuarios.pendentes.map((p) => [p.email, p.quando]));
+    const lista = [...conta.values()].map((c) => {
+      const perfil = perfis[c.email] || {};
+      return {
+        email: c.email,
+        nome: perfil.nome || "",
+        funcao: normalizarFuncao(perfil.funcao),
+        funcaoOutro: perfil.funcaoOutro || (normalizarFuncao(perfil.funcao) === "outro" ? perfil.funcao || "" : ""),
+        curso: perfil.curso || "", telefone: perfil.telefone || "", lattes: perfil.lattes || "",
+        titulacao: perfil.titulacao || "", matricula: perfil.matricula || "",
+        temCpf: !!perfil.cpf, temPerfil: !!perfil.nome,
+        papel: papelDe(c.email, usuarios),
+        modulos: modulosDe(c.email, usuarios),
+        uso: c.uso,
+        setores: ["pesquisa", "extensao", "atas"].filter((k) => c.uso[k] > 0),
+        desde: perfil.criadoEm || quandoNovo[c.email] || pendente[c.email] || "",
+        atualizadoEm: perfil.atualizadoEm || "",
+      };
+    }).sort((a, b) => (a.nome || a.email).localeCompare(b.nome || b.email, "pt-BR"));
+
+    res.json({ usuarios: lista, funcoes: FUNCOES, cursos: CURSOS, modulos: MODULOS });
+  } catch (e) {
+    console.error("Erro no painel de usuários:", e);
+    res.status(500).json({ error: "Falha ao montar o painel" });
+  }
+});
+
+/**
+ * A gestão edita o cadastro de outra pessoa (nome, função, curso, contato)
+ * — o mesmo perfil que ela veria em /perfil/. Serve também para INCLUIR
+ * alguém à mão: e-mail novo entra com o perfil preenchido e já aprovado
+ * como submissor, sem precisar esperar o primeiro login.
+ * Senha e papéis não passam por aqui: cada um tem a sua rota, de propósito.
+ */
+app.post("/api/usuarios/perfil", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  const b = req.body || {};
+  const e = String(b.email || "").trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return res.status(400).json({ error: "E-mail inválido" });
+  const nome = String(b.nome || "").trim().slice(0, 120);
+  if (!nome) return res.status(400).json({ error: "Informe o nome da pessoa" });
+
+  const perfis = await carregarPerfis();
+  const antes = perfis[e] || {};
+  const novo = !antes.nome;
+
+  // CPF continua único por conta: dois cadastros com o mesmo CPF fariam o
+  // segundo herdar os projetos do primeiro (vincularPorCpf)
+  let cpf = antes.cpf || "";
+  if (b.cpf !== undefined && soDigitos(b.cpf) !== soDigitos(antes.cpf)) {
+    const c = normalizarCpf(b.cpf);
+    if (soDigitos(b.cpf) && !c) return res.status(400).json({ error: "CPF inválido" });
+    const dono = Object.entries(perfis).find(([mail, p]) => mail !== e && p?.cpf && p.cpf === c);
+    if (c && dono) return res.status(409).json({ error: `Este CPF já está cadastrado em ${dono[0]}` });
+    cpf = c;
+  }
+
+  const funcao = normalizarFuncao(b.funcao);
+  perfis[e] = {
+    ...antes, nome, cpf, funcao,
+    funcaoOutro: funcao === "outro" ? String(b.funcaoOutro || "").trim().slice(0, 120) : "",
+    curso: String(b.curso ?? antes.curso ?? "").trim().slice(0, 80),
+    titulacao: String(b.titulacao ?? antes.titulacao ?? "").trim().slice(0, 20),
+    matricula: String(b.matricula ?? antes.matricula ?? "").trim().slice(0, 40),
+    telefone: String(b.telefone ?? antes.telefone ?? "").trim().slice(0, 40),
+    lattes: String(b.lattes ?? antes.lattes ?? "").trim().slice(0, 200),
+    criadoEm: antes.criadoEm || new Date().toISOString(),
+    atualizadoEm: new Date().toISOString(),
+    atualizadoPor: g.email,
+  };
+  await storage.set(PERFIS_KEY, JSON.stringify(perfis));
+
+  // inclusão manual: a conta já nasce podendo submeter
+  const usuarios = await carregarUsuarios(storage);
+  if (papelDe(e, usuarios) === "pendente") {
+    usuarios.aprovados = [...new Set([...usuarios.aprovados, e])];
+    usuarios.pendentes = usuarios.pendentes.filter((p) => p.email !== e);
+    await salvarUsuarios(storage, usuarios);
+  }
+  // com CPF no perfil, os projetos importados que esperavam por ele acham o dono
+  const vinculo = cpf ? await vincularPerfisIC() : { pessoas: 0, projetos: 0 };
+  await storage.flush?.();
+  console.log(`[usuarios] perfil de ${e} ${novo ? "criado" : "editado"} por ${g.email}`);
+  res.json({ ok: true, email: e, criado: novo, vinculo });
+});
+
 app.post("/api/usuarios/senha", async (req, res) => {
   const g = await exigirGestor(req, res); if (!g) return;
   const e = String(req.body?.email || "").trim().toLowerCase();

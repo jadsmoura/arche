@@ -116,9 +116,12 @@
   <div class="card">
     <div class="sec">Vínculo institucional</div>
     <div class="grid2">
-      <div><label for="funcao">Função / cargo *</label><input id="funcao" placeholder="Ex.: Docente do Curso, Coordenador(a)…"></div>
+      <div><label for="funcao">Função / cargo *</label><select id="funcao"></select></div>
       <div><label for="curso">Curso / departamento *</label><select id="curso"></select></div>
     </div>
+    <div id="funcao-outro-w" class="oculto">
+      <label for="funcaoOutro">Especifique a função</label>
+      <input id="funcaoOutro" placeholder="Ex.: Assessoria de Comunicação"></div>
     <div class="grid2">
       <div><label for="matricula">Matrícula / SIAPE</label><input id="matricula" placeholder="Opcional"></div>
       <div><label for="cpf">CPF</label><input id="cpf" inputmode="numeric" placeholder="000.000.000-00" autocomplete="off"></div>
@@ -189,8 +192,22 @@
 const CURSOS=["Administração","Agronomia","Ciências Contábeis","Direito","Educação Física","Enfermagem",
 "Engenharia Civil","Engenharia de Software","Engenharia Mecânica","Medicina Veterinária","Odontologia",
 "Psicologia","Institucional / PROPPEX"];
-const CAMPOS=["nome","tratamento","titulacao","vinculo","funcao","curso","matricula","cpf",
+const CAMPOS=["nome","tratamento","titulacao","vinculo","funcao","funcaoOutro","curso","matricula","cpf",
   "telefone","whatsapp","emailAlternativo","lattes","orcid","resumo"];
+/* O mesmo catálogo do painel da gestão (lib/auth.js): função é o que a
+   pessoa FAZ na instituição, e lista fechada é o que permite agrupar —
+   com "outro" para o que não couber. */
+const FUNCOES=[
+  ["professor","Professor(a)"],["professor-pesquisador","Professor(a) Pesquisador(a)"],
+  ["coord-curso","Coordenador(a) de Curso"],["coord-pedagogico","Coordenador(a) Pedagógico(a)"],
+  ["secretaria","Secretaria"],
+  ["coord-pesquisa","Coordenação de Pesquisa e Inovação · PROPPEX"],
+  ["coord-extensao","Coordenação de Extensão · PROPPEX"],
+  ["coord-acao-comunitaria","Coordenação de Ação Comunitária · PROPPEX"],
+  ["coord-ensino","Coordenação de Ensino · PROAC"],
+  ["coord-politicas","Coordenação de Políticas Institucionais · PROAC"],
+  ["outro","Outro (especificar)"],
+];
 
 /* CPF: máscara na digitação e conferência dos dígitos verificadores aqui
    mesmo — errar o CPF significa não encontrar os próprios projetos, e é
@@ -210,6 +227,9 @@ const $=(id)=>document.getElementById(id);
 let ME=null, TEM_SENHA=false;
 
 $("curso").innerHTML='<option value="">Selecione…</option>'+CURSOS.map(c=>`<option>${c}</option>`).join("");
+$("funcao").innerHTML='<option value="">Selecione…</option>'+FUNCOES.map(([v,l])=>`<option value="${v}">${l}</option>`).join("");
+const verOutro=()=>$("funcao-outro-w").classList.toggle("oculto",$("funcao").value!=="outro");
+$("funcao").addEventListener("change",verOutro);
 $("resumo").addEventListener("input",()=>{ $("resumo-cont").textContent=$("resumo").value.length; });
 $("cpf").addEventListener("input",function(){
   this.value=fmtCPF(this.value);
@@ -242,6 +262,30 @@ fetch("/api/me").then(async r=>{
   if(ME.papel==="gestor") $("acessos-gestor").classList.remove("oculto");
   const p=ME.perfil||{};
   for(const c of CAMPOS) if($(c)&&p[c]!=null) $(c).value=p[c];
+  // perfis antigos traziam a função por extenso ("Docente do curso"): casa
+  // com a lista quando dá, e o que não couber vira "outro" sem perder o texto
+  if(p.funcao&&$("funcao").value!==p.funcao){
+    const alvo=String(p.funcao).toLowerCase();
+    const achado=FUNCOES.find(([v,l])=>v===alvo||l.toLowerCase().split(" · ")[0]===alvo);
+    // as mesmas regras do servidor (normalizarFuncao), para o cargo escrito
+    // à mão cair na linha certa em vez de virar "outro"
+    const t=alvo.normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    const porTexto=
+      /secretari/.test(t)?"secretaria":
+      /pesquisador/.test(t)?"professor-pesquisador":
+      /coorden/.test(t)&&/pedagog/.test(t)?"coord-pedagogico":
+      /coorden/.test(t)&&/(curso|graduacao)/.test(t)?"coord-curso":
+      /coorden/.test(t)&&/(pesquisa|inovacao)/.test(t)?"coord-pesquisa":
+      /coorden/.test(t)&&/extensao/.test(t)?"coord-extensao":
+      /coorden/.test(t)&&/comunitari/.test(t)?"coord-acao-comunitaria":
+      /coorden/.test(t)&&/ensino/.test(t)?"coord-ensino":
+      /coorden/.test(t)&&/politic/.test(t)?"coord-politicas":
+      /(docente|professor)/.test(t)?"professor":"";
+    if(achado){ $("funcao").value=achado[0]; }
+    else if(porTexto){ $("funcao").value=porTexto; }
+    else { $("funcao").value="outro"; if(!$("funcaoOutro").value) $("funcaoOutro").value=p.funcao; }
+  }
+  verOutro();
   if($("cpf").value) $("cpf").value=fmtCPF($("cpf").value);   // guardado só em dígitos
   $("resumo-cont").textContent=$("resumo").value.length;
   TEM_SENHA=!!ME.temSenha;

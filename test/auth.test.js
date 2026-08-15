@@ -183,3 +183,24 @@ test("senhaInfo nunca expõe o hash", async () => {
   assert.equal(info.tem, true);
   assert.ok(!JSON.stringify(info).includes("scrypt"), "o hash não sai daqui");
 });
+
+/* Função na instituição: o que a pessoa FAZ (diferente do papel no sistema,
+   que diz o que ela pode). Lista fechada com "outro" — é o que permite à
+   gestão agrupar em vez de ler cargo escrito de dez jeitos diferentes. */
+test("a função aceita o código, o nome por extenso e o cargo escrito à mão", async () => {
+  const { FUNCOES, normalizarFuncao, funcaoNome } = await import("../lib/auth.js");
+  assert.equal(normalizarFuncao("secretaria"), "secretaria", "pelo código");
+  assert.equal(normalizarFuncao("Coordenador(a) de Curso"), "coord-curso", "pelo nome do catálogo");
+  // os perfis antigos traziam texto livre: o que der para reconhecer, entra
+  assert.equal(normalizarFuncao("Docente do curso de Direito"), "professor");
+  assert.equal(normalizarFuncao("Professora Pesquisadora"), "professor-pesquisador");
+  assert.equal(normalizarFuncao("coordenadora pedagógica"), "coord-pedagogico");
+  assert.equal(normalizarFuncao("Coordenação de Ação Comunitária"), "coord-acao-comunitaria");
+  assert.equal(normalizarFuncao("Coordenador de Políticas Institucionais"), "coord-politicas");
+  // o que não se reconhece não se perde: vira "outro" e o texto fica à parte
+  assert.equal(normalizarFuncao("Assessoria de Comunicação"), "outro");
+  assert.equal(normalizarFuncao(""), "", "em branco continua em branco");
+  assert.equal(funcaoNome("outro", "Assessoria de Comunicação"), "Assessoria de Comunicação");
+  assert.equal(funcaoNome("coord-ensino"), "Coordenação de Ensino");
+  assert.equal(new Set(FUNCOES.map((f) => f.codigo)).size, FUNCOES.length, "códigos não se repetem");
+});

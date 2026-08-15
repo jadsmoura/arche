@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="/assets/arche-ui.css">
 <style>
   :root{--teal:var(--brand);--teal2:var(--brand-3);--cyan:var(--brand-2);--cyan-soft:var(--accent-wash)}
-  main{max-width:900px;padding:34px 26px 46px}
+  main{max-width:1180px;padding:34px 26px 46px}
   h1{font-family:'Archivo',sans-serif;font-size:26px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
   .sub{color:var(--muted);margin-bottom:22px;font-size:14px}
   .card{margin-bottom:16px}
@@ -33,6 +33,34 @@
   .mod b{font-weight:600}
   .mod .dica{display:block;font-size:11.5px;color:var(--muted);line-height:1.4;margin-top:2px}
   .designar{border:1px dashed var(--line-strong);border-radius:11px;padding:14px 16px;margin-top:14px;background:#fbfcfd}
+  /* painel de usuários: quem está cadastrado, o que faz e o que usa */
+  .hide{display:none !important}
+  .abas{display:flex;gap:8px;margin-bottom:18px;border-bottom:2px solid var(--line)}
+  .abas button{background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;cursor:pointer;
+    font-family:inherit;font-size:14px;font-weight:600;color:var(--muted);padding:10px 14px;transition:.15s}
+  .abas button:hover{color:var(--brand-2)}
+  .abas button.on{color:var(--brand);border-bottom-color:var(--brand-2)}
+  .filtros-u{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-bottom:14px}
+  .filtros-u input,.filtros-u select{width:100%;font-size:13px;padding:8px 10px;margin:0}
+  .rolo{overflow-x:auto}
+  table.us{width:100%;border-collapse:collapse;font-size:13.5px}
+  table.us th{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);text-align:left;
+    padding:9px 8px;border-bottom:2px solid var(--line-strong);background:var(--wash);white-space:nowrap}
+  table.us td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.us tr:last-child td{border-bottom:0}
+  table.us .nm{font-weight:600;color:var(--ink)}
+  table.us .em{font-size:12px;color:var(--muted)}
+  .setor{font-size:10.5px;font-weight:700;border-radius:20px;padding:2px 8px;margin-right:4px;white-space:nowrap;
+    background:var(--accent-wash);color:var(--brand-2)}
+  .p-gestor{background:var(--brand);color:#fff}
+  .p-coordenador{background:var(--accent-wash);color:var(--brand)}
+  .p-aprovado{background:var(--ok-soft);color:var(--ok)}
+  .p-pendente{background:var(--warn-soft);color:var(--warn)}
+  .ficha{position:fixed;inset:0;background:rgba(24,38,50,.45);z-index:100;display:grid;place-items:center;padding:20px}
+  .ficha .cx{background:#fff;border-radius:16px;max-width:640px;width:100%;max-height:90vh;overflow:auto;padding:24px}
+  .ficha h3{font-family:'Archivo',sans-serif;font-size:19px;margin:0 0 4px}
+  .ficha .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:620px){.ficha .grid2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -56,10 +84,16 @@
   </div>
 </header>
 <main>
-  <h1>Gestão de acessos</h1>
-  <div class="sub">Quem entra, quem submete e quem gere cada setor — Extensão, Pesquisa/IC, Inovação e
-    Atas e Colegiados. Contas <b>@uniego.edu.br</b> entram automaticamente como submissoras.</div>
-  <div id="conteudo" class="muted">Carregando…</div>
+  <h1>Usuários e acessos</h1>
+  <div class="sub">Quem está cadastrado, o que faz na instituição e que setores usa — e, na outra aba,
+    quem submete e quem gere cada módulo. Todo cadastro novo entra como submissor automaticamente.</div>
+  <div class="abas">
+    <button id="ab-usuarios" class="on" onclick="aba('usuarios')">👥 Usuários cadastrados</button>
+    <button id="ab-acessos" onclick="aba('acessos')">🔐 Papéis e acessos</button>
+  </div>
+  <div id="v-usuarios" class="muted">Carregando…</div>
+  <div id="v-acessos" class="muted hide">Carregando…</div>
+  <div id="ficha"></div>
 </main>
 <script>
 const $=(id)=>document.getElementById(id);
@@ -99,7 +133,7 @@ function checkboxes(cls,marcados=[],comDica=false){
 function render(u){
   const coords=Object.entries(u.coordenadores||{});
   const conhecidos=[...new Set([...u.aprovados,...u.pendentes.map(p=>p.email),...coords.map(([e])=>e)])];
-  $("conteudo").innerHTML=`
+  $("v-acessos").innerHTML=`
     <div class="card"><div class="sec">⏳ Aguardando aprovação (${u.pendentes.length})</div>
       ${u.pendentes.length?u.pendentes.map(p=>`<div class="u"><span class="em">${esc(p.nome&&p.nome!==p.email?p.nome+" · ":"")}${esc(p.email)}</span>
         <span class="quando">${p.quando?new Date(p.quando).toLocaleString("pt-BR"):""}</span>
@@ -168,8 +202,158 @@ async function senhaProvisoria(){
   $("sp-aviso").innerHTML=`✓ Senha provisória definida para <b>${esc(j.email)}</b>. Vale ${j.validaDias} dias —
     no primeiro acesso a pessoa cria a senha definitiva. Anote e repasse com segurança; ela não aparece de novo.`;
 }
+/* ======================= painel de usuários ==========================
+   A outra metade desta tela: o CADASTRO das pessoas (nome, função, curso,
+   contato) e o retrato de que setores cada uma usa de fato — contado nos
+   próprios registros: projetos de IC, ações de extensão e atas lavradas.
+   Papel no sistema (o que pode) fica na aba de acessos; aqui é quem é. */
+let PAINEL={usuarios:[],funcoes:[],cursos:[],modulos:[]};
+let FU={q:"",funcao:"",setor:"",papel:""};
+const SETOR_NOME={pesquisa:"Pesquisa · IC",extensao:"Extensão",atas:"Atas"};
+const funcaoNome=(c,outro)=>{
+  const f=PAINEL.funcoes.find(x=>x.codigo===c);
+  if(!f)return String(outro||"")||"—";
+  return f.codigo==="outro"?(String(outro||"").trim()||"Outro"):f.nome;
+};
+/* O curso é gravado pelo NOME — é o que o /perfil/ escreve, e duas
+   grafias para a mesma coisa fariam a pessoa não conseguir salvar o próprio
+   perfil depois de a gestão editar. Na leitura, aceita slug ou nome. */
+const cursoNome=(v)=>{
+  const c=PAINEL.cursos.find(x=>x.nome===v||x.slug===v);
+  return c?c.nome:(v||"—");
+};
+const mesmoCurso=(a,b)=>{
+  const c=PAINEL.cursos.find(x=>x.nome===a||x.slug===a);
+  return c?(c.nome===b||c.slug===b):a===b;
+};
+
+function aba(qual){
+  $("ab-usuarios").classList.toggle("on",qual==="usuarios");
+  $("ab-acessos").classList.toggle("on",qual==="acessos");
+  $("v-usuarios").classList.toggle("hide",qual!=="usuarios");
+  $("v-acessos").classList.toggle("hide",qual!=="acessos");
+}
+
+async function carregarPainel(){
+  const r=await fetch("/api/usuarios/painel");
+  if(!r.ok){$("v-usuarios").innerHTML="Acesso restrito à PROPPEX.";return;}
+  PAINEL=await r.json();
+  renderPainel();
+}
+
+function renderPainel(){
+  const lista=PAINEL.usuarios.filter(u=>
+    (!FU.funcao||u.funcao===FU.funcao)&&
+    (!FU.setor||(FU.setor==="__nenhum"?!u.setores.length:u.setores.includes(FU.setor)))&&
+    (!FU.papel||u.papel===FU.papel)&&
+    (!FU.q||`${u.nome} ${u.email} ${u.curso}`.toLowerCase().includes(FU.q.toLowerCase())));
+  const semNome=PAINEL.usuarios.filter(u=>!u.temPerfil).length;
+
+  $("v-usuarios").innerHTML=`
+    <div class="card">
+      <div class="filtros-u">
+        <input placeholder="🔎 Buscar por nome, e-mail ou curso" value="${esc(FU.q)}"
+          oninput="FU.q=this.value;clearTimeout(window.__t);window.__t=setTimeout(renderPainel,250)">
+        <select onchange="FU.funcao=this.value;renderPainel()">
+          <option value="">Função: todas</option>
+          ${PAINEL.funcoes.map(f=>`<option value="${f.codigo}" ${FU.funcao===f.codigo?"selected":""}>${esc(f.nome)}</option>`).join("")}
+        </select>
+        <select onchange="FU.setor=this.value;renderPainel()">
+          <option value="">Setor em uso: todos</option>
+          ${Object.entries(SETOR_NOME).map(([k,v])=>`<option value="${k}" ${FU.setor===k?"selected":""}>${esc(v)}</option>`).join("")}
+          <option value="__nenhum" ${FU.setor==="__nenhum"?"selected":""}>Ainda não usou nenhum</option>
+        </select>
+        <select onchange="FU.papel=this.value;renderPainel()">
+          <option value="">Papel: todos</option>
+          ${["gestor","coordenador","aprovado","pendente"].map(p=>`<option value="${p}" ${FU.papel===p?"selected":""}>${p}</option>`).join("")}
+        </select>
+        <button class="bt bt-pri" onclick="abrirFicha('')">＋ Incluir usuário</button>
+      </div>
+      <div class="muted" style="margin-bottom:10px">${lista.length} de ${PAINEL.usuarios.length} usuário(s)${
+        semNome?` · <b>${semNome}</b> ainda sem cadastro preenchido`:""}.</div>
+      <div class="rolo"><table class="us">
+        <thead><tr><th>Pessoa</th><th>Função</th><th>Curso</th><th>Setores em uso</th><th>Papel</th><th></th></tr></thead>
+        <tbody>${lista.map(u=>`<tr>
+          <td><div class="nm">${esc(u.nome||"— sem cadastro —")}</div><div class="em">${esc(u.email)}</div></td>
+          <td>${esc(funcaoNome(u.funcao,u.funcaoOutro))}</td>
+          <td>${u.curso?esc(cursoNome(u.curso)):"—"}</td>
+          <td>${u.setores.length?u.setores.map(k=>`<span class="setor">${esc(SETOR_NOME[k])} · ${u.uso[k]}</span>`).join(""):'<span class="muted">—</span>'}</td>
+          <td><span class="badge p-${esc(u.papel)}">${esc(u.papel)}</span>
+            ${u.modulos.length&&u.papel==="coordenador"?`<div class="em">${u.modulos.map(rotulo).join(", ")}</div>`:""}</td>
+          <td><button class="bt bt-sec" onclick="abrirFicha('${esc(u.email)}')">Editar</button></td>
+        </tr>`).join("")||`<tr><td colspan="6" class="muted">Ninguém encontrado com esses filtros.</td></tr>`}</tbody>
+      </table></div>
+    </div>`;
+}
+
+function abrirFicha(email){
+  const u=PAINEL.usuarios.find(x=>x.email===email)||{email:"",nome:"",funcao:"",funcaoOutro:"",curso:"",titulacao:"",matricula:"",telefone:"",lattes:""};
+  const novo=!email;
+  $("ficha").innerHTML=`<div class="ficha" onclick="if(event.target===this)fecharFicha()"><div class="cx">
+    <h3>${novo?"Incluir usuário":"Editar cadastro"}</h3>
+    <div class="muted" style="margin-bottom:14px">${novo
+      ?"O cadastro entra já aprovado como submissor. A pessoa acessa pelo próprio e-mail (código ou Google) — não é preciso senha aqui."
+      :`Cadastro de <b>${esc(u.email)}</b>. Papéis e senha ficam na aba de acessos.`}</div>
+    <div class="grid2">
+      <div><label>E-mail *</label><input id="fi-email" type="email" value="${esc(u.email)}" ${novo?"":"disabled"}></div>
+      <div><label>Nome completo *</label><input id="fi-nome" value="${esc(u.nome||"")}"></div>
+    </div>
+    <div class="grid2">
+      <div><label>Função na instituição</label><select id="fi-funcao" onchange="document.getElementById('fi-outro-w').classList.toggle('hide',this.value!=='outro')">
+        <option value="">— escolha —</option>
+        ${PAINEL.funcoes.map(f=>`<option value="${f.codigo}" ${u.funcao===f.codigo?"selected":""}>${esc(f.nome)}${f.orgao?` · ${f.orgao}`:""}</option>`).join("")}
+      </select></div>
+      <div><label>Curso / departamento</label><select id="fi-curso">
+        <option value="">—</option>
+        ${PAINEL.cursos.map(c=>`<option value="${esc(c.nome)}" ${mesmoCurso(u.curso,c.nome)?"selected":""}>${esc(c.nome)}</option>`).join("")}
+      </select></div>
+    </div>
+    <div id="fi-outro-w" class="${u.funcao==="outro"?"":"hide"}">
+      <label>Especifique a função</label><input id="fi-outro" value="${esc(u.funcaoOutro||"")}" placeholder="Ex.: Assessoria de Comunicação"></div>
+    <div class="grid2">
+      <div><label>Titulação</label><select id="fi-titulacao">
+        ${["","especialista","mestre","doutor"].map(t=>`<option value="${t}" ${u.titulacao===t?"selected":""}>${t?t[0].toUpperCase()+t.slice(1):"—"}</option>`).join("")}
+      </select></div>
+      <div><label>Telefone</label><input id="fi-telefone" value="${esc(u.telefone||"")}" placeholder="(62) 9…"></div>
+    </div>
+    <div class="grid2">
+      <div><label>CPF ${u.temCpf?'<span class="muted">(já cadastrado)</span>':""}</label>
+        <input id="fi-cpf" placeholder="${u.temCpf?"deixe em branco para manter":"000.000.000-00"}"></div>
+      <div><label>Matrícula / SIAPE</label><input id="fi-matricula" value="${esc(u.matricula||"")}"></div>
+    </div>
+    <label>Currículo Lattes</label><input id="fi-lattes" value="${esc(u.lattes||"")}" placeholder="http://lattes.cnpq.br/…">
+    <div class="add" style="margin-top:16px">
+      <button class="bt bt-ok" onclick="salvarFicha()">💾 Salvar</button>
+      <button class="bt bt-ghost" onclick="fecharFicha()">Cancelar</button>
+    </div>
+    <div class="muted" id="fi-aviso" style="margin-top:10px"></div>
+  </div></div>`;
+}
+const fecharFicha=()=>{$("ficha").innerHTML="";};
+
+async function salvarFicha(){
+  const corpo={
+    email:$("fi-email").value.trim(), nome:$("fi-nome").value.trim(),
+    funcao:$("fi-funcao").value, funcaoOutro:$("fi-outro")?$("fi-outro").value.trim():"",
+    curso:$("fi-curso").value, titulacao:$("fi-titulacao").value,
+    telefone:$("fi-telefone").value.trim(), matricula:$("fi-matricula").value.trim(),
+    lattes:$("fi-lattes").value.trim(),
+  };
+  const cpf=$("fi-cpf").value.trim();
+  if(cpf)corpo.cpf=cpf;
+  if(!corpo.email||!corpo.nome){$("fi-aviso").textContent="Informe o e-mail e o nome.";return;}
+  const r=await fetch("/api/usuarios/perfil",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(corpo)});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){$("fi-aviso").innerHTML=`<b style="color:var(--err)">${esc(j.error||("Falha "+r.status))}</b>`;return;}
+  fecharFicha();
+  await carregarPainel();
+  const vinc=j.vinculo&&j.vinculo.projetos?` ${j.vinculo.projetos} projeto(s) vinculado(s) pelo CPF.`:"";
+  alert((j.criado?"Usuário incluído. Ele já pode entrar com esse e-mail.":"Cadastro atualizado.")+vinc);
+}
+
+carregarPainel();
 fetch("/api/usuarios").then(async r=>{
-  if(!r.ok){$("conteudo").innerHTML="Acesso restrito à PROPPEX.";return;}
+  if(!r.ok){$("v-acessos").innerHTML="Acesso restrito à PROPPEX.";return;}
   render(await r.json());
 });
 </script>

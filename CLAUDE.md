@@ -68,6 +68,24 @@ public/
   entravam assim, e as pendentes antigas convergem ao entrar de novo. O registro fica em
   `auth-novos-cadastros-v1` (chave `auth-*`, fora do `/api/estado`) e alimenta o alerta
   "cadastros novos" + o e-mail à PROPPEX; rever um acesso é em `/usuarios/`.
+- **Painel de usuários** (`/usuarios/`, aba "Usuários cadastrados"; `GET /api/usuarios/painel`
+  e `POST /api/usuarios/perfil`, só gestor geral): quem está cadastrado, o que faz na
+  instituição e **que setores usa de fato** — contado nos próprios registros (projetos de
+  IC, ações de extensão pelo `respEmail`, atas pelo `criadoPor`), não numa marcação à
+  parte. "Cadastrado" é a união de perfis, listas de papel, cadastros novos e quem aparece
+  nos projetos. A gestão **edita o cadastro** de qualquer um (o mesmo perfil de `/perfil/`)
+  e **inclui usuário à mão** — e-mail novo entra com o perfil preenchido e já aprovado como
+  submissor; ele acessa pelo próprio e-mail, sem senha definida por ninguém. Papéis e senha
+  ficam na outra aba, de propósito. O **curso é gravado pelo NOME** nos dois lugares: duas
+  grafias fariam a pessoa não conseguir salvar o próprio perfil depois de editada.
+- **Função na instituição** (`FUNCOES`/`normalizarFuncao` em lib/auth.js): o que a pessoa
+  FAZ — professor, professor pesquisador, coordenador de curso, coordenador pedagógico,
+  secretaria, as coordenações da PROPPEX (Pesquisa e Inovação, Extensão, Ação Comunitária)
+  e da PROAC (Ensino, Políticas Institucionais), mais `outro` com texto livre
+  (`funcaoOutro`). É diferente do **papel** no sistema (gestor > coordenador > aprovado >
+  pendente), que diz o que ela PODE. Lista fechada porque cargo escrito à mão não agrupa;
+  `normalizarFuncao` reconhece o que já estava gravado em texto livre. Mesmo catálogo no
+  `/perfil/` e no painel da gestão — preserve os `codigo`.
 - **Sino de alertas no topo** (`GET /api/alertas` + `arche-nav.js`): mostra à gestão o que
   espera decisão ou atenção — acessos pendentes e cadastros novos (só gestor geral),
   projetos de IC aguardando avaliação, substituições de bolsista, relatórios em atraso,
