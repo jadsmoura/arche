@@ -1594,6 +1594,39 @@ app.get("/api/atas/ultimos-participantes", async (req, res) => {
   });
 });
 
+/**
+ * O que a sessão anterior deixou combinado — para virar pauta desta.
+ *
+ * Encaminhamento sem retomada é a queixa mais comum de quem lê uma série de
+ * atas (o avaliador do INEP inclusive): a reunião decide "fulano providencia
+ * até tal dia" e ninguém mais volta ao assunto. Quem lavra a próxima ata
+ * redigitava isso de memória, quando lembrava.
+ *
+ * O ARCHÉ não julga se o encaminhamento foi cumprido — quem diz isso é a
+ * reunião. Ele mostra o que foi combinado nas sessões anteriores do MESMO
+ * órgão, do mais recente para o mais antigo, e quem lavra escolhe o que
+ * retomar. O recorte do acervo vale igual: só as atas que a pessoa já podia
+ * ver (`podeVer`).
+ */
+app.get("/api/atas/encaminhamentos-anteriores", async (req, res) => {
+  const u = await sessaoAtas(req, res);
+  if (!u) return;
+  const orgao = String(req.query.orgao || "").trim();
+  const curso = String(req.query.curso || "").trim();
+  const excluir = String(req.query.excluir || "").trim();      // a ata sendo lavrada
+  if (!orgao) return res.status(400).json({ error: "Informe o órgão" });
+  const atas = (await lerAtas())
+    .filter((a) => a.orgao === orgao && String(a.curso || "") === curso
+      && a.id !== excluir && a.status === "registrada" && podeVer(u, a));
+  const porId = new Map(atas.map((a) => [a.id, a]));
+  const lista = encaminhamentos(atas)
+    .map((e) => ({ ...e, data: porId.get(e.ataId)?.sessao?.data || "" }))
+    .sort((a, b) => String(b.data).localeCompare(String(a.data))
+      || String(b.prazo || "").localeCompare(String(a.prazo || "")))
+    .slice(0, 30);
+  res.json({ encaminhamentos: lista });
+});
+
 app.get("/api/atas/:id", async (req, res) => {
   const u = await sessaoAtas(req, res);
   if (!u) return;

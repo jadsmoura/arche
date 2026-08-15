@@ -489,6 +489,15 @@ public/
   ata entra sempre como urgente, faltem 5 ou 150 dias para o fim do semestre.
 - Presenças são digitadas a cada sessão pelo responsável — **não há cadastro fixo de
   composição de órgão**, por decisão do dono (lista fixa emperra o processo).
+- **Retomar encaminhamentos** (`GET /api/atas/encaminhamentos-anteriores` + botão na pauta):
+  encaminhamento sem retomada é a queixa mais comum de quem lê uma série de atas — a
+  reunião decide "fulano providencia até tal dia" e ninguém volta ao assunto. A tela traz o
+  que ficou combinado nas sessões **registradas** do mesmo órgão (mais recentes primeiro,
+  marcando o prazo vencido) e o que for marcado vira ponto de pauta com a **origem anotada
+  na discussão** (número da ata, data, ação, responsável e prazo). O ARCHÉ **não julga se o
+  encaminhamento foi cumprido** — quem diz isso é a reunião; ele só devolve o assunto à
+  mesa. O recorte do acervo vale igual: só aparecem os encaminhamentos das atas que a
+  pessoa já podia ver.
 - O arquivamento da via assinada é do próprio órgão; o ARCHÉ guarda a cópia gerada.
 - Redação da ata por IA é **opcional**: sem `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` o gerador
   determinístico assume, e qualquer falha de IA cai nele em vez de derrubar o fluxo.

@@ -191,6 +191,25 @@
   .tut .dica{background:#fff;border-radius:8px;padding:9px 12px;margin-top:8px;border:1px dashed #a9cfe0}
   .hide{display:none!important}
 
+  /* ------------- janela de escolha (retomar encaminhamentos) ------------- */
+  .ov{position:fixed;inset:0;background:rgba(28,55,66,.42);z-index:40;display:flex;
+    align-items:flex-start;justify-content:center;padding:56px 18px 24px;overflow-y:auto}
+  .ov-cx{background:#fff;border-radius:14px;width:100%;max-width:560px;padding:22px 22px 18px;
+    box-shadow:0 24px 60px rgba(18,38,50,.28)}
+  .ov-cab{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
+  .ov-cab .t{font-family:Sora,sans-serif;font-weight:700;font-size:16px}
+  .ov-x{background:none;border:0;font-size:20px;line-height:1;color:var(--muted-2);cursor:pointer;padding:0 2px}
+  .ov-x:hover{color:var(--ink)}
+  .enc-lista{max-height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:10px}
+  .enc-item{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;cursor:pointer;
+    border-bottom:1px solid var(--line-2)}
+  .enc-item:last-child{border-bottom:0}
+  .enc-item:hover{background:var(--info-soft)}
+  .enc-item.atrasado{border-left:3px solid var(--err)}
+  .enc-item input{width:17px;height:17px;margin:2px 0 0;flex:none;accent-color:var(--brand)}
+  .enc-item .ac{display:block;font-size:13px;font-weight:600;line-height:1.35}
+  .enc-item .md{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+
   @media(max-width:760px){
     .app{flex-direction:column}
     .side{width:100%;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center}
@@ -355,6 +374,9 @@
     </div>
   </div>
 </div>
+
+<!-- Escolha dos encaminhamentos que voltam à mesa nesta sessão. -->
+<div class="ov hide" id="ovEnc"></div>
 
 <script>
 /* ======================================================================
@@ -1103,7 +1125,11 @@ function renderEditor(alvo) {
       <label>Informes <span class="muted">(comunicações da presidência, sem deliberação)</span></label>
       <textarea ${ro} data-ia="atas.informes" oninput="campo('informes',this.value)" style="min-height:60px">${esc(a.informes || "")}</textarea>
       <div id="pauta" style="margin-top:18px"></div>
-      <button class="bt bt-sec" ${ro} onclick="addPonto()">＋ Adicionar ponto de pauta</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="bt bt-sec" ${ro} onclick="addPonto()">＋ Adicionar ponto de pauta</button>
+        <button class="bt bt-ghost" ${ro} onclick="trazerEncaminhamentos()"
+          title="Traz o que ficou combinado nas sessões anteriores deste órgão">↩ Retomar encaminhamentos</button>
+      </div>
       <label style="margin-top:18px">Outras ocorrências</label>
       <textarea ${ro} data-ia="atas.observacoes" oninput="campo('observacoes',this.value)" style="min-height:60px">${esc(a.observacoes || "")}</textarea>
     </div>
@@ -1451,6 +1477,77 @@ async function trazerDaUltimaAta() {
     aviso(n ? `${n} nome(s) trazido(s) da sessão de ${fmtD(j.de?.data)}${j.de?.numero ? ` (${j.de.numero})` : ""}. `
       + "Confira quem esteve presente." : "Todos os nomes da sessão anterior já estavam na lista.");
   } catch (e) { aviso(e.message, "err"); }
+}
+
+/* O que a sessão anterior deixou combinado vira ponto de pauta desta. O ARCHÉ
+   não diz se o encaminhamento foi cumprido — quem diz isso é a reunião; ele
+   traz o assunto de volta à mesa, que é o que faltava para a série de atas do
+   órgão mostrar continuidade a quem a lê (o avaliador do INEP inclusive). */
+async function trazerEncaminhamentos() {
+  if (!ATUAL.orgao) return aviso("Escolha o órgão antes de retomar encaminhamentos.", "warn");
+  try {
+    const r = await fetch(`/api/atas/encaminhamentos-anteriores?orgao=${encodeURIComponent(ATUAL.orgao)}`
+      + `&curso=${encodeURIComponent(ATUAL.curso || "")}&excluir=${encodeURIComponent(ATUAL.id || "")}`);
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Falha ao buscar");
+    const lista = j.encaminhamentos || [];
+    if (!lista.length) return aviso("Não há encaminhamentos registrados em sessões anteriores deste órgão.", "warn");
+    abrirEscolhaEnc(lista);
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+function abrirEscolhaEnc(lista) {
+  const cx = $("ovEnc");
+  cx.innerHTML = `<div class="ov-cx">
+    <div class="ov-cab">
+      <div style="flex:1">
+        <div class="t">Retomar encaminhamentos</div>
+        <div class="card-s" style="margin:3px 0 0">O que ficou combinado nas sessões anteriores
+          deste órgão. Marque o que volta à mesa hoje — cada um vira um ponto de pauta,
+          com a origem anotada na discussão.</div>
+      </div>
+      <button class="ov-x" onclick="fecharEscolhaEnc()" title="Fechar">×</button>
+    </div>
+    <div class="enc-lista">${lista.map((e, i) => `<label class="enc-item${e.atrasado ? " atrasado" : ""}">
+      <input type="checkbox" data-enc="${i}">
+      <span style="min-width:0">
+        <span class="ac">${esc(e.acao)}</span>
+        <span class="md">${esc(e.ponto || "ponto sem título")} · ${esc(e.numero || "sem número")}${
+          e.data ? ` · sessão de ${fmtD(e.data)}` : ""}</span>
+        <span class="md">${e.responsavel ? `responsável: ${esc(e.responsavel)}` : "sem responsável"}${
+          e.prazo ? ` · prazo ${fmtD(e.prazo)}${e.atrasado ? " (vencido)" : ""}` : " · sem prazo"}</span>
+      </span></label>`).join("")}</div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="bt bt-pri" onclick="confirmarEnc()">Trazer os marcados</button>
+      <button class="bt bt-ghost" onclick="fecharEscolhaEnc()">Cancelar</button>
+    </div>
+  </div>`;
+  cx.classList.remove("hide");
+  cx.onclick = (ev) => { if (ev.target === cx) fecharEscolhaEnc(); };
+  ENC_LISTA = lista;
+}
+let ENC_LISTA = [];
+function fecharEscolhaEnc() { $("ovEnc").classList.add("hide"); }
+function confirmarEnc() {
+  const marcados = [...document.querySelectorAll("#ovEnc [data-enc]")]
+    .filter((c) => c.checked).map((c) => ENC_LISTA[+c.dataset.enc]).filter(Boolean);
+  if (!marcados.length) return fecharEscolhaEnc();
+  for (const e of marcados) {
+    ATUAL.pauta.push({
+      titulo: `Retomada: ${e.ponto || e.acao}`.slice(0, 200),
+      // a origem fica escrita: quem ler a ata sabe de onde o assunto veio
+      discussao: `Retomada do encaminhamento da ${e.numero || "sessão anterior"}`
+        + `${e.data ? `, de ${fmtD(e.data)}` : ""}: ${e.acao}`
+        + `${e.responsavel ? ` (responsável: ${e.responsavel}` : ""}`
+        + `${e.responsavel && e.prazo ? `; prazo ${fmtD(e.prazo)}` : e.prazo ? ` (prazo ${fmtD(e.prazo)}` : ""}`
+        + `${e.responsavel || e.prazo ? ")" : ""}.`,
+      deliberacao: "", votacao: { houve: false, favor: 0, contra: 0, abstencoes: 0 },
+      encaminhamento: { acao: "", responsavel: "", prazo: "" },
+    });
+  }
+  fecharEscolhaEnc();
+  renderPauta();
+  aviso(`${marcados.length} encaminhamento(s) trazido(s) como ponto de pauta. Registre o que a reunião decidiu sobre cada um.`);
 }
 
 function colarParticipantes() {
