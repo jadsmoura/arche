@@ -292,6 +292,8 @@
         <section id="v-painel" class="hide"></section>
         <section id="v-submissao" class="hide"></section>
         <section id="v-gestao" class="hide"></section>
+        <section id="v-meusprojetos" class="hide"></section>
+        <section id="v-bolsa" class="hide"></section>
         <section id="v-avaliacao" class="hide"></section>
         <section id="v-classificacao" class="hide"></section>
         <section id="v-editais" class="hide"></section>
@@ -358,6 +360,9 @@ let CICLO_BV = "";
 const SECOES = [
   { id: "painel", grupo: "INÍCIO", rot: "Painel", ic: '<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>' },
   { id: "submissao", grupo: "PROJETOS", rot: "Submissão", ic: '<path d="M12 5v14M5 12h14"/>', perfis: ["gestao", "orientador"] },
+  // o aluno indicado tem as suas duas guias: onde ele está e o que precisa informar
+  { id: "meusprojetos", grupo: "PROJETOS", rot: "Projetos", ic: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8"/>', perfis: ["aluno"] },
+  { id: "bolsa", grupo: "PROJETOS", rot: "Bolsa", ic: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a2 2 0 0 1 0 4h-3a2 2 0 0 0 0 4h4"/>', perfis: ["aluno"] },
   { id: "gestao", grupo: "PROJETOS", rot: "Gestão", ic: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8"/>', perfis: ["gestao", "orientador"] },
   { id: "avaliacao", grupo: "SELEÇÃO", rot: "Avaliação", ic: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', perfis: ["gestao", "avaliador"] },
   { id: "classificacao", grupo: "SELEÇÃO", rot: "Projetos", ic: '<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>', perfis: ["gestao"] },
@@ -373,6 +378,8 @@ const TITULOS = {
   painel: ["Painel", "Situação dos projetos de Iniciação Científica."],
   submissao: ["Submissão de projeto", "Preencha a proposta e submeta à avaliação da PROPPEX."],
   gestao: ["Gestão de projetos", "Projetos submetidos, em execução e concluídos."],
+  meusprojetos: ["Meus projetos", "Os projetos em que você foi indicado — orientação, vigência e entregas."],
+  bolsa: ["Bolsa", "Os seus dados para o contrato. Você preenche uma vez, e vale para todos os seus projetos."],
   avaliacao: ["Avaliação da seleção", "Parecer ad hoc dos projetos submetidos."],
   classificacao: ["Projetos do edital", "Todos os projetos de cada processo seletivo, em ordem de classificação."],
   bolsistas: ["Bolsistas e Voluntários", "Cada aluno em execução, com as metas do cronograma e as entregas — por ciclo."],
@@ -657,7 +664,7 @@ function nav(secao, modo) {
   // a inclusão manual vale só para o formulário aberto por ela
   MANUAL = secao === "submissao" && modo === "manual";
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === secao);
-  for (const v of ["painel", "submissao", "gestao", "avaliacao", "classificacao", "bolsas", "editais", "bolsistas", "cronograma", "relatorios", "certificados", "projeto"]) $("v-" + v).classList.add("hide");
+  for (const v of ["painel", "submissao", "gestao", "meusprojetos", "bolsa", "avaliacao", "classificacao", "bolsas", "editais", "bolsistas", "cronograma", "relatorios", "certificados", "projeto"]) $("v-" + v).classList.add("hide");
   // submissão e projeto compartilham o editor (mesmos ids): a seção que sai
   // do ar é esvaziada, senão getElementById acha os campos escondidos
   for (const v of ["submissao", "projeto"]) if (v !== secao) $("v-" + v).innerHTML = "";
@@ -678,6 +685,8 @@ function nav(secao, modo) {
     renderEditor("v-submissao");
   }
   if (secao === "gestao") renderGestao();
+  if (secao === "meusprojetos") renderMeusProjetos();
+  if (secao === "bolsa") renderMinhaBolsa();
   if (secao === "avaliacao") renderAvaliacao();
   if (secao === "classificacao") renderClassificacao();
   if (secao === "bolsistas") renderBolsistas();
@@ -814,6 +823,20 @@ function renderPainel() {
     </div>
 
     ${cicloAval}
+
+    ${(() => {
+      // o aluno recém-convidado não sabe o que o sistema espera dele: o
+      // cadastro do contrato é a primeira coisa que aparece
+      if (!ehAluno()) return "";
+      const pendentes = meusProjetos().filter((p) => {
+        const eu = meuRegistro(p);
+        return eu?.bolsista && p.fomento && p.fomento.tipo !== "voluntario" && !cadastroCompletoLocal(eu);
+      });
+      if (!pendentes.length) return "";
+      return `<div class="banner ba-warn"><b>Falta o seu cadastro para o contrato da bolsa.</b>
+        A PROPPEX precisa dos seus documentos, endereço e dados bancários para efetivar o pagamento.
+        <button class="bt bt-pri" style="margin-left:8px" onclick="nav('bolsa')">Preencher agora</button></div>`;
+    })()}
 
     ${META.gestao && foraDoPrazo.length ? `<div class="banner ba-warn"><b>Relatórios em atraso</b> —
       ${foraDoPrazo.length} projeto(s) fora do prazo do edital:
@@ -1376,6 +1399,189 @@ function renderBolsistas() {
 }
 
 /* ------------------------ bolsistas: fim -------------------------------- */
+
+/* ---------------------- o setor pelos olhos do aluno -------------------- */
+/* Duas guias, e só elas: ONDE ele está (os projetos em que foi indicado) e
+   O QUE ele precisa informar (o cadastro do contrato da bolsa). O aluno
+   chega pelo convite por e-mail sem saber o que o sistema espera dele —
+   se não estiver escrito na primeira tela, não acontece. */
+
+/** O registro do próprio aluno, dentro de um projeto. */
+const meuRegistro = (p) => (p.alunos || []).find((a) => a.email && a.email === META.eu);
+/** Os projetos em que ele consta como aluno indicado. */
+const meusProjetos = () => PROJETOS.filter((p) => meuRegistro(p));
+
+function renderMeusProjetos() {
+  const fmtBr = (iso) => iso ? String(iso).slice(0, 10).split("-").reverse().join("/") : "—";
+  const lista = meusProjetos();
+  const semCadastro = lista.filter((p) => {
+    const eu = meuRegistro(p);
+    return eu?.bolsista && p.fomento && p.fomento.tipo !== "voluntario" && !cadastroCompletoLocal(eu);
+  });
+
+  $("v-meusprojetos").innerHTML = `
+    ${semCadastro.length ? `<div class="banner ba-warn">
+      <b>Falta o seu cadastro.</b> Você foi indicado(a) como bolsista e a PROPPEX precisa dos seus
+      documentos e dados bancários para efetivar a bolsa.
+      <button class="bt bt-pri" style="margin-left:8px" onclick="nav('bolsa')">Preencher agora</button>
+    </div>` : ""}
+    ${lista.map((p) => {
+      const eu = meuRegistro(p);
+      const prazos = p.prazoRelatorios?.prazos || [];
+      return `<div class="card">
+        <div class="card-t">${esc(p.titulo || "(sem título)")}</div>
+        <div class="card-s">${esc(p.numero || "sem protocolo")} · ${esc(cursoNome(p.curso))} ·
+          ${esc(linhaNome(p.linha))} · ciclo ${esc(p.edital || META.edital?.numero || "—")}</div>
+        <div class="exp" style="gap:6px;margin-bottom:8px">
+          ${chip(p.status)}
+          <span class="badge b-${eu.bolsista ? "aprovado" : "prevista"}">${eu.bolsista ? "bolsista" : "voluntário"}</span>
+          ${p.fomento && p.fomento.tipo !== "voluntario" ? `<span class="badge b-validado">${esc(fomentoNome(p.fomento.tipo))}</span>` : ""}
+        </div>
+        <div class="linha"><div class="txt"><div class="p1">Orientação</div>
+          <div class="p2">${esc(p.orientador?.nome || "—")}${p.orientador?.email ? ` · ${esc(p.orientador.email)}` : ""}</div></div></div>
+        <div class="linha"><div class="txt"><div class="p1">Vigência do plano</div>
+          <div class="p2">${fmtBr(p.inicio)} a ${fmtBr(p.fim)}</div></div></div>
+        ${prazos.length ? `<div class="linha"><div class="txt"><div class="p1">Relatórios</div>
+          <div class="p2">${prazos.map((x) => `${x.tipo}: ${x.falta ? `até ${fmtBr(x.vence)}${x.atrasado ? " (atrasado)" : ""}` : "entregue"}`).join(" · ")}</div></div></div>` : ""}
+        <div class="exp" style="margin-top:8px">
+          <button class="bt bt-pri" onclick="abrir('${esc(p.id)}')">Abrir o projeto</button>
+          <button class="bt bt-ghost" onclick="nav('cronograma')">Meu cronograma</button>
+          <button class="bt bt-ghost" onclick="nav('relatorios')">Meus relatórios</button>
+        </div>
+      </div>`;
+    }).join("") || `<div class="card"><div class="vazio">Você ainda não foi indicado(a) em nenhum projeto.
+      Assim que a sua orientação fizer a indicação, o projeto aparece aqui.</div></div>`}`;
+}
+
+/* A mesma conta de lib/ic.js (faltaNoCadastroDoBolsista) — a tela precisa
+   dizer o que falta antes de mandar ao servidor. Se mudar lá, mude aqui. */
+const CAMPOS_CADASTRO = [
+  ["nome", "nome completo"], ["cpf", "CPF"], ["rg", "RG"],
+  ["nascimento", "data de nascimento"], ["telefone", "telefone (WhatsApp)"],
+  ["endereco", "endereço"], ["vinculo", "vínculo empregatício"],
+  ["banco", "banco"], ["agencia", "agência"], ["conta", "conta corrente"], ["pix", "Pix"],
+];
+const faltaNoCadastroLocal = (a) => CAMPOS_CADASTRO.filter(([c]) => !String(a?.[c] || "").trim()).map(([, r]) => r);
+const cadastroCompletoLocal = (a) => faltaNoCadastroLocal(a).length === 0;
+const idadeLocal = (n) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(n || ""))) return null;
+  const [an, mn, dn] = n.split("-").map(Number), h = new Date();
+  let i = h.getFullYear() - an;
+  if (h.getMonth() + 1 < mn || (h.getMonth() + 1 === mn && h.getDate() < dn)) i -= 1;
+  return i >= 0 && i < 130 ? i : null;
+};
+
+function renderMinhaBolsa() {
+  const lista = meusProjetos();
+  if (!lista.length) {
+    $("v-bolsa").innerHTML = `<div class="card"><div class="vazio">Você ainda não foi indicado(a) em
+      nenhum projeto — o cadastro abre depois da indicação da sua orientação.</div></div>`;
+    return;
+  }
+  // um cadastro só para a pessoa: vale o registro mais completo entre os
+  // projetos, e o que ainda estiver em branco abre com o que o perfil já sabe
+  // — ninguém deve digitar o próprio CPF duas vezes no mesmo portal
+  const base = lista.map(meuRegistro)
+    .sort((a, b) => faltaNoCadastroLocal(a).length - faltaNoCadastroLocal(b).length)[0];
+  const doPerfil = META.contato || {};
+  const eu = { ...base };
+  for (const campo of ["nome", "cpf", "telefone"]) {
+    if (!String(eu[campo] || "").trim() && doPerfil[campo]) eu[campo] = doPerfil[campo];
+  }
+  const comBolsa = lista.filter((p) => meuRegistro(p).bolsista && p.fomento && p.fomento.tipo !== "voluntario");
+  const falta = faltaNoCadastroLocal(eu);
+  const idade = idadeLocal(eu.nascimento);
+
+  $("v-bolsa").innerHTML = `<div class="card">
+    <div class="card-t">Meu cadastro para o contrato</div>
+    <div class="card-s">${comBolsa.length
+      ? `Você tem <b>${comBolsa.map((p) => fomentoNome(p.fomento.tipo)).join(", ")}</b> concedida.
+         São estes os dados que a PROPPEX usa para efetivar o pagamento — a conta e o Pix precisam
+         estar <b>no seu nome</b>.`
+      : `Você está indicado(a) como <b>voluntário(a)</b>. Preencha assim mesmo: se a coordenação
+         conceder uma bolsa, o cadastro já estará pronto.`}
+      ${lista.length > 1 ? " Você preenche uma vez, e vale para todos os seus projetos." : ""}</div>
+
+    ${falta.length ? `<div class="banner ba-warn">Falta informar: <b>${esc(falta.join(", "))}</b>.</div>`
+      : `<div class="banner ba-ok">Cadastro completo — obrigado. Qualquer alteração, é só salvar de novo.</div>`}
+
+    <div class="sec-t">Identificação</div>
+    <div class="grid3">
+      <div><label>Nome completo *</label><input id="mb-nome" value="${esc(eu.nome || "")}"></div>
+      <div><label>CPF *</label><input id="mb-cpf" value="${esc(eu.cpf || "")}" placeholder="000.000.000-00"></div>
+      <div><label>RG *</label><input id="mb-rg" value="${esc(eu.rg || "")}" placeholder="Número e órgão emissor"></div>
+    </div>
+    <div class="grid3">
+      <div><label>Data de nascimento *</label><input id="mb-nascimento" type="date" value="${esc(eu.nascimento || "")}"
+        onchange="renderIdade()"></div>
+      <div><label>Idade</label><input id="mb-idade" value="${idade != null ? idade + " anos" : ""}" disabled
+        placeholder="calculada pela data"></div>
+      <div><label>Telefone (WhatsApp) *</label><input id="mb-telefone" value="${esc(eu.telefone || "")}" placeholder="(62) 90000-0000"></div>
+    </div>
+    <div class="grid3">
+      <div style="grid-column:span 2"><label>Endereço completo *</label>
+        <input id="mb-endereco" value="${esc(eu.endereco || "")}" placeholder="Rua, número, bairro, cidade e CEP"></div>
+      <div><label>Endereço de e-mail</label><input value="${esc(eu.email || META.eu || "")}" disabled
+        title="É o e-mail com que você entra no ARCHÉ — para trocar, fale com a coordenação"></div>
+    </div>
+    <div class="grid3">
+      <div><label>Possui vínculo empregatício? *</label>
+        <select id="mb-vinculo" onchange="renderVinculo()">
+          <option value="" ${!eu.vinculo ? "selected" : ""}>selecione</option>
+          <option value="nao" ${eu.vinculo === "nao" ? "selected" : ""}>Não</option>
+          <option value="sim" ${eu.vinculo === "sim" ? "selected" : ""}>Sim</option>
+        </select></div>
+      <div id="mb-onde-box" style="grid-column:span 2;${eu.vinculo === "sim" ? "" : "display:none"}">
+        <label>Onde trabalha</label><input id="mb-vinculoOnde" value="${esc(eu.vinculoOnde || "")}"
+          placeholder="Empregador e função"></div>
+    </div>
+    <div class="banner ba-info">O edital não permite acumular a bolsa com vínculo empregatício ou outra
+      bolsa. Responder "sim" não elimina você — a coordenação avalia o caso —, mas omitir a informação
+      pode custar a bolsa depois.</div>
+
+    <div class="sec-t">Conta para o pagamento</div>
+    <div class="grid3">
+      <div><label>Banco *</label><input id="mb-banco" value="${esc(eu.banco || "")}" placeholder="Ex.: Banco do Brasil, Santander"></div>
+      <div><label>Agência *</label><input id="mb-agencia" value="${esc(eu.agencia || "")}"></div>
+      <div><label>Conta corrente *</label><input id="mb-conta" value="${esc(eu.conta || "")}"></div>
+    </div>
+    <label>Pix (vinculado à conta acima) *</label>
+    <input id="mb-pix" value="${esc(eu.pix || "")}" placeholder="CPF, e-mail ou chave aleatória — da conta informada">
+
+    <div class="exp" style="margin-top:12px"><button class="bt bt-pri" onclick="salvarMinhaBolsa()">Salvar meu cadastro</button></div>
+  </div>`;
+}
+
+function renderIdade() {
+  const i = idadeLocal($("mb-nascimento").value);
+  $("mb-idade").value = i != null ? i + " anos" : "";
+}
+function renderVinculo() {
+  $("mb-onde-box").style.display = $("mb-vinculo").value === "sim" ? "" : "none";
+}
+
+async function salvarMinhaBolsa() {
+  const v = (id) => ($(id) ? $(id).value.trim() : "");
+  const corpo = {
+    nome: v("mb-nome"), cpf: v("mb-cpf"), rg: v("mb-rg"), nascimento: v("mb-nascimento"),
+    telefone: v("mb-telefone"), endereco: v("mb-endereco"),
+    vinculo: v("mb-vinculo"), vinculoOnde: v("mb-vinculoOnde"),
+    banco: v("mb-banco"), agencia: v("mb-agencia"), conta: v("mb-conta"), pix: v("mb-pix"),
+  };
+  if (!corpo.nome) return aviso("Informe o seu nome completo.", "warn");
+  try {
+    await api("/api/ic/meus-dados", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
+    });
+    await carregar(); montarSidebar(); renderMinhaBolsa();
+    const falta = faltaNoCadastroLocal(corpo);
+    aviso(falta.length
+      ? `Cadastro salvo. Ainda falta: ${falta.join(", ")}.`
+      : "Cadastro completo e salvo — a PROPPEX usa exatamente o que você informou para montar o contrato.",
+      falta.length ? "warn" : "ok");
+  } catch (e) { aviso(e.message, "err"); }
+}
+/* ---------------------- fim: o setor do aluno --------------------------- */
 
 /* --------------------- projetos do edital (classificação) -------------- */
 /* As listas de cada processo seletivo, com o que a coordenação precisa ver
@@ -2613,32 +2819,28 @@ function renderIndicacaoBolsista(p, ger) {
   if (!p.fomento || p.fomento.tipo === "voluntario") return "";
   if (PODE.papel === "avaliador") return "";
 
-  // O PRÓPRIO aluno preenche os dados do contrato — a ficha dele
+  // O PRÓPRIO aluno preenche o cadastro do contrato — mas o formulário mora
+  // na guia Bolsa, e não aqui: o cadastro é DA PESSOA, e repeti-lo em cada
+  // projeto faria a mesma pessoa ter duas versões do próprio RG.
   if (PODE.papel === "aluno") {
     const eu = (p.alunos || []).find((a) => a.email === META.eu);
     if (!eu || !eu.bolsista) return "";
+    const falta = faltaNoCadastroLocal(eu);
     return `<div class="card">
-      <div class="card-t">Meus dados para o contrato da bolsa</div>
-      <div class="card-s"><b>${esc(fomentoNome(p.fomento.tipo))}</b> concedida. Preencha os seus dados —
-        são eles que geram o contrato. A conta e o Pix precisam estar no seu nome.</div>
-      <div class="grid3">
-        <div><label>CPF *</label><input id="md-cpf" value="${esc(eu.cpf || "")}" placeholder="000.000.000-00"></div>
-        <div><label>Telefone *</label><input id="md-telefone" value="${esc(eu.telefone || "")}" placeholder="(62) 90000-0000"></div>
-        <div><label>Banco *</label><input id="md-banco" value="${esc(eu.banco || "")}" placeholder="Ex.: Caixa, Nubank"></div>
-      </div>
-      <div class="grid3">
-        <div><label>Agência</label><input id="md-agencia" value="${esc(eu.agencia || "")}"></div>
-        <div><label>Conta corrente *</label><input id="md-conta" value="${esc(eu.conta || "")}"></div>
-        <div style="display:flex;align-items:flex-end"><button class="bt bt-pri" onclick="salvarMeusDados()">Salvar meus dados</button></div>
-      </div>
-      <label>Pix (vinculado à conta acima) *</label>
-      <input id="md-pix" value="${esc(eu.pix || "")}" placeholder="CPF, e-mail ou chave aleatória — da conta informada">
+      <div class="card-t">Meu cadastro para o contrato da bolsa</div>
+      <div class="card-s"><b>${esc(fomentoNome(p.fomento.tipo))}</b> concedida. O contrato sai do que
+        você informar no seu cadastro — a conta e o Pix precisam estar no seu nome.</div>
+      ${falta.length
+        ? `<div class="banner ba-warn">Falta informar: <b>${esc(falta.join(", "))}</b>.</div>`
+        : `<div class="banner ba-ok">Cadastro completo — nada pendente da sua parte.</div>`}
+      <div class="exp"><button class="bt bt-pri" onclick="nav('bolsa')">
+        ${falta.length ? "Completar o meu cadastro" : "Rever o meu cadastro"}</button></div>
     </div>`;
   }
 
   // orientação e gestão acompanham: quem já completou, quem ainda falta
   const bolsistas = (p.alunos || []).filter((a) => a.bolsista);
-  const completo = (a) => a.dadosCompletos ?? !!(a.cpf && a.banco && a.conta && a.pix);
+  const completo = (a) => a.dadosCompletos ?? cadastroCompletoLocal(a);
   return `<div class="card">
     <div class="card-t">Contrato da bolsa</div>
     <div class="card-s"><b>${esc(fomentoNome(p.fomento.tipo))}</b> concedida${p.fomento.modalidade ? ` (${esc(modNome(p.fomento.modalidade))})` : ""}.
@@ -2728,21 +2930,6 @@ async function decidirSubstituicao(sid, decisao) {
     });
     await carregar(); montarSidebar(); await abrir(ATUAL.id);
     aviso(decisao === "aprovada" ? "Troca aprovada — o novo bolsista foi convidado por e-mail." : "Solicitação recusada.");
-  } catch (e) { aviso(e.message, "err"); }
-}
-
-/* O aluno grava os próprios dados — vão direto para o registro dele. */
-async function salvarMeusDados() {
-  try {
-    await api(`/api/ic/${ATUAL.id}/meus-dados`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        cpf: $("md-cpf").value, telefone: $("md-telefone").value, banco: $("md-banco").value,
-        agencia: $("md-agencia").value, conta: $("md-conta").value, pix: $("md-pix").value,
-      }),
-    });
-    await carregar(); montarSidebar(); await abrir(ATUAL.id);
-    aviso("Dados salvos — a PROPPEX usa exatamente o que você informou para montar o contrato.");
   } catch (e) { aviso(e.message, "err"); }
 }
 

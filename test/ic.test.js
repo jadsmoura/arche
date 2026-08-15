@@ -12,6 +12,7 @@ import {
   notaFinal, placarPareceres, participaDeAlgum, prazosRelatorios, pendenciasDoProjeto,
   producaoDoOrientador, notaTranscrita, decidindoOProprio, avaliacaoRecebida,
   janelaContestacao, podeContestar, PRAZO_CONTESTACAO_DIAS, atoDeGestao,
+  idadeEm, faltaNoCadastroDoBolsista, cadastroDoBolsistaCompleto,
 } from "../lib/ic.js";
 
 /* -------------------------------- fixtura ------------------------------- */
@@ -531,6 +532,8 @@ test("a indicação do bolsista guarda contato e conta; colega de projeto não v
   const p = normalizarProjeto({ ...bruto(), alunos: [{
     nome: "Marcos", email: ALUNO.email, matricula: "2024001", bolsista: true,
     cpf: "044.244.431-16", telefone: "(62) 90000-0000",
+    rg: "5.123.456 SSP/GO", nascimento: "2004-03-18", endereco: "Rua 3, 120 — Centro, Goianésia/GO",
+    vinculo: "nao",
     banco: "Caixa", agencia: "0655", conta: "20674195-2", pix: "04424443116",
   }, { nome: "Beatriz", email: ALUNO2.email, matricula: "2024002" }] }, { autor: PROF.email });
   const a = p.alunos[0];
@@ -547,7 +550,7 @@ test("a indicação do bolsista guarda contato e conta; colega de projeto não v
   // nem para a orientação: documento e conta são do aluno; ela vê o andamento
   const daProf = visaoDoProjeto({ ...p, status: "aprovado", numero: "IC-2026-001" }, PROF);
   const meuAluno = daProf.alunos.find((x) => x.nome === "Marcos");
-  for (const campo of ["banco", "conta", "pix", "cpf"])
+  for (const campo of ["banco", "conta", "pix", "cpf", "rg", "nascimento", "endereco"])
     assert.ok(!meuAluno?.[campo], `${campo} não aparece para a orientação`);
   assert.equal(meuAluno.dadosCompletos, true, "a orientação sabe que o aluno completou");
   assert.equal(meuAluno.telefone, "(62) 90000-0000", "o contato que ela mesma indicou, sim");
@@ -904,4 +907,62 @@ test("na própria proposta o gestor geral vê a nota que ele mesmo lançou", () 
   // para o professor comum e para o coordenador que é parte, segue fora
   assert.equal(visaoDoProjeto(p, PROF).notaDireta, undefined);
   assert.equal(visaoDoProjeto(p, { email: PROF.email, gestao: true }).notaDireta, undefined);
+});
+
+/* ---------------- cadastro do bolsista (guia Bolsa) --------------------- */
+
+test("o cadastro do bolsista só fecha com documento, endereço, vínculo e conta", () => {
+  const completo = {
+    nome: "Marcos", cpf: "04424443116", rg: "5.123.456 SSP/GO", nascimento: "2004-03-18",
+    telefone: "(62) 90000-0000", endereco: "Rua 3, 120 — Goianésia/GO", vinculo: "nao",
+    banco: "Caixa", agencia: "0655", conta: "20674195-2", pix: "04424443116",
+  };
+  assert.deepEqual(faltaNoCadastroDoBolsista(completo), []);
+  assert.equal(cadastroDoBolsistaCompleto(completo), true);
+
+  // o que faltava antes de existirem os campos novos aparece por nome
+  const antigo = { ...completo, rg: "", nascimento: "", endereco: "", vinculo: "" };
+  const falta = faltaNoCadastroDoBolsista(antigo);
+  assert.ok(falta.includes("RG") && falta.includes("endereço"));
+  assert.ok(falta.some((x) => x.includes("nascimento")));
+  assert.ok(falta.some((x) => x.includes("vínculo")), "vínculo em branco é pendência");
+  assert.equal(cadastroDoBolsistaCompleto(antigo), false);
+
+  // responder "não tenho vínculo" fecha o campo — o que trava é o branco
+  assert.equal(cadastroDoBolsistaCompleto({ ...completo, vinculo: "sim", vinculoOnde: "Prefeitura" }), true);
+});
+
+test("o cadastro do aluno guarda os campos novos e a orientação não os vê", () => {
+  const p = normalizarProjeto({ ...bruto(), alunos: [{
+    nome: "Marcos", email: ALUNO.email, bolsista: true, cpf: "044.244.431-16",
+    rg: "5.123.456 SSP/GO", nascimento: "2004-03-18", endereco: "Rua 3, 120",
+    vinculo: "sim", vinculoOnde: "Prefeitura de Goianésia", telefone: "(62) 90000-0000",
+    banco: "Caixa", agencia: "0655", conta: "20674195-2", pix: "04424443116",
+  }] }, { autor: PROF.email });
+  const a = p.alunos[0];
+  assert.equal(a.rg, "5.123.456 SSP/GO");
+  assert.equal(a.nascimento, "2004-03-18");
+  assert.equal(a.vinculo, "sim");
+  assert.equal(a.vinculoOnde, "Prefeitura de Goianésia");
+  // valor fora da lista não entra: "talvez" não é resposta sobre vínculo
+  assert.equal(normalizarProjeto({ ...bruto(), alunos: [{ nome: "X", vinculo: "talvez" }] },
+    { autor: PROF.email }).alunos[0].vinculo, "");
+
+  const daProf = visaoDoProjeto({ ...p, status: "aprovado" }, PROF).alunos[0];
+  for (const campo of ["rg", "nascimento", "endereco", "vinculo", "vinculoOnde", "cpf", "conta"])
+    assert.ok(!daProf[campo], `${campo} é do aluno, não da orientação`);
+  assert.equal(daProf.dadosCompletos, true);
+
+  // o próprio aluno vê tudo o que informou
+  const dele = visaoDoProjeto({ ...p, status: "aprovado" }, ALUNO).alunos[0];
+  assert.equal(dele.rg, "5.123.456 SSP/GO");
+  assert.equal(dele.endereco, "Rua 3, 120");
+});
+
+test("a idade sai da data de nascimento, em anos completos", () => {
+  assert.equal(idadeEm("2004-03-18", "2026-08-15"), 22);
+  assert.equal(idadeEm("2004-09-18", "2026-08-15"), 21, "aniversário ainda não chegou");
+  assert.equal(idadeEm("2004-08-15", "2026-08-15"), 22, "no dia do aniversário já conta");
+  assert.equal(idadeEm(""), null);
+  assert.equal(idadeEm("18/03/2004"), null, "só data ISO");
 });

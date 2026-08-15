@@ -212,17 +212,41 @@ public/
   em `normalizarProjeto`), e nome, titulação, telefone, Lattes e CPF de quem submete
   saem do PERFIL (`/perfil/`) na criação. O card Orientação só aparece na inclusão
   manual (a coordenação identifica o professor) e no projeto já aberto. Ao salvar, **o aluno recebe o convite por e-mail** (`convidarAlunosIC`) com o
-  link de entrada; ele cria o usuário e **ele mesmo** completa documentos, dados
-  bancários e Pix (`POST /api/ic/:id/meus-dados` — só o próprio aluno grava).
-  **Documentos e conta são do aluno** (`alunosVisiveis`): a orientação vê só o contato
+  link de entrada e a lista do que ter à mão; ele cria o usuário e **ele mesmo** faz o
+  cadastro. **Documentos e conta são do aluno** (`alunosVisiveis`): a orientação vê só o contato
   que indicou e o sinal `dadosCompletos`; a gestão vê tudo (contrato); o formulário da
-  orientação nunca sobrescreve o que o aluno gravou. Os alunos que vinham nas propostas
+  orientação nunca sobrescreve o que o aluno gravou (`CAMPOS_DO_ALUNO_PROTEGIDOS`, no
+  server). Os alunos que vinham nas propostas
   importadas foram apagados de vez (`sys-ic-alunos-zerados-v1`), e os cronogramas do
   edital 01/2026 foram enquadrados na vigência set/2026 → ago/2027
   (`sys-ic-cronograma-vigencia-v1`). Validados todos os relatórios
   finais, o projeto passa a concluído. A tela de Cronograma reúne **todos os projetos
   num só lugar**. Não há guia de bolsas nem de comunicação — a bolsa é um campo do
   aluno indicado.
+- **O setor pelos olhos do ALUNO** (decisão do dono, ago/2026): indicado, ele recebe o
+  convite por e-mail e encontra **duas guias suas** — **Projetos** (onde ele está:
+  orientação, vigência, prazos dos relatórios) e **Bolsa** (o cadastro do contrato).
+  O cadastro é **da pessoa, não do projeto**: `POST /api/ic/meus-dados` grava em TODOS
+  os registros dele de uma vez (quem participa de dois projetos não digita o RG duas
+  vezes; a rota antiga `/:id/meus-dados` faz o mesmo). Campos: nome, CPF, **RG**,
+  **data de nascimento** (a idade se calcula, `idadeEm` — não se pergunta duas vezes),
+  **endereço**, telefone (WhatsApp), **vínculo empregatício** (`sim`/`nao` + onde;
+  branco é "não respondeu", que é pendência) e banco, agência, conta e Pix. O que
+  fecha o cadastro é `faltaNoCadastroDoBolsista` — **uma conta só**, usada na tela do
+  aluno, no `dadosCompletos` da orientação, na pendência `bolsista-incompleto` e no
+  termo. O nome ele pode corrigir (a indicação é digitada pelo professor), mas nome em
+  branco não apaga o que existe — é a chave dos certificados antigos.
+- **`aluno` é função na instituição** (`FUNCOES` em lib/auth.js): sem ela o bolsista
+  convidado ficava preso na etapa de completar o perfil, tendo de se declarar
+  "professor" ou "outro". Não pede titulação (`SEM_TITULACAO`), e a barra do topo o
+  chama de **Estudante**, não de "Docente".
+- **Termo de Compromisso do bolsista** (`gerarTermoCompromissoPdf`,
+  `GET /api/ic/termos.pdf`, só gestão): o documento que a PROPPEX entrega para
+  assinatura — uma folha por bolsista, timbrada, com identificação, projeto, vigência,
+  valor, conta, os compromissos das duas partes e as assinaturas do bolsista, da
+  orientação e do pró-reitor. Por ciclo (botão na guia Bolsistas e Voluntários) ou de
+  um projeto só (`?projeto=`). Tudo o que ele afirma o sistema já tem: campo em branco
+  sai como linha pontilhada, para completar à caneta, em vez de travar a emissão.
 - **Quatro acessos na IC** (`papelNoProjeto` em `lib/ic.js`), e três deles nascem do
   próprio projeto — não há cadastro de papel à parte:
   1. **gestão** — pró-reitor e coordenação de pesquisa (gestor geral ou coordenador do

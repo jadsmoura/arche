@@ -33,6 +33,7 @@ import {
   participaDeAlgum, vincularPorCpf, modalidadeEfetiva as modalidadeEfetivaIC,
   producaoDoOrientador, prazosRelatorios, fomentoDe, notaTranscrita, decidindoOProprio,
   janelaContestacao, editalDe, podeContestar, atoDeGestao,
+  idadeEm, faltaNoCadastroDoBolsista, cadastroDoBolsistaCompleto,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import {
@@ -2106,8 +2107,11 @@ async function sessaoIC(req, res) {
   // Conta pendente entra na IC se — e só se — já estiver em algum projeto:
   // aluno indicado pela orientação ou avaliador designado pela coordenação.
   // O convite é por e-mail exato e a visibilidade continua sendo a do papel.
-  const cpf = (await carregarPerfis())[u.email]?.cpf || "";
-  const eu = { ...u, cpf };
+  const meuPerfil = (await carregarPerfis())[u.email] || {};
+  const cpf = meuPerfil.cpf || "";
+  // o cadastro do bolsista repete o que a pessoa já digitou no perfil: o
+  // formulário abre com isso preenchido em vez de pedir CPF duas vezes
+  const eu = { ...u, cpf, telefone: meuPerfil.telefone || meuPerfil.whatsapp || "" };
   if (u.papel === "pendente" && !participaDeAlgum(u.email, await lerProjetos(), cpf)) {
     res.status(403).json({ error: "Seu acesso ainda está pendente de aprovação da PROPPEX" });
     return null;
@@ -2278,6 +2282,9 @@ app.get("/api/ic/meta", async (req, res) => {
     // o formulário já abre com o que ele informou da última vez
     producaoAnterior: como ? null : producaoMaisRecente(projetos, u),
     gestao: meu.gestao, eu: meu.email, nome: como ? "" : (u.nome || ""),
+    // o que o perfil já sabe da pessoa, para o cadastro do bolsista abrir
+    // preenchido (simulando outra pessoa, não vai — seriam dados dela)
+    contato: como ? null : { nome: u.nome || "", cpf: u.cpf || "", telefone: u.telefone || "" },
     perfil: perfilIC(u, projetos, meu),
     // quem a coordenação pode simular, e por quais olhos está olhando agora
     // os editais (números, contagens e documentos) são de todos; a lista de
@@ -2741,8 +2748,13 @@ app.get("/api/ic/bolsistas.xlsx", async (req, res) => {
       { header: "E-mail do Orientador", key: "emailProfessor", width: 30 },
       { header: "Nome Completo do Aluno", key: "aluno", width: 32 },
       { header: "CPF do Aluno", key: "cpfAluno", width: 16 },
-      { header: "Telefone do Aluno", key: "telefoneAluno", width: 18 },
+      { header: "RG do Aluno", key: "rgAluno", width: 16 },
+      { header: "Data de Nascimento", key: "nascimento", width: 16 },
+      { header: "Idade", key: "idade", width: 8 },
+      { header: "Telefone do Aluno (WhatsApp)", key: "telefoneAluno", width: 22 },
       { header: "E-mail do Aluno", key: "emailAluno", width: 30 },
+      { header: "Endereço", key: "endereco", width: 40 },
+      { header: "Vínculo empregatício", key: "vinculo", width: 20 },
       { header: "Banco do Aluno", key: "banco", width: 16 },
       { header: "Agência", key: "agencia", width: 10 },
       { header: "Conta Corrente", key: "conta", width: 16 },
@@ -2763,8 +2775,14 @@ app.get("/api/ic/bolsistas.xlsx", async (req, res) => {
           emailProfessor: p.orientador?.email || "",
           aluno: a.nome || "",
           cpfAluno: formatarCpf(a.cpf) || "",
+          rgAluno: a.rg || "",
+          nascimento: a.nascimento ? String(a.nascimento).split("-").reverse().join("/") : "",
+          idade: idadeEm(a.nascimento) ?? "",
           telefoneAluno: a.telefone || "",
           emailAluno: a.email || "",
+          endereco: a.endereco || "",
+          vinculo: a.vinculo === "sim" ? `sim${a.vinculoOnde ? ` — ${a.vinculoOnde}` : ""}`
+            : a.vinculo === "nao" ? "não" : "",
           banco: a.banco || "", agencia: a.agencia || "", conta: a.conta || "", pix: a.pix || "",
         });
       }
@@ -2904,8 +2922,10 @@ app.post("/api/ic", async (req, res) => {
         const doBase = (email) => (base.alunos || []).find((a) => a.email && a.email === email);
         p.alunos = p.alunos.map((a) => {
           const antes = doBase(a.email);
-          return antes ? { ...a, cpf: antes.cpf, banco: antes.banco, agencia: antes.agencia,
-            conta: antes.conta, pix: antes.pix } : a;
+          if (!antes) return a;
+          const dele = {};
+          for (const c of CAMPOS_DO_ALUNO_PROTEGIDOS) dele[c] = antes[c];
+          return { ...a, ...dele };
         });
         // aluno recém-indicado num projeto aprovado: recebe o convite por
         // e-mail para entrar no sistema e completar os próprios dados
@@ -2918,6 +2938,19 @@ app.post("/api/ic", async (req, res) => {
       // "orientador" do projeto e deixaria de ser gestão nele
       const autor = manual ? String(b.orientador?.email || "").trim().toLowerCase() : u.email;
       let projeto = normalizarProjeto(b, { base, autor, grupos: conhecidos });
+      // o mesmo cuidado da execução: o formulário da orientação (ou da
+      // coordenação, na inclusão manual) não escreve nem apaga o que é do
+      // aluno — RG, endereço, vínculo e conta são dele
+      if (base) {
+        const doBase = (email) => (base.alunos || []).find((a) => a.email && a.email === email);
+        projeto.alunos = (projeto.alunos || []).map((a) => {
+          const antes = doBase(a.email);
+          if (!antes) return a;
+          const dele = {};
+          for (const c of CAMPOS_DO_ALUNO_PROTEGIDOS) dele[c] = antes[c];
+          return { ...a, ...dele };
+        });
+      }
       if (manual) {
         projeto = {
           ...projeto,
@@ -2934,7 +2967,12 @@ app.post("/api/ic", async (req, res) => {
           : "abriu o projeto",
       });
       if (i >= 0) projetos[i] = projeto; else projetos.push(projeto);
-      return { projeto };
+      // aluno recém-indicado: o convite por e-mail é o que abre o sistema
+      // para ele — sem isso ele não sabe que precisa se cadastrar
+      const jaEstava = (email) => (base?.alunos || []).some((a) => a.email && a.email === email);
+      const novos = ["aprovado", "concluido"].includes(projeto.status)
+        ? (projeto.alunos || []).filter((a) => a.email && !jaEstava(a.email)) : [];
+      return { projeto, convidar: novos };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
     if (r.convidar?.length) convidarAlunosIC(r.projeto, r.convidar);   // sem await: e-mail não trava a gravação
@@ -2966,9 +3004,14 @@ async function convidarAlunosIC(projeto, alunos) {
             ${a.bolsista ? "<b>bolsista</b>" : "aluno(a) voluntário(a)"} no projeto:</p>
           <p style="background:#eef3f5;border-radius:10px;padding:12px 16px"><b>${projeto.titulo || ""}</b><br>
             ${projeto.numero || ""} · Centro Universitário Evangélico de Goianésia — UNIEGO</p>
-          <p><b>Próximo passo:</b> entre no ARCHÉ com este e-mail (${a.email}) para criar o seu
-            usuário e completar o seu cadastro${a.bolsista ? " — documentos pessoais, dados bancários e chave Pix, necessários para o contrato da bolsa" : ""}.
-            É lá também que ficam o seu cronograma e a entrega dos relatórios parcial e final.</p>
+          <p><b>Próximo passo:</b> entre no ARCHÉ com este e-mail (${a.email}) e crie o seu usuário.
+            Na guia <b>Projetos</b> você acompanha os projetos em que está vinculado(a); na guia
+            <b>Bolsa</b> preenche o cadastro que a PROPPEX usa para efetivar o pagamento.</p>
+          ${a.bolsista ? `<p style="background:#fff7e6;border-radius:10px;padding:12px 16px">
+            <b>Tenha à mão para o cadastro:</b> CPF, RG, data de nascimento, endereço completo,
+            telefone (WhatsApp), se você tem vínculo empregatício e os dados da <b>sua</b> conta
+            bancária — banco, agência, conta corrente e a chave Pix vinculada a ela.</p>` : ""}
+          <p>É no ARCHÉ também que ficam o seu cronograma e a entrega dos relatórios parcial e final.</p>
           <p><a href="${link}" style="display:inline-block;background:#1c3742;color:#fff;text-decoration:none;
             padding:12px 22px;border-radius:10px;font-weight:600">Entrar no ARCHÉ</a></p>
           <p style="color:#5b7280;font-size:12px">Se o botão não abrir, copie e cole: ${link}</p></div>`,
@@ -2981,41 +3024,88 @@ async function convidarAlunosIC(projeto, alunos) {
 }
 
 /**
- * Os dados que o PRÓPRIO aluno informa depois de indicado — documentos,
- * conta bancária e Pix, os campos da planilha do contrato. Só o aluno do
- * registro grava aqui; a orientação nem os enxerga (alunosVisiveis).
+ * O cadastro que o PRÓPRIO aluno informa depois de indicado — documentos,
+ * endereço, vínculo empregatício, conta bancária e Pix, que é o que a PROPPEX
+ * precisa para efetivar a bolsa. Só o aluno do registro grava; a orientação
+ * nem os enxerga (alunosVisiveis).
+ *
+ * O cadastro é DA PESSOA, não do projeto: quem participa de mais de um
+ * projeto preenche uma vez só, e a gravação alcança todos os registros dele.
+ * Pedir o mesmo RG duas vezes só criaria divergência entre as fichas.
  */
+const CAMPOS_DO_ALUNO = {
+  telefone: 30, rg: 30, endereco: 200, vinculoOnde: 120,
+  banco: 60, agencia: 20, conta: 30, pix: 120,
+};
+/* O que só o aluno escreve. O formulário da orientação não os recebe (ver
+   alunosVisiveis) — se o salvamento dela os copiasse do que veio da tela,
+   apagaria o RG e a conta de quem já preencheu. O telefone fica de fora de
+   propósito: é o contato que a própria orientação indicou. */
+const CAMPOS_DO_ALUNO_PROTEGIDOS = ["cpf", "rg", "nascimento", "endereco",
+  "vinculo", "vinculoOnde", "banco", "agencia", "conta", "pix"];
+function aplicarCadastroDoAluno(aluno, b, cpf) {
+  const saida = { ...aluno };
+  if (cpf) saida.cpf = cpf;
+  // o nome quem corrige é o dono dele — a indicação é digitada pelo professor
+  // e sai errada com frequência —, mas nome em branco não apaga o que existe:
+  // é a chave que reúne os certificados dos ciclos antigos
+  if (String(b.nome || "").trim()) saida.nome = String(b.nome).trim().slice(0, 120);
+  for (const [campo, max] of Object.entries(CAMPOS_DO_ALUNO)) {
+    if (b[campo] === undefined) continue;
+    saida[campo] = String(b[campo] ?? "").trim().slice(0, max);
+  }
+  if (b.nascimento !== undefined) saida.nascimento = String(b.nascimento || "").slice(0, 10);
+  if (b.vinculo !== undefined) saida.vinculo = ["sim", "nao"].includes(String(b.vinculo)) ? String(b.vinculo) : "";
+  // "não tenho vínculo" não guarda empregador — o campo some junto
+  if (saida.vinculo !== "sim") saida.vinculoOnde = "";
+  return saida;
+}
+
+async function gravarCadastroDoAluno(u, b, res) {
+  const cpf = normalizarCpf(b.cpf);
+  if (String(b.cpf || "").trim() && !cpf) {
+    res.status(400).json({ error: "CPF inválido — confira os 11 dígitos." });
+    return null;
+  }
+  const eu = String(u.email || "").toLowerCase();
+  const r = await comProjetos((projetos) => {
+    let tocados = 0;
+    for (let i = 0; i < projetos.length; i++) {
+      const p = projetos[i];
+      const idx = (p.alunos || []).findIndex((a) => a.email && String(a.email).toLowerCase() === eu);
+      if (idx < 0) continue;
+      const alunos = p.alunos.slice();
+      alunos[idx] = aplicarCadastroDoAluno(alunos[idx], b, cpf);
+      projetos[i] = anotarProjeto(normalizarProjeto({ ...p, alunos }, { base: p }),
+        { quem: u.email, oQue: "completou o próprio cadastro para o contrato da bolsa" });
+      tocados += 1;
+    }
+    if (!tocados) return { erro: [403, "Só o próprio aluno indicado preenche os seus dados"], gravar: false };
+    return { tocados };
+  });
+  if (r.erro) { res.status(r.erro[0]).json({ error: r.erro[1] }); return null; }
+  return r;
+}
+
+/** O cadastro pela guia Bolsa: uma vez, valendo para todos os projetos. */
+app.post("/api/ic/meus-dados", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const r = await gravarCadastroDoAluno(u, req.body || {}, res);
+  if (!r) return;
+  const projetos = (await lerProjetos()).filter((p) => podeVerProjeto(quemIC(u), p));
+  res.json({ ok: true, projetos: r.tocados, lista: projetos.map((p) => verProjeto(u, p)) });
+});
+
+/** O mesmo cadastro, pela ficha do projeto (a tela de sempre). */
 app.post("/api/ic/:id/meus-dados", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
-  const meu = quemIC(u);
-  const b = req.body || {};
-  const cpf = normalizarCpf(b.cpf);
-  if (String(b.cpf || "").trim() && !cpf)
-    return res.status(400).json({ error: "CPF inválido — confira os 11 dígitos." });
-
-  const r = await comProjetos((projetos) => {
-    const i = projetos.findIndex((x) => x.id === req.params.id);
-    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
-    const p = projetos[i];
-    const idx = (p.alunos || []).findIndex((a) => a.email && a.email === meu.email);
-    if (idx < 0) return { erro: [403, "Só o próprio aluno indicado preenche os seus dados"], gravar: false };
-    const alunos = p.alunos.slice();
-    alunos[idx] = {
-      ...alunos[idx],
-      cpf: cpf || alunos[idx].cpf,
-      telefone: String(b.telefone ?? alunos[idx].telefone ?? "").trim().slice(0, 30),
-      banco: String(b.banco ?? alunos[idx].banco ?? "").trim().slice(0, 60),
-      agencia: String(b.agencia ?? alunos[idx].agencia ?? "").trim().slice(0, 20),
-      conta: String(b.conta ?? alunos[idx].conta ?? "").trim().slice(0, 30),
-      pix: String(b.pix ?? alunos[idx].pix ?? "").trim().slice(0, 120),
-    };
-    projetos[i] = anotarProjeto(normalizarProjeto({ ...p, alunos }, { base: p }),
-      { quem: u.email, oQue: "completou os próprios dados para o contrato" });
-    return { projeto: projetos[i] };
-  });
-  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
+  const r = await gravarCadastroDoAluno(u, req.body || {}, res);
+  if (!r) return;
+  const p = (await lerProjetos()).find((x) => x.id === req.params.id);
+  if (!p) return res.status(404).json({ error: "Projeto não encontrado" });
+  res.json({ ok: true, projeto: verProjeto(u, p) });
 });
 
 /**

@@ -176,7 +176,10 @@
     caixa.innerHTML = '<a class="nav-perfil" href="/perfil/" title="Meu perfil">'
       + '<span class="nav-av">' + (foto ? '<img src="' + esc(foto) + '" alt="">' : esc(inicial)) + "</span>"
       + '<span class="nav-id"><b>' + esc(curto) + "</b><span>"
-      + esc(PAPEL[me.papel] || me.papel) + "</span></span></a>"
+      // "Docente" é o rótulo de quem foi aprovado — mas o aluno indicado para
+      // a IC também tem conta aprovada, e chamá-lo de docente é errado
+      + esc((me.perfil && me.perfil.funcao === "aluno" && me.papel === "aprovado")
+        ? "Estudante" : (PAPEL[me.papel] || me.papel)) + "</span></span></a>"
       + '<button class="nav-sair" type="button">sair</button>';
     sino(caixa, me);
     caixa.querySelector(".nav-sair").onclick = function () {
