@@ -698,7 +698,7 @@ async function renderCertificados() {
         <div class="p2">${esc(c.numero || "—")} · ${esc(c.titulo || "")}${c.tipo === "orientacao" ? "" : ` · orientação: ${esc(c.orientador || "—")}`}
           ${c.modalidade ? ` · ${esc(c.modalidade)}` : c.bolsista ? " · bolsista" : ""}</div>
       </div>
-      <a class="bt bt-pri" href="/api/ic/certificado.pdf?codigo=${encodeURIComponent(c.codigo)}"
+      <a class="bt bt-pri" href="${comQuem(`/api/ic/certificado.pdf?codigo=${encodeURIComponent(c.codigo)}`)}"
         target="_blank" rel="noopener">📜 Baixar</a>
     </div>`;
 
@@ -708,8 +708,8 @@ async function renderCertificados() {
       certificados de todas as edições em que você participou. Sem o CPF, só aparecem os ciclos
       ligados a este e-mail.</div>` : ""}
 
-    ${META.gestao ? renderAssinaturas() : ""}
-    ${META.gestao ? renderAvisoCertificados() : ""}
+    ${META.gestao && !CERTS.simulando ? renderAssinaturas() : ""}
+    ${META.gestao && !CERTS.simulando ? renderAvisoCertificados() : ""}
 
     ${meus.length ? [...porEdital].map(([edital, lista]) => `<div class="card">
         <div class="card-t">Edital ${esc(edital)}</div>

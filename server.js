@@ -1886,7 +1886,12 @@ async function visaoComo(req, u) {
     return { email: "", cpf: normalizarCpf(alvo.slice(4)), gestao: false, simulado: true };
   }
   const perfis = await carregarPerfis();
-  return { email: alvo, cpf: perfis[alvo]?.cpf || "", gestao: false, simulado: true };
+  // o nome vai junto: nos ciclos antigos as pessoas só são identificadas por
+  // ele, e sem isso a simulação mostraria menos do que a pessoa realmente vê
+  return {
+    email: alvo, cpf: perfis[alvo]?.cpf || "", nome: perfis[alvo]?.nome || "",
+    gestao: false, simulado: true,
+  };
 }
 
 // Nada se grava enquanto se olha pelos olhos de outro: o histórico do projeto
@@ -2107,12 +2112,20 @@ app.get("/api/ic/certificados", async (req, res) => {
     const u = await sessaoIC(req, res);
     if (!u) return;
     const projetos = await lerProjetos();
+    // "ver como": a lista tem de ser a DA PESSOA simulada — sem isto a
+    // coordenação via os próprios certificados achando que eram dela
+    const como = await visaoComo(req, u);
     const perfil = (await carregarPerfis())[u.email] || {};
     // o nome entra porque os ciclos antigos identificam as pessoas só por ele
-    const eu = { cpf: u.cpf || "", email: u.email, nome: perfil.nome || u.nome || "" };
+    const eu = como
+      ? { cpf: como.cpf || "", email: como.email || "", nome: como.nome || "" }
+      : { cpf: u.cpf || "", email: u.email, nome: perfil.nome || u.nome || "" };
     const meus = certificadosDe(projetos, eu);
-    const resp = { certificados: meus, temCpf: !!u.cpf, temNome: !!perfil.nome };
-    if (gereIC(u)) {
+    const resp = {
+      certificados: meus, temCpf: !!eu.cpf, temNome: !!eu.nome,
+      ...(como ? { simulando: como.email } : {}),
+    };
+    if (gereIC(u) && !como) {
       // à gestão interessa o tamanho de cada ciclo e quem dá para avisar
       const porNome = await emailsPorNome();
       const ciclos = [...new Set(projetos.filter(certificavel).map((p) => String(p.edital || "")))]
@@ -2337,9 +2350,12 @@ app.get("/api/ic/certificado.pdf", async (req, res) => {
   try {
     const u = await sessaoIC(req, res);
     if (!u) return;
+    const como = await visaoComo(req, u);
     const perfil = (await carregarPerfis())[u.email] || {};
-    const meus = certificadosDe(await lerProjetos(),
-      { cpf: u.cpf || "", email: u.email, nome: perfil.nome || u.nome || "" });
+    const quem = como
+      ? { cpf: como.cpf || "", email: como.email || "", nome: como.nome || "" }
+      : { cpf: u.cpf || "", email: u.email, nome: perfil.nome || u.nome || "" };
+    const meus = certificadosDe(await lerProjetos(), quem);
     const cert = meus.find((c) => c.codigo === String(req.query.codigo || ""));
     if (!cert) return res.status(404).send("Certificado não encontrado para a sua conta.");
     const { gerarCertificadoPdf } = await import("./lib/pdf.js");

@@ -636,3 +636,20 @@ test("o código de validação é estável e distingue os documentos", async () 
   assert.notEqual(a, codigo({ tipo: "participacao", projetoId: "p2", pessoa: "Natiele" }));
   assert.match(a, /^[0-9A-F]{10}$/);
 });
+
+test("o certificado de orientação é de quem orientou, não de quem está olhando", async () => {
+  const { certificadosDe } = await import("../lib/certificados.js");
+  const base = { status: "concluido", inicio: "2024-09-01", fim: "2025-08-31", edital: "01/2024" };
+  const projetos = [
+    { ...base, id: "p1", numero: "IC-2024-001", titulo: "Micorrizas",
+      orientador: { nome: "Jadson Belem de Moura" }, alunos: [{ nome: "Amanda" }] },
+    { ...base, id: "p2", numero: "IC-2024-002", titulo: "Trabalho escravo",
+      orientador: { nome: "Marlana Carla Peixoto Ribeiro" }, alunos: [{ nome: "Glenda" }] },
+  ];
+  // a coordenação vendo "como" a professora tem de receber os alunos DELA
+  const daMarlana = certificadosDe(projetos, { cpf: "", email: "marlana@x.com", nome: "Marlana Carla Peixoto Ribeiro" });
+  assert.equal(daMarlana.length, 1);
+  assert.equal(daMarlana[0].aluno, "Glenda");
+  const doJadson = certificadosDe(projetos, { cpf: "", email: "jadson@x.com", nome: "Jadson Belem de Moura" });
+  assert.equal(doJadson[0].aluno, "Amanda");
+});
