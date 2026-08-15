@@ -53,7 +53,7 @@ import {
   papelDe, modulosDe, MODULOS, verificarGoogle, criarCodigo, verificarCodigo,
   iniciarAuth, definirSenha, temSenha, validarSenhaDe, senhaFraca, senhaInfo,
   registrarFalha, bloqueado, limparFalhas, FUNCOES, normalizarFuncao, faltaNoPerfil,
-  removerSenha, ehGestorFixo,
+  perfilCompleto, removerSenha, ehGestorFixo,
 } from "./lib/auth.js";
 import {
   AREA_AV, chaveAcesso, destinoSeguro, emitirSelo, lerSelo, linkAcesso,
@@ -861,36 +861,79 @@ app.post("/api/usuarios", async (req, res) => {
  * que identifica alguém: perfil preenchido, lista de papéis, cadastro novo
  * e quem aparece nos projetos de IC (o convidado que ainda não entrou).
  */
+/**
+ * A união de tudo o que identifica alguém no portal: perfil preenchido,
+ * lista de papéis, cadastro novo e presença nos registros dos setores (o
+ * convidado que ainda não entrou também é gente). É a MESMA conta usada
+ * pelo painel de usuários e pelo quadro do dashboard — duas contagens
+ * diferentes de "quantos usuários temos" seria pior que nenhuma.
+ */
+async function contasDoPortal() {
+  const [usuarios, perfis, projetos, atas] = await Promise.all([
+    carregarUsuarios(storage), carregarPerfis(), lerProjetos(), lerAtas(),
+  ]);
+  const acoes = await lerAcoes();
+  const novos = JSON.parse((await storage.get(CADASTROS_KEY)) || "[]");
+
+  const conta = new Map();
+  const de = (email) => {
+    const e = String(email || "").trim().toLowerCase();
+    if (!e || !e.includes("@")) return null;
+    if (!conta.has(e)) conta.set(e, { email: e, uso: { pesquisa: 0, extensao: 0, atas: 0 } });
+    return conta.get(e);
+  };
+  // 1. quem tem perfil, papel ou cadastro registrado
+  for (const e of Object.keys(perfis)) de(e);
+  for (const e of [...usuarios.gestores, ...usuarios.aprovados, ...Object.keys(usuarios.coordenadores)]) de(e);
+  for (const p of usuarios.pendentes) de(p.email);
+  for (const c of novos) de(c.email);
+  // 2. uso real de cada setor
+  for (const p of projetos) {
+    for (const e of [p.orientador?.email, p.criadoPor, ...(p.alunos || []).map((a) => a.email),
+      ...(p.avaliacoes || []).map((a) => a.email)]) {
+      const c = de(e); if (c) c.uso.pesquisa += 1;
+    }
+  }
+  for (const a of acoes) { const c = de(a?.proposta?.respEmail); if (c) c.uso.extensao += 1; }
+  for (const a of atas) { const c = de(a?.criadoPor); if (c) c.uso.atas += 1; }
+
+  return { conta, usuarios, perfis, novos };
+}
+
+/**
+ * Só as CONTAGENS de usuários — nenhum nome, nenhum e-mail. É o que o
+ * dashboard mostra: quantas contas o portal conhece, quantas já podem
+ * entrar e quantas completaram o próprio cadastro. Fica separada do painel
+ * porque a lista nominal é outro assunto (e outro tamanho de resposta).
+ */
+app.get("/api/usuarios/resumo", async (req, res) => {
+  try {
+    const g = await exigirGestor(req, res); if (!g) return;
+    const { conta, usuarios, perfis } = await contasDoPortal();
+    const emails = [...conta.keys()];
+    const completo = (e) => perfilCompleto(perfis[e], { gestorGeral: ehGestorFixo(e) });
+    const iniciado = (e) => !!String(perfis[e]?.nome || "").trim();
+    const comAcesso = emails.filter((e) => papelDe(e, usuarios) !== "pendente");
+    res.json({
+      total: emails.length,
+      comAcesso: comAcesso.length,
+      pendentes: emails.length - comAcesso.length,
+      perfilCompleto: emails.filter(completo).length,
+      perfilIniciado: emails.filter(iniciado).length,
+      // quem pode entrar E tem o cadastro completo: é o número que diz
+      // quantas pessoas o portal atende de fato, sem etapa pendente
+      prontos: comAcesso.filter(completo).length,
+    });
+  } catch (e) {
+    console.error("Erro no resumo de usuários:", e);
+    res.status(500).json({ error: "Falha ao contar os usuários" });
+  }
+});
+
 app.get("/api/usuarios/painel", async (req, res) => {
   try {
     const g = await exigirGestor(req, res); if (!g) return;
-    const [usuarios, perfis, projetos, atas] = await Promise.all([
-      carregarUsuarios(storage), carregarPerfis(), lerProjetos(), lerAtas(),
-    ]);
-    const acoes = await lerAcoes();
-    const novos = JSON.parse((await storage.get(CADASTROS_KEY)) || "[]");
-
-    const conta = new Map();
-    const de = (email) => {
-      const e = String(email || "").trim().toLowerCase();
-      if (!e || !e.includes("@")) return null;
-      if (!conta.has(e)) conta.set(e, { email: e, uso: { pesquisa: 0, extensao: 0, atas: 0 } });
-      return conta.get(e);
-    };
-    // 1. quem tem perfil, papel ou cadastro registrado
-    for (const e of Object.keys(perfis)) de(e);
-    for (const e of [...usuarios.gestores, ...usuarios.aprovados, ...Object.keys(usuarios.coordenadores)]) de(e);
-    for (const p of usuarios.pendentes) de(p.email);
-    for (const c of novos) de(c.email);
-    // 2. uso real de cada setor
-    for (const p of projetos) {
-      for (const e of [p.orientador?.email, p.criadoPor, ...(p.alunos || []).map((a) => a.email),
-        ...(p.avaliacoes || []).map((a) => a.email)]) {
-        const c = de(e); if (c) c.uso.pesquisa += 1;
-      }
-    }
-    for (const a of acoes) { const c = de(a?.proposta?.respEmail); if (c) c.uso.extensao += 1; }
-    for (const a of atas) { const c = de(a?.criadoPor); if (c) c.uso.atas += 1; }
+    const { conta, usuarios, perfis, novos } = await contasDoPortal();
 
     const quandoNovo = Object.fromEntries(novos.map((c) => [c.email, c.quando]));
     const pendente = Object.fromEntries(usuarios.pendentes.map((p) => [p.email, p.quando]));

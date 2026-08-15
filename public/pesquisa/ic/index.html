@@ -347,6 +347,9 @@ let META = { cursos: [], modalidades: [], status: [], rotulos: {}, gestao: false
 const gruposConhecidos = () => [...(META.certificados || []), ...(META.informados || [])];
 let PROJETOS = [], ETAPAS = [], RELS = { relatorios: [], pendentes: [] };
 let ATUAL = null, PODE = {}, ME = null, SECAO = "painel";
+// contagens de usuários do portal (só gestor geral) — chegam depois do
+// painel desenhado, porque vêm de outra rota; null = ainda não vieram
+let USUARIOS = null;
 // "ver como": a coordenação abre o setor pelos olhos de outra pessoa. Guardado
 // na aba (sessionStorage) para sobreviver ao F5 sem grudar entre sessões.
 let COMO = sessionStorage.getItem("arche-ic-como") || "";
@@ -839,6 +842,7 @@ function renderPainel() {
     </div>
 
     ${cicloAval}
+    ${quadroUsuarios()}
     ${panoramaDoCiclo(meus)}
 
     ${(() => {
@@ -907,6 +911,48 @@ function renderPainel() {
     </div>` : ""}`;
 }
 const chip2 = (s) => `<span class="badge b-${esc(s)}">${esc({ prevista: "prevista", andamento: "em andamento", concluida: "concluída" }[s] || s)}</span>`;
+
+/* ------------------------- usuários do portal --------------------------- */
+/* Quantas contas o ARCHÉ conhece, quantas já podem entrar e quantas
+   completaram o próprio cadastro. É número do PORTAL inteiro, não da IC —
+   por isso vem de rota própria e só para o gestor geral, que é quem
+   responde pela gestão de acessos. Contagens apenas: nenhum nome, nenhum
+   e-mail sai por aqui. */
+function quadroUsuarios() {
+  if (ME?.papel !== "gestor") return "";
+  const u = USUARIOS;
+  const pct = (n) => (u && u.total ? Math.round((n / u.total) * 100) : 0);
+  return `<div class="card">
+    <div class="card-t">Usuários do portal</div>
+    <div class="card-s">Todas as contas que o ARCHÉ conhece — dos quatro setores, não só da IC.
+      ${u ? `<a href="/usuarios/">Abrir a gestão de acessos</a>` : ""}</div>
+    ${!u ? `<div class="vazio">Contando…</div>` : `
+    <div class="kpis" style="margin-bottom:0">
+      <div class="kpi"><div class="l">Usuários cadastrados</div>
+        <div class="v">${u.total}</div>
+        <div class="d">perfis, papéis e quem aparece nos registros</div></div>
+      <div class="kpi"><div class="l">Com acesso ao sistema</div>
+        <div class="v" style="color:var(--ok)">${u.comAcesso}</div>
+        <div class="d" style="color:${u.pendentes ? "var(--warn)" : "var(--muted)"}">${pct(u.comAcesso)}% do total${
+          u.pendentes ? ` · ${u.pendentes} aguardando aprovação` : ""}</div></div>
+      <div class="kpi"><div class="l">Com perfil completo</div>
+        <div class="v">${u.perfilCompleto}</div>
+        <div class="d" style="color:${u.perfilCompleto === u.total ? "var(--ok)" : "var(--warn)"}">${pct(u.perfilCompleto)}% do total${
+          u.perfilIniciado > u.perfilCompleto ? ` · ${u.perfilIniciado - u.perfilCompleto} preencheram só em parte` : ""}</div></div>
+      <div class="kpi"><div class="l">Prontos para usar</div>
+        <div class="v">${u.prontos}</div>
+        <div class="d">com acesso <b>e</b> cadastro completo</div></div>
+    </div>`}
+  </div>`;
+}
+
+async function carregarUsuariosDoPortal() {
+  if (ME?.papel !== "gestor" || USUARIOS) return;
+  try {
+    USUARIOS = await api("/api/usuarios/resumo");
+    if (SECAO === "painel") renderPainel();
+  } catch { /* sem o resumo o painel segue igual — é um quadro a mais */ }
+}
 
 /* ------------------------- panorama do ciclo ---------------------------- */
 /* O que a coordenação precisa acompanhar sem abrir projeto por projeto:
@@ -3557,6 +3603,9 @@ async function excluir() {
   montarSidebar();
   montarVerComo();
   nav("painel");
+  // as contagens do portal vêm depois: são de outra rota e não podem
+  // atrasar a abertura do setor
+  carregarUsuariosDoPortal();
 })();
 </script>
 <script src="/assets/arche-nav.js" defer></script>

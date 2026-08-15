@@ -452,6 +452,13 @@ public/
   acento, caixa e espaço), para o mesmo grupo não virar duas linhas na lista. Grupo e
   planilha de produção **seguem editáveis depois da submissão** — são fato sobre o
   projeto, não argumento da proposta, e os 33 importados chegaram sem os dois.
+- **Usuários do portal no Painel** (`GET /api/usuarios/resumo` + `quadroUsuarios`, só gestor
+  geral): quantas contas o ARCHÉ conhece, quantas já **podem entrar**, quantas têm o
+  **perfil completo** (a mesma régua de `faltaNoPerfil`, a que barra a entrada nos setores)
+  e quantas estão **prontas** — com acesso e cadastro completo. É número do PORTAL inteiro,
+  não da IC, e a rota devolve **só contagens**: nenhum nome, nenhum e-mail. A união de
+  contas é a mesma do painel de usuários (`contasDoPortal`) — duas contagens diferentes de
+  "quantos usuários temos" seria pior que nenhuma.
 - **Panorama do ciclo no Painel** (`panoramaDoCiclo`, só gestão): o acompanhamento que
   antes exigia abrir projeto por projeto — **professores que já indicaram aluno** (sobre o
   total de aprovados), **alunos indicados**, **cadastros enviados** (quantos completaram os
