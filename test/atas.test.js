@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import zlib from "node:zlib";
 import {
   numeroAta, proximoSequencial, numerar, serieDe, siglaCurso, normalizarAta,
-  validarAta, tituloDe, quorum, encaminhamentos, anotar, orgaoDe,
+  validarAta, tituloDe, quorum, encaminhamentos, anotar, orgaoDe, avisosDaAta,
 } from "../lib/atas.js";
 import { extenso, dataExtenso, horaExtenso, redigirPorModelo, provedorAtivo, fichaDaReuniao } from "../lib/redator.js";
 import { hojeLocalISO, somaDias } from "../lib/datas.js";
@@ -492,4 +492,62 @@ test("o fluxo tem três situações e as extintas migram para minuta", async () 
   assert.equal(antiga.status, "minuta");
   const registrada = normalizarAta({ ...bruta(), status: "registrada" });
   assert.equal(registrada.status, "registrada", "o que já estava registrado continua registrado");
+});
+
+/* ------------------- avisos antes de registrar --------------------------- */
+/* `validarAta` diz o que FALTA e trava; `avisosDaAta` diz o que está
+   ESTRANHO e não trava. Registrar é ato do órgão — o sistema aponta a
+   incoerência e deixa a decisão com quem se reuniu. */
+test("ata coerente não gera aviso nenhum", () => {
+  assert.deepEqual(avisosDaAta(nova()), []);
+});
+
+test("quem presidiu ou secretariou tem de constar como presente", () => {
+  const a = nova({ presidencia: { nome: "Prof. Fantasma", cargo: "Coordenador" } });
+  const tipos = avisosDaAta(a).map((x) => x.tipo);
+  assert.ok(tipos.includes("presidencia-ausente"));
+  // ausente na lista também conta como não presente
+  const b = nova({
+    participantes: [
+      { nome: "Profa. Camila", condicao: "membro", presenca: "presente" },
+      { nome: "Prof. Lucas", condicao: "membro", presenca: "ausente" },
+      { nome: "Profa. Marta", condicao: "membro", presenca: "presente" },
+    ],
+  });
+  assert.ok(avisosDaAta(b).some((x) => x.tipo === "secretaria-ausente"));
+});
+
+test("votos não podem passar do número de presentes", () => {
+  const a = nova({ pauta: [{ titulo: "Reforma do PPC", discussao: "d", deliberacao: "Aprovada.",
+    votacao: { houve: true, favor: 5, contra: 1, abstencoes: 0 } }] });
+  const av = avisosDaAta(a).find((x) => x.tipo === "votos-acima-do-quorum");
+  assert.ok(av, "6 votos com 2 presentes tem de avisar");
+  assert.match(av.texto, /6 voto\(s\) registrado\(s\) para 2 presente\(s\)/);
+  // votação marcada e zerada é o outro engano comum
+  const b = nova({ pauta: [{ titulo: "X", discussao: "d", deliberacao: "ok",
+    votacao: { houve: true, favor: 0, contra: 0, abstencoes: 0 } }] });
+  assert.ok(avisosDaAta(b).some((x) => x.tipo === "votacao-sem-votos"));
+});
+
+test("discussão sem deliberação e encaminhamento sem prazo aparecem", () => {
+  const a = nova({ pauta: [
+    { titulo: "Calendário", discussao: "Debateu-se o calendário.", deliberacao: "" },
+    { titulo: "Estágio", discussao: "d", deliberacao: "Aprovado.",
+      encaminhamento: { acao: "Revisar o convênio", responsavel: "", prazo: "" } },
+  ] });
+  const av = avisosDaAta(a);
+  assert.ok(av.some((x) => x.tipo === "sem-deliberacao" && x.ponto === 1));
+  const enc = av.find((x) => x.tipo === "encaminhamento-incompleto");
+  assert.equal(enc.ponto, 2);
+  assert.match(enc.texto, /sem responsável e sem prazo/);
+  // encaminhamento completo não avisa
+  assert.ok(!avisosDaAta(nova({ pauta: [{ titulo: "T", discussao: "d", deliberacao: "ok",
+    encaminhamento: { acao: "a", responsavel: "Lucas", prazo: "2026-12-01" } }] }))
+    .some((x) => x.tipo === "encaminhamento-incompleto"));
+});
+
+test("aviso não é erro: a ata com avisos continua válida", () => {
+  const a = nova({ sessao: { ...bruta().sessao, horaFim: "" } });
+  assert.ok(avisosDaAta(a).some((x) => x.tipo === "sem-encerramento"));
+  assert.deepEqual(validarAta(a), [], "o horário de término não é obrigatório");
 });

@@ -614,6 +614,23 @@ public/
   alteração fica no histórico. O que não se pode é rebaixá-la — isso apagaria em silêncio
   a prova de conformidade do órgão. Só ata registrada conta no checklist da Pauta
   Regulatória. Toda leitura/gravação passa por `/api/atas/*`.
+- **A ata digitada não se perde** (`AUTO`/`sujou`/`autoSalvar` na SPA das atas): registrar
+  uma reunião é meia hora de digitação, e antes ela só existia no navegador até alguém
+  clicar em "Salvar". Agora o **rascunho se grava sozinho** 4s depois da última tecla, um
+  selo ao lado do título diz o estado (*alterações não salvas · salvando… · tudo salvo*),
+  e sair da aba ou mudar de guia com texto por gravar avisa. A gravação automática **não
+  entra no histórico** (`auto: true` no POST): uma linha a cada poucos segundos apagaria
+  quem redigiu, quem aprovou e quem registrou. Só grava o que o servidor aceita como
+  rascunho — sem órgão (e sem curso, nos órgãos por curso) não há onde arquivar, e aí a
+  defesa é o aviso. Ata **registrada** nunca se grava sozinha: mexer em documento vigente
+  é ato deliberado, e passa pelo botão.
+- **Avisos antes de registrar** (`avisosDaAta` em lib/atas.js): `validarAta` diz o que
+  FALTA e trava; isto diz o que está ESTRANHO e não trava — votos acima do número de
+  presentes, votação marcada e zerada, quem presidiu ou secretariou fora da lista de
+  presença, ponto discutido sem deliberação, encaminhamento sem responsável ou sem prazo,
+  sessão sem horário de término. Cada aviso aponta a incoerência entre dois campos
+  preenchidos em momentos diferentes, que é onde o erro mora. Registrar continua sendo
+  ato do órgão: o sistema mostra e pergunta, não decide.
 - **O ARCHÉ AT não envia e-mail.** A ata vive no sistema: PDF gerado sob demanda em
   `/api/atas/:id/pdf` e cópia arquivada no Drive ao registrar. Quem precisa do documento
   entra e baixa. (A Extensão continua enviando e-mails; a regra é só das atas.)

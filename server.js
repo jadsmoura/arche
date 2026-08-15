@@ -1917,7 +1917,17 @@ app.post("/api/atas", async (req, res) => {
         if (erros.length) return { erro: [400, erros.join(" ")], gravar: false };
         ata = numerar(atas, ata);
       }
-      ata = anotar(ata, { quem: u.email, oQue: base ? `editou (${ata.status})` : "abriu a reunião" });
+      // A gravação AUTOMÁTICA do rascunho não é ato editorial: ela acontece
+      // a cada poucos segundos enquanto a pessoa digita, e uma linha de
+      // histórico por vez encheria o registro e apagaria o que interessa
+      // (quem redigiu, quem aprovou, quem registrou). A abertura da reunião
+      // continua marcada — é o começo do documento.
+      const automatica = b.auto === true && base && ata.status === "rascunho";
+      if (!automatica) {
+        ata = anotar(ata, { quem: u.email, oQue: base ? `editou (${ata.status})` : "abriu a reunião" });
+      } else {
+        ata = { ...ata, atualizadoEm: new Date().toISOString() };
+      }
 
       if (i >= 0) atas[i] = ata; else atas.push(ata);
       return { ata };

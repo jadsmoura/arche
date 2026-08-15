@@ -361,6 +361,9 @@
       <div class="limite">
         <h1 id="titulo">Painel</h1>
         <div class="sub" id="subtitulo">Atas das reuniões dos órgãos colegiados.</div>
+        <!-- estado da gravação automática: quem digita precisa saber se o
+             que escreveu já está gravado, sem clicar em nada para descobrir -->
+        <div id="selo-auto" style="font-size:12px;font-weight:600;margin:-2px 0 6px;min-height:15px"></div>
         <div id="aviso"></div>
 
         <section id="v-painel" class="hide"></section>
@@ -426,7 +429,16 @@ function montarSidebar() {
 }
 
 function nav(secao, id) {
+  // sair do editor com texto por gravar: o rascunho se salva sozinho, mas
+  // pode faltar o órgão (sem ele o servidor não tem onde arquivar) — aí a
+  // única defesa é perguntar antes de descartar
+  if (AUTO.sujo && ["nova", "ata"].includes(SECAO) && secao !== SECAO) {
+    if (podeAutoSalvar()) { autoSalvar(); }
+    else if (!confirm("Esta reunião ainda não tem órgão definido, então não pôde ser salva.\n\nSair agora descarta o que você digitou. Continuar?")) return;
+    else AUTO.sujo = false;
+  }
   SECAO = secao;
+  if (!["nova", "ata"].includes(secao)) selo("");
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === secao);
   for (const v of ["painel", "nova", "arquivo", "encaminhamentos", "regulatoria", "conformidade", "ata"]) $("v-" + v).classList.add("hide");
   // "nova" e "ata" usam o mesmo editor (mesmos ids): a seção que sai do ar é
@@ -1437,8 +1449,11 @@ function cardMinuta(a) {
 }
 
 /* -------------------------- edição dos campos --------------------------- */
-const campo = (k, v) => { ATUAL[k] = v; };
-const sub = (grupo, k, v) => { ATUAL[grupo] = ATUAL[grupo] || {}; ATUAL[grupo][k] = v; };
+/* Toda escrita passa por aqui, e é aqui que a ata fica "suja". Registrar
+   uma reunião é meia hora de digitação: fechar a aba sem querer, clicar
+   noutra guia ou perder a sessão não pode apagar isso. */
+const campo = (k, v) => { ATUAL[k] = v; sujou(); };
+const sub = (grupo, k, v) => { ATUAL[grupo] = ATUAL[grupo] || {}; ATUAL[grupo][k] = v; sujou(); };
 
 function renderParticipantes() {
   const tb = $("tb-part"); if (!tb) return;
@@ -1460,11 +1475,11 @@ function renderParticipantes() {
     + `${p.filter((x) => x.presenca === "justificada").length} com falta justificada · `
     + `${p.filter((x) => x.presenca === "ausente").length} ausente(s)`;
 }
-const setPart = (i, k, v) => { ATUAL.participantes[i][k] = v; };
-function rmPart(i) { ATUAL.participantes.splice(i, 1); renderParticipantes(); }
+const setPart = (i, k, v) => { ATUAL.participantes[i][k] = v; sujou(); };
+function rmPart(i) { ATUAL.participantes.splice(i, 1); sujou(); renderParticipantes(); }
 function addParticipante() {
   ATUAL.participantes.push({ nome: "", cargo: "", email: "", condicao: "membro", presenca: "presente" });
-  renderParticipantes();
+  sujou(); renderParticipantes();
   const campos = $("tb-part").querySelectorAll("input");
   campos[campos.length - 4]?.focus();
 }
@@ -1607,14 +1622,14 @@ function renderPauta() {
     </div>
   </div>`).join("");
 }
-const setPonto = (i, k, v) => { ATUAL.pauta[i][k] = v; };
-const setVoto = (i, k, v) => { ATUAL.pauta[i].votacao = ATUAL.pauta[i].votacao || {}; ATUAL.pauta[i].votacao[k] = v; };
-const setEnc = (i, k, v) => { ATUAL.pauta[i].encaminhamento = ATUAL.pauta[i].encaminhamento || {}; ATUAL.pauta[i].encaminhamento[k] = v; };
+const setPonto = (i, k, v) => { ATUAL.pauta[i][k] = v; sujou(); };
+const setVoto = (i, k, v) => { ATUAL.pauta[i].votacao = ATUAL.pauta[i].votacao || {}; ATUAL.pauta[i].votacao[k] = v; sujou(); };
+const setEnc = (i, k, v) => { ATUAL.pauta[i].encaminhamento = ATUAL.pauta[i].encaminhamento || {}; ATUAL.pauta[i].encaminhamento[k] = v; sujou(); };
 function addPonto() {
   ATUAL.pauta.push({ titulo: "", discussao: "", deliberacao: "", votacao: { houve: false, favor: 0, contra: 0, abstencoes: 0 }, encaminhamento: { acao: "", responsavel: "", prazo: "" } });
-  renderPauta();
+  sujou(); renderPauta();
 }
-function rmPonto(i) { ATUAL.pauta.splice(i, 1); renderPauta(); }
+function rmPonto(i) { ATUAL.pauta.splice(i, 1); sujou(); renderPauta(); }
 
 /* --------------------------------- ações -------------------------------- */
 function aviso(texto, tipo = "ok") {
@@ -1623,15 +1638,92 @@ function aviso(texto, tipo = "ok") {
   el.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 async function salvar({ silencioso = false } = {}) {
+  clearTimeout(AUTO.timer);
   const r = await api("/api/atas", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ATUAL),
   });
   ATUAL = r.ata;
+  AUTO.sujo = false; selo("salva");
   await carregar();
   if (SECAO === "nova") nav("ata");
   if (!silencioso) { cabecalho(); renderEditor("v-ata"); aviso("Ata salva.", "ok"); }
   return ATUAL;
 }
+
+/* ------------------------- não perder a digitação ------------------------
+   Registrar uma reunião é meia hora de digitação. Antes, ela só existia no
+   navegador até alguém clicar em "Salvar" — fechar a aba, clicar noutra
+   guia ou cair a sessão apagava tudo. Agora o rascunho se grava sozinho
+   alguns segundos depois da última tecla, e o que ainda não foi gravado
+   avisa antes de sair. */
+const AUTO = { sujo: false, timer: null, salvando: false, ESPERA: 4000 };
+
+function sujou() {
+  AUTO.sujo = true;
+  selo("pendente");
+  clearTimeout(AUTO.timer);
+  AUTO.timer = setTimeout(autoSalvar, AUTO.ESPERA);
+}
+
+// o mínimo para o servidor aceitar o rascunho: sem órgão (e sem curso, nos
+// órgãos que são por curso) não há o que numerar nem onde arquivar
+const podeAutoSalvar = () => !!(ATUAL?.orgao && (!orgaoPorCurso(ATUAL.orgao) || ATUAL.curso));
+
+async function autoSalvar() {
+  if (!AUTO.sujo || AUTO.salvando || !PODE_EDITAR || !ATUAL) return;
+  // ata já registrada não se grava sozinha: alterar documento vigente é ato
+  // deliberado de quem a lavrou, e passa pelo botão
+  if (ATUAL.status === "registrada" || !podeAutoSalvar()) return;
+  AUTO.salvando = true;
+  selo("salvando");
+  try {
+    const r = await api("/api/atas", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...ATUAL, auto: true }),
+    });
+    // só o que o servidor decide entra de volta: trocar ATUAL inteiro
+    // apagaria o que foi digitado enquanto a gravação ia e voltava
+    ATUAL.id = r.ata.id;
+    ATUAL.numero = r.ata.numero;
+    ATUAL.status = r.ata.status;
+    ATUAL.atualizadoEm = r.ata.atualizadoEm;
+    AUTO.sujo = false;
+    selo("salva");
+    // a primeira gravação cria a ata: a partir daí a tela é a da ata aberta,
+    // e o histórico do navegador não pode voltar para um formulário vazio
+    if (SECAO === "nova") { SECAO = "ata"; for (const b of document.querySelectorAll(".side-item")) b.classList.remove("on"); }
+    carregar().catch(() => {});
+  } catch (e) {
+    selo("erro", e.message);
+  } finally {
+    AUTO.salvando = false;
+  }
+}
+
+/* O selo discreto ao lado do título: quem digita precisa saber se o que
+   escreveu já está gravado — sem ter de clicar em nada para descobrir. */
+function selo(estado, detalhe = "") {
+  const el = $("selo-auto"); if (!el) return;
+  const mapa = {
+    pendente: ["alteracoes não salvas", "var(--warn)"],
+    salvando: ["salvando…", "var(--muted)"],
+    salva: ["tudo salvo", "var(--ok)"],
+    erro: [`não foi possível salvar${detalhe ? ": " + detalhe : ""}`, "var(--err)"],
+  };
+  const [txt, cor] = mapa[estado] || ["", "var(--muted)"];
+  el.textContent = estado === "pendente" ? "alterações não salvas" : txt;
+  el.style.color = cor;
+  el.title = estado === "pendente"
+    ? "O rascunho se grava sozinho alguns segundos depois da última tecla."
+    : (detalhe || "");
+}
+
+// fechar a aba com texto por gravar
+window.addEventListener("beforeunload", (e) => {
+  if (!AUTO.sujo) return;
+  e.preventDefault();
+  e.returnValue = "";
+});
 async function redigir(refazer) {
   if (refazer && !confirm("Reescrever a minuta descarta o texto atual. Continuar?")) return;
   try {
@@ -1655,8 +1747,48 @@ async function mudarStatus(status) {
     aviso(status === "rascunho" ? "Ata devolvida para rascunho." : "Situação atualizada.", "ok");
   } catch (e) { aviso(e.message, "err"); }
 }
+/* O que não impede o registro, mas quase sempre é engano de digitação:
+   votos acima do número de presentes, quem presidiu fora da lista de
+   presença, ponto discutido e não deliberado, encaminhamento sem prazo.
+   Aparece ANTES de registrar, porque depois a ata já é documento — e a
+   decisão continua sendo de quem lavrou, não do sistema. */
+function avisosDaAtaLocal(a) {
+  const avisos = [];
+  const presentes = (a.participantes || []).filter((p) => p.presenca === "presente");
+  const nomes = presentes.map((p) => String(p.nome || "").trim().toLowerCase()).filter(Boolean);
+  const cmp = (v) => String(v || "").trim().toLowerCase();
+  if (cmp(a.presidencia?.nome) && !nomes.includes(cmp(a.presidencia.nome)))
+    avisos.push(`${a.presidencia.nome} presidiu a sessão, mas não consta como presente na lista de participantes.`);
+  if (cmp(a.secretaria?.nome) && !nomes.includes(cmp(a.secretaria.nome)))
+    avisos.push(`${a.secretaria.nome} secretariou a sessão, mas não consta como presente na lista.`);
+  (a.pauta || []).forEach((p, i) => {
+    const t = String(p.titulo || "").trim() || `Ponto ${i + 1}`;
+    const v = p.votacao || {};
+    if (v.houve) {
+      const votos = (+v.favor || 0) + (+v.contra || 0) + (+v.abstencoes || 0);
+      if (votos > presentes.length) avisos.push(`“${t}”: ${votos} voto(s) para ${presentes.length} presente(s).`);
+      if (!votos) avisos.push(`“${t}”: a votação está marcada, mas nenhum voto foi contado.`);
+    }
+    if (String(p.discussao || "").trim() && !String(p.deliberacao || "").trim())
+      avisos.push(`“${t}”: há discussão registrada, mas nenhuma deliberação.`);
+    const e = p.encaminhamento || {};
+    if (String(e.acao || "").trim()) {
+      const falta = [!String(e.responsavel || "").trim() && "responsável",
+        !String(e.prazo || "").trim() && "prazo"].filter(Boolean);
+      if (falta.length) avisos.push(`“${t}”: encaminhamento sem ${falta.join(" e sem ")} — assim ele não volta à mesa.`);
+    }
+  });
+  if (a.sessao?.horaInicio && !a.sessao?.horaFim) avisos.push("A sessão está sem horário de término.");
+  return avisos;
+}
+
 async function registrar() {
   const jaRegistrada = ATUAL.status === "registrada";
+  const avisos = avisosDaAtaLocal(ATUAL);
+  if (avisos.length && !confirm(
+    `Confira antes de registrar — ${avisos.length} ponto(s) que parecem engano de digitação:\n\n`
+    + avisos.map((x) => "• " + x).join("\n")
+    + "\n\nNada disso impede o registro. Registrar assim mesmo?")) return;
   const pergunta = jaRegistrada
     ? "Gerar o PDF corrigido? A versão anterior continua arquivada no Drive, ao lado da nova."
     : "Registrar a ata? Ela passa a valer como documento do órgão — correções posteriores ficam no histórico.";
