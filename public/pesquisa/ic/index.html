@@ -1920,9 +1920,15 @@ function renderProducao(p, editavel) {
 
   return `<div class="card">
     <div class="card-t">Produção acadêmica do coordenador</div>
-    <div class="card-s">Planilha de pontuação do edital (${esc(ed.producaoDe || "2022")} a ${esc(ed.producaoAte || "2026")}),
-      conferida contra o currículo Lattes. A pontuação entra <b>em valor absoluto</b> na classificação:
+    <div class="card-s">Planilha de pontuação do edital, conferida contra o currículo Lattes.
+      A pontuação entra <b>em valor absoluto</b> na classificação:
       nota final = nota do projeto (0–100) + currículo (0–100).</div>
+
+    <div class="banner ba-warn" style="margin:10px 0">
+      <b>Informe apenas a produção dos últimos ${(Number(ed.producaoAte) - Number(ed.producaoDe) + 1) || 5} anos
+      — de ${esc(ed.producaoDe || "2022")} a ${esc(ed.producaoAte || "2026")}.</b>
+      O edital (item 7.3) computa só esse período, e conta o que estiver publicado no Lattes até o
+      último dia das inscrições — mantenha o currículo atualizado.</div>
 
     ${!preenchida && META.producaoAnterior && editavel ? `<div class="banner ba-info">
       Você já preencheu esta planilha em outro projeto.
