@@ -396,8 +396,15 @@ public/
   parecer entra na média que forma a NP como qualquer outro e fica no mesmo sigilo: a
   orientação segue vendo só as contagens e a decisão.
 - **Resultado do processo em PDF** (`gerarResultadoEditalPdf`, `GET /api/ic/resultado.pdf`):
-  documento timbrado com o resumo do processo e a lista dos projetos daquele
-  edital, com os **dois quadros** (doutores; geral) em ordem de nota final. Filtra pelo
+  documento timbrado com o resumo do processo e a lista dos projetos daquele edital,
+  apresentada **por categoria de bolsa** (pedido do dono, ago/2026) — um quadro por
+  modalidade, na ordem do catálogo, e dentro de cada um a ordem de mérito. No FINAL a
+  categoria é a **bolsa concedida**; no PRELIMINAR ela ainda não existe, então o agrupamento
+  é pela **modalidade pretendida** e o rótulo diz isso, para o documento não prometer bolsa
+  que a cota ainda não definiu. O **curso é coluna** (era uma linha cinza sob o título), no
+  lugar da coluna "Resultado", que virou redundante — o resultado é o título do quadro.
+  Depois dos quadros por categoria vêm os **dois quadros de mérito** (doutores; geral) em
+  ordem de nota final. Filtra pelo
   campo `edital` do projeto — é o que faz o histórico dos editais antigos sair pelo mesmo
   lugar. **Proposta sem nota de projeto sai sem nota final**, nunca com zero: num documento
   oficial, zero seria nota, e o que existe é ausência de avaliação (por isso

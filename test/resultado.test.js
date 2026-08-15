@@ -75,17 +75,67 @@ test("doutores no primeiro quadro; o geral tem todos, na ordem da nota final", a
   });
   const t = textoDoPdf(buf);
   const pos = (n, aPartir = 0) => t.findIndex((x, i) => i >= aPartir && x.includes(n));
+  // os quadros por categoria vêm primeiro; a ordem de mérito, depois deles
+  const capDoutores = pos("professores doutores");
+  const capGeral = pos("Classificação geral");
+  assert.ok(capDoutores > 0 && capGeral > capDoutores, "os dois quadros de mérito continuam no documento");
   // quadro dos doutores: só B e C, B antes (170 > 120)
-  const d11 = pos("IC-2026-011"), d12 = pos("IC-2026-012");
-  assert.ok(d11 >= 0 && d12 > d11, "no quadro dos doutores, B (170) vem antes de C (120)");
-  assert.ok(pos("IC-2026-010") > d12, "o mestre só aparece depois, no quadro geral");
+  const d11 = pos("IC-2026-011", capDoutores), d12 = pos("IC-2026-012", capDoutores);
+  assert.ok(d11 > capDoutores && d12 > d11, "no quadro dos doutores, B (170) vem antes de C (120)");
+  assert.ok(pos("IC-2026-010", capDoutores) > capGeral, "o mestre não entra no quadro dos doutores");
   // quadro geral: B (170) > C (120) > A (110) > D (sem nota)
-  const g11 = pos("IC-2026-011", d12 + 1);
+  const g11 = pos("IC-2026-011", capGeral);
   const g12 = pos("IC-2026-012", g11 + 1);
-  const g10 = pos("IC-2026-010", d12 + 1);
-  const g01 = pos("IC-2026-001", d12 + 1);
-  assert.ok(g11 > 0 && g12 > g11 && g10 > g12 && g01 > g10,
+  const g10 = pos("IC-2026-010", g12 + 1);
+  const g01 = pos("IC-2026-001", g10 + 1);
+  assert.ok(g11 > capGeral && g12 > g11 && g10 > g12 && g01 > g10,
     "no geral: 170, depois 120, depois 110, e sem nota ao fim");
+});
+
+/* Pedido do dono (ago/2026): o resultado se lê por categoria de bolsa, e o
+   curso é coluna. Quem recebe o documento quer saber quem ficou com cada
+   modalidade — antes isso só se descobria lendo a coluna "Resultado" linha
+   a linha. */
+test("o resultado agrupa por categoria de bolsa e traz a coluna curso", async () => {
+  const { gerarResultadoEditalPdf } = await import("../lib/pdf.js");
+  const buf = await gerarResultadoEditalPdf({
+    edital: EDITAL,
+    projetos: [
+      proj({ numero: "IC-2026-021", curso: "Agronomia", classificacao: { np: 90, cl: 60, total: 150 },
+        fomento: { tipo: "cnpq", modalidade: "pibic-cnpq" } }),
+      proj({ numero: "IC-2026-022", curso: "Enfermagem", classificacao: { np: 70, cl: 40, total: 110 },
+        fomento: { tipo: "uniego", modalidade: "pbic-uniego" } }),
+      proj({ numero: "IC-2026-023", curso: "Direito", classificacao: { np: 60, cl: 30, total: 90 },
+        fomento: { tipo: "voluntario", modalidade: "voluntario" } }),
+    ],
+  });
+  const t = textoDoPdf(buf);
+  const pos = (n) => t.findIndex((x) => x.includes(n));
+  assert.ok(pos("CURSO") > 0, "o cabeçalho da tabela tem a coluna Curso");
+  for (const c of ["Agronomia", "Enfermagem", "Direito"]) assert.ok(pos(c) > 0, `o curso ${c} sai na linha`);
+  // um quadro por categoria, na ordem do catálogo: CNPq, UNIEGO, voluntário
+  // o extrator lê latin1: o travessão do rótulo não sobrevive, então a âncora
+  // é o trecho depois dele
+  const cnpq = pos("PIBIC/CNPq"), uniego = pos("PIBIC/UNIEGO"), vol = pos("sem bolsa");
+  assert.ok(cnpq > 0 && uniego > cnpq && vol > uniego, "os quadros saem na ordem do catálogo de modalidades");
+  // cada projeto aparece sob a sua categoria, antes da ordem de mérito geral
+  assert.ok(pos("IC-2026-021") > cnpq && pos("IC-2026-021") < uniego);
+  assert.ok(pos("IC-2026-022") > uniego && pos("IC-2026-022") < vol);
+});
+
+test("no preliminar o agrupamento é pela modalidade PRETENDIDA, e diz isso", async () => {
+  const { gerarResultadoEditalPdf } = await import("../lib/pdf.js");
+  const buf = await gerarResultadoEditalPdf({
+    edital: EDITAL, fase: "preliminar",
+    projetos: [
+      proj({ numero: "IC-2026-031", modalidade: "pibic-cnpq", classificacao: { np: 90, cl: 60, total: 150 } }),
+      proj({ numero: "IC-2026-032", modalidade: "", classificacao: { np: 70, cl: 40, total: 110 } }),
+    ],
+  });
+  const t = textoDoPdf(buf).join(" ");
+  assert.match(t, /Modalidade pretendida/, "o rótulo diz que a bolsa ainda não foi concedida");
+  assert.match(t, /Sem modalidade pretendida indicada/, "quem não indicou modalidade tem quadro próprio");
+  assert.ok(!/350 mensais/.test(t), "o preliminar não anuncia valor de bolsa");
 });
 
 test("proposta sem nota de projeto sai sem nota final, não com zero", async () => {
