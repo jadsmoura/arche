@@ -321,6 +321,8 @@ const KEYCFG = "extensao-config-v1";
 let GESTAO = false, PROPPEX = false, ME = null;
 let MODO_PROF = sessionStorage.getItem("arche-ex-visao") === "professor";
 let ACOES = [];
+// id da proposta devolvida que está sendo corrigida no formulário (null = nova)
+let EDITANDO = null;
 
 async function stGet(chave){
   const r = await fetch("/api/estado?chave="+encodeURIComponent(chave));
@@ -747,11 +749,15 @@ async function enviarProposta(){
   for(const [id,lab] of obr){ if(!$(id).value.trim()){ $("f-msg").textContent="⚠ Preencha: "+lab; $(id).focus(); return; } }
   $("f-msg").textContent="Enviando…";
   await carregar();
-  ACOES.push({
-    id:"ext-"+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
-    numeroAcao:null, status:"submetida", curso:$("f-curso").value,
-    criadoPor: ME?.email || "", criadoPorNome: ME?.perfil?.nome || ME?.nome || "",
-    criadoEm:new Date().toISOString(), atualizadoEm:new Date().toISOString(),
+  // correção de proposta devolvida: é a MESMA ação, com o mesmo id
+  const base = EDITANDO ? ACOES.find(x=>x.id===EDITANDO) : null;
+  const registro = {
+    id: base?.id || "ext-"+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+    numeroAcao: base?.numeroAcao ?? null, status: base?.status || "submetida",
+    curso:$("f-curso").value,
+    criadoPor: base?.criadoPor || ME?.email || "",
+    criadoPorNome: base?.criadoPorNome || ME?.perfil?.nome || ME?.nome || "",
+    criadoEm: base?.criadoEm || new Date().toISOString(), atualizadoEm:new Date().toISOString(),
     proposta:{
       nomeAtividade:$("f-nome").value.trim(), classificacao:$("f-class").value,
       classificacaoOutro:$("f-class-outro").value.trim(), departamento:$("f-curso").value,
@@ -767,17 +773,39 @@ async function enviarProposta(){
       respNome:$("f-resp-nome").value.trim(), respCargo:$("f-resp-cargo").value.trim(),
       respTelefone:$("f-resp-tel").value.trim(), respEmail:$("f-resp-email").value.trim(),
     },
-    relatorio:{}, participantes:{inscritos:[],palestrantes:[],comissao:[]}, apreciacao:"",
-  });
+    // o que já existe na ação não se perde na correção: relatório,
+    // participantes e apreciação continuam onde estavam
+    relatorio: base?.relatorio || {},
+    participantes: base?.participantes || {inscritos:[],palestrantes:[],comissao:[]},
+    apreciacao: base?.apreciacao || "",
+    anexos: base?.anexos,
+    motivoDevolucao: base?.motivoDevolucao,
+  };
+  if(base){ const i=ACOES.findIndex(x=>x.id===base.id); ACOES[i]=registro; }
+  else ACOES.push(registro);
   await salvar();
-  const nova = ACOES[ACOES.length-1];
+
+  if(base){
+    // a situação quem muda é o servidor: devolvida → submetida, com o
+    // motivo antigo guardado no histórico da ação
+    try{
+      const r=await fetch("/api/extensao/reenviar",{method:"POST",
+        headers:{"Content-Type":"application/json"},body:JSON.stringify({id:base.id})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.error||r.status);
+    }catch(e){ $("f-msg").textContent=""; alert("A proposta foi salva, mas o reenvio falhou: "+e.message); return; }
+  }
   fetch("/api/extensao/notificar",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({id:nova.id})}).catch(()=>{});
+    body:JSON.stringify({id:registro.id})}).catch(()=>{});
   $("f-msg").textContent="";
-  alert("✅ Proposta enviada à PROPPEX!\n\nVocê receberá uma cópia da proposta em PDF no seu e-mail. Acompanhe a situação na aba \"Ações de extensão\". Quando aprovada, ela receberá o Número da Ação.");
-  document.querySelectorAll("#v-nova input,#v-nova textarea").forEach(i=>i.value="");
-  $("f-municipio").value="Goianésia/GO";
-  renderLista(); nav("acoes");
+  alert(base
+    ? "✅ Proposta corrigida e reenviada à PROPPEX!\n\nÉ a mesma ação, agora de volta na fila de análise."
+    : "✅ Proposta enviada à PROPPEX!\n\nVocê receberá uma cópia da proposta em PDF no seu e-mail. Acompanhe a situação na aba \"Ações de extensão\". Quando aprovada, ela receberá o Número da Ação.");
+  const voltarPara = base ? registro.id : null;
+  cancelarCorrecao();
+  await carregar();
+  renderLista();
+  if(voltarPara) nav("detalhe", voltarPara);
 }
 
 /* ============================== LISTA =================================== */
@@ -873,6 +901,12 @@ function quemDeveRelatorio(universo, ano){
   </div>`;
 }
 const fmt=(iso)=>iso?iso.split("-").reverse().join("/"):"—";
+function fmtDataHora(iso){
+  const d=iso?new Date(iso):null;
+  if(!d||isNaN(d)) return "—";
+  const z=(n)=>String(n).padStart(2,"0");
+  return `${z(d.getDate())}/${z(d.getMonth()+1)}/${d.getFullYear()} às ${z(d.getHours())}h${z(d.getMinutes())}`;
+}
 
 /* ============================== DETALHE ================================= */
 function renderDetalhe(id){
@@ -894,7 +928,17 @@ function renderDetalhe(id){
   if(PROPPEX && c3.completa && s==="relatorio-entregue")
     html += `<div class="banner ba-ok">✅ <b>Ação completa (3/3).</b> A lista de participantes está recolhida — exporte a planilha para emitir os certificados no sistema da instituição e depois finalize o fluxo abaixo.</div>`;
   if(s==="devolvida" && a.motivoDevolucao)
-    html += `<div class="banner ba-err">↩ Devolvida para ajustes: ${esc(a.motivoDevolucao)}</div>`;
+    html += `<div class="banner ba-err">↩ <b>Devolvida para ajustes:</b> ${esc(a.motivoDevolucao)}
+      ${!PROPPEX ? `<div style="margin-top:10px"><button class="bt bt-pri" onclick="corrigirProposta('${a.id}')">✏ Corrigir e reenviar</button></div>
+        <div class="muted" style="margin-top:6px">A proposta volta ao formulário com tudo o que você preencheu — é a mesma ação, não abra outra.</div>` : ""}</div>`;
+  // o vaivém da proposta fica registrado: é o que explica, meses depois, por
+  // que uma ação demorou a ser aprovada
+  if((a.devolucoes||[]).length)
+    html += `<details class="banner ba-info" style="display:block"><summary style="cursor:pointer">
+      Devoluções anteriores (${a.devolucoes.length})</summary>
+      ${a.devolucoes.map(d=>`<div class="kv" style="margin-top:6px">↩ ${esc(d.motivo||"")}
+        <span class="muted">— devolvida em ${fmtDataHora(d.em)}${d.reenviadaEm?`, reenviada em ${fmtDataHora(d.reenviadaEm)}`:""}</span></div>`).join("")}
+    </details>`;
   if(s==="pendente" && !PROPPEX)
     html += `<div class="banner ba-warn">⏰ O período da ação terminou — o relatório final está pendente. Preencha a seção "Relatório final" abaixo.</div>`;
   if(s==="submetida" && !PROPPEX)
@@ -1190,11 +1234,96 @@ async function aprovar(id){
   await stSet(KEYCFG, JSON.stringify(cfg)); await salvar();
   alert(`✅ Aprovada!\nNúmero da Ação: ${a.numeroAcao}`); renderLista(); renderDetalhe(id);
 }
+/* Devolver é ato da gestão, e agora fecha o ciclo: quem devolve escreve o
+   motivo, o responsável recebe o e-mail com ele na hora e a proposta volta
+   a ser editável na conta dele. Quem grava é o servidor — o motivo e a
+   situação não podem sair do formulário. */
 async function devolver(id){
   const a=ACOES.find(x=>x.id===id); if(!a)return;
-  const m=prompt("Motivo da devolução (será mostrado ao responsável):"); if(m===null)return;
-  a.status="devolvida"; a.motivoDevolucao=m; a.atualizadoEm=new Date().toISOString();
-  await salvar(); renderLista(); renderDetalhe(id);
+  const m=prompt("Motivo da devolução (vai por e-mail ao responsável e fica registrado):");
+  if(m===null)return;
+  if(m.trim().length<5){ alert("Escreva o motivo — é ele que o professor recebe."); return; }
+  try{
+    const r=await fetch("/api/extensao/devolver",{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify({id,motivo:m.trim()})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    await carregar();
+    alert(j.avisado
+      ? `↩ Devolvida para ajustes.\n\nO responsável foi avisado por e-mail (${j.avisado}) com o motivo e o caminho para corrigir.`
+      : "↩ Devolvida para ajustes.\n\nO e-mail não pôde ser enviado — avise o responsável por outro meio.");
+    renderLista(); renderDetalhe(id);
+  }catch(e){ alert("Não foi possível devolver: "+e.message); }
+}
+
+/* Do lado do professor: a proposta devolvida volta ao formulário com tudo o
+   que ele já havia preenchido. É a MESMA ação — corrigir não pode virar uma
+   proposta nova, senão a PROPPEX passa a ter duas e o histórico se perde. */
+function corrigirProposta(id){
+  const a=ACOES.find(x=>x.id===id); if(!a)return;
+  EDITANDO=id;
+  preencherFormulario(a);
+  nav("nova");
+  $("f-msg").textContent="";
+  window.scrollTo(0,0);
+}
+
+function preencherFormulario(a){
+  const p=a.proposta||{};
+  const por=(id,v)=>{ const el=$(id); if(el) el.value=v??""; };
+  // num <select>, valor que não existe na lista deixaria o campo em branco e
+  // a correção sairia sem o curso — a opção antiga entra de volta na lista
+  const porSelect=(id,v)=>{
+    const el=$(id); if(!el) return;
+    const valor=String(v??"");
+    if(valor && ![...el.options].some(o=>o.value===valor)){
+      el.insertAdjacentHTML("beforeend",`<option value="${esc(valor)}">${esc(valor)}</option>`);
+    }
+    el.value=valor;
+  };
+  porSelect("f-curso",a.curso); por("f-nome",p.nomeAtividade); porSelect("f-class",p.classificacao);
+  por("f-class-outro",p.classificacaoOutro); por("f-tema",p.temaCentral);
+  por("f-inicio",p.periodoInicio); por("f-fim",p.periodoFim); por("f-ch",p.cargaHoraria);
+  por("f-publico",p.publicoAlvo); por("f-local",p.local); por("f-municipio",p.municipio);
+  por("f-justificativa",p.justificativa); por("f-objgeral",p.objetivoGeral);
+  por("f-objesp",p.objetivosEspecificos); por("f-metodologia",p.metodologia);
+  por("f-programacao",p.programacao); por("f-cert",p.certificacaoSolicitada);
+  por("f-comissao",p.comissaoTexto); por("f-parceria",p.parceria);
+  por("f-rec-inst",p.recursoInstalacao); por("f-rec-multi",p.recursoMultimidia);
+  por("f-rec-outros",p.recursoOutros);
+  por("f-resp-nome",p.respNome); por("f-resp-cargo",p.respCargo);
+  por("f-resp-tel",p.respTelefone); por("f-resp-email",p.respEmail);
+  $("f-class-outro-w").classList.toggle("hide", p.classificacao!=="Outro");
+  marcarCorrecao(a);
+}
+
+/* O aviso no topo do formulário: sem ele, o professor abre a tela cheia e
+   não entende por que ela não está em branco. */
+function marcarCorrecao(a){
+  const alvo=$("v-nova").querySelector(".card");
+  const antigo=$("f-correcao"); if(antigo) antigo.remove();
+  if(!a) return;
+  const div=document.createElement("div");
+  div.id="f-correcao"; div.className="banner ba-warn";
+  div.innerHTML=`<b>Corrigindo a proposta “${esc(a.proposta?.nomeAtividade||"")}”.</b>
+    ${a.motivoDevolucao?`<br>Motivo apontado pela PROPPEX: ${esc(a.motivoDevolucao)}`:""}
+    <br>Ajuste o que foi pedido e clique em <b>Reenviar à PROPPEX</b> — é a mesma proposta,
+    com o mesmo histórico. <a href="#" onclick="cancelarCorrecao();return false">Cancelar</a>`;
+  alvo.insertBefore(div, alvo.firstChild);
+  const bt=$("v-nova").querySelector("button.bt-pri");
+  if(bt) bt.textContent="Reenviar à PROPPEX";
+}
+
+function cancelarCorrecao(){
+  EDITANDO=null;
+  document.querySelectorAll("#v-nova input,#v-nova textarea").forEach(i=>i.value="");
+  // o select é remontado: a correção pode ter injetado um curso fora da lista
+  montarForm();
+  $("f-municipio").value="Goianésia/GO";
+  marcarCorrecao(null);
+  const bt=$("v-nova").querySelector("button.bt-pri");
+  if(bt) bt.textContent="Enviar proposta à PROPPEX";
+  nav("acoes");
 }
 async function salvarApreciacao(id){
   const a=ACOES.find(x=>x.id===id); if(!a)return;

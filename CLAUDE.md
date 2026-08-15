@@ -150,6 +150,17 @@ public/
   moldura em branco só confundiria quem vem emitir certificado. A guia diz onde a emissão
   acontece, por que é fora do ARCHÉ, e leva até lá em **nova janela**. O endereço fica em
   `CERTIFICADOS_EXTERNO`, no topo da SPA.
+- **Devolução da proposta é um CICLO** (`POST /api/extensao/devolver` e `/reenviar`,
+  decisão do dono ago/2026): devolver era meio caminho — a PROPPEX escrevia o motivo e
+  ele esperava o professor entrar no portal por acaso; e, quando entrava, não tinha como
+  corrigir, só submeter outra do zero (duas ações na base, histórico perdido). Agora
+  **devolver avisa por e-mail** com o motivo (`emailPropostaDevolvida`), a proposta volta
+  ao formulário **com tudo preenchido** ("Corrigir e reenviar") e o reenvio devolve a
+  MESMA ação à fila. Cada ponta é rota do servidor, com o dono certo: **devolver é da
+  gestão**, **reenviar é de quem submeteu** — o formulário não muda situação (o POST de
+  quem não gere já preserva `status`, `numeroAcao` e `apreciacao`). O vaivém fica em
+  `devolucoes` e aparece recolhido na ação: é o que explica, meses depois, por que uma
+  ação demorou. E-mail que falha não trava a devolução — o motivo já está gravado.
 - Fluxo da Extensão: proposta → aprovação (nº `EXT-AAAA-NNN`) → relatório final →
   participantes (3/3 completa) → certificados → registrada. Não alterar o formato do nº.
 - **Atraso do relatório e ciclo na Extensão** (guia Relatórios): o **ciclo de uma ação é o

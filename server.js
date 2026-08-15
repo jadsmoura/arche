@@ -1372,6 +1372,86 @@ app.post("/api/extensao", async (req, res) => {
   }
 });
 
+/* ---------------------- devolução para ajustes ---------------------------
+   A devolução era meio caminho: a PROPPEX escrevia o motivo, e ele ficava
+   esperando o professor entrar no portal por acaso — e, quando entrava, não
+   tinha como corrigir a proposta, só submeter outra do zero (o que quebrava
+   o histórico e duplicava a ação). Agora a devolução é um CICLO fechado:
+   devolver avisa por e-mail com o motivo, a proposta volta a ser editável
+   pelo dono, e o reenvio devolve a ação à fila da PROPPEX.
+
+   As duas pontas são rotas do SERVIDOR, e não do formulário, porque quem
+   muda situação é a gestão (devolver) e o dono (reenviar) — cada um só na
+   sua ponta. */
+app.post("/api/extensao/devolver", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    if (!gereEx(u)) return res.status(403).json({ error: "Somente a gestão da Extensão devolve propostas." });
+    const motivo = String(req.body?.motivo || "").trim();
+    if (motivo.length < 5) return res.status(400).json({ error: "Escreva o motivo da devolução — é ele que o professor recebe." });
+
+    const r = await comAcoes((acoes) => {
+      const i = acoes.findIndex((a) => a.id === req.body?.id);
+      if (i < 0) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (!["submetida", "devolvida"].includes(acoes[i].status))
+        return { erro: [400, "Só se devolve proposta que está em análise."], gravar: false };
+      acoes[i] = {
+        ...acoes[i], status: "devolvida", motivoDevolucao: motivo.slice(0, 2000),
+        devolvidaEm: new Date().toISOString(), devolvidaPor: u.email,
+        atualizadoEm: new Date().toISOString(),
+      };
+      return { acao: acoes[i] };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+
+    // o e-mail não trava a devolução: se falhar, o motivo já está gravado
+    let avisado = null;
+    try {
+      const { enviarEmail, emailPropostaDevolvida } = await import("./lib/mailer.js");
+      const msg = emailPropostaDevolvida(r.acao, { baseUrl: `${req.protocol}://${req.get("host")}` });
+      if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(msg.para)) avisado = await enviarEmail(msg);
+    } catch (e) {
+      console.error("[extensao] aviso de devolução falhou:", e.message);
+    }
+    res.json({ ok: true, avisado, acao: r.acao });
+  } catch (e) {
+    console.error("Erro ao devolver proposta:", e);
+    res.status(500).json({ error: "Falha ao devolver" });
+  }
+});
+
+/* O reenvio da proposta corrigida: é a MESMA ação, com o histórico inteiro —
+   nada de abrir uma nova e deixar duas na base. */
+app.post("/api/extensao/reenviar", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const r = await comAcoes((acoes) => {
+      const i = acoes.findIndex((a) => a.id === req.body?.id);
+      if (i < 0 || !podeVerAcao(u, acoes[i])) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (!minhaAcao(u, acoes[i]))
+        return { erro: [403, "Quem reenvia a proposta é quem a submeteu."], gravar: false };
+      if (acoes[i].status !== "devolvida")
+        return { erro: [400, "Esta proposta não está devolvida."], gravar: false };
+      const historico = [...(acoes[i].devolucoes || []), {
+        motivo: acoes[i].motivoDevolucao || "", em: acoes[i].devolvidaEm || "",
+        por: acoes[i].devolvidaPor || "", reenviadaEm: new Date().toISOString(),
+      }].slice(-20);
+      acoes[i] = {
+        ...acoes[i], status: "submetida", motivoDevolucao: "", devolucoes: historico,
+        reenviadaEm: new Date().toISOString(), atualizadoEm: new Date().toISOString(),
+      };
+      return { acao: acoes[i] };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, acao: r.acao });
+  } catch (e) {
+    console.error("Erro ao reenviar proposta:", e);
+    res.status(500).json({ error: "Falha ao reenviar" });
+  }
+});
+
 app.post("/api/extensao/notificar", async (req, res) => {
   try {
     const { id } = req.body || {};
