@@ -96,6 +96,27 @@
   input[disabled],select[disabled],textarea[disabled]{background:#f7f9fb;color:var(--ink-soft)}
   .sec-t{font-family:Sora,sans-serif;font-weight:700;font-size:15px;color:var(--ink);margin:22px 0 6px;
     padding-bottom:8px;border-bottom:1px solid var(--line)}
+  /* ações e filtros da lista de projetos: os botões numa linha própria e os
+     recortes num painel em grade — a busca na primeira linha, os demais em
+     colunas uniformes, para nada ficar embaralhado */
+  .acoes-lista{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .painel-filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:8px;
+    background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:14px}
+  .painel-filtros select,.painel-filtros input{width:100%;min-width:0;font-size:13px;padding:8px 10px;margin:0}
+  .painel-filtros .busca{grid-column:1/-1}
+  .painel-filtros .bt{padding:8px 10px;font-size:12.5px}
+  /* quadros de classificação recolhíveis: o panorama primeiro, a tabela num clique */
+  details.quadro{border:1px solid var(--line);border-radius:10px;margin:12px 0;overflow:hidden}
+  details.quadro>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;
+    padding:11px 14px;font-family:Sora,sans-serif;font-weight:700;font-size:13.5px;color:var(--ink);
+    background:var(--wash);user-select:none;transition:background .15s}
+  details.quadro>summary::-webkit-details-marker{display:none}
+  details.quadro>summary:hover{background:var(--accent-wash)}
+  details.quadro>summary .qt{margin-left:auto;font-size:11px;font-weight:600;color:var(--brand-2);
+    background:#fff;border:1px solid var(--line);border-radius:20px;padding:3px 10px;white-space:nowrap}
+  details.quadro>summary .seta{font-size:10px;color:var(--muted);transition:transform .2s}
+  details.quadro[open]>summary .seta{transform:rotate(180deg)}
+  details.quadro>.rolo,details.quadro>.muted{padding:6px 12px 10px}
   .muted{color:var(--muted);font-size:12.5px;font-weight:400}
   .kv{margin:4px 0;font-size:13.5px;color:var(--ink-soft)}
   .kv b{color:var(--ink);font-weight:600}
@@ -248,6 +269,14 @@ let FILTRO = { status: "", curso: "", linha: "", grupo: "", q: "", edital: "", t
 let MANUAL = false;
 // o ciclo (edital) escolhido na guia Projetos — um por vez, começa no vigente
 let CICLO_SEL = "";
+// quadros de classificação expandidos (chave: ciclo|rótulo) — começa tudo
+// recolhido: a guia abre como panorama, e cada tabela sai num clique
+const QUADROS_ABERTOS = new Set();
+// a lista de onde o projeto foi aberto (avaliação, gestão, projetos…):
+// é para onde o "Retornar" leva de volta
+let ORIGEM_LISTA = "gestao";
+// ciclo escolhido na guia Relatórios (gestão) — começa no vigente
+let CICLO_REL = "";
 // idem para a guia Bolsistas e Voluntários — começa no ciclo mais atual
 let CICLO_BV = "";
 
@@ -471,6 +500,9 @@ async function carregar() {
 
 async function abrir(id) {
   try {
+    // guarda de onde se veio, para o "Retornar" voltar à lista certa —
+    // salvar reabre o projeto (SECAO já é "projeto") e a origem não muda
+    if (SECAO && SECAO !== "projeto" && SECAO !== "submissao") ORIGEM_LISTA = SECAO;
     const r = await api("/api/ic/" + id);
     ATUAL = r.projeto; PODE = r;
     // NP/CL/total vem ao lado do projeto (derivado, não gravado)
@@ -635,6 +667,12 @@ function renderPainel() {
 const chip2 = (s) => `<span class="badge b-${esc(s)}">${esc({ prevista: "prevista", andamento: "em andamento", concluida: "concluída" }[s] || s)}</span>`;
 
 /* ------------------------------- gestão -------------------------------- */
+function limparFiltros() {
+  FILTRO = { status: "", curso: "", linha: "", grupo: "", q: "", titulacao: "", bolsa: "",
+    edital: META.edital?.numero || "__todos" };
+  renderGestao();
+}
+
 function renderGestao() {
   // o ciclo em evidência é o ATUAL; os passados só aparecem se escolhidos
   if (!FILTRO.edital) FILTRO.edital = META.edital?.numero || "__todos";
@@ -658,20 +696,40 @@ function renderGestao() {
     (!FILTRO.q || `${p.numero || ""} ${p.titulo} ${p.orientador?.nome || ""} ${(p.alunos || []).map((a) => a.nome).join(" ")}`
       .toLowerCase().includes(FILTRO.q.toLowerCase())));
 
+  // filtro ativo = qualquer recorte além do padrão (o ciclo vigente é o padrão)
+  const filtroAtivo = FILTRO.status || FILTRO.curso || FILTRO.linha || FILTRO.grupo
+    || FILTRO.titulacao || FILTRO.bolsa || FILTRO.q || FILTRO.edital !== (META.edital?.numero || "__todos");
+
   $("v-gestao").innerHTML = `
-    <div class="filtros">
+    <div class="acoes-lista">
+      ${ehAluno() ? "" : `<button class="bt bt-pri" onclick="nav('submissao')">＋ Novo projeto</button>`}
+      ${META.gestao ? `<button class="bt bt-sec" onclick="incluirManualmente()"
+        title="Pedido de inclusão fora do prazo deferido pela pró-reitoria">＋ Incluir por outro professor</button>` : ""}
+      ${META.gestao ? `<button class="bt bt-ghost" onclick="baixarResultado()"
+        title="Documento timbrado com o resultado do processo seletivo">📄 Resultado do processo (PDF)</button>` : ""}
+      ${META.gestao ? `<button class="bt bt-ghost" onclick="convidarProfessores()"
+        title="E-mail aos professores dos projetos importados que ainda não criaram o usuário — o CPF no perfil é o que vincula os projetos">📧 Convidar professores</button>` : ""}
+      ${ME?.papel === "gestor" ? `<button class="bt bt-ghost" onclick="importarEdital(true)" title="Confere o arquivo sem gravar">Importar edital 01/2026</button>` : ""}
+    </div>
+
+    <div class="painel-filtros">
+      <input class="busca" placeholder="🔎 Buscar por número, título, orientação ou aluno" value="${esc(FILTRO.q)}"
+        oninput="FILTRO.q=this.value;clearTimeout(window.__b);window.__b=setTimeout(renderGestao,250)">
+      ${(META.editais || []).length > 1 ? `
+      <select onchange="FILTRO.edital=this.value;renderGestao()" title="Ciclo (edital) a mostrar">
+        ${(META.editais || []).map((e) => `<option value="${esc(e.numero)}" ${FILTRO.edital === e.numero ? "selected" : ""}>Ciclo ${esc(e.numero)}${e.vigente ? " — atual" : ""} · ${e.projetos} projeto(s)</option>`).join("")}
+        <option value="__todos" ${FILTRO.edital === "__todos" ? "selected" : ""}>Todos os ciclos</option>
+      </select>` : ""}
       <select onchange="FILTRO.status=this.value;renderGestao()">
-        <option value="">Todas as situações</option>
+        <option value="">Situação: todas</option>
         ${META.status.map((s) => `<option value="${s}" ${FILTRO.status === s ? "selected" : ""}>${esc(META.rotulos[s] || s)}</option>`).join("")}
       </select>
       <select onchange="FILTRO.curso=this.value;renderGestao()">
-        <option value="">Todos os cursos</option>
+        <option value="">Curso: todos</option>
         ${META.cursos.map((c) => `<option value="${c.slug}" ${FILTRO.curso === c.slug ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}
       </select>
-      <input placeholder="Buscar por número, título, orientação ou aluno" value="${esc(FILTRO.q)}"
-        oninput="FILTRO.q=this.value;clearTimeout(window.__b);window.__b=setTimeout(renderGestao,250)">
       <select onchange="FILTRO.linha=this.value;renderGestao()">
-        <option value="">Todas as linhas</option>
+        <option value="">Linha: todas</option>
         ${META.linhas.map((l) => `<option value="${l.codigo}" ${FILTRO.linha === l.codigo ? "selected" : ""}>${esc(l.nome)}</option>`).join("")}
       </select>
       <select onchange="FILTRO.grupo=this.value;renderGestao()" title="Vínculo com grupo de pesquisa">
@@ -681,7 +739,7 @@ function renderGestao() {
         ${gruposEmUso().map((g) => `<option value="${esc(g)}" ${FILTRO.grupo === g ? "selected" : ""}>${esc(g)}</option>`).join("")}
       </select>
       <select onchange="FILTRO.titulacao=this.value;renderGestao()" title="Titulação de quem orienta">
-        <option value="">Titulação: todos</option>
+        <option value="">Titulação: todas</option>
         <option value="doutor" ${FILTRO.titulacao === "doutor" ? "selected" : ""}>Professores doutores</option>
         <option value="mestre" ${FILTRO.titulacao === "mestre" ? "selected" : ""}>Professores mestres</option>
         <option value="especialista" ${FILTRO.titulacao === "especialista" ? "selected" : ""}>Professores especialistas</option>
@@ -692,19 +750,7 @@ function renderGestao() {
         <option value="uniego" ${FILTRO.bolsa === "uniego" ? "selected" : ""}>Com bolsa UNIEGO</option>
         <option value="sem" ${FILTRO.bolsa === "sem" ? "selected" : ""}>Sem bolsa (voluntários e submissão livre)</option>
       </select>
-      ${(META.editais || []).length > 1 ? `
-      <select onchange="FILTRO.edital=this.value;renderGestao()" title="Ciclo (edital) a mostrar">
-        ${(META.editais || []).map((e) => `<option value="${esc(e.numero)}" ${FILTRO.edital === e.numero ? "selected" : ""}>Ciclo ${esc(e.numero)}${e.vigente ? " — atual" : ""} · ${e.projetos} projeto(s)</option>`).join("")}
-        <option value="__todos" ${FILTRO.edital === "__todos" ? "selected" : ""}>Todos os ciclos</option>
-      </select>` : ""}
-      ${ehAluno() ? "" : `<button class="bt bt-pri" onclick="nav('submissao')">＋ Novo projeto</button>`}
-      ${META.gestao ? `<button class="bt bt-sec" onclick="incluirManualmente()"
-        title="Pedido de inclusão fora do prazo deferido pela pró-reitoria">＋ Incluir por outro professor</button>` : ""}
-      ${META.gestao ? `<button class="bt bt-ghost" onclick="baixarResultado()"
-        title="Documento timbrado com o resultado do processo seletivo">Resultado do processo (PDF)</button>` : ""}
-      ${META.gestao ? `<button class="bt bt-ghost" onclick="convidarProfessores()"
-        title="E-mail aos professores dos projetos importados que ainda não criaram o usuário — o CPF no perfil é o que vincula os projetos">📧 Convidar professores</button>` : ""}
-      ${ME?.papel === "gestor" ? `<button class="bt bt-ghost" onclick="importarEdital(true)" title="Confere o arquivo sem gravar">Importar edital 01/2026</button>` : ""}
+      ${filtroAtivo ? `<button class="bt bt-ghost" onclick="limparFiltros()" title="Volta ao ciclo vigente, sem recortes">✕ Limpar filtros</button>` : ""}
     </div>
     <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">${lista.length} projeto(s)${
       (() => { const n = lista.filter((p) => p.grupoPesquisa).length;
@@ -931,9 +977,14 @@ function renderClassificacao() {
     CICLO_SEL = (editais.find((e) => e.vigente) || editais[0] || {}).numero || "";
   }
 
+  // cada quadro recolhe e expande; o que ficou aberto é lembrado por ciclo
+  // (QUADROS_ABERTOS), para a troca de ciclo não desfazer a arrumação
   const quadro = (rotulo, lista) => {
+    const chave = `${CICLO_SEL}|${rotulo}`;
     let pos = 0;
-    return `<div class="sec-t">${rotulo}</div>
+    return `<details class="quadro"${QUADROS_ABERTOS.has(chave) ? " open" : ""}
+      ontoggle="this.open ? QUADROS_ABERTOS.add('${esc(chave)}') : QUADROS_ABERTOS.delete('${esc(chave)}')">
+    <summary>${rotulo}<span class="qt">${lista.length} proposta(s)</span><span class="seta">▼</span></summary>
     ${lista.length ? `<div class="rolo"><table class="pt">
       <thead><tr><th style="width:4%"></th><th style="width:11%">Protocolo</th><th style="width:24%">Título</th>
         <th style="width:16%">Professor(a)</th><th style="width:9%">Titulação</th><th style="width:13%">Categoria</th>
@@ -956,7 +1007,8 @@ function renderClassificacao() {
           <td>${esc(resultado)}</td>
         </tr>`;
       }).join("")}</tbody>
-    </table></div>` : `<div class="muted" style="margin-bottom:10px">Nenhuma proposta neste quadro.</div>`}`;
+    </table></div>` : `<div class="muted" style="margin-bottom:10px">Nenhuma proposta neste quadro.</div>`}
+    </details>`;
   };
 
   const seletor = `<div class="filtros" style="margin-bottom:14px">
@@ -1135,22 +1187,54 @@ function renderCronograma() {
    a sua situação frente aos prazos do edital — EM DIA ou ATRASADO — e nada
    mais. O relatório completo se lê dentro do projeto, num clique. */
 function renderRelatoriosGestao() {
-  const emExec = PROJETOS.filter((p) => ["aprovado", "concluido"].includes(p.status));
-  const ordem = emExec.slice().sort((a, b) =>
-    (b.prazoRelatorios?.atrasado === true) - (a.prazoRelatorios?.atrasado === true)
-    || String(a.numero || "").localeCompare(String(b.numero || "")));
-  const atrasados = ordem.filter((p) => p.prazoRelatorios?.atrasado).length;
+  // um ciclo por vez, como nas demais guias — o vigente em evidência;
+  // os passados são arquivo: os relatórios aparecem como encerrados
+  const editais = editaisOrdenados();
+  if (!CICLO_REL || !editais.some((e) => e.numero === CICLO_REL)) {
+    CICLO_REL = (editais.find((e) => e.vigente) || editais[0] || {}).numero || "";
+  }
+  const cicloVigente = editais.find((e) => e.numero === CICLO_REL)?.vigente === true;
+  const emExec = PROJETOS.filter((p) => ["aprovado", "concluido"].includes(p.status)
+    && (p.edital || META.edital?.numero) === CICLO_REL);
   const fmtBr = (iso) => iso ? iso.split("-").reverse().join("/") : "—";
+  const hoje = hojeISO();
 
-  const situacao = (p) => {
-    if (p.status === "concluido") return `<span class="badge b-validado">concluído</span>`;
-    if (p.prazoRelatorios?.atrasado) {
-      const quais = p.prazoRelatorios.prazos.filter((x) => x.atrasado)
-        .map((x) => `${x.tipo} (venceu ${fmtBr(x.vence)})`).join(" e ");
-      return `<span class="badge b-atrasada" title="${esc(quais)}">atrasado</span>`;
-    }
-    return `<span class="badge b-aprovado">em dia</span>`;
+  // a situação de UM relatório (parcial ou final) num projeto
+  const prazoDe = (p, tipo) => (p.prazoRelatorios?.prazos || []).find((x) => x.tipo === tipo);
+  const sitTipo = (p, tipo) => {
+    if (p.status === "concluido") return `<span class="badge b-validado">encerrado</span>`;
+    const x = prazoDe(p, tipo);
+    if (!x) return `<span class="badge b-rascunho">—</span>`;
+    if (!x.falta) return `<span class="badge b-validado">entregue</span>`;
+    if (x.atrasado) return `<span class="badge b-atrasada">atrasado · venceu ${fmtBr(x.vence)}</span>`;
+    return hoje < x.abre
+      ? `<span class="badge b-rascunho">abre em ${fmtBr(x.abre)}</span>`
+      : `<span class="badge b-aprovado">em dia · vence ${fmtBr(x.vence)}</span>`;
   };
+
+  const listaTipo = (tipo, rotulo) => {
+    const ordem = emExec.slice().sort((a, b) =>
+      (prazoDe(b, tipo)?.atrasado === true) - (prazoDe(a, tipo)?.atrasado === true)
+      || String(a.numero || "").localeCompare(String(b.numero || "")));
+    const atras = cicloVigente ? ordem.filter((p) => prazoDe(p, tipo)?.atrasado).length : 0;
+    return `<details class="quadro" open>
+      <summary>${rotulo}<span class="qt">${emExec.length} projeto(s)${atras
+        ? ` · ${atras} atrasado(s)` : (cicloVigente ? "" : " · ciclo encerrado")}</span><span class="seta">▼</span></summary>
+      <div style="padding:2px 12px 10px">
+      ${ordem.map((p) => `
+        <div class="linha" style="cursor:pointer" onclick="abrir('${esc(p.id)}')">
+          <div class="txt">
+            <div class="p1">${esc(p.numero || "sem número")} · ${esc(p.titulo || "(sem título)")}</div>
+            <div class="p2">${esc(cursoNome(p.curso))} · orientação: ${esc(p.orientador?.nome || p.orientador?.email || "—")}
+              · ${p.relatorios} relatório(s) no sistema${p.aValidar ? ` · ${p.aValidar} a validar` : ""}</div>
+          </div>
+          ${sitTipo(p, tipo)}
+        </div>`).join("") || `<div class="vazio">Nenhum projeto em execução neste ciclo.</div>`}
+      </div>
+    </details>`;
+  };
+
+  const atrasados = cicloVigente ? emExec.filter((p) => p.prazoRelatorios?.atrasado).length : 0;
 
   $("v-relatorios").innerHTML = `
     <div class="tut"><details><summary>Como os prazos funcionam</summary>
@@ -1161,18 +1245,22 @@ function renderRelatoriosGestao() {
         <li>Clique no projeto para ler os relatórios completos e o histórico.</li>
       </ol></details></div>
 
+    <div class="filtros" style="margin-bottom:14px">
+      <label style="margin:0;display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--muted)">
+        Ciclo
+        <select style="width:auto;min-width:220px" onchange="CICLO_REL=this.value;renderRelatorios()">
+          ${editais.map((e) => `<option value="${esc(e.numero)}" ${CICLO_REL === e.numero ? "selected" : ""}>Edital ${esc(e.numero)}${e.vigente ? " — vigente" : " — encerrado"} · ${e.projetos} projeto(s)</option>`).join("")}
+        </select>
+      </label>
+    </div>
+
     <div class="card">
-      <div class="card-t">Projetos em execução</div>
-      <div class="card-s">${emExec.length} projeto(s)${atrasados ? ` · <b style="color:var(--warn)">${atrasados} atrasado(s)</b>` : " · todos em dia"}.</div>
-      ${ordem.map((p) => `
-        <div class="linha" style="cursor:pointer" onclick="abrir('${esc(p.id)}')">
-          <div class="txt">
-            <div class="p1">${esc(p.numero || "sem número")} · ${esc(p.titulo || "(sem título)")}</div>
-            <div class="p2">${esc(cursoNome(p.curso))} · orientação: ${esc(p.orientador?.nome || p.orientador?.email || "—")}
-              · ${p.relatorios} relatório(s) no sistema${p.aValidar ? ` · ${p.aValidar} a validar` : ""}</div>
-          </div>
-          ${situacao(p)}
-        </div>`).join("") || `<div class="vazio">Nenhum projeto em execução ainda — a guia acompanha os aprovados.</div>`}
+      <div class="card-t">Relatórios do ciclo ${esc(CICLO_REL)}</div>
+      <div class="card-s">${emExec.length} projeto(s)${cicloVigente
+        ? (atrasados ? ` · <b style="color:var(--warn)">${atrasados} atrasado(s)</b>` : " · todos em dia")
+        : " · ciclo encerrado — relatórios do arquivo"}.</div>
+      ${listaTipo("parcial", "Relatório parcial")}
+      ${listaTipo("final", "Relatório final")}
     </div>`;
 }
 
@@ -1253,6 +1341,7 @@ function renderEditor(alvo) {
   const novo = !p.id;
 
   $(alvo).innerHTML = `
+    ${!novo ? `<button class="bt bt-sec" style="margin-bottom:14px" onclick="nav(ORIGEM_LISTA)">← Retornar à lista</button>` : ""}
     ${novo && MANUAL ? `<div class="card">
       <div class="card-t">Inclusão pela coordenação</div>
       <div class="card-s">Para o pedido de inclusão fora do prazo deferido pela pró-reitoria. O projeto
@@ -1420,7 +1509,7 @@ function renderEditor(alvo) {
           <button class="bt bt-sec" onclick="avaliar('devolvido')">Devolver para ajustes</button>
           <button class="bt bt-err" onclick="avaliar('reprovado')">Reprovar</button>` : ""}
         ${p.id && ed && !p.numero ? `<button class="bt bt-ghost" onclick="excluir()">Excluir rascunho</button>` : ""}
-        <button class="bt bt-ghost" onclick="nav('${novo ? "painel" : ehAvaliador() ? "avaliacao" : "gestao"}')">Voltar</button>
+        <button class="bt bt-ghost" onclick="nav(${novo ? "'painel'" : "ORIGEM_LISTA"})">Voltar</button>
       </div>
       ${p.historico?.length ? `<div class="muted" style="margin-top:14px">Último registro: ${esc(p.historico.at(-1).oQue)} — ${esc(p.historico.at(-1).quem)} em ${fmtDH(p.historico.at(-1).quando)}</div>` : ""}
     </div>`;
