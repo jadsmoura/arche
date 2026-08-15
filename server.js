@@ -2880,7 +2880,7 @@ async function migrarAcoesExtensao() {
  * que faz o certificado achar o dono, e nada aqui pode sobrescrever o que a
  * gestão tenha ajustado depois.
  */
-const LOTES_ALUNOS = ["edital-01-2024"];
+const LOTES_ALUNOS = ["edital-01-2024", "edital-01-2025"];
 async function subirAlunosHistoricos() {
   for (const nome of LOTES_ALUNOS) {
     const marca = `sys-ic-alunos-${nome}`;
@@ -2888,16 +2888,34 @@ async function subirAlunosHistoricos() {
       if (await storage.get(marca)) continue;
       const arq = JSON.parse(
         await readFile(path.join(__dirname, "dados", `ic-${nome}-alunos.json`), "utf8"));
+      // COMPLETA o que já existe em vez de substituir: os ciclos antigos
+      // trazem o aluno só pelo nome (veio do resultado publicado), e o termo
+      // acrescenta CPF e e-mail. Campo já preenchido nunca é sobrescrito —
+      // o que a gestão ajustou vale mais que o documento de origem.
+      const chaveNome = (v) => String(v || "").trim().toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
       const r = await comProjetos((projetos) => {
-        let tocados = 0;
+        let tocados = 0, completados = 0, novos = 0;
         for (const [origemId, alunos] of Object.entries(arq.alunos || {})) {
           const i = projetos.findIndex((p) => p.origem?.lote === nome && p.origem?.id === String(origemId));
-          if (i < 0 || (projetos[i].alunos || []).length) continue;
+          if (i < 0) continue;
           const base = projetos[i];
-          projetos[i] = normalizarProjeto({ ...base, alunos }, { base, autor: base.criadoPor || "" });
+          const lista = (base.alunos || []).slice();
+          let mexeu = false;
+          for (const novo of alunos) {
+            const j = lista.findIndex((a) => chaveNome(a.nome) === chaveNome(novo.nome));
+            if (j >= 0) {
+              const antes = lista[j];
+              const junto = { ...antes, cpf: antes.cpf || novo.cpf, email: antes.email || novo.email,
+                curso: antes.curso || novo.curso, bolsista: antes.bolsista || novo.bolsista };
+              if (JSON.stringify(junto) !== JSON.stringify(antes)) { lista[j] = junto; mexeu = true; completados++; }
+            } else { lista.push(novo); mexeu = true; novos++; }
+          }
+          if (!mexeu) continue;
+          projetos[i] = normalizarProjeto({ ...base, alunos: lista }, { base, autor: base.criadoPor || "" });
           tocados++;
         }
-        return { tocados, gravar: tocados > 0 };
+        return { tocados, completados, novos, gravar: tocados > 0 };
       });
       await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), ...r }));
       console.log(`ARCHÉ IC · ${r.tocados} projeto(s) de ${nome} com bolsista nomeado`);

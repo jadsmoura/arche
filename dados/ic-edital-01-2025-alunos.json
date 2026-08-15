@@ -1,0 +1,205 @@
+{
+ "lote": "edital-01-2025",
+ "fonte": "Termos de compromisso PIBIC/CNPq e PBIC/FACEG 2025/2026 (documentos oficiais)",
+ "observacao": "Bolsistas com CPF e e-mail, casados ao projeto pelo orientador e pelo título do plano de trabalho.",
+ "alunos": {
+  "res-2025-5": [
+   {
+    "nome": "Kauane Lorraine Pereira Santos",
+    "cpf": "07775447176",
+    "email": "kauane.12lorraine.122@gmail.com",
+    "curso": "Agronomia",
+    "bolsista": true
+   }
+  ],
+  "res-2025-8": [
+   {
+    "nome": "José Otávio da Silva",
+    "cpf": "70980680123",
+    "email": "jjoseotavio18@gmail.com",
+    "curso": "Agronomia",
+    "bolsista": true
+   }
+  ],
+  "res-2025-3": [
+   {
+    "nome": "Higor Gustavo Vieira Sampaio",
+    "cpf": "71668360160",
+    "email": "higorgustavo.gsia.0@gmail.com",
+    "curso": "Enfermagem",
+    "bolsista": true
+   }
+  ],
+  "res-2025-4": [
+   {
+    "nome": "Hellen Kariny Batista Caixeta",
+    "cpf": "71532756143",
+    "email": "hellemcaryne11@gmail.com",
+    "curso": "Agronomia",
+    "bolsista": true
+   }
+  ],
+  "res-2025-1": [
+   {
+    "nome": "João Pedro Costa Venâncio Camargo",
+    "cpf": "70746504128",
+    "email": "joaopedrocamargogsis@gmail.com",
+    "curso": "Agronomia",
+    "bolsista": true
+   }
+  ],
+  "res-2025-7": [
+   {
+    "nome": "Geovana Francisca Silva",
+    "cpf": "71098196120",
+    "email": "geo053424@gmail.com",
+    "curso": "Agronomia",
+    "bolsista": true
+   }
+  ],
+  "res-2025-6": [
+   {
+    "nome": "Osiel Barbosa Camargo",
+    "cpf": "70968874150",
+    "email": "osielbkamargo@gmail.com",
+    "curso": "Agronomia",
+    "bolsista": true
+   }
+  ],
+  "res-2025-2": [
+   {
+    "nome": "Sophia Laura Pereira Pessoa",
+    "cpf": "07573613156",
+    "email": "sophiapess3@gmail.com",
+    "curso": "Direito",
+    "bolsista": true
+   }
+  ],
+  "res-2025-11": [
+   {
+    "nome": "Paulo linneker Gonçalves",
+    "cpf": "03411666188",
+    "email": "paulolinneker@icloud.com",
+    "curso": "Engenharia Mecânica",
+    "bolsista": true
+   }
+  ],
+  "res-2025-16": [
+   {
+    "nome": "Emilly Vitória Menezes Oliveira",
+    "cpf": "03740868180",
+    "email": "emillymenezess.vet@gmail.com",
+    "curso": "Medicina Veterinária",
+    "bolsista": true
+   }
+  ],
+  "res-2025-13": [
+   {
+    "nome": "Ranniele de Jesus Queiroz",
+    "cpf": "03723809138",
+    "email": "rannielequeiroz2@gmail.com",
+    "curso": "Odontologia",
+    "bolsista": true
+   }
+  ],
+  "res-2025-17": [
+   {
+    "nome": "Maria Eduarda Lemes Lopes",
+    "cpf": "03012339183",
+    "email": "mariaeduardalemes.faceg@gmail.com",
+    "curso": "Direito",
+    "bolsista": true
+   }
+  ],
+  "res-2025-22": [
+   {
+    "nome": "Leticia Mirelle Silva",
+    "cpf": "06751321180",
+    "email": "leticia.mirelle15@gmail.com",
+    "curso": "Odontologia",
+    "bolsista": true
+   }
+  ],
+  "res-2025-15": [
+   {
+    "nome": "Glenda Santos Oliveira",
+    "cpf": "70722893132",
+    "email": "glendasantos144@gmail.com",
+    "curso": "Direito",
+    "bolsista": true
+   }
+  ],
+  "res-2025-18": [
+   {
+    "nome": "Beatriz Araújo Borges",
+    "cpf": "71221477110",
+    "email": "biaborges799@gmail.com",
+    "curso": "Agronomia",
+    "bolsista": true
+   }
+  ],
+  "res-2025-9": [
+   {
+    "nome": "Isaque Gabriel Esmeraldo Ferreira",
+    "cpf": "70633948195",
+    "email": "isaquegabriel1324@gmail.com",
+    "curso": "Engenharia Mecânica",
+    "bolsista": true
+   }
+  ],
+  "res-2025-10": [
+   {
+    "nome": "Michelle Cabral França",
+    "cpf": "03418275176",
+    "email": "cabral-psi@hotmail.com",
+    "curso": "Odontologia",
+    "bolsista": true
+   }
+  ],
+  "res-2025-14": [
+   {
+    "nome": "Gabriella Leticia Teixeira Santos",
+    "cpf": "70964195194",
+    "email": "gabi.leticia1004@gmail.com",
+    "curso": "Direito",
+    "bolsista": true
+   }
+  ],
+  "res-2025-20": [
+   {
+    "nome": "Jean Carlos Ferreira",
+    "cpf": "04249081150",
+    "email": "84845057j@gmail.com",
+    "curso": "Agronomia",
+    "bolsista": true
+   }
+  ],
+  "res-2025-19": [
+   {
+    "nome": "Artur Carvalho",
+    "cpf": "05366829178",
+    "email": "arturcarvalhoorlando17@gmail.com",
+    "curso": "Engenharia Mecânica",
+    "bolsista": true
+   }
+  ],
+  "res-2025-21": [
+   {
+    "nome": "Maria Júlia Rodrigues Melo",
+    "cpf": "04152811137",
+    "email": "mariajuliarodriguesmelo@gmail.com",
+    "curso": "Direito",
+    "bolsista": true
+   }
+  ],
+  "res-2025-12": [
+   {
+    "nome": "Marcos Leandro Faria Dos Santos",
+    "cpf": "70747604126",
+    "email": "leandromarcos0803@gmail.com",
+    "curso": "Agronomia",
+    "bolsista": true
+   }
+  ]
+ }
+}

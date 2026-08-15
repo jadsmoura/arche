@@ -227,10 +227,16 @@ public/
   e-mail, que é o caso dos ciclos transcritos dos resultados publicados. O documento sai
   em paisagem com o **timbre da época** (`marcaEm` pela data de encerramento da vigência:
   FACEG até 04/09/2025, UNIEGO depois) e um código de validação derivado do que ele
-  afirma. A gestão avisa por e-mail, ciclo a ciclo (`POST /api/ic/certificados/avisar`),
-  cruzando o nome com os perfis para achar quem dá para avisar. Os bolsistas de 2024
-  entraram com CPF pelos termos de compromisso assinados (`dados/ic-edital-01-2024-alunos.json`,
-  marca `sys-ic-alunos-edital-01-2024`); 2025 tem os nomes sem CPF, e 2022/2023 não têm alunos.
+  afirma. Assinam o **pró-reitor e o reitor** — só no certificado a assinatura entra
+  **digitalizada**, de `templates/assinatura-{reitor,proreitor}.png` (arquivo opcional: sem
+  ele sai a linha em branco, e nada quebra); os demais documentos seguem para assinatura à
+  mão. A gestão avisa por e-mail, ciclo a ciclo (`POST /api/ic/certificados/avisar`),
+  cruzando o nome com os perfis para achar quem dá para avisar. Os bolsistas de 2024 e 2025
+  entraram com CPF (e 2025 também com e-mail) pelos **termos de compromisso assinados**
+  (`dados/ic-edital-01-{2024,2025}-alunos.json`, marcas `sys-ic-alunos-*`), casados ao
+  projeto pelo orientador e pelo título do plano; a migração **completa** o registro que já
+  existe (o nome veio do resultado publicado) sem sobrescrever campo preenchido. 2022 e 2023
+  não têm alunos registrados.
 - **Vitrine pública** (`/ic/` + `GET /api/publico/ic`): acesso livre com os editais, os
   documentos e a lista simplificada (título, curso, orientador, bolsista, modalidade) —
   nunca e-mail, CPF, nota ou dado bancário. Campos em branco enquanto o processo corre;
