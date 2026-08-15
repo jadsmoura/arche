@@ -38,13 +38,14 @@ test("as seis modalidades do edital, três linhas e o cruzamento entre elas", ()
 });
 
 test("a titulação abre as portas na ordem do edital", () => {
-  // CNPq só doutor; UNIEGO de mestre para cima; voluntário a partir de especialista
+  // CNPq só doutor; as bolsas de IC e IT do UNIEGO de mestre para cima;
+  // PROBEX e voluntário a partir de especialista
   for (const m of MODALIDADES.filter((x) => x.fomento === "cnpq")) {
     assert.equal(m.titulacaoMinima, "doutor", `${m.nome} é bolsa do CNPq`);
   }
-  for (const m of MODALIDADES.filter((x) => x.fomento === "uniego")) {
-    assert.equal(m.titulacaoMinima, "mestre", `${m.nome} é bolsa do UNIEGO`);
-  }
+  assert.equal(modalidadeDe("pbic-uniego").titulacaoMinima, "mestre");
+  assert.equal(modalidadeDe("pbiti-uniego").titulacaoMinima, "mestre");
+  assert.equal(modalidadeDe("pbie-uniego").titulacaoMinima, "especialista", "PROBEX abre para especialista");
   assert.equal(MODALIDADES.find((m) => !m.bolsa).titulacaoMinima, "especialista");
 });
 
