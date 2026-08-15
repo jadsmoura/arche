@@ -293,6 +293,7 @@
 
         <!-- ============ COBRANÇAS ============ -->
         <section id="v-cobrancas" class="hide"></section>
+        <section id="v-certificados" class="hide"></section>
 
         <!-- ============ DETALHE DA AÇÃO ============ -->
         <section id="v-detalhe" class="hide"></section>
@@ -403,6 +404,7 @@ const IC = {
   relatorios:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M9 13h6M9 17h6"></path>',
   cobrancas:'<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"></path>',
   acessos:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path>',
+  certificados:'<circle cx="12" cy="9" r="6"></circle><path d="M8.5 14.5L7 22l5-3 5 3-1.5-7.5"></path>',
 };
 const icone = (p)=>`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 
@@ -417,7 +419,14 @@ const SECOES = [
    sub:"Ações encerradas: acompanhe o que está pendente e o que já foi entregue."},
   {k:"cobrancas",    rot:"Cobranças",      ic:IC.cobrancas,    tit:"Cobrança automática de relatórios",
    sub:"Lembretes enviados aos responsáveis um dia após o encerramento da ação.", gestao:true},
+  {k:"certificados", rot:"Certificados",   ic:IC.certificados, tit:"Certificados de eventos",
+   sub:"A emissão é feita no sistema de eventos da AEE — aberto aqui dentro."},
 ];
+// A certificação dos eventos de extensão roda FORA do ARCHÉ, no sistema da
+// AEE. A guia abre a página aqui dentro (mantendo a barra lateral); se o
+// outro sistema recusar a moldura — muitos recusam, por segurança —, o
+// botão de abrir em nova aba resolve, e a tela diz isso antes de acontecer.
+const CERTIFICADOS_EXTERNO = "https://eventoscae.aee.edu.br/portal/login";
 let SECAO = "painel";
 
 function secoesVisiveis(){ return SECOES.filter(s=>!s.gestao || PROPPEX); }
@@ -491,10 +500,39 @@ function nav(secao, id){
   $("crumb").textContent = meta.rot;
 
   if(secao==="painel"){ renderPainel(); $("v-painel").classList.remove("hide"); }
+  else if(secao==="certificados"){ renderCertificados(); $("v-certificados").classList.remove("hide"); }
   else if(secao==="cobrancas"){ renderCobrancas(); $("v-cobrancas").classList.remove("hide"); }
   else if(secao==="nova"){ $("v-nova").classList.remove("hide"); }
   else { renderLista(); $("v-acoes").classList.remove("hide"); }
   window.scrollTo(0,0);
+}
+
+/* ============================ CERTIFICADOS ==============================
+   Sistema externo (AEE). Abre embutido para não tirar a pessoa do ARCHÉ —
+   a barra lateral continua ali —, com o aviso de que é outro sistema e com
+   a saída para nova aba sempre à mão: se o servidor de lá recusar a
+   moldura, a página fica em branco e o botão é o caminho.
+   ======================================================================== */
+function renderCertificados(){
+  $("v-certificados").innerHTML = `
+    <div class="banner ba-info" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="flex:1;min-width:260px"><b>Sistema de certificação de eventos (AEE).</b>
+        A emissão dos certificados de extensão acontece fora do ARCHÉ, e você entra com o
+        login daquele sistema. Se a página não carregar aqui dentro, abra em outra aba —
+        alguns sistemas não permitem ser exibidos dentro de outro.</span>
+      <a class="bt bt-pri" href="${CERTIFICADOS_EXTERNO}" target="_blank" rel="noopener">
+        Abrir em nova aba ↗</a>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <iframe src="${CERTIFICADOS_EXTERNO}" title="Sistema de certificação de eventos"
+        style="width:100%;height:calc(100vh - 280px);min-height:460px;border:0;display:block"
+        referrerpolicy="no-referrer"></iframe>
+    </div>
+    <div class="muted" style="margin-top:8px;text-align:center">
+      Página em branco acima? O sistema da AEE pode não permitir a exibição aqui dentro, e o
+      login costuma exigir a aba própria —
+      <a href="${CERTIFICADOS_EXTERNO}" target="_blank" rel="noopener">abrir em nova aba</a>.
+    </div>`;
 }
 
 /* =============================== PAINEL ================================= */

@@ -102,6 +102,12 @@ public/
   a própria senha a marca `provisoria` some sozinha. Conta de gestor não recebe senha
   provisória — um gestor não redefine a senha do outro. Rota separada da de papéis de
   propósito: a de papéis reconstrói as listas, e resetar senha não pode rebaixar ninguém.
+- **Certificados da Extensão são de OUTRO sistema** (eventos da AEE,
+  `https://eventoscae.aee.edu.br/portal/login`): a guia Certificados do ARCHÉ EX abre a
+  página embutida, para não tirar a pessoa do portal, com aviso de que é sistema externo e
+  o botão "Abrir em nova aba" sempre à mão — se o servidor de lá recusar a moldura (ou o
+  login exigir contexto próprio, o que é comum com cookies SameSite), o botão é o caminho.
+  O endereço fica em `CERTIFICADOS_EXTERNO`, no topo da SPA.
 - Fluxo da Extensão: proposta → aprovação (nº `EXT-AAAA-NNN`) → relatório final →
   participantes (3/3 completa) → certificados → registrada. Não alterar o formato do nº.
 - Uploads e estado são organizados **por curso** no Google Drive — preservar os prefixos
