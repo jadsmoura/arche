@@ -7,7 +7,8 @@ import {
   numeroAta, proximoSequencial, numerar, serieDe, siglaCurso, normalizarAta,
   validarAta, tituloDe, quorum, encaminhamentos, anotar, orgaoDe, avisosDaAta,
 } from "../lib/atas.js";
-import { extenso, dataExtenso, horaExtenso, redigirPorModelo, provedorAtivo, fichaDaReuniao } from "../lib/redator.js";
+import { extenso, dataExtenso, horaExtenso, redigirPorModelo, provedorAtivo, fichaDaReuniao,
+  ESTILOS, estiloDe, estiloPadrao, instrucaoDe } from "../lib/redator.js";
 import { hojeLocalISO, somaDias } from "../lib/datas.js";
 
 /* --------------------------------- fixtura ------------------------------ */
@@ -550,4 +551,69 @@ test("aviso não é erro: a ata com avisos continua válida", () => {
   const a = nova({ sessao: { ...bruta().sessao, horaFim: "" } });
   assert.ok(avisosDaAta(a).some((x) => x.tipo === "sem-encerramento"));
   assert.deepEqual(validarAta(a), [], "o horário de término não é obrigatório");
+});
+
+/* --------------------- extensão da redação ------------------------------ */
+/* Três graus de elaboração. O que muda são as fórmulas de procedimento —
+   o conteúdo é sempre o mesmo, e o texto que o autor digitou entra inteiro.
+   É essa a linha que separa "elaborar" de "inventar". */
+const comPauta = () => nova({ pauta: [{
+  titulo: "Atualização da matriz curricular",
+  discussao: "A carga prática de Fitotecnia está abaixo do recomendado pelas DCN.",
+  deliberacao: "Aprovado o acréscimo de 30 horas práticas em Fitotecnia II.",
+  votacao: { houve: true, favor: 2, contra: 0, abstencoes: 0 },
+  encaminhamento: { acao: "Encaminhar a minuta ao Colegiado", responsavel: "Prof. Lucas", prazo: "2026-09-15" },
+}] });
+
+test("o catálogo de estilos é íntegro e o padrão vem do ambiente", () => {
+  assert.deepEqual(ESTILOS.map((e) => e.codigo), ["concisa", "padrao", "detalhada"]);
+  for (const e of ESTILOS) assert.ok(e.nome && e.desc, `${e.codigo} sem nome ou descrição`);
+  assert.equal(estiloDe("DETALHADA")?.codigo, "detalhada", "aceita o código em qualquer caixa");
+  assert.equal(estiloDe("prolixa"), null, "estilo inventado não passa");
+  const antes = process.env.ATA_ESTILO;
+  process.env.ATA_ESTILO = "concisa";
+  assert.equal(estiloPadrao(), "concisa");
+  process.env.ATA_ESTILO = "inexistente";
+  assert.equal(estiloPadrao(), "detalhada", "valor inválido cai no padrão institucional");
+  if (antes === undefined) delete process.env.ATA_ESTILO; else process.env.ATA_ESTILO = antes;
+});
+
+test("a redação detalhada é mais longa que a padrão, e a padrão que a concisa", () => {
+  const a = comPauta();
+  const tam = (estilo) => redigirPorModelo(a, { estilo }).split(/\s+/).length;
+  assert.ok(tam("detalhada") > tam("padrao"), "detalhada desenvolve mais");
+  assert.ok(tam("padrao") > tam("concisa"), "padrão escreve as fórmulas por extenso");
+});
+
+test("elaborar não é reescrever: o texto do autor entra inteiro, letra por letra", () => {
+  const a = comPauta();
+  const p = a.pauta[0];
+  for (const estilo of ["concisa", "padrao", "detalhada"]) {
+    const t = redigirPorModelo(a, { estilo });
+    assert.ok(t.includes(p.discussao), `${estilo}: a nota da discussão sai como foi digitada`);
+    assert.ok(t.includes(p.deliberacao), `${estilo}: a deliberação sai como foi digitada`);
+    assert.ok(t.includes(p.encaminhamento.acao), `${estilo}: o encaminhamento sai como foi digitado`);
+  }
+});
+
+test("a fórmula só aparece quando o campo existe — ata não inventa debate", () => {
+  const semNotas = nova({ pauta: [{ titulo: "Comunicação da presidência", discussao: "", deliberacao: "" }] });
+  const t = redigirPorModelo(semNotas, { estilo: "detalhada" });
+  assert.ok(!/Aberta a discussão/.test(t), "sem nota, não se afirma que houve debate");
+  assert.ok(!/o colegiado deliberou/.test(t), "sem deliberação, não se afirma que houve decisão");
+  assert.match(t, /COMUNICAÇÃO DA PRESIDÊNCIA/, "o ponto continua na ata");
+  // e a votação zerada não inventa "votos computados"
+  assert.ok(!/votos computados/.test(t));
+});
+
+test("a instrução da IA leva a orientação do estilo sem afrouxar a regra de não inventar", () => {
+  for (const e of ESTILOS) {
+    const i = instrucaoDe(e.codigo);
+    assert.match(i, /Use EXCLUSIVAMENTE os fatos da ficha/, `${e.codigo}: a regra 2 é inegociável`);
+    assert.match(i, /EXTENSÃO:/, `${e.codigo}: a instrução diz a extensão`);
+  }
+  assert.match(instrucaoDe("detalhada"), /proibido acrescentar fato novo/i);
+  assert.match(instrucaoDe("concisa"), /concisa/i);
+  // estilo desconhecido não deixa a instrução sem orientação nenhuma
+  assert.match(instrucaoDe("qualquer"), /EXTENSÃO: padrão/);
 });

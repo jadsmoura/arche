@@ -243,7 +243,11 @@
   .minuta{width:100%;min-height:420px;font-family:'Iowan Old Style',Georgia,serif;font-size:14.5px;line-height:1.75;
     padding:22px 26px;border-radius:10px;border:1px solid var(--line);background:#fff}
   .barra-acoes{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px}
-  .barra-acoes .esq{margin-right:auto;display:flex;gap:10px;flex-wrap:wrap}
+  .barra-acoes .esq{margin-right:auto;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  /* extensão da redação: fica colado ao botão que gera a minuta, porque é a
+     escolha que se faz no mesmo gesto */
+  .sel-estilo{width:auto;min-width:190px;padding:9px 12px;font-size:13px;border-radius:9px;
+    border:1px solid var(--line);background:#fff;color:var(--ink);font-family:inherit}
   .passos{display:flex;gap:0;margin:0 0 22px;flex-wrap:wrap}
   .passos .p{flex:1;min-width:110px;padding:9px 12px;font-size:12px;font-weight:600;color:var(--muted);
     background:#fff;border:1px solid var(--line);border-right:0;text-align:center}
@@ -1164,7 +1168,9 @@ function renderEditor(alvo) {
     <div class="barra-acoes">
       <div class="esq">
         <button class="bt bt-pri" ${ro} onclick="salvar()">💾 ${a.id ? "Salvar alterações" : "Abrir reunião"}</button>
-        ${a.id && !a.texto ? `<button class="bt bt-sec" ${ro} onclick="redigir(false)">✨ Gerar a minuta</button>` : ""}
+        ${a.id && !a.texto ? `<select id="estilo-redacao" class="sel-estilo" title="Quanto o texto se alonga — o conteúdo é sempre o mesmo: só os fatos da ficha">
+          ${(META.estilos || []).map((e) => `<option value="${esc(e.codigo)}" ${(ESTILO_ESCOLHIDO || META.estiloPadrao) === e.codigo ? "selected" : ""} title="${esc(e.desc)}">Redação ${esc(e.nome.toLowerCase())}</option>`).join("")}
+        </select><button class="bt bt-sec" ${ro} onclick="redigir(false)">✨ Gerar a minuta</button>` : ""}
       </div>
       ${a.id && a.numero ? `<span class="ia-tag">${esc(a.numero)}</span>` : ""}
       ${a.id && !a.numero && PODE_EDITAR ? `<button class="bt bt-err" onclick="excluir()">Excluir rascunho</button>` : ""}
@@ -1431,13 +1437,16 @@ function cardMinuta(a) {
     <div class="card-t">Texto da ata</div>
     <div class="card-s">Revise livremente antes de aprovar — o texto abaixo é o que vai para o PDF.</div>
     ${a.redacao ? `<span class="ia-tag">✨ minuta gerada em ${fmtDH(a.redacao.em)} por
-      ${a.redacao.provedor === "modelo" ? "gerador do ARCHÉ" : esc(a.redacao.provedor)}</span>` : ""}
+      ${a.redacao.provedor === "modelo" ? "gerador do ARCHÉ" : esc(a.redacao.provedor)}${
+        a.redacao.estilo ? ` · redação ${esc((META.estilos || []).find((e) => e.codigo === a.redacao.estilo)?.nome.toLowerCase() || a.redacao.estilo)}` : ""}</span>` : ""}
     ${a.texto ? `<textarea class="minuta" ${pode ? "" : "disabled"} style="margin-top:12px"
       oninput="campo('texto',this.value)">${esc(a.texto)}</textarea>`
       : '<div class="banner ba-warn" style="margin-top:12px">A minuta ainda não foi gerada. Preencha a pauta e clique em “Gerar a minuta”.</div>'}
     <div class="barra-acoes">
       <div class="esq">
-        ${a.texto && pode ? `<button class="bt bt-ghost" onclick="redigir(true)">✨ Reescrever a minuta</button>` : ""}
+        ${a.texto && pode ? `<select id="estilo-redacao" class="sel-estilo" title="Quanto o texto se alonga — o conteúdo é sempre o mesmo: só os fatos da ficha">
+          ${(META.estilos || []).map((e) => `<option value="${esc(e.codigo)}" ${(ESTILO_ESCOLHIDO || META.estiloPadrao) === e.codigo ? "selected" : ""} title="${esc(e.desc)}">Redação ${esc(e.nome.toLowerCase())}</option>`).join("")}
+        </select><button class="bt bt-ghost" onclick="redigir(true)">✨ Reescrever a minuta</button>` : ""}
         ${a.texto ? `<a class="bt bt-ghost" href="/api/atas/${a.id}/pdf" target="_blank">📄 Ver o PDF</a>` : ""}
       </div>
       ${a.texto && pode && a.status !== "registrada" ? `<button class="bt bt-pri" onclick="registrar()">🔒 Registrar a ata</button>` : ""}
@@ -1724,13 +1733,20 @@ window.addEventListener("beforeunload", (e) => {
   e.preventDefault();
   e.returnValue = "";
 });
+/* Extensão da redação escolhida nesta sessão de trabalho. Fica na tela (e
+   não no ambiente) porque é decisão de quem redige: uma ata de NDE que vai
+   ao INEP pede desenvolvimento; a de uma comissão interna, não. */
+let ESTILO_ESCOLHIDO = "";
+
 async function redigir(refazer) {
   if (refazer && !confirm("Reescrever a minuta descarta o texto atual. Continuar?")) return;
+  ESTILO_ESCOLHIDO = $("estilo-redacao")?.value || ESTILO_ESCOLHIDO || META.estiloPadrao;
   try {
     aviso("Redigindo a minuta…", "warn");
     await salvar({ silencioso: true });
     const r = await api(`/api/atas/${ATUAL.id}/redigir`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refazer: !!refazer }),
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refazer: !!refazer, estilo: ESTILO_ESCOLHIDO }),
     });
     ATUAL = r.ata; await carregar(); cabecalho(); renderEditor("v-ata");
     aviso(r.aviso || `Minuta pronta (${r.provedor === "modelo" ? "gerador do ARCHÉ" : r.provedor}). Revise o texto antes de aprovar.`,

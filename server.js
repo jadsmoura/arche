@@ -1699,9 +1699,12 @@ async function sessaoAtas(req, res) {
 app.get("/api/atas/meta", async (req, res) => {
   const u = await sessaoAtas(req, res);
   if (!u) return;
+  const redator = await import("./lib/redator.js");
   res.json({
     ...ATAS_META, pautas: PAUTAS, momentos: MOMENTOS, cadencias: CADENCIAS, ritual: RITUAL,
-    gestao: gereAtas(u), eu: u.email, ia: (await import("./lib/redator.js")).provedorAtivo(),
+    gestao: gereAtas(u), eu: u.email, ia: redator.provedorAtivo(),
+    // extensão da redação: o catálogo e o padrão da instituição
+    estilos: redator.ESTILOS, estiloPadrao: redator.estiloPadrao(),
   });
 });
 
@@ -1957,14 +1960,16 @@ app.post("/api/atas/:id/redigir", async (req, res) => {
 
     // a redação pode levar dezenas de segundos: fica fora da fila de gravação
     const { redigir } = await import("./lib/redator.js");
-    const r = await redigir(ata);
+    // a extensão do texto é escolha de quem redige, sessão a sessão: uma ata
+    // de NDE que vai ao INEP pede desenvolvimento; a de uma comissão, não
+    const r = await redigir(ata, { estilo: req.body?.estilo });
 
     const out = await comAtas((lista) => {
       const i = lista.findIndex((x) => x.id === req.params.id);
       if (i < 0) return { erro: [404, "Ata não encontrada"], gravar: false };
       const nova = anotar({
         ...lista[i], texto: r.texto,
-        redacao: { provedor: r.provedor, modelo: r.modelo, em: r.em },
+        redacao: { provedor: r.provedor, modelo: r.modelo, em: r.em, estilo: r.estilo },
         status: lista[i].status === "rascunho" ? "minuta" : lista[i].status,
         atualizadoEm: new Date().toISOString(), atualizadoPor: u.email,
       }, { quem: u.email, oQue: `redigiu a minuta (${r.provedor})` });
@@ -1972,7 +1977,7 @@ app.post("/api/atas/:id/redigir", async (req, res) => {
       return { ata: lista[i] };
     });
     if (out.erro) return res.status(out.erro[0]).json({ error: out.erro[1] });
-    res.json({ ok: true, ata: out.ata, aviso: r.aviso, provedor: r.provedor });
+    res.json({ ok: true, ata: out.ata, aviso: r.aviso, provedor: r.provedor, estilo: r.estilo });
   } catch (e) {
     console.error("Erro ao redigir ata:", e);
     res.status(500).json({ error: e.message || "Erro ao redigir a ata" });

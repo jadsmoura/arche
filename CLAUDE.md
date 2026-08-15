@@ -672,6 +672,17 @@ public/
   determinístico assume, e qualquer falha de IA cai nele em vez de derrubar o fluxo.
   O adaptador do Gemini tenta os modelos Flash em ordem (o Google aposenta versões:
   o `gemini-2.5-flash` sai em 16/10/2026), então basta a chave para funcionar.
+- **Extensão da redação** (`ESTILOS`/`instrucaoDe` em lib/redator.js, decisão do dono
+  ago/2026): **concisa · padrão · detalhada**, escolhida na tela ao lado do botão que gera
+  a minuta — é decisão de quem redige, sessão a sessão (uma ata de NDE que vai ao INEP pede
+  desenvolvimento; a de uma comissão interna, não). O padrão institucional é **detalhada**
+  (`ATA_ESTILO`). Vale nos dois caminhos: muda o prompt da IA (e sobe o teto para 8192
+  tokens na detalhada, senão a ata sai truncada) e muda o gerador determinístico, que é o
+  que roda sem chave. O que se alonga são as **fórmulas de procedimento** ("submetido à
+  apreciação", "aberta a discussão", "após o debate"), e elas só aparecem quando o campo
+  correspondente foi preenchido — afirmar debate sobre ponto sem nota seria inventar. O
+  texto que a pessoa digitou entra **inteiro, letra por letra**, depois de dois-pontos:
+  mexer na frase dela para encaixar numa fórmula é reescrever o que a reunião disse.
 - **Assistente de escrita** (`lib/assistente.js` + `public/assets/arche-ia.js`): botões de
   IA nos campos longos das atas. Vale **só no ARCHÉ AT** — proposta e relatório da Extensão
   ficam de fora por decisão do dono, para não induzir dependência num texto que é autoria
