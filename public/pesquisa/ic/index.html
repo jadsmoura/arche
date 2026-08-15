@@ -530,10 +530,47 @@ function renderPainel() {
            ["Relatórios a validar", aValidar.length, "enviados pelos alunos"]];
 
   const foraDoPrazo = META.gestao ? PROJETOS.filter((p) => p.prazoRelatorios?.atrasado) : [];
+
+  // Avaliação do ciclo (só a gestão): quantos projetos do edital vigente já
+  // têm decisão — e, com todos avaliados, os botões de publicação do
+  // resultado, na ordem do processo: preliminar (só os aprovados, para
+  // definir as bolsas com a presidência) e depois o final (com a bolsa).
+  const cicloAval = META.gestao ? (() => {
+    const vigente = META.edital?.numero || "";
+    const doCiclo = PROJETOS.filter((p) => (p.edital || vigente) === vigente && p.status !== "rascunho" && p.status !== "devolvido");
+    const avaliados = doCiclo.filter((p) => ["aprovado", "reprovado", "concluido"].includes(p.status));
+    const fase = ((META.editais || []).find((e) => e.numero === vigente) || {}).resultadoFase || null;
+    const completo = doCiclo.length > 0 && avaliados.length === doCiclo.length;
+    const semBolsa = doCiclo.filter((p) => ["aprovado", "concluido"].includes(p.status) && !p.fomento).length;
+    const pct = doCiclo.length ? Math.round((avaliados.length / doCiclo.length) * 100) : 0;
+    return `<div class="card">
+      <div class="card-t">Avaliação do ciclo — Edital ${esc(vigente)}</div>
+      <div class="card-s"><b>${avaliados.length}</b> de <b>${doCiclo.length}</b> projeto(s) avaliado(s) (${pct}%).</div>
+      <div style="height:8px;border-radius:6px;background:var(--wash2);overflow:hidden;margin:8px 0 14px">
+        <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--brand-2),var(--accent))"></div></div>
+      ${fase ? `<div class="banner ${fase === "final" ? "ba-ok" : "ba-warn"}" style="margin:0 0 12px">
+        ${fase === "final"
+          ? "<b>Resultado final publicado</b> — com a bolsa concedida a cada projeto."
+          : `<b>Resultado preliminar publicado</b> — só os aprovados, ainda sem as bolsas. ${semBolsa
+            ? `${semBolsa} aprovado(s) aguardando a decisão de fomento para o resultado final.`
+            : "Todos os aprovados já têm decisão de fomento — o resultado final pode ser publicado."}`}</div>` : ""}
+      ${completo || fase ? `<div style="display:flex;gap:10px;flex-wrap:wrap">
+          ${!fase ? `<button class="bt bt-pri" onclick="publicarResultado('${esc(vigente)}','preliminar')">📢 Publicar resultado preliminar</button>` : ""}
+          ${fase !== "final" ? `<button class="bt ${fase === "preliminar" ? "bt-pri" : "bt-sec"}" onclick="publicarResultado('${esc(vigente)}','final')">🏁 Publicar resultado final</button>` : ""}
+          ${fase ? `<button class="bt bt-ghost" onclick="publicarResultado('${esc(vigente)}', null)">Recolher publicação</button>` : ""}
+        </div>`
+        : `<div style="font-size:13px;color:var(--muted)">Quando todos os projetos do ciclo estiverem avaliados, os botões de
+          publicação aparecem aqui: primeiro o <b>resultado preliminar</b> (só os aprovados, para definir as bolsas com a
+          presidência) e, distribuídas as bolsas, o <b>resultado final</b>.</div>`}
+    </div>`;
+  })() : "";
+
   $("v-painel").innerHTML = `
     <div class="kpis">${kpis.map(([l, v, d]) => `
       <div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("")}
     </div>
+
+    ${cicloAval}
 
     ${META.gestao && foraDoPrazo.length ? `<div class="banner ba-warn"><b>Relatórios em atraso</b> —
       ${foraDoPrazo.length} projeto(s) fora do prazo do edital:
@@ -589,6 +626,8 @@ const chip2 = (s) => `<span class="badge b-${esc(s)}">${esc({ prevista: "previst
 
 /* ------------------------------- gestão -------------------------------- */
 function renderGestao() {
+  // o ciclo em evidência é o ATUAL; os passados só aparecem se escolhidos
+  if (!FILTRO.edital) FILTRO.edital = META.edital?.numero || "__todos";
   const lista = PROJETOS.filter((p) =>
     (!FILTRO.status || p.status === FILTRO.status) &&
     (!FILTRO.curso || p.curso === FILTRO.curso) &&
@@ -597,7 +636,7 @@ function renderGestao() {
       || (FILTRO.grupo === "__com" && !!p.grupoPesquisa)
       || (FILTRO.grupo === "__sem" && !p.grupoPesquisa)
       || p.grupoPesquisa === FILTRO.grupo) &&
-    (!FILTRO.edital || (p.edital || META.edital?.numero) === FILTRO.edital) &&
+    (FILTRO.edital === "__todos" || (p.edital || META.edital?.numero) === FILTRO.edital) &&
     (!FILTRO.q || `${p.numero || ""} ${p.titulo} ${p.orientador?.nome || ""} ${(p.alunos || []).map((a) => a.nome).join(" ")}`
       .toLowerCase().includes(FILTRO.q.toLowerCase())));
 
@@ -623,10 +662,10 @@ function renderGestao() {
         <option value="__sem" ${FILTRO.grupo === "__sem" ? "selected" : ""}>Sem grupo</option>
         ${gruposEmUso().map((g) => `<option value="${esc(g)}" ${FILTRO.grupo === g ? "selected" : ""}>${esc(g)}</option>`).join("")}
       </select>
-      ${META.gestao && (META.editais || []).length > 1 ? `
-      <select onchange="FILTRO.edital=this.value;renderGestao()" title="Edital a que a proposta se vincula">
-        <option value="">Todos os editais</option>
-        ${(META.editais || []).map((e) => `<option value="${esc(e.numero)}" ${FILTRO.edital === e.numero ? "selected" : ""}>Edital ${esc(e.numero)}${e.vigente ? " (vigente)" : ""}</option>`).join("")}
+      ${(META.editais || []).length > 1 ? `
+      <select onchange="FILTRO.edital=this.value;renderGestao()" title="Ciclo (edital) a mostrar">
+        ${(META.editais || []).map((e) => `<option value="${esc(e.numero)}" ${FILTRO.edital === e.numero ? "selected" : ""}>Ciclo ${esc(e.numero)}${e.vigente ? " — atual" : ""} · ${e.projetos} projeto(s)</option>`).join("")}
+        <option value="__todos" ${FILTRO.edital === "__todos" ? "selected" : ""}>Todos os ciclos</option>
       </select>` : ""}
       ${ehAluno() ? "" : `<button class="bt bt-pri" onclick="nav('submissao')">＋ Novo projeto</button>`}
       ${META.gestao ? `<button class="bt bt-sec" onclick="incluirManualmente()"
@@ -925,13 +964,52 @@ function renderEditais() {
       <div class="exp">
         ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">
           📜 Edital (PDF)</a>` : `<span class="muted">Documento do edital ainda não arquivado.</span>`}
-        <a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">
-          📄 Resultado do processo (PDF)${e.resultadoDocumento ? " — publicado" : ""}</a>
+        ${e.resultadoPublicado
+          ? `<a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">
+              📄 ${e.resultadoFase === "preliminar" ? "Resultado preliminar (PDF)" : "Resultado do processo (PDF)"}${e.resultadoDocumento ? " — publicado" : ""}</a>`
+          : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default"
+              title="O resultado será divulgado pela PROPPEX ao fim do ciclo de avaliações">⏳ Resultado em breve</button>`}
+        ${META.gestao && !e.resultadoDocumento ? `
+          <a class="bt bt-ghost" href="/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}&fase=preliminar" target="_blank" rel="noopener"
+            title="Só a gestão baixa: prévia do resultado preliminar (só os aprovados, sem bolsas)">🔍 Prévia preliminar</a>
+          <a class="bt bt-ghost" href="/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}&fase=final" target="_blank" rel="noopener"
+            title="Só a gestão baixa: prévia do resultado final (com as bolsas)">🔍 Prévia final</a>
+          ${e.resultadoPublicado ? `<button class="bt bt-sec" onclick="publicarResultado('${esc(e.numero)}', null)">Recolher publicação</button>` : ""}` : ""}
       </div>
-      <div class="muted" style="margin-top:10px">O resultado sai sempre com os dados de agora — emitido na hora,
-        com as duas classificações (doutores e geral).${META.gestao ? ` A lista dos projetos está na guia
+      <div class="muted" style="margin-top:10px">${e.resultadoFase === "preliminar"
+        ? `Resultado preliminar publicado — só os projetos aprovados. O resultado final, com a bolsa concedida, sai depois da distribuição das bolsas.`
+        : e.resultadoPublicado
+          ? `O resultado sai sempre com os dados de agora — emitido na hora, com as duas classificações (doutores e geral).`
+          : `O resultado será divulgado pela PROPPEX quando o ciclo de avaliações terminar.${META.gestao ? " A publicação (preliminar e final) se faz no Painel." : ""}`}${META.gestao ? ` A lista dos projetos está na guia
         <a href="#" onclick="nav('classificacao');return false">Projetos</a>.` : ""}</div>
     </div>`).join("") || `<div class="card"><div class="vazio">Nenhum edital registrado ainda.</div></div>`;
+}
+
+/* Publicar (ou recolher) o resultado do processo — só a gestão. Duas fases:
+   "preliminar" (só os aprovados, antes das bolsas) e "final" (com a bolsa
+   concedida). fase null recolhe. Abre o PDF para todo o setor e para a
+   página pública; até lá, "em breve". */
+async function publicarResultado(numero, fase) {
+  const semBolsa = PROJETOS.filter((p) =>
+    (p.edital || numero) === numero && ["aprovado", "concluido"].includes(p.status) && !p.fomento).length;
+  const pergunta = fase === "preliminar"
+    ? `Publicar o RESULTADO PRELIMINAR do Edital ${numero}?\n\nO PDF sai só com os projetos aprovados, ainda sem a distribuição das bolsas — é a lista para definir as cotas com a presidência. Ele abre para todos os professores e para a página pública.`
+    : fase === "final"
+      ? `Publicar o RESULTADO FINAL do Edital ${numero}?\n\nO PDF sai com a bolsa concedida a cada projeto, para todos os professores e para a página pública.${semBolsa
+        ? `\n\nAtenção: ${semBolsa} projeto(s) aprovado(s) ainda sem decisão de fomento — no documento sairiam como "sem decisão".` : ""}`
+      : `Recolher a publicação do resultado do Edital ${numero}?\n\nO documento volta a aparecer como "em breve" para quem não é da gestão.`;
+  if (!confirm(pergunta)) return;
+  try {
+    await api("/api/ic/resultado/publicar", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ edital: numero, fase }),
+    });
+    META = await api("/api/ic/meta");
+    nav(SECAO);
+    aviso(fase === "preliminar" ? `Resultado preliminar do Edital ${numero} publicado.`
+      : fase === "final" ? `Resultado final do Edital ${numero} publicado.`
+        : `Publicação do resultado do Edital ${numero} recolhida.`);
+  } catch (e) { aviso(e.message, "err"); }
 }
 
 /* ------------------------------ cronograma ----------------------------- */
@@ -1429,7 +1507,7 @@ function renderSelecao(p) {
       <button class="bt ${p.fomento?.tipo === "cnpq" ? "bt-pri" : "bt-sec"}" onclick="decidirSelecao('cnpq')">✓ Aprovado com bolsa CNPq</button>
       <button class="bt ${p.fomento?.tipo === "uniego" ? "bt-pri" : "bt-sec"}" onclick="decidirSelecao('uniego')">✓ Aprovado com bolsa UNIEGO</button>
       <button class="bt ${p.fomento?.tipo === "voluntario" ? "bt-pri" : "bt-sec"}" onclick="decidirSelecao('voluntario')">✓ Aprovado sem bolsa</button>
-      ${["submetido"].includes(p.status) ? `<button class="bt bt-err" onclick="decidirSelecao('reprovado')">✕ Reprovado</button>` : ""}
+      <button class="bt bt-err" onclick="decidirSelecao('reprovado')">✕ Reprovado</button>
     </div>
 
     ${p.status === "rascunho" ? "" : `
@@ -1479,6 +1557,7 @@ async function atribuirNota(desfazer) {
 async function decidirSelecao(tipo) {
   try {
     if (tipo === "reprovado") {
+      if (ATUAL.status === "aprovado" && !confirm("Este projeto já está APROVADO. Reprovar agora desfaz a decisão e cancela a bolsa concedida. Continuar?")) return;
       const parecer = prompt("Parecer da reprovação (a orientação vai ler):");
       if (parecer === null) return;
       if (parecer.trim().length < 10) return aviso("Escreva o parecer da reprovação — quem recebe precisa saber o porquê.", "warn");

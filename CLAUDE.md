@@ -217,13 +217,24 @@ public/
   PROPPEX, e ela usa os mesmos sete critérios do ad hoc — sem precisar se designar. O
   parecer entra na média que forma a NP como qualquer outro e fica no mesmo sigilo: a
   orientação segue vendo só as contagens e a decisão.
-- **Resultado do processo em PDF** (`gerarResultadoEditalPdf`, `GET /api/ic/resultado.pdf`,
-  só gestão): documento timbrado com o resumo do processo e a lista dos projetos daquele
+- **Resultado do processo em PDF** (`gerarResultadoEditalPdf`, `GET /api/ic/resultado.pdf`):
+  documento timbrado com o resumo do processo e a lista dos projetos daquele
   edital, com os **dois quadros** (doutores; geral) em ordem de nota final. Filtra pelo
   campo `edital` do projeto — é o que faz o histórico dos editais antigos sair pelo mesmo
   lugar. **Proposta sem nota de projeto sai sem nota final**, nunca com zero: num documento
   oficial, zero seria nota, e o que existe é ausência de avaliação (por isso
   `notaClassificacao` trata `null` como faltante, não como 0).
+- **O resultado do ciclo vigente só se divulga quando a gestão PUBLICAR**, em **duas
+  fases** (decisão do dono, ago/2026 — `POST /api/ic/resultado/publicar`, chave
+  `ic-resultado-publicado-v1`): o **preliminar** sai **só com os projetos aprovados**,
+  sem bolsas — é a lista que a PROPPEX leva à presidência para definir as cotas; o
+  **final** sai com a bolsa concedida a cada projeto (`fase` em
+  `gerarResultadoEditalPdf`). Até publicar, professores e a página pública veem
+  "Resultado em breve" (o gerador responde 403/404; `?fase=` não fura — só a gestão
+  baixa as prévias). Os botões de publicação ficam no **Painel da gestão**, no quadro
+  "Avaliação do ciclo" (avaliados/total), e só aparecem com **todos os projetos
+  avaliados** — ou com uma fase já publicada, para dar o passo seguinte ou recolher.
+  Os PDFs catalogados em `RESULTADOS_EDITAIS` são finais da época e ficam sempre abertos.
 - **Ver como** (`visaoComo` no server): a coordenação abre o ARCHÉ IC pelos olhos de
   qualquer pessoa do setor — professor, aluno ou avaliador — para conferir o que ela
   enxerga. Não é atalho de permissão: o alvo é tratado como quem é (`gestao: false`),

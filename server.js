@@ -434,7 +434,7 @@ app.get("/api/publico/ic", async (req, res) => {
     const projetos = await lerProjetos();
     res.json({
       instituicao: "Centro Universitário Evangélico de Goianésia — UNIEGO",
-      editais: editaisConhecidos(projetos),
+      editais: editaisConhecidos(projetos, await resultadosPublicados()),
       projetos: projetos
         .filter((p) => p.status !== "rascunho")
         .map((p) => ({
@@ -461,14 +461,19 @@ app.get("/api/publico/ic/resultado.pdf", async (req, res) => {
   try {
     const numero = String(req.query.edital || EDITAL.numero).trim();
     if (RESULTADOS_EDITAIS[numero]) return res.redirect(RESULTADOS_EDITAIS[numero]);
+    const pub = (await resultadosPublicados())[numero];
+    if (!pub)
+      return res.status(404).send("O resultado deste edital ainda não foi publicado.");
     const todos = await lerProjetos();
     const neutro = { email: "", cpf: "", gestao: true };
     const projetos = todos
       .filter((p) => String(p.edital || EDITAL.numero) === numero && p.status !== "rascunho")
       .map((p) => resumirProjeto(p, neutro));
     const { gerarResultadoEditalPdf } = await import("./lib/pdf.js");
+    // o público baixa a fase que a PROPPEX publicou: preliminar ou final
     const buffer = await gerarResultadoEditalPdf({
       edital: numero === EDITAL.numero ? EDITAL : { numero }, projetos, emitidoPor: "",
+      fase: pub.fase || "final",
     });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(numero)}.pdf"`);
@@ -477,6 +482,30 @@ app.get("/api/publico/ic/resultado.pdf", async (req, res) => {
     console.error("Erro no PDF público do resultado:", e);
     res.status(500).send("Erro ao gerar o PDF: " + e.message);
   }
+});
+
+/**
+ * Publicar (ou recolher) o resultado do processo — só a coordenação. A
+ * publicação tem duas fases: "preliminar" (só os aprovados, antes da
+ * distribuição das bolsas — é a lista que vai à presidência para definir as
+ * cotas) e "final" (com a bolsa concedida a cada projeto). fase: null
+ * recolhe a publicação; até publicar, todos veem "em breve".
+ */
+app.post("/api/ic/resultado/publicar", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "Só a coordenação publica o resultado" });
+  const numero = String(req.body?.edital || EDITAL.numero).trim();
+  const fase = req.body?.fase ?? null;
+  if (fase !== null && !["preliminar", "final"].includes(fase))
+    return res.status(400).json({ error: "Fase inválida: preliminar, final ou null para recolher" });
+  const pub = await resultadosPublicados();
+  if (fase) pub[numero] = { fase, em: new Date().toISOString(), por: u.email };
+  else delete pub[numero];
+  await storage.set(RESULTADO_PUB_KEY, JSON.stringify(pub));
+  await storage.flush?.();
+  console.log(`[ic] resultado ${numero} ${fase ? `publicado (${fase})` : "recolhido"} por ${u.email}`);
+  res.json({ ok: true, edital: numero, fase });
 });
 
 /* usuários (somente gestor) */
@@ -1436,7 +1465,18 @@ function pessoasDoSetor(projetos) {
  * É o que alimenta o filtro do histórico e a emissão do resultado — o
  * vigente entra sempre, mesmo antes da primeira submissão.
  */
-function editaisConhecidos(projetos) {
+/**
+ * O resultado do edital VIGENTE só se divulga quando a coordenação publicar
+ * — antes disso, quem não é gestão (e a vitrine pública) vê "em breve". Os
+ * editais encerrados têm o PDF publicado da época e estão sempre abertos.
+ */
+const RESULTADO_PUB_KEY = "ic-resultado-publicado-v1";
+async function resultadosPublicados() {
+  const raw = await storage.get(RESULTADO_PUB_KEY);
+  return raw ? JSON.parse(raw) : {};
+}
+
+function editaisConhecidos(projetos, publicados = {}) {
   // as contagens são agregadas de TODOS os projetos (quem chama é o servidor,
   // não a visão de cada um) — é o que permite mostrar a guia Editais e
   // Resultados para qualquer usuário sem vazar projeto alheio
@@ -1452,6 +1492,10 @@ function editaisConhecidos(projetos) {
     numero, projetos: c.projetos, bolsas: c.bolsas, vigente: numero === EDITAL.numero,
     documento: DOCUMENTOS_EDITAIS[numero] || null,
     resultadoDocumento: RESULTADOS_EDITAIS[numero] || null,
+    // os PDFs catalogados são os resultados finais da época; o do ciclo
+    // vigente passa pelas fases preliminar → final, publicadas pela gestão
+    resultadoFase: RESULTADOS_EDITAIS[numero] ? "final" : (publicados[numero]?.fase || null),
+    resultadoPublicado: !!RESULTADOS_EDITAIS[numero] || !!publicados[numero],
   })).sort((a, b) => b.numero.localeCompare(a.numero, "pt-BR"));
 }
 
@@ -1495,7 +1539,7 @@ app.get("/api/ic/meta", async (req, res) => {
     // quem a coordenação pode simular, e por quais olhos está olhando agora
     // os editais (números, contagens e documentos) são de todos; a lista de
     // pessoas para o "ver como" segue só com a coordenação
-    editais: editaisConhecidos(projetos),
+    editais: editaisConhecidos(projetos, await resultadosPublicados()),
     ...(gereIC(u) ? { pessoas: pessoasDoSetor(projetos) } : {}),
     ...(como ? { simulando: como.email } : {}),
   });
@@ -1556,6 +1600,15 @@ app.get("/api/ic/resultado.pdf", async (req, res) => {
     const numero = String(req.query.edital || EDITAL.numero).trim();
     // edital encerrado com resultado publicado: o documento original vale
     if (RESULTADOS_EDITAIS[numero]) return res.redirect(RESULTADOS_EDITAIS[numero]);
+    // antes da publicação, o gerador é prévia de trabalho: só a gestão baixa
+    const pub = (await resultadosPublicados())[numero];
+    if (!gereIC(u) && !pub)
+      return res.status(403).send("O resultado deste edital ainda não foi publicado pela PROPPEX.");
+    // a gestão escolhe a fase da prévia (?fase=preliminar|final); os demais
+    // baixam exatamente a fase publicada
+    const fase = gereIC(u)
+      ? (["preliminar", "final"].includes(req.query.fase) ? req.query.fase : (pub?.fase || "final"))
+      : (pub.fase || "final");
     const todos = await lerProjetos();
     const neutro = { email: "", cpf: "", gestao: true };
     const projetos = todos
@@ -1564,7 +1617,7 @@ app.get("/api/ic/resultado.pdf", async (req, res) => {
     const { gerarResultadoEditalPdf } = await import("./lib/pdf.js");
     const buffer = await gerarResultadoEditalPdf({
       edital: numero === EDITAL.numero ? EDITAL : { numero },
-      projetos, emitidoPor: u.email,
+      projetos, emitidoPor: u.email, fase,
     });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(numero)}.pdf"`);
@@ -1958,9 +2011,11 @@ app.post("/api/ic/:id/avaliar", async (req, res) => {
     const i = projetos.findIndex((x) => x.id === req.params.id);
     if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
     if (!podeAvaliar(meu, projetos[i]))
-      return { erro: [403, "Só a coordenação avalia, e apenas projetos submetidos"], gravar: false };
+      return { erro: [403, "Só a coordenação avalia — projetos submetidos ou em execução (o concluído é definitivo)"], gravar: false };
     projetos[i] = anotarProjeto({
       ...projetos[i], status: decisao,
+      // reprovado ou devolvido, a concessão de bolsa morre junto com a decisão
+      fomento: decisao === "aprovado" ? projetos[i].fomento : null,
       avaliacao: { decisao, parecer, por: u.email, em: new Date().toISOString() },
       atualizadoEm: new Date().toISOString(),
     }, { quem: u.email, oQue: `avaliou: ${decisao}` });

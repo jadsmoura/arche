@@ -140,7 +140,11 @@ test("a proposta fecha ao ser submetida; cronograma e alunos seguem com a orient
 test("só a gestão avalia, e só projeto submetido", () => {
   const p = novo();
   assert.equal(podeAvaliar(PROPPEX, { ...p, status: "submetido" }), true);
-  assert.equal(podeAvaliar(PROPPEX, { ...p, status: "aprovado" }), false, "não se reavalia o aprovado");
+  assert.equal(podeAvaliar(PROPPEX, { ...p, status: "aprovado" }), true,
+    "a decisão de um aprovado pode ser revista enquanto o ciclo corre");
+  assert.equal(podeAvaliar(PROPPEX, { ...p, status: "reprovado" }), true,
+    "e a reprovação por engano também tem volta");
+  assert.equal(podeAvaliar(PROPPEX, { ...p, status: "concluido" }), false, "concluído é definitivo");
   assert.equal(podeAvaliar(PROF, { ...p, status: "submetido" }), false);
 });
 

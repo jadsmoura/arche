@@ -90,7 +90,10 @@ fetch("/api/publico/ic").then(async (r) => {
         ${doEdital.length} projeto(s) · ${e.bolsas ?? 0} bolsa(s) concedida(s)</div>
       <div class="exp">
         ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📜 Edital (PDF)</a>` : ""}
-        <a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/publico/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">📄 Resultado do processo (PDF)</a>
+        ${e.resultadoPublicado
+          ? `<a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/publico/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">📄 ${e.resultadoFase === "preliminar" ? "Resultado preliminar (PDF)" : "Resultado do processo (PDF)"}</a>`
+          : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default" title="O resultado será divulgado pela PROPPEX ao fim do ciclo de avaliações">⏳ Resultado em breve</button>`}
+        ${e.resultadoFase === "preliminar" ? `<span class="selo e" style="align-self:center">resultado final em breve</span>` : ""}
       </div>
       ${doEdital.length ? `<details class="lista">
         <summary><span class="fechado">Ver os ${doEdital.length} projetos</span><span class="aberto">Recolher a lista</span>

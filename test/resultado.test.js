@@ -121,3 +121,40 @@ test("edital sem proposta não gera documento mentiroso", async () => {
   assert.match(t, /Nenhuma proposta registrada para este edital/);
   assert.match(t, /Propostas submetidas ao edital\s*0/);
 });
+
+/* A publicação tem duas fases (decisão do dono, ago/2026): o PRELIMINAR sai
+   só com os aprovados, antes da distribuição das bolsas — é a lista que a
+   PROPPEX leva à presidência para definir as cotas. */
+test("o resultado preliminar lista só os aprovados, sem bolsa", async () => {
+  const { gerarResultadoEditalPdf } = await import("../lib/pdf.js");
+  const buf = await gerarResultadoEditalPdf({
+    edital: EDITAL, fase: "preliminar",
+    projetos: [
+      proj({ classificacao: { np: 86, cl: 64.4, total: 150.4 } }),
+      proj({ numero: "IC-2026-002", titulo: "Compostagem de resíduos", status: "submetido",
+        orientador: { nome: "Prof. Caio", titulacao: "mestre" } }),
+      proj({ numero: "IC-2026-003", titulo: "Leitura no ensino médio", status: "reprovado",
+        orientador: { nome: "Profa. Lia", titulacao: "mestre" } }),
+    ],
+  });
+  const t = textoDoPdf(buf).join(" ");
+  assert.match(t, /RESULTADO PRELIMINAR DO PROCESSO SELETIVO/);
+  assert.match(t, /Propostas submetidas ao edital\s*3/, "o total de submissões segue no resumo");
+  assert.match(t, /Aprovadas\s*1/);
+  assert.match(t, /Micorrizas/, "o aprovado está no quadro");
+  assert.doesNotMatch(t, /Compostagem/, "o em avaliação não aparece");
+  assert.doesNotMatch(t, /Leitura no ensino m/, "o reprovado não aparece");
+  assert.doesNotMatch(t, /Bolsa CNPq/, "bolsa ainda não existe no preliminar");
+  assert.match(t, /distribui..o das bolsas .CNPq e UNIEGO. ser. divulgada no resultado final/);
+});
+
+test("no preliminar o aprovado sai como 'Aprovada', mesmo já havendo fomento", async () => {
+  const { gerarResultadoEditalPdf } = await import("../lib/pdf.js");
+  const buf = await gerarResultadoEditalPdf({
+    edital: EDITAL, fase: "preliminar",
+    projetos: [proj({ fomento: { tipo: "cnpq", modalidade: "pibic-cnpq" } })],
+  });
+  const t = textoDoPdf(buf).join(" ");
+  assert.match(t, /Aprovada/, "a coluna Resultado diz só a aprovação");
+  assert.doesNotMatch(t, /PIBIC-CNPQ/, "a modalidade da bolsa fica para o final");
+});
