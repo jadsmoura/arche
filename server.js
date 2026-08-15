@@ -32,7 +32,7 @@ import {
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto, notaFinal,
   participaDeAlgum, vincularPorCpf, modalidadeEfetiva as modalidadeEfetivaIC,
   producaoDoOrientador, prazosRelatorios, fomentoDe, notaTranscrita, decidindoOProprio,
-  janelaContestacao, editalDe, podeContestar,
+  janelaContestacao, editalDe, podeContestar, atoDeGestao,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import { certificadosDe, destinatariosDoCiclo, certificavel } from "./lib/certificados.js";
@@ -2677,6 +2677,9 @@ app.get("/api/ic/:id", async (req, res) => {
     podeAvaliar: podeAvaliar(meu, p), podeEnviar: podeEnviarRelatorio(meu, p),
     podeValidar: podeValidarRelatorio(meu, p),
     podeDesignar: podeDesignarAvaliador(meu, p), podeDarParecer: podeDarParecer(meu, p),
+    // ato de gestão sobre proposta em que ele mesmo é parte: a tela diz isso
+    // em vez de esconder os botões (a trava anterior travava o edital)
+    proprioProjeto: decidindoOProprio(meu, p),
     // NP/CL/total da ficha: derivado que só resumir() calcula — sem ele a
     // gestão veria a nota na lista e no PDF, mas não na tela do projeto
     ...(meu.gestao ? { classificacao: resumirProjeto(p, meu).classificacao ?? null } : {}),
@@ -3902,9 +3905,10 @@ app.post("/api/ic/:id/fomento", async (req, res) => {
   const r = await comProjetos((projetos) => {
     const i = projetos.findIndex((x) => x.id === req.params.id);
     if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
-    if (papelNoProjeto(meu, projetos[i]) !== "gestao")
+    if (!atoDeGestao(meu, projetos[i]))
       return { erro: [403, "A concessão de bolsa é decidida pela coordenação"], gravar: false };
     const p = projetos[i];
+    const proprio = decidindoOProprio(meu, p);
     const mod = tipo ? modalidadePor(p.linha, tipo) : null;
     projetos[i] = anotarProjeto({
       ...p,
@@ -3914,7 +3918,11 @@ app.post("/api/ic/:id/fomento", async (req, res) => {
       // bolsa é do aluno: marca quem recebe (voluntário e "sem decisão" desmarcam)
       alunos: (p.alunos || []).map((a) => ({ ...a, bolsista: !!tipo && tipo !== "voluntario" })),
       atualizadoEm: new Date().toISOString(),
-    }, { quem: u.email, oQue: tipo ? `fomento: ${mod?.nome || tipo}` : "concessão de bolsa desfeita" });
+    }, {
+      quem: u.email,
+      oQue: (tipo ? `fomento: ${mod?.nome || tipo}` : "concessão de bolsa desfeita")
+        + (proprio ? " (ato do gestor geral sobre proposta própria; mérito julgado por parecer ad hoc)" : ""),
+    });
     return { projeto: projetos[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
@@ -3942,7 +3950,7 @@ app.post("/api/ic/:id/nota", async (req, res) => {
   const r = await comProjetos((projetos) => {
     const i = projetos.findIndex((x) => x.id === req.params.id);
     if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
-    if (papelNoProjeto(meu, projetos[i]) !== "gestao")
+    if (!atoDeGestao(meu, projetos[i]))
       return { erro: [403, "Só a coordenação atribui a nota do projeto"], gravar: false };
     if (projetos[i].status === "rascunho")
       return { erro: [400, "Rascunho ainda não está na seleção — não há o que pontuar"], gravar: false };
@@ -3956,8 +3964,9 @@ app.post("/api/ic/:id/nota", async (req, res) => {
       atualizadoEm: new Date().toISOString(),
     }, {
       quem: u.email,
-      oQue: remover ? "desfez a nota atribuída ao projeto"
-        : `atribuiu a nota do projeto: ${Math.round(valor * 10) / 10} (seleção conduzida fora do sistema)`,
+      oQue: (remover ? "desfez a nota atribuída ao projeto"
+        : `atribuiu a nota do projeto: ${Math.round(valor * 10) / 10} (seleção conduzida fora do sistema)`)
+        + (decidindoOProprio(meu, p) ? " — ato do gestor geral sobre proposta própria" : ""),
       sigilo: true,
     });
     return { projeto: projetos[i] };

@@ -365,17 +365,20 @@ public/
   devolver é conversa com um professor, não ato de massa; e reprovar exige o motivo, que é
   o mesmo texto para todas — motivos diferentes pedem decisão caso a caso. **A bolsa fica
   de fora**: aprovar é o mérito, a cota vem depois, na guia Bolsas.
-- **O gestor que também submete não decide o próprio projeto** (`papelNoProjeto` devolve
-  "orientador" antes de olhar a bandeira de gestão; casa por e-mail **ou CPF**, então a
-  conta pessoal do pró-reitor cai na mesma regra se o CPF estiver nos dois perfis). É
-  conflito de interesse, e vale para o pró-reitor como para qualquer um: **quem conclui
-  essas propostas é outro gestor do setor** — o caminho institucional é designar a
-  coordenação de pesquisa em `/usuarios/` (ação `coordenar`, módulo `pesquisa`), e os dois
-  decidem as propostas um do outro. `resumir` devolve `podeDecidir`/`souParte` para a tela
-  saber disso ANTES de oferecer o botão: a fila de decisão separa essas propostas num aviso
-  à parte (elas não somem — a gestão precisa saber que existem) e o lote recusa com o
-  motivo verdadeiro, não com "situação não aceita decisão". Pelo mesmo sigilo, no projeto
-  que ele orienta o pró-reitor **não vê a nota nem o parecer** — ali ele é a orientação.
+- **Ato de gestão × juízo de mérito** (`atoDeGestao` em lib/ic.js, decisão do dono em
+  ago/2026): decidir a seleção, atribuir a nota apurada, conceder ou remanejar bolsa e
+  designar quem avalia são **burocracia do processo** — o **gestor geral pratica todos,
+  inclusive na própria proposta**. No edital 01/2026 o mérito foi julgado por parecerista
+  **ad hoc**, fora do sistema: ele não se avalia, registra o que foi decidido. Sem isso as
+  propostas dele travavam em nota, decisão e bolsa, e o edital não fechava. Cada ato assim
+  fica marcado no histórico como **"sobre proposta própria"**, que é o que o torna
+  defensável depois, e a tela diz o mesmo (`proprioProjeto` na rota do projeto; "sua
+  proposta" na fila de decisão). **Coordenador de módulo NÃO tem a prerrogativa** — acima
+  dele há quem decida —, e `podeDecidir`/`souParte` em `resumir` fazem a fila separar as
+  propostas dele num aviso à parte, em vez de oferecer um botão que o servidor recusaria.
+  O que continua vedado a quem é parte, **sempre e para todos**: **dar parecer** sobre o
+  próprio projeto (`podeDarParecer`) — esse é o juízo, e ninguém o faz sobre si. O vínculo
+  casa por e-mail **ou CPF**: a conta pessoal do pró-reitor cai na mesma regra.
 - **Grupo de pesquisa** (DGP/CNPq): a proposta indica **apenas o nome do grupo**. Por
   decisão do dono, **não se pergunta o papel** de quem submete no grupo — professores
   submetem propostas ligadas a grupos que não lideram — e por isso **não há a pontuação

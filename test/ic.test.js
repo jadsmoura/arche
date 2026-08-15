@@ -11,7 +11,7 @@ import {
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto,
   notaFinal, placarPareceres, participaDeAlgum, prazosRelatorios, pendenciasDoProjeto,
   producaoDoOrientador, notaTranscrita, decidindoOProprio, avaliacaoRecebida,
-  janelaContestacao, podeContestar, PRAZO_CONTESTACAO_DIAS,
+  janelaContestacao, podeContestar, PRAZO_CONTESTACAO_DIAS, atoDeGestao,
 } from "../lib/ic.js";
 
 /* -------------------------------- fixtura ------------------------------- */
@@ -757,11 +757,20 @@ test("o gestor geral decide a própria proposta, e isso fica marcado", () => {
   assert.equal(decidindoOProprio(proReitor, alheio), false);
 });
 
-test("decidir não é julgar: o parecer sobre a própria proposta continua barrado", () => {
+test("burocracia sim, juízo não: o parecer sobre a própria proposta segue barrado", () => {
   const meu = { ...novo(), status: "submetido" };
   const proReitor = { email: PROF.email, gestao: true, gestorGeral: true };
+  // atos do processo — o gestor geral pratica todos na própria proposta,
+  // senão a proposta dele trava e o edital não fecha
+  assert.equal(atoDeGestao(proReitor, meu), true);
+  assert.equal(podeAvaliar(proReitor, meu), true, "decidir");
+  assert.equal(podeDesignarAvaliador(proReitor, meu), true, "designar quem avalia");
+  // o juízo de mérito, esse ninguém faz sobre si — nem ele
   assert.equal(podeDarParecer(proReitor, meu), false, "ninguém dá parecer sobre o próprio projeto");
-  assert.equal(podeDesignarAvaliador(proReitor, meu), false, "nem escolhe quem o avalia");
+  // e o coordenador de módulo não tem a prerrogativa em nada disso
+  const coord = { email: PROF.email, gestao: true };
+  assert.equal(atoDeGestao(coord, meu), false);
+  assert.equal(podeDesignarAvaliador(coord, meu), false);
 });
 
 test("o CPF liga as contas: a pessoal também é 'proposta própria'", () => {
@@ -882,4 +891,17 @@ test("a contestação é assunto da orientação e da coordenação — o aluno 
   assert.equal(visaoDoProjeto(p, PROPPEX).contestacoes.length, 1, "a coordenação vê para responder");
   // e a normalização do formulário não apaga a peça
   assert.equal(normalizarProjeto(bruto(), { base: p }).contestacoes.length, 1);
+});
+
+test("na própria proposta o gestor geral vê a nota que ele mesmo lançou", () => {
+  const nt = notaTranscrita({
+    notas: { merito: 16, objetivos: 8, fundamentacao: 7, metodologia: 15, viabilidade: 12, formacao: 10, redacao: 8 },
+    recomendacao: "recomendado", parecer: "…",
+  }, { por: "avaliação do edital" });
+  const p = { ...emSelecao(), status: "aprovado", notaDireta: nt };
+  const proReitor = { email: PROF.email, gestao: true, gestorGeral: true };
+  assert.equal(visaoDoProjeto(p, proReitor).notaDireta.valor, 76, "o campo abre com o valor lançado");
+  // para o professor comum e para o coordenador que é parte, segue fora
+  assert.equal(visaoDoProjeto(p, PROF).notaDireta, undefined);
+  assert.equal(visaoDoProjeto(p, { email: PROF.email, gestao: true }).notaDireta, undefined);
 });

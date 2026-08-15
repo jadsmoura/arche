@@ -2431,12 +2431,12 @@ function renderPendencias(p) {
 /* O resultado da seleção quanto à bolsa. As oito modalidades do edital são
    o cruzamento linha × fomento: marcada a bolsa, a modalidade sai sozinha. */
 function renderSelecao(p) {
-  const gestao = PODE.podeDesignar;           // coordenação DESTE projeto
+  const gestao = PODE.podeDesignar;           // pratica os atos de gestão aqui
   const decide = PODE.podeAvaliar;            // pode dar a decisão da seleção
-  // O gestor geral decide a própria proposta (o mérito foi julgado por parecer
-  // ad hoc), mas não faz aqui o que seria julgar-se: atribuir a própria nota e
-  // designar quem o avalia seguem com a coordenação — e o servidor recusa.
-  const proprio = decide && !gestao;
+  // Ato de gestão sobre a PRÓPRIA proposta: o gestor geral pratica todos
+  // (decidir, pontuar, conceder bolsa) — o mérito veio de parecer ad hoc, e o
+  // resto é burocracia do processo. A tela diz que é dele; o histórico também.
+  const proprio = PODE.proprioProjeto;
   if (!gestao && !decide && !p.fomento) return "";
   const cls = p.classificacao;
 
@@ -2455,10 +2455,11 @@ function renderSelecao(p) {
       ${esc(linhaNome(p.linha))} + bolsa CNPq = ${esc(modNome((META.modalidades.find((m) => m.linha === p.linha && m.fomento === "cnpq") || {}).codigo))}.
       Concedida a bolsa, a orientação indica o bolsista na ficha que abre no projeto.</div>
 
-    ${proprio ? `<div class="banner ba-warn"><b>Esta proposta é sua.</b> Você decide como gestor geral —
-      o mérito foi julgado por <b>parecer ad hoc</b>, fora do sistema, e o que se pratica aqui é o ato
-      administrativo. A decisão fica registrada no histórico <b>como decisão sobre proposta própria</b>.
-      Atribuir a nota e designar avaliador continuam com a coordenação: nisso ninguém se julga.</div>` : ""}
+    ${proprio ? `<div class="banner ba-warn"><b>Esta proposta é sua.</b> Como gestor geral você pratica
+      aqui os atos do processo — decidir, atribuir a nota apurada e conceder bolsa —, e cada um fica
+      registrado no histórico <b>como ato sobre proposta própria</b>. O mérito foi julgado por
+      <b>parecer ad hoc</b>, fora do sistema: o que se faz aqui é burocracia dele. O que segue vedado a
+      quem é parte, e para todos, é <b>dar parecer</b> sobre o próprio projeto.</div>` : ""}
 
     ${p.fomento ? `<div class="banner ba-ok">Definido: <b>${esc(fomentoNome(p.fomento.tipo))}</b>${
       p.fomento.modalidade ? ` — ${esc(modNome(p.fomento.modalidade))}` : ""} · por ${esc(p.fomento.por)} em ${fmtDH(p.fomento.em)}</div>`
@@ -2487,7 +2488,7 @@ function renderSelecao(p) {
           </div>`}
     </div>`).join("")}` : ""}
 
-    ${p.status === "rascunho" || proprio ? "" : `
+    ${p.status === "rascunho" ? "" : `
     <div class="sec-t">Nota do projeto</div>
     <div class="muted" style="margin-bottom:8px">Na seleção conduzida fora do sistema, a coordenação
       atribui aqui a nota do projeto (0 a 100), sem formulário. Havendo pareceres no sistema, a nota
