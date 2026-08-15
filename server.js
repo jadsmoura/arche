@@ -35,6 +35,9 @@ import {
   janelaContestacao, editalDe, podeContestar, atoDeGestao,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
+import {
+  duplicidadesPorNome, podeFundir, fundirPerfil, fundirProjeto, fundirAcao, fundirAta, fundirPapeis,
+} from "./lib/fusao.js";
 import { certificadosDe, destinatariosDoCiclo, certificavel } from "./lib/certificados.js";
 import {
   EDITAL, LINHAS, GRUPOS_PESQUISA, FOMENTOS, TITULACOES, BLOCOS_PRODUCAO, normalizarTitulacao,
@@ -49,6 +52,7 @@ import {
   papelDe, modulosDe, MODULOS, verificarGoogle, criarCodigo, verificarCodigo,
   iniciarAuth, definirSenha, temSenha, validarSenhaDe, senhaFraca, senhaInfo,
   registrarFalha, bloqueado, limparFalhas, FUNCOES, normalizarFuncao, faltaNoPerfil,
+  removerSenha, ehGestorFixo,
 } from "./lib/auth.js";
 import {
   AREA_AV, chaveAcesso, destinoSeguro, emitirSelo, lerSelo, linkAcesso,
@@ -909,7 +913,16 @@ app.get("/api/usuarios/painel", async (req, res) => {
       };
     }).sort((a, b) => (a.nome || a.email).localeCompare(b.nome || b.email, "pt-BR"));
 
-    res.json({ usuarios: lista, funcoes: FUNCOES, cursos: CURSOS, modulos: MODULOS });
+    res.json({
+      usuarios: lista, funcoes: FUNCOES, cursos: CURSOS, modulos: MODULOS,
+      // Cadastros repetidos: o sistema APONTA pelo nome; quem funde é a gestão.
+      // As duas contas da pró-reitoria ficam de fora: elas são duas DE
+      // PROPÓSITO (a pessoal é só de gestão, a institucional carrega a
+      // identidade acadêmica), e sugerir fundi-las seria sugerir desfazer
+      // uma decisão registrada do dono.
+      duplicidades: duplicidadesPorNome(lista)
+        .filter((d) => !d.contas.every((c) => ehGestorFixo(c.email))),
+    });
   } catch (e) {
     console.error("Erro no painel de usuários:", e);
     res.status(500).json({ error: "Falha ao montar o painel" });
@@ -923,6 +936,107 @@ app.get("/api/usuarios/painel", async (req, res) => {
  * como submissor, sem precisar esperar o primeiro login.
  * Senha e papéis não passam por aqui: cada um tem a sua rota, de propósito.
  */
+/**
+ * FUSÃO DE CADASTROS — duas contas, a mesma pessoa.
+ *
+ * Acontece o tempo todo: a pessoa cria a conta com o e-mail pessoal e depois
+ * ganha o institucional; ou o pré-cadastro nasceu do formulário do edital
+ * (com CPF) num endereço que ela não usa mais. O caminho natural está fechado
+ * de propósito — a segunda conta com o mesmo CPF é recusada —, e o resultado
+ * é o professor aparecendo duas vezes, com projetos, ações e atas repartidos.
+ *
+ * O sistema aponta a duplicidade pelo NOME; quem funde é a gestão, dizendo
+ * qual conta fica. Fusão por nome sem confirmação seria perigosa: dois
+ * professores podem se chamar igual. `simular: true` mostra ANTES o que sai
+ * de um lado para o outro, e a fusão guarda o registro do que moveu — com o
+ * perfil removido inteiro — em `sys-fusoes-v1`, para nada se perder.
+ */
+const FUSOES_KEY = "sys-fusoes-v1";
+app.post("/api/usuarios/fundir", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  const manter = String(req.body?.manter || "").trim().toLowerCase();
+  const remover = String(req.body?.remover || "").trim().toLowerCase();
+  const simular = req.body?.simular === true;
+
+  const [perfis, usuarios] = await Promise.all([carregarPerfis(), carregarUsuarios(storage)]);
+  const impedimento = podeFundir(
+    { email: manter, nome: perfis[manter]?.nome, cpf: perfis[manter]?.cpf },
+    { email: remover, nome: perfis[remover]?.nome, cpf: perfis[remover]?.cpf },
+  );
+  if (impedimento) return res.status(400).json({ error: impedimento });
+  if (ehGestorFixo(remover))
+    return res.status(400).json({ error: "Conta de gestor geral fixo não se funde — ela é a identidade da pró-reitoria." });
+
+  // a PRÉVIA lê fora da fila (é só contagem); a fusão de verdade transforma
+  // dentro dela, para não gravar em cima de escrita simultânea
+  const [projetos, atas, acoes] = await Promise.all([lerProjetos(), lerAtas(), lerAcoes()]);
+  const avisos = [];
+  let nProjetos = 0, nAtas = 0, nAcoes = 0;
+  for (const p of projetos) {
+    const r = fundirProjeto(p, remover, manter);
+    if (r.mudou) nProjetos += 1;
+    avisos.push(...r.avisos);
+  }
+  for (const a of atas) if (fundirAta(a, remover, manter).mudou) nAtas += 1;
+  for (const a of acoes) if (fundirAcao(a, remover, manter).mudou) nAcoes += 1;
+  const perfilFinal = fundirPerfil(perfis[manter] || {}, perfis[remover] || {});
+  const resumo = {
+    manter, remover,
+    projetos: nProjetos, atas: nAtas, acoes: nAcoes,
+    // o que o perfil que fica GANHA da conta removida
+    campos: Object.keys(perfilFinal).filter((k) =>
+      String(perfilFinal[k] ?? "") !== String((perfis[manter] || {})[k] ?? "")
+      && !["atualizadoEm", "criadoEm", "preCadastro"].includes(k)),
+    papel: papelDe(remover, usuarios), modulos: modulosDe(remover, usuarios),
+    avisos: [...new Set(avisos)],
+  };
+  if (simular) return res.json({ simulado: true, ...resumo });
+
+  // grava: projetos, atas e ações primeiro; o cadastro por último, para que
+  // uma falha no meio não deixe a pessoa sem conta E sem os registros
+  await comProjetos((lista) => {
+    let n = 0;
+    for (let i = 0; i < lista.length; i++) {
+      const r = fundirProjeto(lista[i], remover, manter);
+      if (r.mudou) { lista[i] = r.projeto; n += 1; }
+    }
+    return { gravar: n > 0 };
+  });
+  await comAtas((lista) => {
+    let n = 0;
+    for (let i = 0; i < lista.length; i++) {
+      const r = fundirAta(lista[i], remover, manter);
+      if (r.mudou) { lista[i] = r.ata; n += 1; }
+    }
+    return { gravar: n > 0 };
+  });
+  await comAcoes((lista) => {
+    let n = 0;
+    for (let i = 0; i < lista.length; i++) {
+      const r = fundirAcao(lista[i], remover, manter);
+      if (r.mudou) { lista[i] = r.acao; n += 1; }
+    }
+    return { gravar: n > 0 };
+  });
+
+  perfis[manter] = { ...perfilFinal, email: manter, atualizadoEm: new Date().toISOString() };
+  const removido = perfis[remover] || null;
+  delete perfis[remover];
+  await storage.set(PERFIS_KEY, JSON.stringify(perfis));
+  await salvarUsuarios(storage, fundirPapeis(usuarios, remover, manter));
+  // a senha da conta removida não viaja: senha é da conta, não da pessoa
+  await removerSenha(storage, remover);
+  // o registro do que foi feito, com o perfil removido inteiro: fusão não se
+  // desfaz sozinha, e sem isto não haveria como reconstruir à mão
+  const log = JSON.parse((await storage.get(FUSOES_KEY)) || "[]");
+  log.push({ em: new Date().toISOString(), por: g.email, ...resumo, perfilRemovido: removido });
+  await storage.set(FUSOES_KEY, JSON.stringify(log.slice(-200)));
+  await storage.flush?.();
+  console.log(`[usuarios] ${remover} fundido em ${manter} por ${g.email}: `
+    + `${nProjetos} projeto(s), ${nAcoes} ação(ões), ${nAtas} ata(s)`);
+  res.json({ ok: true, ...resumo });
+});
+
 app.post("/api/usuarios/perfil", async (req, res) => {
   const g = await exigirGestor(req, res); if (!g) return;
   const b = req.body || {};

@@ -34,6 +34,7 @@ lib/redator.js       Redação da minuta da ata: modelo (padrão) | gemini | ant
 lib/assistente.js    Assistente de escrita dos campos da ata (só ARCHÉ AT)
 lib/marca.js         Identidade institucional por data (FACEG até set/2025; UNIEGO depois)
 lib/portaria.js      Portaria do ARCHÉ AV: senha compartilhada e link de acesso (sem login)
+lib/fusao.js         Fusão de cadastros duplicados (a mesma pessoa em duas contas)
 lib/alertas.js       Alertas de regularização das atas para a PROPPEX
 lib/mailer.js        E-mails via Gmail API (remetente "ARCHÉ · PROPPEX")
 templates/           Template xlsx de certificados + logo UNIEGO (não alterar estrutura)
@@ -110,6 +111,18 @@ public/
   pró-reitoria é só de gestão e um CPF não pode estar em duas contas — cobrar ali seria
   exigência impossível de cumprir. `POST /api/perfil` aplica a MESMA régua: se o formulário
   aceitasse perfil incompleto, a pessoa salvaria, voltaria à etapa e não sairia do lugar.
+- **Fusão de cadastros duplicados** (`lib/fusao.js` + `POST /api/usuarios/fundir`, só gestor
+  geral): a mesma pessoa entra duas vezes com facilidade — conta pessoal e depois a
+  institucional, ou o pré-cadastro do edital num endereço que ela não usa mais —, e o
+  caminho natural está fechado de propósito (CPF é único por conta). O painel **aponta pelo
+  nome** (só nomes com duas palavras ou mais; nome sozinho não é evidência) e **quem funde é
+  a gestão**, escolhendo qual conta fica. `simular: true` mostra ANTES o que sai de uma para
+  a outra — projetos, ações, atas, campos do cadastro e papel herdado. Regras: perfil
+  completa o que falta e **nunca sobrescreve** o que a pessoa preencheu; a conta que fica
+  **herda** o alcance da outra (nunca o contrário); parecer entregue sobrevive à junção de
+  avaliadores; a **senha não viaja** (é da conta, não da pessoa); e o que foi movido, com o
+  perfil removido inteiro, fica em `sys-fusoes-v1` — fusão não se desfaz sozinha. As **duas
+  contas da pró-reitoria não aparecem como duplicidade**: são duas de propósito.
 - **Função na instituição** (`FUNCOES`/`normalizarFuncao` em lib/auth.js): o que a pessoa
   FAZ — professor, professor pesquisador, coordenador de curso, coordenador pedagógico,
   secretaria, as coordenações da PROPPEX (Pesquisa e Inovação, Extensão, Ação Comunitária)

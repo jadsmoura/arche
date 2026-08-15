@@ -50,6 +50,11 @@
   table.us tr:last-child td{border-bottom:0}
   table.us .nm{font-weight:600;color:var(--ink)}
   table.us .em{font-size:12px;color:var(--muted)}
+  .linha-dup{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 0;
+    border-bottom:1px solid var(--line-2)}
+  .linha-dup:last-child{border-bottom:0}
+  .linha-dup .nm{font-weight:600;color:var(--ink)}
+  .linha-dup .em{font-size:12px;color:var(--muted)}
   .setor{font-size:10.5px;font-weight:700;border-radius:20px;padding:2px 8px;margin-right:4px;white-space:nowrap;
     background:var(--accent-wash);color:var(--brand-2)}
   .p-gestor{background:var(--brand);color:#fff}
@@ -323,7 +328,7 @@ function renderPainel(){
   const semNome=PAINEL.usuarios.filter(u=>!u.temPerfil).length;
   const pg=paginar(lista,PAG);
 
-  $("v-usuarios").innerHTML=`
+  $("v-usuarios").innerHTML=blocoDuplicidades()+`
     <div class="card">
       <div class="filtros-u">
         <input placeholder="🔎 Buscar por nome, e-mail ou curso" value="${esc(FU.q)}"
@@ -363,6 +368,67 @@ function renderPainel(){
       </table></div>
       ${controles(pg,"irPara")}
     </div>`;
+}
+
+/* ---------------------- cadastros duplicados ---------------------------- *
+   A mesma pessoa entra duas vezes com facilidade (e-mail pessoal e depois o
+   institucional; pré-cadastro do edital num endereço que ela não usa mais).
+   O sistema APONTA pelo nome — quem funde é a gestão, dizendo qual conta
+   fica, depois de ver o que sai de uma para a outra. */
+function blocoDuplicidades(){
+  const dups=PAINEL.duplicidades||[];
+  if(!dups.length) return "";
+  return `<div class="card" style="border-color:#ffe0b2;background:#fffdf7">
+    <div class="card-t">Cadastros repetidos — ${dups.length} pessoa(s)</div>
+    <div class="card-s">Contas diferentes com o mesmo nome. Se for a mesma pessoa, funda:
+      os projetos, as ações e as atas passam para a conta que ficar, e o cadastro se completa
+      com o que faltava. O sistema mostra antes o que vai sair de uma para a outra.</div>
+    ${dups.map(d=>`<div class="linha-dup">
+      <div style="flex:1;min-width:0">
+        <div class="nm">${esc(d.nome)}</div>
+        <div class="em">${d.contas.map(c=>`${esc(c.email)}${c.temCpf?" · com CPF":""}${
+          c.preCadastro?" · pré-cadastro":""}${c.setores.length?` · ${c.setores.length} setor(es) em uso`:""}`).join(" &nbsp;|&nbsp; ")}</div>
+      </div>
+      ${d.contas.length===2
+        ? `<button class="bt bt-sec" onclick="abrirFusao('${esc(d.contas[0].email)}','${esc(d.contas[1].email)}')">Fundir…</button>`
+        : `<span class="muted">${d.contas.length} contas — funda duas por vez</span>`}
+    </div>`).join("")}
+  </div>`;
+}
+
+/* A fusão em dois passos: primeiro a prévia do que se move, depois o aceite.
+   O que se apaga aqui não se desfaz sozinho. */
+async function fundir(corpo){
+  const r=await fetch("/api/usuarios/fundir",{method:"POST",
+    headers:{"Content-Type":"application/json"},body:JSON.stringify(corpo)});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error||("Falha "+r.status));
+  return j;
+}
+async function abrirFusao(a,b){
+  const qual=prompt(`Qual conta FICA?\n\n1 — ${a}\n2 — ${b}\n\nA outra é removida, e tudo o que era dela passa para a que ficar.`,"1");
+  if(!qual) return;
+  const manter=String(qual).trim()==="2"?b:a, remover=manter===a?b:a;
+  try{
+    const previa=await fundir({manter,remover,simular:true});
+    const linhas=[
+      `FICA:   ${manter}`,
+      `REMOVE: ${remover}`,
+      "",
+      `Projetos de IC que passam: ${previa.projetos}`,
+      `Ações de extensão: ${previa.acoes}`,
+      `Atas: ${previa.atas}`,
+      previa.campos.length?`Completa no cadastro: ${previa.campos.join(", ")}`:"Cadastro: nada a completar",
+      previa.papel&&previa.papel!=="pendente"?`Papel herdado: ${previa.papel}${previa.modulos.length?` (${previa.modulos.join(", ")})`:""}`:"",
+      ...(previa.avisos||[]).map(x=>`(!) ${x}`),
+      "",
+      "A fusão não se desfaz sozinha. Confirmar?",
+    ].filter(Boolean);
+    if(!confirm(linhas.join("\n"))) return;
+    const r=await fundir({manter,remover});
+    await carregarPainel();
+    alert(`Cadastros fundidos.\n\n${r.projetos} projeto(s), ${r.acoes} ação(ões) e ${r.atas} ata(s) passaram para ${manter}.`);
+  }catch(e){ alert(e.message); }
 }
 
 function abrirFicha(email){
