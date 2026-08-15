@@ -1552,8 +1552,9 @@ function renderMinhaBolsa() {
       ? `Você tem <b>${comBolsa.map((p) => fomentoNome(p.fomento.tipo)).join(", ")}</b> concedida.
          São estes os dados que a PROPPEX usa para efetivar o pagamento — a conta e o Pix precisam
          estar <b>no seu nome</b>.`
-      : `Você está indicado(a) como <b>voluntário(a)</b>. Preencha assim mesmo: se a coordenação
-         conceder uma bolsa, o cadastro já estará pronto.`}
+      : `Você está indicado(a) como <b>voluntário(a)</b> — e mesmo assim preencha tudo, inclusive a
+         conta bancária: se surgir bolsa no meio do ciclo, a PROPPEX chama pela classificação, e
+         quem já está com o cadastro completo entra na folha sem atraso.`}
       ${lista.length > 1 ? " Você preenche uma vez, e vale para todos os seus projetos." : ""}</div>
 
     ${falta.length ? `<div class="banner ba-warn">Falta informar: <b>${esc(falta.join(", "))}</b>.</div>`
@@ -1594,6 +1595,15 @@ function renderMinhaBolsa() {
       pode custar a bolsa depois.</div>
 
     <div class="sec-t">Conta para o pagamento</div>
+    ${comBolsa.length ? "" : `<div class="banner ba-info">
+      <b>Você está como voluntário(a) — e a conta é pedida assim mesmo.</b> Cotas de bolsa
+      costumam ser liberadas ao longo do ciclo (o CNPq amplia a quota, a instituição abre
+      novas vagas, um bolsista é substituído), e quando isso acontece a PROPPEX chama pela
+      ordem de classificação. Com a conta já informada, a bolsa entra na folha na hora; sem
+      ela, a coordenação teria de correr atrás dos seus dados — e quem está com o cadastro
+      completo é quem consegue ser chamado no prazo. <b>Nada é pago enquanto você for
+      voluntário(a)</b>: o dado fica guardado, e o seu termo de compromisso de voluntário
+      não menciona conta bancária.</div>`}
     ${comBolsa.some((p) => p.fomento.tipo === "cnpq") ? `<div class="banner ba-warn">
       A bolsa do <b>CNPq</b> é paga em <b>conta corrente do Banco do Brasil</b>, de titularidade do
       próprio bolsista — conta poupança e conta de terceiros não são aceitas.</div>` : ""}
