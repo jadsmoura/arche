@@ -558,8 +558,8 @@ test("o histórico guarda quem fez o quê, com teto", () => {
 test("as situações do projeto e as modalidades são as previstas", () => {
   assert.deepEqual(STATUS, ["rascunho", "submetido", "devolvido", "aprovado", "concluido", "reprovado"]);
   assert.deepEqual(MODALIDADES.map((m) => m.codigo),
-    ["pibic-cnpq", "pibiti-cnpq", "pbic-uniego", "pbiti-uniego", "pbie-uniego",
-     "pvic-uniego", "pviti-uniego", "pvie-uniego"], "as oito modalidades do edital 01/2026");
+    ["pibic-cnpq", "pibiti-cnpq", "pbic-uniego", "pbiti-uniego", "pbie-uniego", "voluntario"],
+    "as seis modalidades do edital 01/2026 — cinco com bolsa e uma voluntária");
 });
 
 /* A planilha de produção é da PESSOA, não do projeto: a próxima submissão

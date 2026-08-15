@@ -177,7 +177,12 @@ public/
      cronograma e relatórios não aparecem para ele.
 - **Edital 01/2026** (`lib/edital.js`): as regras que o sistema precisa conhecer viram
   catálogo — trocar de edital é mexer nesse arquivo, preservando os `codigo`, que são
-  a chave do que já está gravado. Três **linhas** (IC, IT, IE) e oito **modalidades**,
+  a chave do que já está gravado. Três **linhas** (IC, IT, IE) e seis **modalidades**:
+  PIBIC/CNPq e PIBITI/CNPq (**só doutor**), PIBIC/UNIEGO, PIBITI/UNIEGO e PROBEX/UNIEGO
+  (R$ 350, **mestre para cima**) e **Voluntário** (`especialista`), que é UM só e serve
+  às três linhas (`linha: null`) — sem bolsa não há por que separar IC, IT e IE. As três
+  voluntárias antigas (`pvic-`/`pviti-`/`pvie-uniego`) resolvem para ela por `HERANCA`.
+  As modalidades são o cruzamento linha × fomento,
   que são o cruzamento linha × fomento: o professor escolhe a linha e, se quiser, a
   modalidade pretendida; a coordenação marca na seleção se houve **bolsa do CNPq, bolsa
   do UNIEGO (R$ 350) ou voluntário**, e a modalidade efetiva (`modalidadeEfetiva`) sai

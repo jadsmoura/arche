@@ -16,8 +16,11 @@ import { cpfValido } from "../lib/cpf.js";
 import { normalizarProjeto, validarProjeto, modalidadeEfetiva } from "../lib/ic.js";
 
 /* ----------------------------- modalidades ------------------------------ */
-test("as oito modalidades do edital, três linhas e o cruzamento entre elas", () => {
-  assert.equal(MODALIDADES.length, 8);
+test("as seis modalidades do edital, três linhas e o cruzamento entre elas", () => {
+  // cinco com bolsa (uma por linha × fomento) e UMA voluntária, que serve às três
+  assert.equal(MODALIDADES.length, 6);
+  assert.deepEqual(MODALIDADES.map((m) => m.nome),
+    ["PIBIC/CNPq", "PIBITI/CNPq", "PIBIC/UNIEGO", "PIBITI/UNIEGO", "PROBEX/UNIEGO", "Voluntário"]);
   assert.deepEqual(LINHAS.map((l) => l.codigo), ["ic", "it", "ie"]);
   for (const l of LINHAS) {
     const daLinha = modalidadesDaLinha(l.codigo);
@@ -26,22 +29,39 @@ test("as oito modalidades do edital, três linhas e o cruzamento entre elas", ()
   }
   assert.equal(modalidadePor("ic", "cnpq").codigo, "pibic-cnpq");
   assert.equal(modalidadePor("ic", "uniego").codigo, "pbic-uniego");
-  assert.equal(modalidadePor("ic", "voluntario").codigo, "pvic-uniego");
-  assert.equal(modalidadePor("ie", "voluntario").codigo, "pvie-uniego");
+  assert.equal(modalidadePor("ie", "uniego").codigo, "pbie-uniego", "PROBEX é a bolsa da extensão");
+  // sem bolsa, a modalidade é a mesma em qualquer linha
+  assert.equal(modalidadePor("ic", "voluntario").codigo, "voluntario");
+  assert.equal(modalidadePor("ie", "voluntario").codigo, "voluntario");
   assert.equal(modalidadePor("it", "cnpq").codigo, "pibiti-cnpq");
   assert.equal(modalidadePor("ie", "cnpq"), null, "o CNPq não financia iniciação à extensão neste edital");
+});
+
+test("a titulação abre as portas na ordem do edital", () => {
+  // CNPq só doutor; UNIEGO de mestre para cima; voluntário a partir de especialista
+  for (const m of MODALIDADES.filter((x) => x.fomento === "cnpq")) {
+    assert.equal(m.titulacaoMinima, "doutor", `${m.nome} é bolsa do CNPq`);
+  }
+  for (const m of MODALIDADES.filter((x) => x.fomento === "uniego")) {
+    assert.equal(m.titulacaoMinima, "mestre", `${m.nome} é bolsa do UNIEGO`);
+  }
+  assert.equal(MODALIDADES.find((m) => !m.bolsa).titulacaoMinima, "especialista");
 });
 
 test("a bolsa do UNIEGO vale R$ 350 e a do CNPq segue a tabela do órgão", () => {
   assert.equal(modalidadeDe("pbic-uniego").valor, 350);
   assert.equal(modalidadeDe("pibic-cnpq").valor, null, "o valor do CNPq não é fixado por nós");
-  assert.equal(modalidadeDe("pvic-uniego").valor, 0);
+  assert.equal(modalidadeDe("voluntario").valor, 0);
 });
 
-test("os códigos curtos antigos continuam resolvendo", () => {
+test("os códigos antigos continuam resolvendo", () => {
   assert.equal(modalidadeVigente("pibic"), "pibic-cnpq");
-  assert.equal(modalidadeVigente("voluntaria"), "pvic-uniego");
   assert.equal(modalidadeDe(modalidadeVigente("pibiti")).nome, "PIBITI/CNPq");
+  // as três voluntárias por linha viraram uma só: o que estava gravado
+  // com os códigos antigos continua encontrando a modalidade certa
+  for (const antigo of ["voluntaria", "pvic-uniego", "pviti-uniego", "pvie-uniego"]) {
+    assert.equal(modalidadeVigente(antigo), "voluntario", antigo);
+  }
 });
 
 test("a titulação vem como texto livre e precisa ser entendida assim", () => {
@@ -156,7 +176,7 @@ test("a modalidade efetiva sai da linha com o fomento decidido na seleção", ()
   const p = { linha: "ic", modalidade: "pibic-cnpq" };
   assert.equal(modalidadeEfetiva(p).codigo, "pibic-cnpq", "antes da decisão vale a pretendida");
   assert.equal(modalidadeEfetiva({ ...p, fomento: { tipo: "uniego" } }).codigo, "pbic-uniego");
-  assert.equal(modalidadeEfetiva({ ...p, fomento: { tipo: "voluntario" } }).codigo, "pvic-uniego");
+  assert.equal(modalidadeEfetiva({ ...p, fomento: { tipo: "voluntario" } }).codigo, "voluntario");
   assert.equal(modalidadeEfetiva({ linha: "ie", fomento: { tipo: "uniego" } }).codigo, "pbie-uniego");
 });
 

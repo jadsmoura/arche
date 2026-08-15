@@ -1487,7 +1487,7 @@ function renderEditor(alvo) {
         <div><label>Modalidade pretendida <span class="muted">(a concessão é decidida na seleção)</span></label>
           <select ${ro} onchange="campo('modalidade',this.value)">
             <option value="">— a definir na seleção —</option>
-            ${META.modalidades.filter((m) => m.linha === (p.linha || "ic"))
+            ${META.modalidades.filter((m) => m.linha === (p.linha || "ic") || m.linha === null)
               .map((m) => `<option value="${m.codigo}" ${p.modalidade === m.codigo ? "selected" : ""}>${esc(m.nome)}${m.valor ? ` — R$ ${m.valor}` : ""}</option>`).join("")}
           </select></div>
         <div><label>Grupo de pesquisa (DGP/CNPq)
