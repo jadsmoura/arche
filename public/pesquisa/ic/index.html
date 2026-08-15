@@ -233,6 +233,7 @@
         <section id="v-bolsistas" class="hide"></section>
         <section id="v-cronograma" class="hide"></section>
         <section id="v-relatorios" class="hide"></section>
+        <section id="v-bolsas" class="hide"></section>
         <section id="v-certificados" class="hide"></section>
         <section id="v-projeto" class="hide"></section>
       </div>
@@ -292,6 +293,7 @@ const SECOES = [
   { id: "gestao", grupo: "PROJETOS", rot: "Gestão", ic: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8"/>', perfis: ["gestao", "orientador"] },
   { id: "avaliacao", grupo: "SELEÇÃO", rot: "Avaliação", ic: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', perfis: ["gestao", "avaliador"] },
   { id: "classificacao", grupo: "SELEÇÃO", rot: "Projetos", ic: '<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>', perfis: ["gestao"] },
+  { id: "bolsas", grupo: "SELEÇÃO", rot: "Bolsas", ic: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a2 2 0 0 1 0 4h-3a2 2 0 0 0 0 4h4"/>', perfis: ["gestao"] },
   { id: "editais", grupo: "SELEÇÃO", rot: "Editais e Resultados", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 12h8M8 16h8"/>' },
   { id: "bolsistas", grupo: "ACOMPANHAMENTO", rot: "Bolsistas e Voluntários", ic: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>', perfis: ["gestao", "orientador"] },
   { id: "cronograma", grupo: "ACOMPANHAMENTO", rot: "Cronograma", ic: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/>', perfis: ["orientador", "aluno"] },
@@ -306,6 +308,7 @@ const TITULOS = {
   avaliacao: ["Avaliação da seleção", "Parecer ad hoc dos projetos submetidos."],
   classificacao: ["Projetos do edital", "Todos os projetos de cada processo seletivo, em ordem de classificação."],
   bolsistas: ["Bolsistas e Voluntários", "Cada aluno em execução, com as metas do cronograma e as entregas — por ciclo."],
+  bolsas: ["Bolsas", "Atribuição das bolsas conforme a disponibilidade orçamentária, em ordem de pontuação."],
   editais: ["Editais e Resultados", "Os documentos de cada processo, ano a ano: o edital e o resultado."],
   cronograma: ["Cronograma", "Todas as atividades dos projetos num só lugar."],
   relatorios: ["Relatórios", "Parciais e finais: o aluno envia, a orientação valida."],
@@ -460,7 +463,7 @@ function nav(secao, modo) {
   // a inclusão manual vale só para o formulário aberto por ela
   MANUAL = secao === "submissao" && modo === "manual";
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === secao);
-  for (const v of ["painel", "submissao", "gestao", "avaliacao", "classificacao", "editais", "bolsistas", "cronograma", "relatorios", "certificados", "projeto"]) $("v-" + v).classList.add("hide");
+  for (const v of ["painel", "submissao", "gestao", "avaliacao", "classificacao", "bolsas", "editais", "bolsistas", "cronograma", "relatorios", "certificados", "projeto"]) $("v-" + v).classList.add("hide");
   // submissão e projeto compartilham o editor (mesmos ids): a seção que sai
   // do ar é esvaziada, senão getElementById acha os campos escondidos
   for (const v of ["submissao", "projeto"]) if (v !== secao) $("v-" + v).innerHTML = "";
@@ -487,6 +490,7 @@ function nav(secao, modo) {
   if (secao === "editais") renderEditais();
   if (secao === "cronograma") renderCronograma();
   if (secao === "relatorios") renderRelatorios();
+  if (secao === "bolsas") renderBolsas();
   if (secao === "certificados") renderCertificados();
   $("v-" + secao).classList.remove("hide");
   window.scrollTo(0, 0);
@@ -1127,6 +1131,120 @@ const titulacaoCodigo = (v) => {
   return "";
 };
 const ehDoutor = (v) => titulacaoCodigo(v) === "doutor";
+
+/* -------------------------------- bolsas -------------------------------- */
+/* A distribuição das bolsas, feita à mão pela coordenação conforme a cota
+   que a presidência liberar. Os aprovados aparecem em ORDEM DE PONTUAÇÃO,
+   em três blocos: só doutores, todos, e só especialistas. O MESMO projeto
+   aparece em mais de um bloco de propósito — é assim que se compara dentro
+   e fora do recorte —, e por isso a concessão é do PROJETO: marcar a bolsa
+   num bloco marca em todos, que é o que evita dar duas bolsas ao mesmo. */
+let CICLO_BOLSAS = "";
+function renderBolsas() {
+  const editais = editaisOrdenados();
+  if (!CICLO_BOLSAS || !editais.some((e) => e.numero === CICLO_BOLSAS)) {
+    CICLO_BOLSAS = (editais.find((e) => e.vigente) || editais[0] || {}).numero || "";
+  }
+  const aprovados = PROJETOS.filter((p) => (p.edital || META.edital?.numero) === CICLO_BOLSAS
+    && ["aprovado", "concluido"].includes(p.status));
+  const cnpq = aprovados.filter((p) => p.fomento?.tipo === "cnpq").length;
+  const uniego = aprovados.filter((p) => p.fomento?.tipo === "uniego").length;
+  const semDecisao = aprovados.filter((p) => !p.fomento).length;
+
+  const bloco = (rotulo, lista, dica) => {
+    let pos = 0;
+    return `<details class="quadro" open>
+      <summary>${rotulo}<span class="qt">${lista.length} projeto(s)</span><span class="seta">▼</span></summary>
+      ${dica ? `<div class="muted" style="padding:8px 14px 0">${dica}</div>` : ""}
+      ${lista.length ? `<div class="rolo" style="padding:6px 12px 10px"><table class="pt">
+        <thead><tr><th style="width:4%"></th><th style="width:11%">Protocolo</th><th style="width:30%">Título</th>
+          <th style="width:17%">Professor(a)</th><th style="width:8%">Titulação</th>
+          <th style="width:6%">NP</th><th style="width:6%">CL</th><th style="width:6%">Total</th>
+          <th style="width:12%">Bolsa</th></tr></thead>
+        <tbody>${lista.map((p) => {
+          const comNota = p.classificacao?.total != null;
+          if (comNota) pos += 1;
+          const t = p.fomento?.tipo || "";
+          const cor = t === "cnpq" ? "b-aprovado" : t === "uniego" ? "b-validado" : t ? "b-rascunho" : "";
+          return `<tr${t && t !== "voluntario" ? ' style="background:var(--ok-soft)"' : ""}>
+            <td>${comNota ? pos + "º" : "—"}</td>
+            <td><b style="color:var(--brand-2)">${esc(p.numero || "—")}</b></td>
+            <td>${esc(p.titulo || "(sem título)")}</td>
+            <td>${esc(p.orientador?.nome || p.orientador?.email || "—")}</td>
+            <td>${esc(titNomeBolsa(p.orientador?.titulacao))}</td>
+            <td>${p.classificacao?.np ?? "—"}</td>
+            <td>${p.classificacao?.cl ?? "—"}</td>
+            <td><b>${comNota ? p.classificacao.total : "—"}</b></td>
+            <td><select onchange="atribuirBolsa('${esc(p.id)}',this.value,this)"
+              title="${t ? esc(fomentoNome(t)) : "sem decisão"}">
+              <option value="" ${!t ? "selected" : ""}>— sem decisão —</option>
+              ${META.fomentos.map((f) => `<option value="${f.codigo}" ${t === f.codigo ? "selected" : ""}>${esc(f.nome)}</option>`).join("")}
+            </select></td>
+          </tr>`;
+        }).join("")}</tbody></table></div>`
+      : `<div class="vazio" style="padding:10px 14px">Nenhum projeto neste bloco.</div>`}
+    </details>`;
+  };
+
+  const doutores = ordenarClassificacao(aprovados.filter((p) => ehDoutor(p.orientador?.titulacao)));
+  const especialistas = ordenarClassificacao(aprovados.filter((p) =>
+    titulacaoCodigo(p.orientador?.titulacao) === "especialista"));
+  const todos = ordenarClassificacao(aprovados);
+
+  $("v-bolsas").innerHTML = `
+    <div class="tut"><details><summary>Como a atribuição funciona</summary>
+      <ol>
+        <li>A lista traz os projetos <b>aprovados</b> do ciclo, em ordem de pontuação (NP + CL).</li>
+        <li>São três recortes do <b>mesmo conjunto</b>: só doutores, todos e só especialistas — um
+          projeto de doutor aparece no primeiro e no segundo, de propósito.</li>
+        <li>A bolsa é do <b>projeto</b>: marcar num bloco marca em todos, e é isso que impede
+          conceder duas bolsas ao mesmo projeto.</li>
+        <li><b>Bolsa CNPq exige doutorado</b> (item 4.4 do edital) — o sistema avisa se a titulação não atender.</li>
+      </ol></details></div>
+
+    <div class="filtros" style="margin-bottom:14px">
+      <label style="margin:0;display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--muted)">
+        Ciclo
+        <select style="width:auto;min-width:220px" onchange="CICLO_BOLSAS=this.value;renderBolsas()">
+          ${editais.map((e) => `<option value="${esc(e.numero)}" ${CICLO_BOLSAS === e.numero ? "selected" : ""}>Edital ${esc(e.numero)}${e.vigente ? " — vigente" : ""}</option>`).join("")}
+        </select>
+      </label>
+    </div>
+
+    <div class="kpis" style="margin-bottom:16px">
+      <div class="kpi"><div class="l">Aprovados</div><div class="v">${aprovados.length}</div><div class="d">no ciclo ${esc(CICLO_BOLSAS)}</div></div>
+      <div class="kpi"><div class="l">Bolsa CNPq</div><div class="v">${cnpq}</div><div class="d">concedidas</div></div>
+      <div class="kpi"><div class="l">Bolsa UNIEGO</div><div class="v">${uniego}</div><div class="d">concedidas</div></div>
+      <div class="kpi"><div class="l">Sem decisão</div><div class="v">${semDecisao}</div><div class="d">aguardando atribuição</div></div>
+    </div>
+
+    ${!aprovados.length ? `<div class="card"><div class="vazio">Nenhum projeto aprovado neste ciclo ainda —
+      a atribuição das bolsas acontece depois da decisão de mérito.</div></div>` : `
+      ${bloco("Professores doutores", doutores, "As bolsas do CNPq exigem doutorado (item 4.4).")}
+      ${bloco("Todos os professores", todos, "O mesmo projeto marcado acima aparece marcado aqui.")}
+      ${bloco("Professores especialistas", especialistas, "")}`}`;
+}
+const titNomeBolsa = (v) => ({ doutor: "Doutor", mestre: "Mestre", especialista: "Especialista" })[titulacaoCodigo(v)] || "—";
+
+/* A concessão é do projeto: gravada uma vez, a tela inteira é redesenhada e
+   os três blocos passam a mostrar o mesmo estado. */
+async function atribuirBolsa(id, tipo, sel) {
+  const p = PROJETOS.find((x) => x.id === id);
+  if (tipo === "cnpq" && !ehDoutor(p?.orientador?.titulacao)) {
+    if (!confirm(`O edital reserva a bolsa CNPq a professores doutores (item 4.4), e a titulação`
+      + ` informada é ${titNomeBolsa(p?.orientador?.titulacao).toLowerCase()}.\n\nConceder mesmo assim?`)) {
+      sel.value = p?.fomento?.tipo || ""; return;
+    }
+  }
+  try {
+    await api(`/api/ic/${id}/fomento`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tipo }),
+    });
+    await carregar();
+    renderBolsas();
+    aviso(tipo ? `${p?.numero || "Projeto"}: ${fomentoNome(tipo)}.` : `${p?.numero || "Projeto"}: concessão desfeita.`);
+  } catch (e) { aviso(e.message, "err"); renderBolsas(); }
+}
 
 function renderClassificacao() {
   const titNome = (c) => (META.titulacoes.find((t) => t.codigo === c) || {}).nome || c || "—";

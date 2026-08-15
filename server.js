@@ -3448,7 +3448,10 @@ app.post("/api/ic/:id/fomento", async (req, res) => {
   const meu = quemIC(u);
   const tipo = String(req.body?.tipo || "");
   const obs = String(req.body?.observacao || "").trim().slice(0, 2000);
-  if (!FOMENTOS.some((f) => f.codigo === tipo)) return res.status(400).json({ error: "Fomento inválido" });
+  // tipo vazio DESFAZ a concessão — a distribuição das bolsas é um jogo de
+  // remanejamento, e tirar de um para dar a outro precisa ser possível
+  if (tipo && !FOMENTOS.some((f) => f.codigo === tipo))
+    return res.status(400).json({ error: "Fomento inválido" });
 
   const r = await comProjetos((projetos) => {
     const i = projetos.findIndex((x) => x.id === req.params.id);
@@ -3456,14 +3459,16 @@ app.post("/api/ic/:id/fomento", async (req, res) => {
     if (papelNoProjeto(meu, projetos[i]) !== "gestao")
       return { erro: [403, "A concessão de bolsa é decidida pela coordenação"], gravar: false };
     const p = projetos[i];
-    const mod = modalidadePor(p.linha, tipo);
+    const mod = tipo ? modalidadePor(p.linha, tipo) : null;
     projetos[i] = anotarProjeto({
       ...p,
-      fomento: { tipo, modalidade: mod?.codigo || "", observacao: obs, por: u.email, em: new Date().toISOString() },
-      // bolsa é do aluno: marca quem recebe (voluntário desmarca todos)
-      alunos: (p.alunos || []).map((a) => ({ ...a, bolsista: tipo !== "voluntario" })),
+      fomento: tipo
+        ? { tipo, modalidade: mod?.codigo || "", observacao: obs, por: u.email, em: new Date().toISOString() }
+        : null,
+      // bolsa é do aluno: marca quem recebe (voluntário e "sem decisão" desmarcam)
+      alunos: (p.alunos || []).map((a) => ({ ...a, bolsista: !!tipo && tipo !== "voluntario" })),
       atualizadoEm: new Date().toISOString(),
-    }, { quem: u.email, oQue: `fomento: ${mod?.nome || tipo}` });
+    }, { quem: u.email, oQue: tipo ? `fomento: ${mod?.nome || tipo}` : "concessão de bolsa desfeita" });
     return { projeto: projetos[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });

@@ -276,6 +276,14 @@ public/
 - **Prazos dos relatórios** (`prazosRelatorios` em lib/ic.js, item 11.1.b): o parcial
   vence aos 6 meses de execução e o final no fim da vigência; cada um pode ser entregue
   a partir de 2 meses antes. Projeto ATRASADO = prazo vencido com relatório faltando.
+- **Guia Bolsas** (só gestão): a distribuição das bolsas, feita **à mão** conforme a cota
+  que a presidência liberar. Lista os projetos **aprovados** do ciclo em ordem de pontuação
+  (NP + CL), em **três blocos** — só doutores, todos, só especialistas. O mesmo projeto
+  aparece em mais de um bloco de propósito (é assim que se compara dentro e fora do
+  recorte), e a concessão é do **projeto**: marcar num bloco marca em todos, que é o que
+  impede conceder duas bolsas ao mesmo. `POST /api/ic/:id/fomento` com `tipo` vazio
+  **desfaz** a concessão — remanejar exige poder tirar de um para dar a outro. Bolsa CNPq
+  em quem não é doutor pede confirmação (item 4.4).
 - **Decisão da seleção em 4 saídas** (renderSelecao): aprovado com bolsa CNPq, aprovado
   com bolsa UNIEGO, aprovado sem bolsa ou reprovado — o front encadeia as rotas
   `avaliar` + `fomento`. Bolsa concedida abre a **Indicação do bolsista** no projeto:
