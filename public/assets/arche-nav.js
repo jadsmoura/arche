@@ -57,6 +57,26 @@
       ".arche-topnav .nav-sair[disabled]{opacity:.6;cursor:default}" +
       ".arche-topnav a.nav-entrar{border:1px solid rgba(113,200,226,.5);color:#71c8e2;font-weight:600;opacity:1}" +
       ".arche-topnav a.nav-entrar:hover{background:rgba(113,200,226,.15);color:#fff}" +
+      /* sino de alertas da gestão: badge com o total e painel suspenso */
+      ".arche-topnav .nav-sino{position:relative;background:none;border:0;cursor:pointer;color:#fff;" +
+      "font-size:16px;padding:6px 9px;border-radius:8px;opacity:.85;transition:.15s;line-height:1}" +
+      ".arche-topnav .nav-sino:hover{opacity:1;background:rgba(255,255,255,.12)}" +
+      ".arche-topnav .nav-sino .qt{position:absolute;top:0;right:0;min-width:16px;height:16px;" +
+      "border-radius:9px;background:#e2a63d;color:#1c3742;font-size:10px;font-weight:800;" +
+      "display:grid;place-items:center;padding:0 4px;border:2px solid #1c3742}" +
+      ".arche-alertas{position:fixed;z-index:10000;top:52px;right:16px;width:min(380px,calc(100vw - 24px));" +
+      "background:#fff;border:1px solid #dde4e8;border-radius:14px;box-shadow:0 14px 40px -12px rgba(24,38,50,.35);" +
+      "overflow:hidden;font-family:inherit}" +
+      ".arche-alertas .cab{padding:12px 16px;font-weight:800;font-size:13px;color:#1c3742;" +
+      "border-bottom:1px solid #dde4e8;background:#eef3f5}" +
+      ".arche-alertas a.it{display:block;padding:11px 16px;border-bottom:1px solid #eef1f4;" +
+      "text-decoration:none;transition:.12s}" +
+      ".arche-alertas a.it:hover{background:#e6f5fa}" +
+      ".arche-alertas a.it:last-child{border-bottom:0}" +
+      ".arche-alertas .set{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#40717e}" +
+      ".arche-alertas .tx{font-size:13px;color:#182632;font-weight:600;margin-top:2px}" +
+      ".arche-alertas .dt{font-size:11.5px;color:#657179;margin-top:2px}" +
+      ".arche-alertas .zero{padding:18px 16px;font-size:13px;color:#657179}" +
       "@media(max-width:600px){.arche-topnav{padding:8px 12px;gap:4px}" +
       ".arche-topnav a{font-size:12px;padding:5px 9px}.arche-topnav .nav-brand{font-size:13px}" +
       /* no celular a barra é estreita e fica presa no topo: a conta se reduz
@@ -96,6 +116,57 @@
       + encodeURIComponent(caminho + location.search) + '">Entrar</a>';
   }
 
+  /* Sino de alertas — só para quem gere algo (gestor geral ou coordenador
+     de módulo): o servidor recorta os alertas pelo setor de cada um, então
+     aqui basta pedir e mostrar. Clicar fora fecha o painel. */
+  function sino(caixa, me) {
+    if (me.papel !== "gestor" && me.papel !== "coordenador") return;
+    var btn = document.createElement("button");
+    btn.className = "nav-sino"; btn.type = "button"; btn.title = "Alertas da gestão";
+    btn.innerHTML = "🔔";
+    caixa.insertBefore(btn, caixa.firstChild);
+    var painel = null, dados = null;
+
+    function fechar() { if (painel) { painel.remove(); painel = null; } }
+    function abrir() {
+      fechar();
+      painel = document.createElement("div");
+      painel.className = "arche-alertas";
+      var itens = (dados && dados.alertas) || [];
+      painel.innerHTML = '<div class="cab">Alertas da gestão</div>'
+        + (itens.length ? itens.map(function (a) {
+          return '<a class="it" href="' + esc(a.link || "#") + '">'
+            + '<div class="set">' + esc(a.setor || "") + "</div>"
+            + '<div class="tx">' + esc(a.texto || "") + "</div>"
+            + (a.detalhe ? '<div class="dt">' + esc(a.detalhe) + "</div>" : "")
+            + "</a>";
+        }).join("") : '<div class="zero">Tudo em dia — nada aguardando validação ou autorização.</div>');
+      document.body.appendChild(painel);
+      setTimeout(function () {
+        document.addEventListener("click", function fora(ev) {
+          if (painel && !painel.contains(ev.target) && ev.target !== btn) {
+            fechar(); document.removeEventListener("click", fora);
+          }
+        });
+      }, 0);
+    }
+
+    btn.onclick = function (ev) { ev.stopPropagation(); if (painel) fechar(); else abrir(); };
+
+    fetch("/api/alertas")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j) return;
+        dados = j;
+        if (j.total > 0) {
+          var q = document.createElement("span");
+          q.className = "qt"; q.textContent = j.total > 99 ? "99+" : String(j.total);
+          btn.appendChild(q);
+        }
+      })
+      .catch(function () {});
+  }
+
   function logado(caixa, me) {
     var nome = (me.perfil && me.perfil.nome) || me.nome || me.email || "";
     if (nome.indexOf("@") > 0) nome = nome.split("@")[0];      // conta sem perfil preenchido
@@ -107,6 +178,7 @@
       + '<span class="nav-id"><b>' + esc(curto) + "</b><span>"
       + esc(PAPEL[me.papel] || me.papel) + "</span></span></a>"
       + '<button class="nav-sair" type="button">sair</button>';
+    sino(caixa, me);
     caixa.querySelector(".nav-sair").onclick = function () {
       this.disabled = true; this.textContent = "saindo…";
       // no portal a página não depende da sessão e basta redesenhar a barra;

@@ -1350,10 +1350,21 @@ function renderEditor(alvo) {
       <label>Motivo do deferimento * <span class="muted">(mínimo de 10 caracteres; fica no histórico)</span></label>
       <textarea style="min-height:70px" oninput="sub('inclusaoManual','motivo',this.value)"
         placeholder="Ex.: inclusão fora do prazo deferida pelo Pró-Reitor em 12/06/2026, por falha no envio do formulário.">${esc(p.inclusaoManual?.motivo || "")}</textarea>
+      <div class="grid3">
+        <div><label>Nome de quem orienta *</label>
+          <input value="${esc(p.orientador?.nome || "")}" oninput="sub('orientador','nome',this.value)"></div>
+        <div><label>E-mail de quem orienta</label>
+          <input type="email" value="${esc(p.orientador?.email || "")}"
+            oninput="sub('orientador','email',this.value)" onblur="buscarProducaoDoProfessor()"></div>
+        <div><label>Titulação</label><select onchange="sub('orientador','titulacao',this.value)">
+          <option value="">— escolha —</option>
+          ${META.titulacoes.map((t) => `<option value="${t.codigo}" ${p.orientador?.titulacao === t.codigo ? "selected" : ""}>${esc(t.nome)}</option>`).join("")}
+        </select></div>
+      </div>
       <label>CPF de quem orienta <span class="muted">(se a pessoa ainda não tiver conta no ARCHÉ)</span></label>
       <input value="${esc(p.orientador?.cpf || "")}" oninput="sub('orientador','cpf',this.value)"
         onblur="buscarProducaoDoProfessor()" placeholder="000.000.000-00">
-      <div class="muted" style="margin-top:8px">Basta o e-mail (na seção Orientação) <b>ou</b> o CPF: é por um
+      <div class="muted" style="margin-top:8px">Basta o e-mail <b>ou</b> o CPF: é por um
         dos dois que o projeto encontra o professor. Só com o CPF, ele aparece na conta assim que a pessoa
         gravar o CPF no perfil. Informado um dos dois, a <b>planilha de produção</b> do professor entra
         sozinha, vinda da última submissão dele — é só conferir e ajustar.</div>
@@ -1447,10 +1458,10 @@ function renderEditor(alvo) {
         </select></div>
       </div>` : ""}
 
-      <div class="sec-t">Orientação</div>
-      ${PODE.papel === "avaliador" ? `
+      ${novo && MANUAL ? "" : `<div class="sec-t">Orientação</div>`}
+      ${novo && MANUAL ? "" : PODE.papel === "avaliador" ? `
       <div class="muted">Identificação omitida: o parecer ad hoc julga a proposta, não as pessoas.</div>`
-      : novo && !MANUAL ? `
+      : novo ? `
       <div class="kv" style="margin:10px 0">A proposta é submetida na sua conta:
         <b>${esc(ME?.nome || META.eu)}</b> (${esc(META.eu)}). Nome, titulação, telefone e Currículo
         Lattes saem do seu <a href="/perfil/" target="_blank" rel="noopener">perfil</a> — mantenha-o

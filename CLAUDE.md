@@ -59,7 +59,17 @@ public/
   as atas de todos os órgãos, o Acompanhamento e os alertas); fora dele é submissora, e
   a gestão de acessos continua exclusiva dos gestores gerais. Cada setor decide isso
   lendo `modulos` da sessão (`gereAtas`, `gereIC`) — nunca o papel sozinho.
-- Contas `@uniego.edu.br` entram como submissoras automaticamente; outras aguardam aprovação.
+- **Todo cadastro novo entra como submissor automaticamente** (decisão do dono, ago/2026):
+  `aprovarCadastroNovo` no server aprova no primeiro login — contas `@uniego.edu.br` já
+  entravam assim, e as pendentes antigas convergem ao entrar de novo. O registro fica em
+  `auth-novos-cadastros-v1` (chave `auth-*`, fora do `/api/estado`) e alimenta o alerta
+  "cadastros novos" + o e-mail à PROPPEX; rever um acesso é em `/usuarios/`.
+- **Sino de alertas no topo** (`GET /api/alertas` + `arche-nav.js`): mostra à gestão o que
+  espera decisão ou atenção — acessos pendentes e cadastros novos (só gestor geral),
+  projetos de IC aguardando avaliação, substituições de bolsista, relatórios em atraso,
+  propostas/relatórios da Extensão e órgãos fora de dia nas Atas. O recorte é por
+  `modulosDe`: o gestor geral vê tudo; o coordenador, só os módulos que coordena; quem
+  não gere nada não vê o sino. A rota só devolve contagens, nomes e links — nada sigiloso.
 - **Senha provisória** (`POST /api/usuarios/senha`, só gestores gerais): para quem perdeu o
   acesso ao e-mail. Vale **7 dias** e obriga a troca no primeiro login (`/auth/senha`
   devolve `trocarSenha: true`; o `/entrar` esconde o "agora não"). Quando a pessoa define

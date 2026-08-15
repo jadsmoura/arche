@@ -31,7 +31,7 @@ import {
   podeEnviarRelatorio, podeValidarRelatorio, cronogramaDe, relatoriosDe, relatoriosPendentes,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto, notaFinal,
   participaDeAlgum, vincularPorCpf, modalidadeEfetiva as modalidadeEfetivaIC,
-  producaoDoOrientador,
+  producaoDoOrientador, prazosRelatorios,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import {
@@ -256,13 +256,8 @@ app.post("/auth/google", async (req, res) => {
   try {
     const { email, nome } = await verificarGoogle(req.body?.credential);
     emitirCookie(res, { email, nome });
-    const usuarios = await carregarUsuarios(storage);
-    const papel = papelDe(email, usuarios);
-    if (papel === "pendente" && !usuarios.pendentes.some((p) => p.email === email.toLowerCase())) {
-      usuarios.pendentes.push({ email: email.toLowerCase(), nome, quando: new Date().toISOString() });
-      await salvarUsuarios(storage, usuarios);
-      notificarPendente(email, nome).catch(() => {});
-    }
+    // cadastro novo (ou conta ainda pendente) entra aprovado na hora
+    const papel = await aprovarCadastroNovo(email, nome);
     res.json({ ok: true, papel });
   } catch (e) {
     res.status(400).json({ ok: false, error: e.message });
@@ -309,13 +304,8 @@ app.post("/auth/codigo/verificar", async (req, res) => {
   const okCodigo = await verificarCodigo(storage, email, req.body?.codigo);
   if (!okCodigo) return res.status(400).json({ ok: false, error: "Código inválido ou expirado" });
   emitirCookie(res, { email, nome: email });
-  const usuarios = await carregarUsuarios(storage);
-  const papel = papelDe(email, usuarios);
-  if (papel === "pendente" && !usuarios.pendentes.some((p) => p.email === email)) {
-    usuarios.pendentes.push({ email, nome: email, quando: new Date().toISOString() });
-    await salvarUsuarios(storage, usuarios);
-    notificarPendente(email, email).catch(() => {});
-  }
+  // cadastro novo (ou conta ainda pendente) entra aprovado na hora
+  const papel = await aprovarCadastroNovo(email, email);
   // temSenha diz à tela se vale oferecer a criação de senha logo após entrar
   res.json({ ok: true, papel, temSenha: await temSenha(storage, email) });
 });
@@ -413,12 +403,109 @@ app.get("/auth/sair", (req, res) => {
 async function notificarPendente(email, nome) {
   const { enviarEmail } = await import("./lib/mailer.js");
   await enviarEmail({
-    assunto: `[ARCHÉ] Novo acesso aguardando aprovação: ${email}`,
+    assunto: `[ARCHÉ] Novo cadastro aprovado automaticamente: ${email}`,
     corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif">
-      <p><b>${nome}</b> (${email}) entrou no ARCHÉ e aguarda aprovação como submissor.</p>
+      <p><b>${nome}</b> (${email}) entrou no ARCHÉ e foi <b>aprovado automaticamente</b> como submissor
+        (decisão da PROPPEX: cadastro novo não fica barrado esperando).</p>
+      <p>Se algo estiver errado, a gestão de acessos permite rever.</p>
       <p><a href="${(process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "")}/usuarios/">Abrir gestão de acessos</a></p></div>`,
   });
 }
+
+/**
+ * Cadastro novo entra APROVADO (decisão do dono, ago/2026): ninguém fica
+ * barrado esperando a PROPPEX — a gestão fica sabendo pelo sino de alertas
+ * (e por e-mail) e pode rever em /usuarios/. O registro dos cadastros
+ * automáticos fica em chave auth-* (invisível pelo /api/estado) e alimenta
+ * o alerta "cadastros novos".
+ */
+const CADASTROS_KEY = "auth-novos-cadastros-v1";
+async function aprovarCadastroNovo(email, nome) {
+  const e = String(email || "").toLowerCase();
+  const usuarios = await carregarUsuarios(storage);
+  if (papelDe(e, usuarios) !== "pendente") return papelDe(e, usuarios);
+  usuarios.aprovados = [...new Set([...usuarios.aprovados, e])];
+  usuarios.pendentes = usuarios.pendentes.filter((p) => p.email !== e);
+  await salvarUsuarios(storage, usuarios);
+  const lista = JSON.parse((await storage.get(CADASTROS_KEY)) || "[]");
+  lista.unshift({ email: e, nome: String(nome || e), quando: new Date().toISOString() });
+  await storage.set(CADASTROS_KEY, JSON.stringify(lista.slice(0, 100)));
+  await storage.flush?.();
+  console.log(`[auth] cadastro novo aprovado automaticamente: ${e}`);
+  notificarPendente(e, nome || e).catch(() => {});
+  return "aprovado";
+}
+
+/**
+ * O sino de alertas do topo: o que espera decisão ou atenção, com o recorte
+ * do setor de cada gestor — o gestor geral vê tudo (acessos inclusive); o
+ * coordenador vê só os módulos que coordena (modulosDe). Quem não gere nada
+ * recebe lista vazia e o sino nem aparece. Nada aqui é sigiloso: contagens,
+ * nomes e o link da tela onde a ação acontece.
+ */
+app.get("/api/alertas", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "não autenticado" });
+    if (!u.modulos.length) return res.json({ alertas: [], total: 0 });
+    const geral = u.papel === "gestor";
+    const alertas = [];
+    const corte14 = Date.now() - 14 * 24 * 3600 * 1000;
+
+    if (geral) {
+      const usuarios = await carregarUsuarios(storage);
+      if (usuarios.pendentes.length) {
+        alertas.push({ setor: "Acessos", n: usuarios.pendentes.length, link: "/usuarios/",
+          texto: `${usuarios.pendentes.length} acesso(s) aguardando aprovação`,
+          detalhe: usuarios.pendentes.slice(0, 5).map((p) => p.nome || p.email).join(" · ") });
+      }
+      const novos = JSON.parse((await storage.get(CADASTROS_KEY)) || "[]")
+        .filter((c) => +new Date(c.quando) > corte14);
+      if (novos.length) {
+        alertas.push({ setor: "Acessos", n: novos.length, link: "/usuarios/",
+          texto: `${novos.length} cadastro(s) novo(s) aprovado(s) automaticamente (últimos 14 dias)`,
+          detalhe: novos.slice(0, 5).map((c) => c.nome || c.email).join(" · ") });
+      }
+    }
+
+    if (u.modulos.includes("pesquisa")) {
+      const projetos = await lerProjetos();
+      const doCiclo = projetos.filter((p) =>
+        String(p.edital || EDITAL.numero) === EDITAL.numero && p.status !== "rascunho");
+      const emAval = doCiclo.filter((p) => p.status === "submetido").length;
+      if (emAval) alertas.push({ setor: "Pesquisa · IC", n: emAval, link: "/pesquisa/ic/",
+        texto: `${emAval} projeto(s) aguardando avaliação da seleção` });
+      const subst = projetos.reduce((s, p) =>
+        s + (p.substituicoes || []).filter((x) => x.situacao === "solicitada").length, 0);
+      if (subst) alertas.push({ setor: "Pesquisa · IC", n: subst, link: "/pesquisa/ic/",
+        texto: `${subst} pedido(s) de substituição de bolsista aguardando decisão` });
+      const atrasados = doCiclo.filter((p) => prazosRelatorios(p)?.atrasado).length;
+      if (atrasados) alertas.push({ setor: "Pesquisa · IC", n: atrasados, link: "/pesquisa/ic/",
+        texto: `${atrasados} projeto(s) com relatório em atraso` });
+    }
+
+    if (u.modulos.includes("extensao")) {
+      const acoes = JSON.parse((await storage.get("extensao-acoes-v1")) || "[]");
+      const submetidas = acoes.filter((a) => a.status === "submetida").length;
+      if (submetidas) alertas.push({ setor: "Extensão", n: submetidas, link: "/extensao/",
+        texto: `${submetidas} proposta(s) aguardando aprovação` });
+      const relatorios = acoes.filter((a) => a.status === "relatorio-entregue").length;
+      if (relatorios) alertas.push({ setor: "Extensão", n: relatorios, link: "/extensao/",
+        texto: `${relatorios} relatório(s) final(is) entregue(s) para conferir` });
+    }
+
+    if (u.modulos.includes("atas")) {
+      const deAtas = gerarAlertas(await lerAtas());
+      if (deAtas.length) alertas.push({ setor: "Atas", n: deAtas.length, link: "/atas/",
+        texto: `${deAtas.length} órgão(s) fora de dia com o registro de atas` });
+    }
+
+    res.json({ alertas, total: alertas.reduce((s, a) => s + (a.n || 1), 0) });
+  } catch (e) {
+    console.error("Erro nos alertas:", e);
+    res.status(500).json({ error: "Falha ao montar os alertas" });
+  }
+});
 
 
 /* --------------------- ARCHÉ IC — vitrine pública ------------------------ */
