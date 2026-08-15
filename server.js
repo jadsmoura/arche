@@ -32,6 +32,7 @@ import {
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto, notaFinal,
   participaDeAlgum, vincularPorCpf, modalidadeEfetiva as modalidadeEfetivaIC,
   producaoDoOrientador, prazosRelatorios, fomentoDe, notaTranscrita, decidindoOProprio,
+  janelaContestacao, editalDe, podeContestar,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import { certificadosDe, destinatariosDoCiclo, certificavel } from "./lib/certificados.js";
@@ -587,6 +588,12 @@ app.get("/api/alertas", async (req, res) => {
       const atrasados = doCiclo.filter((p) => prazosRelatorios(p)?.atrasado).length;
       if (atrasados) alertas.push({ setor: "Pesquisa · IC", n: atrasados, link: "/pesquisa/ic/",
         texto: `${atrasados} projeto(s) com relatório em atraso` });
+      // contestação da nota tem prazo curto e precisa de resposta ANTES do
+      // resultado final: uma que ninguém veja é pior do que nenhuma
+      const contest = projetos.reduce((s, p) =>
+        s + (p.contestacoes || []).filter((c) => !c.resposta).length, 0);
+      if (contest) alertas.push({ setor: "Pesquisa · IC", n: contest, link: "/pesquisa/ic/",
+        texto: `${contest} contestação(ões) de nota aguardando resposta` });
     }
 
     if (u.modulos.includes("extensao")) {
@@ -699,8 +706,16 @@ app.post("/api/ic/resultado/publicar", async (req, res) => {
   if (fase !== null && !["preliminar", "final"].includes(fase))
     return res.status(400).json({ error: "Fase inválida: preliminar, final ou null para recolher" });
   const pub = await resultadosPublicados();
-  if (fase) pub[numero] = { fase, em: new Date().toISOString(), por: u.email };
-  else delete pub[numero];
+  if (fase) {
+    const agora = new Date().toISOString();
+    const antes = pub[numero] || {};
+    // a data de CADA fase se guarda: o prazo de contestação conta da
+    // publicação do preliminar, e republicar não pode reiniciar o relógio
+    pub[numero] = {
+      fase, em: agora, por: u.email,
+      desde: { ...(antes.desde || {}), [fase]: antes.desde?.[fase] || agora },
+    };
+  } else delete pub[numero];
   await storage.set(RESULTADO_PUB_KEY, JSON.stringify(pub));
   await storage.flush?.();
   console.log(`[ic] resultado ${numero} ${fase ? `publicado (${fase})` : "recolhido"} por ${u.email}`);
@@ -1957,6 +1972,17 @@ const quemIC = (u) => ({
   email: u?.email, cpf: u?.cpf || "", gestao: gereIC(u), gestorGeral: u?.papel === "gestor",
 });
 
+/**
+ * Quem está olhando, com o registro de publicação junto. A devolutiva da
+ * seleção (notas e parecer) só sai para o professor DEPOIS que o resultado
+ * daquele edital foi publicado — a devolutiva é parte do resultado, e
+ * resultado se divulga uma vez, para todos ao mesmo tempo.
+ */
+const quemOlha = async (req, u) => ({
+  ...((await visaoComo(req, u)) || quemIC(u)),
+  publicados: await resultadosPublicados(),
+});
+
 async function sessaoIC(req, res) {
   const u = await usuarioDe(req, res);
   if (!u) {
@@ -2152,7 +2178,7 @@ app.get("/api/ic/meta", async (req, res) => {
 app.get("/api/ic", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
-  const meu = (await visaoComo(req, u)) || quemIC(u);
+  const meu = await quemOlha(req, u);
   const projetos = (await lerProjetos()).filter((p) => podeVerProjeto(meu, p));
   res.json({
     gestao: meu.gestao, eu: meu.email,
@@ -2166,7 +2192,7 @@ app.get("/api/ic", async (req, res) => {
 app.get("/api/ic/cronograma", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
-  const meu = (await visaoComo(req, u)) || quemIC(u);
+  const meu = await quemOlha(req, u);
   res.json({ etapas: cronogramaDe(await lerProjetos(), meu), eu: meu.email, hoje: hojeLocalISO() });
 });
 
@@ -2174,7 +2200,7 @@ app.get("/api/ic/relatorios", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
   const projetos = await lerProjetos();
-  const meu = (await visaoComo(req, u)) || quemIC(u);
+  const meu = await quemOlha(req, u);
   res.json({
     relatorios: relatoriosDe(projetos, meu),
     pendentes: projetos.filter((p) => podeVerProjeto(meu, p)).flatMap((p) =>
@@ -2642,7 +2668,7 @@ app.get("/api/ic/bolsistas.xlsx", async (req, res) => {
 app.get("/api/ic/:id", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
-  const meu = (await visaoComo(req, u)) || quemIC(u);
+  const meu = await quemOlha(req, u);
   const p = (await lerProjetos()).find((x) => x.id === req.params.id);
   if (!p || !podeVerProjeto(meu, p)) return res.status(404).json({ error: "Projeto não encontrado" });
   res.json({
@@ -2988,6 +3014,85 @@ app.post("/api/ic/:id/avaliar", async (req, res) => {
       quem: u.email,
       oQue: `avaliou: ${decisao}${proprio ? " (decisão do gestor geral sobre proposta própria; mérito julgado por parecer ad hoc)" : ""}`,
     });
+    return { projeto: projetos[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
+});
+
+/**
+ * Contestação da nota (item do edital): quem submeteu discorda do resultado e
+ * pede revisão formal. Vale entre o resultado PRELIMINAR e o FINAL — é para
+ * isso que os dois existem —, com prazo de três dias contados da publicação
+ * do preliminar. Uma por projeto: contestação é peça, não conversa.
+ *
+ * Quem decide é a coordenação, respondendo no mesmo registro. Nada aqui muda
+ * nota sozinho: a revisão, se proceder, é feita pela rota da nota, e fica no
+ * histórico como qualquer outra.
+ */
+app.post("/api/ic/:id/contestacao", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const texto = String(req.body?.texto || "").trim().slice(0, 4000);
+  if (texto.length < 30)
+    return res.status(400).json({ error: "Descreva a razão da contestação (mínimo de 30 caracteres)." });
+  const publicados = await resultadosPublicados();
+
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    const p = projetos[i];
+    if (papelNoProjeto(meu, p) !== "orientador")
+      return { erro: [403, "A contestação é de quem submeteu a proposta"], gravar: false };
+    const janela = janelaContestacao(publicados[editalDe(p)]);
+    if (!janela.aberta) {
+      return {
+        erro: [403, janela.motivo === "sem-preliminar"
+          ? "O resultado preliminar ainda não foi publicado."
+          : janela.motivo === "resultado-final"
+            ? "O resultado final já foi publicado — o prazo de contestação era antes dele."
+            : "O prazo de contestação encerrou."],
+        gravar: false,
+      };
+    }
+    if ((p.contestacoes || []).some((c) => String(c.por || "").toLowerCase() === u.email))
+      return { erro: [409, "Você já enviou uma contestação para este projeto."], gravar: false };
+    const agora = new Date().toISOString();
+    projetos[i] = anotarProjeto({
+      ...p,
+      contestacoes: [...(p.contestacoes || []), { por: u.email, em: agora, texto }],
+      atualizadoEm: agora,
+    }, { quem: u.email, oQue: "contestou a nota do projeto" });
+    return { projeto: projetos[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
+});
+
+/** A resposta da coordenação à contestação — fecha o pedido, no registro. */
+app.post("/api/ic/:id/contestacao/responder", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  if (!meu.gestao) return res.status(403).json({ error: "Só a coordenação responde à contestação" });
+  const resposta = String(req.body?.resposta || "").trim().slice(0, 4000);
+  const cid = String(req.body?.id || "").trim();
+  if (resposta.length < 10) return res.status(400).json({ error: "Escreva a resposta à contestação." });
+
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    const p = projetos[i];
+    const alvo = (p.contestacoes || []).find((c) => c.id === cid) || (p.contestacoes || [])[0];
+    if (!alvo) return { erro: [404, "Contestação não encontrada"], gravar: false };
+    const agora = new Date().toISOString();
+    projetos[i] = anotarProjeto({
+      ...p,
+      contestacoes: (p.contestacoes || []).map((c) => (c === alvo
+        ? { ...c, resposta, respondidoPor: u.email, respondidoEm: agora } : c)),
+      atualizadoEm: agora,
+    }, { quem: u.email, oQue: "respondeu à contestação da nota" });
     return { projeto: projetos[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });

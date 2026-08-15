@@ -510,7 +510,20 @@ public/
   — a nota transcrita de fora do sistema (`notaDireta`) e os pareceres entregues por aqui,
   um item por parecerista. **Só a orientação**: o aluno entrou depois da seleção, e a
   proposta é autoria de quem a submeteu. Parecer ainda não entregue não vaza, e sem nada
-  avaliado não há quadro.
+  avaliado não há quadro. E **só DEPOIS da publicação do resultado** daquele edital
+  (`resultadoPublicado`, com o registro `ic-resultado-publicado-v1` chegando em
+  `u.publicados` por `quemOlha` no server): a devolutiva é parte do resultado, e resultado
+  se divulga uma vez, para todos ao mesmo tempo. A gestão vê sempre — é ela quem publica.
+- **Contestação da nota** (`janelaContestacao`/`podeContestar`, `POST /api/ic/:id/contestacao`
+  e `/contestacao/responder`): quem submeteu pode pedir **revisão formal** da nota. A janela
+  abre com o **preliminar** publicado e fecha em **3 dias** (`PRAZO_CONTESTACAO_DIAS`) — ou
+  antes, se o **final** sair: a contestação existe para ser decidida ENTRE um resultado e o
+  outro, que é para isso que os dois existem. **Uma por projeto** (contestação é peça, não
+  conversa) e só da orientação — nem o aluno nem a coordenação, que é quem decide. A data de
+  cada fase fica em `desde` no registro de publicação, para republicar não reiniciar o
+  relógio. A coordenação responde no mesmo registro, o pedido aparece no **sino de alertas**
+  (prazo curto: contestação que ninguém vê é pior que nenhuma), e **responder não muda
+  nota** — se a revisão proceder, alterar a nota segue sendo ato à parte, no histórico.
 - **Acervo por autor** (`podeVerAta`/`podeEditarAta` em `lib/atas.js`): cada usuário só
   enxerga as atas que ele mesmo registrou. Constar como secretaria ou participante NÃO
   dá acesso — quem precisa de cópia recebe o PDF por e-mail no registro. Só a gestão

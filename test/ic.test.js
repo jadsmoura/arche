@@ -11,6 +11,7 @@ import {
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto,
   notaFinal, placarPareceres, participaDeAlgum, prazosRelatorios, pendenciasDoProjeto,
   producaoDoOrientador, notaTranscrita, decidindoOProprio, avaliacaoRecebida,
+  janelaContestacao, podeContestar, PRAZO_CONTESTACAO_DIAS,
 } from "../lib/ic.js";
 
 /* -------------------------------- fixtura ------------------------------- */
@@ -19,6 +20,13 @@ const ALUNO = { email: "marcos@uniego.edu.br", gestao: false };
 const ALUNO2 = { email: "beatriz@uniego.edu.br", gestao: false };
 const ALHEIO = { email: "alheio@uniego.edu.br", gestao: false };
 const PROPPEX = { email: "proppex@uniego.edu.br", gestao: true };
+/* A devolutiva da seleção só existe depois do resultado publicado: quem olha
+   carrega o registro de publicação junto (é o que o servidor injeta). */
+const publicadoEm = (quando, fase = "preliminar") => ({
+  "PIBIC 01/2026": { fase, em: quando, desde: { preliminar: quando, ...(fase === "final" ? { final: quando } : {}) } },
+});
+const agoraISO = () => new Date().toISOString();
+const comResultado = (quem, pub = publicadoEm(agoraISO())) => ({ ...quem, publicados: pub });
 
 function bruto(extra = {}) {
   return {
@@ -369,10 +377,11 @@ test("ver como outra pessoa é a visão dela, não uma versão enfeitada dela", 
   // — papel, visibilidade e sigilo — sai das mesmas funções. É o que garante
   // que a simulação não minta sobre o que a pessoa enxerga.
   const p = emSelecao([{ email: AD2.email, situacao: "entregue", parecer: "sigiloso", recomendacao: "recomendado", notas: {} }]);
-  const simulando = (quem) => ({ email: quem.email, cpf: quem.cpf || "", gestao: false });
+  const pub = publicadoEm(agoraISO());
+  const simulando = (quem) => ({ email: quem.email, cpf: quem.cpf || "", gestao: false, publicados: pub });
 
   const comoOrientador = visaoDoProjeto(p, simulando(PROF));
-  assert.deepEqual(comoOrientador, visaoDoProjeto(p, PROF), "idêntica à visão real da orientação");
+  assert.deepEqual(comoOrientador, visaoDoProjeto(p, comResultado(PROF, pub)), "idêntica à visão real da orientação");
   assert.equal(comoOrientador.avaliacoes, undefined, "a coordenação, simulando, também deixa de ver quem avaliou");
   // o QUE o parecer disse volta para quem submeteu (decisão do dono, ago/2026);
   // QUEM o escreveu, nunca — a avaliação é cega
@@ -773,7 +782,7 @@ test("a orientação recebe as notas e o texto do parecer — sem saber de quem"
       parecer: "Proposta bem delimitada.", notas: { merito: 18, objetivos: 9, fundamentacao: 8, metodologia: 17, viabilidade: 13, formacao: 12, redacao: 9 } },
     { email: AD2.email, nome: "Parecerista Dois", situacao: "designado", parecer: "", notas: {} },
   ]);
-  const visao = visaoDoProjeto(p, PROF);
+  const visao = visaoDoProjeto(p, comResultado(PROF));
   const av = visao.avaliacaoRecebida;
   assert.ok(av, "há devolutiva quando existe parecer entregue");
   assert.equal(av.pareceres.length, 1, "parecer ainda não entregue não vaza");
@@ -793,11 +802,66 @@ test("a nota transcrita também volta como devolutiva, e o aluno não a vê", ()
     recomendacao: "recomendado", parecer: "Tema relevante, recorte a aprimorar.",
   }, { por: "avaliação do edital" });
   const p = { ...emSelecao(), notaDireta: nt };
-  const daOrientacao = visaoDoProjeto(p, PROF).avaliacaoRecebida;
+  const daOrientacao = visaoDoProjeto(p, comResultado(PROF)).avaliacaoRecebida;
   assert.equal(daOrientacao.nota, 76);
   assert.match(daOrientacao.pareceres[0].parecer, /recorte a aprimorar/);
   // o aluno entrou depois da seleção: a proposta é autoria da orientação
-  assert.equal(visaoDoProjeto(p, ALUNO).avaliacaoRecebida, undefined);
+  assert.equal(visaoDoProjeto(p, comResultado(ALUNO)).avaliacaoRecebida, undefined);
   // e sem avaliação nenhuma não há quadro para abrir
   assert.equal(avaliacaoRecebida(emSelecao()), null);
+});
+
+/* ---- publicação e contestação da nota (decisão do dono, ago/2026) -------- */
+test("antes da publicação o professor não vê nota nem parecer", () => {
+  const p = emSelecao([{ email: AD1.email, situacao: "entregue", parecer: "texto do parecer",
+    recomendacao: "recomendado", notas: { merito: 18 } }]);
+  // sem registro de publicação: a devolutiva não existe para ele
+  assert.equal(visaoDoProjeto(p, PROF).avaliacaoRecebida, undefined);
+  assert.equal(resumir(p, PROF).avaliacaoRecebida, undefined);
+  assert.ok(!JSON.stringify(visaoDoProjeto(p, PROF)).includes("texto do parecer"));
+  // publicado o preliminar, aparece
+  const depois = visaoDoProjeto(p, comResultado(PROF));
+  assert.match(JSON.stringify(depois.avaliacaoRecebida), /texto do parecer/);
+  // a gestão continua vendo tudo, publicado ou não — é ela quem publica
+  assert.ok(JSON.stringify(visaoDoProjeto(p, PROPPEX)).includes("texto do parecer"));
+});
+
+test("a janela de contestação abre no preliminar e fecha em três dias", () => {
+  const dias = (n) => new Date(Date.now() - n * 86400000).toISOString();
+  assert.equal(janelaContestacao(undefined).aberta, false, "sem preliminar não há o que contestar");
+  assert.equal(janelaContestacao({ desde: { preliminar: dias(0) } }).aberta, true);
+  assert.equal(janelaContestacao({ desde: { preliminar: dias(PRAZO_CONTESTACAO_DIAS - 1) } }).aberta, true);
+  const vencida = janelaContestacao({ desde: { preliminar: dias(PRAZO_CONTESTACAO_DIAS + 1) } });
+  assert.equal(vencida.aberta, false);
+  assert.equal(vencida.motivo, "prazo-encerrado");
+  // o resultado final fecha a janela antes do prazo: a contestação é entre um e outro
+  const comFinal = janelaContestacao({ desde: { preliminar: dias(0), final: dias(0) } });
+  assert.equal(comFinal.aberta, false);
+  assert.equal(comFinal.motivo, "resultado-final");
+});
+
+test("contestar é da orientação, uma vez por projeto, e dentro do prazo", () => {
+  const p = { ...emSelecao(), status: "aprovado" };
+  const pub = publicadoEm(new Date().toISOString());
+  assert.equal(podeContestar(PROF, p, pub), true);
+  assert.equal(podeContestar(ALUNO, p, pub), false, "o aluno não contesta a nota da proposta");
+  assert.equal(podeContestar(PROPPEX, p, pub), false, "nem a coordenação, que é quem decide");
+  // já contestou: não repete
+  const jaFeita = { ...p, contestacoes: [{ id: "c1", por: PROF.email, em: new Date().toISOString(), texto: "…" }] };
+  assert.equal(podeContestar(PROF, jaFeita, pub), false);
+  // fora do prazo
+  const velho = publicadoEm(new Date(Date.now() - 10 * 86400000).toISOString());
+  assert.equal(podeContestar(PROF, p, velho), false);
+});
+
+test("a contestação é assunto da orientação e da coordenação — o aluno não a vê", () => {
+  const c = { id: "c1", por: PROF.email, em: new Date().toISOString(), texto: "Discordo da nota de metodologia.",
+    resposta: "Mantida.", respondidoPor: PROPPEX.email, respondidoEm: new Date().toISOString() };
+  const p = { ...emSelecao(), status: "aprovado", contestacoes: [c] };
+  assert.equal(visaoDoProjeto(p, comResultado(PROF)).contestacoes.length, 1);
+  assert.equal(visaoDoProjeto(p, comResultado(ALUNO)).contestacoes, undefined);
+  assert.ok(!JSON.stringify(visaoDoProjeto(p, comResultado(ALUNO))).includes("Discordo"));
+  assert.equal(visaoDoProjeto(p, PROPPEX).contestacoes.length, 1, "a coordenação vê para responder");
+  // e a normalização do formulário não apaga a peça
+  assert.equal(normalizarProjeto(bruto(), { base: p }).contestacoes.length, 1);
 });

@@ -199,6 +199,9 @@
   .aval-rec .aval-item + .aval-item{border-top:1px dashed #cfe6f2;padding-top:12px}
   .aval-rec .aval-t{font-family:Sora,sans-serif;font-weight:700;font-size:12.5px;color:var(--brand)}
   .aval-rec table{font-size:12.5px}
+  .cont-box{margin:12px 0 12px;padding:12px 14px;background:#fff;border:1px solid #cfe6f2;border-radius:10px}
+  .cont-t{font-family:Sora,sans-serif;font-weight:700;font-size:13px;color:var(--brand)}
+  .cont-resp{margin-top:10px;padding-top:9px;border-top:1px dashed #cfe6f2;font-size:12.5px;color:var(--ink-soft)}
 
   /* --------------------------- ver como (picker) ------------------------- */
   /* A lista de pessoas do setor cresce a cada edital: numa caixa de seleção
@@ -1158,7 +1161,58 @@ function blocoAvaliacaoRecebida(p) {
     </div>`).join("")}
     <div class="muted" style="margin-top:10px">Quem avaliou não é identificado: a avaliação é cega.
       A nota final do processo soma esta nota do projeto à pontuação do seu currículo.</div>
+    ${blocoContestacao(p)}
   </details>`;
+}
+
+/* Contestação da nota: existe entre o resultado preliminar e o final, com
+   três dias contados da publicação do preliminar. Passado o prazo, o quadro
+   continua ali dizendo que encerrou — sumir daria a impressão de que nunca
+   houve a chance. */
+function blocoContestacao(p) {
+  const c = p.contestacao;
+  if (!c) return "";
+  if (c.minha) {
+    return `<div class="cont-box">
+      <div class="cont-t">Contestação enviada em ${fmtDH(c.minha.em)}</div>
+      <div style="white-space:pre-wrap;line-height:1.55;margin-top:4px">${esc(c.minha.texto)}</div>
+      ${c.minha.resposta
+        ? `<div class="cont-resp"><b>Resposta da coordenação</b> · ${fmtDH(c.minha.respondidoEm)}
+            <div style="white-space:pre-wrap;line-height:1.55;margin-top:3px">${esc(c.minha.resposta)}</div></div>`
+        : `<div class="muted" style="margin-top:8px">Aguardando a análise da coordenação.</div>`}
+    </div>`;
+  }
+  if (!c.aberta) {
+    return `<div class="cont-box">
+      <div class="muted">${c.motivo === "resultado-final"
+        ? "O resultado final já foi publicado — o prazo de contestação era entre o preliminar e o final."
+        : c.motivo === "sem-preliminar" ? "A contestação abre com a publicação do resultado preliminar."
+        : `Prazo de contestação encerrado em ${fmtDH(c.ate)}.`}</div>
+    </div>`;
+  }
+  return `<div class="cont-box">
+    <div class="cont-t">Não concorda com a nota?</div>
+    <div class="muted" style="margin:2px 0 8px">Você pode enviar uma <b>contestação formal</b> até
+      ${fmtDH(c.ate)}${c.horasRestantes ? ` — faltam ${c.horasRestantes} hora(s)` : ""}. A coordenação
+      analisa e responde aqui mesmo, antes do resultado final. É uma por projeto.</div>
+    <button class="bt bt-sec" onclick="contestar('${esc(p.id)}')">Contestar a nota</button>
+  </div>`;
+}
+
+async function contestar(id) {
+  const texto = (prompt("Contestação da nota — descreva a razão do seu pedido de revisão.\n\n"
+    + "Ela vai para a coordenação de pesquisa e fica registrada no projeto.") || "").trim();
+  if (!texto) return;
+  if (texto.length < 30) return aviso("Descreva a razão da contestação (mínimo de 30 caracteres).", "err");
+  try {
+    await api(`/api/ic/${encodeURIComponent(id)}/contestacao`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto }),
+    });
+    await carregar();
+    renderGestao();
+    aviso("Contestação enviada. A coordenação responde aqui mesmo, antes do resultado final.");
+  } catch (e) { aviso(e.message, "err"); }
 }
 
 /* ------------------------- avaliação da seleção ------------------------ */
@@ -2417,6 +2471,22 @@ function renderSelecao(p) {
       <button class="bt bt-err" onclick="decidirSelecao('reprovado')">✕ Reprovado</button>
     </div>
 
+    ${(p.contestacoes || []).length ? `
+    <div class="sec-t">Contestação da nota</div>
+    <div class="muted" style="margin-bottom:8px">Pedido formal de revisão, entre o resultado
+      preliminar e o final. Responder aqui fecha o pedido no registro do projeto — mudar a nota,
+      se for o caso, continua sendo ato à parte, no campo abaixo.</div>
+    ${p.contestacoes.map((c) => `<div class="banner ba-warn" style="margin-bottom:10px">
+      <div><b>${esc(c.por)}</b> · ${fmtDH(c.em)}</div>
+      <div style="white-space:pre-wrap;line-height:1.55;margin-top:4px">${esc(c.texto)}</div>
+      ${c.resposta ? `<div style="margin-top:10px;padding-top:8px;border-top:1px dashed #e8d3a8">
+        <b>Respondida</b> por ${esc(c.respondidoPor)} em ${fmtDH(c.respondidoEm)}
+        <div style="white-space:pre-wrap;line-height:1.55;margin-top:3px">${esc(c.resposta)}</div></div>`
+        : `<div style="margin-top:10px">
+            <button class="bt bt-sec" onclick="responderContestacao('${esc(c.id)}')">Responder à contestação</button>
+          </div>`}
+    </div>`).join("")}` : ""}
+
     ${p.status === "rascunho" || proprio ? "" : `
     <div class="sec-t">Nota do projeto</div>
     <div class="muted" style="margin-bottom:8px">Na seleção conduzida fora do sistema, a coordenação
@@ -2473,6 +2543,23 @@ async function atribuirNota(desfazer) {
     });
     await carregar(); montarSidebar(); await abrir(ATUAL.id);
     aviso(desfazer ? "Nota desfeita — vale a média dos pareceres." : `Nota do projeto registrada: ${valor}.`);
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+/* A resposta da coordenação à contestação. Fecha o pedido no registro; se a
+   revisão proceder, mudar a nota continua sendo ato à parte — e fica no
+   histórico como qualquer outra mudança de nota. */
+async function responderContestacao(id) {
+  const resposta = (prompt("Resposta à contestação — o professor vai ler este texto.") || "").trim();
+  if (!resposta) return;
+  if (resposta.length < 10) return aviso("Escreva a resposta à contestação.", "err");
+  try {
+    await api(`/api/ic/${ATUAL.id}/contestacao/responder`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, resposta }),
+    });
+    await carregar(); await abrir(ATUAL.id);
+    aviso("Contestação respondida.");
   } catch (e) { aviso(e.message, "err"); }
 }
 
