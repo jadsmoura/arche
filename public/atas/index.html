@@ -156,7 +156,20 @@
   details.grupo .corpo .item{border:0;border-bottom:1px solid var(--line);border-radius:0;margin:0;background:none;padding:13px 6px}
   details.grupo .corpo .item:last-child{border-bottom:0}
   details.grupo .corpo .item:hover{box-shadow:none;background:var(--wash)}
-  .suborgao{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--brand-3);font-weight:700;margin:14px 6px 4px}
+  /* subgrupo por ÓRGÃO dentro do curso (recolhível), e as atas por ANO */
+  details.sub{border:1px solid var(--line);border-radius:10px;margin:10px 0;overflow:hidden}
+  details.sub>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
+    padding:9px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--brand-3);font-weight:700;background:var(--wash);user-select:none;transition:background .15s}
+  details.sub>summary::-webkit-details-marker{display:none}
+  details.sub>summary:hover{background:var(--accent-wash)}
+  details.sub>summary .qt2{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:none;letter-spacing:0}
+  details.sub>summary .seta{font-size:9px;color:var(--muted);transition:transform .2s}
+  details.sub[open]>summary .seta{transform:rotate(180deg)}
+  details.sub .corpo2{padding:0 10px 6px;border-top:1px solid var(--line)}
+  .subano{font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.05em;margin:12px 6px 2px;
+    display:flex;align-items:center;gap:10px}
+  .subano::after{content:"";flex:1;height:1px;background:var(--line)}
   .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px}
   .stat .s{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
   .stat .s b{font-family:Sora,sans-serif;font-size:22px;display:block;color:var(--ink);line-height:1.1}
@@ -580,9 +593,10 @@ function renderArquivo() {
 }
 
 /* O arquivo em CATEGORIAS, para as atas não se misturarem: primeiro cada
-   curso (com os seus órgãos — NDE, Colegiado… — separados dentro), depois
-   os órgãos institucionais. Categorias recolhidas por padrão; com filtro ou
-   busca ativos (ou uma categoria só), abrem sozinhas. */
+   curso — e, dentro dele, um sub-bloco recolhível por órgão (NDE, Colegiado…),
+   com as atas separadas por ANO (o mais recente primeiro) — depois os órgãos
+   institucionais, também por ano. Categorias recolhidas por padrão; com
+   filtro ou busca ativos (ou uma categoria só), abrem sozinhas. */
 function gruposDoArquivo(f) {
   if (!f.length) return '<div class="card"><div class="vazio">Nenhuma ata encontrada com esses filtros.</div></div>';
   const orgNome = (cod) => (META.orgaos.find((o) => o.codigo === cod) || {}).nome || cod || "Órgão";
@@ -615,9 +629,28 @@ function gruposDoArquivo(f) {
       <div class="corpo">${corpo}</div>
     </details>`;
 
+  // as atas de um conjunto, separadas por ANO — o mais recente primeiro, e
+  // dentro do ano pela data da sessão (também descendo)
+  const porAno = (atas) => {
+    const anos = new Map();
+    for (const a of atas) {
+      const ano = a.ano || "sem ano";
+      if (!anos.has(ano)) anos.set(ano, []);
+      anos.get(ano).push(a);
+    }
+    return [...anos]
+      .sort((x, y) => String(y[0]).localeCompare(String(x[0]), "pt-BR", { numeric: true }))
+      .map(([ano, as]) => `<div class="subano">${esc(String(ano))}</div>`
+        + as.slice()
+          .sort((p, q) => String(q.sessao?.data || "").localeCompare(String(p.sessao?.data || "")))
+          .map(item).join(""))
+      .join("");
+  };
+
   const blocos = [];
   for (const [slug, atas] of [...porCurso].sort((x, y) => cursoNm(x[0]).localeCompare(cursoNm(y[0]), "pt-BR"))) {
-    // dentro do curso, um sub-bloco por órgão: o NDE não se mistura ao Colegiado
+    // dentro do curso, um sub-bloco recolhível por órgão: o NDE não se
+    // mistura ao Colegiado — e cada órgão separa as suas atas por ano
     const porOrgao = new Map();
     for (const a of atas) {
       if (!porOrgao.has(a.orgao)) porOrgao.set(a.orgao, []);
@@ -625,12 +658,15 @@ function gruposDoArquivo(f) {
     }
     const corpo = [...porOrgao]
       .sort((x, y) => orgNome(x[0]).localeCompare(orgNome(y[0]), "pt-BR"))
-      .map(([o, as]) => `<div class="suborgao">${esc(orgNome(o))}</div>` + as.map(item).join(""))
+      .map(([o, as]) => `<details class="sub" open>
+          <summary>${esc(orgNome(o))}<span class="qt2">${as.length} ata(s)</span><span class="seta">▼</span></summary>
+          <div class="corpo2">${porAno(as)}</div>
+        </details>`)
       .join("");
     blocos.push(grupo(`🎓 ${esc(cursoNm(slug))}`, atas, corpo));
   }
   for (const [o, atas] of [...inst].sort((x, y) => orgNome(x[0]).localeCompare(orgNome(y[0]), "pt-BR"))) {
-    blocos.push(grupo(`🏛️ ${esc(orgNome(o))}`, atas, atas.map(item).join("")));
+    blocos.push(grupo(`🏛️ ${esc(orgNome(o))}`, atas, porAno(atas)));
   }
   return blocos.join("");
 }
