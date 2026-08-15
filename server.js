@@ -34,6 +34,7 @@ import {
   producaoDoOrientador, prazosRelatorios,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
+import { certificadosDe, destinatariosDoCiclo, certificavel } from "./lib/certificados.js";
 import {
   EDITAL, LINHAS, GRUPOS_PESQUISA, FOMENTOS, TITULACOES, BLOCOS_PRODUCAO,
   pontuarProducao, normalizarProducao, notaClassificacao, modalidadePor, gruposConhecidos,
@@ -2078,6 +2079,122 @@ app.get("/api/ic/resultado.pdf", async (req, res) => {
  * traz só a planilha e de onde ela veio, nada além.
  * Precisa vir antes de /api/ic/:id, senão "producao-anterior" viraria um id.
  */
+/**
+ * CERTIFICADOS da IC (com login, sempre): os do aluno e os de orientação,
+ * reunidos pelo CPF — é o que junta numa conta só quem participou de mais
+ * de uma edição — com o e-mail como segunda chave. Só ciclo concluído.
+ * Precisa vir antes de /api/ic/:id, senão viraria um id.
+ */
+app.get("/api/ic/certificados", async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    const projetos = await lerProjetos();
+    const perfil = (await carregarPerfis())[u.email] || {};
+    // o nome entra porque os ciclos antigos identificam as pessoas só por ele
+    const eu = { cpf: u.cpf || "", email: u.email, nome: perfil.nome || u.nome || "" };
+    const meus = certificadosDe(projetos, eu);
+    const resp = { certificados: meus, temCpf: !!u.cpf, temNome: !!perfil.nome };
+    if (gereIC(u)) {
+      // à gestão interessa o tamanho de cada ciclo e quem dá para avisar
+      const porNome = await emailsPorNome();
+      const ciclos = [...new Set(projetos.filter(certificavel).map((p) => String(p.edital || "")))]
+        .filter(Boolean).sort((a, b) => b.localeCompare(a, "pt-BR"))
+        .map((edital) => {
+          const { destinatarios, semEmail } = destinatariosDoCiclo(projetos, edital, porNome);
+          const total = destinatarios.reduce((n, d) => n + d.certificados, 0) + semEmail;
+          return { edital, total, avisaveis: destinatarios.length, semEmail };
+        });
+      resp.ciclos = ciclos;
+    }
+    res.json(resp);
+  } catch (e) {
+    console.error("Erro ao listar certificados:", e);
+    res.status(500).json({ error: "Falha ao carregar os certificados" });
+  }
+});
+
+/** Nome (normalizado) → e-mail dos perfis: é assim que se descobre para
+    quem avisar nos ciclos antigos, onde o registro só tem o nome. */
+async function emailsPorNome() {
+  const perfis = await carregarPerfis();
+  const mapa = {};
+  for (const [email, p] of Object.entries(perfis)) {
+    const k = String(p?.nome || "").trim().toLowerCase().normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+    if (k && !mapa[k]) mapa[k] = email;
+  }
+  return mapa;
+}
+
+/** O documento em si — só sai para quem tem direito a ele. */
+app.get("/api/ic/certificado.pdf", async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    const perfil = (await carregarPerfis())[u.email] || {};
+    const meus = certificadosDe(await lerProjetos(),
+      { cpf: u.cpf || "", email: u.email, nome: perfil.nome || u.nome || "" });
+    const cert = meus.find((c) => c.codigo === String(req.query.codigo || ""));
+    if (!cert) return res.status(404).send("Certificado não encontrado para a sua conta.");
+    const { gerarCertificadoPdf } = await import("./lib/pdf.js");
+    const buffer = await gerarCertificadoPdf(cert);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition",
+      `inline; filename="certificado-${cert.tipo}-${slug(cert.numero || cert.edital)}.pdf"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro no certificado:", e);
+    res.status(500).send("Erro ao gerar o certificado: " + e.message);
+  }
+});
+
+/**
+ * Aviso por e-mail, por ciclo: um e-mail por pessoa dizendo quantos
+ * certificados a esperam e onde baixar. Só a gestão. `simular: true`
+ * devolve a lista sem enviar — é o que alimenta a confirmação da tela.
+ */
+app.post("/api/ic/certificados/avisar", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "Só a coordenação avisa sobre os certificados" });
+  const edital = String(req.body?.edital || "").trim();
+  if (!edital) return res.status(400).json({ error: "Informe o ciclo" });
+  const { destinatarios, semEmail } = destinatariosDoCiclo(await lerProjetos(), edital, await emailsPorNome());
+  if (req.body?.simular === true) return res.json({ simulado: true, destinatarios, semEmail });
+
+  const base = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
+  const link = `${base}/entrar?next=${encodeURIComponent("/pesquisa/ic/")}`;
+  const { enviarEmail } = await import("./lib/mailer.js");
+  const enviados = [], falhas = [];
+  for (const d of destinatarios) {
+    try {
+      await enviarEmail({
+        para: d.email,
+        assunto: `[ARCHÉ] Seu certificado de Iniciação Científica (${edital}) está disponível`,
+        corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:560px">
+          <p>Olá${d.nome ? `, <b>${d.nome}</b>` : ""}!</p>
+          <p>O(s) seu(s) <b>certificado(s) do Edital ${edital}</b> de Iniciação Científica
+            já pode(m) ser baixado(s) no ARCHÉ — são <b>${d.certificados}</b> documento(s).</p>
+          <p>Entre no sistema e abra a guia <b>Certificados</b>, no setor Pesquisa · IC.
+            Se for o seu primeiro acesso, crie o usuário com este e-mail e
+            <b>informe o seu CPF no perfil</b>: é ele que reúne, numa conta só, os
+            certificados de todas as edições em que você participou.</p>
+          <p><a href="${link}" style="display:inline-block;background:#1c3742;color:#fff;text-decoration:none;
+            padding:12px 22px;border-radius:10px;font-weight:600">Baixar meu certificado</a></p>
+          <p style="color:#5b7280;font-size:12px">Se o botão não abrir, copie e cole: ${link}<br>
+            PROPPEX — Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária · UNIEGO</p></div>`,
+      });
+      enviados.push(d);
+    } catch (e) {
+      falhas.push({ ...d, erro: e.message });
+      console.error(`[ic] aviso de certificado a ${d.email} falhou:`, e.message);
+    }
+  }
+  console.log(`[ic] aviso de certificados do ${edital}: ${enviados.length} enviado(s) por ${u.email}`);
+  res.json({ enviados, falhas, semEmail });
+});
+
 app.get("/api/ic/producao-anterior", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
@@ -2756,6 +2873,40 @@ async function migrarAcoesExtensao() {
   }
 }
 
+/**
+ * Bolsistas nomeados dos ciclos anteriores, com CPF — vindos dos termos de
+ * compromisso assinados, que são a única fonte oficial daquele dado. Entram
+ * uma vez (marca sys-*) e só onde o projeto ainda não tem aluno: o CPF é o
+ * que faz o certificado achar o dono, e nada aqui pode sobrescrever o que a
+ * gestão tenha ajustado depois.
+ */
+const LOTES_ALUNOS = ["edital-01-2024"];
+async function subirAlunosHistoricos() {
+  for (const nome of LOTES_ALUNOS) {
+    const marca = `sys-ic-alunos-${nome}`;
+    try {
+      if (await storage.get(marca)) continue;
+      const arq = JSON.parse(
+        await readFile(path.join(__dirname, "dados", `ic-${nome}-alunos.json`), "utf8"));
+      const r = await comProjetos((projetos) => {
+        let tocados = 0;
+        for (const [origemId, alunos] of Object.entries(arq.alunos || {})) {
+          const i = projetos.findIndex((p) => p.origem?.lote === nome && p.origem?.id === String(origemId));
+          if (i < 0 || (projetos[i].alunos || []).length) continue;
+          const base = projetos[i];
+          projetos[i] = normalizarProjeto({ ...base, alunos }, { base, autor: base.criadoPor || "" });
+          tocados++;
+        }
+        return { tocados, gravar: tocados > 0 };
+      });
+      await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), ...r }));
+      console.log(`ARCHÉ IC · ${r.tocados} projeto(s) de ${nome} com bolsista nomeado`);
+    } catch (e) {
+      console.error(`Falha ao subir os alunos de ${nome}:`, e.message);
+    }
+  }
+}
+
 async function subirLotesIniciais() {
   for (const nome of LOTES_INICIAIS) {
     const marca = `sys-ic-lote-${nome}`;
@@ -3251,7 +3402,7 @@ app.listen(port, () => {
   // primeiro), os anexos dos formulários — cronogramas e planilhas de
   // produção — são ligados a cada projeto.
   migrarAcoesExtensao();
-  subirLotesIniciais().then(aplicarAnexosIniciais).then(zerarAlunosIniciais).then(enquadrarCronogramasIniciais).then(subirArquivoHistorico);
+  subirLotesIniciais().then(aplicarAnexosIniciais).then(zerarAlunosIniciais).then(enquadrarCronogramasIniciais).then(subirArquivoHistorico).then(subirAlunosHistoricos);
   // Cobrança do relatório final: varre ao acordar e de hora em hora enquanto
   // o processo estiver vivo. O tráfego do portal também dispara (com throttle),
   // o que cobre as hibernações do plano free.

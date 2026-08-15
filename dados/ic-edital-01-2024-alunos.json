@@ -1,0 +1,142 @@
+{
+ "lote": "edital-01-2024",
+ "fonte": "Termos de compromisso PBIC-FACEG 2024/2025 (documento oficial assinado)",
+ "observacao": "Bolsistas nomeados com CPF, casados ao projeto pelo orientador e pelo título do plano de trabalho.",
+ "alunos": {
+  "res-2024-15": [
+   {
+    "nome": "Amanda Carrilho Lopes de Castro",
+    "cpf": "03346626130",
+    "email": "amandacarrilhodecastro@hotmail.com",
+    "curso": "Agronomia",
+    "bolsista": true
+   }
+  ],
+  "res-2024-14": [
+   {
+    "nome": "Edileusa da Silva Peres",
+    "cpf": "96222861215",
+    "email": "edileusadiv2@hotmail.com",
+    "curso": "Direito",
+    "bolsista": true
+   }
+  ],
+  "res-2024-20": [
+   {
+    "nome": "Ana Clara de Freitas Mendes",
+    "cpf": "70944362117",
+    "email": "anaclarafmendes2004@gmail.com",
+    "curso": "Direito",
+    "bolsista": true
+   }
+  ],
+  "res-2024-19": [
+   {
+    "nome": "Kessylla Victoria Rodrigues de Moura",
+    "cpf": "08042754167",
+    "email": "Kessylla2002@gmail.com",
+    "curso": "Odontologia",
+    "bolsista": true
+   }
+  ],
+  "res-2024-16": [
+   {
+    "nome": "Aline Silva de Jesus",
+    "cpf": "71021010154",
+    "email": "alinesjesus9@gmail.com",
+    "curso": "Odontologia",
+    "bolsista": true
+   }
+  ],
+  "res-2024-17": [
+   {
+    "nome": "Natiele Alves luz",
+    "cpf": "71013851170",
+    "email": "natiele123luz@gmail.com",
+    "curso": "Agronomia",
+    "bolsista": true
+   }
+  ],
+  "res-2024-12": [
+   {
+    "nome": "Vitor Hugo Alves Silva",
+    "cpf": "71281203190",
+    "email": "vitorhalvessilva@gmail.com",
+    "curso": "Direito",
+    "bolsista": true
+   }
+  ],
+  "res-2024-18": [
+   {
+    "nome": "Matheus Damasceno Louredo Silva",
+    "cpf": "70915303140",
+    "email": "matheus160105@hotmail.com",
+    "curso": "Direito",
+    "bolsista": true
+   }
+  ],
+  "res-2024-13": [
+   {
+    "nome": "Vítor Henrique Moreira Moreno",
+    "cpf": "05052623127",
+    "email": "vitor.hmoreno8@gmail.com",
+    "curso": "Odontologia",
+    "bolsista": true
+   }
+  ],
+  "res-2024-21": [
+   {
+    "nome": "Mateus Henrique Venâncio Costa",
+    "cpf": "70975437100",
+    "email": "mateushvc659@gmail.com",
+    "curso": "Engenharia Mecânica",
+    "bolsista": true
+   }
+  ],
+  "res-2024-23": [
+   {
+    "nome": "Murilo Henrique Jesus Miranda",
+    "cpf": "70914245147",
+    "email": "jesusmurilohenrique@gmail.com",
+    "curso": "Engenharia Mecânica",
+    "bolsista": true
+   }
+  ],
+  "res-2024-22": [
+   {
+    "nome": "João Augusto Patrício",
+    "cpf": "09463906142",
+    "email": "jo84877304@gmail.com",
+    "curso": "Agronomia",
+    "bolsista": true
+   }
+  ],
+  "res-2024-9": [
+   {
+    "nome": "Ághata Cristine Neves Reis",
+    "cpf": "70947780157",
+    "email": "Aghataneves@hotmail.com",
+    "curso": "Enfermagem",
+    "bolsista": true
+   }
+  ],
+  "res-2024-10": [
+   {
+    "nome": "Rita de Cássia Thatylla Costa",
+    "cpf": "70416962190",
+    "email": "ritadcassiatc@gmail.com",
+    "curso": "Enfermagem",
+    "bolsista": true
+   }
+  ],
+  "res-2024-11": [
+   {
+    "nome": "Maralice Machado Daris",
+    "cpf": "70509479111",
+    "email": "maralicemachadodaris@gmail.com",
+    "curso": "Enfermagem",
+    "bolsista": true
+   }
+  ]
+ }
+}

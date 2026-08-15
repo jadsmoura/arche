@@ -593,3 +593,46 @@ test("planilha vazia não conta como produção anterior", () => {
   assert.deepEqual(producaoDoOrientador(projetos, { email: "prof@uniego.edu.br", cpf: "" }).producao,
     { "livro": 1 });
 });
+
+/* Certificados: quem tem direito ao quê sai dos próprios projetos. O CPF é
+   a chave que reúne numa conta só quem participou de mais de uma edição. */
+test("o certificado acha o dono pelo CPF, pelo e-mail e — nos históricos — pelo nome", async () => {
+  const { certificadosDe } = await import("../lib/certificados.js");
+  const base = { status: "concluido", inicio: "2024-09-01", fim: "2025-08-31", edital: "01/2024" };
+  const projetos = [
+    { ...base, id: "p1", numero: "IC-2024-001", titulo: "Micorrizas",
+      orientador: { nome: "Rodrigo Fernandes de Souza" },            // histórico: só o nome
+      alunos: [{ nome: "Natiele Alves Luz", cpf: "52998224725" }, { nome: "João Augusto" }] },
+    { ...base, id: "p2", numero: "IC-2024-002", titulo: "Outro projeto",
+      orientador: { nome: "Outra Pessoa", email: "outra@uniego.edu.br" }, alunos: [{ nome: "Zé" }] },
+    { ...base, id: "p3", status: "aprovado", numero: "IC-2026-001", titulo: "Em execução",
+      orientador: { nome: "Rodrigo Fernandes de Souza" }, alunos: [{ nome: "Ainda Cursando" }] },
+  ];
+  // aluna pelo CPF: um certificado de participação, e só do ciclo concluído
+  const daAluna = certificadosDe(projetos, { cpf: "529.982.247-25", email: "", nome: "" });
+  assert.equal(daAluna.length, 1);
+  assert.equal(daAluna[0].tipo, "participacao");
+  assert.equal(daAluna[0].numero, "IC-2024-001");
+
+  // orientador pelo nome (o histórico não tem e-mail nem CPF): UM POR ALUNO
+  const doProf = certificadosDe(projetos, { cpf: "", email: "r@x.com", nome: "Rodrigo Fernandes de Souza" });
+  assert.equal(doProf.length, 2, "um certificado por aluno orientado");
+  assert.ok(doProf.every((c) => c.tipo === "orientacao" && c.projetoId === "p1"),
+    "projeto em execução não gera certificado");
+
+  // quem tem chave forte não é casado por nome — o homônimo não leva o alheio
+  const homonimo = certificadosDe(projetos, { cpf: "", email: "impostor@x.com", nome: "Outra Pessoa" });
+  assert.equal(homonimo.length, 0, "o registro com e-mail só casa por e-mail ou CPF");
+
+  // sem nenhuma chave, nada sai
+  assert.deepEqual(certificadosDe(projetos, {}), []);
+});
+
+test("o código de validação é estável e distingue os documentos", async () => {
+  const { codigo } = await import("../lib/certificados.js");
+  const a = codigo({ tipo: "participacao", projetoId: "p1", pessoa: "Natiele" });
+  assert.equal(a, codigo({ tipo: "participacao", projetoId: "p1", pessoa: "natiele" }), "estável");
+  assert.notEqual(a, codigo({ tipo: "orientacao", projetoId: "p1", pessoa: "Natiele" }));
+  assert.notEqual(a, codigo({ tipo: "participacao", projetoId: "p2", pessoa: "Natiele" }));
+  assert.match(a, /^[0-9A-F]{10}$/);
+});

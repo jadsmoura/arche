@@ -212,6 +212,19 @@ public/
   (0–100) sem formulário — ela tem **precedência** sobre a média dos pareceres, fica no
   histórico (sigilosa) e some da visão do avaliador e da orientação. `{ nota: null }`
   desfaz. Nos próximos editais o caminho é o parecer pelo sistema.
+- **Certificados da IC** (`lib/certificados.js` + `gerarCertificadoPdf`; guia Certificados,
+  sempre COM LOGIN — decisão do dono, ago/2026): quem tem direito ao quê sai dos próprios
+  projetos, sem cadastro à parte — o aluno de um projeto **concluído** ganha o certificado
+  daquele ciclo, e quem orientou ganha **um por aluno orientado**. O vínculo é pelo **CPF**
+  (é o que reúne numa conta só quem participou de mais de uma edição), com o e-mail como
+  segunda chave e o **nome** como terceira — esta valendo só para registro sem CPF nem
+  e-mail, que é o caso dos ciclos transcritos dos resultados publicados. O documento sai
+  em paisagem com o **timbre da época** (`marcaEm` pela data de encerramento da vigência:
+  FACEG até 04/09/2025, UNIEGO depois) e um código de validação derivado do que ele
+  afirma. A gestão avisa por e-mail, ciclo a ciclo (`POST /api/ic/certificados/avisar`),
+  cruzando o nome com os perfis para achar quem dá para avisar. Os bolsistas de 2024
+  entraram com CPF pelos termos de compromisso assinados (`dados/ic-edital-01-2024-alunos.json`,
+  marca `sys-ic-alunos-edital-01-2024`); 2025 tem os nomes sem CPF, e 2022/2023 não têm alunos.
 - **Vitrine pública** (`/ic/` + `GET /api/publico/ic`): acesso livre com os editais, os
   documentos e a lista simplificada (título, curso, orientador, bolsista, modalidade) —
   nunca e-mail, CPF, nota ou dado bancário. Campos em branco enquanto o processo corre;

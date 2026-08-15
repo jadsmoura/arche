@@ -233,6 +233,7 @@
         <section id="v-bolsistas" class="hide"></section>
         <section id="v-cronograma" class="hide"></section>
         <section id="v-relatorios" class="hide"></section>
+        <section id="v-certificados" class="hide"></section>
         <section id="v-projeto" class="hide"></section>
       </div>
     </div>
@@ -295,6 +296,7 @@ const SECOES = [
   { id: "bolsistas", grupo: "ACOMPANHAMENTO", rot: "Bolsistas e Voluntários", ic: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>', perfis: ["gestao", "orientador"] },
   { id: "cronograma", grupo: "ACOMPANHAMENTO", rot: "Cronograma", ic: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/>', perfis: ["orientador", "aluno"] },
   { id: "relatorios", grupo: "ACOMPANHAMENTO", rot: "Relatórios", ic: '<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 13h8M8 17h5"/>', perfis: ["gestao", "orientador", "aluno"] },
+  { id: "certificados", grupo: "ACOMPANHAMENTO", rot: "Certificados", ic: '<circle cx="12" cy="9" r="6"/><path d="M8.5 14.5L7 22l5-3 5 3-1.5-7.5"/>' },
 ];
 
 const TITULOS = {
@@ -307,6 +309,7 @@ const TITULOS = {
   editais: ["Editais e Resultados", "Os documentos de cada processo, ano a ano: o edital e o resultado."],
   cronograma: ["Cronograma", "Todas as atividades dos projetos num só lugar."],
   relatorios: ["Relatórios", "Parciais e finais: o aluno envia, a orientação valida."],
+  certificados: ["Certificados", "Participação e orientação nos ciclos concluídos — reunidos pelo seu CPF."],
   projeto: ["Projeto", ""],
 };
 
@@ -457,7 +460,7 @@ function nav(secao, modo) {
   // a inclusão manual vale só para o formulário aberto por ela
   MANUAL = secao === "submissao" && modo === "manual";
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === secao);
-  for (const v of ["painel", "submissao", "gestao", "avaliacao", "classificacao", "editais", "bolsistas", "cronograma", "relatorios", "projeto"]) $("v-" + v).classList.add("hide");
+  for (const v of ["painel", "submissao", "gestao", "avaliacao", "classificacao", "editais", "bolsistas", "cronograma", "relatorios", "certificados", "projeto"]) $("v-" + v).classList.add("hide");
   // submissão e projeto compartilham o editor (mesmos ids): a seção que sai
   // do ar é esvaziada, senão getElementById acha os campos escondidos
   for (const v of ["submissao", "projeto"]) if (v !== secao) $("v-" + v).innerHTML = "";
@@ -484,6 +487,7 @@ function nav(secao, modo) {
   if (secao === "editais") renderEditais();
   if (secao === "cronograma") renderCronograma();
   if (secao === "relatorios") renderRelatorios();
+  if (secao === "certificados") renderCertificados();
   $("v-" + secao).classList.remove("hide");
   window.scrollTo(0, 0);
 }
@@ -665,6 +669,89 @@ function renderPainel() {
     </div>` : ""}`;
 }
 const chip2 = (s) => `<span class="badge b-${esc(s)}">${esc({ prevista: "prevista", andamento: "em andamento", concluida: "concluída" }[s] || s)}</span>`;
+
+/* ----------------------------- certificados ---------------------------- */
+/* Participação (aluno) e orientação (um por aluno orientado), dos ciclos
+   CONCLUÍDOS. A lista vem do servidor casada pelo CPF — é o que reúne, numa
+   conta só, quem participou de mais de uma edição — com o e-mail como
+   segunda chave. */
+let CERTS = null;
+async function renderCertificados() {
+  $("v-certificados").innerHTML = `<div class="card"><div class="vazio">Carregando…</div></div>`;
+  try { CERTS = await api("/api/ic/certificados"); }
+  catch (e) { $("v-certificados").innerHTML = `<div class="banner ba-err">${esc(e.message)}</div>`; return; }
+
+  const meus = CERTS.certificados || [];
+  const porEdital = new Map();
+  for (const c of meus) {
+    if (!porEdital.has(c.edital)) porEdital.set(c.edital, []);
+    porEdital.get(c.edital).push(c);
+  }
+  const cartao = (c) => `
+    <div class="linha">
+      <div class="txt">
+        <div class="p1">${c.tipo === "orientacao" ? `Orientação — ${esc(c.aluno || "")}` : "Participação em Iniciação Científica"}</div>
+        <div class="p2">${esc(c.numero || "—")} · ${esc(c.titulo || "")}${c.tipo === "orientacao" ? "" : ` · orientação: ${esc(c.orientador || "—")}`}
+          ${c.modalidade ? ` · ${esc(c.modalidade)}` : c.bolsista ? " · bolsista" : ""}</div>
+      </div>
+      <a class="bt bt-pri" href="/api/ic/certificado.pdf?codigo=${encodeURIComponent(c.codigo)}"
+        target="_blank" rel="noopener">📜 Baixar</a>
+    </div>`;
+
+  $("v-certificados").innerHTML = `
+    ${!CERTS.temCpf ? `<div class="banner ba-warn"><b>Informe o seu CPF no
+      <a href="/perfil/" target="_blank" rel="noopener">perfil</a></b> — é ele que reúne aqui os
+      certificados de todas as edições em que você participou. Sem o CPF, só aparecem os ciclos
+      ligados a este e-mail.</div>` : ""}
+
+    ${META.gestao ? renderAvisoCertificados() : ""}
+
+    ${meus.length ? [...porEdital].map(([edital, lista]) => `<div class="card">
+        <div class="card-t">Edital ${esc(edital)}</div>
+        <div class="card-s">${lista.length} certificado(s) — o documento sai com o timbre da época.</div>
+        ${lista.map(cartao).join("")}
+      </div>`).join("")
+    : `<div class="card"><div class="card-t">Nenhum certificado ainda</div>
+        <div class="card-s">Os certificados saem quando o ciclo é concluído. Se você participou de
+        edições anteriores e nada aparece aqui, confira o CPF no seu perfil — é por ele que o
+        sistema encontra a sua participação.</div></div>`}`;
+}
+
+/* Só a gestão: avisar por e-mail, ciclo a ciclo, que os certificados saíram. */
+function renderAvisoCertificados() {
+  const ciclos = CERTS?.ciclos || [];
+  if (!ciclos.length) return "";
+  return `<div class="card">
+    <div class="card-t">Avisar que os certificados estão disponíveis</div>
+    <div class="card-s">Um e-mail por pessoa, com o link para baixar. Quem não tem e-mail no
+      sistema não recebe — e o número aparece aqui, para você saber o tamanho da lacuna.</div>
+    ${ciclos.map((c) => `<div class="linha">
+      <div class="txt">
+        <div class="p1">Edital ${esc(c.edital)}</div>
+        <div class="p2">${c.total} certificado(s) · ${c.avisaveis} pessoa(s) com e-mail${
+          c.semEmail ? ` · <b style="color:var(--warn)">${c.semEmail} sem e-mail</b>` : ""}</div>
+      </div>
+      <button class="bt bt-sec" ${c.avisaveis ? "" : "disabled"}
+        onclick="avisarCertificados('${esc(c.edital)}')">📧 Avisar</button>
+    </div>`).join("")}
+  </div>`;
+}
+
+async function avisarCertificados(edital) {
+  const post = (corpo) => api("/api/ic/certificados/avisar", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
+  });
+  try {
+    const s = await post({ edital, simular: true });
+    if (!s.destinatarios.length) return aviso("Ninguém com e-mail cadastrado neste ciclo.", "warn");
+    const li = s.destinatarios.slice(0, 8).map((d) => `• ${d.nome || d.email} — ${d.certificados} certificado(s)`).join("\n");
+    if (!confirm(`Avisar ${s.destinatarios.length} pessoa(s) do Edital ${edital}?\n\n${li}`
+      + `${s.destinatarios.length > 8 ? `\n… e mais ${s.destinatarios.length - 8}` : ""}`
+      + `${s.semEmail ? `\n\n${s.semEmail} certificado(s) sem e-mail — essas pessoas não recebem.` : ""}`)) return;
+    const r = await post({ edital });
+    aviso(`Aviso enviado a ${r.enviados.length} pessoa(s)${r.falhas.length ? ` — ${r.falhas.length} falhou(aram)` : ""}.`);
+  } catch (e) { aviso(e.message, "err"); }
+}
 
 /* ------------------------------- gestão -------------------------------- */
 function limparFiltros() {
