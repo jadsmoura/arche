@@ -2293,7 +2293,11 @@ app.get("/api/ic/projetos.xlsx", async (req, res) => {
     for (const p of lista) {
       const c = p.resumo.classificacao || {};
       ws.addRow({
-        numero: p.numero || "", edital: p.edital || "", status: IC_ROTULO_STATUS[p.status] || p.status,
+        // o campo em branco significa "ciclo vigente" em todo o resto do
+        // sistema (String(p.edital || EDITAL.numero)); a planilha dizia o
+        // contrário — saía com a coluna vazia para os projetos do ciclo
+        numero: p.numero || "", edital: String(p.edital || EDITAL.numero),
+        status: IC_ROTULO_STATUS[p.status] || p.status,
         titulo: p.titulo || "", curso: (CURSOS.find((x) => x.slug === p.curso) || {}).nome || p.curso || "",
         linha: (p.linha || "").toUpperCase(),
         modalidade: p.modalidadeHistorica || modalidadeEfetivaIC(p)?.nome || "",
