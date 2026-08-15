@@ -491,6 +491,10 @@ function novoProjeto() {
     orientador: MANUAL ? { nome: "", email: "", cpf: "", titulacao: "" }
       : { nome: ME?.perfil?.nome || ME?.nome || "", email: ME?.email || "", titulacao: "" },
     alunos: [], cronograma: [], relatorios: [], status: "rascunho",
+    // a planilha de produção é da PESSOA: a nova submissão do professor já
+    // abre com a da última vez (na inclusão manual, quem preenche é a busca
+    // pelo CPF/e-mail de quem orienta — buscarProducaoDoProfessor)
+    producao: MANUAL ? {} : { ...(META.producaoAnterior || {}) },
     ...(MANUAL ? { inclusaoManual: { motivo: "" } } : {}),
   };
 }
@@ -1231,10 +1235,12 @@ function renderEditor(alvo) {
       <textarea style="min-height:70px" oninput="sub('inclusaoManual','motivo',this.value)"
         placeholder="Ex.: inclusão fora do prazo deferida pelo Pró-Reitor em 12/06/2026, por falha no envio do formulário.">${esc(p.inclusaoManual?.motivo || "")}</textarea>
       <label>CPF de quem orienta <span class="muted">(se a pessoa ainda não tiver conta no ARCHÉ)</span></label>
-      <input value="${esc(p.orientador?.cpf || "")}" oninput="sub('orientador','cpf',this.value)" placeholder="000.000.000-00">
+      <input value="${esc(p.orientador?.cpf || "")}" oninput="sub('orientador','cpf',this.value)"
+        onblur="buscarProducaoDoProfessor()" placeholder="000.000.000-00">
       <div class="muted" style="margin-top:8px">Basta o e-mail (na seção Orientação) <b>ou</b> o CPF: é por um
         dos dois que o projeto encontra o professor. Só com o CPF, ele aparece na conta assim que a pessoa
-        gravar o CPF no perfil.</div>
+        gravar o CPF no perfil. Informado um dos dois, a <b>planilha de produção</b> do professor entra
+        sozinha, vinda da última submissão dele — é só conferir e ajustar.</div>
     </div>` : ""}
 
     ${!novo && p.inclusaoManual ? `<div class="banner ba-info">
@@ -1331,7 +1337,8 @@ function renderEditor(alvo) {
       <div class="muted">Identificação omitida: o parecer ad hoc julga a proposta, não as pessoas.</div>` : `
       <div class="grid3">
         <div><label>Nome *</label><input ${ro} value="${esc(p.orientador?.nome || "")}" oninput="sub('orientador','nome',this.value)"></div>
-        <div><label>E-mail *</label><input type="email" ${ro} value="${esc(p.orientador?.email || "")}" oninput="sub('orientador','email',this.value)"></div>
+        <div><label>E-mail *</label><input type="email" ${ro} value="${esc(p.orientador?.email || "")}"
+          oninput="sub('orientador','email',this.value)" onblur="buscarProducaoDoProfessor()"></div>
         <div><label>Titulação *</label><select ${ro} onchange="sub('orientador','titulacao',this.value)">
           <option value="">— escolha —</option>
           ${META.titulacoes.map((t) => `<option value="${t.codigo}" ${p.orientador?.titulacao === t.codigo ? "selected" : ""}>${esc(t.nome)}</option>`).join("")}
@@ -1786,6 +1793,16 @@ function renderProducao(p, editavel) {
       Você já preencheu esta planilha em outro projeto.
       <button class="bt bt-sec" style="margin-left:8px" onclick="copiarProducaoAnterior()">Trazer os números de lá</button>
     </div>` : ""}
+    ${(() => {
+      // a planilha veio herdada e ainda não foi mexida: dizer de onde veio,
+      // para a pessoa conferir e ajustar o que publicou nesse meio tempo
+      if (!preenchida || !editavel || p.id) return "";
+      if (JSON.stringify(q) === JSON.stringify(META.producaoAnterior || null)) return `<div class="banner ba-info">
+        Planilha carregada da sua última submissão — confira e atualize se você publicou algo novo desde então.</div>`;
+      if (PROD_BUSCADA && JSON.stringify(q) === JSON.stringify(PROD_BUSCADA)) return `<div class="banner ba-info">
+        Planilha carregada da última submissão de quem orienta — confira com o professor e ajuste se algo mudou.</div>`;
+      return "";
+    })()}
 
     <details ${preenchida || !editavel ? "" : "open"}>
       <summary style="cursor:pointer;font-weight:600;font-size:13.5px;color:var(--brand);margin-bottom:10px">
@@ -1847,6 +1864,30 @@ function copiarProducaoAnterior() {
   ATUAL.producao = { ...(META.producaoAnterior || {}) };
   renderEditor(SECAO === "submissao" ? "v-submissao" : "v-projeto");
   aviso("Números trazidos do seu projeto anterior. Confira antes de salvar.");
+}
+
+/* Na inclusão manual, a planilha é a do PROFESSOR em nome de quem se inclui:
+   informado o e-mail ou o CPF dele, o sistema busca a produção da última
+   submissão e preenche sozinho — sem sobrescrever o que a gestão já tiver
+   digitado. A busca é conveniência: falhar em silêncio não trava nada. */
+let PROD_BUSCADA = null;
+async function buscarProducaoDoProfessor() {
+  if (!MANUAL) return;
+  const email = (ATUAL.orientador?.email || "").trim();
+  const cpf = (ATUAL.orientador?.cpf || "").replace(/\D/g, "");
+  if (!email && cpf.length !== 11) return;
+  try {
+    const r = await api(`/api/ic/producao-anterior?email=${encodeURIComponent(email)}&cpf=${encodeURIComponent(cpf)}`);
+    if (!r.producao) return;
+    const atual = ATUAL.producao || {};
+    const intocada = !Object.keys(atual).length
+      || JSON.stringify(atual) === JSON.stringify(PROD_BUSCADA);
+    if (!intocada) return;
+    PROD_BUSCADA = r.producao;
+    ATUAL.producao = { ...r.producao };
+    renderEditor("v-submissao");
+    aviso(`Planilha de produção carregada da última submissão de ${r.de?.nome || "quem orienta"} — confira e ajuste se algo mudou.`);
+  } catch { /* busca silenciosa */ }
 }
 
 /* ------------------ avaliação ad hoc dentro do projeto ----------------- */

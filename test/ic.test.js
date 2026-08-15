@@ -10,6 +10,7 @@ import {
   cronogramaDe, etapaAtrasada, relatoriosDe, relatoriosPendentes, resumir, anotar,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto,
   notaFinal, placarPareceres, participaDeAlgum, prazosRelatorios, pendenciasDoProjeto,
+  producaoDoOrientador,
 } from "../lib/ic.js";
 
 /* -------------------------------- fixtura ------------------------------- */
@@ -559,4 +560,36 @@ test("as situações do projeto e as modalidades são as previstas", () => {
   assert.deepEqual(MODALIDADES.map((m) => m.codigo),
     ["pibic-cnpq", "pibiti-cnpq", "pbic-uniego", "pbiti-uniego", "pbie-uniego",
      "pvic-uniego", "pviti-uniego", "pvie-uniego"], "as oito modalidades do edital 01/2026");
+});
+
+/* A planilha de produção é da PESSOA, não do projeto: a próxima submissão
+   abre com a da última vez, casada por e-mail OU CPF — é o que serve tanto
+   ao professor quanto à inclusão manual em nome dele. */
+test("a produção mais recente do orientador sai por e-mail ou por CPF", () => {
+  const projetos = [
+    { orientador: { email: "prof@uniego.edu.br", cpf: "52998224725" },
+      producao: { "artigo-a1": 2 }, atualizadoEm: "2026-03-01T10:00:00Z" },
+    { orientador: { email: "prof@uniego.edu.br", cpf: "52998224725" },
+      producao: { "artigo-a1": 3, "livro": 1 }, atualizadoEm: "2026-07-15T10:00:00Z" },
+    { orientador: { email: "outra@uniego.edu.br", cpf: "11144477735" },
+      producao: { "artigo-a1": 9 }, atualizadoEm: "2026-08-01T10:00:00Z" },
+  ];
+  // por e-mail: vem a mais recente do professor, não a mais antiga nem a alheia
+  const porEmail = producaoDoOrientador(projetos, { email: "prof@uniego.edu.br", cpf: "" });
+  assert.deepEqual(porEmail.producao, { "artigo-a1": 3, "livro": 1 });
+  // por CPF sozinho (projeto importado que espera o cadastro): mesma resposta
+  const porCpf = producaoDoOrientador(projetos, { email: "", cpf: "52998224725" });
+  assert.deepEqual(porCpf.producao, { "artigo-a1": 3, "livro": 1 });
+  // quem nunca preencheu não herda nada
+  assert.equal(producaoDoOrientador(projetos, { email: "nova@uniego.edu.br", cpf: "" }), null);
+});
+
+test("planilha vazia não conta como produção anterior", () => {
+  const projetos = [
+    { orientador: { email: "prof@uniego.edu.br" }, producao: {}, atualizadoEm: "2026-08-01T10:00:00Z" },
+    { orientador: { email: "prof@uniego.edu.br" }, producao: { "livro": 1 }, atualizadoEm: "2026-01-01T10:00:00Z" },
+  ];
+  // o projeto mais novo tem a planilha em branco: vale a preenchida, mesmo mais antiga
+  assert.deepEqual(producaoDoOrientador(projetos, { email: "prof@uniego.edu.br", cpf: "" }).producao,
+    { "livro": 1 });
 });

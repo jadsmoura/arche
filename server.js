@@ -31,6 +31,7 @@ import {
   podeEnviarRelatorio, podeValidarRelatorio, cronogramaDe, relatoriosDe, relatoriosPendentes,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto, notaFinal,
   participaDeAlgum, vincularPorCpf, modalidadeEfetiva as modalidadeEfetivaIC,
+  producaoDoOrientador,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import {
@@ -1598,10 +1599,10 @@ function todosOsGrupos(projetos) {
 }
 
 function producaoMaisRecente(projetos, u) {
-  const meus = (projetos || [])
-    .filter((p) => papelNoProjeto(quemIC(u), p) === "orientador" && Object.keys(p.producao || {}).length)
-    .sort((a, b) => String(b.atualizadoEm || "").localeCompare(String(a.atualizadoEm || "")));
-  return meus.length ? meus[0].producao : null;
+  // casa por e-mail OU CPF (lib/ic.js): a planilha das submissões importadas
+  // — que chegaram pelo CPF — já abre na próxima submissão do professor
+  const p = producaoDoOrientador(projetos, quemIC(u));
+  return p ? p.producao : null;
 }
 
 /** Nenhuma resposta devolve o projeto cru: o sigilo do parecer é aplicado aqui. */
@@ -1718,6 +1719,26 @@ app.get("/api/ic/resultado.pdf", async (req, res) => {
     console.error("Erro no PDF do resultado:", e);
     res.status(500).send("Erro ao gerar o PDF: " + e.message);
   }
+});
+
+/**
+ * A produção acadêmica mais recente de UM professor, identificado por
+ * e-mail ou CPF — é o que deixa a inclusão manual abrir com a planilha de
+ * quem orienta (nunca a de quem digita). Só a gestão consulta; a resposta
+ * traz só a planilha e de onde ela veio, nada além.
+ * Precisa vir antes de /api/ic/:id, senão "producao-anterior" viraria um id.
+ */
+app.get("/api/ic/producao-anterior", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "Só a coordenação consulta a produção de outra pessoa" });
+  const email = String(req.query.email || "").trim().toLowerCase();
+  const cpf = normalizarCpf(req.query.cpf);
+  if (!email && !cpf) return res.json({ producao: null });
+  const p = producaoDoOrientador(await lerProjetos(), { email, cpf });
+  res.json(p
+    ? { producao: p.producao, de: { nome: p.orientador?.nome || "", numero: p.numero || "", edital: p.edital || "" } }
+    : { producao: null });
 });
 
 /**

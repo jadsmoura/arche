@@ -137,9 +137,14 @@ public/
   e a titulação chega como texto livre ("Doutora", "Dr.") — `normalizarTitulacao` resolve.
 - **Pontuação da produção acadêmica** (`pontuarProducao`): réplica da planilha oficial do
   edital — 28 itens em 3 blocos, com pesos e tetos (30 + 60 + 10 = 100), no período de
-  2022 a 2026. Fica no projeto, mas é do coordenador: o formulário do próximo projeto
-  abre com o que ele informou da última vez (`producaoAnterior` em `/api/ic/meta`), e ela
-  pode ser preenchida depois da submissão.
+  2022 a 2026. Fica no projeto, mas é do coordenador — **atrelada à pessoa por e-mail OU
+  CPF** (`producaoDoOrientador` em lib/ic.js): o formulário do próximo projeto abre já
+  preenchido com a planilha da última submissão (`producaoAnterior` em `/api/ic/meta`),
+  editável para atualizar o que foi publicado no meio tempo. Na **inclusão manual**, a
+  planilha que entra é a do professor em nome de quem se inclui — digitado o e-mail ou o
+  CPF dele, a tela busca em `GET /api/ic/producao-anterior` (só gestão; a rota devolve
+  planilha e origem, nada além) e nunca sobrescreve o que a gestão já tiver digitado.
+  A planilha pode ser preenchida depois da submissão.
 - **Classificação por SOMA** (`notaClassificacao`, decisão do dono em ago/2026): a nota
   final é **NP + CL**, teto 200 — NP é a nota do projeto (0–100: sete critérios com teto
   de pontos em `CRITERIOS_AVALIACAO`, a nota do parecer é a soma; entre pareceres vale a
