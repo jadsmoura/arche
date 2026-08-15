@@ -55,41 +55,41 @@ test("o resultado sai em PDF, com o resumo e a nota final somada", async () => {
   assert.match(t, /Edital n. 01\/2026/, "o número do edital vem no cabeçalho");
   assert.match(t, /Propostas submetidas ao edital\s*3/);
   assert.match(t, /Bolsa CNPq\s*1/);
-  assert.match(t, /professores doutores/, "o quadro dos doutores existe");
-  assert.match(t, /Classifica..o geral/, "e o quadro geral também");
+  // os quadros de mérito (doutores e geral) saíram do documento — a
+  // classificação completa é ferramenta de gestão, não peça de divulgação
+  assert.ok(!/professores doutores/.test(t), "sem o quadro dos doutores");
+  assert.ok(!/Classifica..o geral/.test(t), "sem o quadro geral");
   assert.match(t, /150\.4/, "a nota final somada aparece na linha");
   assert.match(t, /Nota\s*final\s*\(Total\)\s*=\s*NP\s*\+\s*CL/, "o critério explica a soma");
   assert.match(t, /proppex@uniego\.edu\.br/, "quem emitiu fica no documento");
 });
 
-test("doutores no primeiro quadro; o geral tem todos, na ordem da nota final", async () => {
+test("dentro de cada categoria, a ordem é a da nota final", async () => {
   const { gerarResultadoEditalPdf } = await import("../lib/pdf.js");
   const buf = await gerarResultadoEditalPdf({
     edital: EDITAL,
     projetos: [
-      proj({ numero: "IC-2026-010", orientador: { nome: "A", titulacao: "mestre" }, classificacao: { np: 70, cl: 40, total: 110 } }),
-      proj({ numero: "IC-2026-011", orientador: { nome: "B", titulacao: "doutor" }, classificacao: { np: 80, cl: 90, total: 170 } }),
-      proj({ numero: "IC-2026-012", orientador: { nome: "C", titulacao: "doutor" }, classificacao: { np: 90, cl: 30, total: 120 } }),
+      proj({ numero: "IC-2026-010", orientador: { nome: "A", titulacao: "mestre" },
+        fomento: { tipo: "uniego", modalidade: "pbic-uniego" }, classificacao: { np: 70, cl: 40, total: 110 } }),
+      proj({ numero: "IC-2026-011", orientador: { nome: "B", titulacao: "doutor" },
+        fomento: { tipo: "uniego", modalidade: "pbic-uniego" }, classificacao: { np: 80, cl: 90, total: 170 } }),
+      proj({ numero: "IC-2026-012", orientador: { nome: "C", titulacao: "doutor" },
+        fomento: { tipo: "uniego", modalidade: "pbic-uniego" }, classificacao: { np: 90, cl: 30, total: 120 } }),
       proj({ numero: "IC-2026-001", orientador: { nome: "D", titulacao: "mestre" }, status: "submetido" }),
     ],
   });
   const t = textoDoPdf(buf);
   const pos = (n, aPartir = 0) => t.findIndex((x, i) => i >= aPartir && x.includes(n));
-  // os quadros por categoria vêm primeiro; a ordem de mérito, depois deles
-  const capDoutores = pos("professores doutores");
-  const capGeral = pos("Classificação geral");
-  assert.ok(capDoutores > 0 && capGeral > capDoutores, "os dois quadros de mérito continuam no documento");
-  // quadro dos doutores: só B e C, B antes (170 > 120)
-  const d11 = pos("IC-2026-011", capDoutores), d12 = pos("IC-2026-012", capDoutores);
-  assert.ok(d11 > capDoutores && d12 > d11, "no quadro dos doutores, B (170) vem antes de C (120)");
-  assert.ok(pos("IC-2026-010", capDoutores) > capGeral, "o mestre não entra no quadro dos doutores");
-  // quadro geral: B (170) > C (120) > A (110) > D (sem nota)
-  const g11 = pos("IC-2026-011", capGeral);
+  // um quadro só por categoria, na ordem de mérito: B (170) > C (120) > A (110)
+  const g11 = pos("IC-2026-011");
   const g12 = pos("IC-2026-012", g11 + 1);
   const g10 = pos("IC-2026-010", g12 + 1);
-  const g01 = pos("IC-2026-001", g10 + 1);
-  assert.ok(g11 > capGeral && g12 > g11 && g10 > g12 && g01 > g10,
-    "no geral: 170, depois 120, depois 110, e sem nota ao fim");
+  assert.ok(g11 > 0 && g12 > g11 && g10 > g12, "no quadro da bolsa: 170, depois 120, depois 110");
+  // o que não tem fomento decidido cai no quadro próprio, e não some
+  assert.ok(pos("IC-2026-001") > 0, "a proposta sem decisão continua listada");
+  // e nada de quadro de mérito repetindo tudo de novo
+  assert.ok(!/professores doutores/.test(t.join(" ")));
+  assert.ok(!/Classifica..o geral/.test(t.join(" ")));
 });
 
 /* Pedido do dono (ago/2026): o resultado se lê por categoria de bolsa, e o
@@ -244,9 +244,25 @@ test("o preliminar traz só os quadros por linha, sem mérito e sem a marca de i
   assert.match(prelim, /IC-2026-041/);
   assert.match(prelim, /IC-2026-042/);
 
-  // no FINAL nada disso se perde: é o documento do processo encerrado
+  // no FINAL os quadros de mérito também não voltam (pedido do dono,
+  // ago/2026) — o que volta é a marca de inclusão, que é do processo
   const fim = textoDoPdf(await gerarResultadoEditalPdf({ edital: EDITAL, projetos })).join(" ");
-  assert.match(fim, /professores doutores/);
-  assert.match(fim, /Classifica..o geral/);
+  assert.ok(!/professores doutores/.test(fim), "nem no final");
+  assert.ok(!/Classifica..o geral/.test(fim), "nem no final");
   assert.match(fim, /inclus.o deferida fora do prazo/);
+});
+
+/* Pedido do dono (ago/2026): o valor da bolsa sai dos documentos de
+   resultado e da tela de indicação. Ele é do edital e do termo — num
+   resultado, vira promessa que a cota pode desmentir. */
+test("o resultado nomeia a modalidade, nunca o valor da bolsa", async () => {
+  const { gerarResultadoEditalPdf } = await import("../lib/pdf.js");
+  const t = textoDoPdf(await gerarResultadoEditalPdf({
+    edital: EDITAL,
+    projetos: [proj({ fomento: { tipo: "uniego", modalidade: "pbic-uniego" },
+      classificacao: { np: 80, cl: 20, total: 100 } })],
+  })).join(" ");
+  assert.match(t, /PIBIC\/UNIEGO/, "a modalidade continua no título do quadro");
+  assert.ok(!/R\$/.test(t), "nenhum valor em reais no documento");
+  assert.ok(!/mensais/.test(t));
 });

@@ -645,7 +645,7 @@ app.get("/api/publico/ic", async (req, res) => {
     const projetos = await lerProjetos();
     res.json({
       instituicao: "Centro Universitário Evangélico de Goianésia — UNIEGO",
-      editais: editaisConhecidos(projetos, await resultadosPublicados()),
+      editais: editaisConhecidos(projetos, await resultadosPublicados(), await termosPublicados()),
       projetos: projetos
         .filter((p) => p.status !== "rascunho")
         .map((p) => ({
@@ -2223,7 +2223,7 @@ async function resultadosPublicados() {
   return raw ? JSON.parse(raw) : {};
 }
 
-function editaisConhecidos(projetos, publicados = {}) {
+function editaisConhecidos(projetos, publicados = {}, termos = {}) {
   // as contagens são agregadas de TODOS os projetos (quem chama é o servidor,
   // não a visão de cada um) — é o que permite mostrar a guia Editais e
   // Resultados para qualquer usuário sem vazar projeto alheio
@@ -2243,6 +2243,9 @@ function editaisConhecidos(projetos, publicados = {}) {
     // vigente passa pelas fases preliminar → final, publicadas pela gestão
     resultadoFase: RESULTADOS_EDITAIS[numero] ? "final" : (publicados[numero]?.fase || null),
     resultadoPublicado: !!RESULTADOS_EDITAIS[numero] || !!publicados[numero],
+    // os termos de compromisso só aparecem para aluno e orientação depois da
+    // publicação — a cerimônia de assinaturas é que abre o documento
+    termosPublicados: !!termos[numero],
   })).sort((a, b) => b.numero.localeCompare(a.numero, "pt-BR"));
 }
 
@@ -2289,7 +2292,7 @@ app.get("/api/ic/meta", async (req, res) => {
     // quem a coordenação pode simular, e por quais olhos está olhando agora
     // os editais (números, contagens e documentos) são de todos; a lista de
     // pessoas para o "ver como" segue só com a coordenação
-    editais: editaisConhecidos(projetos, await resultadosPublicados()),
+    editais: editaisConhecidos(projetos, await resultadosPublicados(), await termosPublicados()),
     ...(gereIC(u) ? { pessoas: pessoasDoSetor(projetos) } : {}),
     ...(como ? { simulando: como.email } : {}),
   });
@@ -2797,9 +2800,49 @@ app.get("/api/ic/bolsistas.xlsx", async (req, res) => {
   }
 });
 
-/* Termo de compromisso do bolsista em PDF — o mesmo conteúdo da planilha de
-   contrato, só que no documento que se assina. Por ciclo (uma folha por
-   bolsista) ou de um projeto só, quando a coordenação precisa reemitir. */
+/* ------------------------ termos de compromisso -------------------------
+   O documento institucional que se assina na cerimônia. A gestão emite o
+   lote (para imprimir) a qualquer momento; o aluno e a orientação só veem a
+   própria cópia DEPOIS que a coordenação publicar os termos — a solenidade
+   ainda vai ser marcada, e um termo circulando antes dela viraria documento
+   assinado fora do ato. Publicar é um clique, e recolher também. */
+const TERMOS_PUB_KEY = "ic-termos-publicados-v1";
+async function termosPublicados() {
+  const raw = await storage.get(TERMOS_PUB_KEY);
+  return raw ? JSON.parse(raw) : {};
+}
+
+app.post("/api/ic/termos/publicar", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "Somente a coordenação publica os termos." });
+  const numero = String(req.body?.edital || EDITAL.numero).trim();
+  const publicar = req.body?.publicar !== false;
+  const atual = await termosPublicados();
+  if (publicar) {
+    atual[numero] = {
+      em: new Date().toISOString(), por: u.email,
+      // `desde` é a primeira publicação: republicar não reinicia nada
+      desde: atual[numero]?.desde || new Date().toISOString(),
+    };
+  } else {
+    delete atual[numero];
+  }
+  await storage.set(TERMOS_PUB_KEY, JSON.stringify(atual));
+  res.json({ ok: true, publicado: !!atual[numero], edital: numero });
+});
+
+/** Projetos de um ciclo que geram termo: aprovados, com aluno indicado. */
+async function projetosComTermo(numero, so = "") {
+  return (await lerProjetos()).filter((p) =>
+    String(p.edital || EDITAL.numero) === numero
+    && ["aprovado", "concluido"].includes(p.status)
+    && (!so || p.id === so));
+}
+
+const TIPOS_TERMO = ["bolsista", "orientador", "todos"];
+
+/* O lote da coordenação: uma folha por pessoa, para levar à cerimônia. */
 app.get("/api/ic/termos.pdf", async (req, res) => {
   try {
     const u = await sessaoIC(req, res);
@@ -2807,24 +2850,64 @@ app.get("/api/ic/termos.pdf", async (req, res) => {
     if (!gereIC(u)) return res.status(403).send("Somente a coordenação de pesquisa emite os termos de compromisso.");
     const numero = String(req.query.edital || EDITAL.numero).trim();
     const so = String(req.query.projeto || "").trim();
-    const projetos = (await lerProjetos()).filter((p) =>
-      String(p.edital || EDITAL.numero) === numero &&
-      ["aprovado", "concluido"].includes(p.status) &&
-      p.fomento && p.fomento.tipo !== "voluntario" &&
-      (!so || p.id === so));
+    const tipo = TIPOS_TERMO.includes(String(req.query.tipo)) ? String(req.query.tipo) : "todos";
+    const projetos = await projetosComTermo(numero, so);
 
     const { gerarTermoCompromissoPdf } = await import("./lib/pdf.js");
     const buffer = await gerarTermoCompromissoPdf({
-      edital: { ...EDITAL, numero },
-      projetos,
+      edital: { ...EDITAL, numero }, projetos, tipo,
+      assinaturas: await assinaturasParaPdf(),
+      perfis: await carregarPerfis(),
       emitidoPor: u.nome || u.email,
     });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition",
-      `inline; filename="termo-compromisso-${slug(so ? (projetos[0]?.numero || so) : numero)}.pdf"`);
+      `inline; filename="termos-${tipo}-${slug(so ? (projetos[0]?.numero || so) : numero)}.pdf"`);
     res.send(buffer);
   } catch (e) {
     console.error("Erro no termo de compromisso:", e);
+    res.status(500).send("Erro ao gerar o termo: " + e.message);
+  }
+});
+
+/* A cópia digital de cada um: o aluno baixa o seu, quem orienta baixa o
+   dele. Só depois da publicação — antes disso o documento nem existe para
+   quem não é gestão. O recorte é o mesmo do projeto: ninguém baixa o termo
+   alheio, porque o PDF é montado a partir do próprio registro da pessoa. */
+app.get("/api/ic/termo.pdf", async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    const meu = quemIC(u);
+    const p = (await lerProjetos()).find((x) => x.id === String(req.query.projeto || ""));
+    if (!p || !podeVerProjeto(meu, p)) return res.status(404).send("Projeto não encontrado");
+    const numero = String(p.edital || EDITAL.numero);
+    const papel = papelNoProjeto(meu, p);
+    if (!["aluno", "orientador", "gestao"].includes(papel))
+      return res.status(403).send("Este termo não é seu.");
+    if (!["aprovado", "concluido"].includes(p.status))
+      return res.status(404).send("O termo sai depois da aprovação do projeto.");
+    if (papel !== "gestao" && !(await termosPublicados())[numero])
+      return res.status(403).send("Os termos deste ciclo ainda não foram publicados pela coordenação.");
+
+    // o aluno leva só o registro dele; a orientação, o termo de orientação
+    const tipo = papel === "aluno" ? "bolsista" : "orientador";
+    const recortado = papel === "aluno"
+      ? { ...p, alunos: (p.alunos || []).filter((a) => String(a.email || "").toLowerCase() === String(meu.email || "").toLowerCase()) }
+      : p;
+
+    const { gerarTermoCompromissoPdf } = await import("./lib/pdf.js");
+    const buffer = await gerarTermoCompromissoPdf({
+      edital: { ...EDITAL, numero }, projetos: [recortado], tipo,
+      assinaturas: await assinaturasParaPdf(),
+      perfis: await carregarPerfis(),
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition",
+      `inline; filename="termo-${tipo}-${slug(p.numero || numero)}.pdf"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro no termo:", e);
     res.status(500).send("Erro ao gerar o termo: " + e.message);
   }
 });

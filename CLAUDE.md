@@ -28,6 +28,7 @@ lib/atas.js          ARCHÉ AT: órgãos, numeração das atas, normalização e
 lib/ic.js            ARCHÉ IC: projetos de IC, cronograma, relatórios e permissões
 lib/cpf.js           CPF: validação, normalização e a chave de vínculo dos importados
 lib/edital.js        Edital 01/2026: modalidades, grupos DGP/CNPq e pontuação docente
+lib/termos.js        Termos de Compromisso da IC: o texto institucional dos 4 modelos
 dados/               Lotes de importação (ic-edital-01-2026.json: as 33 submissões)
 lib/pautas.js        Catálogo da Pauta Regulatória (indicadores INEP) e conformidade
 lib/redator.js       Redação da minuta da ata: modelo (padrão) | gemini | anthropic
@@ -240,13 +241,27 @@ public/
   convidado ficava preso na etapa de completar o perfil, tendo de se declarar
   "professor" ou "outro". Não pede titulação (`SEM_TITULACAO`), e a barra do topo o
   chama de **Estudante**, não de "Docente".
-- **Termo de Compromisso do bolsista** (`gerarTermoCompromissoPdf`,
-  `GET /api/ic/termos.pdf`, só gestão): o documento que a PROPPEX entrega para
-  assinatura — uma folha por bolsista, timbrada, com identificação, projeto, vigência,
-  valor, conta, os compromissos das duas partes e as assinaturas do bolsista, da
-  orientação e do pró-reitor. Por ciclo (botão na guia Bolsistas e Voluntários) ou de
-  um projeto só (`?projeto=`). Tudo o que ele afirma o sistema já tem: campo em branco
-  sai como linha pontilhada, para completar à caneta, em vez de travar a emissão.
+- **Termos de Compromisso** (`lib/termos.js` + `gerarTermoCompromissoPdf`): o texto **não
+  foi criado aqui** — são os quatro modelos institucionais que a PROPPEX já usava em .docx
+  com mala direta, transcritos cláusula a cláusula. São quatro porque as obrigações
+  diferem: **CNPq** (20h/semana, conta no Banco do Brasil, devolução ao CNPq, cláusulas de
+  PIBIC e PIBITI), **bolsa UNIEGO** (12h, conta livre, devolução à instituição),
+  **voluntário/PVIC** (8h, sem bolsa e **sem conta bancária no documento**) e o do
+  **orientador** (um por professor, com os títulos que ele orienta). Mudar redação é
+  mexer em `lib/termos.js`; os geradores só desenham. O que o Word preenchia à mão o
+  ARCHÉ preenche do registro — o aluno informa na guia Bolsa, a orientação vem do perfil.
+  Os prazos que o modelo trazia escritos ("Relatório Parcial em março/26") saem do
+  EDITAL, e o timbre é o da época (`marcaEm` pela vigência). Campo em branco sai como
+  linha pontilhada — o termo se imprime e completa-se à caneta.
+- **Publicação dos termos** (`ic-termos-publicados-v1`, `POST /api/ic/termos/publicar`,
+  decisão do dono ago/2026): a gestão emite o **lote** para imprimir quando quiser
+  (`GET /api/ic/termos.pdf?tipo=bolsista|orientador|todos`), mas a **cópia digital de cada
+  um** (`GET /api/ic/termo.pdf?projeto=`) só aparece para aluno e orientação **depois que
+  a coordenação publicar** — a solenidade de assinaturas ainda vai ser marcada, e um termo
+  circulando antes dela viraria documento assinado fora do ato. Publicar e recolher são um
+  clique, na guia Bolsistas e Voluntários. Nas vias digitais entram as **assinaturas
+  digitalizadas** do pró-reitor e do reitor (o mesmo `sys-assinaturas-v1` dos
+  certificados); a do aluno é a que se colhe na cerimônia.
 - **Quatro acessos na IC** (`papelNoProjeto` em `lib/ic.js`), e três deles nascem do
   próprio projeto — não há cadastro de papel à parte:
   1. **gestão** — pró-reitor e coordenação de pesquisa (gestor geral ou coordenador do
@@ -447,11 +462,13 @@ public/
   processo**: no PRELIMINAR a categoria é a **LINHA** (Iniciação Científica, Inovação
   Tecnológica, Iniciação à Extensão) — a bolsa ainda não existe, e é com este documento que
   a PROPPEX vai à presidência definir a cota; no FINAL é a **bolsa concedida** (PIBIC/CNPq,
-  PIBIC/UNIEGO, voluntário…). O preliminar não cita modalidade de bolsa nem valor mensal:
-  documento oficial não promete o que a cota ainda não definiu. O **curso é coluna**, no
+  PIBIC/UNIEGO, voluntário…). **Nenhum dos dois cita valor de bolsa** (pedido do dono,
+  ago/2026): o valor é do edital e do termo de compromisso — num resultado, vira promessa
+  que a cota pode desmentir. O **curso é coluna**, no
   lugar da coluna "Resultado", que virou redundante — o resultado é o título do quadro.
-  Depois dos quadros por categoria vêm os **dois quadros de mérito** (doutores; geral) em
-  ordem de nota final. Filtra pelo
+  **Os quadros de mérito (doutores e geral) saíram do documento**, nas duas fases: as
+  mesmas propostas já aparecem nos quadros por categoria, com nota e em ordem de mérito.
+  A classificação completa continua na tela, que é ferramenta de gestão. Filtra pelo
   campo `edital` do projeto — é o que faz o histórico dos editais antigos sair pelo mesmo
   lugar. **Proposta sem nota de projeto sai sem nota final**, nunca com zero: num documento
   oficial, zero seria nota, e o que existe é ausência de avaliação (por isso

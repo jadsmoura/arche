@@ -1153,8 +1153,22 @@ function renderGestao() {
         ${p.atrasadas ? `<span class="badge b-atrasada">${p.atrasadas} atrasada(s)</span>` : ""}
         ${chip(p.status)}
       </div>
+      ${blocoTermoDaOrientacao(p)}
       ${blocoAvaliacaoRecebida(p)}
     </div>`).join("") || `<div class="card"><div class="vazio">Nenhum projeto com esses filtros.</div></div>`}`;
+}
+
+/* A via do termo de compromisso de quem orienta, ao lado do projeto — só
+   depois da publicação, e só para o próprio professor (a gestão emite o lote
+   pela guia Bolsistas e Voluntários). */
+function blocoTermoDaOrientacao(p) {
+  if (META.gestao || p.papel !== "orientador") return "";
+  if (!["aprovado", "concluido"].includes(p.status)) return "";
+  if (!termosLiberados(p.edital || META.edital?.numero)) return "";
+  return `<div class="exp" style="padding:0 14px 12px">
+    <a class="bt bt-sec" target="_blank" rel="noopener" href="/api/ic/termo.pdf?projeto=${encodeURIComponent(p.id)}"
+      title="Termo de compromisso da orientação, com as assinaturas da reitoria">📄 Meu termo de orientação</a>
+  </div>`;
 }
 
 /* A devolutiva da seleção, para quem submeteu (decisão do dono, ago/2026).
@@ -1388,14 +1402,51 @@ function renderBolsistas() {
         <a class="bt bt-ghost" href="/api/ic/bolsistas.xlsx?edital=${encodeURIComponent(ciclo)}"
           title="Uma linha por bolsista, com CPF, contato e dados bancários — para montar os contratos">
           📇 Bolsistas para contrato (Excel)</a>
-        <a class="bt bt-ghost" href="/api/ic/termos.pdf?edital=${encodeURIComponent(ciclo)}" target="_blank" rel="noopener"
-          title="Uma folha por bolsista, timbrada, para assinatura do aluno, da orientação e da pró-reitoria">
-          📝 Termos de compromisso (PDF)</a>
-      </div>` : ""}
+        <a class="bt bt-ghost" href="/api/ic/termos.pdf?tipo=bolsista&edital=${encodeURIComponent(ciclo)}" target="_blank" rel="noopener"
+          title="Modelo institucional, uma folha por aluno — para imprimir e assinar na cerimônia">
+          📝 Termos dos bolsistas (PDF)</a>
+        <a class="bt bt-ghost" href="/api/ic/termos.pdf?tipo=orientador&edital=${encodeURIComponent(ciclo)}" target="_blank" rel="noopener"
+          title="Um termo por professor, com os projetos que ele orienta">
+          📝 Termos dos orientadores (PDF)</a>
+      </div>
+      ${blocoPublicarTermos(ciclo)}` : ""}
       ${corpo || `<div class="vazio">Nenhum aluno indicado neste ciclo ainda — a indicação abre com a aprovação do projeto.</div>`}
     </div>`;
   }).join("") || `<div class="card"><div class="vazio">Nenhum projeto em execução ainda. Os alunos aparecem aqui
     depois da aprovação e da indicação.</div></div>`;
+}
+
+/* ---------------------- publicação dos termos --------------------------- */
+/* O termo de compromisso existe desde que o aluno preenche o cadastro — a
+   gestão imprime quando quiser. Mas a CÓPIA de cada um só aparece depois da
+   cerimônia de assinaturas, que ainda vai ser marcada: um termo circulando
+   antes do ato viraria documento assinado fora dele. Publicar é um clique,
+   e recolher também. */
+const termosLiberados = (ciclo) =>
+  !!(META.editais || []).find((e) => e.numero === ciclo)?.termosPublicados;
+
+function blocoPublicarTermos(ciclo) {
+  const pub = termosLiberados(ciclo);
+  return `<div class="banner ${pub ? "ba-ok" : "ba-info"}" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span>${pub
+      ? "<b>Termos publicados</b> — cada aluno e cada orientador já baixa a própria via assinada pela reitoria."
+      : "<b>Termos não publicados.</b> Só a coordenação os vê. Publique depois da cerimônia de assinaturas."}</span>
+    <button class="bt ${pub ? "bt-ghost" : "bt-pri"}" onclick="publicarTermos('${esc(ciclo)}', ${pub ? "false" : "true"})">
+      ${pub ? "Recolher os termos" : "📢 Publicar os termos"}</button>
+  </div>`;
+}
+
+async function publicarTermos(ciclo, publicar) {
+  if (publicar && !confirm(`Publicar os termos do ciclo ${ciclo}? Alunos e orientadores passam a baixar a própria via.`)) return;
+  if (!publicar && !confirm("Recolher os termos? Eles somem da tela dos alunos e dos professores.")) return;
+  try {
+    await api("/api/ic/termos/publicar", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ edital: ciclo, publicar }),
+    });
+    await carregar(); montarSidebar(); renderBolsistas();
+    aviso(publicar ? "Termos publicados — já aparecem para alunos e orientadores." : "Termos recolhidos.");
+  } catch (e) { aviso(e.message, "err"); }
 }
 
 /* ------------------------ bolsistas: fim -------------------------------- */
@@ -1445,6 +1496,9 @@ function renderMeusProjetos() {
           <div class="p2">${prazos.map((x) => `${x.tipo}: ${x.falta ? `até ${fmtBr(x.vence)}${x.atrasado ? " (atrasado)" : ""}` : "entregue"}`).join(" · ")}</div></div></div>` : ""}
         <div class="exp" style="margin-top:8px">
           <button class="bt bt-pri" onclick="abrir('${esc(p.id)}')">Abrir o projeto</button>
+          ${termosLiberados(p.edital || META.edital?.numero) ? `<a class="bt bt-sec" target="_blank" rel="noopener"
+            href="/api/ic/termo.pdf?projeto=${encodeURIComponent(p.id)}"
+            title="Sua via do termo de compromisso, com as assinaturas da reitoria">📄 Meu termo de compromisso</a>` : ""}
           <button class="bt bt-ghost" onclick="nav('cronograma')">Meu cronograma</button>
           <button class="bt bt-ghost" onclick="nav('relatorios')">Meus relatórios</button>
         </div>
@@ -1540,6 +1594,9 @@ function renderMinhaBolsa() {
       pode custar a bolsa depois.</div>
 
     <div class="sec-t">Conta para o pagamento</div>
+    ${comBolsa.some((p) => p.fomento.tipo === "cnpq") ? `<div class="banner ba-warn">
+      A bolsa do <b>CNPq</b> é paga em <b>conta corrente do Banco do Brasil</b>, de titularidade do
+      próprio bolsista — conta poupança e conta de terceiros não são aceitas.</div>` : ""}
     <div class="grid3">
       <div><label>Banco *</label><input id="mb-banco" value="${esc(eu.banco || "")}" placeholder="Ex.: Banco do Brasil, Santander"></div>
       <div><label>Agência *</label><input id="mb-agencia" value="${esc(eu.agencia || "")}"></div>
@@ -1549,7 +1606,15 @@ function renderMinhaBolsa() {
     <input id="mb-pix" value="${esc(eu.pix || "")}" placeholder="CPF, e-mail ou chave aleatória — da conta informada">
 
     <div class="exp" style="margin-top:12px"><button class="bt bt-pri" onclick="salvarMinhaBolsa()">Salvar meu cadastro</button></div>
-  </div>`;
+  </div>
+
+  ${lista.filter((p) => termosLiberados(p.edital || META.edital?.numero)).map((p) => `<div class="card">
+    <div class="card-t">Meu termo de compromisso</div>
+    <div class="card-s">${esc(p.numero || "")} · ${esc(p.titulo || "")}. A via digital sai com as assinaturas
+      da pró-reitoria e da reitoria; a sua é colhida na cerimônia.</div>
+    <div class="exp"><a class="bt bt-pri" target="_blank" rel="noopener"
+      href="/api/ic/termo.pdf?projeto=${encodeURIComponent(p.id)}">📄 Baixar o termo (PDF)</a></div>
+  </div>`).join("")}`;
 }
 
 function renderIdade() {
@@ -2334,7 +2399,7 @@ function renderEditor(alvo) {
           <select ${ro} onchange="campo('modalidade',this.value)">
             <option value="">— a definir na seleção —</option>
             ${META.modalidades.filter((m) => m.linha === (p.linha || "ic") || m.linha === null)
-              .map((m) => `<option value="${m.codigo}" ${p.modalidade === m.codigo ? "selected" : ""}>${esc(m.nome)}${m.valor ? ` — R$ ${m.valor}` : ""}</option>`).join("")}
+              .map((m) => `<option value="${m.codigo}" ${p.modalidade === m.codigo ? "selected" : ""}>${esc(m.nome)}</option>`).join("")}
           </select></div>
         <div><label>Grupo de pesquisa (DGP/CNPq)
           <span class="muted">${ed ? "(se a proposta estiver vinculada a um)" : "(pode ser informado depois da submissão)"}</span></label>
