@@ -1312,7 +1312,11 @@ function renderBolsistas() {
           : `<span class="badge b-${atrasadas ? "atrasada" : "validado"}">metas: ${feitas}/${metas.length} concluída(s)${atrasadas ? ` · ${atrasadas} atrasada(s)` : ""}</span>
         ${rel("parcial")} ${rel("final")}`} ${contrato}
       </div>
-      <div class="exp"><button class="bt bt-ghost" onclick="abrir('${esc(p.id)}')">Abrir o projeto</button></div>
+      <div class="exp"><button class="bt bt-ghost" onclick="abrir('${esc(p.id)}')">Abrir o projeto</button>
+        ${META.gestao && a.bolsista ? `<a class="bt bt-ghost" target="_blank" rel="noopener"
+          href="/api/ic/termos.pdf?edital=${encodeURIComponent(p.edital || META.edital?.numero || "")}&projeto=${encodeURIComponent(p.id)}"
+          title="Termo de compromisso deste projeto, para assinatura">📝 Termo</a>` : ""}
+      </div>
     </div>`;
   };
 
@@ -1361,6 +1365,9 @@ function renderBolsistas() {
         <a class="bt bt-ghost" href="/api/ic/bolsistas.xlsx?edital=${encodeURIComponent(ciclo)}"
           title="Uma linha por bolsista, com CPF, contato e dados bancários — para montar os contratos">
           📇 Bolsistas para contrato (Excel)</a>
+        <a class="bt bt-ghost" href="/api/ic/termos.pdf?edital=${encodeURIComponent(ciclo)}" target="_blank" rel="noopener"
+          title="Uma folha por bolsista, timbrada, para assinatura do aluno, da orientação e da pró-reitoria">
+          📝 Termos de compromisso (PDF)</a>
       </div>` : ""}
       ${corpo || `<div class="vazio">Nenhum aluno indicado neste ciclo ainda — a indicação abre com a aprovação do projeto.</div>`}
     </div>`;

@@ -2779,6 +2779,38 @@ app.get("/api/ic/bolsistas.xlsx", async (req, res) => {
   }
 });
 
+/* Termo de compromisso do bolsista em PDF — o mesmo conteúdo da planilha de
+   contrato, só que no documento que se assina. Por ciclo (uma folha por
+   bolsista) ou de um projeto só, quando a coordenação precisa reemitir. */
+app.get("/api/ic/termos.pdf", async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    if (!gereIC(u)) return res.status(403).send("Somente a coordenação de pesquisa emite os termos de compromisso.");
+    const numero = String(req.query.edital || EDITAL.numero).trim();
+    const so = String(req.query.projeto || "").trim();
+    const projetos = (await lerProjetos()).filter((p) =>
+      String(p.edital || EDITAL.numero) === numero &&
+      ["aprovado", "concluido"].includes(p.status) &&
+      p.fomento && p.fomento.tipo !== "voluntario" &&
+      (!so || p.id === so));
+
+    const { gerarTermoCompromissoPdf } = await import("./lib/pdf.js");
+    const buffer = await gerarTermoCompromissoPdf({
+      edital: { ...EDITAL, numero },
+      projetos,
+      emitidoPor: u.nome || u.email,
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition",
+      `inline; filename="termo-compromisso-${slug(so ? (projetos[0]?.numero || so) : numero)}.pdf"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro no termo de compromisso:", e);
+    res.status(500).send("Erro ao gerar o termo: " + e.message);
+  }
+});
+
 app.get("/api/ic/:id", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
