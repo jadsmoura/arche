@@ -1246,6 +1246,48 @@ async function atribuirBolsa(id, tipo, sel) {
   } catch (e) { aviso(e.message, "err"); renderBolsas(); }
 }
 
+/* Ordenação por coluna das classificações. O estado é um só para os três
+   quadros: eles mostram recortes do MESMO conjunto, e vê-los com critérios
+   diferentes ao mesmo tempo confunde mais do que ajuda. */
+let ORD_CLASS = { col: null, dir: 1 };
+function ordenarPor(col) {
+  if (ORD_CLASS.col !== col) ORD_CLASS = { col, dir: 1 };
+  else if (ORD_CLASS.dir > 0) ORD_CLASS.dir = -1;
+  else ORD_CLASS = { col: null, dir: 1 };      // volta à ordem de classificação
+  renderClassificacao();
+}
+const NIVEL_TIT = { especialista: 1, mestre: 2, doutor: 3 };
+function valorDaColuna(p, col) {
+  switch (col) {
+    case "numero": return p.numero || "";
+    case "titulo": return p.titulo || "";
+    case "professor": return p.orientador?.nome || p.orientador?.email || "";
+    case "titulacao": return NIVEL_TIT[titulacaoCodigo(p.orientador?.titulacao)] || 0;
+    case "linha": return linhaNome(p.linha);
+    case "np": return p.classificacao?.np;
+    case "cl": return p.classificacao?.cl;
+    case "total": case "posicao": return p.classificacao?.total;
+    case "resultado": return p.fomento ? fomentoNome(p.fomento.tipo)
+      : { reprovado: "Não recomendado", devolvido: "Devolvido", submetido: "Em avaliação" }[p.status] || "";
+    default: return "";
+  }
+}
+function aplicarOrdem(lista) {
+  if (!ORD_CLASS.col) return ordenarClassificacao(lista);
+  const d = ORD_CLASS.dir;
+  return lista.slice().sort((a, b) => {
+    const x = valorDaColuna(a, ORD_CLASS.col), y = valorDaColuna(b, ORD_CLASS.col);
+    // sem valor vai sempre para o fim, ordene-se como ordenar: "não tem nota"
+    // não é o mesmo que "tem a menor nota"
+    const vx = x === null || x === undefined || x === "", vy = y === null || y === undefined || y === "";
+    if (vx && vy) return String(a.numero || "").localeCompare(String(b.numero || ""));
+    if (vx) return 1;
+    if (vy) return -1;
+    if (typeof x === "number" && typeof y === "number") return (x - y) * d;
+    return String(x).localeCompare(String(y), "pt-BR", { numeric: true }) * d;
+  });
+}
+
 function renderClassificacao() {
   const titNome = (c) => (META.titulacoes.find((t) => t.codigo === c) || {}).nome || c || "—";
   const editais = editaisOrdenados();
@@ -1256,16 +1298,26 @@ function renderClassificacao() {
 
   // cada quadro recolhe e expande; o que ficou aberto é lembrado por ciclo
   // (QUADROS_ABERTOS), para a troca de ciclo não desfazer a arrumação
-  const quadro = (rotulo, lista) => {
+  // Cabeçalho clicável: primeiro clique ordena crescente, o segundo inverte,
+  // o terceiro devolve a ordem de CLASSIFICAÇÃO — que é a ordem natural
+  // desta tela e não pode ficar inalcançável.
+  const th = (rot, col, largura) => {
+    const ativo = ORD_CLASS.col === col;
+    return `<th style="width:${largura};cursor:pointer;user-select:none"
+      title="Ordenar por ${rot || "posição"}" onclick="ordenarPor('${col}')">${rot}${
+      ativo ? ` <span style="color:var(--brand-2)">${ORD_CLASS.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`;
+  };
+  const quadro = (rotulo, listaBruta) => {
     const chave = `${CICLO_SEL}|${rotulo}`;
+    const lista = aplicarOrdem(listaBruta);
     let pos = 0;
     return `<details class="quadro"${QUADROS_ABERTOS.has(chave) ? " open" : ""}
       ontoggle="this.open ? QUADROS_ABERTOS.add('${esc(chave)}') : QUADROS_ABERTOS.delete('${esc(chave)}')">
     <summary>${rotulo}<span class="qt">${lista.length} proposta(s)</span><span class="seta">▼</span></summary>
     ${lista.length ? `<div class="rolo"><table class="pt">
-      <thead><tr><th style="width:4%"></th><th style="width:11%">Protocolo</th><th style="width:24%">Título</th>
-        <th style="width:16%">Professor(a)</th><th style="width:9%">Titulação</th><th style="width:13%">Categoria</th>
-        <th style="width:6%">NP</th><th style="width:6%">CL</th><th style="width:6%">Total</th><th style="width:11%">Resultado</th></tr></thead>
+      <thead><tr>${th("", "posicao", "4%")}${th("Protocolo", "numero", "11%")}${th("Título", "titulo", "24%")}
+        ${th("Professor(a)", "professor", "16%")}${th("Titulação", "titulacao", "9%")}${th("Categoria", "linha", "13%")}
+        ${th("NP", "np", "6%")}${th("CL", "cl", "6%")}${th("Total", "total", "6%")}${th("Resultado", "resultado", "11%")}</tr></thead>
       <tbody>${lista.map((p) => {
         const comNota = p.classificacao?.total != null;
         if (comNota) pos += 1;

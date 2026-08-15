@@ -3255,6 +3255,53 @@ async function criarPreCadastros() {
 }
 const cursoNomeDe = (slug) => (CURSOS.find((c) => c.slug === slug) || {}).nome || "";
 
+/**
+ * A identidade acadêmica do pró-reitor vive na conta INSTITUCIONAL
+ * (decisão do dono, ago/2026): a conta pessoal é só de gestão. Os projetos
+ * em que ele consta como orientador — transcritos dos resultados antigos,
+ * só com o nome — passam a apontar para o e-mail do UNIEGO. Isso também
+ * encerra o casamento por nome na conta pessoal: com e-mail gravado, o
+ * nome deixa de ser chave (ver lib/certificados.js).
+ */
+const PROREITOR = {
+  nome: "Jadson Belem de Moura",
+  institucional: "jadson.moura@uniego.edu.br",
+};
+async function identidadeInstitucionalDoProReitor() {
+  const marca = "sys-ic-proreitor-institucional-v1";
+  try {
+    if (await storage.get(marca)) return;
+    const chave = (v) => String(v || "").trim().toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
+    const alvo = chave(PROREITOR.nome);
+    const r = await comProjetos((projetos) => {
+      let tocados = 0;
+      for (let i = 0; i < projetos.length; i++) {
+        const o = projetos[i].orientador || {};
+        if (chave(o.nome) !== alvo || o.email) continue;
+        projetos[i] = { ...projetos[i], orientador: { ...o, email: PROREITOR.institucional } };
+        tocados++;
+      }
+      return { tocados, gravar: tocados > 0 };
+    });
+    // e o perfil institucional passa a ter o nome, que é o que liga tudo
+    const perfis = await carregarPerfis();
+    const antes = perfis[PROREITOR.institucional] || {};
+    if (!antes.nome) {
+      perfis[PROREITOR.institucional] = {
+        ...antes, nome: PROREITOR.nome, funcao: antes.funcao || "coord-pesquisa",
+        criadoEm: antes.criadoEm || new Date().toISOString(),
+      };
+      await storage.set(PERFIS_KEY, JSON.stringify(perfis));
+    }
+    await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), ...r }));
+    await storage.flush?.();
+    console.log(`ARCHÉ IC · ${r.tocados} projeto(s) do pró-reitor ligados à conta institucional`);
+  } catch (e) {
+    console.error("Falha ao ligar a conta institucional do pró-reitor:", e.message);
+  }
+}
+
 async function subirLotesIniciais() {
   for (const nome of LOTES_INICIAIS) {
     const marca = `sys-ic-lote-${nome}`;
@@ -3756,7 +3803,7 @@ app.listen(port, () => {
   // produção — são ligados a cada projeto.
   migrarAcoesExtensao();
   subirLotesIniciais().then(aplicarAnexosIniciais).then(zerarAlunosIniciais).then(enquadrarCronogramasIniciais).then(subirArquivoHistorico).then(subirAlunosHistoricos)
-    .then(propagarCpfOrientadores).then(criarPreCadastros);
+    .then(propagarCpfOrientadores).then(identidadeInstitucionalDoProReitor).then(criarPreCadastros);
   // Cobrança do relatório final: varre ao acordar e de hora em hora enquanto
   // o processo estiver vivo. O tráfego do portal também dispara (com throttle),
   // o que cobre as hibernações do plano free.

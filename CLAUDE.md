@@ -56,7 +56,11 @@ public/
 
 - **Setores protegidos** (exigem login): `/extensao`, `/pesquisa`, `/inovacao`, `/atas`, `/usuarios`.
   **Avaliação (`/arche/`) é ABERTA** — não adicionar login nela.
-- Gestores gerais fixos: `jadsonbelem@gmail.com` e `jadson.moura@uniego.edu.br` (lib/auth.js).
+- Gestores gerais fixos: `jadsonbelem@gmail.com` e `jadson.moura@uniego.edu.br` (lib/auth.js),
+  com os **mesmos privilégios**. A identidade ACADÊMICA do pró-reitor (projetos que orienta,
+  certificados) vive na conta **institucional** — a pessoal é só de gestão
+  (`identidadeInstitucionalDoProReitor` gravou o e-mail do UNIEGO nos projetos dele, o que
+  também encerra o casamento por nome na conta pessoal).
 - **Coordenação por setor** (`/usuarios/`, ação `coordenar`): o gestor geral designa
   coordenadores para qualquer um dos quatro módulos — `extensao`, `pesquisa`, `inovacao`
   e `atas`. Dentro do setor marcado a pessoa tem o alcance da PROPPEX (no ARCHÉ AT, vê
