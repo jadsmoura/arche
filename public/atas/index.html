@@ -1073,6 +1073,10 @@ function tituloDaAta(a) {
 }
 
 function renderEditor(alvo) {
+  // a seção vigente manda no destino: o markup antigo carrega 'v-nova' nos
+  // onchange, e depois que o autosave promove a seção a "ata" renderizar lá
+  // seria desenhar num contêiner escondido (a tela visível ficaria mentindo)
+  alvo = SECAO === "nova" ? "v-nova" : "v-ata";
   const a = ATUAL, ro = PODE_EDITAR ? "" : "disabled";
   const o = META.orgaos.find((x) => x.codigo === a.orgao);
   const iPasso = PASSOS.indexOf(a.status);
@@ -1685,11 +1689,15 @@ async function autoSalvar() {
   if (ATUAL.status === "registrada" || !podeAutoSalvar()) return;
   AUTO.salvando = true;
   selo("salvando");
+  // guarda de identidade: se a pessoa navegar enquanto a gravação vai e
+  // volta, a resposta não pode carimbar o id desta ata noutro formulário
+  const enviada = ATUAL;
   try {
     const r = await api("/api/atas", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...ATUAL, auto: true }),
+      body: JSON.stringify({ ...enviada, auto: true }),
     });
+    if (ATUAL !== enviada) return;
     // só o que o servidor decide entra de volta: trocar ATUAL inteiro
     // apagaria o que foi digitado enquanto a gravação ia e voltava
     ATUAL.id = r.ata.id;
@@ -1700,7 +1708,22 @@ async function autoSalvar() {
     selo("salva");
     // a primeira gravação cria a ata: a partir daí a tela é a da ata aberta,
     // e o histórico do navegador não pode voltar para um formulário vazio
-    if (SECAO === "nova") { SECAO = "ata"; for (const b of document.querySelectorAll(".side-item")) b.classList.remove("on"); }
+    if (SECAO === "nova") {
+      SECAO = "ata";
+      for (const b of document.querySelectorAll(".side-item")) b.classList.remove("on");
+      // a TELA acompanha a seção: o editor vivo (com o que está digitado) é
+      // transplantado de v-nova para v-ata. Sem isso, as renderizações
+      // seguintes — a do "Gerar a minuta" inclusive — caíam num contêiner
+      // escondido, e a pessoa clicava numa tela defasada: a minuta era
+      // gerada sem aparecer e o clique seguinte respondia "já tem texto".
+      const de = $("v-nova"), para = $("v-ata");
+      if (de && para && !de.classList.contains("hide")) {
+        para.replaceChildren(...de.childNodes);
+        de.classList.add("hide");
+        para.classList.remove("hide");
+        cabecalho();
+      }
+    }
     carregar().catch(() => {});
   } catch (e) {
     selo("erro", e.message);
@@ -1748,10 +1771,26 @@ async function redigir(refazer) {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refazer: !!refazer, estilo: ESTILO_ESCOLHIDO }),
     });
-    ATUAL = r.ata; await carregar(); cabecalho(); renderEditor("v-ata");
+    // a minuta que o servidor devolveu vai para a tela ANTES de qualquer
+    // outra chamada: se a atualização da lista falhar, a ata não pode ficar
+    // gerada no servidor e invisível aqui
+    ATUAL = r.ata; cabecalho(); renderEditor("v-ata");
+    await carregar().catch(() => {});
     aviso(r.aviso || `Minuta pronta (${r.provedor === "modelo" ? "gerador do ARCHÉ" : r.provedor}). Revise o texto antes de aprovar.`,
       r.aviso ? "warn" : "ok");
-  } catch (e) { aviso(e.message, "err"); }
+  } catch (e) {
+    // "já tem texto" (409) só acontece quando a tela está defasada do
+    // servidor — ressincroniza e re-renderiza, para o texto existente e o
+    // botão "Reescrever a minuta" aparecerem em vez de um beco sem saída
+    if (ATUAL?.id) {
+      try {
+        const d = await api("/api/atas/" + encodeURIComponent(ATUAL.id));
+        ATUAL = d.ata; PODE_EDITAR = d.podeEditar;
+        cabecalho(); renderEditor("v-ata");
+      } catch { /* sem rede: fica só o aviso */ }
+    }
+    aviso(e.message, "err");
+  }
 }
 async function mudarStatus(status) {
   try {
