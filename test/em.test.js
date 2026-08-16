@@ -6,7 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   TURMAS_EM, BOLSAS_EM, turmaDe, turmaVigente, bolsaEmDe, normalizarBolsistaEM,
-  projetoAtual, trocarProjeto, cotasDaTurma, faltaNoBolsistaEM,
+  projetoAtual, trocarProjeto, cotasDaTurma, faltaNoBolsistaEM, relatoriosExigidos,
 } from "../lib/em.js";
 import { termoDoAlunoEM, autorizacaoResponsavelEM } from "../lib/termos.js";
 import { MARCAS } from "../lib/marca.js";
@@ -56,17 +56,31 @@ test("a cota conta por turma e ignora desligados", () => {
   assert.equal(cotas.find((c) => c.codigo === "uniego").usadas, 1);
 });
 
-test("o relatório entregue pelo bolsista guarda o texto e a autoria", () => {
-  const b = normalizarBolsistaEM({ nome: "Lara", turma: "2026/2027", relatorio: {
-    situacao: "entregue", em: "2027-08-01", texto: "Acompanhei o projeto e aprendi.", porAluno: true,
+test("os relatórios do EM: parcial e final com os 3 campos, e o legado migra para o final", () => {
+  const b = normalizarBolsistaEM({ nome: "Lara", turma: "2026/2027", relatorios: { parcial: {
+    situacao: "entregue", em: "2027-02-01", atividades: "Acompanhei o laboratório toda semana.",
+    motivacao: "Quero ser cientista.", cursoPretendido: "Agronomia", porAluno: true,
+  } } });
+  assert.equal(b.relatorios.parcial.situacao, "entregue");
+  assert.equal(b.relatorios.parcial.cursoPretendido, "Agronomia");
+  assert.equal(b.relatorios.parcial.porAluno, true);
+  assert.equal(b.relatorios.final.situacao, "pendente", "o final nasce pendente");
+  // o registro antigo (um `relatorio` só, com `texto`) vira o FINAL
+  const legado = normalizarBolsistaEM({ nome: "Arthur", turma: "2025/2026", relatorio: {
+    situacao: "entregue", em: "2026-08-01", texto: "Acompanhei o projeto e aprendi.", porAluno: true,
   } });
-  assert.equal(b.relatorio.situacao, "entregue");
-  assert.equal(b.relatorio.texto, "Acompanhei o projeto e aprendi.");
-  assert.equal(b.relatorio.porAluno, true);
-  // registro da gestão (papel): sem texto, sem autoria do aluno
-  const g = normalizarBolsistaEM({ nome: "Theo", turma: "2026/2027", relatorio: { situacao: "entregue" } });
-  assert.equal(g.relatorio.texto, "");
-  assert.equal(g.relatorio.porAluno, false);
+  assert.equal(legado.relatorios.final.situacao, "entregue");
+  assert.equal(legado.relatorios.final.atividades, "Acompanhei o projeto e aprendi.");
+  assert.equal(legado.relatorios.parcial.situacao, "pendente");
+  // a validação é da PROPPEX: o carimbo mora no próprio relatório
+  const validado = normalizarBolsistaEM({ nome: "Theo", turma: "2025/2026", relatorios: { final: {
+    situacao: "validado", atividades: "x", validadoPor: "gestor@uniego.edu.br", validadoEm: "2026-08-20",
+  } } });
+  assert.equal(validado.relatorios.final.situacao, "validado");
+  assert.equal(validado.relatorios.final.validadoPor, "gestor@uniego.edu.br");
+  // turma vigente entrega os dois; encerrada, só o final
+  assert.deepEqual(relatoriosExigidos(turmaDe("2026/2027")), ["parcial", "final"]);
+  assert.deepEqual(relatoriosExigidos(turmaDe("2025/2026")), ["final"]);
 });
 
 test("a régua do cadastro cobra responsável e projeto — o bolsista é menor", () => {

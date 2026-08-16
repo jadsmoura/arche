@@ -43,6 +43,7 @@ import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import {
   TURMAS_EM, BOLSAS_EM, bolsaEmDe, turmaDe as turmaEmDe, turmaVigente as turmaEmVigente,
   normalizarBolsistaEM, trocarProjeto, anotarEM, cotasDaTurma, projetoAtual as projetoAtualEM,
+  RELATORIOS_EM, CAMPOS_RELATORIO_EM, relatoriosExigidos,
 } from "./lib/em.js";
 import {
   duplicidadesPorNome, podeFundir, fundirPerfil, fundirProjeto, fundirAcao, fundirAta, fundirPapeis,
@@ -3263,14 +3264,21 @@ app.get("/api/ic/em/meu", async (req, res) => {
   const nomeCurso = (slug) => (CURSOS.find((c) => c.slug === slug) || {}).nome || slug || "";
   const podeEscolher = meus.some((b) => b.situacao === "ativo" && !turmaEmDe(b.turma)?.encerrada);
   res.json({
-    registros: meus.map((b) => ({
-      id: b.id, nome: b.nome, escola: b.escola, serie: b.serie,
-      cursoInteresse: b.cursoInteresse, situacao: b.situacao,
-      turma: turmaEmDe(b.turma) || { ciclo: b.turma },
-      bolsa: bolsaEmDe(b.bolsa) || null,
-      projetoAtual: projetoAtualEM(b), trajetoria: b.trajetoria,
-      relatorio: b.relatorio, conint: b.conint,
-    })),
+    registros: meus.map((b) => {
+      const minha = turmaEmDe(b.turma) || { ciclo: b.turma };
+      return {
+        id: b.id, nome: b.nome, escola: b.escola, serie: b.serie,
+        cursoInteresse: b.cursoInteresse, situacao: b.situacao,
+        turma: minha,
+        bolsa: bolsaEmDe(b.bolsa) || null,
+        projetoAtual: projetoAtualEM(b), trajetoria: b.trajetoria,
+        relatorios: b.relatorios, conint: b.conint,
+        // a turma vigente entrega parcial e final; as antigas, só o final
+        exigidos: relatoriosExigidos(minha),
+      };
+    }),
+    camposRelatorio: CAMPOS_RELATORIO_EM,
+    cursosUniego: CURSOS.map((c) => c.nome),
     // o cardápio da escolha: os projetos EM EXECUÇÃO da graduação — título,
     // curso e orientação, nada além (o registro completo é do projeto)
     escolha: podeEscolher ? {
@@ -3315,32 +3323,82 @@ app.post("/api/ic/em/meu/projeto", async (req, res) => {
   res.json({ ok: true, bolsista: r.bolsista });
 });
 
-/* O relatório final SIMPLIFICADO, entregue pelo próprio bolsista — nas
-   turmas antigas é o que formaliza a conclusão do processo. */
+/* O relatório do bolsista EM (parcial e final na turma vigente; só o FINAL
+   nas antigas, onde a entrega formaliza a conclusão). Três campos: as
+   atividades da vigência, a motivação para a carreira acadêmica e o curso
+   do UNIEGO pretendido. Quem valida é a PROPPEX — não a orientação. */
 app.post("/api/ic/em/meu/relatorio", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
-  const texto = String(req.body?.texto || "").trim();
-  if (texto.length < 100) {
-    return res.status(400).json({ error: "Conte com as suas palavras o que você acompanhou e aprendeu — o relatório precisa de pelo menos 100 caracteres." });
-  }
+  const b = req.body || {};
+  const tipo = String(b.tipo || "final");
+  if (!RELATORIOS_EM.includes(tipo)) return res.status(400).json({ error: "Tipo de relatório inválido" });
+  const atividades = String(b.atividades || "").trim();
+  const motivacao = String(b.motivacao || "").trim();
+  const cursoPretendido = String(b.cursoPretendido || "").trim();
+  const cursoOutro = String(b.cursoOutro || "").trim();
+  if (atividades.length < 50)
+    return res.status(400).json({ error: "Descreva as atividades realizadas na vigência da sua bolsa (pelo menos 50 caracteres)." });
+  if (motivacao.length < 20)
+    return res.status(400).json({ error: "Conte se a participação te motivou a seguir carreira acadêmica, cursar uma faculdade, ser um cientista." });
+  if (!cursoPretendido && !cursoOutro)
+    return res.status(400).json({ error: "Diga em qual curso do UNIEGO você pretende ingressar — ou escreva o curso, se o UNIEGO ainda não o tiver." });
+
   const r = await comBolsistasEM((lista) => {
-    const i = lista.findIndex((x) => x.id === String(req.body?.id || "")
+    const i = lista.findIndex((x) => x.id === String(b.id || "")
       && x.email === String(u.email).toLowerCase());
     if (i < 0) return { erro: [404, "Registro do ICEM não encontrado para a sua conta"], gravar: false };
-    const b = lista[i];
-    if (b.situacao === "desligado") return { erro: [400, "Registro desligado — fale com a coordenação de pesquisa."], gravar: false };
-    lista[i] = anotarEM({ ...b, relatorio: {
-      ...b.relatorio, situacao: "entregue", em: new Date().toISOString(),
-      texto: texto.slice(0, 8000), porAluno: true,
-    } }, { quem: u.email, oQue: "entregou o relatório final pelo portal" });
+    const reg = lista[i];
+    if (reg.situacao === "desligado") return { erro: [400, "Registro desligado — fale com a coordenação de pesquisa."], gravar: false };
+    if (!relatoriosExigidos(turmaEmDe(reg.turma)).includes(tipo))
+      return { erro: [400, "A sua turma entrega apenas o relatório final."], gravar: false };
+    const atual = reg.relatorios?.[tipo] || {};
+    if (atual.situacao === "validado")
+      return { erro: [400, "Este relatório já foi validado pela PROPPEX — não precisa reenviar."], gravar: false };
+    lista[i] = anotarEM({ ...reg, relatorios: { ...reg.relatorios, [tipo]: {
+      ...atual, situacao: "entregue", em: new Date().toISOString(),
+      atividades: atividades.slice(0, 8000), motivacao: motivacao.slice(0, 4000),
+      cursoPretendido: cursoPretendido.slice(0, 80), cursoOutro: cursoOutro.slice(0, 120),
+      porAluno: true,
+    } } }, { quem: u.email, oQue: `entregou o relatório ${tipo} pelo portal` });
     return { bolsista: lista[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-  avisarPesquisa(`ICEM: relatório final de ${r.bolsista.nome}`, [
+  avisarPesquisa(`ICEM: relatório ${tipo} de ${r.bolsista.nome}`, [
     ["Bolsista", `${r.bolsista.nome} (turma ${r.bolsista.turma})`],
-    ["Situação", "Relatório final entregue pelo portal"],
-  ], "Relatório final do ICEM entregue");
+    ["Situação", `Relatório ${tipo} entregue pelo portal — aguarda a validação da PROPPEX`],
+    ["Curso pretendido", cursoOutro ? `${cursoOutro} (o UNIEGO ainda não tem)` : cursoPretendido],
+  ], "Relatório do ICEM entregue");
+  res.json({ ok: true, bolsista: r.bolsista });
+});
+
+/* A validação do relatório do EM é da PROPPEX (decisão do dono, ago/2026):
+   o bolsista acompanha projetos — não há orientador responsável por ele. */
+app.post("/api/ic/em/:id/relatorio/validar", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "A validação do relatório do ICEM é da coordenação de pesquisa." });
+  const tipo = String(req.body?.tipo || "final");
+  const decisao = String(req.body?.decisao || "");
+  const comentario = String(req.body?.comentario || "").trim().slice(0, 1000);
+  if (!RELATORIOS_EM.includes(tipo)) return res.status(400).json({ error: "Tipo de relatório inválido" });
+  if (!["validado", "devolvido"].includes(decisao)) return res.status(400).json({ error: "Decisão inválida" });
+  if (decisao === "devolvido" && comentario.length < 10)
+    return res.status(400).json({ error: "Diga o que o bolsista precisa corrigir." });
+  const r = await comBolsistasEM((lista) => {
+    const i = lista.findIndex((x) => x.id === req.params.id);
+    if (i < 0) return { erro: [404, "Bolsista não encontrado"], gravar: false };
+    const reg = lista[i];
+    const atual = reg.relatorios?.[tipo] || {};
+    if (atual.situacao !== "entregue" && decisao === "validado")
+      return { erro: [400, "Só se valida relatório entregue."], gravar: false };
+    lista[i] = anotarEM({ ...reg, relatorios: { ...reg.relatorios, [tipo]: {
+      ...atual, situacao: decisao, comentario,
+      validadoPor: u.email, validadoEm: new Date().toISOString(),
+    } } }, { quem: u.email, oQue: `${decisao === "validado" ? "validou" : "devolveu"} o relatório ${tipo}` });
+    return { bolsista: lista[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
   res.json({ ok: true, bolsista: r.bolsista });
 });
 
@@ -3454,23 +3512,82 @@ app.post("/api/ic/em/:id/bolsa", async (req, res) => {
   res.json({ ok: true, bolsista: r.bolsista });
 });
 
-/* O relatório simplificado (um por turma) e o CONINT: registro da gestão. */
+/* Entrega registrada À MÃO pela gestão (relatório que chegou em papel) e a
+   reabertura — o CONINT segue na rota própria. */
 app.post("/api/ic/em/:id/relatorio", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
   if (!gereIC(u)) return res.status(403).json({ error: "Registro da coordenação." });
+  const tipo = RELATORIOS_EM.includes(String(req.body?.tipo || "")) ? String(req.body.tipo) : "final";
   const situacao = req.body?.situacao === "entregue" ? "entregue" : "pendente";
   const r = await comBolsistasEM((lista) => {
     const i = lista.findIndex((x) => x.id === req.params.id);
     if (i < 0) return { erro: [404, "Bolsista não encontrado"], gravar: false };
-    lista[i] = anotarEM({ ...lista[i], relatorio: {
-      situacao, em: situacao === "entregue" ? new Date().toISOString() : "",
+    const atual = lista[i].relatorios?.[tipo] || {};
+    lista[i] = anotarEM({ ...lista[i], relatorios: { ...lista[i].relatorios, [tipo]: {
+      ...atual, situacao, em: situacao === "entregue" ? new Date().toISOString() : "",
+      porAluno: situacao === "entregue" ? atual.porAluno === true : false,
       obs: String(req.body?.obs || "").trim().slice(0, 500),
-    } }, { quem: u.email, oQue: situacao === "entregue" ? "registrou a entrega do relatório simplificado" : "reabriu o relatório simplificado" });
+    } } }, { quem: u.email, oQue: situacao === "entregue"
+      ? `registrou a entrega do relatório ${tipo}` : `reabriu o relatório ${tipo}` });
     return { bolsista: lista[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
   res.json({ ok: true, bolsista: r.bolsista });
+});
+
+/* A planilha dos bolsistas do EM — a turma inteira ou UM bolsista
+   (?bolsista=), para o pedido de pagamento; só a coordenação. */
+app.get("/api/ic/em/bolsistas.xlsx", async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    if (!gereIC(u)) return res.status(403).send("Somente a coordenação de pesquisa exporta os bolsistas do EM.");
+    const turma = turmaEmDe(String(req.query.turma || "")) || turmaEmVigente();
+    const alvo = String(req.query.bolsista || "").trim().toLowerCase();
+    const lista = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo
+      && (!alvo || b.id === alvo || b.email === alvo || soDigitos(b.cpf) === soDigitos(alvo)))
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    const { default: ExcelJS } = await import("exceljs");
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Bolsistas EM");
+    ws.columns = [
+      { header: "Turma", key: "turma", width: 12 },
+      { header: "Bolsa", key: "bolsa", width: 22 },
+      { header: "Nome Completo", key: "nome", width: 34 },
+      { header: "CPF", key: "cpf", width: 16 },
+      { header: "RG", key: "rg", width: 14 },
+      { header: "Escola", key: "escola", width: 26 },
+      { header: "Série", key: "serie", width: 10 },
+      { header: "Telefone", key: "telefone", width: 16 },
+      { header: "E-mail", key: "email", width: 30 },
+      { header: "Curso de interesse", key: "curso", width: 20 },
+      { header: "Responsável", key: "respNome", width: 30 },
+      { header: "CPF do Responsável", key: "respCpf", width: 16 },
+      { header: "Banco", key: "banco", width: 18 },
+      { header: "Agência", key: "agencia", width: 10 },
+      { header: "Conta", key: "conta", width: 16 },
+      { header: "Pix", key: "pix", width: 24 },
+    ];
+    ws.getRow(1).font = { bold: true };
+    for (const b of lista) {
+      ws.addRow({
+        turma: b.turma, bolsa: bolsaEmDe(b.bolsa)?.nome || (b.bolsa || "—"),
+        nome: b.nome, cpf: formatarCpf(b.cpf) || "", rg: b.rg || "",
+        escola: b.escola || "", serie: b.serie || "", telefone: b.telefone || "",
+        email: b.email || "", curso: b.cursoInteresse || "",
+        respNome: b.responsavel?.nome || "", respCpf: formatarCpf(b.responsavel?.cpf) || "",
+        banco: b.banco || "", agencia: b.agencia || "", conta: b.conta || "", pix: b.pix || "",
+      });
+    }
+    const buffer = await wb.xlsx.writeBuffer();
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="bolsistas-em-${slug(turma.ciclo)}${alvo ? "-" + slug(alvo.split("@")[0]) : ""}.xlsx"`);
+    res.send(Buffer.from(buffer));
+  } catch (e) {
+    console.error("Erro na planilha dos bolsistas EM:", e);
+    res.status(500).send("Erro ao gerar a planilha: " + e.message);
+  }
 });
 
 app.post("/api/ic/em/:id/conint", async (req, res) => {
@@ -4521,6 +4638,148 @@ async function subirTurmasEM() {
 }
 
 /**
+ * Os 24 TERMOS ASSINADOS da turma 2025/2026 (conferidos página a página,
+ * ago/2026) alinham o registro: completam CPF, e-mail, conta e curso de
+ * interesse SEM sobrescrever nada, incluem os 2 bolsistas que faltavam
+ * (Ellisa Vitórya e Letícia Lopes, de termo manuscrito) e corrigem a bolsa
+ * de quem o resultado publicado trazia como voluntária mas TEM contrato de
+ * bolsa (Rebeca → UNIEGO, Anna Júlia → CNPq) — fechando 12 + 12. CPF que
+ * não valida fica de fora (o aluno corrige no portal).
+ */
+async function completarTurmaEM2025() {
+  const marca = "sys-ic-em-2025-termos";
+  try {
+    if (await storage.get(marca)) return;
+    const arq = JSON.parse(
+      await readFile(path.join(__dirname, "dados", "ic-em-2025-termos.json"), "utf8"));
+    const chaveNome = (v) => String(v || "").trim().toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ");
+    const r = await comBolsistasEM((lista) => {
+      let completados = 0, novos = 0, bolsas = 0;
+      for (const t of arq.bolsistas || []) {
+        const cpfT = normalizarCpf(t.cpf);
+        const i = lista.findIndex((x) => x.turma === arq.turma
+          && ((cpfT && soDigitos(x.cpf) === cpfT) || chaveNome(x.nome) === chaveNome(t.nome)));
+        if (i < 0) {
+          const novo = normalizarBolsistaEM({ ...t, cpf: cpfT, turma: arq.turma, situacao: "concluido" });
+          novo.id = "em_" + crypto.randomUUID().slice(0, 12);
+          lista.push(novo);
+          novos++;
+          continue;
+        }
+        const base = lista[i];
+        const junto = { ...base };
+        let mexeu = false;
+        for (const c of ["cpf", "email", "telefone", "cursoInteresse", "banco", "agencia", "conta", "pix"]) {
+          const v = c === "cpf" ? cpfT : t[c];
+          if (!junto[c] && v) { junto[c] = v; mexeu = true; }
+        }
+        if (!junto.bolsa && t.bolsa) { junto.bolsa = t.bolsa; mexeu = true; }
+        if (mexeu) { lista[i] = normalizarBolsistaEM(junto, { base }); completados++; }
+      }
+      // a correção explícita: contrato de bolsa vale mais que o resultado
+      for (const [nome, bolsa] of Object.entries(arq.corrigirBolsa || {})) {
+        const i = lista.findIndex((x) => x.turma === arq.turma && chaveNome(x.nome) === chaveNome(nome));
+        if (i >= 0 && lista[i].bolsa !== bolsa) {
+          lista[i] = anotarEM({ ...lista[i], bolsa }, { quem: "sistema (termos assinados)",
+            oQue: `bolsa corrigida pelo contrato assinado: ${bolsaEmDe(bolsa)?.nome || bolsa}` });
+          bolsas++;
+        }
+      }
+      return { completados, novos, bolsas, gravar: completados + novos + bolsas > 0 };
+    });
+    await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), ...r }));
+    console.log(`ARCHÉ IC · ICEM 2025/2026: ${r.novos} incluído(s), ${r.completados} completado(s), ${r.bolsas} bolsa(s) corrigida(s) pelos termos`);
+  } catch (e) {
+    console.error("Falha ao completar a turma 2025/2026 pelos termos:", e.message);
+  }
+}
+
+/**
+ * Pré-cadastro dos bolsistas EM da turma 2025/2026 (decisão do dono,
+ * ago/2026): o perfil nasce pronto — nome, CPF válido, telefone, função
+ * "aluno" — e a conta já aprovada; entrando com o e-mail do termo, está
+ * tudo lá. Mesma mecânica do pré-cadastro do edital (quem já tem perfil
+ * não é tocado; CPF que já é de alguém não entra).
+ */
+async function criarPreCadastrosEM() {
+  const marca = "sys-ic-em-precadastros-v1";
+  try {
+    if (await storage.get(marca)) return;
+    const alvo = "2025/2026";
+    const bolsistas = (await lerBolsistasEM()).filter((b) => b.turma === alvo && b.email);
+    if (!bolsistas.length) return;
+    const perfis = await carregarPerfis();
+    const usuarios = await carregarUsuarios(storage);
+    let criados = 0;
+    for (const b of bolsistas) {
+      const email = b.email.toLowerCase();
+      if (perfis[email]) continue;
+      const cpf = normalizarCpf(b.cpf);
+      perfis[email] = {
+        nome: b.nome,
+        cpf: cpf && !Object.values(perfis).some((p) => p?.cpf === cpf) ? cpf : "",
+        telefone: b.telefone || "",
+        curso: b.cursoInteresse || "",
+        funcao: "aluno",
+        preCadastro: true, criadoEm: new Date().toISOString(),
+        criadoPor: "sistema (pré-cadastro do ICEM, a partir dos termos assinados)",
+      };
+      if (papelDe(email, usuarios) === "pendente") usuarios.aprovados.push(email);
+      criados++;
+    }
+    if (criados) {
+      await storage.set(PERFIS_KEY, JSON.stringify(perfis));
+      usuarios.aprovados = [...new Set(usuarios.aprovados)];
+      await salvarUsuarios(storage, usuarios);
+    }
+    await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), criados }));
+    await storage.flush?.();
+    console.log(`ARCHÉ IC · ICEM: ${criados} pré-cadastro(s) da turma ${alvo}`);
+  } catch (e) {
+    console.error("Falha nos pré-cadastros do ICEM:", e.message);
+  }
+}
+
+/**
+ * O convite da turma 2025/2026 sai UMA vez, no arranque (pedido do dono,
+ * ago/2026): cada bolsista com e-mail recebe o passo a passo para entrar
+ * com o próprio e-mail e ENTREGAR O RELATÓRIO FINAL, que formaliza a
+ * conclusão. O registro alimenta o mesmo sys-ic-em-convites-v1 do botão
+ * da tela — reenviar depois é por lá.
+ */
+async function convidarTurmaEM2025() {
+  const marca = "sys-ic-em-convite-2025-v1";
+  try {
+    if (await storage.get(marca)) return;
+    const turma = turmaEmDe("2025/2026");
+    const bolsistas = (await lerBolsistasEM())
+      .filter((b) => b.turma === turma.ciclo && b.email && b.situacao !== "desligado"
+        && b.relatorios?.final?.situacao !== "validado");
+    if (!bolsistas.length) { await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), enviados: 0 })); return; }
+    const CONVITES_EM = "sys-ic-em-convites-v1";
+    const enviados = JSON.parse((await storage.get(CONVITES_EM)) || "{}");
+    const { enviarEmail, emailConviteEM } = await import("./lib/mailer.js");
+    let ok = 0;
+    const falhas = [];
+    for (const b of bolsistas) {
+      try {
+        await enviarEmail(emailConviteEM(b, turma, {}));
+        enviados[b.email] = { em: new Date().toISOString(), turma: turma.ciclo };
+        ok++;
+      } catch (e) { falhas.push(`${b.nome}: ${e.message}`); }
+    }
+    await storage.set(CONVITES_EM, JSON.stringify(enviados));
+    // e-mail é rede: só marca como feito se ALGUM saiu — senão tenta de novo
+    // no próximo arranque (e as falhas ficam ditas no log)
+    if (ok) await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), enviados: ok, falhas }));
+    console.log(`ARCHÉ IC · ICEM: convite do relatório final enviado a ${ok} bolsista(s) da turma 2025/2026${falhas.length ? ` (${falhas.length} falha(s))` : ""}`);
+  } catch (e) {
+    console.error("Falha no convite da turma 2025/2026:", e.message);
+  }
+}
+
+/**
  * O CPF do professor se espalha pelos ciclos antigos. Os históricos foram
  * transcritos dos resultados publicados, onde a pessoa aparece só pelo
  * nome; o ciclo corrente veio do formulário, com CPF. Como é a mesma
@@ -5049,15 +5308,16 @@ app.post("/api/ic/:id/relatorio", async (req, res) => {
     if (!String(a.revista || "").trim() || !String(a.issn || "").trim() || !String(a.link || "").trim()) {
       return res.status(400).json({ error: "O relatório final é o artigo científico: informe a revista escolhida, o ISSN e o link da revista (Qualis e fator de impacto, se houver)." });
     }
-    // as avaliações fecham o ciclo: no final elas são obrigatórias
-    const semResposta = PERGUNTAS_AVALIACAO_PROJETO
-      .filter((q) => !String(b.avaliacaoProjeto?.[q.codigo] || "").trim());
-    const semNota = CRITERIOS_AVALIACAO_ORIENTADOR
-      .filter((c) => !Number.isInteger(Number(b.avaliacaoOrientador?.[c.codigo]))
-        || b.avaliacaoOrientador?.[c.codigo] === "" || b.avaliacaoOrientador?.[c.codigo] == null);
-    if (semResposta.length || semNota.length) {
-      return res.status(400).json({ error: "No relatório final, responda a avaliação do projeto e a avaliação da atuação da orientação — todos os itens." });
-    }
+  }
+  // as avaliações acompanham OS DOIS relatórios (decisão do dono, ago/2026:
+  // obrigatórias também no parcial): a do projeto e a da atuação da orientação
+  const semResposta = PERGUNTAS_AVALIACAO_PROJETO
+    .filter((q) => !String(b.avaliacaoProjeto?.[q.codigo] || "").trim());
+  const semNota = CRITERIOS_AVALIACAO_ORIENTADOR
+    .filter((c) => !Number.isInteger(Number(b.avaliacaoOrientador?.[c.codigo]))
+      || b.avaliacaoOrientador?.[c.codigo] === "" || b.avaliacaoOrientador?.[c.codigo] == null);
+  if (semResposta.length || semNota.length) {
+    return res.status(400).json({ error: "Responda a avaliação do projeto e a avaliação da atuação da orientação — todos os itens acompanham o relatório." });
   }
 
   const r = await comProjetos((projetos) => {
@@ -5333,6 +5593,7 @@ app.listen(port, () => {
       subirLotesIniciais, aplicarAnexosIniciais, zerarAlunosIniciais,
       enquadrarCronogramasIniciais, subirArquivoHistorico, subirAlunosHistoricos,
       removerAlunosEnsinoMedio, subirTurmasEM,
+      completarTurmaEM2025, criarPreCadastrosEM, convidarTurmaEM2025,
       propagarCpfOrientadores, identidadeInstitucionalDoProReitor, criarPreCadastros,
       aplicarAvaliacoesTranscritas,
       // SEMPRE por último, e a cada arranque (achado de ago/2026 — o caso

@@ -992,7 +992,7 @@ async function renderEM() {
   const atual = (b) => (b.trajetoria || []).find((e) => !e.ate) || null;
   const ativos = da.filter((b) => b.situacao !== "desligado");
   const comProjeto = ativos.filter((b) => atual(b));
-  const entregues = da.filter((b) => b.relatorio?.situacao === "entregue");
+  const entregues = da.filter((b) => ["entregue", "validado"].includes(b.relatorios?.final?.situacao));
 
   // projetos que podem ser acompanhados: os do ciclo da graduação em execução
   const acompanhaveis = PROJETOS.filter((p) => ["aprovado", "concluido"].includes(p.status))
@@ -1038,16 +1038,23 @@ async function renderEM() {
         ${passados.map((e) => `<div class="kv muted">• ${esc(e.numero || "")} ${esc(e.titulo.slice(0, 70))} · ${fmtD(e.de)} → ${fmtD(e.ate)}</div>`).join("")}
       </details>` : ""}
 
-      ${b.relatorio?.texto ? `<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">
-          Relatório final entregue pelo bolsista${b.relatorio.em ? " em " + fmtD(b.relatorio.em.slice(0, 10)) : ""} — ler o texto</summary>
-        <div class="kv" style="white-space:pre-wrap;background:var(--wash);border-radius:8px;padding:10px;margin-top:6px">${esc(b.relatorio.texto)}</div>
-      </details>` : ""}
+      ${emBlocoRelatoriosGestao(b, turma)}
+      <details style="margin-top:6px"><summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">👤 Dados do aluno (cadastro do contrato)</summary>
+        <div style="margin-top:6px">
+          ${[["CPF", b.cpf ? b.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : ""],
+            ["RG", b.rg], ["Escola", b.escola], ["Série", b.serie],
+            ["Telefone", b.telefone], ["E-mail", b.email],
+            ["Responsável", b.responsavel?.nome], ["CPF do responsável", b.responsavel?.cpf ? String(b.responsavel.cpf).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : ""],
+            ["Banco", b.banco], ["Agência", b.agencia], ["Conta", b.conta], ["Pix", b.pix]]
+            .filter(([, v]) => v).map(([k, v]) => `<div class="kv muted">• ${k}: <b>${esc(v)}</b></div>`).join("")
+            || '<div class="kv muted">Cadastro ainda vazio.</div>'}
+        </div>
+      </details>
       <div class="exp" style="margin-top:8px;gap:6px">
-        <button class="bt ${b.relatorio?.situacao === "entregue" ? "bt-ghost" : "bt-sec"}"
-          onclick="emRelatorio('${esc(b.id)}','${b.relatorio?.situacao === "entregue" ? "pendente" : "entregue"}')">
-          ${b.relatorio?.situacao === "entregue" ? "✓ Relatório entregue — reabrir" : "Registrar relatório simplificado"}</button>
         <button class="bt bt-ghost" onclick="emConint('${esc(b.id)}',${b.conint?.participou ? "false" : "true"})">
           ${b.conint?.participou ? "✓ CONINT — desfazer" : "Participou do CONINT"}</button>
+        <a class="bt bt-ghost" href="/api/ic/em/bolsistas.xlsx?turma=${encodeURIComponent(TURMA_EM)}&bolsista=${encodeURIComponent(b.email || b.id)}"
+          title="Planilha só deste bolsista — CPF, contato, responsável e dados bancários, para o pedido de pagamento">⬇ Exportar dados do aluno</a>
       </div>
     </div>`;
   };
@@ -1064,6 +1071,8 @@ async function renderEM() {
       ${turma.resultado ? `<a class="bt bt-ghost" target="_blank" rel="noopener" href="${esc(turma.resultado)}">📄 Resultado</a>` : ""}
       ${da.length ? `<a class="bt bt-ghost" target="_blank" rel="noopener" href="/api/ic/em/termos.pdf?turma=${encodeURIComponent(TURMA_EM)}"
         title="Termo de cada bolsista com o Anexo 01 (autorização do responsável) — para a cerimônia de assinaturas">📝 Termos + autorização (PDF)</a>` : ""}
+      ${da.length ? `<a class="bt bt-ghost" href="/api/ic/em/bolsistas.xlsx?turma=${encodeURIComponent(TURMA_EM)}"
+        title="Uma linha por bolsista, com CPF, contato, responsável e dados bancários — para os pagamentos">📇 Bolsistas (Excel)</a>` : ""}
       ${da.length ? `<button class="bt bt-sec" onclick="emConvidar()"
         title="Convite por e-mail: o bolsista cria o usuário e — turma atual — escolhe o projeto; turma encerrada — entrega o relatório final">✉️ Convidar por e-mail</button>` : ""}
     </div>
@@ -1103,8 +1112,47 @@ const emBolsa = (id, bolsa) => emAcao(`/api/ic/em/${id}/bolsa`, { bolsa },
   bolsa ? "Bolsa atribuída." : "Bolsa desfeita.");
 const emProjeto = (id, projetoId) => emAcao(`/api/ic/em/${id}/projeto`, { projetoId },
   projetoId ? "Acompanhamento registrado — a trajetória guarda o anterior." : "Acompanhamento encerrado.");
-const emRelatorio = (id, situacao) => emAcao(`/api/ic/em/${id}/relatorio`, { situacao },
-  situacao === "entregue" ? "Relatório simplificado registrado." : "Relatório reaberto.");
+const emRelatorio = (id, tipo, situacao) => emAcao(`/api/ic/em/${id}/relatorio`, { tipo, situacao },
+  situacao === "entregue" ? `Entrega do ${tipo} registrada.` : `Relatório ${tipo} reaberto.`);
+
+/* O quadro dos relatórios do bolsista no cartão da gestão: parcial e final
+   (turma vigente) ou só o final (antigas), com a leitura dos 3 campos e a
+   validação — que é da PROPPEX, não da orientação. */
+function emBlocoRelatoriosGestao(b, turma) {
+  const tipos = turma?.encerrada ? ["final"] : ["parcial", "final"];
+  const linha = (tipo) => {
+    const r = b.relatorios?.[tipo] || {};
+    const rot = tipo === "parcial" ? "Relatório parcial" : "Relatório final";
+    const selo = r.situacao === "validado" ? '<span class="badge b-validado">validado</span>'
+      : r.situacao === "entregue" ? '<span class="badge b-enviado">entregue — validar</span>'
+        : r.situacao === "devolvido" ? '<span class="badge b-devolvido">devolvido ao bolsista</span>'
+          : '<span class="badge b-rascunho">pendente</span>';
+    const corpo = (r.atividades || r.motivacao || r.cursoPretendido || r.cursoOutro) ? `
+      <details style="margin:4px 0 0 12px"><summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">ler as respostas${r.em ? ` (${fmtD(r.em.slice(0, 10))})` : ""}</summary>
+        <div class="kv" style="margin-left:12px"><b>Atividades:</b> <span style="white-space:pre-wrap">${esc(r.atividades || "—")}</span></div>
+        <div class="kv" style="margin-left:12px"><b>Motivação (carreira acadêmica):</b> <span style="white-space:pre-wrap">${esc(r.motivacao || "—")}</span></div>
+        <div class="kv" style="margin-left:12px"><b>Curso pretendido:</b> ${esc(r.cursoOutro ? `${r.cursoOutro} (o UNIEGO ainda não tem)` : r.cursoPretendido || "—")}</div>
+        ${r.comentario ? `<div class="kv" style="margin-left:12px"><b>Comentário da PROPPEX:</b> ${esc(r.comentario)}</div>` : ""}
+      </details>` : "";
+    const acoes = r.situacao === "entregue" ? `
+      <button class="bt bt-ok" style="padding:4px 10px" onclick="emValidar('${esc(b.id)}','${tipo}','validado')">✓ Validar</button>
+      <button class="bt bt-err" style="padding:4px 10px" onclick="emValidar('${esc(b.id)}','${tipo}','devolvido')">↩ Devolver</button>`
+      : r.situacao === "pendente" ? `<button class="bt bt-ghost" style="padding:4px 10px" title="Entrega que chegou em papel"
+          onclick="emRelatorio('${esc(b.id)}','${tipo}','entregue')">registrar entrega em papel</button>` : "";
+    return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">
+      <span style="font-size:13px;font-weight:600">${rot}</span> ${selo} ${acoes}</div>${corpo}`;
+  };
+  return `<div style="border-top:1px solid var(--linha);margin-top:8px;padding-top:6px">${tipos.map(linha).join("")}</div>`;
+}
+async function emValidar(id, tipo, decisao) {
+  let comentario = "";
+  if (decisao === "devolvido") {
+    comentario = prompt("O que o bolsista precisa corrigir? (vai por escrito para ele)") || "";
+    if (comentario.trim().length < 10) return aviso("Escreva o que precisa ser corrigido.", "warn");
+  } else if (!confirm(`Validar o relatório ${tipo} deste bolsista?`)) return;
+  await emAcao(`/api/ic/em/${id}/relatorio/validar`, { tipo, decisao, comentario },
+    decisao === "validado" ? `Relatório ${tipo} validado.` : `Relatório ${tipo} devolvido ao bolsista.`);
+}
 const emConint = (id, participou) => emAcao(`/api/ic/em/${id}/conint`, { participou, ano: String(new Date().getFullYear()) },
   participou ? "Participação no CONINT registrada." : "Registro desfeito.");
 
@@ -1156,7 +1204,6 @@ async function renderMeuEM() {
     const escolha = MEU_EM.escolha && vigente ? MEU_EM.escolha.projetos : [];
     const doCurso = FILTRO_CURSO_EM
       ? escolha.filter((p) => p.curso === FILTRO_CURSO_EM) : escolha;
-    const rel = r.relatorio || {};
     return `<div class="card">
       <div class="card-t">Turma ${esc(r.turma?.ciclo || "")}
         ${r.turma?.encerrada ? '<span class="badge b-rascunho">encerrada</span>' : '<span class="badge b-aprovado">em curso</span>'}
@@ -1194,17 +1241,46 @@ async function renderMeuEM() {
         ${r.trajetoria.filter((e) => e.ate).map((e) => `<div class="kv muted">• ${esc(e.numero || "")} ${esc(e.titulo.slice(0, 70))} · ${fmtD(e.de)} → ${fmtD(e.ate)}</div>`).join("")}
       </details>` : ""}
 
-      <div style="border-top:1px solid var(--linha);margin-top:12px;padding-top:10px">
-        <div style="font-weight:700">Relatório final${rel.situacao === "entregue" ? ` — <span style="color:var(--ok)">entregue${rel.em ? " em " + fmtD(rel.em.slice(0, 10)) : ""}</span>` : ""}</div>
-        <div class="muted" style="margin:4px 0 8px">${r.turma?.encerrada
-          ? "É o relatório final que formaliza a conclusão da sua participação na turma: conte o que você acompanhou, o que aprendeu e como foi a experiência."
-          : "Ao fim da turma, conte aqui o que você acompanhou, o que aprendeu e como foi a experiência (pode enviar de novo para atualizar)."}</div>
-        ${r.situacao === "desligado" ? '<div class="muted">Registro desligado — fale com a coordenação de pesquisa.</div>' : `
-        <textarea id="meuem-relatorio-${esc(r.id)}" rows="7" placeholder="Escreva com as suas palavras (mínimo de 100 caracteres)…">${esc(rel.porAluno ? rel.texto : "")}</textarea>
+      ${(r.exigidos || ["final"]).map((tipo) => blocoRelatorioEM(r, tipo)).join("")}
+    </div>`;
+  };
+
+  // um bloco por relatório exigido (parcial e final na turma vigente; só o
+  // final nas antigas) — três campos, e quem valida é a PROPPEX
+  const blocoRelatorioEM = (r, tipo) => {
+    const rel = r.relatorios?.[tipo] || {};
+    const rot = tipo === "parcial" ? "Relatório parcial" : "Relatório final";
+    const situ = rel.situacao === "validado" ? '<span class="badge b-validado">validado pela PROPPEX</span>'
+      : rel.situacao === "devolvido" ? '<span class="badge b-devolvido">devolvido — corrija e reenvie</span>'
+        : rel.situacao === "entregue" ? `<span class="badge b-enviado">entregue${rel.em ? " em " + fmtD(rel.em.slice(0, 10)) : ""} — aguarda a PROPPEX</span>`
+          : '<span class="badge b-rascunho">a entregar</span>';
+    const cursos = MEU_EM.cursosUniego || [];
+    const outroMarcado = !!rel.cursoOutro;
+    if (r.situacao === "desligado") return "";
+    return `<div style="border-top:1px solid var(--linha);margin-top:12px;padding-top:10px">
+      <div style="font-weight:700">${rot} ${situ}</div>
+      ${tipo === "final" && r.turma?.encerrada ? `<div class="muted" style="margin:4px 0 6px">É o relatório final que formaliza a conclusão da sua participação na turma.</div>` : ""}
+      ${rel.comentario && rel.situacao === "devolvido" ? `<div class="banner ba-warn" style="margin-top:6px"><b>A PROPPEX pediu ajustes:</b> ${esc(rel.comentario)}</div>` : ""}
+      ${rel.situacao === "validado" ? `
+        <div class="kv" style="margin-top:6px"><b>Atividades:</b> ${esc(rel.atividades)}</div>
+        ${rel.motivacao ? `<div class="kv"><b>Motivação:</b> ${esc(rel.motivacao)}</div>` : ""}
+        <div class="kv"><b>Curso pretendido:</b> ${esc(rel.cursoOutro ? rel.cursoOutro + " (o UNIEGO ainda não tem)" : rel.cursoPretendido || "—")}</div>` : `
+        <label style="margin-top:8px">Descreva as atividades realizadas na vigência da sua bolsa *</label>
+        <textarea id="em-${tipo}-atividades-${esc(r.id)}" rows="6">${esc(rel.porAluno ? rel.atividades : "")}</textarea>
+        <label style="margin-top:8px">A participação no projeto de Iniciação Científica EM te motivou a seguir carreira acadêmica, a cursar uma faculdade, a ser um cientista? *</label>
+        <textarea id="em-${tipo}-motivacao-${esc(r.id)}" rows="4">${esc(rel.motivacao || "")}</textarea>
+        <label style="margin-top:8px">Em qual curso do UNIEGO você pretende ingressar? *</label>
+        <select id="em-${tipo}-curso-${esc(r.id)}" onchange="$('em-${tipo}-outro-${esc(r.id)}').style.display = this.value === '__outro__' ? '' : 'none'">
+          <option value="">— escolha o curso —</option>
+          ${cursos.map((c) => `<option ${!outroMarcado && rel.cursoPretendido === c ? "selected" : ""}>${esc(c)}</option>`).join("")}
+          <option value="__outro__" ${outroMarcado ? "selected" : ""}>Outro — um curso que o UNIEGO ainda não tem</option>
+        </select>
+        <input id="em-${tipo}-outro-${esc(r.id)}" style="display:${outroMarcado ? "" : "none"};margin-top:6px"
+          placeholder="Qual curso você gostaria que o UNIEGO tivesse?" value="${esc(rel.cursoOutro || "")}">
         <div class="exp" style="margin-top:8px">
-          <button class="bt bt-pri" onclick="meuEmRelatorio('${esc(r.id)}')">${rel.situacao === "entregue" ? "Enviar de novo (atualiza o texto)" : "Enviar o relatório final"}</button>
+          <button class="bt bt-pri" onclick="meuEmRelatorio('${esc(r.id)}','${tipo}')">
+            ${rel.situacao === "entregue" ? "Enviar de novo (atualiza)" : `Enviar o ${rot.toLowerCase()}`}</button>
         </div>`}
-      </div>
     </div>`;
   };
 
@@ -1223,15 +1299,21 @@ async function meuEmEscolher(id) {
     aviso("Pronto! A coordenação de pesquisa vai apresentar você ao orientador.");
   } catch (e) { aviso(e.message, "err"); }
 }
-async function meuEmRelatorio(id) {
-  const texto = ($("meuem-relatorio-" + id)?.value || "").trim();
-  if (texto.length < 100) return aviso("Conte com as suas palavras o que você acompanhou e aprendeu — o relatório precisa de pelo menos 100 caracteres.", "err");
+async function meuEmRelatorio(id, tipo) {
+  const atividades = ($(`em-${tipo}-atividades-${id}`)?.value || "").trim();
+  const motivacao = ($(`em-${tipo}-motivacao-${id}`)?.value || "").trim();
+  const sel = $(`em-${tipo}-curso-${id}`)?.value || "";
+  const cursoOutro = sel === "__outro__" ? ($(`em-${tipo}-outro-${id}`)?.value || "").trim() : "";
+  const cursoPretendido = sel === "__outro__" ? "" : sel;
+  if (atividades.length < 50) return aviso("Descreva as atividades realizadas na vigência da sua bolsa (pelo menos 50 caracteres).", "err");
+  if (motivacao.length < 20) return aviso("Conte se a participação te motivou a seguir carreira acadêmica, cursar uma faculdade, ser um cientista.", "err");
+  if (!cursoPretendido && !cursoOutro) return aviso("Escolha o curso do UNIEGO — ou escreva o curso que você gostaria que o UNIEGO tivesse.", "err");
   try {
     await api("/api/ic/em/meu/relatorio", { method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, texto }) });
+      body: JSON.stringify({ id, tipo, atividades, motivacao, cursoPretendido, cursoOutro }) });
     MEU_EM = null; await renderMeuEM();
-    aviso("Relatório final entregue — obrigado! A coordenação de pesquisa já foi avisada.");
+    aviso(`Relatório ${tipo} entregue — obrigado! A PROPPEX valida e você acompanha por aqui.`);
   } catch (e) { aviso(e.message, "err"); }
 }
 /* --------------------- fim: ICEM ---------------------------------------- */
@@ -3933,10 +4015,8 @@ function renderRelatoriosDoProjeto(p) {
           <textarea id="rp-${s.campo}" style="min-height:90px">${esc(r?.campos?.[s.campo] || "")}</textarea>`).join("")}
         <label style="margin-top:10px">Comprovantes de eventos/publicações <span class="muted">(anexe os arquivos, se houver)</span></label>
         <input type="file" id="anexos-parcial" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
-        <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">Avaliações (opcionais no parcial; obrigatórias no relatório final)</summary>
-          ${quadroAvaliacaoProjeto("rp", r?.avaliacaoProjeto || {})}
-          ${quadroEscala("rp-ao", M.criteriosOrientador, r?.avaliacaoOrientador || {}, "Avaliação da atuação do orientador (pelo discente)")}
-        </details>
+        ${quadroAvaliacaoProjeto("rp", r?.avaliacaoProjeto || {})}
+        ${quadroEscala("rp-ao", M.criteriosOrientador, r?.avaliacaoOrientador || {}, "Avaliação da atuação do orientador (pelo discente)")}
         <div class="exp" style="margin-top:12px"><button class="bt bt-pri" onclick="enviarRelatorio('parcial')">Enviar relatório parcial</button></div>
       </div>`;
     }
@@ -4000,6 +4080,9 @@ async function enviarRelatorio(tipo) {
       .map((c) => (M.camposParcial || []).find((x) => x.campo === c)?.rot || c);
     if (faltam.length) return aviso("Preencha as seções obrigatórias (mínimo de 30 caracteres): " + faltam.join("; "), "warn");
     leAvaliacoes("rp");
+    if ((M.perguntasProjeto || []).some((q) => !corpo.avaliacaoProjeto[q.codigo])
+      || (M.criteriosOrientador || []).some((c) => corpo.avaliacaoOrientador[c.codigo] === ""))
+      return aviso("Responda a avaliação do projeto e a da atuação da orientação — todos os itens.", "warn");
     arquivos = [...($("anexos-parcial")?.files || [])];
   } else {
     corpo.artigo = {

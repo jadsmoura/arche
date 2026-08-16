@@ -385,9 +385,24 @@ public/
   anterior): a chave é o E-MAIL do registro (`souBolsistaEM` abre o setor até para conta
   pendente; perfil `em` na SPA → guia "Meu ICEM"). Ele **escolhe o curso e o projeto** que
   acompanha (`POST /api/ic/em/meu/projeto`, só turma vigente e ativo; troca quando quiser)
-  e **entrega o relatório final** (`/api/ic/em/meu/relatorio`, mín. 100 caracteres,
-  `relatorio.texto`/`porAluno` em lib/em.js) — nas turmas ANTIGAS a entrega é o que
-  formaliza a conclusão. O convite é da gestão (`POST /api/ic/em/convidar`, por turma,
+  e **entrega os relatórios** (`/api/ic/em/meu/relatorio`): a turma VIGENTE entrega
+  **parcial e final**; as ANTIGAS, **só o final** — e a entrega formaliza a conclusão
+  (`relatoriosExigidos` em lib/em.js). O formulário tem **3 campos** (decisão do dono,
+  ago/2026): atividades da vigência, motivação para a carreira acadêmica e **curso do
+  UNIEGO pretendido** (lista de CURSOS + "outro que o UNIEGO ainda não tem" →
+  `cursoOutro`). **Quem valida é a PROPPEX**, não a orientação
+  (`POST /api/ic/em/:id/relatorio/validar`, validado|devolvido com comentário; validado
+  não se reenvia). Registro legado com `relatorio.texto` migra para o FINAL
+  (`normalizarRelatoriosEM`). A gestão exporta a turma ou UM bolsista em
+  `GET /api/ic/em/bolsistas.xlsx?turma=&bolsista=` (botões na guia, com o quadro "Dados
+  do aluno" no cartão). A turma 2025/2026 foi **alinhada pelos 24 termos assinados**
+  (`completarTurmaEM2025`, dados/ic-em-2025-termos.json): completou registros, incluiu
+  Ellisa Vitórya e Letícia Lopes (termos manuscritos; CPFs inválidos na fonte ficaram de
+  fora, como o da Anna Gabrielly) e corrigiu a bolsa de Rebeca (UNIEGO) e Anna Júlia
+  (CNPq), fechando 12+12. `criarPreCadastrosEM` deixa o perfil pronto e aprovado;
+  `convidarTurmaEM2025` envia o convite do relatório final UMA vez no arranque (marca só
+  grava com envio bem-sucedido — sem credencial de e-mail, tenta no próximo deploy).
+  O convite manual segue na gestão (`POST /api/ic/em/convidar`, por turma,
   registro em `sys-ic-em-convites-v1`; `emailConviteEM`). Os DADOS continuam digitados
   pela gestão (bolsa, situacao, cadastro), e o termo (5º modelo em lib/termos.js,
   `termoDoAlunoEM`) sai com o **Anexo 01 — autorização do responsável** na página
@@ -444,7 +459,8 @@ public/
   impacto se houver) — **mais a apresentação no CONINT** (pôster ou oral; o formulário
   avisa). Os relatórios carregam **três avaliações** (transcritas dos formulários da
   PROPPEX): o aluno responde a do PROJETO (5 perguntas sim/não/sem clareza) e a da
-  ATUAÇÃO DO ORIENTADOR (7 critérios 0–5) — obrigatórias no final —; a orientação, ao
+  ATUAÇÃO DO ORIENTADOR (7 critérios 0–5) — **obrigatórias nos DOIS relatórios**
+  (decisão do dono, ago/2026) —; a orientação, ao
   validar o final, preenche a do DESEMPENHO DO ALUNO (7 critérios 0–5) + **parecer
   conclusivo** (sem restrições/com ressalvas/reprovado). **Sigilo cruzado**
   (visaoDoProjeto): o orientador não vê a avaliação que levou, o aluno não vê as notas

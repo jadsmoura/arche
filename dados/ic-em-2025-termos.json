@@ -1,0 +1,35 @@
+{
+ "turma": "2025/2026",
+ "fonte": "Termos de compromisso assinados da turma 2025/2026 (EM_FACEG.pdf e em_cnpq.pdf — 12 + 12 contratos digitalizados, conferidos página a página em ago/2026)",
+ "observacao": "Completa os registros pelo termo assinado (nunca sobrescreve campo preenchido) e inclui os 2 bolsistas que faltavam: Ellisa Vitórya Silva (FACEG/UNIEGO) e Letícia Lopes de Andrade (CNPq), ambas com termo manuscrito. Os contratos também PROVAM bolsa para Rebeca Rezende (UNIEGO) e Anna Júlia (CNPq), que o resultado publicado trazia como voluntárias — a correção é explícita em `corrigirBolsa`, fechando 12 CNPq + 12 UNIEGO. CPFs que não validam ficam de fora e o aluno corrige no portal: Anna Gabrielly Ferreira (08633055105, digitado no termo), Ellisa Vitórya (708.770.005-40, manuscrito) e Letícia Lopes (083.181.441-60, manuscrito). Os e-mails manuscritos de Ellisa e Letícia foram transcritos da caligrafia (ellisavitorya1@ / leticialopes15andrade@) — conferir no primeiro contato.",
+ "corrigirBolsa": {
+  "Rebeca Rezende Lacerda Farias": "uniego",
+  "Anna Júlia Rodrigues de Sousa": "cnpq"
+ },
+ "bolsistas": [
+  { "nome": "Ana Cláudia Alexandre Araújo Camargo", "cpf": "71018343105", "email": "ana.camargo10@aluno.educa.go.gov.br", "cursoInteresse": "Enfermagem", "banco": "007 - Inter", "agencia": "0001", "conta": "216468965", "bolsa": "uniego" },
+  { "nome": "Anna Gabrielly Ferreira", "cpf": "", "email": "annag9276@gmail.com", "cursoInteresse": "Psicologia", "telefone": "62 98580-1977", "bolsa": "uniego" },
+  { "nome": "Arthur Emanoel Lourenço Menezes", "cpf": "70621442151", "email": "arthur1emanoel@gmail.com", "cursoInteresse": "Agronomia", "bolsa": "uniego" },
+  { "nome": "Carla Cristina Nunes Silva", "cpf": "71240106165", "email": "carlacris20150@gmail.com", "cursoInteresse": "Enfermagem", "bolsa": "uniego" },
+  { "nome": "Elisa Costa Camargo", "cpf": "09119806108", "email": "elisacamargo1608@gmail.com", "cursoInteresse": "Odontologia", "bolsa": "uniego" },
+  { "nome": "Ellisa Vitórya Silva", "cpf": "", "email": "ellisavitorya1@gmail.com", "cursoInteresse": "Direito", "telefone": "(62) 98492-9302", "banco": "Banco do Brasil", "agencia": "668-8", "conta": "57265-9", "bolsa": "uniego", "novo": true },
+  { "nome": "Guilherme dos Santos Araujo", "cpf": "05701398137", "email": "guilhermesnaraujo@gmail.com", "cursoInteresse": "Engenharia Mecânica", "bolsa": "uniego" },
+  { "nome": "Isabela Marques de Faria", "cpf": "71142130185", "email": "isabelaamrqs@gmail.com", "cursoInteresse": "Medicina Veterinária", "bolsa": "uniego" },
+  { "nome": "João Pedro Medeiros", "cpf": "70302096132", "email": "jp.medeiros0605@gmail.com", "cursoInteresse": "Enfermagem", "bolsa": "uniego" },
+  { "nome": "Letícia Gabryelle de Oliveira Silva", "cpf": "70256090130", "email": "leticia.gabryelle.0801@gmail.com", "cursoInteresse": "Enfermagem", "bolsa": "uniego" },
+  { "nome": "Luiza Gabrielly Tavares Freire", "cpf": "70680637133", "email": "luizagod11@gmail.com", "cursoInteresse": "Enfermagem", "bolsa": "uniego" },
+  { "nome": "Rebeca Rezende Lacerda Farias", "cpf": "71044346159", "email": "rebecarezende773@gmail.com", "cursoInteresse": "Direito", "bolsa": "uniego" },
+  { "nome": "Anna Júlia Rodrigues de Sousa", "cpf": "71024666174", "email": "rodriguesanajulia113@gmail.com", "cursoInteresse": "Direito", "bolsa": "cnpq" },
+  { "nome": "Eloá Teresa Pereira Monteiro Dias", "cpf": "05089139180", "email": "eloateresapmd@gmail.com", "cursoInteresse": "Enfermagem", "bolsa": "cnpq" },
+  { "nome": "Gabriel Moisés Maximo da Silva", "cpf": "08601254160", "email": "gabrielmoises2021@gmail.com", "cursoInteresse": "Engenharia Mecânica", "bolsa": "cnpq" },
+  { "nome": "Isadora Eloá Barbosa Rocha", "cpf": "70623950138", "email": "cepmgisadoraeloa@gmail.com", "cursoInteresse": "Medicina Veterinária", "bolsa": "cnpq" },
+  { "nome": "Lara Luísa Avelino Silva", "cpf": "05946858181", "email": "laraedavi@gmail.com", "cursoInteresse": "Enfermagem", "bolsa": "cnpq" },
+  { "nome": "Letícia Lopes de Andrade", "cpf": "", "email": "leticialopes15andrade@gmail.com", "cursoInteresse": "Direito", "telefone": "(62) 98440-0434", "banco": "Banco do Brasil", "agencia": "0668-8", "conta": "57.236-5", "bolsa": "cnpq", "novo": true },
+  { "nome": "Mariana Gonçalves Vieira", "cpf": "71348909102", "email": "marianagoncalvesvieira25@gmail.com", "cursoInteresse": "Enfermagem", "bolsa": "cnpq" },
+  { "nome": "Mariana Pereira Batista", "cpf": "71381914136", "email": "maripereirabsouzadej@gmail.com", "cursoInteresse": "Agronomia", "bolsa": "cnpq" },
+  { "nome": "Nicolas Barbeiro Fagundes", "cpf": "08650238165", "email": "fagundesnicolas721@gmail.com", "cursoInteresse": "Direito", "bolsa": "cnpq" },
+  { "nome": "Pamella Carvalho", "cpf": "71180078110", "email": "carvalhoopamellaa@gmail.com", "cursoInteresse": "Medicina Veterinária", "bolsa": "cnpq" },
+  { "nome": "Sarah Quintanilha Alves", "cpf": "71732486123", "email": "sarinhaquintanilha2@gmail.com", "cursoInteresse": "Medicina Veterinária", "bolsa": "cnpq" },
+  { "nome": "Stefanny Guedes dos Santos", "cpf": "71141824140", "email": "stefannyguedes844@gmail.com", "cursoInteresse": "Odontologia", "bolsa": "cnpq" }
+ ]
+}
