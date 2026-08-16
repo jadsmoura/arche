@@ -528,7 +528,8 @@ public/
   **artigo científico** em formato livre, nas normas da revista escolhida pelo aluno e
   pela orientação — anexado, com revista/ISSN/link obrigatórios (Qualis e fator de
   impacto se houver) — **mais a apresentação no CONINT** (pôster ou oral; o formulário
-  avisa). Os relatórios carregam **três avaliações** (transcritas dos formulários da
+  avisa) e a mesma pergunta de **eventos/publicações** do parcial (`campos.eventos`,
+  opcional — pedido do dono, ago/2026). Os relatórios carregam **três avaliações** (transcritas dos formulários da
   PROPPEX): o aluno responde a do PROJETO (5 perguntas sim/não/sem clareza) e a da
   ATUAÇÃO DO ORIENTADOR (7 critérios 0–5) — **obrigatórias nos DOIS relatórios**
   (decisão do dono, ago/2026) —; a orientação, ao

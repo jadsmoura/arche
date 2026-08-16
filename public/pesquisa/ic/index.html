@@ -1488,6 +1488,10 @@ function verModeloRelatorio(qual) {
         <div><label style="margin-top:8px">Fator de impacto (se houver)</label><input></div>
       </div>
       <label style="margin-top:8px">Link da revista *</label><input>
+      ${(() => { const ev = (rm.camposParcial || []).find((x) => x.campo === "eventos") || {};
+        return `<label style="margin-top:10px">${esc(ev.rot || "Participação em eventos / cursos / congressos e publicações")}</label>
+        <div class="muted" style="font-size:12px;margin:2px 0 4px">${esc(ev.ajuda || "")}</div>
+        <textarea rows="3"></textarea>`; })()}
       ${avalProjeto}${avalOrientador}
       <div class="exp" style="margin-top:10px"><button class="bt bt-pri">Enviar o relatório final</button></div>`;
   } else if (qual === "ic-validacao") {
@@ -4551,6 +4555,11 @@ function renderRelatoriosDoProjeto(p) {
       <input id="rf-link" value="${esc(r?.artigo?.link || "")}" placeholder="https://…">
       <label style="margin-top:10px">Arquivo do artigo * <span class="muted">(nas normas da revista)</span></label>
       <input type="file" id="anexos-final" accept=".pdf,.doc,.docx">
+      ${(() => { // a pergunta de eventos/publicações do parcial vale também no final (pedido do dono, ago/2026)
+        const ev = (M.camposParcial || []).find((x) => x.campo === "eventos") || {};
+        return `<label style="margin-top:10px">${esc(ev.rot || "Participação em eventos / cursos / congressos e publicações")}</label>
+        <div class="muted" style="margin:-2px 0 4px">${esc(ev.ajuda || "")}</div>
+        <textarea id="rf-eventos" style="min-height:90px">${esc(r?.campos?.eventos || "")}</textarea>`; })()}
       <label style="margin-top:10px">Observações <span class="muted">(opcional)</span></label>
       <textarea id="rf-obs" rows="3">${esc(r?.resumo || "")}</textarea>
       ${quadroAvaliacaoProjeto("rf", r?.avaliacaoProjeto || {})}
@@ -4601,6 +4610,8 @@ async function enviarRelatorio(tipo) {
       fatorImpacto: ($("rf-fator")?.value || "").trim(),
     };
     corpo.resumo = ($("rf-obs")?.value || "").trim();
+    // eventos/publicações: a mesma pergunta do parcial, também no final
+    corpo.campos = { eventos: ($("rf-eventos")?.value || "").trim() };
     if (!corpo.artigo.revista || !corpo.artigo.issn || !corpo.artigo.link)
       return aviso("Informe a revista escolhida, o ISSN e o link da revista.", "warn");
     leAvaliacoes("rf");
