@@ -461,6 +461,12 @@ function pontuarProducao(q) {
 }
 const chip = (s) => `<span class="badge b-${esc(s)}">${esc(META.rotulos[s] || s)}</span>`;
 const ehAluno = () => META.perfil === "aluno";
+// "Edital 01/2025" é o CICLO 2025/2026 (setembro → agosto): o rótulo leva
+// os dois, senão o leitor procura os projetos de "2025-2026" no 01/2026
+const rotuloCiclo = (numero) => {
+  const ano = Number(String(numero || "").split("/").pop());
+  return ano ? `Edital ${numero} · ciclo ${ano}/${ano + 1}` : `Edital ${numero}`;
+};
 const ehAvaliador = () => META.perfil === "avaliador";
 const recNome = (c) => (META.recomendacoes.find((r) => r.codigo === c) || {}).nome || c || "—";
 
@@ -1717,7 +1723,7 @@ function renderGestao() {
         oninput="FILTRO.q=this.value;clearTimeout(window.__b);window.__b=setTimeout(renderGestao,250)">
       ${(META.editais || []).length > 1 ? `
       <select onchange="FILTRO.edital=this.value;renderGestao()" title="Ciclo (edital) a mostrar">
-        ${(META.editais || []).map((e) => `<option value="${esc(e.numero)}" ${FILTRO.edital === e.numero ? "selected" : ""}>Ciclo ${esc(e.numero)}${e.vigente ? " — atual" : ""} · ${e.projetos} projeto(s)</option>`).join("")}
+        ${(META.editais || []).map((e) => `<option value="${esc(e.numero)}" ${FILTRO.edital === e.numero ? "selected" : ""}>${esc(rotuloCiclo(e.numero))}${e.vigente ? " — atual" : ""} · ${e.projetos} projeto(s)</option>`).join("")}
         <option value="__todos" ${FILTRO.edital === "__todos" ? "selected" : ""}>Todos os ciclos</option>
       </select>` : ""}
       <select onchange="FILTRO.status=this.value;renderGestao()">
@@ -2018,7 +2024,7 @@ function renderBolsistas() {
     <label style="margin:0;display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--muted)">
       Ciclo
       <select style="width:auto;min-width:220px" onchange="CICLO_BV=this.value;renderBolsistas()">
-        ${ciclos.map(([c, ps]) => `<option value="${esc(c)}" ${CICLO_BV === c ? "selected" : ""}>Ciclo ${esc(c)}${c === META.edital?.numero ? " — atual" : ""} · ${ps.reduce((s, p) => s + (p.alunos || []).length, 0)} aluno(s)</option>`).join("")}
+        ${ciclos.map(([c, ps]) => `<option value="${esc(c)}" ${CICLO_BV === c ? "selected" : ""}>${esc(rotuloCiclo(c))}${c === META.edital?.numero ? " — atual" : ""} · ${ps.reduce((s, p) => s + (p.alunos || []).length, 0)} aluno(s)</option>`).join("")}
       </select>
     </label>
   </div>` : "";
@@ -2937,7 +2943,7 @@ function renderRelatoriosGestao() {
       <label style="margin:0;display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--muted)">
         Ciclo
         <select style="width:auto;min-width:220px" onchange="CICLO_REL=this.value;renderRelatorios()">
-          ${editais.map((e) => `<option value="${esc(e.numero)}" ${CICLO_REL === e.numero ? "selected" : ""}>Edital ${esc(e.numero)}${e.vigente ? " — vigente" : " — encerrado"} · ${e.projetos} projeto(s)</option>`).join("")}
+          ${editais.map((e) => `<option value="${esc(e.numero)}" ${CICLO_REL === e.numero ? "selected" : ""}>${esc(rotuloCiclo(e.numero))}${e.vigente ? " — vigente" : e.numero === "01/2025" ? " — em regularização" : " — encerrado"} · ${e.projetos} projeto(s)</option>`).join("")}
         </select>
       </label>
     </div>
