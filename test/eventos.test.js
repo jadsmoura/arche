@@ -144,3 +144,37 @@ test("dedupe: CPF OU e-mail já inscrito barra a segunda inscrição", () => {
   assert.equal(jaInscrito(lista, { cpf: "11144477735", email: "novo@exemplo.com" }), null);
   assert.equal(jaInscrito(lista, { cpf: "", email: "" }), null, "vazio não casa com o registro sem CPF");
 });
+
+test("slug reservado das páginas fixas não vira endereço de evento", async () => {
+  const { slugReservado } = await import("../lib/eventos.js");
+  assert.ok(slugReservado("credenciar"));
+  assert.ok(slugReservado("INDEX"));
+  assert.ok(!slugReservado("semana-enfermagem"));
+});
+
+test("export AEE: limpa as linhas do template, preenche e preserva as abas e o CONFIG", async () => {
+  const { gerarInscritosAeeXlsx } = await import("../lib/exports.js");
+  const ExcelJS = (await import("exceljs")).default;
+  const acao = { proposta: { cargaHoraria: "20" }, participantes: {
+    inscritos: [
+      { nome: "Ana Teste", cpf: "390.533.447-05", email: "ana@x.com", telefone: "62 9", presente: true },
+      { nome: "=CMD()", matricula: "G999", email: "", presente: false },   // injeção de fórmula
+    ], palestrantes: [], comissao: [],
+  } };
+  const buf = await gerarInscritosAeeXlsx(acao);
+  const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buf);
+  assert.deepEqual(wb.worksheets.map((w) => w.name),
+    ["Inscrições", "Palestrantes", "Comissão Organizadora", "CONFIG"], "as 4 abas sobrevivem");
+  const ws = wb.getWorksheet("Inscrições");
+  assert.deepEqual(ws.getRow(1).values.slice(1), ["CPF/Matrícula*", "Nome*", "Email", "Telefone", "Carga Horária"]);
+  assert.equal(ws.getRow(2).getCell(1).value, "39053344705", "CPF sai só com dígitos");
+  assert.equal(ws.getRow(3).getCell(1).value, "G999", "sem CPF, sai a matrícula");
+  assert.equal(ws.getRow(3).getCell(2).value, "'=CMD()", "fórmula neutralizada com apóstrofo");
+  assert.ok(wb.getWorksheet("CONFIG").getRow(2).getCell(1).value, "CONFIG (ID/VERSAO) preservado");
+  // ?presentes=1 exporta só quem está presente
+  const soPres = await gerarInscritosAeeXlsx(acao, { somentePresentes: true });
+  const wb2 = new ExcelJS.Workbook(); await wb2.xlsx.load(soPres);
+  const ws2 = wb2.getWorksheet("Inscrições");
+  assert.equal(ws2.actualRowCount - 1, 1, "só o presente entra");
+  assert.equal(ws2.getRow(2).getCell(2).value, "Ana Teste");
+});

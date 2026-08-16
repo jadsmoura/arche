@@ -111,7 +111,7 @@ if (sessionStorage.getItem("arche-ev-monitor")) $("s-cod").value = sessionStorag
 function comecar() {
   SLUG = $("s-slug").value.trim().toLowerCase();
   COD = $("s-cod").value.trim().toUpperCase();
-  if (!SLUG || COD.length < 4) { alert("Informe o endereço do evento e o código do monitor."); return; }
+  if (!SLUG || COD.length !== 6) { alert("Informe o endereço do evento e o código do monitor (6 caracteres)."); return; }
   sessionStorage.setItem("arche-ev-monitor", COD);
   $("p-setup").classList.add("hide");
   $("p-scan").classList.remove("hide");

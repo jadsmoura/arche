@@ -41,7 +41,7 @@ import {
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import {
-  slugUnico, SLUG_VALIDO, gerarChaveQr, gerarCodigoMonitor, gerarToken, tokenValido,
+  slugUnico, SLUG_VALIDO, slugReservado, SLUGS_RESERVADOS, gerarChaveQr, gerarCodigoMonitor, gerarToken, tokenValido,
   codigoDe, inscritoPorToken, normalizarProgramacao, vagasRestantes, prazoInscricao,
   podeInscrever as podeInscreverEvento, jaInscrito,
 } from "./lib/eventos.js";
@@ -1660,23 +1660,30 @@ app.post("/api/extensao/anexo", upload.single("file"), async (req, res) => {
       return res.status(403).json({ error: "Faça login para anexar arquivos" });
     if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
     const id = String(req.body.id || "");
-    const raw = await storage.get(EX_KEY);
-    const acoes = raw ? JSON.parse(raw) : [];
-    const acao = acoes.find((a) => a.id === id);
-    if (!acao) return res.status(404).json({ error: "Ação não encontrada" });
-    if (acao.status === "registrada")
+    // o upload sobe ao Drive ANTES da fila (é lento e não altera o estado);
+    // a gravação da ação, essa sim, entra na fila comAcoes — senão um upload
+    // concorrente com uma inscrição/check-in do evento reescreveria a chave
+    // inteira e engoliria o que o outro acabou de gravar (achado de ago/2026)
+    const pre = (await lerAcoes()).find((a) => a.id === id);
+    if (!pre) return res.status(404).json({ error: "Ação não encontrada" });
+    if (pre.status === "registrada")
       return res.status(400).json({ error: "Ação registrada — anexos travados" });
-
     const data = await files.save({
       buffer: req.file.buffer, originalName: req.file.originalname,
-      prefix: `extensao/${slug(acao.curso || "geral")}/${slug(acao.numeroAcao || acao.id)}/portfolio`,
+      prefix: `extensao/${slug(pre.curso || "geral")}/${slug(pre.numeroAcao || pre.id)}/portfolio`,
     });
     const anexo = { ...data, enviadoEm: new Date().toISOString(), enviadoPor: u.email };
-    acao.portfolio = acao.portfolio || {};
-    acao.portfolio.anexos = [...(acao.portfolio.anexos || []), anexo];
-    acao.atualizadoEm = new Date().toISOString();
-    await storage.set(EX_KEY, JSON.stringify(acoes));
-    res.json({ ok: true, anexo, anexos: acao.portfolio.anexos });
+    const r = await comAcoes((acoes) => {
+      const acao = acoes.find((a) => a.id === id);
+      if (!acao) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (acao.status === "registrada") return { erro: [400, "Ação registrada — anexos travados"], gravar: false };
+      acao.portfolio = acao.portfolio || {};
+      acao.portfolio.anexos = [...(acao.portfolio.anexos || []), anexo];
+      acao.atualizadoEm = new Date().toISOString();
+      return { anexos: acao.portfolio.anexos };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, anexo, anexos: r.anexos });
   } catch (error) {
     console.error("Erro no anexo do portfólio:", error);
     res.status(500).json({ error: error.message || "Erro no upload" });
@@ -1814,15 +1821,18 @@ function eventoPublico(a, { detalhe = false } = {}) {
     : base;
 }
 
-// Rate limit em memória, por IP, só nas rotas públicas que gravam ou
-// procuram inscrição: 10 pedidos por minuto seguram script de abuso sem
-// atrapalhar uma turma inteira se inscrevendo do wi-fi do campus (IPs
-// diferentes). Reinicia com o processo — é freio, não fortaleza.
+// Rate limit em memória, por IP, nas rotas públicas que gravam ou procuram
+// inscrição. O teto é ALTO de propósito (achado de ago/2026): atrás do NAT
+// do campus a turma inteira sai pelo MESMO IP público, e um limite baixo
+// barraria o 11º aluno a se inscrever na aula — o cenário que o freio
+// deveria proteger, não impedir. Quem garante que a vaga não estoura é a
+// checagem dentro da fila, não isto; aqui é só um freio contra flood de
+// script. Reinicia com o processo — é freio, não fortaleza.
 const inscUso = new Map();
 function inscricaoExcedeu(ip) {
   const agora = Date.now();
   const recentes = (inscUso.get(ip) || []).filter((t) => agora - t < 60_000);
-  if (recentes.length >= 10) { inscUso.set(ip, recentes); return true; }
+  if (recentes.length >= 60) { inscUso.set(ip, recentes); return true; }
   recentes.push(agora);
   inscUso.set(ip, recentes);
   if (inscUso.size > 2000) for (const [k, v] of inscUso) if (!v.some((t) => agora - t < 60_000)) inscUso.delete(k);
@@ -2095,7 +2105,9 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
       if (b.descricao !== undefined) ev.descricao = String(b.descricao || "").trim().slice(0, 4000);
       if (b.vagas !== undefined) {
         const v = Math.trunc(Number(b.vagas));
-        ev.vagas = Number.isFinite(v) && v > 0 ? v : 0;   // 0 = ilimitado
+        if (!Number.isFinite(v) || v < 0)
+          return { erro: [400, "Número de vagas inválido — use 0 para ilimitado ou um número positivo."], gravar: false };
+        ev.vagas = v;   // 0 = ilimitado
       }
       if (b.inscricoesAte !== undefined) {
         const d = String(b.inscricoesAte || "").trim();
@@ -2109,12 +2121,14 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
         const s = String(b.slug).trim().toLowerCase();
         if (!SLUG_VALIDO.test(s))
           return { erro: [400, "Endereço inválido: use só letras minúsculas, números e hífens."], gravar: false };
+        if (slugReservado(s))
+          return { erro: [400, "Este endereço é reservado pelo sistema — escolha outro."], gravar: false };
         if (emUso.includes(s))
           return { erro: [409, "Este endereço já é de outro evento — escolha outro."], gravar: false };
         ev.slug = s;
       }
       if (ev.ativo) {
-        if (!ev.slug) ev.slug = slugUnico(a.proposta?.nomeAtividade || a.numeroAcao || a.id, emUso);
+        if (!ev.slug) ev.slug = slugUnico(a.proposta?.nomeAtividade || a.numeroAcao || a.id, [...emUso, ...SLUGS_RESERVADOS]);
         if (!ev.chaveQr) ev.chaveQr = gerarChaveQr();
         if (!ev.codigoMonitor) ev.codigoMonitor = gerarCodigoMonitor();
       }
@@ -2130,6 +2144,45 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
   } catch (e) {
     console.error("Erro na configuração do evento:", e);
     res.status(500).json({ error: "Falha ao gravar a configuração do evento" });
+  }
+});
+
+/**
+ * Presença MANUAL pela gestão (achado de ago/2026): o credenciamento por QR
+ * é dos inscritos ONLINE; quem veio da lista da coordenação (planilha, sem
+ * token) assina o papel e precisa entrar como presente para sair no export
+ * "só presentes". A gestão/o responsável marca por aqui, achando o inscrito
+ * pela chave que tiver (token, CPF, e-mail ou nome). Alterna presente.
+ */
+app.post("/api/extensao/:id/presenca", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const b = req.body || {};
+    const alvoCpf = soDigitos(b.cpf), alvoEmail = String(b.email || "").trim().toLowerCase();
+    const alvoTok = String(b.token || "").trim().toLowerCase(), alvoNome = String(b.nome || "").trim().toLowerCase();
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((x) => x.id === req.params.id);
+      if (!a || !podeVerAcao(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      const ins = a.participantes?.inscritos || [];
+      // casa pela chave mais forte que vier: token → CPF → e-mail → nome
+      const i = ins.find((x) => alvoTok && String(x.token || "").toLowerCase() === alvoTok)
+        || ins.find((x) => alvoCpf && soDigitos(x.cpf) === alvoCpf)
+        || ins.find((x) => alvoEmail && String(x.email || "").toLowerCase() === alvoEmail)
+        || ins.find((x) => alvoNome && String(x.nome || "").trim().toLowerCase() === alvoNome);
+      if (!i) return { erro: [404, "Inscrito não encontrado."], gravar: false };
+      const presente = b.presente === undefined ? !(i.presente === true) : !!b.presente;
+      i.presente = presente;
+      if (presente) { i.presenteEm = new Date().toISOString(); i.presentePor = `gestão (${u.email})`; }
+      else { i.presenteEm = ""; i.presentePor = ""; }
+      a.atualizadoEm = new Date().toISOString();
+      return { nome: i.nome || "", presente: i.presente, presenteEm: i.presenteEm };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    console.error("Erro ao marcar presença:", e);
+    res.status(500).json({ error: "Não foi possível marcar a presença agora." });
   }
 });
 
