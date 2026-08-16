@@ -4756,6 +4756,48 @@ async function zerarAlunosIniciais() {
  * o conteúdo manteria a base aberta pelo /api/estado, que é justamente o
  * que esta mudança fecha.
  */
+/**
+ * Ações de extensão migradas do processo em papel (pedido do dono,
+ * ago/2026): a Semana de Enfermagem 2026 chegou em .doc/.docx — proposta,
+ * relatório e a lista de participantes com CPF — e entra aqui UMA vez,
+ * transcrita em dados/ex-semana-enf-2026.json. A migração emite o número
+ * EXT-AAAA-NNN pela MESMA sequência oficial da aprovação (extensao-config-v1)
+ * — número não se inventa — e nunca sobrescreve ação que já exista.
+ */
+async function subirAcoesMigradasExtensao() {
+  const marca = "sys-ex-lote-semana-enf-2026";
+  try {
+    if (await storage.get(marca)) return;
+    let lote = [];
+    try {
+      lote = JSON.parse(await readFile(path.join(__dirname, "dados", "ex-semana-enf-2026.json"), "utf8")).acoes || [];
+    } catch { return; }   // sem o arquivo, nada a subir
+    const acoes = JSON.parse((await storage.get(EX_KEY)) || "[]");
+    let entraram = 0;
+    for (const a of lote || []) {
+      if (acoes.some((x) => x.id === a.id)) continue;
+      if (!a.numeroAcao) {
+        const ano = Number(String(a.aprovadoEm || a.proposta?.periodoFim || "").slice(0, 4))
+          || Number(hojeLocalISO().slice(0, 4));
+        const raw = await storage.get("extensao-config-v1");
+        let cfg = raw ? JSON.parse(raw) : { ano, seq: 0 };
+        if (cfg.ano !== ano) cfg = { ano, seq: 0 };
+        cfg.seq++;
+        a.numeroAcao = `EXT-${ano}-${String(cfg.seq).padStart(3, "0")}`;
+        await storage.set("extensao-config-v1", JSON.stringify(cfg));
+      }
+      acoes.push(a);
+      entraram++;
+    }
+    if (entraram) await storage.set(EX_KEY, JSON.stringify(acoes));
+    await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), acoes: entraram }));
+    await storage.flush?.();
+    console.log(`ARCHÉ EX · Semana de Enfermagem 2026: ${entraram} ação(ões) migrada(s) do processo em papel`);
+  } catch (e) {
+    console.error("Falha ao subir as ações migradas da extensão:", e.message);
+  }
+}
+
 async function migrarAcoesExtensao() {
   const marca = "sys-ex-acoes-migradas-v1";
   try {
@@ -5958,7 +6000,7 @@ app.listen(port, () => {
   // deles (e só depois: num arranque limpo os projetos precisam existir
   // primeiro), os anexos dos formulários — cronogramas e planilhas de
   // produção — são ligados a cada projeto.
-  migrarAcoesExtensao();
+  migrarAcoesExtensao().then(() => subirAcoesMigradasExtensao());
   // A ORDEM importa (num arranque limpo os projetos precisam existir antes de
   // qualquer coisa que os altere), mas uma etapa que falhe não pode levar as
   // seguintes junto: encadeadas por .then, um erro no meio fazia as de baixo
