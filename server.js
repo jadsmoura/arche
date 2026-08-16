@@ -775,7 +775,8 @@ app.post("/api/ic/convidar-professores", async (req, res) => {
   if (!gereIC(u)) return res.status(403).json({ error: "Só a coordenação convida os professores" });
   const simular = req.body?.simular === true;
   const reenviar = req.body?.reenviar === true;
-  const { enviarEmail, RE_EMAIL } = await import("./lib/mailer.js");
+  const mensagem = String(req.body?.mensagem || "").trim().slice(0, 2000);
+  const { enviarEmail, RE_EMAIL, blocoMensagem } = await import("./lib/mailer.js");
 
   const projetos = await lerProjetos();
   const doCiclo = projetos.filter((p) =>
@@ -797,26 +798,13 @@ app.post("/api/ic/convidar-professores", async (req, res) => {
   const semEmail = todos.filter((x) => !RE_EMAIL.test(x.email));
   const jaConvidados = todos.filter((x) => RE_EMAIL.test(x.email) && registro[x.cpf]);
   const novos = todos.filter((x) => RE_EMAIL.test(x.email) && !registro[x.cpf]);
-  if (simular) {
-    return res.json({
-      simulado: true,
-      novos: novos.map(resumo), jaConvidados: jaConvidados.map(resumo),
-      semEmail: semEmail.map((x) => ({ nome: x.nome, projetos: x.titulos.length })),
-    });
-  }
 
   const base = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
   // depois de entrar, a pessoa cai direto no perfil — onde o CPF se informa
   const link = `${base}/entrar?next=${encodeURIComponent("/perfil/")}`;
-  const alvo = reenviar ? [...novos, ...jaConvidados] : novos;
-  const enviados = [], falhas = [];
-  for (const d of alvo) {
-    try {
-      await enviarEmail({
-        para: d.email,
-        assunto: "[ARCHÉ] Edital 01/2026 — crie o seu acesso para acompanhar seus projetos",
-        corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:560px">
+  const corpoConvite = (d) => `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:560px">
           <p>Olá, <b>${d.nome || "professor(a)"}</b>!</p>
+          ${blocoMensagem(mensagem)}
           <p>Sua(s) proposta(s) submetida(s) ao <b>Edital 01/2026</b> de Iniciação Científica,
             Inovação Tecnológica e Iniciação à Extensão já está(ão) registrada(s) no <b>ARCHÉ</b>,
             o portal de gestão da PROPPEX — UNIEGO:</p>
@@ -835,7 +823,26 @@ app.post("/api/ic/convidar-professores", async (req, res) => {
           <p><a href="${link}" style="display:inline-block;background:#1c3742;color:#fff;text-decoration:none;
             padding:12px 22px;border-radius:10px;font-weight:600">Entrar no ARCHÉ</a></p>
           <p style="color:#5b7280;font-size:12px">Se o botão não abrir, copie e cole: ${link}<br>
-            PROPPEX — Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária · UNIEGO</p></div>`,
+            PROPPEX — Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária · UNIEGO</p></div>`;
+
+  if (simular) {
+    const amostra = novos[0] || jaConvidados[0];
+    return res.json({
+      simulado: true,
+      novos: novos.map(resumo), jaConvidados: jaConvidados.map(resumo),
+      semEmail: semEmail.map((x) => ({ nome: x.nome, projetos: x.titulos.length })),
+      previewHtml: amostra ? corpoConvite(amostra) : "",
+    });
+  }
+
+  const alvo = reenviar ? [...novos, ...jaConvidados] : novos;
+  const enviados = [], falhas = [];
+  for (const d of alvo) {
+    try {
+      await enviarEmail({
+        para: d.email,
+        assunto: "[ARCHÉ] Edital 01/2026 — crie o seu acesso para acompanhar seus projetos",
+        corpoHtml: corpoConvite(d),
       });
       registro[d.cpf] = { email: d.email, em: new Date().toISOString(), por: u.email };
       enviados.push(resumo(d));
@@ -2912,20 +2919,15 @@ app.post("/api/ic/certificados/avisar", async (req, res) => {
   if (!gereIC(u)) return res.status(403).json({ error: "Só a coordenação avisa sobre os certificados" });
   const edital = String(req.body?.edital || "").trim();
   if (!edital) return res.status(400).json({ error: "Informe o ciclo" });
+  const mensagem = String(req.body?.mensagem || "").trim().slice(0, 2000);
   const { destinatarios, semEmail } = destinatariosDoCiclo(await lerProjetos(), edital, await emailsPorNome());
-  if (req.body?.simular === true) return res.json({ simulado: true, destinatarios, semEmail });
 
   const base = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
   const link = `${base}/entrar?next=${encodeURIComponent("/pesquisa/ic/")}`;
-  const { enviarEmail } = await import("./lib/mailer.js");
-  const enviados = [], falhas = [];
-  for (const d of destinatarios) {
-    try {
-      await enviarEmail({
-        para: d.email,
-        assunto: `[ARCHÉ] Seu certificado de Iniciação Científica (${edital}) está disponível`,
-        corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:560px">
+  const { enviarEmail, blocoMensagem } = await import("./lib/mailer.js");
+  const corpoAviso = (d) => `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:560px">
           <p>Olá${d.nome ? `, <b>${d.nome}</b>` : ""}!</p>
+          ${blocoMensagem(mensagem)}
           <p>O(s) seu(s) <b>certificado(s) do Edital ${edital}</b> de Iniciação Científica
             já pode(m) ser baixado(s) no ARCHÉ — são <b>${d.certificados}</b> documento(s).</p>
           <p>Entre no sistema e abra a guia <b>Certificados</b>, no setor Pesquisa · IC.
@@ -2935,7 +2937,18 @@ app.post("/api/ic/certificados/avisar", async (req, res) => {
           <p><a href="${link}" style="display:inline-block;background:#1c3742;color:#fff;text-decoration:none;
             padding:12px 22px;border-radius:10px;font-weight:600">Baixar meu certificado</a></p>
           <p style="color:#5b7280;font-size:12px">Se o botão não abrir, copie e cole: ${link}<br>
-            PROPPEX — Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária · UNIEGO</p></div>`,
+            PROPPEX — Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária · UNIEGO</p></div>`;
+  if (req.body?.simular === true) {
+    return res.json({ simulado: true, destinatarios, semEmail,
+      previewHtml: destinatarios.length ? corpoAviso(destinatarios[0]) : "" });
+  }
+  const enviados = [], falhas = [];
+  for (const d of destinatarios) {
+    try {
+      await enviarEmail({
+        para: d.email,
+        assunto: `[ARCHÉ] Seu certificado de Iniciação Científica (${edital}) está disponível`,
+        corpoHtml: corpoAviso(d),
       });
       enviados.push(d);
     } catch (e) {
@@ -3277,18 +3290,27 @@ app.post("/api/ic/chamada-relatorio", async (req, res) => {
   if (!u) return;
   if (!gereIC(u)) return res.status(403).json({ error: "A chamada dos relatórios é da coordenação de pesquisa." });
   const edital = String(req.body?.edital || EDITAL.numero).trim();
+  // a mensagem que a coordenação escreveu na janela de envio (opcional):
+  // entra destacada no topo de cada e-mail, antes do texto padrão
+  const mensagem = String(req.body?.mensagem || "").trim().slice(0, 2000);
   const porPessoa = pendenciasCobrancaIC(await lerProjetos(), { edital });
-  if (req.body?.simular === true) {
-    return res.json({ edital, chamar: [...porPessoa.entries()].map(([email, d]) =>
-      ({ email, nome: d.nome || "", papel: d.papel, itens: d.itens.length })) });
-  }
   const { enviarEmail, emailCobrancaRelatorioIC } = await import("./lib/mailer.js");
+  if (req.body?.simular === true) {
+    const primeiro = [...porPessoa.entries()][0];
+    return res.json({ edital,
+      chamar: [...porPessoa.entries()].map(([email, d]) =>
+        ({ email, nome: d.nome || "", papel: d.papel, itens: d.itens.length })),
+      // a prévia é o e-mail do primeiro da fila, como ele sairá — é o que a
+      // janela de envio mostra antes da confirmação
+      previewHtml: primeiro
+        ? emailCobrancaRelatorioIC({ para: primeiro[0], ...primeiro[1], mensagem }).corpoHtml : "" });
+  }
   const registro = JSON.parse((await storage.get(COBRANCA_IC_KEY)) || "{}");
   const falhas = [];
   let enviados = 0;
   for (const [emailAlvo, dados] of porPessoa) {
     try {
-      await enviarEmail(emailCobrancaRelatorioIC({ para: emailAlvo, ...dados }));
+      await enviarEmail(emailCobrancaRelatorioIC({ para: emailAlvo, ...dados, mensagem }));
       registro[emailAlvo] = new Date().toISOString();
       enviados++;
     } catch (e) { falhas.push(`${dados.nome || emailAlvo}: ${e.message}`); }
@@ -3506,20 +3528,26 @@ app.post("/api/ic/em/chamada-relatorio", async (req, res) => {
   if (!gereIC(u)) return res.status(403).json({ error: "A chamada dos relatórios é da coordenação de pesquisa." });
   const turma = turmaEmDe(String(req.body?.turma || "")) || turmaEmVigente();
   const tipos = relatoriosExigidos(turma);
+  const mensagem = String(req.body?.mensagem || "").trim().slice(0, 2000);
   const alvos = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo
     && b.situacao !== "desligado"
     && tipos.some((t) => b.relatorios?.[t]?.situacao !== "validado"));
   const semEmail = alvos.filter((b) => !b.email).map((b) => b.nome);
   const comEmail = alvos.filter((b) => b.email);
-  if (req.body?.simular === true) {
-    return res.json({ turma: turma.ciclo, tipos, chamar: comEmail.map((b) => ({ nome: b.nome, email: b.email })), semEmail });
-  }
   const { enviarEmail, emailChamadaRelatorioEM } = await import("./lib/mailer.js");
   const baseUrl = `${req.protocol}://${req.get("host")}`;
+  if (req.body?.simular === true) {
+    return res.json({ turma: turma.ciclo, tipos,
+      chamar: comEmail.map((b) => ({ nome: b.nome, email: b.email })), semEmail,
+      previewHtml: comEmail.length
+        ? emailChamadaRelatorioEM(comEmail[0], turma, { baseUrl,
+            tipos: tipos.filter((t) => comEmail[0].relatorios?.[t]?.situacao !== "validado"), mensagem }).corpoHtml
+        : "" });
+  }
   const falhas = [];
   for (const b of comEmail) {
     const meusTipos = tipos.filter((t) => b.relatorios?.[t]?.situacao !== "validado");
-    try { await enviarEmail(emailChamadaRelatorioEM(b, turma, { baseUrl, tipos: meusTipos })); }
+    try { await enviarEmail(emailChamadaRelatorioEM(b, turma, { baseUrl, tipos: meusTipos, mensagem })); }
     catch (e) { falhas.push(`${b.nome}: ${e.message}`); }
   }
   res.json({ ok: true, turma: turma.ciclo, enviados: comEmail.length - falhas.length, falhas, semEmail });
@@ -3592,20 +3620,23 @@ app.post("/api/ic/em/convidar", async (req, res) => {
   if (!gereIC(u)) return res.status(403).json({ error: "O convite é da coordenação de pesquisa." });
   const turma = turmaEmDe(String(req.body?.turma || "")) || turmaEmVigente();
   const CONVITES_EM = "sys-ic-em-convites-v1";
+  const mensagem = String(req.body?.mensagem || "").trim().slice(0, 2000);
   const enviados = JSON.parse((await storage.get(CONVITES_EM)) || "{}");
   const todos = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo && b.situacao !== "desligado");
   const semEmail = todos.filter((b) => !b.email).map((b) => b.nome);
   const alvos = todos.filter((b) => b.email && (req.body?.reenviar === true || !enviados[b.email]));
-  if (req.body?.simular === true) {
-    return res.json({ turma: turma.ciclo, convidar: alvos.map((b) => ({ nome: b.nome, email: b.email })),
-      jaConvidados: todos.filter((b) => b.email && enviados[b.email]).length, semEmail });
-  }
   const { enviarEmail, emailConviteEM } = await import("./lib/mailer.js");
   const baseUrl = `${req.protocol}://${req.get("host")}`;
+  if (req.body?.simular === true) {
+    const amostra = alvos[0] || todos.find((b) => b.email);
+    return res.json({ turma: turma.ciclo, convidar: alvos.map((b) => ({ nome: b.nome, email: b.email })),
+      jaConvidados: todos.filter((b) => b.email && enviados[b.email]).length, semEmail,
+      previewHtml: amostra ? emailConviteEM(amostra, turma, { baseUrl, mensagem }).corpoHtml : "" });
+  }
   const falhas = [];
   for (const b of alvos) {
     try {
-      await enviarEmail(emailConviteEM(b, turma, { baseUrl }));
+      await enviarEmail(emailConviteEM(b, turma, { baseUrl, mensagem }));
       enviados[b.email] = { em: new Date().toISOString(), turma: turma.ciclo };
     } catch (e) { falhas.push(`${b.nome}: ${e.message}`); }
   }

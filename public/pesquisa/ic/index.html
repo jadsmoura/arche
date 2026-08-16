@@ -1232,69 +1232,141 @@ const emConint = (id, participou) => emAcao(`/api/ic/em/${id}/conint`, { partici
 /* O convite por e-mail da turma: simula primeiro (quem recebe, quem já foi
    convidado, quem está sem e-mail) e só envia com a confirmação. */
 async function emConvidar() {
+  const simular = (mensagem) => api("/api/ic/em/convidar", { method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ turma: TURMA_EM, simular: true, mensagem }) });
   try {
-    const s = await api("/api/ic/em/convidar", { method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ turma: TURMA_EM, simular: true }) });
+    const s = await simular("");
     if (!s.convidar.length && !s.jaConvidados) return aviso("Nenhum bolsista com e-mail nesta turma.", "err");
+    // sem ninguém novo, o envio só faz sentido como REENVIO a todos
     const reenviar = !s.convidar.length && s.jaConvidados
       ? confirm(`Todos os ${s.jaConvidados} bolsista(s) com e-mail da turma ${TURMA_EM} já foram convidados.\n\nReenviar o convite a todos?`)
       : false;
-    if (!reenviar) {
-      if (!s.convidar.length) return;
-      const ok = confirm(`Convidar ${s.convidar.length} bolsista(s) da turma ${TURMA_EM} por e-mail?\n\n`
-        + s.convidar.map((x) => `• ${x.nome} — ${x.email}`).join("\n")
-        + (s.jaConvidados ? `\n\n(${s.jaConvidados} já convidado(s) não recebem de novo)` : "")
-        + (s.semEmail.length ? `\n\nSem e-mail (não recebem): ${s.semEmail.join(", ")}` : ""));
-      if (!ok) return;
-    }
-    const r = await api("/api/ic/em/convidar", { method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ turma: TURMA_EM, reenviar }) });
-    aviso(`Convite enviado a ${r.enviados} bolsista(s).${r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""}`,
-      r.falhas.length ? "err" : undefined);
+    if (!s.convidar.length && !reenviar) return;
+    janelaEnvio({
+      titulo: `Convite por e-mail — turma ${TURMA_EM}`,
+      itens: s.convidar.map((x) => `${x.nome} — ${x.email}`),
+      semEmail: s.semEmail,
+      observacao: reenviar ? `REENVIO: o convite vai de novo a todos os ${s.jaConvidados} já convidados.`
+        : (s.jaConvidados ? `${s.jaConvidados} já convidado(s) não recebem de novo.` : ""),
+      previewHtml: s.previewHtml,
+      rotuloEnviar: reenviar ? "Reenviar convite" : "Enviar convite",
+      aoAtualizar: async (m) => (await simular(m)).previewHtml,
+      aoEnviar: async (mensagem) => {
+        try {
+          const r = await api("/api/ic/em/convidar", { method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ turma: TURMA_EM, reenviar, mensagem }) });
+          aviso(`Convite enviado a ${r.enviados} bolsista(s).${r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""}`,
+            r.falhas.length ? "err" : undefined);
+        } catch (e) { aviso(e.message, "err"); }
+      },
+    });
   } catch (e) { aviso(e.message, "err"); }
 }
 
 /* A chamada de preenchimento dos relatórios: vai a TODO bolsista da turma
    com relatório exigido ainda não validado — sem o filtro do convite. */
+/* -------------------- janela de revisão dos envios ----------------------
+   Pedido do dono (ago/2026): NENHUM chamamento por e-mail sai num clique
+   só. Antes do envio, a janela mostra quem recebe e a PRÉVIA do e-mail
+   como ele sai (a do primeiro destinatário, com os dados dele), e a
+   coordenação pode escrever uma mensagem — que entra destacada no topo de
+   todos. "Atualizar prévia" re-simula com a mensagem digitada. */
+function janelaEnvio({ titulo, itens = [], semEmail = [], observacao = "",
+  previewHtml = "", rotuloEnviar = "Enviar", aoEnviar, aoAtualizar }) {
+  document.getElementById("ov-envio")?.remove();
+  const div = document.createElement("div");
+  div.className = "ov"; div.id = "ov-envio";
+  div.onclick = (e) => { if (e.target === div) div.remove(); };
+  div.innerHTML = `<div class="ov-cx" style="max-width:840px">
+    <div class="ov-cab"><div class="t">${esc(titulo)}</div>
+      <button class="ov-x" onclick="document.getElementById('ov-envio').remove()">×</button></div>
+    <div style="font-size:13.5px"><b>${itens.length}</b> destinatário(s)${semEmail.length
+      ? ` · <span style="color:var(--warn)">${semEmail.length} sem e-mail (não recebem)</span>` : ""}</div>
+    <details style="margin-top:4px"${itens.length <= 8 ? " open" : ""}>
+      <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">ver a lista</summary>
+      <ul style="margin:6px 0 0 18px;font-size:12.5px;max-height:150px;overflow:auto">
+        ${itens.map((x) => `<li>${esc(x)}</li>`).join("")}
+        ${semEmail.length ? `<li style="color:var(--warn)">Sem e-mail: ${esc(semEmail.join(", "))}</li>` : ""}
+      </ul></details>
+    ${observacao ? `<div class="muted" style="font-size:12.5px;margin-top:6px">${observacao}</div>` : ""}
+    <label style="margin-top:12px">Mensagem da coordenação <span class="muted">(opcional — entra destacada no topo do e-mail de todos)</span></label>
+    <textarea id="envio-msg" rows="3" placeholder="Escreva aqui se quiser acrescentar um recado ao texto padrão…"></textarea>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap">
+      <div style="font-weight:700;font-size:13px">Prévia do e-mail${itens.length > 1 ? " — a do primeiro destinatário" : ""}</div>
+      ${aoAtualizar ? `<button class="bt bt-ghost" style="padding:4px 10px" id="envio-atualizar">🔄 Atualizar prévia com a mensagem</button>` : ""}
+    </div>
+    <iframe id="envio-previa" sandbox="" style="width:100%;height:300px;border:1px solid var(--linha);border-radius:10px;background:#fff;margin-top:6px"></iframe>
+    <div class="exp" style="margin-top:12px">
+      <button class="bt bt-pri" id="envio-ok">📨 ${esc(rotuloEnviar)}</button>
+      <button class="bt bt-ghost" onclick="document.getElementById('ov-envio').remove()">Cancelar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+  const previa = div.querySelector("#envio-previa");
+  const mostrar = (html) => { previa.srcdoc = `<body style="margin:14px;background:#fff">${html || "<p style='font-family:sans-serif;color:#888'>Sem prévia disponível.</p>"}</body>`; };
+  mostrar(previewHtml);
+  const msgDe = () => div.querySelector("#envio-msg").value.trim();
+  if (aoAtualizar) div.querySelector("#envio-atualizar").onclick = async () => {
+    try { mostrar(await aoAtualizar(msgDe())); } catch (e) { aviso(e.message, "err"); }
+  };
+  div.querySelector("#envio-ok").onclick = () => { const m = msgDe(); div.remove(); aoEnviar(m); };
+}
+
 /* A chamada manual dos relatórios da IC (gestão, guia Relatórios): dispara
    AGORA o mesmo e-mail da cobrança semanal, para o ciclo selecionado —
-   aluno recebe o de enviar, orientação o de validar. Simula antes, para a
-   gestão confirmar vendo quem será chamado. */
+   aluno recebe o de enviar, orientação o de validar. A janela de revisão
+   mostra quem recebe e o texto antes de qualquer envio. */
 async function icChamada() {
+  const simular = (mensagem) => api("/api/ic/chamada-relatorio", { method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ edital: CICLO_REL, simular: true, mensagem }) });
   try {
-    const s = await api("/api/ic/chamada-relatorio", { method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ edital: CICLO_REL, simular: true }) });
+    const s = await simular("");
     if (!s.chamar.length) return aviso("Ninguém a chamar neste ciclo — nenhuma janela de relatório aberta com pendência.", "err");
-    const rot = (x) => `• ${x.nome || x.email} — ${x.email} · ${x.papel === "orientador" ? "validar" : "enviar"} (${x.itens} relatório(s))`;
-    const ok = confirm(`Chamar ${s.chamar.length} pessoa(s) do ${rotuloCiclo(CICLO_REL)} para os relatórios?\n\n`
-      + s.chamar.map(rot).join("\n"));
-    if (!ok) return;
-    const r = await api("/api/ic/chamada-relatorio", { method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ edital: CICLO_REL }) });
-    aviso(`Chamada enviada a ${r.enviados} pessoa(s).${r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""}`,
-      r.falhas.length ? "err" : undefined);
+    janelaEnvio({
+      titulo: `Chamar para os relatórios — ${rotuloCiclo(CICLO_REL)}`,
+      itens: s.chamar.map((x) => `${x.nome || x.email} — ${x.email} · ${x.papel === "orientador" ? "validar" : "enviar"} (${x.itens} relatório(s))`),
+      observacao: "Cada pessoa recebe a própria lista de pendências; o aluno, a de enviar, e a orientação, a de validar.",
+      previewHtml: s.previewHtml,
+      aoAtualizar: async (m) => (await simular(m)).previewHtml,
+      aoEnviar: async (mensagem) => {
+        try {
+          const r = await api("/api/ic/chamada-relatorio", { method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ edital: CICLO_REL, mensagem }) });
+          aviso(`Chamada enviada a ${r.enviados} pessoa(s).${r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""}`,
+            r.falhas.length ? "err" : undefined);
+        } catch (e) { aviso(e.message, "err"); }
+      },
+    });
   } catch (e) { aviso(e.message, "err"); }
 }
 
 async function emChamada() {
+  const simular = (mensagem) => api("/api/ic/em/chamada-relatorio", { method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ turma: TURMA_EM, simular: true, mensagem }) });
   try {
-    const s = await api("/api/ic/em/chamada-relatorio", { method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ turma: TURMA_EM, simular: true }) });
+    const s = await simular("");
     if (!s.chamar.length) return aviso("Nenhum bolsista com relatório pendente e e-mail nesta turma.", "err");
-    const ok = confirm(`Chamar ${s.chamar.length} bolsista(s) da turma ${TURMA_EM} para preencher o relatório?\n\n`
-      + s.chamar.map((x) => `• ${x.nome} — ${x.email}`).join("\n")
-      + (s.semEmail.length ? `\n\nSem e-mail (não recebem): ${s.semEmail.join(", ")}` : ""));
-    if (!ok) return;
-    const r = await api("/api/ic/em/chamada-relatorio", { method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ turma: TURMA_EM }) });
-    aviso(`Chamada enviada a ${r.enviados} bolsista(s).${r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""}`,
-      r.falhas.length ? "err" : undefined);
+    janelaEnvio({
+      titulo: `Chamar para os relatórios do ICEM — turma ${TURMA_EM}`,
+      itens: s.chamar.map((x) => `${x.nome} — ${x.email}`),
+      semEmail: s.semEmail,
+      previewHtml: s.previewHtml,
+      aoAtualizar: async (m) => (await simular(m)).previewHtml,
+      aoEnviar: async (mensagem) => {
+        try {
+          const r = await api("/api/ic/em/chamada-relatorio", { method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ turma: TURMA_EM, mensagem }) });
+          aviso(`Chamada enviada a ${r.enviados} bolsista(s).${r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""}`,
+            r.falhas.length ? "err" : undefined);
+        } catch (e) { aviso(e.message, "err"); }
+      },
+    });
   } catch (e) { aviso(e.message, "err"); }
 }
 
@@ -1852,12 +1924,20 @@ async function avisarCertificados(edital) {
   try {
     const s = await post({ edital, simular: true });
     if (!s.destinatarios.length) return aviso("Ninguém com e-mail cadastrado neste ciclo.", "warn");
-    const li = s.destinatarios.slice(0, 8).map((d) => `• ${d.nome || d.email} — ${d.certificados} certificado(s)`).join("\n");
-    if (!confirm(`Avisar ${s.destinatarios.length} pessoa(s) do Edital ${edital}?\n\n${li}`
-      + `${s.destinatarios.length > 8 ? `\n… e mais ${s.destinatarios.length - 8}` : ""}`
-      + `${s.semEmail ? `\n\n${s.semEmail} certificado(s) sem e-mail — essas pessoas não recebem.` : ""}`)) return;
-    const r = await post({ edital });
-    aviso(`Aviso enviado a ${r.enviados.length} pessoa(s)${r.falhas.length ? ` — ${r.falhas.length} falhou(aram)` : ""}.`);
+    janelaEnvio({
+      titulo: `Avisar sobre os certificados — Edital ${edital}`,
+      itens: s.destinatarios.map((d) => `${d.nome || d.email} — ${d.certificados} certificado(s)`),
+      observacao: s.semEmail ? `${s.semEmail} certificado(s) sem e-mail — essas pessoas não recebem.` : "",
+      previewHtml: s.previewHtml,
+      rotuloEnviar: "Enviar aviso",
+      aoAtualizar: async (m) => (await post({ edital, simular: true, mensagem: m })).previewHtml,
+      aoEnviar: async (mensagem) => {
+        try {
+          const r = await post({ edital, mensagem });
+          aviso(`Aviso enviado a ${r.enviados.length} pessoa(s)${r.falhas.length ? ` — ${r.falhas.length} falhou(aram)` : ""}.`);
+        } catch (e) { aviso(e.message, "err"); }
+      },
+    });
   } catch (e) { aviso(e.message, "err"); }
 }
 
@@ -3054,13 +3134,27 @@ async function convidarProfessores() {
     if (!s.novos.length) {
       if (!confirm(`Todos os ${s.jaConvidados.length} professor(es) pendentes já receberam o convite:\n\n${s.jaConvidados.map(li).join("\n")}\n\nReenviar o e-mail a eles?`)) return;
       reenviar = true;
-    } else if (!confirm(`Convidar ${s.novos.length} professor(es) por e-mail?\n\n${s.novos.map(li).join("\n")}${s.jaConvidados.length ? `\n\n(${s.jaConvidados.length} já convidado(s) antes não recebem de novo.)` : ""}${rodape(s.semEmail.length)}\n\nO e-mail explica o cadastro e lembra do CPF no perfil — é ele que vincula os projetos à conta.`)) return;
-    const r = await post({ reenviar });
-    if (!r.enviados.length && r.falhas?.length) {
-      aviso(`Nenhum convite saiu — ${r.falhas.length} falha(s) de envio: ${r.falhas[0].erro}`, "err");
-      return;
     }
-    aviso(`Convite enviado a ${r.enviados.length} professor(es)${r.falhas?.length ? ` — ${r.falhas.length} falhou(aram), veja o log` : ""}.`);
+    const alvos = reenviar ? [...s.novos, ...s.jaConvidados] : s.novos;
+    janelaEnvio({
+      titulo: "Convite de cadastro aos professores do ciclo",
+      itens: alvos.map((x) => `${x.nome || x.email}${x.email ? ` — ${x.email}` : ""} (${x.projetos} projeto${x.projetos > 1 ? "s" : ""})`),
+      semEmail: s.semEmail.map((x) => x.nome),
+      observacao: `O e-mail explica o cadastro e lembra do CPF no perfil — é ele que vincula os projetos à conta.${s.jaConvidados.length && !reenviar ? ` ${s.jaConvidados.length} já convidado(s) antes não recebem de novo.` : ""}`,
+      previewHtml: s.previewHtml,
+      rotuloEnviar: reenviar ? "Reenviar convite" : "Enviar convite",
+      aoAtualizar: async (m) => (await post({ simular: true, mensagem: m })).previewHtml,
+      aoEnviar: async (mensagem) => {
+        try {
+          const r = await post({ reenviar, mensagem });
+          if (!r.enviados.length && r.falhas?.length) {
+            aviso(`Nenhum convite saiu — ${r.falhas.length} falha(s) de envio: ${r.falhas[0].erro}`, "err");
+            return;
+          }
+          aviso(`Convite enviado a ${r.enviados.length} professor(es)${r.falhas?.length ? ` — ${r.falhas.length} falhou(aram), veja o log` : ""}.`);
+        } catch (e) { aviso(e.message, "err"); }
+      },
+    });
   } catch (e) { aviso(e.message, "err"); }
 }
 

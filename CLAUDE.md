@@ -480,6 +480,15 @@ public/
   aluno recebe o de enviar, orientação o de validar. Simula antes (a lista de quem será
   chamado) e o envio carimba `sys-ic-cobranca-relatorios-v1`, para a varredura da hora
   seguinte não repetir. A aba EM já tinha a sua (`/api/ic/em/chamada-relatorio`).
+- **Janela de revisão dos chamamentos por e-mail** (`janelaEnvio` na SPA, decisão do dono
+  ago/2026): NENHUM envio em bloco sai num clique só. Os cinco fluxos — chamada IC,
+  chamada EM, convite EM, convite aos professores e aviso de certificados — abrem uma
+  janela com os destinatários, a **prévia do e-mail como ele sai** (a do primeiro da
+  fila, num iframe sandbox) e o campo **"Mensagem da coordenação"**, que entra destacada
+  no topo do e-mail de todos (`blocoMensagem` em lib/mailer.js; as rotas aceitam
+  `mensagem` e a simulação devolve `previewHtml`). "Atualizar prévia" re-simula com a
+  mensagem digitada. O texto padrão continua nos templates — a mensagem acrescenta, não
+  substitui (o corpo é por pessoa: pendências, títulos e links são interpolados).
 - **Visualizar relatório** (`verModeloRelatorio` na SPA, botões 👁 na guia Relatórios e
   na guia Ensino Médio, só gestão): pré-visualização dos formulários **como quem
   preenche os vê** — parcial e final do aluno da IC, painel de validação do professor e
