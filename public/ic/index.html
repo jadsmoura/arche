@@ -21,6 +21,14 @@
   .selo.e{background:var(--warn-soft);color:var(--warn)}
   .card + .card{margin-top:20px}
   .exp{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 6px}
+  /* atalho de entrada no sistema (pedido do dono, ago/2026): a vitrine é
+     pública, mas quem participa da IC entra por aqui para o setor */
+  .bt-entrar{display:inline-block;background:var(--brand,#1c3742);color:#fff !important;font-weight:600;
+    padding:8px 16px;border-radius:10px;text-decoration:none;transition:.15s}
+  .bt-entrar:hover{background:var(--brand-2,#2d535c)}
+  .chamado-entrar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:22px;
+    background:var(--wash,#e6f5fa);border:1px solid var(--line,#dde4e8);border-radius:14px;padding:16px 20px}
+  .chamado-entrar p{margin:0;font-size:14px;flex:1;min-width:240px}
   /* a lista de projetos fica recolhida por padrão: são muitos por ciclo */
   details.lista > summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;
     margin-top:8px;font-weight:600;font-size:13.5px;color:var(--brand-2);padding:8px 14px;
@@ -44,7 +52,8 @@
       <div class="topo-t"><span class="arche-wm"><span class="arche-tx">Iniciação Científica</span></span></div>
       <div class="topo-s">PROPPEX · Centro Universitário Evangélico de Goianésia — UNIEGO</div>
     </div>
-    <nav class="topo-nav"><a href="/">Portal</a></nav>
+    <nav class="topo-nav"><a href="/">Portal</a>
+      <a class="bt-entrar" href="/entrar/?next=%2Fpesquisa%2Fic%2F">Entrar no sistema →</a></nav>
   </div>
 </header>
 
@@ -55,6 +64,11 @@
     Iniciação à Extensão (IE) do UNIEGO, com os documentos de cada edital e a relação dos projetos —
     título, curso, orientação, bolsista e modalidade. Esta página se atualiza sozinha conforme a
     seleção avança e os bolsistas são indicados.</p>
+  <div class="chamado-entrar">
+    <p><b>Você participa da Iniciação Científica?</b> Professores e estudantes acessam o sistema para
+      submeter projetos, enviar e validar relatórios, acompanhar prazos e baixar certificados.</p>
+    <a class="bt-entrar" href="/entrar/?next=%2Fpesquisa%2Fic%2F">Entrar no sistema →</a>
+  </div>
   <div id="conteudo" style="margin-top:26px"><div class="card"><p style="color:var(--muted)">Carregando…</p></div></div>
 </main>
 
