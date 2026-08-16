@@ -390,7 +390,13 @@ public/
   (`relatoriosExigidos` em lib/em.js). O formulário tem **3 campos** (decisão do dono,
   ago/2026): atividades da vigência, motivação para a carreira acadêmica e **curso do
   UNIEGO pretendido** (lista de CURSOS + "outro que o UNIEGO ainda não tem" →
-  `cursoOutro`). **Quem valida é a PROPPEX**, não a orientação
+  `cursoOutro`) — **mais o questionário de avaliação do programa** (ago/2026, transcrito
+  do formulário da PROPPEX: `CRITERIOS_AVALIACAO_EM`/`ESCALA_AVALIACAO_EM`/
+  `RECOMENDACAO_EM` em lib/em.js): 7 perguntas na escala 0–5 (**o 0 é "não se aplica" —
+  toda linha se responde**), a recomendação da IC Júnior (sim/não/em partes) e as
+  abertas (aprendizado e sugestões, opcionais). `avaliacaoEMCompleta` é a régua: o
+  envio do aluno é recusado sem as 7 respostas + a recomendação; o registro de entrega
+  em papel pela gestão não as cobra. **Quem valida é a PROPPEX**, não a orientação
   (`POST /api/ic/em/:id/relatorio/validar`, validado|devolvido com comentário; validado
   não se reenvia). Registro legado com `relatorio.texto` migra para o FINAL
   (`normalizarRelatoriosEM`). A gestão exporta a turma ou UM bolsista em
@@ -445,6 +451,32 @@ public/
   CICLO (edital): cada aluno com as metas do cronograma sob sua responsabilidade, a
   situação dos relatórios frente aos prazos e o andamento do contrato; para a gestão,
   agrupada por orientador.
+- **Editais e Resultados por ANO** (pedido do dono, ago/2026, no setor E na vitrine
+  `/ic/`): **um quadro por ano** (2026, 2025…) com os dois processos dentro — o edital
+  01/AAAA (graduação) e o 02/AAAA (ICEM), cada um com o edital, o resultado preliminar e
+  o final. O rótulo dos seletores de ciclo diz os dois nomes ("Edital 01/2025 · ciclo
+  2025/2026", `rotuloCiclo`), porque o número do edital e o ano da vigência não coincidem.
+- **Resultado do ICEM em duas fases** (`gerarResultadoEMPdf` em lib/pdf.js, chave
+  `ic-em-resultado-publicado-v1`, `POST /api/ic/em/resultado/publicar`): o mesmo desenho
+  da graduação — preliminar = a lista dos selecionados SEM bolsa; final = quadros por
+  bolsa (CNPq, UNIEGO, voluntário). **Sem valor de bolsa, CPF ou contato** (são menores e
+  o documento é público). A publicação é **na própria guia Editais e Resultados** (o
+  quadro do Painel é só da graduação); prévia com `?fase=` é só da gestão
+  (`GET /api/ic/em/resultado.pdf`), e o público baixa a fase publicada em
+  `GET /api/publico/ic/em/resultado.pdf`. Turma antiga com PDF arquivado (`resultado` em
+  TURMAS_EM) redireciona para o documento da época e **não se republica**.
+- **Chamada manual dos relatórios** (`POST /api/ic/chamada-relatorio`, botão 📣 na guia
+  Relatórios, aba IC): dispara AGORA o mesmo e-mail da cobrança semanal
+  (`pendenciasCobrancaIC`, extraída de `varrerCobrancaIC`), para o ciclo selecionado —
+  aluno recebe o de enviar, orientação o de validar. Simula antes (a lista de quem será
+  chamado) e o envio carimba `sys-ic-cobranca-relatorios-v1`, para a varredura da hora
+  seguinte não repetir. A aba EM já tinha a sua (`/api/ic/em/chamada-relatorio`).
+- **Visualizar relatório** (`verModeloRelatorio` na SPA, botões 👁 na guia Relatórios e
+  na guia Ensino Médio, só gestão): pré-visualização dos formulários **como quem
+  preenche os vê** — parcial e final do aluno da IC, painel de validação do professor e
+  relatório do estudante do ICEM — montada dos MESMOS catálogos que alimentam os
+  formulários de verdade (META.relatorioModelo e o modelo do EM), num modal com os
+  campos travados. Nada se grava.
 - **Prazos dos relatórios** (`prazosRelatorios`/`janelaRelatorio` em lib/ic.js, decisão do
   dono ago/2026): o PARCIAL **abre no 4º mês** da vigência (início + 3) e vence no 6º; o
   FINAL **abre no 10º** e vence no fim. Antes de abrir, o envio é **recusado**; depois de

@@ -42,6 +42,7 @@ import {
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import {
   TURMAS_EM, BOLSAS_EM, bolsaEmDe, turmaDe as turmaEmDe, turmaVigente as turmaEmVigente,
+  ESCALA_AVALIACAO_EM, CRITERIOS_AVALIACAO_EM, RECOMENDACAO_EM, avaliacaoEMCompleta,
   normalizarBolsistaEM, trocarProjeto, anotarEM, cotasDaTurma, projetoAtual as projetoAtualEM,
   RELATORIOS_EM, CAMPOS_RELATORIO_EM, relatoriosExigidos,
 } from "./lib/em.js";
@@ -656,7 +657,7 @@ app.get("/api/publico/ic", async (req, res) => {
     res.json({
       instituicao: "Centro Universitário Evangélico de Goianésia — UNIEGO",
       editais: editaisConhecidos(projetos, await resultadosPublicados(), await termosPublicados()),
-      editaisEM: editaisEMParaLista(),
+      editaisEM: editaisEMParaLista(await resultadosPublicadosEM()),
       projetos: projetos
         .filter((p) => p.status !== "rascunho")
         .map((p) => ({
@@ -702,6 +703,27 @@ app.get("/api/publico/ic/resultado.pdf", async (req, res) => {
     res.send(buffer);
   } catch (e) {
     console.error("Erro no PDF público do resultado:", e);
+    res.status(500).send("Erro ao gerar o PDF: " + e.message);
+  }
+});
+
+// O resultado do ICEM também: público quando (e só quando) a gestão publica.
+app.get("/api/publico/ic/em/resultado.pdf", async (req, res) => {
+  try {
+    const turma = TURMAS_EM.find((t) => t.edital === String(req.query.edital || "").trim())
+      || turmaEmVigente();
+    if (turma.resultado) return res.redirect(turma.resultado);
+    const pub = (await resultadosPublicadosEM())[turma.edital];
+    if (!pub)
+      return res.status(404).send("O resultado deste edital ainda não foi publicado.");
+    const bolsistas = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo);
+    const { gerarResultadoEMPdf } = await import("./lib/pdf.js");
+    const buffer = await gerarResultadoEMPdf({ turma, bolsistas, emitidoPor: "", fase: pub.fase || "final" });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(turma.edital)}.pdf"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro no PDF público do resultado do ICEM:", e);
     res.status(500).send("Erro ao gerar o PDF: " + e.message);
   }
 });
@@ -2433,10 +2455,22 @@ function editaisConhecidos(projetos, publicados = {}, termos = {}) {
  * a lista sai do catálogo de turmas (lib/em.js), não dos projetos. O ciclo
  * vigente ainda não tem resultado: aparece "em breve" até o PDF ser arquivado.
  */
-const editaisEMParaLista = () => TURMAS_EM.map((t) => ({
+const editaisEMParaLista = (publicados = {}) => TURMAS_EM.map((t) => ({
   numero: t.edital, ciclo: t.ciclo, vigente: !t.encerrada,
   documento: t.documento || null, resultadoDocumento: t.resultado || null,
+  // as turmas com PDF arquivado são resultado final da época, sempre aberto;
+  // o da turma vigente passa pelas fases preliminar → final, como na graduação
+  resultadoFase: t.resultado ? "final" : (publicados[t.edital]?.fase || null),
+  resultadoPublicado: !!t.resultado || !!publicados[t.edital],
 })).sort((a, b) => b.ciclo.localeCompare(a.ciclo, "pt-BR"));
+
+/** A publicação do resultado do ICEM — a mesma lógica em duas fases da
+ *  graduação, em chave própria (o programa é outro, o edital é 02/AAAA). */
+const RESULTADO_EM_PUB_KEY = "ic-em-resultado-publicado-v1";
+async function resultadosPublicadosEM() {
+  const raw = await storage.get(RESULTADO_EM_PUB_KEY);
+  return raw ? JSON.parse(raw) : {};
+}
 
 /** Catálogo do edital mais o que já foi informado à mão, num array só. */
 function todosOsGrupos(projetos) {
@@ -2498,7 +2532,7 @@ app.get("/api/ic/meta", async (req, res) => {
     // os editais (números, contagens e documentos) são de todos; a lista de
     // pessoas para o "ver como" segue só com a coordenação
     editais: editaisConhecidos(projetos, await resultadosPublicados(), await termosPublicados()),
-    editaisEM: editaisEMParaLista(),
+    editaisEM: editaisEMParaLista(await resultadosPublicadosEM()),
     ...(gereIC(u) ? { pessoas: pessoasDoSetor(projetos) } : {}),
     ...(como ? { simulando: como.email } : {}),
   });
@@ -3172,8 +3206,10 @@ function avisarPesquisa(assunto, linhas, titulo) {
  * há o que mandar é o estado, não o relógio.
  */
 const COBRANCA_IC_KEY = "sys-ic-cobranca-relatorios-v1";
-async function varrerCobrancaIC() {
-  const projetos = await lerProjetos();
+/* Quem deve o quê nos relatórios da IC — a mesma conta serve à cobrança
+   semanal automática e à CHAMADA manual da gestão (botão na guia
+   Relatórios). Devolve um mapa e-mail → { nome, papel, itens }. */
+function pendenciasCobrancaIC(projetos, { edital = null } = {}) {
   const porPessoa = new Map();
   const junta = (emailAlvo, nome, papel, item) => {
     const alvo = String(emailAlvo || "").trim().toLowerCase();
@@ -3183,6 +3219,7 @@ async function varrerCobrancaIC() {
     porPessoa.set(alvo, atual);
   };
   for (const p of projetos) {
+    if (edital && (p.edital || EDITAL.numero) !== edital) continue;
     // projetos em execução — e os do ciclo em REGULARIZAÇÃO (concluídos com
     // a janela do final reaberta), que são exatamente os que precisam de
     // lembrete até entregarem
@@ -3207,6 +3244,11 @@ async function varrerCobrancaIC() {
       }
     }
   }
+  return porPessoa;
+}
+
+async function varrerCobrancaIC() {
+  const porPessoa = pendenciasCobrancaIC(await lerProjetos());
   if (!porPessoa.size) return { enviadas: 0 };
   const registro = JSON.parse((await storage.get(COBRANCA_IC_KEY)) || "{}");
   const SETE_DIAS = 7 * 24 * 3600 * 1000;
@@ -3224,6 +3266,36 @@ async function varrerCobrancaIC() {
   if (enviadas) await storage.set(COBRANCA_IC_KEY, JSON.stringify(registro));
   return { enviadas };
 }
+
+/* A CHAMADA manual dos relatórios da IC (gestão, botão na guia Relatórios):
+   o mesmo e-mail da cobrança semanal, só que enviado AGORA e ciclo a ciclo
+   — serve à regularização do 01/2025, em que esperar a próxima varredura é
+   esperar à toa. `simular` devolve quem seria chamado; o envio carimba o
+   registro da cobrança, para a varredura da hora seguinte não repetir. */
+app.post("/api/ic/chamada-relatorio", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "A chamada dos relatórios é da coordenação de pesquisa." });
+  const edital = String(req.body?.edital || EDITAL.numero).trim();
+  const porPessoa = pendenciasCobrancaIC(await lerProjetos(), { edital });
+  if (req.body?.simular === true) {
+    return res.json({ edital, chamar: [...porPessoa.entries()].map(([email, d]) =>
+      ({ email, nome: d.nome || "", papel: d.papel, itens: d.itens.length })) });
+  }
+  const { enviarEmail, emailCobrancaRelatorioIC } = await import("./lib/mailer.js");
+  const registro = JSON.parse((await storage.get(COBRANCA_IC_KEY)) || "{}");
+  const falhas = [];
+  let enviados = 0;
+  for (const [emailAlvo, dados] of porPessoa) {
+    try {
+      await enviarEmail(emailCobrancaRelatorioIC({ para: emailAlvo, ...dados }));
+      registro[emailAlvo] = new Date().toISOString();
+      enviados++;
+    } catch (e) { falhas.push(`${dados.nome || emailAlvo}: ${e.message}`); }
+  }
+  if (enviados) await storage.set(COBRANCA_IC_KEY, JSON.stringify(registro));
+  res.json({ ok: true, edital, enviados, falhas });
+});
 
 let filaEM = Promise.resolve();
 function comBolsistasEM(fn) {
@@ -3248,6 +3320,12 @@ app.get("/api/ic/em", async (req, res) => {
   res.json({
     bolsistas, turmas: TURMAS_EM, bolsas: BOLSAS_EM,
     cotas: Object.fromEntries(TURMAS_EM.map((t) => [t.ciclo, cotasDaTurma(bolsistas, t.ciclo)])),
+    // o modelo do relatório do estudante — para a gestão ler as respostas e
+    // pré-visualizar o formulário como o aluno o vê
+    modeloRelatorio: {
+      campos: CAMPOS_RELATORIO_EM,
+      avaliacao: { escala: ESCALA_AVALIACAO_EM, criterios: CRITERIOS_AVALIACAO_EM, recomendacoes: RECOMENDACAO_EM },
+    },
   });
 });
 
@@ -3281,6 +3359,8 @@ app.get("/api/ic/em/meu", async (req, res) => {
       };
     }),
     camposRelatorio: CAMPOS_RELATORIO_EM,
+    // o questionário de avaliação do programa, que vai junto do relatório
+    avaliacaoModelo: { escala: ESCALA_AVALIACAO_EM, criterios: CRITERIOS_AVALIACAO_EM, recomendacoes: RECOMENDACAO_EM },
     cursosUniego: CURSOS.map((c) => c.nome),
     // o cardápio da escolha: os projetos EM EXECUÇÃO da graduação — título,
     // curso e orientação, nada além (o registro completo é do projeto)
@@ -3346,6 +3426,18 @@ app.post("/api/ic/em/meu/relatorio", async (req, res) => {
     return res.status(400).json({ error: "Conte se a participação te motivou a seguir carreira acadêmica, cursar uma faculdade, ser um cientista." });
   if (!cursoPretendido && !cursoOutro)
     return res.status(400).json({ error: "Diga em qual curso do UNIEGO você pretende ingressar — ou escreva o curso, se o UNIEGO ainda não o tiver." });
+  // o questionário de avaliação do programa vai junto do relatório e é
+  // obrigatório: as 7 perguntas (o zero é "não se aplica") + a recomendação
+  const avaliacao = {
+    criterios: Object.fromEntries(CRITERIOS_AVALIACAO_EM
+      .map((c) => [c.codigo, Number(b.avaliacao?.criterios?.[c.codigo])])
+      .filter(([, v]) => Number.isInteger(v) && v >= 0 && v <= 5)),
+    aprendizado: String(b.avaliacao?.aprendizado || "").trim().slice(0, 2000),
+    recomendaria: String(b.avaliacao?.recomendaria || "").trim(),
+    sugestoes: String(b.avaliacao?.sugestoes || "").trim().slice(0, 2000),
+  };
+  if (!avaliacaoEMCompleta(avaliacao))
+    return res.status(400).json({ error: "Responda o questionário de avaliação do programa: as 7 perguntas (0 a 5 — o 0 é \"não se aplica\") e se você recomendaria a Iniciação Científica Júnior." });
 
   const r = await comBolsistasEM((lista) => {
     const i = lista.findIndex((x) => x.id === String(b.id || "")
@@ -3362,7 +3454,7 @@ app.post("/api/ic/em/meu/relatorio", async (req, res) => {
       ...atual, situacao: "entregue", em: new Date().toISOString(),
       atividades: atividades.slice(0, 8000), motivacao: motivacao.slice(0, 4000),
       cursoPretendido: cursoPretendido.slice(0, 80), cursoOutro: cursoOutro.slice(0, 120),
-      porAluno: true,
+      avaliacao, porAluno: true,
     } } }, { quem: u.email, oQue: `entregou o relatório ${tipo} pelo portal` });
     return { bolsista: lista[i] };
   });
@@ -3431,6 +3523,64 @@ app.post("/api/ic/em/chamada-relatorio", async (req, res) => {
     catch (e) { falhas.push(`${b.nome}: ${e.message}`); }
   }
   res.json({ ok: true, turma: turma.ciclo, enviados: comEmail.length - falhas.length, falhas, semEmail });
+});
+
+/* O RESULTADO do processo seletivo do ICEM, nas mesmas duas fases da
+   graduação (decisão do dono, ago/2026): até a publicação, o gerador é
+   prévia de trabalho — só a gestão baixa, escolhendo a fase; publicado,
+   qualquer pessoa do setor baixa exatamente a fase publicada. Turma com o
+   PDF arquivado redireciona para o documento da época, sempre aberto. */
+app.get("/api/ic/em/resultado.pdf", async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    const turma = TURMAS_EM.find((t) => t.edital === String(req.query.edital || "").trim())
+      || turmaEmDe(String(req.query.turma || "")) || turmaEmVigente();
+    if (turma.resultado) return res.redirect(turma.resultado);
+    const pub = (await resultadosPublicadosEM())[turma.edital];
+    if (!gereIC(u) && !pub)
+      return res.status(403).send("O resultado deste edital ainda não foi publicado pela PROPPEX.");
+    const fase = gereIC(u)
+      ? (["preliminar", "final"].includes(req.query.fase) ? req.query.fase : (pub?.fase || "final"))
+      : (pub.fase || "final");
+    const bolsistas = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo);
+    const { gerarResultadoEMPdf } = await import("./lib/pdf.js");
+    const buffer = await gerarResultadoEMPdf({ turma, bolsistas, emitidoPor: u.email, fase });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(turma.edital)}.pdf"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro no PDF do resultado do ICEM:", e);
+    res.status(500).send("Erro ao gerar o PDF: " + e.message);
+  }
+});
+
+/* Publicar (ou recolher) o resultado do ICEM — só a gestão, com as mesmas
+   duas fases da graduação. fase: null recolhe; a data de cada fase fica em
+   `desde`, para republicar não reiniciar relógio nenhum. */
+app.post("/api/ic/em/resultado/publicar", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "Só a coordenação publica o resultado" });
+  const turma = TURMAS_EM.find((t) => t.edital === String(req.body?.edital || "").trim()) || turmaEmVigente();
+  if (turma.resultado)
+    return res.status(400).json({ error: "Esta turma tem o PDF do resultado arquivado — ele já está sempre publicado." });
+  const fase = req.body?.fase ?? null;
+  if (fase !== null && !["preliminar", "final"].includes(fase))
+    return res.status(400).json({ error: "Fase inválida: preliminar, final ou null para recolher" });
+  const pub = await resultadosPublicadosEM();
+  if (fase) {
+    const agora = new Date().toISOString();
+    const antes = pub[turma.edital] || {};
+    pub[turma.edital] = {
+      fase, em: agora, por: u.email,
+      desde: { ...(antes.desde || {}), [fase]: antes.desde?.[fase] || agora },
+    };
+  } else delete pub[turma.edital];
+  await storage.set(RESULTADO_EM_PUB_KEY, JSON.stringify(pub));
+  await storage.flush?.();
+  console.log(`[ic-em] resultado ${turma.edital} ${fase ? `publicado (${fase})` : "recolhido"} por ${u.email}`);
+  res.json({ ok: true, edital: turma.edital, fase });
 });
 
 /* O convite por e-mail, turma a turma (gestão): criar o usuário e — turma

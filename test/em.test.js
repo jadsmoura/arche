@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import {
   TURMAS_EM, BOLSAS_EM, turmaDe, turmaVigente, bolsaEmDe, normalizarBolsistaEM,
   projetoAtual, trocarProjeto, cotasDaTurma, faltaNoBolsistaEM, relatoriosExigidos,
+  CRITERIOS_AVALIACAO_EM, ESCALA_AVALIACAO_EM, RECOMENDACAO_EM, avaliacaoEMCompleta,
 } from "../lib/em.js";
 import { termoDoAlunoEM, autorizacaoResponsavelEM } from "../lib/termos.js";
 import { MARCAS } from "../lib/marca.js";
@@ -120,4 +121,34 @@ test("o termo ICEM leva 2h semanais, os dois valores de bolsa e o anexo do respo
   const vazia = autorizacaoResponsavelEM({ inst: INST, bolsista: {} });
   assert.ok(!/undefined/.test(vazia.texto));
   assert.match(vazia.texto, /_{8,}/);
+});
+
+test("a avaliação do programa acompanha o relatório: 7 perguntas 0–5 + recomendação", () => {
+  assert.equal(CRITERIOS_AVALIACAO_EM.length, 7);
+  assert.equal(ESCALA_AVALIACAO_EM.length, 6, "0 a 5 — o zero é 'não se aplica'");
+  assert.deepEqual(RECOMENDACAO_EM.map((x) => x.codigo), ["sim", "nao", "em-partes"]);
+
+  const todas = Object.fromEntries(CRITERIOS_AVALIACAO_EM.map((c) => [c.codigo, 4]));
+  const b = normalizarBolsistaEM({ nome: "Theo", turma: "2026/2027", relatorios: { final: {
+    situacao: "entregue", atividades: "x", porAluno: true,
+    avaliacao: { criterios: { ...todas, metodo: 0 }, recomendaria: "em-partes",
+      aprendizado: "As coletas de campo", sugestoes: "Mais visitas aos laboratórios" },
+  } } });
+  const a = b.relatorios.final.avaliacao;
+  assert.equal(a.criterios.metodo, 0, "o zero é resposta, não ausência");
+  assert.equal(a.recomendaria, "em-partes");
+  assert.equal(a.aprendizado, "As coletas de campo");
+  assert.ok(avaliacaoEMCompleta(a));
+
+  // faltando uma pergunta ou a recomendação, o questionário não fecha
+  const { metodo, ...seisRespostas } = todas;
+  assert.ok(!avaliacaoEMCompleta({ criterios: seisRespostas, recomendaria: "sim" }));
+  assert.ok(!avaliacaoEMCompleta({ criterios: todas, recomendaria: "" }));
+  // valor fora da escala é descartado na normalização
+  const ruim = normalizarBolsistaEM({ nome: "T", turma: "2026/2027", relatorios: { final: {
+    avaliacao: { criterios: { metodo: 9, escola: 3 }, recomendaria: "talvez" },
+  } } }).relatorios.final.avaliacao;
+  assert.equal(ruim.criterios.metodo, undefined);
+  assert.equal(ruim.criterios.escola, 3);
+  assert.equal(ruim.recomendaria, "", "recomendação fora da lista não entra");
 });

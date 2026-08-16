@@ -71,9 +71,9 @@ const anoDe = (n) => Number(String(n).split("/").pop()) || 0;
 
 fetch("/api/publico/ic").then(async (r) => {
   const j = await r.json();
-  // graduação e ICEM saem POR ANO (pedido do dono, ago/2026): no mesmo ano, o
-  // edital 01 (IC/IT/IE) vem primeiro e o 02 (Ensino Médio) logo abaixo —
-  // em vez de todo o ICEM empilhado no fim da página
+  // UM QUADRO POR ANO (pedido do dono, ago/2026): dentro de cada ano, os
+  // dois processos — o edital 01 (graduação: IC/IT/IE) e o 02 (Ensino
+  // Médio) — com o edital e os resultados preliminar e final de cada um
   const cartaoGrad = (e) => {
     const doEdital = (j.projetos || []).filter((p) => p.edital === e.numero);
     const linha = (p) => `<tr>
@@ -85,15 +85,14 @@ fetch("/api/publico/ic").then(async (r) => {
         ? `<span class="selo ${p.modalidade === "Não aprovado" ? "v" : /PV|Volunt/i.test(p.modalidade) ? "v" : "b"}">${esc(p.modalidade)}</span>`
         : '<span class="selo e">em seleção</span>'}</td>
     </tr>`;
-    return `<div class="card" style="padding:24px">
-      <div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:19px">Edital ${esc(e.numero)}
+    return `<div style="border-top:1px solid var(--line);padding:16px 0 4px;margin-top:14px">
+      <div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:17px">Edital ${esc(e.numero)} — Graduação (IC · IT · IE)
         ${e.vigente ? '<span class="selo b" style="vertical-align:2px">vigente</span>' : ""}</div>
-      <div style="font-size:13px;color:var(--muted);margin-top:3px">Ano ${anoDe(e.numero) || "—"} ·
-        ${doEdital.length} projeto(s) · ${e.bolsas ?? 0} bolsa(s) concedida(s)</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:3px">${doEdital.length} projeto(s) · ${e.bolsas ?? 0} bolsa(s) concedida(s)</div>
       <div class="exp">
         ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📜 Edital (PDF)</a>` : ""}
         ${e.resultadoPublicado
-          ? `<a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/publico/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">📄 ${e.resultadoFase === "preliminar" ? "Resultado preliminar (PDF)" : "Resultado do processo (PDF)"}</a>`
+          ? `<a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/publico/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">📄 ${e.resultadoFase === "preliminar" ? "Resultado preliminar (PDF)" : "Resultado final (PDF)"}</a>`
           : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default" title="O resultado será divulgado pela PROPPEX ao fim do ciclo de avaliações">⏳ Resultado em breve</button>`}
         ${e.resultadoFase === "preliminar" ? `<span class="selo e" style="align-self:center">resultado final em breve</span>` : ""}
       </div>
@@ -107,24 +106,36 @@ fetch("/api/publico/ic").then(async (r) => {
       </table></div></details>` : `<p style="color:var(--muted);font-size:13.5px">As submissões deste edital ainda não foram registradas.</p>`}
     </div>`;
   };
-  const cartaoEM = (e) => `<div class="card" style="padding:24px">
-    <div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:19px">Edital ${esc(e.numero)} — Ensino Médio (ICEM)
+  const cartaoEM = (e) => `<div style="border-top:1px solid var(--line);padding:16px 0 4px;margin-top:14px">
+    <div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:17px">Edital ${esc(e.numero)} — Ensino Médio (ICEM)
       ${e.vigente ? '<span class="selo b" style="vertical-align:2px">vigente</span>' : ""}</div>
     <div style="font-size:13px;color:var(--muted);margin-top:3px">Turma ${esc(e.ciclo)} · bolsas para estudantes
       do Ensino Médio acompanharem projetos de pesquisa do UNIEGO</div>
     <div class="exp">
       ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📜 Edital (PDF)</a>` : ""}
-      ${e.resultadoDocumento
-        ? `<a class="bt bt-sec" href="${esc(e.resultadoDocumento)}" target="_blank" rel="noopener">📄 Resultado do processo (PDF)</a>`
+      ${e.resultadoPublicado
+        ? `<a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/publico/ic/em/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">📄 ${e.resultadoFase === "preliminar" ? "Resultado preliminar (PDF)" : "Resultado final (PDF)"}</a>`
         : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default" title="O resultado será divulgado pela PROPPEX ao fim da seleção">⏳ Resultado em breve</button>`}
+      ${e.resultadoFase === "preliminar" ? `<span class="selo e" style="align-self:center">resultado final em breve</span>` : ""}
     </div>
   </div>`;
-  const porAno = [
-    ...(j.editais || []).map((e) => ({ ano: anoDe(e.numero), ordem: 1, html: cartaoGrad(e) })),
-    ...(j.editaisEM || []).map((e) => ({ ano: anoDe(e.numero), ordem: 2, html: cartaoEM(e) })),
-  ].sort((a, b) => b.ano - a.ano || a.ordem - b.ordem);
-  document.getElementById("conteudo").innerHTML = porAno.map((t) => t.html).join("")
-    || '<div class="card"><p style="color:var(--muted)">Nenhum edital publicado ainda.</p></div>';
+  // um quadro por ano: o título é o ANO, e dentro dele os dois editais
+  const grads = j.editais || [], ems = j.editaisEM || [];
+  const anos = [...new Set([...grads, ...ems].map((e) => anoDe(e.numero)))]
+    .filter(Boolean).sort((a, b) => b - a);
+  document.getElementById("conteudo").innerHTML = anos.map((ano) => {
+    const g = grads.filter((e) => anoDe(e.numero) === ano);
+    const m = ems.filter((e) => anoDe(e.numero) === ano);
+    const vigente = [...g, ...m].some((e) => e.vigente);
+    return `<div class="card" style="padding:24px">
+      <div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:22px">${ano}
+        ${vigente ? '<span class="selo b" style="vertical-align:3px">ciclo vigente</span>' : ""}</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:3px">Os processos seletivos de ${ano}:
+        graduação (01/${ano}) e Ensino Médio (02/${ano}).</div>
+      ${g.map(cartaoGrad).join("")}
+      ${m.map(cartaoEM).join("")}
+    </div>`;
+  }).join("") || '<div class="card"><p style="color:var(--muted)">Nenhum edital publicado ainda.</p></div>';
 }).catch(() => {
   document.getElementById("conteudo").innerHTML = '<div class="card"><p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente em instantes.</p></div>';
 });

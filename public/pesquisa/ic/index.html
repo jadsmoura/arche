@@ -1135,6 +1135,8 @@ async function renderEM() {
         title="Convite por e-mail: o bolsista cria o usuário e — turma atual — escolhe o projeto; turma encerrada — entrega o relatório final">✉️ Convidar por e-mail</button>` : ""}
       ${da.length ? `<button class="bt bt-sec" onclick="emChamada()"
         title="Vai a TODO bolsista da turma com relatório ainda não validado — mesmo quem já foi convidado">📣 Chamar para os relatórios</button>` : ""}
+      <button class="bt bt-ghost" onclick="verModeloRelatorio('em')"
+        title="O formulário do relatório, como o estudante o vê">👁 Visualizar relatório (estudante)</button>
     </div>
 
     <div class="kpis">
@@ -1193,6 +1195,7 @@ function emBlocoRelatoriosGestao(b, turma) {
         <div class="kv" style="margin-left:12px"><b>Atividades:</b> <span style="white-space:pre-wrap">${esc(r.atividades || "—")}</span></div>
         <div class="kv" style="margin-left:12px"><b>Motivação (carreira acadêmica):</b> <span style="white-space:pre-wrap">${esc(r.motivacao || "—")}</span></div>
         <div class="kv" style="margin-left:12px"><b>Curso pretendido:</b> ${esc(r.cursoOutro ? `${r.cursoOutro} (o UNIEGO ainda não tem)` : r.cursoPretendido || "—")}</div>
+        ${quadroAvaliacaoEMLeitura(r.avaliacao, EM?.modeloRelatorio?.avaliacao)}
         ${r.comentario ? `<div class="kv" style="margin-left:12px"><b>Comentário da PROPPEX:</b> ${esc(r.comentario)}</div>` : ""}
       </details>` : "";
     const acoes = r.situacao === "entregue" ? `
@@ -1246,6 +1249,28 @@ async function emConvidar() {
 
 /* A chamada de preenchimento dos relatórios: vai a TODO bolsista da turma
    com relatório exigido ainda não validado — sem o filtro do convite. */
+/* A chamada manual dos relatórios da IC (gestão, guia Relatórios): dispara
+   AGORA o mesmo e-mail da cobrança semanal, para o ciclo selecionado —
+   aluno recebe o de enviar, orientação o de validar. Simula antes, para a
+   gestão confirmar vendo quem será chamado. */
+async function icChamada() {
+  try {
+    const s = await api("/api/ic/chamada-relatorio", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ edital: CICLO_REL, simular: true }) });
+    if (!s.chamar.length) return aviso("Ninguém a chamar neste ciclo — nenhuma janela de relatório aberta com pendência.", "err");
+    const rot = (x) => `• ${x.nome || x.email} — ${x.email} · ${x.papel === "orientador" ? "validar" : "enviar"} (${x.itens} relatório(s))`;
+    const ok = confirm(`Chamar ${s.chamar.length} pessoa(s) do ${rotuloCiclo(CICLO_REL)} para os relatórios?\n\n`
+      + s.chamar.map(rot).join("\n"));
+    if (!ok) return;
+    const r = await api("/api/ic/chamada-relatorio", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ edital: CICLO_REL }) });
+    aviso(`Chamada enviada a ${r.enviados} pessoa(s).${r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""}`,
+      r.falhas.length ? "err" : undefined);
+  } catch (e) { aviso(e.message, "err"); }
+}
+
 async function emChamada() {
   try {
     const s = await api("/api/ic/em/chamada-relatorio", { method: "POST",
@@ -1269,6 +1294,157 @@ async function emChamada() {
    escolhe o curso e o projeto que quer acompanhar — e troca quando quiser —
    e entrega por aqui o relatório final; nas turmas encerradas, a entrega é
    o que formaliza a conclusão. */
+/* O questionário de avaliação do programa (IC Júnior), transcrito do
+   formulário da PROPPEX: 7 perguntas 0–5 (o 0 é "não se aplica") + as
+   abertas. O mesmo desenho serve ao formulário do aluno e à
+   pré-visualização da gestão. */
+function quadroAvaliacaoEMForm(prefixo, aval, modelo) {
+  const a = aval || {};
+  const m = modelo || MEU_EM?.avaliacaoModelo || {};
+  const radio = (nome, valor, marcado, rot) => `<label style="margin:0;display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0;font-weight:500;font-size:13px;cursor:pointer">
+    <input type="radio" name="${nome}" value="${valor}" ${marcado ? "checked" : ""}> ${rot}</label>`;
+  return `
+    <div style="border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin-top:10px">
+      <div style="font-weight:700">Avaliação do Programa de Iniciação Científica Júnior *</div>
+      <div class="muted" style="font-size:12.5px;margin:4px 0 2px">Marque como foi a sua experiência em cada item:</div>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">${(m.escala || []).map((e) => `<b>${e.valor}</b> — ${esc(e.rot)}`).join(" · ")}</div>
+      ${(m.criterios || []).map((c, i) => `
+        <div style="margin-top:8px">
+          <div style="font-size:13px"><b>${i + 1}. ${esc(c.rot)}:</b> ${esc(c.pergunta)}</div>
+          <div style="display:flex;gap:14px;margin-top:4px;flex-wrap:wrap">
+            ${[0, 1, 2, 3, 4, 5].map((v) => radio(`${prefixo}-crit-${c.codigo}`, v, a.criterios?.[c.codigo] === v, String(v))).join("")}
+          </div>
+        </div>`).join("")}
+      <label style="margin-top:10px">Qual foi o principal aprendizado ou a atividade mais interessante durante o período da bolsa?</label>
+      <textarea id="${prefixo}-aprendizado" rows="3">${esc(a.aprendizado || "")}</textarea>
+      <div style="margin-top:8px;font-size:13px"><b>Você recomendaria a Iniciação Científica Júnior para outros colegas de escola? *</b></div>
+      <div style="display:flex;gap:14px;margin-top:4px;flex-wrap:wrap">
+        ${(m.recomendacoes || []).map((x) => radio(`${prefixo}-recomendaria`, x.codigo, a.recomendaria === x.codigo, esc(x.rot))).join("")}
+      </div>
+      <label style="margin-top:10px">Sugestões para melhorar as próximas edições do programa:</label>
+      <textarea id="${prefixo}-sugestoes" rows="3">${esc(a.sugestoes || "")}</textarea>
+    </div>`;
+}
+/* A leitura das respostas dadas — para a gestão e para o aluno rever. */
+function quadroAvaliacaoEMLeitura(aval, modelo, { recuo = 12 } = {}) {
+  const m = modelo || MEU_EM?.avaliacaoModelo || {};
+  if (!aval || !Object.keys(aval.criterios || {}).length) return "";
+  const rotEscala = (v) => ((m.escala || []).find((e) => e.valor === v) || {}).rot || "";
+  const recom = { sim: "Sim", nao: "Não", "em-partes": "Em partes" };
+  return `<div class="kv" style="margin-left:${recuo}px"><b>Avaliação do programa (pelo estudante):</b></div>
+    ${(m.criterios || []).map((c) => aval.criterios?.[c.codigo] != null
+      ? `<div class="kv" style="margin-left:${recuo + 12}px">• ${esc(c.rot)}: <b>${aval.criterios[c.codigo]}</b>${rotEscala(aval.criterios[c.codigo]) ? ` — ${esc(rotEscala(aval.criterios[c.codigo]))}` : ""}</div>` : "").join("")}
+    ${aval.aprendizado ? `<div class="kv" style="margin-left:${recuo + 12}px">• Principal aprendizado: <span style="white-space:pre-wrap">${esc(aval.aprendizado)}</span></div>` : ""}
+    ${aval.recomendaria ? `<div class="kv" style="margin-left:${recuo + 12}px">• Recomendaria a outros colegas: <b>${esc(recom[aval.recomendaria] || aval.recomendaria)}</b></div>` : ""}
+    ${aval.sugestoes ? `<div class="kv" style="margin-left:${recuo + 12}px">• Sugestões: <span style="white-space:pre-wrap">${esc(aval.sugestoes)}</span></div>` : ""}`;
+}
+
+/* "Visualizar relatório" (gestão): o modelo de cada formulário exatamente
+   como aparece a quem preenche — aluno e professor —, montado dos MESMOS
+   catálogos que alimentam os formulários de verdade (META.relatorioModelo
+   e o modelo do EM). É pré-visualização: os campos ficam travados e nada
+   se grava. */
+function abrirModelo(titulo, corpoHtml) {
+  fecharModelo();
+  const div = document.createElement("div");
+  div.className = "ov"; div.id = "ov-modelo";
+  div.onclick = (e) => { if (e.target === div) fecharModelo(); };
+  div.innerHTML = `<div class="ov-cx" style="max-width:780px">
+    <div class="ov-cab"><div class="t">${titulo}</div>
+      <button class="ov-x" onclick="fecharModelo()">×</button></div>
+    <div class="muted" style="font-size:12.5px;margin-bottom:8px">Pré-visualização do formulário — os campos estão travados e nada é gravado.</div>
+    <fieldset disabled style="border:0;padding:0;margin:0;min-width:0">${corpoHtml}</fieldset>
+  </div>`;
+  document.body.appendChild(div);
+}
+function fecharModelo() { document.getElementById("ov-modelo")?.remove(); }
+
+function verModeloRelatorio(qual) {
+  const rm = META.relatorioModelo || {};
+  const obrig = rm.obrigatorios || [];
+  const radios05 = (nome) => `<div style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 2px">
+    ${[0, 1, 2, 3, 4, 5].map((v) => `<label style="margin:0;display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0;font-weight:500;font-size:13px"><input type="radio" name="${nome}"> ${v}</label>`).join("")}</div>`;
+  const escalaLegenda = `<div class="muted" style="font-size:12px;margin:2px 0 6px">${(rm.escala || []).map((e) => esc(e.rot)).join(" · ")}</div>`;
+  const avalProjeto = `
+    <div style="border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin-top:10px">
+      <div style="font-weight:700">Avaliação do projeto (pelo aluno) *</div>
+      ${(rm.perguntasProjeto || []).map((p) => `<div style="margin-top:6px;font-size:13px">${esc(p.texto)}
+        <div style="display:flex;gap:14px;margin-top:3px">${(rm.respostasProjeto || []).map((x) => `<label style="margin:0;display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0;font-weight:500;font-size:13px"><input type="radio" name="mp-${p.codigo}"> ${esc(x.rot)}</label>`).join("")}</div>
+      </div>`).join("")}
+    </div>`;
+  const avalOrientador = `
+    <div style="border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin-top:10px">
+      <div style="font-weight:700">Avaliação da atuação do orientador (pelo aluno) *</div>
+      ${escalaLegenda}
+      ${(rm.criteriosOrientador || []).map((c, i) => `<div style="margin-top:6px;font-size:13px"><b>${i + 1}. ${esc(c.rot)}:</b> ${esc(c.texto)}${radios05("mo-" + c.codigo)}</div>`).join("")}
+      <div class="muted" style="font-size:12px;margin-top:6px">O orientador não vê estas respostas — quem as lê é a PROPPEX.</div>
+    </div>`;
+  let titulo = "", corpo = "";
+  if (qual === "ic-parcial") {
+    titulo = "Relatório parcial da IC — como o ALUNO preenche";
+    corpo = `
+      <div class="muted" style="font-size:12.5px">Abre no 4º mês da vigência e vence no 6º. ${esc(rm.formatacao || "")}</div>
+      ${(rm.camposParcial || []).map((c) => `
+        <label style="margin-top:10px">${esc(c.rot)}${obrig.includes(c.campo) ? " *" : ""}</label>
+        <div class="muted" style="font-size:12px;margin:2px 0 4px">${esc(c.ajuda || "")}</div>
+        <textarea rows="3" placeholder="mínimo de 30 caracteres${obrig.includes(c.campo) ? "" : " — se houver"}"></textarea>`).join("")}
+      <label style="margin-top:10px">Comprovantes (anexos)</label>
+      <input type="file">
+      ${avalProjeto}${avalOrientador}
+      <div class="exp" style="margin-top:10px"><button class="bt bt-pri">Enviar o relatório parcial</button></div>`;
+  } else if (qual === "ic-final") {
+    titulo = "Relatório final da IC (artigo científico) — como o ALUNO preenche";
+    corpo = `
+      <div class="muted" style="font-size:12.5px">Abre no 10º mês e vence no fim da vigência. O relatório final é um
+        <b>artigo científico</b> em formato livre, nas normas da revista escolhida com a orientação — anexado ao envio.</div>
+      <div class="banner ba-warn" style="margin-top:8px">O trabalho também deve ser apresentado no <b>CONINT</b>, na forma de pôster ou apresentação oral.</div>
+      <label style="margin-top:10px">Artigo científico (anexo) *</label>
+      <input type="file">
+      <div class="grid2">
+        <div><label style="margin-top:8px">Nome da revista *</label><input></div>
+        <div><label style="margin-top:8px">ISSN *</label><input></div>
+        <div><label style="margin-top:8px">Qualis (se houver)</label><input></div>
+        <div><label style="margin-top:8px">Fator de impacto (se houver)</label><input></div>
+      </div>
+      <label style="margin-top:8px">Link da revista *</label><input>
+      ${avalProjeto}${avalOrientador}
+      <div class="exp" style="margin-top:10px"><button class="bt bt-pri">Enviar o relatório final</button></div>`;
+  } else if (qual === "ic-validacao") {
+    titulo = "Validação do relatório — como o PROFESSOR vê";
+    corpo = `
+      <div class="muted" style="font-size:12.5px">Quando o aluno envia um relatório, o projeto mostra ao orientador o
+        conteúdo enviado e este painel de decisão. Validar = encaminhar à PROPPEX; devolver reabre o envio para o aluno.</div>
+      <div style="border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin-top:10px">
+        <div style="font-weight:700">Avaliação do desempenho do discente (no relatório final) *</div>
+        ${escalaLegenda}
+        ${(rm.criteriosAluno || []).map((c, i) => `<div style="margin-top:6px;font-size:13px"><b>${i + 1}. ${esc(c.rot)}:</b> ${esc(c.texto)}${radios05("ma-" + c.codigo)}</div>`).join("")}
+        <div style="margin-top:8px;font-size:13px"><b>Parecer conclusivo *</b></div>
+        <div style="display:flex;gap:14px;margin-top:4px;flex-wrap:wrap">
+          ${(rm.pareceresConclusivos || []).map((p) => `<label style="margin:0;display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0;font-weight:500;font-size:13px"><input type="radio" name="m-parecer"> ${esc(p.rot)}</label>`).join("")}
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:6px">O aluno não vê as notas nem o parecer sobre ele — quem lê é a PROPPEX.</div>
+      </div>
+      <label style="margin-top:10px">Comentário do orientador (obrigatório ao devolver)</label>
+      <textarea rows="3"></textarea>
+      <div class="exp" style="margin-top:10px">
+        <button class="bt bt-ok">✓ Validar e encaminhar à PROPPEX</button>
+        <button class="bt bt-err">↩ Retornar para correção</button>
+      </div>`;
+  } else if (qual === "em") {
+    const mEM = (typeof EM !== "undefined" && EM?.modeloRelatorio) || null;
+    titulo = "Relatório do ICEM — como o ESTUDANTE preenche";
+    corpo = `
+      <div class="muted" style="font-size:12.5px">O mesmo formulário serve ao parcial e ao final; quem valida é a PROPPEX.</div>
+      ${(mEM?.campos || []).map((c) => `<label style="margin-top:10px">${esc(c.rot)} *</label>
+        ${c.campo === "cursoPretendido"
+          ? `<select><option>— escolha o curso —</option><option>Outro — um curso que o UNIEGO ainda não tem</option></select>`
+          : `<textarea rows="4"></textarea>`}`).join("")}
+      ${quadroAvaliacaoEMForm("modelo-em", null, mEM?.avaliacao)}
+      <div class="exp" style="margin-top:10px"><button class="bt bt-pri">Enviar o relatório</button></div>`;
+  }
+  abrirModelo(titulo, corpo);
+}
+
 let MEU_EM = null;
 async function renderMeuEM() {
   const el = $("v-meuem");
@@ -1347,7 +1523,8 @@ async function renderMeuEM() {
       ${rel.situacao === "validado" ? `
         <div class="kv" style="margin-top:6px"><b>Atividades:</b> ${esc(rel.atividades)}</div>
         ${rel.motivacao ? `<div class="kv"><b>Motivação:</b> ${esc(rel.motivacao)}</div>` : ""}
-        <div class="kv"><b>Curso pretendido:</b> ${esc(rel.cursoOutro ? rel.cursoOutro + " (o UNIEGO ainda não tem)" : rel.cursoPretendido || "—")}</div>` : `
+        <div class="kv"><b>Curso pretendido:</b> ${esc(rel.cursoOutro ? rel.cursoOutro + " (o UNIEGO ainda não tem)" : rel.cursoPretendido || "—")}</div>
+        ${quadroAvaliacaoEMLeitura(rel.avaliacao, MEU_EM.avaliacaoModelo, { recuo: 0 })}` : `
         <label style="margin-top:8px">Descreva as atividades realizadas na vigência da sua bolsa *</label>
         <textarea id="em-${tipo}-atividades-${esc(r.id)}" rows="6">${esc(rel.porAluno ? rel.atividades : "")}</textarea>
         <label style="margin-top:8px">A participação no projeto de Iniciação Científica EM te motivou a seguir carreira acadêmica, a cursar uma faculdade, a ser um cientista? *</label>
@@ -1360,6 +1537,7 @@ async function renderMeuEM() {
         </select>
         <input id="em-${tipo}-outro-${esc(r.id)}" style="display:${outroMarcado ? "" : "none"};margin-top:6px"
           placeholder="Qual curso você gostaria que o UNIEGO tivesse?" value="${esc(rel.cursoOutro || "")}">
+        ${quadroAvaliacaoEMForm(`em-${tipo}-${r.id}`, rel.porAluno ? rel.avaliacao : null, MEU_EM.avaliacaoModelo)}
         <div class="exp" style="margin-top:8px">
           <button class="bt bt-pri" onclick="meuEmRelatorio('${esc(r.id)}','${tipo}')">
             ${rel.situacao === "entregue" ? "Enviar de novo (atualiza)" : `Enviar o ${rot.toLowerCase()}`}</button>
@@ -1391,10 +1569,25 @@ async function meuEmRelatorio(id, tipo) {
   if (atividades.length < 50) return aviso("Descreva as atividades realizadas na vigência da sua bolsa (pelo menos 50 caracteres).", "err");
   if (motivacao.length < 20) return aviso("Conte se a participação te motivou a seguir carreira acadêmica, cursar uma faculdade, ser um cientista.", "err");
   if (!cursoPretendido && !cursoOutro) return aviso("Escolha o curso do UNIEGO — ou escreva o curso que você gostaria que o UNIEGO tivesse.", "err");
+  // o questionário de avaliação do programa: as 7 perguntas + a recomendação
+  const pref = `em-${tipo}-${id}`;
+  const modelo = MEU_EM?.avaliacaoModelo || { criterios: [] };
+  const criterios = {};
+  for (const c of modelo.criterios) {
+    const marcado = document.querySelector(`input[name="${pref}-crit-${c.codigo}"]:checked`);
+    if (marcado) criterios[c.codigo] = Number(marcado.value);
+  }
+  if (Object.keys(criterios).length < modelo.criterios.length)
+    return aviso("Responda as 7 perguntas da avaliação do programa — marque 0 quando não se aplicar.", "err");
+  const recomendaria = document.querySelector(`input[name="${pref}-recomendaria"]:checked`)?.value || "";
+  if (!recomendaria) return aviso("Diga se você recomendaria a Iniciação Científica Júnior para outros colegas de escola.", "err");
+  const avaliacao = { criterios, recomendaria,
+    aprendizado: ($(`${pref}-aprendizado`)?.value || "").trim(),
+    sugestoes: ($(`${pref}-sugestoes`)?.value || "").trim() };
   try {
     await api("/api/ic/em/meu/relatorio", { method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, tipo, atividades, motivacao, cursoPretendido, cursoOutro }) });
+      body: JSON.stringify({ id, tipo, atividades, motivacao, cursoPretendido, cursoOutro, avaliacao }) });
     MEU_EM = null; await renderMeuEM();
     aviso(`Relatório ${tipo} entregue — obrigado! A PROPPEX valida e você acompanha por aqui.`);
   } catch (e) { aviso(e.message, "err"); }
@@ -2707,54 +2900,102 @@ function renderClassificacao() {
    RESULTADO em PDF timbrado — os dois para download. As listas de projetos
    ficam na guia Projetos. */
 function renderEditais() {
-  $("v-editais").innerHTML = editaisOrdenados().map((e) => `<div class="card">
-      <div class="card-t">Edital ${esc(e.numero)}${e.vigente ? ' <span class="badge b-aprovado">vigente</span>' : ""}</div>
-      <div class="card-s">Ano ${anoDoEdital(e.numero) || "—"} · ${e.projetos} proposta(s) ·
-        ${e.bolsas ?? 0} bolsa(s) concedida(s).</div>
-      <div class="exp">
-        ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">
-          📜 Edital (PDF)</a>` : `<span class="muted">Documento do edital ainda não arquivado.</span>`}
-        ${e.resultadoPublicado
-          ? `<a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">
-              📄 ${e.resultadoFase === "preliminar" ? "Resultado preliminar (PDF)" : "Resultado do processo (PDF)"}${e.resultadoDocumento ? " — publicado" : ""}</a>`
-          : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default"
-              title="O resultado será divulgado pela PROPPEX ao fim do ciclo de avaliações">⏳ Resultado em breve</button>`}
-        ${META.gestao && !e.resultadoDocumento ? `
-          <a class="bt bt-ghost" href="/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}&fase=preliminar" target="_blank" rel="noopener"
-            title="Só a gestão baixa: prévia do resultado preliminar (só os aprovados, sem bolsas)">🔍 Prévia preliminar</a>
-          <a class="bt bt-ghost" href="/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}&fase=final" target="_blank" rel="noopener"
-            title="Só a gestão baixa: prévia do resultado final (com as bolsas)">🔍 Prévia final</a>
-          ${e.resultadoPublicado ? `<button class="bt bt-sec" onclick="publicarResultado('${esc(e.numero)}', null)">Recolher publicação</button>` : ""}` : ""}
-      </div>
-      <div class="muted" style="margin-top:10px">${e.resultadoFase === "preliminar"
-        ? `Resultado preliminar publicado — só os projetos aprovados. O resultado final, com a bolsa concedida, sai depois da distribuição das bolsas.`
-        : e.resultadoPublicado
-          ? `O resultado sai sempre com os dados de agora — emitido na hora, com as duas classificações (doutores e geral).`
-          : `O resultado será divulgado pela PROPPEX quando o ciclo de avaliações terminar.${META.gestao ? " A publicação (preliminar e final) se faz no Painel." : ""}`}${META.gestao ? ` A lista dos projetos está na guia
-        <a href="#" onclick="nav('classificacao');return false">Projetos</a>.` : ""}</div>
-    </div>`).join("") || `<div class="card"><div class="vazio">Nenhum edital registrado ainda.</div></div>`;
+  // um quadro por ANO (pedido do dono, ago/2026): dentro de cada ano, os
+  // dois processos — a graduação (01/AAAA) e o Ensino Médio (02/AAAA) —
+  // com o edital, o resultado preliminar e o resultado final de cada um
+  const grads = editaisOrdenados();
+  const ems = META.editaisEM || [];
+  const anos = [...new Set([...grads, ...ems].map((e) => anoDoEdital(e.numero)))]
+    .filter(Boolean).sort((a, b) => b - a);
 
-  // ICEM — outro programa, com série própria (02/AAAA): os documentos vêm do
-  // arquivo publicado; o resultado do ciclo vigente aparece como "em breve"
-  const em = META.editaisEM || [];
-  if (em.length) $("v-editais").innerHTML += `
-    <div class="card">
-      <div class="card-t">Iniciação Científica no Ensino Médio — ICEM</div>
-      <div class="card-s">Os editais do programa de bolsas para estudantes do Ensino Médio
-        (série 02/AAAA), um por turma.</div>
-      ${em.map((e) => `<div style="border-top:1px solid var(--linha);padding:12px 0 4px;margin-top:12px">
-        <div style="font-weight:700">Edital ${esc(e.numero)} · turma ${esc(e.ciclo)}
-          ${e.vigente ? ' <span class="badge b-aprovado">vigente</span>' : ""}</div>
-        <div class="exp" style="margin-top:8px">
-          ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📜 Edital (PDF)</a>`
-            : `<span class="muted">Documento do edital ainda não arquivado.</span>`}
-          ${e.resultadoDocumento
-            ? `<a class="bt bt-sec" href="${esc(e.resultadoDocumento)}" target="_blank" rel="noopener">📄 Resultado do processo (PDF)</a>`
-            : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default"
-                title="O resultado será divulgado pela PROPPEX ao fim da seleção">⏳ Resultado em breve</button>`}
-        </div>
-      </div>`).join("")}
+  const blocoGrad = (e) => `<div style="border-top:1px solid var(--linha);padding:14px 0 6px;margin-top:12px">
+    <div style="font-weight:700">Edital ${esc(e.numero)} — Graduação (IC · IT · IE)
+      ${e.vigente ? ' <span class="badge b-aprovado">vigente</span>' : ""}</div>
+    <div class="muted" style="font-size:13px;margin-top:2px">${e.projetos} proposta(s) · ${e.bolsas ?? 0} bolsa(s) concedida(s)</div>
+    <div class="exp" style="margin-top:8px">
+      ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">
+        📜 Edital (PDF)</a>` : `<span class="muted">Documento do edital ainda não arquivado.</span>`}
+      ${e.resultadoPublicado
+        ? `<a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">
+            📄 ${e.resultadoFase === "preliminar" ? "Resultado preliminar (PDF)" : "Resultado final (PDF)"}${e.resultadoDocumento ? " — publicado" : ""}</a>`
+        : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default"
+            title="O resultado será divulgado pela PROPPEX ao fim do ciclo de avaliações">⏳ Resultado em breve</button>`}
+      ${e.resultadoFase === "preliminar" ? `<span class="badge b-submetido" style="align-self:center">resultado final em breve</span>` : ""}
+      ${META.gestao && !e.resultadoDocumento ? `
+        <a class="bt bt-ghost" href="/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}&fase=preliminar" target="_blank" rel="noopener"
+          title="Só a gestão baixa: prévia do resultado preliminar (só os aprovados, sem bolsas)">🔍 Prévia preliminar</a>
+        <a class="bt bt-ghost" href="/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}&fase=final" target="_blank" rel="noopener"
+          title="Só a gestão baixa: prévia do resultado final (com as bolsas)">🔍 Prévia final</a>
+        ${e.resultadoPublicado ? `<button class="bt bt-sec" onclick="publicarResultado('${esc(e.numero)}', null)">Recolher publicação</button>` : ""}` : ""}
+    </div>
+    <div class="muted" style="margin-top:8px">${e.resultadoFase === "preliminar"
+      ? `Resultado preliminar publicado — só os projetos aprovados. O resultado final, com a bolsa concedida, sai depois da distribuição das bolsas.`
+      : e.resultadoPublicado
+        ? `O resultado sai sempre com os dados de agora — emitido na hora.`
+        : `O resultado será divulgado pela PROPPEX quando o ciclo de avaliações terminar.${META.gestao ? " A publicação (preliminar e final) se faz no Painel." : ""}`}${META.gestao ? ` A lista dos projetos está na guia
+      <a href="#" onclick="nav('classificacao');return false">Projetos</a>.` : ""}</div>
+  </div>`;
+
+  // ICEM — outro programa, série própria (02/AAAA): as turmas antigas têm o
+  // PDF arquivado da época; a vigente passa pelas fases preliminar → final,
+  // publicadas AQUI pela gestão (o ICEM não tem o quadro do Painel)
+  const blocoEM = (e) => `<div style="border-top:1px solid var(--linha);padding:14px 0 6px;margin-top:12px">
+    <div style="font-weight:700">Edital ${esc(e.numero)} — Ensino Médio (ICEM) · turma ${esc(e.ciclo)}
+      ${e.vigente ? ' <span class="badge b-aprovado">vigente</span>' : ""}</div>
+    <div class="exp" style="margin-top:8px">
+      ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📜 Edital (PDF)</a>`
+        : `<span class="muted">Documento do edital ainda não arquivado.</span>`}
+      ${e.resultadoPublicado
+        ? `<a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/ic/em/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">
+            📄 ${e.resultadoFase === "preliminar" ? "Resultado preliminar (PDF)" : "Resultado final (PDF)"}${e.resultadoDocumento ? " — publicado" : ""}</a>`
+        : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default"
+            title="O resultado será divulgado pela PROPPEX ao fim da seleção">⏳ Resultado em breve</button>`}
+      ${e.resultadoFase === "preliminar" ? `<span class="badge b-submetido" style="align-self:center">resultado final em breve</span>` : ""}
+      ${META.gestao && !e.resultadoDocumento ? `
+        <a class="bt bt-ghost" href="/api/ic/em/resultado.pdf?edital=${encodeURIComponent(e.numero)}&fase=preliminar" target="_blank" rel="noopener"
+          title="Só a gestão baixa: prévia do resultado preliminar (a lista dos selecionados, sem bolsas)">🔍 Prévia preliminar</a>
+        <a class="bt bt-ghost" href="/api/ic/em/resultado.pdf?edital=${encodeURIComponent(e.numero)}&fase=final" target="_blank" rel="noopener"
+          title="Só a gestão baixa: prévia do resultado final (com as bolsas)">🔍 Prévia final</a>
+        ${!e.resultadoFase ? `<button class="bt bt-pri" onclick="publicarResultadoEM('${esc(e.numero)}','preliminar')">📢 Publicar preliminar</button>` : ""}
+        ${e.resultadoFase !== "final" ? `<button class="bt ${e.resultadoFase === "preliminar" ? "bt-pri" : "bt-sec"}" onclick="publicarResultadoEM('${esc(e.numero)}','final')">🏁 Publicar final</button>` : ""}
+        ${e.resultadoPublicado ? `<button class="bt bt-sec" onclick="publicarResultadoEM('${esc(e.numero)}', null)">Recolher publicação</button>` : ""}` : ""}
+    </div>
+  </div>`;
+
+  $("v-editais").innerHTML = anos.map((ano) => {
+    const g = grads.filter((e) => anoDoEdital(e.numero) === ano);
+    const m = ems.filter((e) => anoDoEdital(e.numero) === ano);
+    const vigente = [...g, ...m].some((e) => e.vigente);
+    return `<div class="card">
+      <div class="card-t">Ano ${ano}${vigente ? ' <span class="badge b-aprovado">ciclo vigente</span>' : ""}</div>
+      <div class="card-s">Os processos seletivos de ${ano}: graduação (01/${ano}) e Ensino Médio (02/${ano}).</div>
+      ${g.map(blocoGrad).join("")}
+      ${m.map(blocoEM).join("")}
     </div>`;
+  }).join("") || `<div class="card"><div class="vazio">Nenhum edital registrado ainda.</div></div>`;
+}
+
+/* Publicar (ou recolher) o resultado do ICEM — só a gestão, as mesmas duas
+   fases da graduação. O quadro de publicação do Painel é da graduação; o do
+   ICEM se publica por aqui mesmo, na guia. */
+async function publicarResultadoEM(numero, fase) {
+  const pergunta = fase === "preliminar"
+    ? `Publicar o RESULTADO PRELIMINAR do Edital ${numero} (ICEM)?\n\nO PDF sai com a lista dos estudantes selecionados, ainda sem a distribuição das bolsas. Ele abre para todo o setor e para a página pública.`
+    : fase === "final"
+      ? `Publicar o RESULTADO FINAL do Edital ${numero} (ICEM)?\n\nO PDF sai com a bolsa de cada estudante (CNPq, UNIEGO ou voluntário), para todo o setor e para a página pública.`
+      : `Recolher a publicação do resultado do Edital ${numero} (ICEM)?\n\nO documento volta a aparecer como "em breve" para quem não é da gestão.`;
+  if (!confirm(pergunta)) return;
+  try {
+    await api("/api/ic/em/resultado/publicar", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ edital: numero, fase }),
+    });
+    META = await api("/api/ic/meta");
+    nav(SECAO);
+    aviso(fase === "preliminar" ? `Resultado preliminar do Edital ${numero} publicado.`
+      : fase === "final" ? `Resultado final do Edital ${numero} publicado.`
+        : `Publicação do resultado do Edital ${numero} recolhida.`);
+  } catch (e) { aviso(e.message, "err"); }
 }
 
 /* Publicar (ou recolher) o resultado do processo — só a gestão. Duas fases:
@@ -2946,6 +3187,10 @@ function renderRelatoriosGestao() {
           ${editais.map((e) => `<option value="${esc(e.numero)}" ${CICLO_REL === e.numero ? "selected" : ""}>${esc(rotuloCiclo(e.numero))}${e.vigente ? " — vigente" : e.numero === "01/2025" ? " — em regularização" : " — encerrado"} · ${e.projetos} projeto(s)</option>`).join("")}
         </select>
       </label>
+      <button class="bt bt-sec" onclick="icChamada()">📣 Chamar para os relatórios</button>
+      <button class="bt bt-ghost" onclick="verModeloRelatorio('ic-parcial')" title="O formulário do relatório parcial, como o aluno o vê">👁 Parcial (aluno)</button>
+      <button class="bt bt-ghost" onclick="verModeloRelatorio('ic-final')" title="O formulário do relatório final (artigo), como o aluno o vê">👁 Final (aluno)</button>
+      <button class="bt bt-ghost" onclick="verModeloRelatorio('ic-validacao')" title="O painel de validação, como o orientador o vê">👁 Validação (professor)</button>
     </div>
 
     <div class="card">
@@ -2957,7 +3202,8 @@ function renderRelatoriosGestao() {
       ${CICLO_REL === "01/2025" ? `<div class="banner ba-warn"><b>Regularização do ciclo 2025/2026:</b>
         a entrega do relatório final (o artigo científico) está reaberta <b>até 31/10/2026</b> —
         os projetos seguem concluídos, só a janela do final voltou a aceitar envio. A cobrança
-        semanal por e-mail está ligada.</div>` : ""}
+        semanal por e-mail está ligada — e o botão <b>📣 Chamar para os relatórios</b>, acima,
+        envia o chamado agora, sem esperar a varredura.</div>` : ""}
       ${listaTipo("parcial", "Relatório parcial")}
       ${listaTipo("final", "Relatório final")}
     </div>`;
@@ -2997,6 +3243,7 @@ async function renderRelatoriosGestaoEM() {
         </select>
       </label>
       <button class="bt bt-sec" onclick="TURMA_EM=TURMA_REL_EM;emChamada()">📣 Chamar para os relatórios</button>
+      <button class="bt bt-ghost" onclick="verModeloRelatorio('em')" title="O formulário do relatório, como o estudante o vê">👁 Visualizar relatório (estudante)</button>
     </div>
     <div class="card">
       <div class="card-t">Relatórios do ICEM — turma ${esc(TURMA_REL_EM)}</div>
