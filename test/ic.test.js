@@ -1053,3 +1053,36 @@ test("regularização do ciclo 2025/2026: parcial e final reabrem no projeto con
   assert.equal(relatoriosPendentes(quitado).length, 0);
   assert.equal(prazosRelatorios({ ...p, edital: "01/2024" }, "2026-08-20"), null, "2024 está finalizado");
 });
+
+test("sigilo cruzado vale também na lista achatada de relatórios (achado ago/2026)", async () => {
+  const { relatoriosDe, visaoDoProjeto } = await import("../lib/ic.js");
+  const p = {
+    id: "p1", status: "aprovado", edital: "01/2025", numero: "IC-2025-099",
+    orientador: { nome: "Prof", email: "prof@x.com" },
+    alunos: [{ nome: "Aluna", email: "aluna@x.com" }],
+    relatorios: [{
+      id: "r1", tipo: "final", aluno: "aluna@x.com", situacao: "validado",
+      avaliacaoOrientador: { disponibilidade: 5 },
+      avaliacaoAluno: { assiduidade: 2 }, parecerConclusivo: "com-ressalvas",
+    }],
+    contestacoes: [{ por: "prof@x.com", texto: "revisão" }],
+    fomento: { tipo: "cnpq" },
+  };
+  // orientador: não vê a avaliação que levou
+  const doProf = relatoriosDe([p], { email: "prof@x.com", gestao: false });
+  assert.equal(doProf.length, 1);
+  assert.equal(doProf[0].avaliacaoOrientador, undefined, "a avaliação sobre ele não sai");
+  assert.equal(doProf[0].parecerConclusivo, "com-ressalvas", "o parecer que ELE deu, sim");
+  // aluno: não vê as notas nem o parecer sobre ele
+  const daAluna = relatoriosDe([p], { email: "aluna@x.com", gestao: false });
+  assert.equal(daAluna[0].avaliacaoAluno, undefined);
+  assert.equal(daAluna[0].parecerConclusivo, undefined);
+  // gestão lê os dois lados
+  const daGestao = relatoriosDe([p], { email: "g@x.com", gestao: true });
+  assert.deepEqual(daGestao[0].avaliacaoAluno, { assiduidade: 2 });
+  // e a visão do AVALIADOR não carrega contestações nem fomento
+  const doAvaliador = visaoDoProjeto({ ...p, avaliacoes: [{ email: "ad@x.com", situacao: "pendente" }] },
+    { email: "ad@x.com", gestao: false });
+  assert.equal(doAvaliador.contestacoes, undefined, "contestação desanonimizaria a proposta");
+  assert.equal(doAvaliador.fomento, undefined, "a bolsa concedida não é assunto do parecerista");
+});

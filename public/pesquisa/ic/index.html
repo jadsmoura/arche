@@ -1232,26 +1232,29 @@ const emConint = (id, participou) => emAcao(`/api/ic/em/${id}/conint`, { partici
 /* O convite por e-mail da turma: simula primeiro (quem recebe, quem já foi
    convidado, quem está sem e-mail) e só envia com a confirmação. */
 async function emConvidar() {
-  const simular = (mensagem) => api("/api/ic/em/convidar", { method: "POST",
+  const simular = (mensagem, reenviar) => api("/api/ic/em/convidar", { method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ turma: TURMA_EM, simular: true, mensagem }) });
+    body: JSON.stringify({ turma: TURMA_EM, simular: true, mensagem, reenviar: reenviar === true }) });
   try {
-    const s = await simular("");
+    let s = await simular("");
     if (!s.convidar.length && !s.jaConvidados) return aviso("Nenhum bolsista com e-mail nesta turma.", "err");
     // sem ninguém novo, o envio só faz sentido como REENVIO a todos
     const reenviar = !s.convidar.length && s.jaConvidados
       ? confirm(`Todos os ${s.jaConvidados} bolsista(s) com e-mail da turma ${TURMA_EM} já foram convidados.\n\nReenviar o convite a todos?`)
       : false;
     if (!s.convidar.length && !reenviar) return;
+    // no reenvio, a janela mostra a lista REAL do reenvio (achado de
+    // ago/2026: abria com 0 destinatários enquanto o envio ia a todos)
+    if (reenviar) s = await simular("", true);
     janelaEnvio({
       titulo: `Convite por e-mail — turma ${TURMA_EM}`,
       itens: s.convidar.map((x) => `${x.nome} — ${x.email}`),
       semEmail: s.semEmail,
-      observacao: reenviar ? `REENVIO: o convite vai de novo a todos os ${s.jaConvidados} já convidados.`
+      observacao: reenviar ? `REENVIO: o convite vai de novo a quem já o recebeu.`
         : (s.jaConvidados ? `${s.jaConvidados} já convidado(s) não recebem de novo.` : ""),
       previewHtml: s.previewHtml,
       rotuloEnviar: reenviar ? "Reenviar convite" : "Enviar convite",
-      aoAtualizar: async (m) => (await simular(m)).previewHtml,
+      aoAtualizar: async (m) => (await simular(m, reenviar)).previewHtml,
       aoEnviar: async (mensagem) => {
         try {
           const r = await api("/api/ic/em/convidar", { method: "POST",
@@ -4457,7 +4460,7 @@ function renderRelatoriosDoProjeto(p) {
         : (r.resumo ? `<div class="kv" style="white-space:pre-wrap;margin-top:8px">${esc(r.resumo)}</div>` : "")}
       ${r.tipo === "final" && r.artigo?.revista ? `<div class="kv" style="margin-top:8px"><b>Artigo científico</b><br>
         Revista: ${esc(r.artigo.revista)} · ISSN ${esc(r.artigo.issn || "—")}${r.artigo.qualis ? ` · Qualis ${esc(r.artigo.qualis)}` : ""}${r.artigo.fatorImpacto ? ` · fator de impacto ${esc(r.artigo.fatorImpacto)}` : ""}<br>
-        ${r.artigo.link ? `<a href="${esc(r.artigo.link)}" target="_blank" rel="noopener">${esc(r.artigo.link)}</a>` : ""}</div>` : ""}
+        ${/^https?:\/\//i.test(r.artigo.link || "") ? `<a href="${esc(r.artigo.link)}" target="_blank" rel="noopener">${esc(r.artigo.link)}</a>` : esc(r.artigo.link || "")}</div>` : ""}
       ${(r.anexos || []).length ? `<div class="kv" style="margin-top:6px"><b>Anexos:</b> ${r.anexos.map((a) => `<a href="${esc(a.link || "#")}" target="_blank" rel="noopener">${esc(a.name)}</a>`).join(" · ")}</div>` : ""}
       ${r.avaliacaoProjeto && Object.values(r.avaliacaoProjeto || {}).some(Boolean) && PODE.papel !== "aluno" ? `
         <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">Avaliação do projeto pelo aluno</summary>

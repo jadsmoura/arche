@@ -152,7 +152,9 @@ app.use((req, res, next) => {
 // Setores de gestão exigem login (Avaliação Institucional continua aberta).
 const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios)(\/|$)/;
 app.use(async (req, res, next) => {
-  if (req.method !== "GET" || !AREAS_PROTEGIDAS.test(req.caminho)) return next();
+  // HEAD também (achado de ago/2026): o express.static responde HEAD, e a
+  // guarda só de GET deixava um HEAD sem sessão confirmar a existência
+  if (!["GET", "HEAD"].includes(req.method) || !AREAS_PROTEGIDAS.test(req.caminho)) return next();
   const u = await usuarioDe(req, res);   // renova a sessão de quem está usando
   if (!u) return res.redirect("/entrar?next=" + encodeURIComponent(req.originalUrl));
   if (u.papel === "pendente") {
@@ -654,23 +656,42 @@ app.get("/api/alertas", async (req, res) => {
 app.get("/api/publico/ic", async (req, res) => {
   try {
     const projetos = await lerProjetos();
+    const publicados = await resultadosPublicados();
+    // o EMBARGO da publicação vale também na lista (achado da revisão
+    // adversarial de ago/2026): a coluna de modalidade contava o desfecho
+    // projeto a projeto — "Não aprovado" no instante da reprovação, bolsa no
+    // instante da concessão — enquanto o PDF dizia "em breve". Resultado se
+    // divulga uma vez, para todos: antes do PRELIMINAR nada de desfecho;
+    // entre o preliminar e o FINAL, a aprovação é pública mas a bolsa não.
+    const faseDe = (numero) => RESULTADOS_EDITAIS[numero]
+      ? "final" : (publicados[numero]?.fase || null);
     res.json({
       instituicao: "Centro Universitário Evangélico de Goianésia — UNIEGO",
-      editais: editaisConhecidos(projetos, await resultadosPublicados(), await termosPublicados()),
+      editais: editaisConhecidos(projetos, publicados, await termosPublicados()),
       editaisEM: editaisEMParaLista(await resultadosPublicadosEM()),
       projetos: projetos
         .filter((p) => p.status !== "rascunho")
-        .map((p) => ({
-          edital: String(p.edital || EDITAL.numero),
-          titulo: p.titulo || "",
-          curso: (CURSOS.find((c) => c.slug === p.curso) || {}).nome || p.curso || "",
-          orientador: p.orientador?.nome || "",
-          bolsistas: (p.alunos || []).filter((a) => a.bolsista).map((a) => a.nome).filter(Boolean),
-          modalidade: p.modalidadeHistorica
-            || (p.fomento
-              ? (modalidadeEfetivaIC(p)?.nome || (p.fomento.tipo === "voluntario" ? "Voluntário" : ""))
-              : (p.status === "reprovado" ? "Não aprovado" : "")),
-        }))
+        .map((p) => {
+          const fase = faseDe(String(p.edital || EDITAL.numero));
+          return {
+            edital: String(p.edital || EDITAL.numero),
+            titulo: p.titulo || "",
+            curso: (CURSOS.find((c) => c.slug === p.curso) || {}).nome || p.curso || "",
+            orientador: p.orientador?.nome || "",
+            // os nomes dos bolsistas saem com o resultado FINAL — antes
+            // disso a própria concessão da bolsa ainda é interna
+            bolsistas: fase === "final"
+              ? (p.alunos || []).filter((a) => a.bolsista).map((a) => a.nome).filter(Boolean) : [],
+            modalidade: p.modalidadeHistorica
+              || (!fase ? ""                                    // sem publicação: "em seleção"
+                : fase === "preliminar"
+                  ? (["aprovado", "concluido"].includes(p.status) ? "Aprovado"
+                    : p.status === "reprovado" ? "Não aprovado" : "")
+                  : (p.fomento
+                    ? (modalidadeEfetivaIC(p)?.nome || (p.fomento.tipo === "voluntario" ? "Voluntário" : ""))
+                    : (p.status === "reprovado" ? "Não aprovado" : ""))),
+          };
+        })
         .sort((a, b) => a.orientador.localeCompare(b.orientador, "pt-BR") || a.titulo.localeCompare(b.titulo, "pt-BR")),
     });
   } catch (e) {
@@ -710,8 +731,9 @@ app.get("/api/publico/ic/resultado.pdf", async (req, res) => {
 // O resultado do ICEM também: público quando (e só quando) a gestão publica.
 app.get("/api/publico/ic/em/resultado.pdf", async (req, res) => {
   try {
-    const turma = TURMAS_EM.find((t) => t.edital === String(req.query.edital || "").trim())
-      || turmaEmVigente();
+    const numeroPedido = String(req.query.edital || "").trim();
+    const turma = numeroPedido ? TURMAS_EM.find((t) => t.edital === numeroPedido) : turmaEmVigente();
+    if (!turma) return res.status(404).send(`Edital ${numeroPedido} não encontrado no ICEM.`);
     if (turma.resultado) return res.redirect(turma.resultado);
     const pub = (await resultadosPublicadosEM())[turma.edital];
     if (!pub)
@@ -776,7 +798,7 @@ app.post("/api/ic/convidar-professores", async (req, res) => {
   const simular = req.body?.simular === true;
   const reenviar = req.body?.reenviar === true;
   const mensagem = String(req.body?.mensagem || "").trim().slice(0, 2000);
-  const { enviarEmail, RE_EMAIL, blocoMensagem } = await import("./lib/mailer.js");
+  const { enviarEmail, RE_EMAIL, blocoMensagem, escapeHtml } = await import("./lib/mailer.js");
 
   const projetos = await lerProjetos();
   const doCiclo = projetos.filter((p) =>
@@ -803,13 +825,13 @@ app.post("/api/ic/convidar-professores", async (req, res) => {
   // depois de entrar, a pessoa cai direto no perfil — onde o CPF se informa
   const link = `${base}/entrar?next=${encodeURIComponent("/perfil/")}`;
   const corpoConvite = (d) => `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:560px">
-          <p>Olá, <b>${d.nome || "professor(a)"}</b>!</p>
+          <p>Olá, <b>${escapeHtml(d.nome || "professor(a)")}</b>!</p>
           ${blocoMensagem(mensagem)}
           <p>Sua(s) proposta(s) submetida(s) ao <b>Edital 01/2026</b> de Iniciação Científica,
             Inovação Tecnológica e Iniciação à Extensão já está(ão) registrada(s) no <b>ARCHÉ</b>,
             o portal de gestão da PROPPEX — UNIEGO:</p>
           <p style="background:#eef3f5;border-radius:10px;padding:12px 16px">
-            ${d.titulos.map((t) => `• ${t}`).join("<br>")}</p>
+            ${d.titulos.map((t) => `• ${escapeHtml(t)}`).join("<br>")}</p>
           <p><b>Próximos passos:</b></p>
           <ol style="padding-left:20px">
             <li><b>Crie o seu usuário</b> — entre com a sua conta Google ou receba um código
@@ -2440,7 +2462,11 @@ function editaisConhecidos(projetos, publicados = {}, termos = {}) {
     if (p.status === "rascunho") continue;
     if (!mapa.has(n)) mapa.set(n, { projetos: 0, bolsas: 0 });
     mapa.get(n).projetos += 1;
-    if (p.fomento && p.fomento.tipo !== "voluntario") mapa.get(n).bolsas += 1;
+    // o contador de bolsas segue o embargo (achado de ago/2026): antes do
+    // resultado FINAL publicado, a concessão ainda é interna — o número no
+    // cartão contava as bolsas conforme a gestão as marcava
+    const aberto = !!RESULTADOS_EDITAIS[n] || publicados[n]?.fase === "final";
+    if (aberto && p.fomento && p.fomento.tipo !== "voluntario") mapa.get(n).bolsas += 1;
   }
   return [...mapa].map(([numero, c]) => ({
     numero, projetos: c.projetos, bolsas: c.bolsas, vigente: numero === EDITAL.numero,
@@ -2574,7 +2600,13 @@ app.get("/api/ic/relatorios", async (req, res) => {
   const meu = await quemOlha(req, u);
   res.json({
     relatorios: relatoriosDe(projetos, meu),
-    pendentes: projetos.filter((p) => podeVerProjeto(meu, p)).flatMap((p) =>
+    // o AVALIADOR fica de fora (achado de ago/2026): relatórios não são
+    // assunto dele, e a lista de pendências trazia nome e e-mail dos alunos
+    // que a visão anônima mascara
+    pendentes: projetos.filter((p) => {
+      const papel = papelNoProjeto(meu, p);
+      return papel && papel !== "avaliador";
+    }).flatMap((p) =>
       relatoriosPendentes(p)
         .filter((x) => papelNoProjeto(meu, p) !== "aluno" || x.aluno === meu.email)
         .map((x) => ({ ...x, projetoId: p.id, numero: p.numero, titulo: p.titulo }))),
@@ -2924,9 +2956,9 @@ app.post("/api/ic/certificados/avisar", async (req, res) => {
 
   const base = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
   const link = `${base}/entrar?next=${encodeURIComponent("/pesquisa/ic/")}`;
-  const { enviarEmail, blocoMensagem } = await import("./lib/mailer.js");
+  const { enviarEmail, blocoMensagem, escapeHtml } = await import("./lib/mailer.js");
   const corpoAviso = (d) => `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:560px">
-          <p>Olá${d.nome ? `, <b>${d.nome}</b>` : ""}!</p>
+          <p>Olá${d.nome ? `, <b>${escapeHtml(d.nome)}</b>` : ""}!</p>
           ${blocoMensagem(mensagem)}
           <p>O(s) seu(s) <b>certificado(s) do Edital ${edital}</b> de Iniciação Científica
             já pode(m) ser baixado(s) no ARCHÉ — são <b>${d.certificados}</b> documento(s).</p>
@@ -3530,7 +3562,7 @@ app.post("/api/ic/em/chamada-relatorio", async (req, res) => {
   const tipos = relatoriosExigidos(turma);
   const mensagem = String(req.body?.mensagem || "").trim().slice(0, 2000);
   const alvos = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo
-    && b.situacao !== "desligado"
+    && b.situacao !== "desligado" && b.compareceu !== false
     && tipos.some((t) => b.relatorios?.[t]?.situacao !== "validado"));
   const semEmail = alvos.filter((b) => !b.email).map((b) => b.nome);
   const comEmail = alvos.filter((b) => b.email);
@@ -3562,8 +3594,13 @@ app.get("/api/ic/em/resultado.pdf", async (req, res) => {
   try {
     const u = await sessaoIC(req, res);
     if (!u) return;
-    const turma = TURMAS_EM.find((t) => t.edital === String(req.query.edital || "").trim())
-      || turmaEmDe(String(req.query.turma || "")) || turmaEmVigente();
+    // edital informado e desconhecido é ERRO, não a turma vigente (achado de
+    // ago/2026: um typo servia o resultado de outra turma em silêncio)
+    const numeroPedido = String(req.query.edital || "").trim();
+    const turma = numeroPedido
+      ? TURMAS_EM.find((t) => t.edital === numeroPedido)
+      : (turmaEmDe(String(req.query.turma || "")) || turmaEmVigente());
+    if (!turma) return res.status(404).send(`Edital ${numeroPedido} não encontrado no ICEM.`);
     if (turma.resultado) return res.redirect(turma.resultado);
     const pub = (await resultadosPublicadosEM())[turma.edital];
     if (!gereIC(u) && !pub)
@@ -3590,7 +3627,10 @@ app.post("/api/ic/em/resultado/publicar", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
   if (!gereIC(u)) return res.status(403).json({ error: "Só a coordenação publica o resultado" });
-  const turma = TURMAS_EM.find((t) => t.edital === String(req.body?.edital || "").trim()) || turmaEmVigente();
+  // num ato de PUBLICAÇÃO, edital desconhecido jamais cai na turma vigente
+  const numeroPedido = String(req.body?.edital || "").trim();
+  const turma = numeroPedido ? TURMAS_EM.find((t) => t.edital === numeroPedido) : turmaEmVigente();
+  if (!turma) return res.status(400).json({ error: `Edital ${numeroPedido} não encontrado no ICEM.` });
   if (turma.resultado)
     return res.status(400).json({ error: "Esta turma tem o PDF do resultado arquivado — ele já está sempre publicado." });
   const fase = req.body?.fase ?? null;
@@ -3622,15 +3662,20 @@ app.post("/api/ic/em/convidar", async (req, res) => {
   const CONVITES_EM = "sys-ic-em-convites-v1";
   const mensagem = String(req.body?.mensagem || "").trim().slice(0, 2000);
   const enviados = JSON.parse((await storage.get(CONVITES_EM)) || "{}");
-  const todos = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo && b.situacao !== "desligado");
+  const todos = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo
+    && b.situacao !== "desligado" && b.compareceu !== false);
   const semEmail = todos.filter((b) => !b.email).map((b) => b.nome);
-  const alvos = todos.filter((b) => b.email && (req.body?.reenviar === true || !enviados[b.email]));
+  // o registro do convite é POR TURMA (achado de ago/2026): o veterano que
+  // entra numa turma nova recebe o convite dela — o registro antigo é de
+  // OUTRO convite, com outro conteúdo
+  const jaDesta = (b) => enviados[b.email] && enviados[b.email].turma === turma.ciclo;
+  const alvos = todos.filter((b) => b.email && (req.body?.reenviar === true || !jaDesta(b)));
   const { enviarEmail, emailConviteEM } = await import("./lib/mailer.js");
   const baseUrl = `${req.protocol}://${req.get("host")}`;
   if (req.body?.simular === true) {
     const amostra = alvos[0] || todos.find((b) => b.email);
     return res.json({ turma: turma.ciclo, convidar: alvos.map((b) => ({ nome: b.nome, email: b.email })),
-      jaConvidados: todos.filter((b) => b.email && enviados[b.email]).length, semEmail,
+      jaConvidados: todos.filter((b) => b.email && jaDesta(b)).length, semEmail,
       previewHtml: amostra ? emailConviteEM(amostra, turma, { baseUrl, mensagem }).corpoHtml : "" });
   }
   const falhas = [];
@@ -3658,8 +3703,14 @@ app.post("/api/ic/em", async (req, res) => {
     let novo = normalizarBolsistaEM(b, { base });
     if (!novo.id) novo.id = "em_" + crypto.randomUUID().slice(0, 12);
     if (!novo.nome) return { erro: [400, "Informe o nome do bolsista"], gravar: false };
-    // trajetória e histórico não passam pelo formulário: têm rotas próprias
-    if (base) { novo.trajetoria = base.trajetoria; novo.historico = base.historico; }
+    // trajetória, histórico, RELATÓRIOS e CONINT não passam pelo formulário:
+    // têm rotas próprias (achado de ago/2026: uma edição de cadastro sem o
+    // round-trip completo apagava o relatório entregue pelo aluno — com o
+    // questionário — em silêncio)
+    if (base) {
+      novo.trajetoria = base.trajetoria; novo.historico = base.historico;
+      novo.relatorios = base.relatorios; novo.conint = base.conint;
+    }
     novo = anotarEM(novo, { quem: u.email, oQue: base ? "editou o cadastro" : "incluiu o bolsista" });
     if (i >= 0) lista[i] = novo; else lista.push(novo);
     return { bolsista: novo };
@@ -3930,7 +3981,10 @@ app.post("/api/ic", async (req, res) => {
         // completá-los sem reabrir o texto.
         const p = normalizarProjeto({
           ...base,
-          alunos: b.alunos, cronograma: b.cronograma,
+          // corpo sem a lista NÃO apaga a lista (achado de ago/2026: um POST
+          // sem `alunos` zerava os alunos — e com eles o cadastro que o
+          // próprio aluno digitou); a mesma regra do `producao` abaixo
+          alunos: b.alunos ?? base.alunos, cronograma: b.cronograma ?? base.cronograma,
           producao: b.producao ?? base.producao,
           grupoPesquisa: b.grupoPesquisa ?? base.grupoPesquisa,
         }, { base, autor: u.email, grupos: conhecidos });
@@ -4213,7 +4267,12 @@ app.post("/api/ic/:id/substituicao/:sid", async (req, res) => {
 
     let alunos = p.alunos || [];
     if (decisao === "aprovada") {
-      alunos = alunos.filter((a) => !(a.bolsista && (a.email === pedido.sai.email && a.nome === pedido.sai.nome)));
+      // o casamento espelha o do PEDIDO (e-mail OU nome — achado de ago/2026:
+      // exigir os dois deixava o substituído no projeto se ele corrigisse o
+      // próprio nome entre o pedido e a decisão); e-mail, quando há, decide
+      alunos = alunos.filter((a) => !(a.bolsista && (pedido.sai.email
+        ? a.email === pedido.sai.email
+        : a.nome === pedido.sai.nome)));
       alunos = [...alunos, { ...pedido.novo, bolsista: true }];
     }
     projetos[i] = anotarProjeto(normalizarProjeto({ ...p, alunos }, { base: { ...p, substituicoes } }), {
@@ -5572,16 +5631,24 @@ app.post("/api/ic/:id/relatorio", async (req, res) => {
     if (!String(a.revista || "").trim() || !String(a.issn || "").trim() || !String(a.link || "").trim()) {
       return res.status(400).json({ error: "O relatório final é o artigo científico: informe a revista escolhida, o ISSN e o link da revista (Qualis e fator de impacto, se houver)." });
     }
+    // o link vira um href clicável para a orientação e a gestão: só
+    // http(s) — "javascript:" e afins não entram (achado de ago/2026)
+    if (!/^https?:\/\//i.test(String(a.link).trim())) {
+      return res.status(400).json({ error: "O link da revista precisa ser o endereço completo, começando com http:// ou https://." });
+    }
   }
   // as avaliações acompanham OS DOIS relatórios (decisão do dono, ago/2026:
   // obrigatórias também no parcial): a do projeto e a da atuação da orientação
   const semResposta = PERGUNTAS_AVALIACAO_PROJETO
     .filter((q) => !String(b.avaliacaoProjeto?.[q.codigo] || "").trim());
+  // a escala é 0–5 e o servidor cobra a FAIXA (achado de ago/2026: "é
+  // inteiro" deixava passar 99, que a normalização depois anulava em silêncio)
+  const fora05 = (v) => v === "" || v == null
+    || !Number.isInteger(Number(v)) || Number(v) < 0 || Number(v) > 5;
   const semNota = CRITERIOS_AVALIACAO_ORIENTADOR
-    .filter((c) => !Number.isInteger(Number(b.avaliacaoOrientador?.[c.codigo]))
-      || b.avaliacaoOrientador?.[c.codigo] === "" || b.avaliacaoOrientador?.[c.codigo] == null);
+    .filter((c) => fora05(b.avaliacaoOrientador?.[c.codigo]));
   if (semResposta.length || semNota.length) {
-    return res.status(400).json({ error: "Responda a avaliação do projeto e a avaliação da atuação da orientação — todos os itens acompanham o relatório." });
+    return res.status(400).json({ error: "Responda a avaliação do projeto e a avaliação da atuação da orientação — todos os itens, na escala de 0 a 5." });
   }
 
   const r = await comProjetos((projetos) => {
@@ -5593,7 +5660,7 @@ app.post("/api/ic/:id/relatorio", async (req, res) => {
     // reaberto (o final de 01/2025) aceita envio
     if (projetos[i].status === "concluido") {
       const reg = regularizacaoDe(projetos[i]);
-      if (!reg?.[tipo]) return { erro: [400, "Este projeto está concluído — a regularização reabriu apenas o relatório final."], gravar: false };
+      if (!reg?.[tipo]) return { erro: [400, `Este projeto está concluído — a regularização${reg ? ` reabriu apenas: ${Object.keys(reg).join(" e ")}` : " deste ciclo já se encerrou"}.`], gravar: false };
     }
     // a janela: o parcial abre no 4º mês da vigência, o final no 10º.
     // Depois do vencimento o envio segue aceito (e marcado atrasado) —
@@ -5603,8 +5670,12 @@ app.post("/api/ic/:id/relatorio", async (req, res) => {
       return { erro: [400, `O relatório ${tipo} abre em ${janela.abre.split("-").reverse().join("/")} — ${tipo === "parcial" ? "no 4º mês da vigência" : "no 10º mês da vigência"} — com prazo até ${janela.vence.split("-").reverse().join("/")}.`], gravar: false };
     }
     const lista = [...(projetos[i].relatorios || [])];
-    // reenvio depois de devolvido substitui o anterior, guardando o parecer
+    // reenvio depois de devolvido substitui o anterior, guardando o parecer.
+    // Relatório VALIDADO não se reenvia (achado de ago/2026): o reenvio
+    // desfazia em silêncio o ato de validação da orientação/PROPPEX
     const j = lista.findIndex((x) => x.tipo === tipo && x.aluno === u.email);
+    if (j >= 0 && lista[j].situacao === "validado")
+      return { erro: [400, `O relatório ${tipo} já foi validado — não precisa reenviar. Se algo precisa mudar, peça à orientação (ou à PROPPEX) para devolvê-lo.`], gravar: false };
     const novo = {
       id: j >= 0 ? lista[j].id : "rel_" + crypto.randomUUID().slice(0, 10),
       tipo, aluno: u.email, periodo: String(b.periodo || "").slice(0, 60),
@@ -5645,6 +5716,10 @@ app.post("/api/ic/:id/relatorio/:rid/anexo", upload.single("file"), async (req, 
     const rel = (p.relatorios || []).find((x) => x.id === req.params.rid);
     if (!rel) return res.status(404).json({ error: "Relatório não encontrado" });
     if (rel.aluno !== u.email) return res.status(403).json({ error: "O anexo é de quem assina o relatório" });
+    // relatório validado é peça fechada (achado de ago/2026): anexar depois
+    // do ato mudaria o conteúdo do que a orientação validou
+    if (rel.situacao === "validado")
+      return res.status(400).json({ error: "Este relatório já foi validado — para anexar algo, peça a devolução à orientação (ou à PROPPEX)." });
 
     const arquivo = await files.save({
       buffer: req.file.buffer, originalName: req.file.originalname,
@@ -5681,6 +5756,12 @@ app.post("/api/ic/:id/relatorio/:rid/validar", async (req, res) => {
   const parecerConclusivo = String(req.body?.parecerConclusivo || "");
   if (parecerConclusivo && !PARECERES_CONCLUSIVOS.some((x) => x.codigo === parecerConclusivo))
     return res.status(400).json({ error: "Parecer conclusivo inválido" });
+  // toda nota informada tem de estar na escala 0–5 (achado de ago/2026)
+  for (const c of CRITERIOS_AVALIACAO_ALUNO) {
+    const v = avaliacaoAluno[c.codigo];
+    if (v !== "" && v != null && (!Number.isInteger(Number(v)) || Number(v) < 0 || Number(v) > 5))
+      return res.status(400).json({ error: `Nota fora da escala 0–5 em "${c.rot}".` });
+  }
 
   const r = await comProjetos((projetos) => {
     const i = projetos.findIndex((x) => x.id === req.params.id);

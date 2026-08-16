@@ -435,7 +435,10 @@ public/
 - **Vitrine pública** (`/ic/` + `GET /api/publico/ic`): acesso livre com os editais, os
   documentos e a lista simplificada (título, curso, orientador, bolsista, modalidade) —
   nunca e-mail, CPF, nota ou dado bancário. Campos em branco enquanto o processo corre;
-  a página se atualiza sozinha. Resultado de edital ENCERRADO redireciona para o PDF
+  a página se atualiza sozinha — mas o DESFECHO segue o embargo da publicação (achado
+  de ago/2026): sem resultado publicado, nada de "Não aprovado" nem de bolsa na lista;
+  com o preliminar, sai só aprovado/não aprovado; nomes de bolsistas e contagem de
+  bolsas, só com o final. Resultado de edital ENCERRADO redireciona para o PDF
   original publicado (`RESULTADOS_EDITAIS`); o vigente sai do gerador.
 - **Arquivo histórico** (`LOTES_HISTORICOS`, dados/ic-edital-01-2022…2025.json): os
   ciclos anteriores transcritos dos resultados publicados, importados no arranque como

@@ -196,13 +196,22 @@
     };
   }
 
+  // um único /api/me por página: a caixa da conta e o filtro de setores
+  // partilham a mesma resposta (duas chamadas renovavam a sessão duas vezes)
+  var ME_PROMESSA = null;
+  function quemSou() {
+    if (!ME_PROMESSA) {
+      ME_PROMESSA = fetch("/api/me")
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .catch(function () { return null; });
+    }
+    return ME_PROMESSA;
+  }
+
   function conta() {
     var caixa = document.createElement("span");
     caixa.className = "nav-conta";
-    fetch("/api/me")
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (me) { if (me && me.email) logado(caixa, me); else entrar(caixa); })
-      .catch(function () { entrar(caixa); });
+    quemSou().then(function (me) { if (me && me.email) logado(caixa, me); else entrar(caixa); });
     return caixa;
   }
 
@@ -223,8 +232,7 @@
      servidor (login nos setores, portaria na Avaliação) — esconder cartão
      não é porta. Os cartões do portal carregam data-setor com o href. */
   function aplicarVisibilidade() {
-    fetch("/api/me")
-      .then(function (r) { return r.ok ? r.json() : null; })
+    quemSou()
       .then(function (me) {
         if (!me || !me.email) return;                      // visitante: tudo como hoje
         var gestao = me.papel === "gestor" || (me.modulos || []).length > 0;
