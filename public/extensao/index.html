@@ -486,7 +486,7 @@ function passaPreset(a){
 }
 
 function nav(secao, id){
-  if(secao!=="detalhe") SECAO = secao;
+  if(secao!=="detalhe"){ SECAO = secao; clearInterval(EV_TIMER); }   // sai do detalhe: para o refresco do evento
   document.querySelectorAll("main section, .limite > section").forEach(s=>s.classList.add("hide"));
   document.querySelectorAll(".side-item").forEach(b=>b.classList.toggle("on", b.dataset.k===SECAO));
   const meta = SECOES.find(s=>s.k===SECAO) || SECOES[0];
@@ -1145,9 +1145,16 @@ function renderDetalhe(id){
     html += `<div class="muted" style="margin-top:8px">As exportações também são arquivadas automaticamente no Drive da PROPPEX (extensão/curso/nº da ação).</div></div>`;
   }
 
+  /* ---- evento e inscrições (ARCHÉ Eventos) ---- */
+  // só ação APROVADA publica página (mesma régua do servidor); o card é do
+  // responsável E da gestão — os dois organizam o dia do evento
+  if(a.numeroAcao) html += cardEvento(a);
+
   html += `<button class="bt bt-ghost" onclick="nav('acoes')" style="margin-bottom:24px">← voltar à lista</button>`;
   $("v-detalhe").innerHTML = html;
   if(podeRelatorio){ montarCola(a); renderTabelasPart(a); renderAnexos(a); }
+  if(a.numeroAcao){ renderProgEv(); renderInscritosEv(a); agendarEvento(a.id); }
+  else clearInterval(EV_TIMER);
 }
 
 /* ------------------------- portfólio: anexos ----------------------------- */
@@ -1432,6 +1439,241 @@ async function registrarAcao(id){
   await salvar(); renderLista(); renderDetalhe(id);
 }
 function exportar(id,tipo){ window.open(`/api/extensao/export/${tipo}/${id}`,"_blank"); }
+
+/* ========================== EVENTO E INSCRIÇÕES ==========================
+   ARCHÉ Eventos: a ação de extensão ganha página pública de inscrição
+   gratuita e credenciamento por QR na entrada. A configuração vive na
+   própria ação (a.evento) e quem grava é o servidor (POST /:id/evento) —
+   a certificação continua no sistema da AEE, daqui sai só a planilha. */
+let EV_PROG = [], EV_TIMER = null;
+
+function cardEvento(a){
+  const ev = a.evento || {};
+  EV_PROG = (ev.programacao||[]).map(p=>({...p}));
+  const inscritos = a.participantes?.inscritos||[];
+  const presentes = inscritos.filter(x=>x.presente===true).length;
+  const link = ev.slug ? location.origin+"/eventos/"+encodeURIComponent(ev.slug) : "";
+  const linkMonitor = ev.slug ? location.origin+"/eventos/credenciar.html?e="+encodeURIComponent(ev.slug) : "";
+  const vagasTxt = Number(ev.vagas)>0 ? `${Math.max(0,Number(ev.vagas)-inscritos.length)} de ${ev.vagas}` : "ilimitadas";
+  return `<div class="card" id="card-evento">
+    <div class="sec-t" style="margin-top:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      Evento e inscrições
+      <span class="badge" style="background:${ev.ativo?"var(--ok-soft)":"#eceff3"};color:${ev.ativo?"var(--ok)":"var(--muted)"}">${ev.ativo?"página ativa":"página desativada"}</span>
+      <span style="flex:1"></span>
+      <button class="bt bt-ghost" style="padding:6px 10px;font-size:12px" onclick="atualizarEvento('${a.id}')" title="Recarregar inscritos e presenças">↻ Atualizar</button>
+    </div>
+    <div class="muted" style="margin-bottom:12px">Página pública de inscrição gratuita e credenciamento
+      por QR na entrada. A <b>certificação continua no sistema da AEE</b> — exporte a planilha abaixo
+      e importe lá.</div>
+
+    <div class="stat" style="margin-bottom:14px">
+      <div class="s"><b id="ev-cnt-insc">${inscritos.length}</b><span>Inscritos</span></div>
+      <div class="s"><b id="ev-cnt-pres" style="color:var(--ok)">${presentes}</b><span>Presentes (credenciados)</span></div>
+      <div class="s"><b id="ev-cnt-vagas">${vagasTxt}</b><span>Vagas restantes</span></div>
+    </div>
+
+    ${ev.slug ? `
+    <div class="banner ba-info" style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <b>Link público:</b>
+        <a href="${esc(link)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(link)}</a>
+        <button class="bt bt-sec" style="padding:5px 10px;font-size:12px" onclick="copiarTexto('${esc(link)}',this)">⧉ copiar</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <b>Código do monitor:</b>
+        <span id="ev-moncode" class="f-disp" style="letter-spacing:.15em" data-cod="${esc(ev.codigoMonitor||"")}">••••••</span>
+        <button class="bt bt-ghost" style="padding:5px 10px;font-size:12px" onclick="mostrarMonitorEv(this)">👁 mostrar</button>
+        <button class="bt bt-ghost" style="padding:5px 10px;font-size:12px" onclick="regenerarMonitorEv('${a.id}')" title="O código antigo deixa de valer na hora">↻ regenerar</button>
+        <a class="bt bt-sec" style="padding:5px 10px;font-size:12px" href="${esc(linkMonitor)}" target="_blank" rel="noopener">📷 abrir credenciamento</a>
+      </div>
+      <div class="muted" style="font-size:12px">O código do monitor é o que a equipe da porta digita no
+        credenciamento — passe a ela junto com o link acima. Regenerar invalida o anterior.</div>
+    </div>` : ""}
+
+    <div class="grid3">
+      <div><label style="margin-top:0">Página de inscrições</label>
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13.5px;font-weight:500;color:var(--ink);margin-top:8px">
+          <input type="checkbox" id="ev-ativo" style="width:auto" ${ev.ativo?"checked":""}>
+          ativa (pública, com inscrição aberta)</label></div>
+      <div><label style="margin-top:0">Vagas <span class="muted">(0 = ilimitado)</span></label>
+        <input type="number" id="ev-vagas" min="0" value="${esc(ev.vagas??0)}"></div>
+      <div><label style="margin-top:0">Inscrições até <span class="muted">(vazio = fim do evento)</span></label>
+        <input type="date" id="ev-prazo" value="${esc(ev.inscricoesAte||"")}"></div>
+    </div>
+    ${ev.slug ? `<label>Endereço da página <span class="muted">(mudar não quebra inscrições já feitas)</span></label>
+      <div style="display:flex;gap:6px;align-items:center"><span class="muted" style="white-space:nowrap">/eventos/</span>
+        <input id="ev-slug" value="${esc(ev.slug||"")}" style="max-width:340px"></div>` : ""}
+    <label>Descrição da página pública</label>
+    <textarea id="ev-desc" placeholder="O que é o evento, para quem, o que levar…">${esc(ev.descricao||"")}</textarea>
+
+    <label>Programação <span class="muted">(dia · hora · atividade · responsável · local — aparece agrupada por dia)</span></label>
+    <div id="ev-prog"></div>
+    <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="EV_PROG.push({dia:'',hora:'',titulo:'',responsavel:'',local:''});renderProgEv()">＋ adicionar linha</button>
+
+    <div class="exp" style="margin-top:16px">
+      <button class="bt bt-pri" onclick="salvarEvento('${a.id}')">💾 Salvar configurações do evento</button>
+      <span class="muted" id="ev-msg"></span>
+    </div>
+
+    <div class="sec-t" style="margin-top:22px">Inscritos e presenças</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <input id="ev-busca" placeholder="Buscar por nome, e-mail ou CPF…" style="max-width:320px" oninput="renderInscritosEv(ACOES.find(x=>x.id==='${a.id}'))">
+      <span style="flex:1"></span>
+      <button class="bt bt-sec" onclick="exportarAee('${a.id}',false)">📊 Exportar Excel (AEE) — todos</button>
+      <button class="bt bt-sec" onclick="exportarAee('${a.id}',true)">📊 — só presentes</button>
+      <button class="bt bt-ghost" onclick="imprimirListaEvento('${a.id}')" title="Contingência do dia: a lista em papel, com o código de cada inscrito">🖨 Lista em papel</button>
+    </div>
+    <div id="ev-inscritos"></div>
+  </div>`;
+}
+
+function renderProgEv(){
+  const el=$("ev-prog"); if(!el) return;
+  el.innerHTML = EV_PROG.length ? EV_PROG.map((p,i)=>`
+    <div style="display:grid;grid-template-columns:138px 76px 1.4fr 1fr 1fr 26px;gap:8px;margin-bottom:8px;align-items:center">
+      <input type="date" value="${esc(p.dia||"")}" oninput="EV_PROG[${i}].dia=this.value">
+      <input placeholder="hora" value="${esc(p.hora||"")}" oninput="EV_PROG[${i}].hora=this.value">
+      <input placeholder="atividade *" value="${esc(p.titulo||"")}" oninput="EV_PROG[${i}].titulo=this.value">
+      <input placeholder="responsável" value="${esc(p.responsavel||"")}" oninput="EV_PROG[${i}].responsavel=this.value">
+      <input placeholder="local" value="${esc(p.local||"")}" oninput="EV_PROG[${i}].local=this.value">
+      <span class="rm" title="remover linha" onclick="EV_PROG.splice(${i},1);renderProgEv()">✕</span>
+    </div>`).join("")
+    : '<div class="cnt">— nenhuma linha ainda; a página pública diz que a programação sai em breve.</div>';
+}
+
+function renderInscritosEv(a){
+  const el=$("ev-inscritos"); if(!el||!a) return;
+  const q=($("ev-busca")?.value||"").trim().toLowerCase();
+  const todos=a.participantes?.inscritos||[];
+  const lista=todos.filter(x=>!q
+    || String(x.nome||"").toLowerCase().includes(q)
+    || String(x.email||"").toLowerCase().includes(q)
+    || String(x.cpf||"").replace(/\D/g,"").includes(q.replace(/\D/g,"")||"§"));
+  const hora=(iso)=>{ try{ return new Date(iso).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}); }catch{ return ""; } };
+  el.innerHTML = lista.length ? `<table class="pt">
+    <thead><tr><th>Nome</th><th>Contato</th><th>Origem</th><th>Código</th><th>Presença</th></tr></thead>
+    <tbody>${lista.map(x=>`<tr>
+      <td>${esc(x.nome)}</td>
+      <td>${esc(x.email||"")}${x.telefone?`<br><span class="muted">${esc(x.telefone)}</span>`:""}</td>
+      <td>${x.origem==="online"?`online${x.inscritoEm?` <span class="muted">${esc(hora(x.inscritoEm))}</span>`:""}`:"lista da coordenação"}</td>
+      <td style="font-family:ui-monospace,monospace">${x.token?esc(x.token.slice(0,6).toUpperCase()):"—"}</td>
+      <td>${x.presente===true
+        ? `<span class="badge" style="background:var(--ok-soft);color:var(--ok)">✓ ${esc(hora(x.presenteEm))}</span>`
+        : '<span class="badge" style="background:#eceff3;color:var(--muted)">—</span>'}</td>
+    </tr>`).join("")}</tbody></table>
+    <div class="cnt">${lista.length} de ${todos.length} inscrito(s)${q?" no filtro":""}.</div>`
+    : `<div class="cnt">— ${todos.length?"ninguém encontrado com esta busca.":"nenhum inscrito ainda."}</div>`;
+}
+
+function atualizarContadoresEvento(a){
+  const inscritos=a.participantes?.inscritos||[];
+  const ev=a.evento||{};
+  if($("ev-cnt-insc")) $("ev-cnt-insc").textContent=inscritos.length;
+  if($("ev-cnt-pres")) $("ev-cnt-pres").textContent=inscritos.filter(x=>x.presente===true).length;
+  if($("ev-cnt-vagas")) $("ev-cnt-vagas").textContent=Number(ev.vagas)>0
+    ? `${Math.max(0,Number(ev.vagas)-inscritos.length)} de ${ev.vagas}` : "ilimitadas";
+}
+
+/* Contadores "ao vivo" no dia do evento: enquanto o detalhe está aberto e a
+   página do evento ativa, recarrega a cada 30 s — só números e a tabela,
+   sem tocar no formulário (senão o refresco apagaria o que se digita). */
+function agendarEvento(id){
+  clearInterval(EV_TIMER);
+  const a0=ACOES.find(x=>x.id===id);
+  if(!a0?.evento?.ativo) return;
+  EV_TIMER=setInterval(async()=>{
+    if($("v-detalhe").classList.contains("hide")||!$("card-evento")){ clearInterval(EV_TIMER); return; }
+    try{
+      await carregar();
+      const a=ACOES.find(x=>x.id===id); if(!a) return;
+      atualizarContadoresEvento(a); renderInscritosEv(a);
+    }catch{ /* sem rede agora — a próxima volta tenta de novo */ }
+  },30000);
+}
+
+async function atualizarEvento(id){
+  await carregar();
+  renderDetalhe(id);
+}
+
+async function salvarEvento(id){
+  const msg=$("ev-msg"); if(msg) msg.textContent="Salvando…";
+  const body={
+    ativo:$("ev-ativo")?.checked||false,
+    descricao:$("ev-desc")?.value||"",
+    vagas:$("ev-vagas")?.value||0,
+    inscricoesAte:$("ev-prazo")?.value||"",
+    programacao:EV_PROG,
+  };
+  const slugEl=$("ev-slug");
+  if(slugEl&&slugEl.value.trim()) body.slug=slugEl.value.trim();
+  try{
+    const r=await fetch(`/api/extensao/${id}/evento`,{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    await carregar(); renderDetalhe(id);
+    const m=$("ev-msg"); if(m){ m.textContent="✓ salvo"; setTimeout(()=>{ if($("ev-msg")) $("ev-msg").textContent=""; },3000); }
+  }catch(e){
+    if($("ev-msg")) $("ev-msg").textContent="";
+    alert("Não foi possível salvar o evento: "+e.message);
+  }
+}
+
+function mostrarMonitorEv(bt){
+  const el=$("ev-moncode"); if(!el) return;
+  const oculto=el.textContent.includes("•");
+  el.textContent=oculto?(el.dataset.cod||"—"):"••••••";
+  bt.textContent=oculto?"🙈 ocultar":"👁 mostrar";
+}
+
+async function regenerarMonitorEv(id){
+  if(!confirm("Gerar um NOVO código do monitor?\n\nO código atual deixa de valer na hora — a equipe da porta precisa receber o novo.")) return;
+  try{
+    const r=await fetch(`/api/extensao/${id}/evento`,{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify({regenerarCodigoMonitor:true})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    await carregar(); renderDetalhe(id);
+  }catch(e){ alert("Não foi possível regenerar: "+e.message); }
+}
+
+function copiarTexto(txt,bt){
+  (navigator.clipboard?.writeText(txt)||Promise.reject()).then(()=>{
+    const t=bt.textContent; bt.textContent="✓ copiado"; setTimeout(()=>bt.textContent=t,2000);
+  }).catch(()=>prompt("Copie o endereço:",txt));
+}
+
+function exportarAee(id,soPresentes){
+  window.open(`/api/extensao/${id}/inscritos.xlsx${soPresentes?"?presentes=1":""}`,"_blank");
+}
+
+/* A lista em PAPEL — contingência do dia: se o celular do monitor falhar,
+   a porta confere pelo nome e pelo código, e colhe assinatura. */
+function imprimirListaEvento(id){
+  const a=ACOES.find(x=>x.id===id); if(!a) return;
+  const inscritos=(a.participantes?.inscritos||[]).slice()
+    .sort((x,y)=>String(x.nome||"").localeCompare(String(y.nome||""),"pt-BR"));
+  const w=window.open("","_blank");
+  if(!w){ alert("O navegador bloqueou a janela de impressão — libere pop-ups para este site."); return; }
+  w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+    <title>Lista de credenciamento — ${esc(a.numeroAcao||"")}</title>
+    <style>body{font-family:system-ui,sans-serif;font-size:12px;margin:24px;color:#182632}
+    h1{font-size:16px;margin:0}h2{font-size:12px;font-weight:400;color:#555;margin:4px 0 14px}
+    table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:5px 7px;text-align:left}
+    th{background:#eee;font-size:10.5px;text-transform:uppercase}
+    td.ass{width:26%}@media print{button{display:none}}</style></head><body>
+    <h1>${esc(a.proposta?.nomeAtividade||"")}</h1>
+    <h2>Lista de credenciamento — ${esc(a.numeroAcao||"")} · ${esc(a.curso||"")} ·
+      ${inscritos.length} inscrito(s) · impressa em ${new Date().toLocaleString("pt-BR")}</h2>
+    <button onclick="print()">Imprimir</button>
+    <table><thead><tr><th>#</th><th>Nome</th><th>CPF</th><th>Código</th><th>Assinatura</th></tr></thead>
+    <tbody>${inscritos.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.nome||"")}</td>
+      <td>${esc(fmtCPF(x.cpf||"")||x.matricula||"")}</td>
+      <td style="font-family:monospace">${x.token?esc(x.token.slice(0,6).toUpperCase()):"—"}</td>
+      <td class="ass"></td></tr>`).join("")}</tbody></table></body></html>`);
+  w.document.close();
+}
 
 /* --------- cobrança automática do relatório final (visão PROPPEX) -------- */
 async function dispensarCobranca(id){

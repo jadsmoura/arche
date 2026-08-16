@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="theme-color" content="#1c3742">
+<title>Credenciamento — Eventos UNIEGO</title>
+<style>
+  /* Página dos MONITORES da entrada (sem login: a credencial da porta é o
+     código do monitor, distribuído pela gestão). Feita para o CELULAR do
+     dia do evento: leitura do QR pela câmera com a API BarcodeDetector
+     quando o navegador a tem, e o campo do código de 6 caracteres como
+     fallback universal. Sem biblioteca externa de propósito. */
+  :root{--brand:#1c3742;--brand-2:#2d535c;--accent:#71c8e2;--bg:#0f2027;
+    --ok:#2e7d32;--ok-soft:#e8f5e9;--warn:#b26a00;--warn-soft:#fff3e0;
+    --err:#c62828;--err-soft:#fdecea;--line:#dde4e8;--muted:#657179}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);
+    color:#fff;min-height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+  header{padding:14px 18px;display:flex;align-items:center;gap:10px;background:var(--brand)}
+  header b{font-size:15px;letter-spacing:.02em}
+  header span{font-size:11px;opacity:.7}
+  main{flex:1;max-width:520px;width:100%;margin:0 auto;padding:16px 16px 30px}
+  .painel{background:#fff;color:#182632;border-radius:16px;padding:18px;margin-bottom:14px}
+  label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+    letter-spacing:.08em;margin:10px 0 5px}
+  input{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;font-size:16px}
+  input:focus{outline:none;border-color:var(--brand-2);box-shadow:0 0 0 3px rgba(64,113,126,.15)}
+  .bt{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;
+    padding:13px 18px;font-size:15px;font-weight:700;cursor:pointer;width:100%;margin-top:12px}
+  .bt-pri{background:var(--brand);color:#fff}
+  .bt-sec{background:#e6f5fa;color:var(--brand)}
+  .bt:disabled{opacity:.5}
+  video{width:100%;border-radius:12px;background:#000;aspect-ratio:1/1;object-fit:cover}
+  .mira{position:relative}
+  .mira::after{content:"";position:absolute;inset:12%;border:3px solid rgba(113,200,226,.85);
+    border-radius:14px;pointer-events:none}
+  /* o RESULTADO em cartão grande e colorido: quem está na porta lê de longe */
+  .res{border-radius:16px;padding:22px 18px;margin-bottom:14px;text-align:center;display:none}
+  .res .ic{font-size:44px;line-height:1}
+  .res .tt{font-size:22px;font-weight:800;margin-top:6px}
+  .res .nm{font-size:18px;font-weight:600;margin-top:4px;word-break:break-word}
+  .res .dt{font-size:13px;opacity:.85;margin-top:4px}
+  .res.ok{display:block;background:var(--ok);color:#fff}
+  .res.ja{display:block;background:var(--warn);color:#fff}
+  .res.erro{display:block;background:var(--err);color:#fff}
+  .fila{background:rgba(255,255,255,.06);border-radius:14px;padding:14px 16px}
+  .fila h3{font-size:12px;letter-spacing:.1em;text-transform:uppercase;opacity:.6;margin-bottom:8px}
+  .fila div{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;
+    padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+  .fila div:last-child{border-bottom:0}
+  .fila .s-ok{color:#8fdba1}.fila .s-ja{color:#ffcc80}.fila .s-erro{color:#ef9a9a}
+  .dica{font-size:12px;opacity:.65;margin-top:10px;line-height:1.5}
+  .hide{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <svg width="24" height="24" viewBox="0 0 40 40" aria-hidden="true"><path d="M8 37 L8 20 A12 12 0 0 1 32 20 L32 37" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/><circle cx="20" cy="21" r="4" fill="#71c8e2"/></svg>
+  <div><b>Credenciamento</b><br><span>Eventos · Extensão · UNIEGO</span></div>
+</header>
+<main>
+  <!-- passo 1: identificar o evento e o monitor -->
+  <div class="painel" id="p-setup">
+    <label>Endereço do evento</label>
+    <input id="s-slug" placeholder="ex.: semana-de-enfermagem" autocapitalize="none" autocomplete="off">
+    <label>Código do monitor</label>
+    <input id="s-cod" placeholder="6 caracteres, com a coordenação" autocapitalize="characters" autocomplete="off" maxlength="6">
+    <button class="bt bt-pri" onclick="comecar()">Começar o credenciamento</button>
+    <p class="dica">O código do monitor está com a coordenação do evento (card
+      “Evento e inscrições” no ARCHÉ EX). Sem ele, nenhum check-in é aceito.</p>
+  </div>
+
+  <!-- passo 2: ler QRs e credenciar -->
+  <div class="hide" id="p-scan">
+    <div class="res" id="res"></div>
+    <div class="painel">
+      <div id="cam-area">
+        <div class="mira"><video id="video" muted playsinline></video></div>
+        <p class="dica" id="cam-dica">Aponte a câmera para o QR da inscrição.</p>
+      </div>
+      <div id="sem-cam" class="hide">
+        <p style="font-size:13.5px;color:var(--muted)">Este navegador não lê QR pela câmera —
+          use o código manual abaixo, que funciona em qualquer aparelho.</p>
+      </div>
+      <label>Código manual (6 caracteres do QR)</label>
+      <div style="display:flex;gap:8px">
+        <input id="m-cod" placeholder="ex.: A1B2C3" autocapitalize="none" autocomplete="off" maxlength="22"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();manual()}">
+        <button class="bt bt-sec" style="width:auto;margin-top:0" onclick="manual()">OK</button>
+      </div>
+      <button class="bt bt-sec" onclick="sair()">Trocar evento / código</button>
+    </div>
+    <div class="fila"><h3>Últimos credenciamentos</h3><div id="fila-vazia" style="opacity:.5;border:0">— ainda nenhum.</div><div id="fila" style="display:block;border:0;padding:0"></div></div>
+  </div>
+</main>
+
+<script>
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const $ = (id) => document.getElementById(id);
+let SLUG = "", COD = "", stream = null, detector = null, lendo = false;
+let ULTIMO = { token: "", em: 0 };   // não repetir o mesmo QR parado na frente da câmera
+const FILA = [];
+
+// a gestão manda o link já com ?e=<slug>; o código do monitor fica guardado
+// no aparelho durante o plantão
+const params = new URLSearchParams(location.search);
+if (params.get("e")) $("s-slug").value = params.get("e");
+if (sessionStorage.getItem("arche-ev-monitor")) $("s-cod").value = sessionStorage.getItem("arche-ev-monitor");
+
+function comecar() {
+  SLUG = $("s-slug").value.trim().toLowerCase();
+  COD = $("s-cod").value.trim().toUpperCase();
+  if (!SLUG || COD.length < 4) { alert("Informe o endereço do evento e o código do monitor."); return; }
+  sessionStorage.setItem("arche-ev-monitor", COD);
+  $("p-setup").classList.add("hide");
+  $("p-scan").classList.remove("hide");
+  ligarCamera();
+}
+function sair() {
+  pararCamera();
+  $("p-scan").classList.add("hide");
+  $("p-setup").classList.remove("hide");
+}
+
+function hora(iso) {
+  try { return new Date(iso || Date.now()).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); }
+  catch { return ""; }
+}
+function resultado(tipo, nome, quando) {
+  const el = $("res");
+  el.className = "res " + tipo;
+  el.innerHTML = tipo === "ok"
+    ? `<div class="ic">✓</div><div class="tt">Credenciado</div><div class="nm">${esc(nome)}</div>`
+    : tipo === "ja"
+      ? `<div class="ic">⚠</div><div class="tt">Já credenciado às ${esc(hora(quando))}</div><div class="nm">${esc(nome)}</div>`
+      : `<div class="ic">✕</div><div class="tt">Inscrição não encontrada</div><div class="dt">${esc(nome || "Confira o QR ou o código digitado.")}</div>`;
+  if (navigator.vibrate) navigator.vibrate(tipo === "ok" ? 80 : [60, 60, 60]);
+  FILA.unshift({ tipo, nome: tipo === "erro" ? "(não encontrado)" : nome, h: hora(quando) });
+  if (FILA.length > 12) FILA.pop();
+  $("fila-vazia").style.display = "none";
+  $("fila").innerHTML = FILA.map((f) =>
+    `<div><span>${esc(f.nome)}</span><span class="s-${f.tipo}">${f.tipo === "ok" ? "✓ " : f.tipo === "ja" ? "já às " : "✕ "}${esc(f.h)}</span></div>`).join("");
+}
+
+async function checkin(body) {
+  try {
+    const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/checkin`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, codigoMonitor: COD }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 403) { alert(j.error || "Código do monitor incorreto."); sair(); return; }
+    if (!r.ok) { resultado("erro", j.error && !/não encontrada/i.test(j.error) ? j.error : ""); return; }
+    resultado(j.ja ? "ja" : "ok", j.nome, j.presenteEm);
+  } catch {
+    resultado("erro", "Sem conexão — tente de novo.");
+  }
+}
+
+function manual() {
+  const v = $("m-cod").value.trim().toLowerCase();
+  if (v.length < 6) { alert("Digite os 6 caracteres do código."); return; }
+  $("m-cod").value = "";
+  // token completo colado também vale — aí a assinatura é conferida
+  checkin(v.length >= 22 ? { token: v } : { codigo: v.slice(0, 6) });
+}
+
+/* ------------------------- câmera + BarcodeDetector ---------------------- */
+async function ligarCamera() {
+  const tem = "BarcodeDetector" in window;
+  if (!tem || !navigator.mediaDevices?.getUserMedia) {
+    $("cam-area").classList.add("hide"); $("sem-cam").classList.remove("hide");
+    return;
+  }
+  try {
+    detector = new BarcodeDetector({ formats: ["qr_code"] });
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    const v = $("video");
+    v.srcObject = stream;
+    await v.play();
+    lendo = true;
+    varrer();
+  } catch {
+    $("cam-area").classList.add("hide"); $("sem-cam").classList.remove("hide");
+  }
+}
+function pararCamera() {
+  lendo = false;
+  if (stream) { for (const t of stream.getTracks()) t.stop(); stream = null; }
+}
+async function varrer() {
+  if (!lendo) return;
+  try {
+    const achados = await detector.detect($("video"));
+    if (achados.length) {
+      const bruto = String(achados[0].rawValue || "").trim();
+      // o QR carrega o token (22 hex); se vier uma URL, o token vai dentro dela
+      const tk = (bruto.toLowerCase().match(/[0-9a-f]{22}/) || [])[0];
+      const agora = Date.now();
+      if (tk && !(tk === ULTIMO.token && agora - ULTIMO.em < 4000)) {
+        ULTIMO = { token: tk, em: agora };
+        await checkin({ token: tk });
+      }
+    }
+  } catch { /* um frame que falhe não derruba a leitura */ }
+  setTimeout(varrer, 350);
+}
+window.addEventListener("pagehide", pararCamera);
+</script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Evento — UNIEGO</title>
+<link rel="stylesheet" href="/assets/arche-ui.css">
+<style>
+  /* Página PÚBLICA do evento (servida em /eventos/<slug>): o slug sai do
+     próprio endereço. Nada aqui exige login; a API só devolve o retrato
+     institucional do evento — a lista de inscritos nunca sai por ela. */
+  .selo{font-size:11px;font-weight:600;border-radius:20px;padding:3px 10px;white-space:nowrap}
+  .selo.b{background:var(--ok-soft);color:var(--ok)}
+  .selo.e{background:var(--warn-soft);color:var(--warn)}
+  .selo.v{background:var(--wash);color:var(--muted)}
+  .prog-dia{font-family:'Archivo',sans-serif;font-weight:700;font-size:14px;color:var(--brand-2);
+    margin:16px 0 6px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+  .prog-item{display:flex;gap:12px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
+  .prog-item:last-child{border-bottom:0}
+  .prog-h{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--brand-2);white-space:nowrap;min-width:52px}
+  .prog-t b{display:block}
+  .prog-t span{color:var(--muted);font-size:12.5px}
+  .duas{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;align-items:start;margin-top:26px}
+  @media(max-width:820px){.duas{grid-template-columns:1fr}}
+  .lgpd{font-size:11.5px;color:var(--muted);margin-top:12px;line-height:1.5}
+  .msg-erro{background:var(--err-soft);color:var(--err);border-radius:10px;padding:11px 14px;
+    font-size:13.5px;font-weight:600;margin-top:12px}
+  .msg-ok{background:var(--ok-soft);color:var(--ok);border-radius:10px;padding:11px 14px;
+    font-size:13.5px;font-weight:600;margin-top:12px}
+  .card + .card{margin-top:20px}
+  details.reenvio summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--brand-2);margin-top:14px}
+  .qr-box{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;display:inline-block}
+  .qr-box img{width:180px;height:180px;display:block}
+</style>
+</head>
+<body>
+<header class="topo">
+  <div class="topo-rule"></div>
+  <div class="topo-inner">
+    <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+    <div class="vr"></div>
+    <div class="topo-txt">
+      <div class="topo-t"><span class="arche-wm"><span class="arche-tx">Eventos</span></span></div>
+      <div class="topo-s">Extensão · PROPPEX · Centro Universitário Evangélico de Goianésia — UNIEGO</div>
+    </div>
+    <nav class="topo-nav"><a href="/eventos/">Todos os eventos</a><a href="/">Portal</a></nav>
+  </div>
+</header>
+
+<main id="main"><div class="card" style="margin-top:20px"><p style="color:var(--muted)">Carregando…</p></div></main>
+
+<footer>
+  <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+  <div class="sep"></div>
+  <p>PROPPEX — Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária.<br>
+    Página pública · dados fornecidos pelo sistema ARCHÉ.</p>
+</footer>
+
+<script>
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) ? iso.split("-").reverse().join("/") : "—");
+const $ = (id) => document.getElementById(id);
+// o slug é o primeiro segmento depois de /eventos/
+const SLUG = decodeURIComponent((location.pathname.match(/^\/eventos\/([^/]+)/) || [])[1] || "");
+let EV = null;
+
+const diaLongo = (iso) => {
+  try {
+    const d = new Date(iso + "T12:00:00-03:00");
+    const s = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  } catch { return fmt(iso); }
+};
+
+function render() {
+  const e = EV;
+  // programação agrupada por dia — a ordem já vem do servidor
+  const dias = [];
+  for (const p of (e.programacao || [])) {
+    const d = dias.find((x) => x.dia === p.dia) || (dias[dias.push({ dia: p.dia, itens: [] }) - 1]);
+    d.itens.push(p);
+  }
+  const progHtml = dias.length ? dias.map((d) => `
+    <div class="prog-dia">${d.dia ? diaLongo(d.dia) : "Programação"}</div>
+    ${d.itens.map((p) => `<div class="prog-item">
+      <span class="prog-h">${esc(p.hora) || "—"}</span>
+      <div class="prog-t"><b>${esc(p.titulo)}</b>
+        ${p.responsavel || p.local ? `<span>${esc(p.responsavel)}${p.responsavel && p.local ? " · " : ""}${esc(p.local)}</span>` : ""}</div>
+    </div>`).join("")}`).join("")
+    : '<p style="color:var(--muted);font-size:13.5px">A programação detalhada será divulgada em breve.</p>';
+
+  const abertas = e.inscricoesAbertas;
+  const jaTem = localStorage.getItem("arche-ev-" + SLUG);
+  $("main").innerHTML = `
+    <div class="eyebrow" style="margin-top:8px">Evento de extensão · inscrição gratuita</div>
+    <h1 class="hero-h" style="font-size:30px;margin-top:10px">${esc(e.nome)}</h1>
+    <p class="hero-p" style="margin-top:10px">
+      ${e.temaCentral ? esc(e.temaCentral) + "<br>" : ""}
+      <b>${fmt(e.periodoInicio)} a ${fmt(e.periodoFim)}</b>
+      · ${esc(e.local) || "local a divulgar"}${e.municipio ? " — " + esc(e.municipio) : ""}
+      ${e.cargaHoraria ? " · " + esc(e.cargaHoraria) + "h de carga horária" : ""}</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <span class="chip">${esc(e.curso)}</span>
+      ${abertas ? '<span class="selo b" style="align-self:center">inscrições abertas' +
+          (e.inscricoesAte ? " até " + fmt(e.inscricoesAte) : "") + "</span>"
+        : '<span class="selo v" style="align-self:center">inscrições encerradas</span>'}
+      ${e.vagasRestantes === null ? "" : e.vagasRestantes > 0
+        ? `<span class="selo e" style="align-self:center">${e.vagasRestantes} vaga(s) restante(s)</span>`
+        : '<span class="selo v" style="align-self:center">vagas esgotadas</span>'}
+    </div>
+
+    <div class="duas">
+      <div class="card">
+        <div class="card-t" style="font-size:17px">Sobre o evento</div>
+        ${e.descricao ? `<p style="font-size:14px;line-height:1.65;margin-top:10px;white-space:pre-line">${esc(e.descricao)}</p>` : ""}
+        ${e.publicoAlvo ? `<p style="font-size:13px;color:var(--muted);margin-top:10px"><b>Público-alvo:</b> ${esc(e.publicoAlvo)}</p>` : ""}
+        <div class="card-t" style="font-size:15px;margin-top:20px">Programação</div>
+        ${progHtml}
+      </div>
+
+      <div class="card" id="card-inscricao">
+        <div class="card-t" style="font-size:17px">Inscrição</div>
+        ${jaTem ? `<div class="msg-ok">Você já se inscreveu neste evento por este aparelho.
+            <a href="/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(jaTem)}" style="text-decoration:underline">Abrir minha inscrição →</a></div>` : ""}
+        ${abertas ? `
+          <form id="f" onsubmit="inscrever(event)">
+            <label>Nome completo *</label><input id="i-nome" required autocomplete="name">
+            <label>CPF *</label><input id="i-cpf" required inputmode="numeric" placeholder="000.000.000-00">
+            <label>E-mail *</label><input id="i-email" type="email" required autocomplete="email" placeholder="voce@exemplo.com">
+            <label>Telefone (WhatsApp)</label><input id="i-tel" autocomplete="tel" placeholder="(62) 9…">
+            <label>Curso / instituição</label><input id="i-curso" placeholder="Ex.: Enfermagem — UNIEGO">
+            <div id="f-msg"></div>
+            <button class="bt bt-pri" style="width:100%;margin-top:16px" id="f-bt">Inscrever-me gratuitamente</button>
+            <p class="lgpd">Os dados informados servem à organização do evento e à certificação
+              dos participantes, e não são divulgados publicamente.</p>
+          </form>`
+        : `<p style="font-size:13.5px;color:var(--muted);margin-top:8px">As inscrições deste evento
+            não estão abertas${e.vagasRestantes === 0 ? " — as vagas se esgotaram" : ""}.
+            Quem já se inscreveu segue com a inscrição válida.</p>`}
+        <details class="reenvio">
+          <summary>Já me inscrevi e perdi o link</summary>
+          <p style="font-size:12.5px;color:var(--muted);margin-top:6px">Informe o CPF e o e-mail
+            usados na inscrição — os dois precisam bater — e o link reaparece.</p>
+          <label>CPF</label><input id="r-cpf" inputmode="numeric">
+          <label>E-mail</label><input id="r-email" type="email">
+          <div id="r-msg"></div>
+          <button class="bt bt-sec" style="margin-top:12px" onclick="recuperar()" type="button">Reaver o meu link</button>
+        </details>
+      </div>
+    </div>`;
+}
+
+function pos(token) {
+  // estado pós-inscrição: o link + o QR na própria página, e o mesmo por e-mail
+  const url = `/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(token)}`;
+  $("card-inscricao").innerHTML = `
+    <div class="card-t" style="font-size:17px">Inscrição confirmada ✓</div>
+    <p style="font-size:13.5px;margin-top:8px">Guarde o link abaixo — ele é a sua credencial.
+      Enviamos uma cópia para o seu e-mail. <b>No dia, apresente este QR na entrada:</b></p>
+    <div style="text-align:center;margin:16px 0">
+      <div class="qr-box"><img alt="QR da inscrição" src="/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(token)}/qr.svg"></div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--muted);margin-top:8px">
+        código manual: <b>${esc(token.slice(0, 6).toUpperCase())}</b></div>
+    </div>
+    <a class="bt bt-pri" style="width:100%" href="${url}">Abrir minha inscrição</a>`;
+}
+
+async function inscrever(ev) {
+  ev.preventDefault();
+  const bt = $("f-bt"); bt.disabled = true;
+  $("f-msg").innerHTML = "";
+  try {
+    const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/inscrever`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nome: $("i-nome").value, cpf: $("i-cpf").value, email: $("i-email").value,
+        telefone: $("i-tel").value, curso: $("i-curso").value,
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "Não foi possível concluir a inscrição.");
+    localStorage.setItem("arche-ev-" + SLUG, j.token);
+    pos(j.token);
+  } catch (e) {
+    $("f-msg").innerHTML = `<div class="msg-erro">${esc(e.message)}</div>`;
+    bt.disabled = false;
+  }
+}
+
+async function recuperar() {
+  $("r-msg").innerHTML = "";
+  try {
+    const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/recuperar`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cpf: $("r-cpf").value, email: $("r-email").value }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "Não foi possível localizar.");
+    localStorage.setItem("arche-ev-" + SLUG, j.token);
+    location.href = `/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(j.token)}`;
+  } catch (e) {
+    $("r-msg").innerHTML = `<div class="msg-erro">${esc(e.message)}</div>`;
+  }
+}
+
+fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}`).then(async (r) => {
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    $("main").innerHTML = `<div class="card" style="margin-top:20px"><div class="card-t">Evento não encontrado</div>
+      <p style="font-size:13.5px;color:var(--muted);margin-top:8px">${esc(j.error || "A página deste evento não existe ou foi encerrada.")}</p>
+      <a class="bt bt-sec" style="margin-top:14px" href="/eventos/">Ver os eventos abertos</a></div>`;
+    return;
+  }
+  EV = j.evento; document.title = `${EV.nome} — Eventos UNIEGO`; render();
+}).catch(() => {
+  $("main").innerHTML = '<div class="card" style="margin-top:20px"><p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente em instantes.</p></div>';
+});
+</script>
+</body>
+</html>

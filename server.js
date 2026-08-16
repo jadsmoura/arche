@@ -41,6 +41,11 @@ import {
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import {
+  slugUnico, SLUG_VALIDO, gerarChaveQr, gerarCodigoMonitor, gerarToken, tokenValido,
+  codigoDe, inscritoPorToken, normalizarProgramacao, vagasRestantes, prazoInscricao,
+  podeInscrever as podeInscreverEvento, jaInscrito,
+} from "./lib/eventos.js";
+import {
   TURMAS_EM, BOLSAS_EM, bolsaEmDe, turmaDe as turmaEmDe, turmaVigente as turmaEmVigente,
   ESCALA_AVALIACAO_EM, CRITERIOS_AVALIACAO_EM, RECOMENDACAO_EM, avaliacaoEMCompleta,
   normalizarBolsistaEM, trocarProjeto, anotarEM, cotasDaTurma, projetoAtual as projetoAtualEM,
@@ -1407,6 +1412,29 @@ function comAcoes(fn) {
   return proxima;
 }
 const gereEx = (u) => !!u?.modulos?.includes("extensao");
+
+/**
+ * Ao salvar a ação pelo formulário, o EVENTO e as INSCRIÇÕES ONLINE/PRESENÇAS
+ * têm escrita própria e escritores concorrentes (rota /:id/evento e o
+ * credenciamento público) — o snapshot do formulário não pode sobrescrevê-los
+ * (achado de ago/2026). Devolve o recorte a preservar por cima de `nova`:
+ *  - `evento` sempre da base (a config só se muda pela rota dedicada);
+ *  - as inscrições ONLINE e as com presença marcada vêm da base; do que o
+ *    formulário mandou, só entram as manuais que não colidem com elas.
+ */
+function mesclarEventoEInscritos(base, nova) {
+  const out = { evento: base.evento };
+  const baseIns = base.participantes?.inscritos || [];
+  const doServidor = baseIns.filter((x) => x?.origem === "online" || x?.presente || x?.token);
+  if (!doServidor.length) return out;   // ação sem inscrição online: nada a mesclar
+  const chave = (x) => soDigitos(x?.cpf) || String(x?.email || "").trim().toLowerCase()
+    || String(x?.nome || "").trim().toLowerCase();
+  const donas = new Set(doServidor.map(chave));
+  const manuais = (nova.participantes?.inscritos || []).filter((x) => !donas.has(chave(x)));
+  out.participantes = { ...(nova.participantes || {}), inscritos: [...manuais, ...doServidor] };
+  return out;
+}
+
 // a ação é de quem a submeteu — pelo e-mail do responsável ou de quem criou
 const minhaAcao = (u, a) => {
   const e = String(u?.email || "").toLowerCase();
@@ -1430,7 +1458,14 @@ app.get("/api/extensao", async (req, res) => {
   try {
     const u = await sessaoEx(req, res);
     if (!u) return;
-    const acoes = (await lerAcoes()).filter((a) => podeVerAcao(u, a));
+    // a CHAVE do QR assina todos os tokens do evento — nunca vai ao
+    // navegador (achado de ago/2026): a gestão vê e distribui o código do
+    // monitor, mas a chave de assinatura fica só no servidor
+    const acoes = (await lerAcoes()).filter((a) => podeVerAcao(u, a)).map((a) => {
+      if (!a.evento?.chaveQr) return a;
+      const { chaveQr, ...evSemChave } = a.evento;
+      return { ...a, evento: evSemChave };
+    });
     res.json({ acoes, gestao: gereEx(u), eu: u.email });
   } catch (e) {
     console.error("Erro ao listar ações de extensão:", e);
@@ -1462,7 +1497,15 @@ app.post("/api/extensao", async (req, res) => {
           ? { numeroAcao: base.numeroAcao, status: base.status, apreciacao: base.apreciacao,
               criadoPor: base.criadoPor, criadoEm: base.criadoEm }
           : {};
-        const final = { ...nova, ...controlado, atualizadoEm: new Date().toISOString() };
+        // A CONFIG do evento e as INSCRIÇÕES ONLINE/PRESENÇAS têm escrita
+        // própria (rota /:id/evento e o credenciamento público) e escritores
+        // CONCORRENTES: o salvar comum do formulário carrega um snapshot que
+        // pode estar velho, e substituir a ação inteira apagaria em silêncio
+        // inscrição e presença já gravadas (achado da revisão de ago/2026).
+        // Por isso o evento vem sempre da base, e as inscrições online + as
+        // presenças são MESCLADAS por cima do que o formulário mandou.
+        const preservado = base ? mesclarEventoEInscritos(base, nova) : {};
+        const final = { ...nova, ...controlado, ...preservado, atualizadoEm: new Date().toISOString() };
         if (i >= 0) acoes[i] = final; else acoes.push(final);
         gravadas++;
       }
@@ -1732,6 +1775,382 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
   } catch (error) {
     console.error("Erro no export da extensão:", error);
     res.status(500).send("Erro ao gerar documento: " + error.message);
+  }
+});
+
+/* ========================= ARCHÉ EVENTOS ================================
+   Evento GRATUITO = ação de extensão que ganhou a configuração `evento`
+   (lib/eventos.js) — página pública, inscrição online e credenciamento por
+   QR na entrada. A certificação continua no sistema da AEE: daqui sai a
+   planilha no template de lá.
+
+   As rotas públicas ficam SEM login de propósito (quem se inscreve vem de
+   fora) e NUNCA devolvem a lista de inscritos nem CPF/e-mail de ninguém —
+   cada um só enxerga a própria inscrição, e a credencial é o token
+   assinado. Toda escrita passa pela fila comAcoes: duas inscrições no
+   mesmo instante não podem se perder uma à outra.
+   ======================================================================== */
+
+// A ação que tem evento configurado, pelo endereço público.
+const eventoPorSlug = (acoes, slugEv) =>
+  acoes.find((a) => a?.evento?.chaveQr && a.evento.slug === String(slugEv || "").trim().toLowerCase());
+
+// O retrato PÚBLICO do evento — números e textos institucionais, nunca
+// pessoas: as vagas restantes saem como contagem, não como lista.
+function eventoPublico(a, { detalhe = false } = {}) {
+  const p = a.proposta || {}, ev = a.evento || {};
+  const base = {
+    slug: ev.slug, nome: p.nomeAtividade || "", curso: a.curso || "",
+    periodoInicio: p.periodoInicio || "", periodoFim: p.periodoFim || "",
+    local: p.local || "", municipio: p.municipio || "", cargaHoraria: p.cargaHoraria || "",
+    resumo: String(ev.descricao || p.temaCentral || "").slice(0, 240),
+    vagasRestantes: vagasRestantes(ev, a.participantes?.inscritos),
+    inscricoesAte: prazoInscricao(ev, a),
+    inscricoesAbertas: podeInscreverEvento(a, hojeLocalISO()).ok,
+  };
+  return detalhe
+    ? { ...base, descricao: String(ev.descricao || ""), temaCentral: p.temaCentral || "",
+        publicoAlvo: p.publicoAlvo || "", programacao: ev.programacao || [] }
+    : base;
+}
+
+// Rate limit em memória, por IP, só nas rotas públicas que gravam ou
+// procuram inscrição: 10 pedidos por minuto seguram script de abuso sem
+// atrapalhar uma turma inteira se inscrevendo do wi-fi do campus (IPs
+// diferentes). Reinicia com o processo — é freio, não fortaleza.
+const inscUso = new Map();
+function inscricaoExcedeu(ip) {
+  const agora = Date.now();
+  const recentes = (inscUso.get(ip) || []).filter((t) => agora - t < 60_000);
+  if (recentes.length >= 10) { inscUso.set(ip, recentes); return true; }
+  recentes.push(agora);
+  inscUso.set(ip, recentes);
+  if (inscUso.size > 2000) for (const [k, v] of inscUso) if (!v.some((t) => agora - t < 60_000)) inscUso.delete(k);
+  return false;
+}
+
+// Freio das tentativas FALHAS do check-in (achado de ago/2026): o credencia-
+// mento legítimo dos monitores SUCEDE em massa (fila do evento, todos na
+// mesma rede/IP) — limitar sucesso quebraria o dia. Então contamos só as
+// FALHAS por IP (código do monitor errado ou inscrição não achada): assim
+// o brute-force do código e a varredura de nomes pelo código de 6 travam,
+// e o monitor de verdade, que acerta, nunca esbarra no limite.
+const checkinFalhas = new Map();
+function checkinFalhouExcedeu(ip) {
+  const agora = Date.now();
+  const recentes = (checkinFalhas.get(ip) || []).filter((t) => agora - t < 300_000);
+  checkinFalhas.set(ip, recentes);
+  if (checkinFalhas.size > 2000) for (const [k, v] of checkinFalhas) if (!v.length) checkinFalhas.delete(k);
+  return recentes.length >= 20;   // 20 falhas em 5 min — inalcançável credenciando de verdade
+}
+function checkinFalhou(ip) {
+  const arr = checkinFalhas.get(ip) || [];
+  arr.push(Date.now());
+  checkinFalhas.set(ip, arr);
+}
+
+// O código do monitor confere? Em tempo constante, como toda credencial.
+function codigoMonitorConfere(ev, dado) {
+  try {
+    const a = Buffer.from(String(ev?.codigoMonitor || "").toUpperCase());
+    const b = Buffer.from(String(dado || "").trim().toUpperCase());
+    return a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch { return false; }
+}
+
+/** Vitrine: os eventos com página ativa. */
+app.get("/api/publico/eventos", async (_req, res) => {
+  try {
+    const acoes = await lerAcoes();
+    res.json({ eventos: acoes.filter((a) => a?.evento?.ativo).map((a) => eventoPublico(a)) });
+  } catch (e) {
+    console.error("Erro na lista pública de eventos:", e);
+    res.status(500).json({ error: "Não foi possível carregar os eventos agora." });
+  }
+});
+
+/** A página de um evento: descrição, programação e a situação das vagas. */
+app.get("/api/publico/eventos/:slug", async (req, res) => {
+  try {
+    const a = eventoPorSlug(await lerAcoes(), req.params.slug);
+    if (!a || !a.evento.ativo)
+      return res.status(404).json({ error: "Evento não encontrado — a página pode ter sido encerrada." });
+    res.json({ evento: eventoPublico(a, { detalhe: true }) });
+  } catch (e) {
+    console.error("Erro na página pública do evento:", e);
+    res.status(500).json({ error: "Não foi possível carregar o evento agora." });
+  }
+});
+
+const RE_EMAIL_INSCRICAO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/** Inscrição online — grava na MESMA lista de participantes da ação. */
+app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
+  try {
+    if (inscricaoExcedeu(req.ip))
+      return res.status(429).json({ error: "Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo." });
+    const b = req.body || {};
+    const nome = String(b.nome || "").trim().slice(0, 120);
+    const cpf = normalizarCpf(b.cpf);
+    const email = String(b.email || "").trim().toLowerCase().slice(0, 120);
+    const telefone = String(b.telefone || "").trim().slice(0, 40);
+    const curso = String(b.curso || "").trim().slice(0, 120);
+    if (nome.length < 3) return res.status(400).json({ error: "Escreva o seu nome completo." });
+    if (!cpf) return res.status(400).json({ error: "O CPF informado não é válido — confira os números digitados." });
+    if (!RE_EMAIL_INSCRICAO.test(email))
+      return res.status(400).json({ error: "Informe um e-mail válido — é nele que chega a confirmação da inscrição." });
+
+    // dedupe, vagas e prazo se conferem DENTRO da fila: entre a leitura e a
+    // gravação não pode entrar outra inscrição que fure a checagem
+    const r = await comAcoes((acoes) => {
+      const a = eventoPorSlug(acoes, req.params.slug);
+      if (!a) return { erro: [404, "Evento não encontrado — a página pode ter sido encerrada."], gravar: false };
+      const aberta = podeInscreverEvento(a, hojeLocalISO());
+      if (!aberta.ok) return { erro: [409, aberta.motivo], gravar: false };
+      const parts = a.participantes || (a.participantes = { inscritos: [], palestrantes: [], comissao: [] });
+      parts.inscritos = parts.inscritos || [];
+      if (jaInscrito(parts.inscritos, { cpf, email }))
+        return { erro: [409, "Este CPF ou e-mail já está inscrito neste evento. Use a opção “já me inscrevi” para reaver o seu link."], gravar: false };
+      const inscrito = {
+        nome, cpf, email, telefone, curso,
+        ch: a.proposta?.cargaHoraria || "",
+        origem: "online", inscritoEm: new Date().toISOString(),
+        token: gerarToken(a.evento.chaveQr), presente: false,
+      };
+      parts.inscritos.push(inscrito);
+      a.atualizadoEm = new Date().toISOString();
+      return { acao: a, inscrito };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+
+    // o e-mail é cortesia: a inscrição já está gravada, e falha de envio
+    // (ou endereço que o Gmail recuse) não pode desfazê-la
+    try {
+      const { enviarEmail, emailInscricaoEvento } = await import("./lib/mailer.js");
+      await enviarEmail(emailInscricaoEvento(r.acao, r.inscrito,
+        { baseUrl: `${req.protocol}://${req.get("host")}` }));
+    } catch (e) {
+      console.error("[eventos] confirmação de inscrição não enviada:", e.message);
+    }
+    res.json({ ok: true, token: r.inscrito.token, codigo: codigoDe(r.inscrito.token) });
+  } catch (e) {
+    console.error("Erro na inscrição do evento:", e);
+    res.status(500).json({ error: "Não foi possível concluir a inscrição agora. Tente de novo em instantes." });
+  }
+});
+
+/**
+ * "Já me inscrevi": reapresenta o link de quem perdeu o e-mail. Só devolve
+ * o token se CPF E e-mail baterem NA MESMA inscrição — um dado sozinho não
+ * abre a credencial de ninguém. Mesmo freio de tentativas da inscrição.
+ */
+app.post("/api/publico/eventos/:slug/recuperar", async (req, res) => {
+  try {
+    if (inscricaoExcedeu(req.ip))
+      return res.status(429).json({ error: "Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo." });
+    const cpf = normalizarCpf(req.body?.cpf);
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    if (!cpf || !RE_EMAIL_INSCRICAO.test(email))
+      return res.status(400).json({ error: "Informe o CPF e o e-mail usados na inscrição." });
+    // passa pela fila porque pode precisar GRAVAR: inscrição lançada à mão
+    // pela gestão (planilha) ainda não tem token, e ele nasce aqui
+    const r = await comAcoes((acoes) => {
+      const a = eventoPorSlug(acoes, req.params.slug);
+      if (!a) return { erro: [404, "Evento não encontrado."], gravar: false };
+      const i = (a.participantes?.inscritos || []).find((x) =>
+        soDigitos(x?.cpf) === cpf && String(x?.email || "").trim().toLowerCase() === email);
+      if (!i) return { erro: [404, "Não encontramos inscrição com este CPF e este e-mail juntos. Confira os dados ou inscreva-se."], gravar: false };
+      if (!i.token) { i.token = gerarToken(a.evento.chaveQr); return { inscrito: i, slug: a.evento.slug }; }
+      return { inscrito: i, slug: a.evento.slug, gravar: false };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, token: r.inscrito.token, codigo: codigoDe(r.inscrito.token) });
+  } catch (e) {
+    console.error("Erro ao recuperar inscrição:", e);
+    res.status(500).json({ error: "Não foi possível localizar agora. Tente de novo em instantes." });
+  }
+});
+
+/* A inscrição pelo token — o token assinado É a credencial: quem o tem vê a
+   PRÓPRIA inscrição, e nada além dela. A busca não depende do slug da URL
+   (o endereço do evento pode mudar; o token, não): confere a assinatura
+   evento a evento e acha o dono. */
+async function acharInscricao(slugEv, token) {
+  const acoes = await lerAcoes();
+  const t = String(token || "").trim().toLowerCase();
+  const porSlug = eventoPorSlug(acoes, slugEv);
+  const candidatas = [porSlug, ...acoes.filter((a) => a !== porSlug && a?.evento?.chaveQr)].filter(Boolean);
+  for (const a of candidatas) {
+    if (!tokenValido(a.evento.chaveQr, t)) continue;
+    const inscrito = (a.participantes?.inscritos || [])
+      .find((x) => String(x?.token || "").toLowerCase() === t);
+    if (inscrito) return { acao: a, inscrito };
+  }
+  return null;
+}
+
+app.get("/api/publico/eventos/:slug/inscricao/:token", async (req, res) => {
+  try {
+    const r = await acharInscricao(req.params.slug, req.params.token);
+    if (!r) return res.status(404).json({ error: "Inscrição não encontrada — confira o link recebido por e-mail." });
+    const p = r.acao.proposta || {};
+    res.json({
+      evento: {
+        slug: r.acao.evento.slug, nome: p.nomeAtividade || "", curso: r.acao.curso || "",
+        periodoInicio: p.periodoInicio || "", periodoFim: p.periodoFim || "",
+        local: p.local || "", municipio: p.municipio || "",
+      },
+      inscricao: {
+        nome: r.inscrito.nome || "", inscritoEm: r.inscrito.inscritoEm || "",
+        codigo: codigoDe(r.inscrito.token),
+        presente: r.inscrito.presente === true, presenteEm: r.inscrito.presenteEm || "",
+      },
+    });
+  } catch (e) {
+    console.error("Erro ao abrir a inscrição:", e);
+    res.status(500).json({ error: "Não foi possível abrir a inscrição agora." });
+  }
+});
+
+/** O QR da inscrição: carrega só o token — quem o lê é o credenciamento. */
+app.get("/api/publico/eventos/:slug/inscricao/:token/qr.svg", async (req, res) => {
+  try {
+    const r = await acharInscricao(req.params.slug, req.params.token);
+    if (!r) return res.status(404).send("Inscrição não encontrada");
+    const { default: QRCode } = await import("qrcode");
+    const svg = await QRCode.toString(String(r.inscrito.token), {
+      type: "svg", errorCorrectionLevel: "M", margin: 1,
+    });
+    res.setHeader("Content-Type", "image/svg+xml");
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    res.send(svg);
+  } catch (e) {
+    console.error("Erro no QR da inscrição:", e);
+    res.status(500).send("Erro ao gerar o QR");
+  }
+});
+
+/**
+ * Check-in na entrada, pelos MONITORES (sem conta — o código do monitor,
+ * que a gestão distribui, é a credencial da porta). Aceita o token lido do
+ * QR ou, no fallback manual, os 6 primeiros caracteres dele. Idempotente:
+ * repetir devolve { ja: true } com a hora da primeira vez, sem regravar.
+ * Vale mesmo com a página desativada: o credenciamento é do dia do evento,
+ * não do período de inscrições.
+ */
+app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
+  try {
+    if (checkinFalhouExcedeu(req.ip))
+      return res.status(429).json({ error: "Muitas tentativas sem sucesso. Aguarde alguns minutos e confira o código com a coordenação." });
+    const b = req.body || {};
+    const r = await comAcoes((acoes) => {
+      const a = eventoPorSlug(acoes, req.params.slug);
+      if (!a) return { erro: [404, "Evento não encontrado."], gravar: false };
+      if (!codigoMonitorConfere(a.evento, b.codigoMonitor))
+        return { erro: [403, "Código do monitor incorreto — confira com a coordenação do evento."], falha: true, gravar: false };
+      const inscrito = inscritoPorToken(a.evento, a.participantes?.inscritos,
+        { token: b.token, codigo: b.codigo });
+      if (!inscrito) return { erro: [404, "Inscrição não encontrada."], falha: true, gravar: false };
+      if (inscrito.presente === true)
+        return { ja: true, nome: inscrito.nome || "", presenteEm: inscrito.presenteEm || "", gravar: false };
+      inscrito.presente = true;
+      inscrito.presenteEm = new Date().toISOString();
+      inscrito.presentePor = "monitor";
+      a.atualizadoEm = new Date().toISOString();
+      return { nome: inscrito.nome || "", presenteEm: inscrito.presenteEm };
+    });
+    if (r.erro) {
+      if (r.falha) checkinFalhou(req.ip);   // código errado / inscrição não achada contam ao freio
+      return res.status(r.erro[0]).json({ error: r.erro[1] });
+    }
+    // só o nome de QUEM apresentou o token — nada da lista sai por aqui
+    res.json({ ok: true, ja: r.ja === true, nome: r.nome, presenteEm: r.presenteEm });
+  } catch (e) {
+    console.error("Erro no check-in do evento:", e);
+    res.status(500).json({ error: "Não foi possível registrar agora. Tente de novo." });
+  }
+});
+
+/* ------------------- eventos: configuração (com login) ------------------- */
+/**
+ * Cria/atualiza a configuração do evento de uma ação — da gestão do módulo
+ * OU do responsável pela ação (a mesma regra de visibilidade da ação).
+ * Ativar gera o que faltar: slug, chave do QR e código do monitor. Mudar o
+ * slug NÃO quebra inscrição feita: o token não referencia o endereço.
+ */
+app.post("/api/extensao/:id/evento", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const b = req.body || {};
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((x) => x.id === req.params.id);
+      if (!a || !podeVerAcao(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      const ev = { ...(a.evento || {}) };
+      if (b.ativo !== undefined) ev.ativo = !!b.ativo;
+      // página pública só de ação APROVADA: o número é o que diz que a
+      // PROPPEX conhece e acolheu a atividade que se está divulgando
+      if (ev.ativo && !a.numeroAcao)
+        return { erro: [400, "Só ação aprovada (com Número da Ação) publica página de evento."], gravar: false };
+      if (b.descricao !== undefined) ev.descricao = String(b.descricao || "").trim().slice(0, 4000);
+      if (b.vagas !== undefined) {
+        const v = Math.trunc(Number(b.vagas));
+        ev.vagas = Number.isFinite(v) && v > 0 ? v : 0;   // 0 = ilimitado
+      }
+      if (b.inscricoesAte !== undefined) {
+        const d = String(b.inscricoesAte || "").trim();
+        if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d))
+          return { erro: [400, "Prazo de inscrição inválido."], gravar: false };
+        ev.inscricoesAte = d;
+      }
+      if (b.programacao !== undefined) ev.programacao = normalizarProgramacao(b.programacao);
+      const emUso = acoes.filter((x) => x !== a && x?.evento?.slug).map((x) => x.evento.slug);
+      if (b.slug !== undefined && String(b.slug).trim()) {
+        const s = String(b.slug).trim().toLowerCase();
+        if (!SLUG_VALIDO.test(s))
+          return { erro: [400, "Endereço inválido: use só letras minúsculas, números e hífens."], gravar: false };
+        if (emUso.includes(s))
+          return { erro: [409, "Este endereço já é de outro evento — escolha outro."], gravar: false };
+        ev.slug = s;
+      }
+      if (ev.ativo) {
+        if (!ev.slug) ev.slug = slugUnico(a.proposta?.nomeAtividade || a.numeroAcao || a.id, emUso);
+        if (!ev.chaveQr) ev.chaveQr = gerarChaveQr();
+        if (!ev.codigoMonitor) ev.codigoMonitor = gerarCodigoMonitor();
+      }
+      // trocar o código do monitor invalida o antigo na hora — é o caminho
+      // quando ele vazou ou quando a equipe da porta muda
+      if (b.regenerarCodigoMonitor && ev.chaveQr) ev.codigoMonitor = gerarCodigoMonitor();
+      a.evento = ev;
+      a.atualizadoEm = new Date().toISOString();
+      return { evento: ev };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, evento: r.evento });
+  } catch (e) {
+    console.error("Erro na configuração do evento:", e);
+    res.status(500).json({ error: "Falha ao gravar a configuração do evento" });
+  }
+});
+
+/** A planilha para a certificação na AEE — todos os inscritos ou, com
+ *  ?presentes=1, só quem foi credenciado na entrada. */
+app.get("/api/extensao/:id/inscritos.xlsx", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const acao = (await lerAcoes()).find((a) => a.id === req.params.id);
+    if (!acao || !podeVerAcao(u, acao)) return res.status(404).send("Ação não encontrada");
+    const { gerarInscritosAeeXlsx } = await import("./lib/exports.js");
+    const buffer = await gerarInscritosAeeXlsx(acao, { somentePresentes: req.query.presentes === "1" });
+    const num = (acao.numeroAcao || acao.id).replace(/[^A-Za-z0-9-]/g, "-");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition",
+      `attachment; filename="Inscritos-AEE-${num}${req.query.presentes === "1" ? "-presentes" : ""}.xlsx"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro no export AEE:", e);
+    res.status(500).send("Erro ao gerar a planilha: " + e.message);
   }
 });
 
@@ -5967,6 +6386,16 @@ app.get("/healthz", async (_req, res) => {
 });
 
 /* ------------------------------- ESTÁTICO ------------------------------- */
+/* Endereços amigáveis dos eventos (públicos de propósito: /eventos NÃO está
+   em AREAS_PROTEGIDAS — a inscrição é de quem vem de fora). A página lê o
+   caminho e busca a API; o que tem ponto (credenciar.html, qr.svg…) segue
+   direto para o estático, porque o padrão de slug não aceita ponto. */
+app.get(["/eventos/credenciar", "/eventos/credenciar/"], (_req, res) =>
+  res.sendFile(path.join(PUBLIC, "eventos", "credenciar.html")));
+app.get(/^\/eventos\/[a-z0-9-]+\/inscricao\/[a-zA-Z0-9]+\/?$/, (_req, res) =>
+  res.sendFile(path.join(PUBLIC, "eventos", "inscricao.html")));
+app.get(/^\/eventos\/[a-z0-9-]+\/?$/, (_req, res) =>
+  res.sendFile(path.join(PUBLIC, "eventos", "evento.html")));
 app.use(express.static(PUBLIC));
 
 /* --------------------- ENCERRAMENTO E TAREFAS DE FUNDO ------------------- */

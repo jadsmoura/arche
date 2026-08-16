@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Minha inscrição — Eventos UNIEGO</title>
+<link rel="stylesheet" href="/assets/arche-ui.css">
+<style>
+  /* "Minha inscrição" (servida em /eventos/<slug>/inscricao/<token>): o
+     token assinado no endereço É a credencial — a página só mostra a
+     inscrição de quem tem o link, e nada de ninguém mais. */
+  .cartao{max-width:430px;margin:26px auto 0;text-align:center}
+  .qr-box{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;display:inline-block}
+  .qr-box img{width:220px;height:220px;display:block}
+  .codigo{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;letter-spacing:.18em;
+    background:var(--wash);border-radius:10px;padding:10px 16px;display:inline-block;margin-top:10px}
+  .selo{font-size:12px;font-weight:600;border-radius:20px;padding:4px 12px;display:inline-block}
+  .selo.b{background:var(--ok-soft);color:var(--ok)}
+  .selo.v{background:var(--wash);color:var(--muted)}
+</style>
+</head>
+<body>
+<header class="topo">
+  <div class="topo-rule"></div>
+  <div class="topo-inner">
+    <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+    <div class="vr"></div>
+    <div class="topo-txt">
+      <div class="topo-t"><span class="arche-wm"><span class="arche-tx">Minha inscrição</span></span></div>
+      <div class="topo-s">Eventos · Extensão · PROPPEX / UNIEGO</div>
+    </div>
+    <nav class="topo-nav"><a href="/eventos/">Eventos</a></nav>
+  </div>
+</header>
+
+<main><div class="card cartao" id="cartao"><p style="color:var(--muted)">Carregando…</p></div></main>
+
+<footer>
+  <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+  <div class="sep"></div>
+  <p>PROPPEX — Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária.</p>
+</footer>
+
+<script>
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) ? iso.split("-").reverse().join("/") : "—");
+const m = location.pathname.match(/^\/eventos\/([^/]+)\/inscricao\/([^/]+)/) || [];
+const SLUG = decodeURIComponent(m[1] || ""), TOKEN = decodeURIComponent(m[2] || "");
+const hora = (iso) => { try { return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
+
+fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(TOKEN)}`).then(async (r) => {
+  const j = await r.json().catch(() => ({}));
+  const el = document.getElementById("cartao");
+  if (!r.ok) {
+    el.innerHTML = `<div class="card-t">Inscrição não encontrada</div>
+      <p style="font-size:13.5px;color:var(--muted);margin-top:8px">${esc(j.error || "Confira o link recebido por e-mail.")}</p>
+      <a class="bt bt-sec" style="margin-top:14px" href="/eventos/">Ver os eventos</a>`;
+    return;
+  }
+  const e = j.evento, i = j.inscricao;
+  el.innerHTML = `
+    <div class="eyebrow">Credencial de participante</div>
+    <div class="card-t" style="font-size:19px;margin-top:8px">${esc(i.nome)}</div>
+    <p style="font-size:13.5px;color:var(--ink-soft);margin-top:4px"><b>${esc(e.nome)}</b><br>
+      ${fmt(e.periodoInicio)} a ${fmt(e.periodoFim)} · ${esc(e.local) || ""}${e.municipio ? " — " + esc(e.municipio) : ""}</p>
+    <div style="margin:14px 0 6px">
+      ${i.presente
+        ? `<span class="selo b">✓ presença registrada${i.presenteEm ? " em " + esc(hora(i.presenteEm)) : ""}</span>`
+        : '<span class="selo v">inscrição confirmada — presença ainda não registrada</span>'}
+    </div>
+    <div style="margin-top:14px">
+      <div class="qr-box"><img alt="QR da inscrição" src="/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(TOKEN)}/qr.svg"
+        onerror="this.parentElement.outerHTML='&lt;p&gt;QR indisponível — use o código abaixo.&lt;/p&gt;'"></div>
+      <div><span class="codigo">${esc(i.codigo.toUpperCase())}</span></div>
+      <p style="font-size:12px;color:var(--muted);margin-top:6px">código manual, caso a leitura do QR falhe</p>
+    </div>
+    <p style="font-size:13px;color:var(--ink-soft);margin-top:14px;text-align:left">
+      <b>Como usar:</b> na entrada do evento, apresente este QR ao monitor (pode ser
+      direto da tela do celular). Se a câmera não ler, informe o código de 6 caracteres.
+      A presença registrada aqui é a que vale para a certificação.</p>`;
+}).catch(() => {
+  document.getElementById("cartao").innerHTML = '<p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente em instantes.</p>';
+});
+</script>
+</body>
+</html>

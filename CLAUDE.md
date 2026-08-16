@@ -168,6 +168,27 @@ public/
   moldura em branco só confundiria quem vem emitir certificado. A guia diz onde a emissão
   acontece, por que é fora do ARCHÉ, e leva até lá em **nova janela**. O endereço fica em
   `CERTIFICADOS_EXTERNO`, no topo da SPA.
+- **ARCHÉ Eventos** (`lib/eventos.js` + `public/eventos/` + rotas em server.js, ago/2026):
+  gerenciamento de EVENTOS GRATUITOS — uma AÇÃO de extensão aprovada ganha `a.evento`
+  (slug único, descrição, vagas, prazo, programação estruturada, `chaveQr` [segredo HMAC
+  do evento], `codigoMonitor`). Fluxo: a gestão/o responsável ativa a página no card
+  "Evento e inscrições" do detalhe → `arche.app.br/eventos/<slug>` (pública) com inscrição
+  online (nome/CPF/e-mail/telefone/curso, validação de CPF, vagas, prazo, dedupe por CPF
+  OU e-mail, e-mail de confirmação) → cada inscrição ganha um **token assinado** (HMAC da
+  chaveQr) e um QR + código de 6 caracteres → **credenciamento** pelos monitores em
+  `/eventos/credenciar` (PWA sem login, câmera via BarcodeDetector + código manual,
+  protegido pelo `codigoMonitor`), que marca presença → a gestão **exporta o Excel no
+  formato do sistema da AEE** (`gerarInscritosAeeXlsx` lê templates/lista-certificados-aee.xlsx,
+  preserva as 4 abas e o CONFIG; todos ou só presentes) — a **certificação continua na
+  AEE**, o ARCHÉ só entrega a lista. As inscrições online vivem na MESMA lista
+  `participantes.inscritos` da ação. Regras da revisão (ago/2026): o SALVAR genérico da
+  ação **preserva `evento` e mescla as inscrições online/presenças** (`mesclarEventoEInscritos`)
+  — um snapshot velho do formulário não apaga o que os inscritos e os monitores gravaram;
+  a `chaveQr` **nunca sai no payload** (nem público nem autenticado); o check-in tem freio
+  de **tentativas FALHAS** por IP (`checkinFalhouExcedeu`, 20/5min — sucesso não conta, para
+  não travar a fila do evento); o export blinda injeção de fórmula (`'` antes de `=+-@`).
+  Rotas públicas nunca devolvem a lista de inscritos, CPF ou e-mail de terceiros. Sem
+  cobrança/pagamento nesta fase (decisão do dono: eventos gratuitos; financeiro a definir).
 - **Devolução da proposta é um CICLO** (`POST /api/extensao/devolver` e `/reenviar`,
   decisão do dono ago/2026): devolver era meio caminho — a PROPPEX escrevia o motivo e
   ele esperava o professor entrar no portal por acaso; e, quando entrava, não tinha como

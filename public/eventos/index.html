@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Eventos — UNIEGO · Inscrições abertas</title>
+<meta name="description" content="Eventos de extensão do Centro Universitário Evangélico de Goianésia — UNIEGO: inscrições gratuitas online.">
+<link rel="stylesheet" href="/assets/arche-ui.css">
+<style>
+  /* Página ABERTA de propósito (a inscrição é do público): nada aqui exige
+     login, e a API por trás só devolve números e textos institucionais —
+     nunca a lista de inscritos. */
+  .ev-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:26px}
+  @media(max-width:760px){.ev-grid{grid-template-columns:1fr}}
+  .selo{font-size:11px;font-weight:600;border-radius:20px;padding:3px 10px;white-space:nowrap}
+  .selo.b{background:var(--ok-soft);color:var(--ok)}
+  .selo.e{background:var(--warn-soft);color:var(--warn)}
+  .selo.v{background:var(--wash);color:var(--muted)}
+  .ev-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+</style>
+</head>
+<body>
+<header class="topo">
+  <div class="topo-rule"></div>
+  <div class="topo-inner">
+    <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+    <div class="vr"></div>
+    <div class="topo-txt">
+      <div class="topo-t"><span class="arche-wm"><span class="arche-tx">Eventos</span></span></div>
+      <div class="topo-s">Extensão · PROPPEX · Centro Universitário Evangélico de Goianésia — UNIEGO</div>
+    </div>
+    <nav class="topo-nav"><a href="/">Portal</a></nav>
+  </div>
+</header>
+
+<main>
+  <div class="eyebrow">Acesso público · Inscrições gratuitas</div>
+  <h1 class="hero-h" style="font-size:30px;margin-top:10px">Eventos de <span>extensão</span> do UNIEGO</h1>
+  <p class="hero-p">Semanas acadêmicas, simpósios, cursos e demais ações de extensão com inscrição
+    aberta ao público. A inscrição é gratuita e feita aqui mesmo — no dia, apresente na entrada o
+    QR que você recebe ao se inscrever.</p>
+  <div id="conteudo" class="ev-grid"><div class="card"><p style="color:var(--muted)">Carregando…</p></div></div>
+</main>
+
+<footer>
+  <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+  <div class="sep"></div>
+  <p>PROPPEX — Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária.<br>
+    Página pública · dados fornecidos pelo sistema ARCHÉ.</p>
+</footer>
+
+<script>
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) ? iso.split("-").reverse().join("/") : "—");
+
+fetch("/api/publico/eventos").then(async (r) => {
+  const j = await r.json();
+  const lista = (j.eventos || []);
+  document.getElementById("conteudo").innerHTML = lista.length ? lista.map((e) => `
+    <a class="card" href="/eventos/${encodeURIComponent(e.slug)}" style="display:flex">
+      <div class="card-t" style="font-size:18px">${esc(e.nome)}</div>
+      <div class="card-sub">${esc(e.curso)} · ${fmt(e.periodoInicio)} a ${fmt(e.periodoFim)}</div>
+      <div class="card-d">${esc(e.resumo) || "Ação de extensão do UNIEGO."}</div>
+      <div class="ev-meta">
+        ${e.inscricoesAbertas
+          ? '<span class="selo b">inscrições abertas</span>'
+          : '<span class="selo v">inscrições encerradas</span>'}
+        ${e.vagasRestantes === null ? ""
+          : e.vagasRestantes > 0
+            ? `<span class="selo e">${e.vagasRestantes} vaga(s) restante(s)</span>`
+            : '<span class="selo v">vagas esgotadas</span>'}
+        ${e.local ? `<span class="chip">📍 ${esc(e.local)}</span>` : ""}
+        ${e.cargaHoraria ? `<span class="chip">${esc(e.cargaHoraria)}h</span>` : ""}
+      </div>
+      <span class="card-cta">Ver o evento e inscrever-se
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+    </a>`).join("")
+    : '<div class="card" style="grid-column:1/-1"><p style="color:var(--muted)">Nenhum evento com inscrições abertas no momento. Volte em breve!</p></div>';
+}).catch(() => {
+  document.getElementById("conteudo").innerHTML = '<div class="card" style="grid-column:1/-1"><p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente em instantes.</p></div>';
+});
+</script>
+</body>
+</html>
