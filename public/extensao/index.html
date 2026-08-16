@@ -550,6 +550,99 @@ const CORES = {submetida:"#40717e", devolvida:"#a1524c", aprovada:"#3f8a5d",
   pendente:"#c98a2b", "relatorio-entregue":"#5e5091", registrada:"#a9b4c0"};
 const diasEntre=(iso)=>Math.round((new Date(iso+"T12:00:00Z")-new Date(hojeISO()+"T12:00:00Z"))/86400000);
 
+/* Panorama do setor (pedido do dono, ago/2026): as ações por CURSO, por
+   CLASSIFICAÇÃO e por CICLO, mais os números do recorte — calculado do que
+   a tela já carregou, sem rota nova. As barras são de UMA COR só (a mesma
+   decisão do panorama da IC): o que se compara é tamanho, e quem diz "quem
+   é" é o rótulo da linha. O seletor de ciclo recorta os quadros; o gráfico
+   por ciclo mostra sempre a série inteira, que é a linha do tempo. */
+let CICLO_PAINEL = "";
+function panoramaExtensao(universo){
+  const doCiclo = CICLO_PAINEL ? universo.filter(a=>anoDaAcao(a)===CICLO_PAINEL) : universo;
+  const anos = [...new Set(universo.map(a=>anoDaAcao(a)).filter(Boolean))].sort().reverse();
+
+  const conta=(fn)=>{ const m=new Map();
+    for(const a of doCiclo){ const k=fn(a)||"—"; m.set(k,(m.get(k)||0)+1); }
+    return [...m.entries()].sort((x,y)=>y[1]-x[1] || String(x[0]).localeCompare(y[0],"pt-BR")); };
+  const graf=(pares,{max=10}={})=>{
+    if(!pares.length) return '<div class="vazio">Nenhuma ação neste recorte.</div>';
+    const top = pares.slice(0,max);
+    const resto = pares.slice(max);
+    if(resto.length) top.push([`Outros (${resto.length})`, resto.reduce((s,x)=>s+x[1],0)]);
+    const maior = Math.max(...top.map(x=>x[1]));
+    const tot = doCiclo.length;
+    return top.map(([rot,n])=>{
+      const pct = tot?Math.round((n/tot)*100):0;
+      return `<div class="barra" title="${esc(rot)}: ${n} ação(ões) — ${pct}% do recorte">
+        <div class="cab"><span>${esc(rot)}</span><span>${n} · ${pct}%</span></div>
+        <div class="tr"><i style="width:${Math.round((n/maior)*100)}%;background:var(--accent)"></i></div></div>`;
+    }).join("");
+  };
+
+  const porCurso = graf(conta(a=>a.curso));
+  const porClasse = graf(conta(a=>{
+    const c = a.proposta?.classificacao || "—";
+    return c==="Outro" && a.proposta?.classificacaoOutro ? `Outro — ${a.proposta.classificacaoOutro}` : c;
+  }));
+  // a série por ciclo é a linha do tempo: ordem cronológica, universo inteiro
+  const porAnoPares = (()=>{ const m=new Map();
+    for(const a of universo){ const k=anoDaAcao(a)||"—"; m.set(k,(m.get(k)||0)+1); }
+    return [...m.entries()].sort((x,y)=>String(x[0]).localeCompare(String(y[0]))); })();
+  const maiorAno = Math.max(1,...porAnoPares.map(x=>x[1]));
+  const porAno = porAnoPares.map(([rot,n])=>
+    `<div class="barra" title="Ciclo ${esc(rot)}: ${n} ação(ões)">
+      <div class="cab"><span>Ciclo ${esc(rot)}${rot===CICLO_PAINEL?" — em foco":""}</span><span>${n}</span></div>
+      <div class="tr"><i style="width:${Math.round((n/maiorAno)*100)}%;background:var(--accent);${rot===CICLO_PAINEL?"":"opacity:.55"}"></i></div></div>`
+  ).join("") || '<div class="vazio">Nenhuma ação registrada ainda.</div>';
+
+  // os números do recorte — o que a pró-reitoria reporta do setor
+  const participantes = doCiclo.reduce((s,a)=>s+((a.participantes?.inscritos||[]).length),0);
+  const cargaHoraria = doCiclo.reduce((s,a)=>s+(Number(a.proposta?.cargaHoraria)||0),0);
+  const cursosComAcao = new Set(doCiclo.map(a=>a.curso).filter(Boolean)).size;
+  const municipios = new Set(doCiclo.map(a=>String(a.proposta?.municipio||"").trim().toLowerCase()).filter(Boolean)).size;
+  const num=(l,v,d)=>`<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
+
+  return `<div class="card">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div>
+        <div class="card-t">Panorama da extensão</div>
+        <div class="card-s">${PROPPEX?"O setor inteiro":"As suas ações"}, por curso, classificação e ciclo —
+          ${CICLO_PAINEL?`ciclo ${esc(CICLO_PAINEL)}`:"todos os ciclos"} · ${doCiclo.length} ação(ões) no recorte.</div>
+      </div>
+      <label style="margin:0;display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--muted)">
+        Ciclo
+        <select style="width:auto;min-width:150px" onchange="CICLO_PAINEL=this.value;renderPainel()">
+          <option value="">Todos os ciclos</option>
+          ${anos.map(a=>`<option value="${esc(a)}" ${CICLO_PAINEL===a?"selected":""}>${esc(a)}</option>`).join("")}
+        </select>
+      </label>
+    </div>
+    <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin:14px 0 20px">
+      ${num("Participantes lançados", participantes, "inscritos nas listas das ações")}
+      ${num("Carga horária somada", cargaHoraria?cargaHoraria+"h":"—", "das propostas do recorte")}
+      ${num("Cursos com ação", cursosComAcao, "departamentos que submeteram")}
+      ${num("Municípios alcançados", municipios||"—", "onde as ações acontecem")}
+    </div>
+    <div class="duplo" style="margin-bottom:0">
+      <div>
+        <div class="card-t" style="font-size:14px">Ações por curso</div>
+        <div class="card-s">quem mais submete no recorte</div>
+        ${porCurso}
+      </div>
+      <div>
+        <div class="card-t" style="font-size:14px">Ações por classificação</div>
+        <div class="card-s">projetos, cursos livres, eventos e demais tipos</div>
+        ${porClasse}
+      </div>
+    </div>
+    <div style="margin-top:18px">
+      <div class="card-t" style="font-size:14px">Ações por ciclo</div>
+      <div class="card-s">o ano em que a ação encerra — a série completa, com o ciclo em foco destacado</div>
+      ${porAno}
+    </div>
+  </div>`;
+}
+
 function renderPainel(){
   const universo = minhas();
   const st = {}; for(const a of universo){ const s=statusReal(a); st[s]=(st[s]||0)+1; }
@@ -638,7 +731,7 @@ function renderPainel(){
         <div class="p2">${quando(e.q)}</div></div></div>`).join("")
     : '<div class="vazio">Sem movimentação recente.</div>';
 
-  $("v-painel").innerHTML = kpis + `
+  $("v-painel").innerHTML = kpis + panoramaExtensao(universo) + `
     <div class="duplo">
       <div class="card">
         <div class="card-t">Ações por situação</div>
