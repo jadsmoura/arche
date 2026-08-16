@@ -430,9 +430,34 @@ public/
   CICLO (edital): cada aluno com as metas do cronograma sob sua responsabilidade, a
   situação dos relatórios frente aos prazos e o andamento do contrato; para a gestão,
   agrupada por orientador.
-- **Prazos dos relatórios** (`prazosRelatorios` em lib/ic.js, item 11.1.b): o parcial
-  vence aos 6 meses de execução e o final no fim da vigência; cada um pode ser entregue
-  a partir de 2 meses antes. Projeto ATRASADO = prazo vencido com relatório faltando.
+- **Prazos dos relatórios** (`prazosRelatorios`/`janelaRelatorio` em lib/ic.js, decisão do
+  dono ago/2026): o PARCIAL **abre no 4º mês** da vigência (início + 3) e vence no 6º; o
+  FINAL **abre no 10º** e vence no fim. Antes de abrir, o envio é **recusado**; depois de
+  vencer, segue aceito e marcado atrasado (fechar de vez impediria a regularização).
+  Projeto ATRASADO = prazo vencido com relatório faltando. A visão do projeto leva
+  `prazoRelatorios` junto (verProjeto/rota :id) — é o que diz à tela quando o form abre.
+- **Relatórios estruturados** (decisão do dono, ago/2026 — catálogos em lib/ic.js): o
+  PARCIAL segue o roteiro institucional de 7 seções (`CAMPOS_RELATORIO_PARCIAL`; as 5
+  primeiras obrigatórias, mín. 30 caracteres) com comprovantes anexáveis; o FINAL é um
+  **artigo científico** em formato livre, nas normas da revista escolhida pelo aluno e
+  pela orientação — anexado, com revista/ISSN/link obrigatórios (Qualis e fator de
+  impacto se houver) — **mais a apresentação no CONINT** (pôster ou oral; o formulário
+  avisa). Os relatórios carregam **três avaliações** (transcritas dos formulários da
+  PROPPEX): o aluno responde a do PROJETO (5 perguntas sim/não/sem clareza) e a da
+  ATUAÇÃO DO ORIENTADOR (7 critérios 0–5) — obrigatórias no final —; a orientação, ao
+  validar o final, preenche a do DESEMPENHO DO ALUNO (7 critérios 0–5) + **parecer
+  conclusivo** (sem restrições/com ressalvas/reprovado). **Sigilo cruzado**
+  (visaoDoProjeto): o orientador não vê a avaliação que levou, o aluno não vê as notas
+  nem o parecer sobre ele; a gestão lê os dois lados. Validar = "encaminhar à PROPPEX"
+  (avisa pesquisa@); devolver exige comentário e reabre o envio para o aluno.
+- **Cobrança semanal dos relatórios de IC** (`varrerCobrancaIC` no server +
+  `emailCobrancaRelatorioIC` no mailer): da abertura da janela até enviar E validar, o
+  aluno recebe o lembrete de enviar/corrigir e a orientação, o de validar — um e-mail
+  por pessoa com todos os itens dela, espaçados 7 dias
+  (`sys-ic-cobranca-relatorios-v1`), varridos de hora em hora junto com a Extensão.
+- **Exportação individual do bolsista** (`GET /api/ic/bolsistas.xlsx?aluno=<e-mail|CPF>`):
+  a mesma planilha, recortada a uma pessoa — botão "Exportar dados do aluno" no cartão da
+  guia Bolsistas (gestão), ao lado do quadro "Dados do aluno" com o cadastro do contrato.
 - **Guia Bolsas** (só gestão): a distribuição das bolsas, feita **à mão** conforme a cota
   que a presidência liberar. Lista os projetos **aprovados** do ciclo em ordem de pontuação
   (NP + CL), em blocos por **dois critérios que decidem coisas diferentes**: a **titulação**

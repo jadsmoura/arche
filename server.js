@@ -34,6 +34,10 @@ import {
   producaoDoOrientador, prazosRelatorios, fomentoDe, notaTranscrita, decidindoOProprio,
   janelaContestacao, editalDe, podeContestar, atoDeGestao,
   idadeEm, faltaNoCadastroDoBolsista, cadastroDoBolsistaCompleto,
+  CAMPOS_RELATORIO_PARCIAL, CAMPOS_PARCIAL_OBRIGATORIOS, FORMATACAO_RELATORIO,
+  PERGUNTAS_AVALIACAO_PROJETO, RESPOSTAS_AVALIACAO_PROJETO, ESCALA_0_5,
+  CRITERIOS_AVALIACAO_ORIENTADOR, CRITERIOS_AVALIACAO_ALUNO, PARECERES_CONCLUSIVOS,
+  janelaRelatorio,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import {
@@ -2447,7 +2451,15 @@ function producaoMaisRecente(projetos, u) {
 }
 
 /** Nenhuma resposta devolve o projeto cru: o sigilo do parecer é aplicado aqui. */
-const verProjeto = (u, p) => visaoDoProjeto(p, quemIC(u));
+// a visão leva junto a janela dos relatórios: é ela que diz à tela quando o
+// formulário abre — sem isso o front mostraria o formulário fechado como
+// aberto (o servidor recusaria, mas o aluno digitaria à toa)
+const verProjeto = (u, p) => {
+  const quem = quemIC(u);
+  const visao = visaoDoProjeto(p, quem);
+  return papelNoProjeto(quem, p) === "avaliador" ? visao
+    : { ...visao, prazoRelatorios: prazosRelatorios(p) };
+};
 
 app.get("/api/ic/meta", async (req, res) => {
   const u = await sessaoIC(req, res);
@@ -2459,6 +2471,14 @@ app.get("/api/ic/meta", async (req, res) => {
     cursos: CURSOS, modalidades: IC_MODALIDADES, status: IC_STATUS, rotulos: IC_ROTULO_STATUS,
     situacoesEtapa: SITUACOES_ETAPA, tiposRelatorio: TIPOS_RELATORIO,
     criterios: CRITERIOS, recomendacoes: RECOMENDACOES,
+    // o modelo institucional dos relatórios e das avaliações que os acompanham
+    relatorioModelo: {
+      camposParcial: CAMPOS_RELATORIO_PARCIAL, obrigatorios: CAMPOS_PARCIAL_OBRIGATORIOS,
+      formatacao: FORMATACAO_RELATORIO,
+      perguntasProjeto: PERGUNTAS_AVALIACAO_PROJETO, respostasProjeto: RESPOSTAS_AVALIACAO_PROJETO,
+      escala: ESCALA_0_5, criteriosOrientador: CRITERIOS_AVALIACAO_ORIENTADOR,
+      criteriosAluno: CRITERIOS_AVALIACAO_ALUNO, pareceresConclusivos: PARECERES_CONCLUSIVOS,
+    },
     // catálogo do edital vigente (lib/edital.js)
     edital: EDITAL, linhas: LINHAS, fomentos: FOMENTOS,
     // a lista de grupos cresce com o uso: certificados no DGP mais os que
@@ -2917,6 +2937,13 @@ app.get("/api/ic/bolsistas.xlsx", async (req, res) => {
     if (!u) return;
     if (!gereIC(u)) return res.status(403).send("Somente a coordenação de pesquisa exporta os bolsistas.");
     const numero = String(req.query.edital || EDITAL.numero).trim();
+    // ?aluno= (e-mail ou CPF) recorta a planilha a UMA pessoa — é o que a
+    // gestão anexa ao pedido de pagamento de um bolsista específico
+    const alvo = String(req.query.aluno || "").trim().toLowerCase();
+    const alvoCpf = soDigitos(alvo);
+    const ehAlvo = (a) => !alvo
+      || (a.email && a.email.toLowerCase() === alvo)
+      || (alvoCpf.length === 11 && soDigitos(a.cpf) === alvoCpf);
     const projetos = (await lerProjetos()).filter((p) =>
       String(p.edital || EDITAL.numero) === numero &&
       ["aprovado", "concluido"].includes(p.status) &&
@@ -2951,7 +2978,7 @@ app.get("/api/ic/bolsistas.xlsx", async (req, res) => {
     ws.getRow(1).font = { bold: true };
     for (const p of projetos) {
       const mod = modalidadeEfetivaIC(p);
-      for (const a of (p.alunos || []).filter((x) => x.bolsista)) {
+      for (const a of (p.alunos || []).filter((x) => x.bolsista && ehAlvo(x))) {
         ws.addRow({
           categoria: mod?.nome || (p.fomento.tipo === "cnpq" ? "Bolsa CNPq" : "Bolsa UNIEGO"),
           curso: (CURSOS.find((c) => c.slug === p.curso) || {}).nome || p.curso || "",
@@ -2977,7 +3004,7 @@ app.get("/api/ic/bolsistas.xlsx", async (req, res) => {
     }
     const buffer = await wb.xlsx.writeBuffer();
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", `attachment; filename="bolsistas-edital-${slug(numero)}.xlsx"`);
+    res.setHeader("Content-Disposition", `attachment; filename="bolsista${alvo ? "-" + slug(alvo.split("@")[0]) : "s"}-edital-${slug(numero)}.xlsx"`);
     res.send(Buffer.from(buffer));
   } catch (e) {
     console.error("Erro na planilha de bolsistas:", e);
@@ -3132,6 +3159,66 @@ function avisarPesquisa(assunto, linhas, titulo) {
     const { enviarEmail, emailMovimentacaoIC } = await import("./lib/mailer.js");
     await enviarEmail(emailMovimentacaoIC({ assunto, titulo, linhas }));
   })().catch((e) => console.error("Aviso IC não enviado:", e.message));
+}
+
+/**
+ * Cobrança SEMANAL dos relatórios de IC (decisão do dono, ago/2026): da
+ * abertura da janela (parcial: 4º mês; final: 10º) até o relatório ser
+ * enviado E validado, o aluno é lembrado de enviar/corrigir e a orientação,
+ * de validar. Uma mensagem por pessoa, com todos os itens dela; o registro
+ * do último envio (sys-ic-cobranca-relatorios-v1) espaça por 7 dias, e a
+ * varredura roda de hora em hora junto com a da Extensão — quem decide se
+ * há o que mandar é o estado, não o relógio.
+ */
+const COBRANCA_IC_KEY = "sys-ic-cobranca-relatorios-v1";
+async function varrerCobrancaIC() {
+  const projetos = await lerProjetos();
+  const porPessoa = new Map();
+  const junta = (emailAlvo, nome, papel, item) => {
+    const alvo = String(emailAlvo || "").trim().toLowerCase();
+    if (!alvo) return;
+    const atual = porPessoa.get(alvo) || { nome, papel, itens: [] };
+    atual.itens.push(item);
+    porPessoa.set(alvo, atual);
+  };
+  for (const p of projetos) {
+    if (p.status !== "aprovado") continue;
+    for (const tipo of TIPOS_RELATORIO) {
+      const jan = janelaRelatorio(p, tipo);
+      if (!jan?.aberta) continue;
+      for (const a of p.alunos || []) {
+        const rel = (p.relatorios || []).find((x) => x.tipo === tipo && x.aluno && a.email
+          && x.aluno.toLowerCase() === a.email.toLowerCase());
+        if (rel?.situacao === "validado") continue;
+        const base = { numero: p.numero, titulo: p.titulo, tipo, vence: jan.vence, atrasado: jan.vencida };
+        if (!rel || rel.situacao === "devolvido") {
+          junta(a.email, a.nome, "aluno", { ...base,
+            situacao: rel ? "devolvido — corrija e reenvie" : "não enviado" });
+          junta(p.orientador?.email, p.orientador?.nome, "orientador", { ...base,
+            situacao: rel ? `devolvido a ${a.nome || "aluno"} para correção` : `${a.nome || "aluno"} ainda não enviou` });
+        } else {
+          junta(p.orientador?.email, p.orientador?.nome, "orientador", { ...base,
+            situacao: `enviado por ${a.nome || rel.aluno} — aguarda a sua validação` });
+        }
+      }
+    }
+  }
+  if (!porPessoa.size) return { enviadas: 0 };
+  const registro = JSON.parse((await storage.get(COBRANCA_IC_KEY)) || "{}");
+  const SETE_DIAS = 7 * 24 * 3600 * 1000;
+  const { enviarEmail, emailCobrancaRelatorioIC } = await import("./lib/mailer.js");
+  let enviadas = 0;
+  for (const [emailAlvo, dados] of porPessoa) {
+    const ultima = Date.parse(registro[emailAlvo] || "") || 0;
+    if (Date.now() - ultima < SETE_DIAS) continue;
+    try {
+      await enviarEmail(emailCobrancaRelatorioIC({ para: emailAlvo, ...dados }));
+      registro[emailAlvo] = new Date().toISOString();
+      enviadas++;
+    } catch (e) { console.error(`Cobrança IC não enviada a ${emailAlvo}:`, e.message); }
+  }
+  if (enviadas) await storage.set(COBRANCA_IC_KEY, JSON.stringify(registro));
+  return { enviadas };
 }
 
 let filaEM = Promise.resolve();
@@ -3433,7 +3520,12 @@ app.get("/api/ic/:id", async (req, res) => {
   const p = (await lerProjetos()).find((x) => x.id === req.params.id);
   if (!p || !podeVerProjeto(meu, p)) return res.status(404).json({ error: "Projeto não encontrado" });
   res.json({
-    projeto: visaoDoProjeto(p, meu), papel: papelNoProjeto(meu, p),
+    // a janela dos relatórios vai junto: é ela que diz à tela quando cada
+    // formulário abre (o servidor recusa fora dela de todo jeito)
+    projeto: papelNoProjeto(meu, p) === "avaliador"
+      ? visaoDoProjeto(p, meu)
+      : { ...visaoDoProjeto(p, meu), prazoRelatorios: prazosRelatorios(p) },
+    papel: papelNoProjeto(meu, p),
     podeEditar: podeEditarProjeto(meu, p), podeGerir: podeGerirExecucao(meu, p),
     podeAvaliar: podeAvaliar(meu, p), podeEnviar: podeEnviarRelatorio(meu, p),
     podeValidar: podeValidarRelatorio(meu, p),
@@ -4941,14 +5033,45 @@ app.post("/api/ic/:id/relatorio", async (req, res) => {
   const b = req.body || {};
   const tipo = String(b.tipo || "");
   if (!TIPOS_RELATORIO.includes(tipo)) return res.status(400).json({ error: "Tipo de relatório inválido" });
-  if (String(b.resumo || "").trim().length < 200)
-    return res.status(400).json({ error: "O relatório precisa de ao menos 200 caracteres." });
+
+  // a validação é a do modelo institucional de cada tipo (decisão do dono,
+  // ago/2026): o parcial cobra as seções do roteiro; o final, os dados da
+  // revista do artigo — o arquivo do artigo entra em seguida, como anexo
+  if (tipo === "parcial") {
+    const faltam = CAMPOS_PARCIAL_OBRIGATORIOS
+      .filter((c) => String(b.campos?.[c] || "").trim().length < 30)
+      .map((c) => CAMPOS_RELATORIO_PARCIAL.find((x) => x.campo === c)?.rot || c);
+    if (faltam.length) {
+      return res.status(400).json({ error: `Preencha as seções do relatório (mínimo de 30 caracteres cada): ${faltam.join("; ")}.` });
+    }
+  } else {
+    const a = b.artigo || {};
+    if (!String(a.revista || "").trim() || !String(a.issn || "").trim() || !String(a.link || "").trim()) {
+      return res.status(400).json({ error: "O relatório final é o artigo científico: informe a revista escolhida, o ISSN e o link da revista (Qualis e fator de impacto, se houver)." });
+    }
+    // as avaliações fecham o ciclo: no final elas são obrigatórias
+    const semResposta = PERGUNTAS_AVALIACAO_PROJETO
+      .filter((q) => !String(b.avaliacaoProjeto?.[q.codigo] || "").trim());
+    const semNota = CRITERIOS_AVALIACAO_ORIENTADOR
+      .filter((c) => !Number.isInteger(Number(b.avaliacaoOrientador?.[c.codigo]))
+        || b.avaliacaoOrientador?.[c.codigo] === "" || b.avaliacaoOrientador?.[c.codigo] == null);
+    if (semResposta.length || semNota.length) {
+      return res.status(400).json({ error: "No relatório final, responda a avaliação do projeto e a avaliação da atuação da orientação — todos os itens." });
+    }
+  }
 
   const r = await comProjetos((projetos) => {
     const i = projetos.findIndex((x) => x.id === req.params.id);
     if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
     if (!podeEnviarRelatorio(meu, projetos[i]))
       return { erro: [403, "O relatório é enviado pelo aluno indicado, com o projeto em execução"], gravar: false };
+    // a janela: o parcial abre no 4º mês da vigência, o final no 10º.
+    // Depois do vencimento o envio segue aceito (e marcado atrasado) —
+    // fechar de vez impediria a regularização.
+    const janela = janelaRelatorio(projetos[i], tipo);
+    if (janela && !janela.aberta) {
+      return { erro: [400, `O relatório ${tipo} abre em ${janela.abre.split("-").reverse().join("/")} — ${tipo === "parcial" ? "no 4º mês da vigência" : "no 10º mês da vigência"} — com prazo até ${janela.vence.split("-").reverse().join("/")}.`], gravar: false };
+    }
     const lista = [...(projetos[i].relatorios || [])];
     // reenvio depois de devolvido substitui o anterior, guardando o parecer
     const j = lista.findIndex((x) => x.tipo === tipo && x.aluno === u.email);
@@ -4956,6 +5079,12 @@ app.post("/api/ic/:id/relatorio", async (req, res) => {
       id: j >= 0 ? lista[j].id : "rel_" + crypto.randomUUID().slice(0, 10),
       tipo, aluno: u.email, periodo: String(b.periodo || "").slice(0, 60),
       resumo: String(b.resumo || "").slice(0, 20000),
+      campos: b.campos || {}, artigo: b.artigo || {},
+      avaliacaoProjeto: b.avaliacaoProjeto || {},
+      avaliacaoOrientador: b.avaliacaoOrientador || {},
+      // as avaliações da orientação são da validação — reenvio não as apaga
+      avaliacaoAluno: j >= 0 ? lista[j].avaliacaoAluno || {} : {},
+      parecerConclusivo: j >= 0 ? lista[j].parecerConclusivo || "" : "",
       anexos: j >= 0 ? lista[j].anexos || [] : [],
       enviadoEm: new Date().toISOString(), situacao: "enviado",
       parecer: j >= 0 ? lista[j].parecer || "" : "", avaliadoPor: "", avaliadoEm: "",
@@ -5018,6 +5147,10 @@ app.post("/api/ic/:id/relatorio/:rid/validar", async (req, res) => {
   if (!["validado", "devolvido"].includes(decisao)) return res.status(400).json({ error: "Decisão inválida" });
   if (decisao === "devolvido" && parecer.length < 10)
     return res.status(400).json({ error: "Diga o que o aluno precisa corrigir." });
+  const avaliacaoAluno = req.body?.avaliacaoAluno || {};
+  const parecerConclusivo = String(req.body?.parecerConclusivo || "");
+  if (parecerConclusivo && !PARECERES_CONCLUSIVOS.some((x) => x.codigo === parecerConclusivo))
+    return res.status(400).json({ error: "Parecer conclusivo inválido" });
 
   const r = await comProjetos((projetos) => {
     const i = projetos.findIndex((x) => x.id === req.params.id);
@@ -5027,7 +5160,21 @@ app.post("/api/ic/:id/relatorio/:rid/validar", async (req, res) => {
     const lista = projetos[i].relatorios || [];
     const j = lista.findIndex((x) => x.id === req.params.rid);
     if (j < 0) return { erro: [404, "Relatório não encontrado"], gravar: false };
-    lista[j] = { ...lista[j], situacao: decisao, parecer, avaliadoPor: u.email, avaliadoEm: new Date().toISOString() };
+    // validar o FINAL fecha o ciclo do aluno: a avaliação do desempenho e o
+    // parecer conclusivo do orientador são obrigatórios nesse ato
+    if (decisao === "validado" && lista[j].tipo === "final") {
+      const semNota = CRITERIOS_AVALIACAO_ALUNO.filter((c) => {
+        const v = avaliacaoAluno[c.codigo];
+        return v === "" || v == null || !Number.isInteger(Number(v));
+      });
+      if (semNota.length || !parecerConclusivo) {
+        return { erro: [400, "Para validar o relatório final, preencha a avaliação do desempenho do aluno (os 7 critérios) e o parecer conclusivo."], gravar: false };
+      }
+    }
+    lista[j] = { ...lista[j], situacao: decisao, parecer,
+      avaliacaoAluno: Object.keys(avaliacaoAluno).length ? avaliacaoAluno : lista[j].avaliacaoAluno || {},
+      parecerConclusivo: parecerConclusivo || lista[j].parecerConclusivo || "",
+      avaliadoPor: u.email, avaliadoEm: new Date().toISOString() };
 
     // final validado de todos os alunos encerra o projeto
     const finaisOk = (projetos[i].alunos || []).length > 0 && (projetos[i].alunos || []).every((a) =>
@@ -5037,9 +5184,19 @@ app.post("/api/ic/:id/relatorio/:rid/validar", async (req, res) => {
       status: finaisOk && projetos[i].status === "aprovado" ? "concluido" : projetos[i].status,
       atualizadoEm: new Date().toISOString(),
     }, { quem: u.email, oQue: `${decisao === "validado" ? "validou" : "devolveu"} o relatório ${lista[j].tipo}` });
-    return { projeto: projetos[i] };
+    return { projeto: projetos[i], tipoRel: lista[j].tipo };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  // validado, o relatório segue à PROPPEX — é o aviso que encaminha
+  if (decisao === "validado" && !meu.gestao) {
+    avisarPesquisa(`Relatório ${r.tipoRel} validado — ${r.projeto.numero || ""}`, [
+      ["Projeto", `${r.projeto.numero || ""} ${r.projeto.titulo || ""}`.trim()],
+      ["Orientação", r.projeto.orientador?.nome || u.email],
+      ["Situação", r.projeto.status === "concluido"
+        ? "Todos os finais validados — o projeto passou a CONCLUÍDO"
+        : `Relatório ${r.tipoRel} validado pela orientação`],
+    ], "Relatório validado pela orientação — encaminhado à PROPPEX");
+  }
   res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
 });
 
@@ -5195,4 +5352,8 @@ app.listen(port, () => {
   // o que cobre as hibernações do plano free.
   setTimeout(() => varrerSeVencido(storage, "boot"), 20_000).unref();
   setInterval(() => varrerSeVencido(storage, "intervalo"), 60 * 60 * 1000).unref();
+  // a cobrança semanal dos relatórios de IC segue o mesmo relógio: a varredura
+  // é de hora em hora, e o espaçamento de 7 dias por pessoa é do registro
+  setTimeout(() => varrerCobrancaIC().catch((e) => console.error("[cobranca-ic]", e.message)), 30_000).unref();
+  setInterval(() => varrerCobrancaIC().catch((e) => console.error("[cobranca-ic]", e.message)), 60 * 60 * 1000).unref();
 });

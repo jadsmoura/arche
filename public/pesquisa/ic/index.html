@@ -1785,18 +1785,30 @@ function renderBolsistas() {
     const metas = ETAPAS.filter((e) => e.projetoId === p.id && e.responsavel === a.email);
     const feitas = metas.filter((e) => e.situacao === "concluida").length;
     const atrasadas = metas.filter((e) => e.situacao !== "concluida" && e.fim && e.fim < hojeISO()).length;
+    const souEuMesmo = ehAluno() && a.email === META.eu;
+    const relDe = (tipo) => RELS.relatorios.find((x) => x.projetoId === p.id && x.aluno === a.email && x.tipo === tipo);
     const rel = (tipo) => {
-      const r = RELS.relatorios.find((x) => x.projetoId === p.id && x.aluno === a.email && x.tipo === tipo);
+      const r = relDe(tipo);
       const prazo = (p.prazoRelatorios?.prazos || []).find((x) => x.tipo === tipo);
-      if (r) return `<span class="badge b-${esc(r.situacao)}">${tipo}: ${esc({ enviado: "enviado", validado: "validado", devolvido: "devolvido" }[r.situacao] || r.situacao)}</span>`;
-      if (prazo?.atrasado) return `<span class="badge b-atrasada">${tipo}: atrasado (venceu ${fmtBr(prazo.vence)})</span>`;
-      return `<span class="badge b-rascunho">${tipo}: até ${fmtBr(prazo?.vence)}</span>`;
+      const aberto = prazo?.abre && hojeISO() >= prazo.abre;
+      const chip = r ? `<span class="badge b-${esc(r.situacao)}">${tipo}: ${esc({ enviado: "enviado", validado: "validado", devolvido: "devolvido" }[r.situacao] || r.situacao)}</span>`
+        : prazo?.atrasado ? `<span class="badge b-atrasada">${tipo}: atrasado (venceu ${fmtBr(prazo.vence)})</span>`
+          : `<span class="badge b-rascunho">${tipo}: até ${fmtBr(prazo?.vence)}</span>`;
+      // o ALUNO preenche (janela aberta, sem relatório validado/enviado);
+      // o PROFESSOR valida quando há relatório enviado esperando por ele
+      const acao = souEuMesmo && p.status === "aprovado" && aberto && (!r || r.situacao === "devolvido")
+        ? `<button class="bt bt-sec" onclick="abrirRelatorio('${esc(p.id)}','${tipo}')">${r ? "corrigir" : "preencher"} relatório</button>`
+        : !META.gestao && !ehAluno() && r?.situacao === "enviado"
+          ? `<button class="bt bt-ok" onclick="abrirRelatorio('${esc(p.id)}','${tipo}')">Relatório ${tipo} — validar</button>`
+          : "";
+      return chip + (acao ? " " + acao : "");
     };
     const contrato = a.bolsista
       ? ((a.dadosCompletos ?? !!(a.cpf && a.banco && a.conta && a.pix))
         ? '<span class="badge b-validado">contrato: dados completos</span>'
         : '<span class="badge b-enviado">contrato: aguardando o aluno</span>')
       : "";
+    const linhaDado = (rot, v) => v ? `<div class="kv muted">• ${rot}: <b>${esc(v)}</b></div>` : "";
     return `<div class="bloco">
       <div class="bloco-cab">
         <span class="t">${esc(a.nome || a.email || "Aluno")}</span>
@@ -1810,10 +1822,27 @@ function renderBolsistas() {
           : `<span class="badge b-${atrasadas ? "atrasada" : "validado"}">metas: ${feitas}/${metas.length} concluída(s)${atrasadas ? ` · ${atrasadas} atrasada(s)` : ""}</span>
         ${rel("parcial")} ${rel("final")}`} ${contrato}
       </div>
+      ${META.gestao ? `<details style="margin-top:6px">
+        <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">👤 Dados do aluno (cadastro do contrato)</summary>
+        <div style="margin-top:6px">
+          ${linhaDado("CPF", a.cpf ? a.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "")}
+          ${linhaDado("RG", a.rg)}
+          ${linhaDado("Nascimento", a.nascimento ? String(a.nascimento).split("-").reverse().join("/") : "")}
+          ${linhaDado("Endereço", a.endereco)}
+          ${linhaDado("Telefone (WhatsApp)", a.telefone)}
+          ${linhaDado("E-mail", a.email)}
+          ${linhaDado("Vínculo empregatício", a.vinculo === "sim" ? `sim${a.vinculoOnde ? " — " + a.vinculoOnde : ""}` : a.vinculo === "nao" ? "não" : "")}
+          ${linhaDado("Banco", a.banco)} ${linhaDado("Agência", a.agencia)}
+          ${linhaDado("Conta", a.conta)} ${linhaDado("Pix", a.pix)}
+          ${!a.cpf && !a.banco ? '<div class="kv muted">O aluno ainda não enviou o cadastro (guia Bolsa).</div>' : ""}
+        </div>
+      </details>` : ""}
       <div class="exp"><button class="bt bt-ghost" onclick="abrir('${esc(p.id)}')">Abrir o projeto</button>
         ${META.gestao && a.bolsista ? `<a class="bt bt-ghost" target="_blank" rel="noopener"
           href="/api/ic/termos.pdf?edital=${encodeURIComponent(p.edital || META.edital?.numero || "")}&projeto=${encodeURIComponent(p.id)}"
-          title="Termo de compromisso deste projeto, para assinatura">📝 Termo</a>` : ""}
+          title="Termo de compromisso deste projeto, para assinatura">📝 Termo</a>
+        <a class="bt bt-ghost" href="/api/ic/bolsistas.xlsx?edital=${encodeURIComponent(p.edital || META.edital?.numero || "")}&aluno=${encodeURIComponent(a.email || a.cpf || "")}"
+          title="Planilha só deste bolsista — CPF, contato e dados bancários, para o pedido de pagamento">⬇ Exportar dados do aluno</a>` : ""}
       </div>
     </div>`;
   };
@@ -2795,29 +2824,43 @@ function renderRelatorios() {
           <div class="exp">
             <button class="bt bt-ghost" onclick="abrir('${esc(r.projetoId)}')">Abrir o projeto</button>
             ${r.podeValidar ? `
-              <button class="bt bt-ok" onclick="validar('${esc(r.projetoId)}','${esc(r.id)}','validado')">✓ Validar</button>
-              <button class="bt bt-err" onclick="validar('${esc(r.projetoId)}','${esc(r.id)}','devolvido')">Devolver</button>` : ""}
+              <button class="bt bt-ok" onclick="abrirRelatorio('${esc(r.projetoId)}','${esc(r.tipo)}')">Validar no projeto</button>` : ""}
           </div>
         </div>`).join("") || `<div class="vazio">Nenhum relatório enviado ainda.</div>`}
     </div>`;
 }
 
-async function validar(projetoId, relId, decisao) {
-  let parecer = "";
-  if (decisao === "devolvido") {
-    parecer = prompt("O que o aluno precisa corrigir?") || "";
-    if (parecer.trim().length < 10) return aviso("Escreva o parecer da devolução.", "warn");
-  } else {
-    parecer = prompt("Parecer da validação (opcional):") ?? "";
+async function validar(projetoId, relId, decisao, tipo) {
+  // o painel de validação vive dentro do projeto; fora dele (lista da guia
+  // Relatórios), o caminho é abrir o projeto e validar lá
+  const com = $("val-com-" + relId);
+  if (!com) return abrirRelatorio(projetoId, tipo || "parcial");
+  const parecer = com.value.trim();
+  if (decisao === "devolvido" && parecer.length < 10)
+    return aviso("Escreva no comentário o que o aluno precisa corrigir.", "warn");
+  const corpo = { decisao, parecer };
+  if (tipo === "final" && decisao === "validado") {
+    const M = REL_MODELO();
+    corpo.avaliacaoAluno = {};
+    for (const c of M.criteriosAluno || []) {
+      const v = $(`val-${relId}-${c.codigo}`)?.value;
+      if (v === "" || v == null) return aviso("Para validar o final, preencha a avaliação do desempenho do aluno — os 7 critérios.", "warn");
+      corpo.avaliacaoAluno[c.codigo] = Number(v);
+    }
+    corpo.parecerConclusivo = document.querySelector(`input[name="val-parecer-${relId}"]:checked`)?.value || "";
+    if (!corpo.parecerConclusivo) return aviso("Marque o parecer conclusivo do orientador.", "warn");
   }
+  if (decisao === "validado" && !confirm(tipo === "final"
+    ? "Validar o relatório final e encaminhar à PROPPEX? Com todos os finais validados, o projeto passa a concluído."
+    : "Validar o relatório e encaminhar à PROPPEX?")) return;
   try {
     await api(`/api/ic/${projetoId}/relatorio/${relId}/validar`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ decisao, parecer }),
+      body: JSON.stringify(corpo),
     });
     await carregar(); montarSidebar();
     if (SECAO === "projeto") abrir(projetoId); else renderRelatorios();
-    aviso(decisao === "validado" ? "Relatório validado." : "Relatório devolvido ao aluno.");
+    aviso(decisao === "validado" ? "Relatório validado e encaminhado à PROPPEX." : "Relatório devolvido ao aluno para correção.");
   } catch (e) { aviso(e.message, "err"); }
 }
 
@@ -3773,45 +3816,163 @@ async function enviarParecer(recusar) {
   } catch (e) { aviso(e.message, "err"); }
 }
 
-/* ------------------- relatórios dentro do projeto ---------------------- */
+/* ------------------- relatórios dentro do projeto ----------------------
+   O modelo institucional virou formulário (decisão do dono, ago/2026): o
+   PARCIAL segue o roteiro de 7 seções e abre no 4º mês da vigência; o FINAL
+   é o ARTIGO CIENTÍFICO na revista escolhida pelo aluno e pela orientação
+   (anexado, com os dados da revista) mais a apresentação no CONINT, e abre
+   no 10º. As avaliações acompanham: o aluno avalia o projeto e a atuação da
+   orientação; a orientação, ao validar o final, avalia o aluno e dá o
+   parecer conclusivo — cada um não vê a avaliação sobre si. */
+const REL_MODELO = () => META.relatorioModelo || {};
+
+const quadroAvaliacaoProjeto = (pref, valores = {}, ro = false) => `
+  <div style="font-weight:700;margin-top:12px">Avaliação do projeto</div>
+  ${(REL_MODELO().perguntasProjeto || []).map((q) => `
+    <div class="grid2" style="align-items:center;gap:6px;margin-top:6px">
+      <div style="font-size:13px">${esc(q.texto)}</div>
+      <select id="${pref}-ap-${q.codigo}" ${ro ? "disabled" : ""}>
+        <option value="">— responda —</option>
+        ${(REL_MODELO().respostasProjeto || []).map((x) => `<option value="${x.codigo}" ${valores[q.codigo] === x.codigo ? "selected" : ""}>${esc(x.rot)}</option>`).join("")}
+      </select>
+    </div>`).join("")}`;
+
+const quadroEscala = (pref, criterios, valores = {}, titulo, ro = false) => `
+  <div style="font-weight:700;margin-top:12px">${esc(titulo)}</div>
+  <div class="muted" style="margin:2px 0 4px">Escala: 0 — não se aplica · 1 — insuficiente · 2 — regular · 3 — bom · 4 — muito bom · 5 — excelente</div>
+  ${(criterios || []).map((c) => `
+    <div class="grid2" style="align-items:center;gap:6px;margin-top:6px">
+      <div style="font-size:13px"><b>${esc(c.rot)}.</b> ${esc(c.texto)}</div>
+      <select id="${pref}-${c.codigo}" ${ro ? "disabled" : ""}>
+        <option value="">— avalie —</option>
+        ${(REL_MODELO().escala || []).map((x) => `<option value="${x.valor}" ${valores[c.codigo] === x.valor ? "selected" : ""}>${esc(x.rot)}</option>`).join("")}
+      </select>
+    </div>`).join("")}`;
+
+const respostaProjetoRot = (v) => (REL_MODELO().respostasProjeto || []).find((x) => x.codigo === v)?.rot || v || "—";
+
 function renderRelatoriosDoProjeto(p) {
   const meus = p.relatorios || [];
   const souAluno = PODE.papel === "aluno";
   const emExecucao = ["aprovado", "concluido"].includes(p.status);
+  const M = REL_MODELO();
+  const prazoDe = (tipo) => (p.prazoRelatorios?.prazos || []).find((x) => x.tipo === tipo);
+  const fmtBr = (iso) => iso ? String(iso).slice(0, 10).split("-").reverse().join("/") : "—";
+
+  // o que cada relatório mostra: as seções do parcial, o artigo do final,
+  // e as avaliações que a visão do servidor entregou (sigilo lá, não aqui)
+  const corpoDe = (r) => {
+    const secoes = (M.camposParcial || []).filter((s) => (r.campos?.[s.campo] || "").trim());
+    return `
+      ${secoes.length ? secoes.map((s) => `<div class="kv" style="margin-top:8px"><b>${esc(s.rot)}</b><br>
+        <span style="white-space:pre-wrap">${esc(r.campos[s.campo])}</span></div>`).join("")
+        : (r.resumo ? `<div class="kv" style="white-space:pre-wrap;margin-top:8px">${esc(r.resumo)}</div>` : "")}
+      ${r.tipo === "final" && r.artigo?.revista ? `<div class="kv" style="margin-top:8px"><b>Artigo científico</b><br>
+        Revista: ${esc(r.artigo.revista)} · ISSN ${esc(r.artigo.issn || "—")}${r.artigo.qualis ? ` · Qualis ${esc(r.artigo.qualis)}` : ""}${r.artigo.fatorImpacto ? ` · fator de impacto ${esc(r.artigo.fatorImpacto)}` : ""}<br>
+        ${r.artigo.link ? `<a href="${esc(r.artigo.link)}" target="_blank" rel="noopener">${esc(r.artigo.link)}</a>` : ""}</div>` : ""}
+      ${(r.anexos || []).length ? `<div class="kv" style="margin-top:6px"><b>Anexos:</b> ${r.anexos.map((a) => `<a href="${esc(a.link || "#")}" target="_blank" rel="noopener">${esc(a.name)}</a>`).join(" · ")}</div>` : ""}
+      ${r.avaliacaoProjeto && Object.values(r.avaliacaoProjeto || {}).some(Boolean) && PODE.papel !== "aluno" ? `
+        <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">Avaliação do projeto pelo aluno</summary>
+        ${(M.perguntasProjeto || []).map((q) => `<div class="kv muted">• ${esc(q.texto)} — <b>${esc(respostaProjetoRot(r.avaliacaoProjeto[q.codigo]))}</b></div>`).join("")}</details>` : ""}
+      ${META.gestao && r.avaliacaoOrientador && Object.values(r.avaliacaoOrientador || {}).some((v) => v != null && v !== "") ? `
+        <details style="margin-top:6px"><summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">Avaliação da atuação da orientação (pelo aluno — sigilosa)</summary>
+        ${(M.criteriosOrientador || []).map((c) => `<div class="kv muted">• ${esc(c.rot)}: <b>${r.avaliacaoOrientador[c.codigo] ?? "—"}</b></div>`).join("")}</details>` : ""}
+      ${PODE.papel !== "aluno" && r.avaliacaoAluno && Object.values(r.avaliacaoAluno || {}).some((v) => v != null && v !== "") ? `
+        <details style="margin-top:6px"><summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">Avaliação do desempenho do aluno (pela orientação)</summary>
+        ${(M.criteriosAluno || []).map((c) => `<div class="kv muted">• ${esc(c.rot)}: <b>${r.avaliacaoAluno[c.codigo] ?? "—"}</b></div>`).join("")}
+        ${r.parecerConclusivo ? `<div class="kv"><b>Parecer conclusivo:</b> ${esc((M.pareceresConclusivos || []).find((x) => x.codigo === r.parecerConclusivo)?.rot || r.parecerConclusivo)}</div>` : ""}</details>` : ""}
+      ${r.parecer ? `<div class="kv" style="margin-top:6px"><b>Comentário da orientação:</b> ${esc(r.parecer)}</div>` : ""}`;
+  };
 
   const bloco = (r) => `
-    <div class="bloco ${r.aluno === META.eu ? "meu" : ""}">
+    <div class="bloco ${r.aluno === META.eu ? "meu" : ""}" id="rel-${esc(r.tipo)}-${esc(r.id)}">
       <div class="bloco-cab">
         <span class="t">Relatório ${esc(r.tipo)} — ${esc((p.alunos || []).find((a) => a.email === r.aluno)?.nome || r.aluno)}</span>
         <span class="badge b-${esc(r.situacao)}">${esc({ enviado: "aguardando validação", validado: "validado", devolvido: "devolvido" }[r.situacao] || r.situacao)}</span>
       </div>
       <div class="muted">Enviado em ${fmtDH(r.enviadoEm)}${r.periodo ? ` · período: ${esc(r.periodo)}` : ""}</div>
-      <div class="kv" style="white-space:pre-wrap;margin-top:8px">${esc(r.resumo || "")}</div>
-      ${(r.anexos || []).length ? `<div class="kv" style="margin-top:6px"><b>Anexos:</b> ${r.anexos.map((a) => `<a href="${esc(a.link || "#")}" target="_blank" rel="noopener">${esc(a.name)}</a>`).join(" · ")}</div>` : ""}
-      ${r.parecer ? `<div class="kv" style="margin-top:6px"><b>Parecer:</b> ${esc(r.parecer)}</div>` : ""}
-      ${PODE.podeValidar && r.situacao === "enviado" ? `<div class="exp">
-        <button class="bt bt-ok" onclick="validar('${esc(p.id)}','${esc(r.id)}','validado')">✓ Validar</button>
-        <button class="bt bt-err" onclick="validar('${esc(p.id)}','${esc(r.id)}','devolvido')">Devolver</button></div>` : ""}
+      ${corpoDe(r)}
+      ${PODE.podeValidar && r.situacao === "enviado" ? `
+        <div style="border-top:1px solid var(--linha);margin-top:10px;padding-top:8px">
+          <div style="font-weight:700">Validação da orientação</div>
+          <label style="margin-top:6px">Comentário ao aluno <span class="muted">(obrigatório na devolução)</span></label>
+          <textarea id="val-com-${esc(r.id)}" rows="3" placeholder="O que está bom, o que precisa ajustar…"></textarea>
+          ${r.tipo === "final" ? `
+            ${quadroEscala(`val-${esc(r.id)}`, M.criteriosAluno, r.avaliacaoAluno || {}, "Avaliação do desempenho do discente/bolsista")}
+            <div style="font-weight:700;margin-top:12px">Parecer conclusivo</div>
+            ${(M.pareceresConclusivos || []).map((x) => `<label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-weight:500;margin-top:4px">
+              <input type="radio" name="val-parecer-${esc(r.id)}" value="${x.codigo}" style="width:auto"> ${esc(x.rot)}</label>`).join("")}` : ""}
+          <div class="exp" style="margin-top:10px">
+            <button class="bt bt-ok" onclick="validar('${esc(p.id)}','${esc(r.id)}','validado','${esc(r.tipo)}')">✓ Validar e encaminhar à PROPPEX</button>
+            <button class="bt bt-err" onclick="validar('${esc(p.id)}','${esc(r.id)}','devolvido','${esc(r.tipo)}')">↩ Retornar para correção</button>
+          </div>
+        </div>` : ""}
     </div>`;
 
   const meuRel = (tipo) => meus.find((r) => r.tipo === tipo && r.aluno === META.eu);
   const formulario = (tipo) => {
     const r = meuRel(tipo);
     if (r && r.situacao !== "devolvido") return "";
-    return `<div class="bloco">
-      <div class="bloco-cab"><span class="t">Enviar relatório ${tipo}</span>
-        ${r ? `<span class="badge b-devolvido">devolvido — reenvie corrigido</span>` : ""}</div>
-      <label>Período coberto</label>
-      <input id="per-${tipo}" placeholder="${tipo === "parcial" ? "agosto a dezembro de 2026" : "todo o período do projeto"}" value="${esc(r?.periodo || "")}">
-      <label>Relatório * <span class="muted">(mínimo de 200 caracteres)</span></label>
-      <textarea id="txt-${tipo}" style="min-height:160px">${esc(r?.resumo || "")}</textarea>
-      <div class="exp"><button class="bt bt-pri" onclick="enviarRelatorio('${tipo}')">Enviar relatório ${tipo}</button></div>
+    const prazo = prazoDe(tipo);
+    const aberto = !prazo || !prazo.abre || hojeISO() >= prazo.abre;
+    if (!aberto) return `<div class="bloco" id="form-rel-${tipo}">
+      <div class="bloco-cab"><span class="t">Relatório ${tipo}</span><span class="badge b-rascunho">ainda não abriu</span></div>
+      <div class="muted">A janela de envio abre em <b>${fmtBr(prazo.abre)}</b> — ${tipo === "parcial" ? "no 4º mês" : "no 10º mês"} da vigência — com prazo até ${fmtBr(prazo.vence)}.</div>
+    </div>`;
+    if (tipo === "parcial") {
+      return `<div class="bloco" id="form-rel-parcial">
+        <div class="bloco-cab"><span class="t">Enviar relatório parcial</span>
+          ${r ? `<span class="badge b-devolvido">devolvido — reenvie corrigido</span>` : ""}
+          ${prazo ? `<span class="badge b-${prazo.atrasado ? "atrasada" : "prevista"}">prazo: ${fmtBr(prazo.vence)}</span>` : ""}</div>
+        <div class="muted" style="margin-bottom:6px">${esc(M.formatacao || "")}</div>
+        <label>Período coberto</label>
+        <input id="per-parcial" placeholder="ex.: setembro de 2026 a fevereiro de 2027" value="${esc(r?.periodo || "")}">
+        ${(M.camposParcial || []).map((s) => `
+          <label style="margin-top:10px">${esc(s.rot)}${(M.obrigatorios || []).includes(s.campo) ? " *" : ""}</label>
+          <div class="muted" style="margin:-2px 0 4px">${esc(s.ajuda)}</div>
+          <textarea id="rp-${s.campo}" style="min-height:90px">${esc(r?.campos?.[s.campo] || "")}</textarea>`).join("")}
+        <label style="margin-top:10px">Comprovantes de eventos/publicações <span class="muted">(anexe os arquivos, se houver)</span></label>
+        <input type="file" id="anexos-parcial" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+        <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">Avaliações (opcionais no parcial; obrigatórias no relatório final)</summary>
+          ${quadroAvaliacaoProjeto("rp", r?.avaliacaoProjeto || {})}
+          ${quadroEscala("rp-ao", M.criteriosOrientador, r?.avaliacaoOrientador || {}, "Avaliação da atuação do orientador (pelo discente)")}
+        </details>
+        <div class="exp" style="margin-top:12px"><button class="bt bt-pri" onclick="enviarRelatorio('parcial')">Enviar relatório parcial</button></div>
+      </div>`;
+    }
+    return `<div class="bloco" id="form-rel-final">
+      <div class="bloco-cab"><span class="t">Enviar relatório final — artigo científico</span>
+        ${r ? `<span class="badge b-devolvido">devolvido — reenvie corrigido</span>` : ""}
+        ${prazo ? `<span class="badge b-${prazo.atrasado ? "atrasada" : "prevista"}">prazo: ${fmtBr(prazo.vence)}</span>` : ""}</div>
+      <div class="banner ba-info">O relatório final é um <b>artigo científico</b>, em formato livre — à escolha
+        do aluno e da orientação —, redigido <b>nas normas de submissão da revista escolhida</b> e anexado abaixo.
+        Além da submissão do artigo, o trabalho <b>também deverá ser apresentado no CONINT</b>, na forma de
+        pôster ou apresentação oral.</div>
+      <div class="grid2">
+        <div><label>Revista escolhida *</label><input id="rf-revista" value="${esc(r?.artigo?.revista || "")}"></div>
+        <div><label>ISSN *</label><input id="rf-issn" value="${esc(r?.artigo?.issn || "")}" placeholder="0000-0000"></div>
+      </div>
+      <div class="grid3">
+        <div><label>Qualis</label><input id="rf-qualis" value="${esc(r?.artigo?.qualis || "")}" placeholder="ex.: B1"></div>
+        <div><label>Fator de impacto <span class="muted">(se houver)</span></label><input id="rf-fator" value="${esc(r?.artigo?.fatorImpacto || "")}"></div>
+        <div><label>Período coberto</label><input id="per-final" value="${esc(r?.periodo || "")}" placeholder="todo o período do projeto"></div>
+      </div>
+      <label>Link da revista *</label>
+      <input id="rf-link" value="${esc(r?.artigo?.link || "")}" placeholder="https://…">
+      <label style="margin-top:10px">Arquivo do artigo * <span class="muted">(nas normas da revista)</span></label>
+      <input type="file" id="anexos-final" accept=".pdf,.doc,.docx">
+      <label style="margin-top:10px">Observações <span class="muted">(opcional)</span></label>
+      <textarea id="rf-obs" rows="3">${esc(r?.resumo || "")}</textarea>
+      ${quadroAvaliacaoProjeto("rf", r?.avaliacaoProjeto || {})}
+      ${quadroEscala("rf-ao", M.criteriosOrientador, r?.avaliacaoOrientador || {}, "Avaliação da atuação do orientador (pelo discente)")}
+      <div class="exp" style="margin-top:12px"><button class="bt bt-pri" onclick="enviarRelatorio('final')">Enviar relatório final</button></div>
     </div>`;
   };
 
-  return `<div class="card">
+  return `<div class="card" id="card-relatorios">
     <div class="card-t">Relatórios</div>
-    <div class="card-s">Parcial e final de cada aluno indicado. Quem envia é o aluno; quem valida é a orientação.</div>
+    <div class="card-s">O parcial abre no 4º mês da vigência (prazo no 6º); o final, no 10º (prazo no fim).
+      Quem envia é o aluno; a orientação valida — ou retorna para correção — e o validado segue à PROPPEX.</div>
     ${!emExecucao ? `<div class="banner ba-info">Os relatórios abrem quando o projeto é aprovado.</div>` : ""}
     ${meus.map(bloco).join("")}
     ${emExecucao && souAluno ? formulario("parcial") + formulario("final") : ""}
@@ -3820,17 +3981,66 @@ function renderRelatoriosDoProjeto(p) {
 }
 
 async function enviarRelatorio(tipo) {
-  const resumo = $("txt-" + tipo).value.trim();
-  const periodo = $("per-" + tipo).value.trim();
-  if (resumo.length < 200) return aviso("O relatório precisa de ao menos 200 caracteres.", "warn");
+  const M = REL_MODELO();
+  const corpo = { tipo, periodo: ($("per-" + tipo)?.value || "").trim() };
+  const leAvaliacoes = (pref) => {
+    corpo.avaliacaoProjeto = {};
+    for (const q of M.perguntasProjeto || []) corpo.avaliacaoProjeto[q.codigo] = $(`${pref}-ap-${q.codigo}`)?.value || "";
+    corpo.avaliacaoOrientador = {};
+    for (const c of M.criteriosOrientador || []) {
+      const v = $(`${pref}-ao-${c.codigo}`)?.value;
+      corpo.avaliacaoOrientador[c.codigo] = v === "" || v == null ? "" : Number(v);
+    }
+  };
+  let arquivos = [];
+  if (tipo === "parcial") {
+    corpo.campos = {};
+    for (const s of M.camposParcial || []) corpo.campos[s.campo] = ($("rp-" + s.campo)?.value || "").trim();
+    const faltam = (M.obrigatorios || []).filter((c) => (corpo.campos[c] || "").length < 30)
+      .map((c) => (M.camposParcial || []).find((x) => x.campo === c)?.rot || c);
+    if (faltam.length) return aviso("Preencha as seções obrigatórias (mínimo de 30 caracteres): " + faltam.join("; "), "warn");
+    leAvaliacoes("rp");
+    arquivos = [...($("anexos-parcial")?.files || [])];
+  } else {
+    corpo.artigo = {
+      revista: ($("rf-revista")?.value || "").trim(), issn: ($("rf-issn")?.value || "").trim(),
+      qualis: ($("rf-qualis")?.value || "").trim(), link: ($("rf-link")?.value || "").trim(),
+      fatorImpacto: ($("rf-fator")?.value || "").trim(),
+    };
+    corpo.resumo = ($("rf-obs")?.value || "").trim();
+    if (!corpo.artigo.revista || !corpo.artigo.issn || !corpo.artigo.link)
+      return aviso("Informe a revista escolhida, o ISSN e o link da revista.", "warn");
+    leAvaliacoes("rf");
+    if ((M.perguntasProjeto || []).some((q) => !corpo.avaliacaoProjeto[q.codigo])
+      || (M.criteriosOrientador || []).some((c) => corpo.avaliacaoOrientador[c.codigo] === ""))
+      return aviso("No relatório final, responda a avaliação do projeto e a da atuação da orientação — todos os itens.", "warn");
+    arquivos = [...($("anexos-final")?.files || [])];
+    const jaAnexado = (ATUAL.relatorios || []).some((x) => x.tipo === "final" && x.aluno === META.eu && (x.anexos || []).length);
+    if (!arquivos.length && !jaAnexado) return aviso("Anexe o arquivo do artigo científico, nas normas da revista.", "warn");
+  }
   try {
-    await api(`/api/ic/${ATUAL.id}/relatorio`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tipo, resumo, periodo }),
+    const r = await api(`/api/ic/${ATUAL.id}/relatorio`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
     });
+    for (const f of arquivos) {
+      const fd = new FormData(); fd.append("file", f);
+      await api(`/api/ic/${ATUAL.id}/relatorio/${r.relatorio.id}/anexo`, { method: "POST", body: fd });
+    }
     await carregar(); montarSidebar(); await abrir(ATUAL.id);
-    aviso("Relatório enviado. A orientação foi notificada dentro do sistema.");
+    aviso("Relatório enviado. A orientação e a PROPPEX foram avisadas.");
   } catch (e) { aviso(e.message, "err"); }
+}
+
+/* Abre o projeto direto no relatório — é o caminho dos botões da guia
+   Bolsistas e Voluntários ("preencher relatório" / "validar"). */
+async function abrirRelatorio(projetoId, tipo) {
+  await abrir(projetoId);
+  setTimeout(() => {
+    const alvo = document.getElementById("form-rel-" + tipo)
+      || document.querySelector(`[id^="rel-${tipo}-"]`)
+      || document.getElementById("card-relatorios");
+    if (alvo) alvo.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 150);
 }
 
 /* ------------------------------- ações --------------------------------- */

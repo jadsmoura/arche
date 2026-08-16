@@ -506,13 +506,13 @@ test("o resumo da lista conta etapas, atrasos e relatórios a validar", () => {
   assert.equal(r.resumo, undefined, "o resumo da lista não carrega os campos longos");
 });
 
-test("os prazos do edital: parcial aos 6 meses, final no fim, janela 2 meses antes", () => {
+test("os prazos do edital: parcial abre no 4º mês e vence no 6º; final abre no 10º e vence no fim", () => {
   const p = { ...emExecucao(), inicio: "2026-09-01", fim: "2027-08-31" };
   const r = prazosRelatorios(p, "2026-10-01");
   assert.equal(r.prazos[0].vence, "2027-03-01", "parcial: 6 meses depois do início");
-  assert.equal(r.prazos[0].abre, "2027-01-01", "pode entregar 2 meses antes");
+  assert.equal(r.prazos[0].abre, "2026-12-01", "abre no 4º mês da vigência (dono, ago/2026)");
   assert.equal(r.prazos[1].vence, "2027-08-31", "final: no fim da vigência");
-  assert.equal(r.prazos[1].abre, "2027-07-01");
+  assert.equal(r.prazos[1].abre, "2027-06-01", "abre no 10º mês");
   assert.equal(r.atrasado, false, "em outubro nada venceu ainda");
 
   assert.equal(prazosRelatorios(p, "2027-03-02").atrasado, true, "passou o prazo do parcial sem entrega");
@@ -965,4 +965,61 @@ test("a idade sai da data de nascimento, em anos completos", () => {
   assert.equal(idadeEm("2004-08-15", "2026-08-15"), 22, "no dia do aniversário já conta");
   assert.equal(idadeEm(""), null);
   assert.equal(idadeEm("18/03/2004"), null, "só data ISO");
+});
+
+/* -------- relatórios estruturados e avaliações (dono, ago/2026) --------- */
+test("o modelo institucional dos relatórios: roteiro do parcial, artigo no final e as três avaliações", async () => {
+  const {
+    CAMPOS_RELATORIO_PARCIAL, CAMPOS_PARCIAL_OBRIGATORIOS,
+    PERGUNTAS_AVALIACAO_PROJETO, CRITERIOS_AVALIACAO_ORIENTADOR,
+    CRITERIOS_AVALIACAO_ALUNO, PARECERES_CONCLUSIVOS, ESCALA_0_5,
+    janelaRelatorio, normalizarProjeto, visaoDoProjeto,
+  } = await import("../lib/ic.js");
+  assert.equal(CAMPOS_RELATORIO_PARCIAL.length, 7, "as 7 seções do roteiro");
+  assert.ok(CAMPOS_PARCIAL_OBRIGATORIOS.includes("introducao"));
+  assert.equal(PERGUNTAS_AVALIACAO_PROJETO.length, 5);
+  assert.equal(CRITERIOS_AVALIACAO_ORIENTADOR.length, 7);
+  assert.equal(CRITERIOS_AVALIACAO_ALUNO.length, 7);
+  assert.equal(PARECERES_CONCLUSIVOS.length, 3);
+  assert.equal(ESCALA_0_5.length, 6, "0 a 5");
+
+  // a janela: parcial abre no 4º mês da vigência e vence no 6º; o final
+  // abre no 10º e vence no fim — antes de abrir, o envio é recusado
+  const p = {
+    ...normalizarProjeto({
+      titulo: "T", curso: "agronomia",
+      inicio: "2026-09-01", fim: "2027-08-31",
+      orientador: { nome: "Prof", email: "prof@x.com" },
+      alunos: [{ nome: "Aluna", email: "aluna@x.com" }],
+    }, { autor: "prof@x.com" }),
+    status: "aprovado", inicio: "2026-09-01", fim: "2027-08-31",
+  };
+  const parcial = janelaRelatorio(p, "parcial", "2026-11-30");
+  assert.equal(parcial.aberta, false, "antes do 4º mês, fechado");
+  assert.equal(janelaRelatorio(p, "parcial", "2027-01-10").aberta, true, "no 4º mês, aberto");
+  assert.equal(janelaRelatorio(p, "parcial", "2027-04-01").vencida, true, "depois do 6º, vencido (mas aceito)");
+  const fin = janelaRelatorio(p, "final", "2027-06-15");
+  assert.equal(fin.aberta, true, "final abre no 10º mês");
+  assert.equal(janelaRelatorio(p, "final", "2027-05-30").aberta, false);
+
+  // sigilo cruzado: o orientador não vê a avaliação que o aluno fez dele;
+  // o aluno não vê as notas nem o parecer conclusivo do orientador
+  const comRel = {
+    ...p,
+    relatorios: [{
+      id: "r1", tipo: "final", aluno: "aluna@x.com", situacao: "validado",
+      avaliacaoOrientador: { disponibilidade: 5 },
+      avaliacaoAluno: { assiduidade: 4 }, parecerConclusivo: "sem-restricoes",
+      avaliacaoProjeto: { formacao: "sim" },
+    }],
+  };
+  const doProf = visaoDoProjeto(comRel, { email: "prof@x.com", gestao: false });
+  assert.equal(doProf.relatorios[0].avaliacaoOrientador, undefined, "prof não vê a nota que levou");
+  assert.equal(doProf.relatorios[0].avaliacaoAluno.assiduidade, 4, "prof vê a que deu");
+  const daAluna = visaoDoProjeto(comRel, { email: "aluna@x.com", gestao: false });
+  assert.equal(daAluna.relatorios[0].avaliacaoAluno, undefined, "aluna não vê as notas sobre ela");
+  assert.equal(daAluna.relatorios[0].parecerConclusivo, undefined);
+  assert.equal(daAluna.relatorios[0].avaliacaoOrientador.disponibilidade, 5, "aluna vê a própria avaliação");
+  const daGestao = visaoDoProjeto(comRel, { email: "g@x.com", gestao: true });
+  assert.equal(daGestao.relatorios[0].avaliacaoOrientador.disponibilidade, 5, "gestão lê os dois lados");
 });
