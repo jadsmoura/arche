@@ -4944,6 +4944,43 @@ async function criarPreCadastrosEM() {
  * conclusão. O registro alimenta o mesmo sys-ic-em-convites-v1 do botão
  * da tela — reenviar depois é por lá.
  */
+/**
+ * CHAMADA da regularização do 01/2025, UMA vez no arranque (pedido do dono,
+ * ago/2026): a PROPPEX avisou por e-mail próprio, mas alguns endereços
+ * voltaram — o sistema reforça mandando a todos do ciclo com pendência o
+ * mesmo e-mail da cobrança semanal (aluno: enviar; orientação: validar),
+ * SEM esperar o espaçamento de 7 dias. O envio carimba o registro da
+ * cobrança, para a varredura da hora seguinte não duplicar; a marca só
+ * grava com algum envio bem-sucedido (sem credencial, tenta no próximo
+ * deploy).
+ */
+async function chamadaRegularizacao012025() {
+  const marca = "sys-ic-chamada-regularizacao-01-2025-v1";
+  try {
+    if (await storage.get(marca)) return;
+    const porPessoa = pendenciasCobrancaIC(await lerProjetos(), { edital: "01/2025" });
+    if (!porPessoa.size) { await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), enviados: 0 })); return; }
+    const registro = JSON.parse((await storage.get(COBRANCA_IC_KEY)) || "{}");
+    const { enviarEmail, emailCobrancaRelatorioIC } = await import("./lib/mailer.js");
+    let ok = 0;
+    const falhas = [];
+    for (const [emailAlvo, dados] of porPessoa) {
+      try {
+        await enviarEmail(emailCobrancaRelatorioIC({ para: emailAlvo, ...dados }));
+        registro[emailAlvo] = new Date().toISOString();
+        ok++;
+      } catch (e) { falhas.push(`${dados.nome || emailAlvo}: ${e.message}`); }
+    }
+    if (ok) {
+      await storage.set(COBRANCA_IC_KEY, JSON.stringify(registro));
+      await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), enviados: ok, falhas }));
+    }
+    console.log(`ARCHÉ IC: chamada da regularização 01/2025 enviada a ${ok} pessoa(s)${falhas.length ? ` (${falhas.length} falha(s))` : ""}`);
+  } catch (e) {
+    console.error("Falha na chamada da regularização 01/2025:", e.message);
+  }
+}
+
 async function convidarTurmaEM2025() {
   const marca = "sys-ic-em-convite-2025-v1";
   try {
@@ -5803,6 +5840,7 @@ app.listen(port, () => {
       enquadrarCronogramasIniciais, subirArquivoHistorico, subirAlunosHistoricos,
       removerAlunosEnsinoMedio, subirTurmasEM,
       completarTurmaEM2025, criarPreCadastrosEM, convidarTurmaEM2025,
+      chamadaRegularizacao012025,
       propagarCpfOrientadores, identidadeInstitucionalDoProReitor, criarPreCadastros,
       aplicarAvaliacoesTranscritas,
       // SEMPRE por último, e a cada arranque (achado de ago/2026 — o caso
