@@ -3612,7 +3612,8 @@ function renderEditor(alvo) {
       <div class="card-s">A indicação acontece <b>depois da aprovação</b>, aqui: nome, curso, período,
         e-mail e telefone. Ao <b>salvar o projeto</b>, o aluno recebe um e-mail com o link para entrar no
         sistema, criar o usuário e completar o próprio cadastro — documentos, dados bancários e Pix, se
-        for bolsista. Marque <b>Bolsista</b> em quem recebe a bolsa.</div>
+        for bolsista. ${META.gestao ? "Marque <b>Bolsista</b> em quem recebe a bolsa."
+          : "A marca de <b>Bolsista</b> acompanha a concessão da bolsa; para trocar ou remover um aluno já indicado, use a <b>Substituição de bolsista</b> logo abaixo."}</div>
       <div class="rolo"><table class="pt">
         <thead><tr><th style="width:22%">Nome</th><th style="width:22%">E-mail</th><th style="width:16%">Telefone</th><th style="width:18%">Curso</th><th>Período</th><th>Bolsista</th><th></th></tr></thead>
         <tbody id="tb-alunos"></tbody>
@@ -3660,20 +3661,33 @@ function renderEditor(alvo) {
 function desenharAlunos() {
   if (!$("tb-alunos")) return;   // antes da aprovação a indicação não existe
   const ger = PODE.podeGerir || PODE.podeEditar;
-  $("tb-alunos").innerHTML = (ATUAL.alunos || []).map((a, i) => `
+  // Depois da aprovação, o quadro de alunos só CRESCE pela tela da
+  // orientação (decisão do dono, ago/2026): remover aluno ou trocar o
+  // e-mail de quem já foi indicado passa pela Substituição de bolsista (ou
+  // pela PROPPEX), e a marca de bolsista acompanha a concessão do fomento.
+  // A gestão continua com a mão livre. `_novo` é só do cliente: marca a
+  // linha recém-adicionada, que segue editável até salvar.
+  const travado = ["aprovado", "concluido"].includes(ATUAL.status) && !META.gestao;
+  $("tb-alunos").innerHTML = (ATUAL.alunos || []).map((a, i) => {
+    const fixo = travado && !a._novo;
+    const roCampo = ger ? "" : "disabled";
+    const roFixo = ger && !fixo ? "" : "disabled";
+    return `
     <tr>
-      <td><input ${ger ? "" : "disabled"} value="${esc(a.nome || "")}" oninput="ATUAL.alunos[${i}].nome=this.value"></td>
-      <td><input type="email" ${ger ? "" : "disabled"} value="${esc(a.email || "")}" oninput="ATUAL.alunos[${i}].email=this.value;desenharEtapas()"></td>
-      <td><input ${ger ? "" : "disabled"} value="${esc(a.telefone || "")}" oninput="ATUAL.alunos[${i}].telefone=this.value" placeholder="(62) 9…"></td>
-      <td><input ${ger ? "" : "disabled"} value="${esc(a.curso || "")}" oninput="ATUAL.alunos[${i}].curso=this.value"></td>
-      <td><input ${ger ? "" : "disabled"} value="${esc(a.periodo || "")}" oninput="ATUAL.alunos[${i}].periodo=this.value" placeholder="5º"></td>
-      <td><input type="checkbox" style="width:auto" ${a.bolsista ? "checked" : ""} ${ger ? "" : "disabled"} onchange="ATUAL.alunos[${i}].bolsista=this.checked"></td>
-      <td>${ger ? `<button class="rm" title="remover" onclick="ATUAL.alunos.splice(${i},1);desenharAlunos();desenharEtapas()">×</button>` : ""}</td>
+      <td><input ${roCampo} value="${esc(a.nome || "")}" oninput="ATUAL.alunos[${i}].nome=this.value"></td>
+      <td><input type="email" ${roFixo} ${fixo ? 'title="O e-mail de quem já foi indicado só muda pela PROPPEX — é a chave da conta do aluno"' : ""} value="${esc(a.email || "")}" oninput="ATUAL.alunos[${i}].email=this.value;desenharEtapas()"></td>
+      <td><input ${roCampo} value="${esc(a.telefone || "")}" oninput="ATUAL.alunos[${i}].telefone=this.value" placeholder="(62) 9…"></td>
+      <td><input ${roCampo} value="${esc(a.curso || "")}" oninput="ATUAL.alunos[${i}].curso=this.value"></td>
+      <td><input ${roCampo} value="${esc(a.periodo || "")}" oninput="ATUAL.alunos[${i}].periodo=this.value" placeholder="5º"></td>
+      <td><input type="checkbox" style="width:auto" ${a.bolsista ? "checked" : ""} ${ger && !travado ? "" : "disabled"} ${travado ? 'title="A marca de bolsista acompanha a concessão da bolsa — quem a define é a coordenação"' : ""} onchange="ATUAL.alunos[${i}].bolsista=this.checked"></td>
+      <td>${ger && !fixo ? `<button class="rm" title="remover" onclick="ATUAL.alunos.splice(${i},1);desenharAlunos();desenharEtapas()">×</button>`
+        : (fixo ? `<span class="muted" title="Para trocar o bolsista, use a Substituição de bolsista — a coordenação aprova" style="font-size:11px">via substituição</span>` : "")}</td>
     </tr>${!a.email ? `<tr><td colspan="7" class="muted" style="border-top:0;padding-top:0">
-      ⚠ sem e-mail não há convite: ${esc(a.nome || "este aluno")} não entra no sistema</td></tr>` : ""}`).join("")
+      ⚠ sem e-mail não há convite: ${esc(a.nome || "este aluno")} não entra no sistema</td></tr>` : ""}`;
+  }).join("")
     || `<tr><td colspan="7" class="muted">Nenhum aluno indicado ainda.</td></tr>`;
 }
-function addAluno() { ATUAL.alunos = [...(ATUAL.alunos || []), { nome: "", email: "", telefone: "", curso: cursoNome(ATUAL.curso), periodo: "", bolsista: false }]; desenharAlunos(); }
+function addAluno() { ATUAL.alunos = [...(ATUAL.alunos || []), { nome: "", email: "", telefone: "", curso: cursoNome(ATUAL.curso), periodo: "", bolsista: false, _novo: true }]; desenharAlunos(); }
 
 /* ------------------------- meses da vigência ---------------------------
    O cronograma se preenche por MÊS (1 a 12), não por data: a vigência é a

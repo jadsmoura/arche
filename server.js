@@ -3988,14 +3988,32 @@ app.post("/api/ic", async (req, res) => {
           producao: b.producao ?? base.producao,
           grupoPesquisa: b.grupoPesquisa ?? base.grupoPesquisa,
         }, { base, autor: u.email, grupos: conhecidos });
+        // Depois da aprovação, o quadro de alunos só CRESCE pela tela da
+        // orientação (decisão do dono, ago/2026): remover aluno — ou trocar
+        // o e-mail de quem já foi indicado, que é a mesma coisa — é ato da
+        // Substituição de bolsista, que a coordenação aprova; e a marca de
+        // bolsista acompanha a concessão do fomento, não a caixa do
+        // formulário. Este ramo só roda para a orientação (a gestão edita
+        // pelo ramo de baixo, com a mão livre de sempre).
+        const chaveAluno = (a) => (a.email
+          ? "e:" + String(a.email).toLowerCase()
+          : "n:" + String(a.nome || "").trim().toLowerCase());
+        const antigos = new Map((base.alunos || []).map((a) => [chaveAluno(a), a]));
+        for (const a of base.alunos || []) {
+          if (!p.alunos.some((x) => chaveAluno(x) === chaveAluno(a)))
+            return { erro: [400, `${a.nome || a.email || "Aluno indicado"} não pode ser removido (nem ter o e-mail trocado) por aqui: para trocar o bolsista, use a Substituição de bolsista; para corrigir um e-mail, fale com a PROPPEX.`], gravar: false };
+        }
         // Documentos e conta bancária são DO ALUNO: ele mesmo informa, pela
         // rota própria. O formulário da orientação nunca os altera — nem os
         // apaga sem querer ao salvar a indicação (ela não recebe os valores).
         const doBase = (email) => (base.alunos || []).find((a) => a.email && a.email === email);
         p.alunos = p.alunos.map((a) => {
-          const antes = doBase(a.email);
-          if (!antes) return a;
-          const dele = {};
+          const antes = antigos.get(chaveAluno(a));
+          if (!antes) {
+            // aluno novo: a marca de bolsista sai da concessão, não da tela
+            return { ...a, bolsista: !!(base.fomento && base.fomento.tipo !== "voluntario") };
+          }
+          const dele = { bolsista: !!antes.bolsista };
           for (const c of CAMPOS_DO_ALUNO_PROTEGIDOS) dele[c] = antes[c];
           return { ...a, ...dele };
         });

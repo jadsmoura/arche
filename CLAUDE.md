@@ -445,6 +445,15 @@ public/
   projetos CONCLUÍDOS — com `modalidadeHistorica` (PIBIC/FACEG etc., que não se
   recalcula pelo catálogo atual) e os bolsistas nomeados quando a fonte os traz.
   Concluído não tem prazo correndo (`prazosRelatorios` só vale para `aprovado`).
+- **Depois da aprovação, o quadro de alunos só CRESCE pela tela da orientação**
+  (decisão do dono, ago/2026, no ramo de execução do POST /api/ic): indicar aluno novo
+  segue livre, mas **remover** aluno — ou trocar o e-mail de quem já foi indicado, que
+  equivale a remover — é ato da **Substituição de bolsista**; e-mail digitado errado se
+  corrige com a PROPPEX. A **marca de bolsista acompanha a concessão do fomento**: nos
+  já indicados ela é preservada da base, e no aluno novo sai da concessão do projeto —
+  a caixa do formulário não manda. A GESTÃO segue com a mão livre (edita pelo ramo
+  geral). A tela espelha a regra: sem ×, e-mail e caixa travados nos já indicados
+  ("via substituição" no lugar).
 - **Substituição de bolsista** (`POST /api/ic/:id/substituicao` + decisão da gestão em
   `/:sid`): a orientação SOLICITA a troca — quem sai, o novo aluno (nome, curso,
   período, e-mail, telefone) e o motivo — e a coordenação aprova ou recusa. Aprovada,
