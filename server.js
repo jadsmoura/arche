@@ -44,6 +44,9 @@ import {
   slugUnico, SLUG_VALIDO, slugReservado, SLUGS_RESERVADOS, gerarChaveQr, gerarCodigoMonitor, gerarToken, tokenValido,
   codigoDe, inscritoPorToken, normalizarProgramacao, vagasRestantes, prazoInscricao,
   podeInscrever as podeInscreverEvento, jaInscrito,
+  TIPOS_ATIVIDADE, gerarIdCurto, vagasAtividade, podeEscolherAtividade,
+  normalizarFormulario, validarRespostas, LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd,
+  videoIdDe, numerosDoEvento,
 } from "./lib/eventos.js";
 import {
   TURMAS_EM, BOLSAS_EM, bolsaEmDe, turmaDe as turmaEmDe, turmaVigente as turmaEmVigente,
@@ -1453,20 +1456,29 @@ async function sessaoEx(req, res) {
   return u;
 }
 
+// A CHAVE do QR assina todos os tokens do evento e a CAPA pesa centenas de
+// KB: nenhuma das duas viaja em payload — a chave por segurança (fica só no
+// servidor; achado de ago/2026) e a capa por peso (a tela busca a imagem
+// pela rota pública e aqui só sabe que existe, via `temCapa`).
+function eventoSemSegredos(ev) {
+  if (!ev) return ev;
+  const { chaveQr, capa, ...resto } = ev;
+  return { ...resto, temCapa: !!capa };
+}
+
 /** A lista que a pessoa pode ver — nunca a base inteira. */
 app.get("/api/extensao", async (req, res) => {
   try {
     const u = await sessaoEx(req, res);
     if (!u) return;
-    // a CHAVE do QR assina todos os tokens do evento — nunca vai ao
-    // navegador (achado de ago/2026): a gestão vê e distribui o código do
-    // monitor, mas a chave de assinatura fica só no servidor
-    const acoes = (await lerAcoes()).filter((a) => podeVerAcao(u, a)).map((a) => {
-      if (!a.evento?.chaveQr) return a;
-      const { chaveQr, ...evSemChave } = a.evento;
-      return { ...a, evento: evSemChave };
+    const acoes = (await lerAcoes()).filter((a) => podeVerAcao(u, a)).map((a) =>
+      a.evento ? { ...a, evento: eventoSemSegredos(a.evento) } : a);
+    // os catálogos que o editor do evento usa (tipos de atividade e o texto
+    // padrão da LGPD) seguem junto: a SPA não os duplica
+    res.json({
+      acoes, gestao: gereEx(u), eu: u.email,
+      tiposAtividade: TIPOS_ATIVIDADE, lgpdPadrao: LGPD_TEXTO_PADRAO,
     });
-    res.json({ acoes, gestao: gereEx(u), eu: u.email });
   } catch (e) {
     console.error("Erro ao listar ações de extensão:", e);
     res.status(500).json({ error: "Falha ao carregar as ações" });
@@ -1506,13 +1518,28 @@ app.post("/api/extensao", async (req, res) => {
         // presenças são MESCLADAS por cima do que o formulário mandou.
         const preservado = base ? mesclarEventoEInscritos(base, nova) : {};
         const final = { ...nova, ...controlado, ...preservado, atualizadoEm: new Date().toISOString() };
+        // Números do evento no relatório: na ENTREGA (entregueEm aparecendo
+        // agora) de uma ação com evento, o SERVIDOR fotografa os números do
+        // sistema de inscrições — snapshot datado, calculado da ação já
+        // mesclada (a verdade da base), nunca do que a tela digitou. Fora da
+        // entrega, o snapshot é o que já estava gravado: o cliente não o
+        // fabrica nem o reescreve.
+        if (final.relatorio) {
+          const entregouAgora = final.relatorio.entregueEm && !base?.relatorio?.entregueEm;
+          const snapshot = entregouAgora && final.evento?.chaveQr
+            ? numerosDoEvento(final)
+            : base?.relatorio?.numerosEvento;
+          if (snapshot) final.relatorio = { ...final.relatorio, numerosEvento: snapshot };
+          else if (final.relatorio.numerosEvento) delete final.relatorio.numerosEvento;
+        }
         if (i >= 0) acoes[i] = final; else acoes.push(final);
         gravadas++;
       }
       return { gravadas, recusadas, gravar: gravadas > 0 };
     });
     if (r.recusadas) console.warn(`[extensao] ${r.recusadas} ação(ões) recusada(s) de ${u.email}`);
-    const acoes = (await lerAcoes()).filter((a) => podeVerAcao(u, a));
+    const acoes = (await lerAcoes()).filter((a) => podeVerAcao(u, a)).map((a) =>
+      a.evento ? { ...a, evento: eventoSemSegredos(a.evento) } : a);
     res.json({ ok: true, ...r, acoes });
   } catch (e) {
     console.error("Erro ao gravar ação de extensão:", e);
@@ -1803,22 +1830,42 @@ const eventoPorSlug = (acoes, slugEv) =>
   acoes.find((a) => a?.evento?.chaveQr && a.evento.slug === String(slugEv || "").trim().toLowerCase());
 
 // O retrato PÚBLICO do evento — números e textos institucionais, nunca
-// pessoas: as vagas restantes saem como contagem, não como lista.
+// pessoas: as vagas restantes saem como contagem, não como lista. A capa
+// sai como `temCapa` (a imagem tem rota própria) e a transmissão como
+// `transmissaoPublicada` — o link/id do vídeo só aparece contra o token.
 function eventoPublico(a, { detalhe = false } = {}) {
   const p = a.proposta || {}, ev = a.evento || {};
+  const inscritos = a.participantes?.inscritos;
   const base = {
     slug: ev.slug, nome: p.nomeAtividade || "", curso: a.curso || "",
     periodoInicio: p.periodoInicio || "", periodoFim: p.periodoFim || "",
     local: p.local || "", municipio: p.municipio || "", cargaHoraria: p.cargaHoraria || "",
     resumo: String(ev.descricao || p.temaCentral || "").slice(0, 240),
-    vagasRestantes: vagasRestantes(ev, a.participantes?.inscritos),
+    vagasRestantes: vagasRestantes(ev, inscritos),
     inscricoesAte: prazoInscricao(ev, a),
     inscricoesAbertas: podeInscreverEvento(a, hojeLocalISO()).ok,
+    temCapa: !!ev.capa,
   };
-  return detalhe
-    ? { ...base, descricao: String(ev.descricao || ""), temaCentral: p.temaCentral || "",
-        publicoAlvo: p.publicoAlvo || "", programacao: ev.programacao || [] }
-    : base;
+  if (!detalhe) return base;
+  // as atividades passam pela normalização na saída: o dado antigo (sem id,
+  // com `hora`) ganha o shape novo sem migração — e como o item antigo é
+  // sempre "geral", o id efêmero que ele ganha aqui não vincula nada
+  const programacao = normalizarProgramacao(ev.programacao).map((atv) => ({
+    ...atv,
+    vagasRestantes: atv.inscricao === "propria" ? vagasAtividade(atv, inscritos) : null,
+  }));
+  // modalidade derivada, para o selo do topo: das atividades e da transmissão
+  const temOnline = programacao.some((x) => x.modalidade === "online") || !!ev.transmissao?.tipo;
+  const temPresencial = !programacao.length || programacao.some((x) => x.modalidade !== "online");
+  return {
+    ...base, descricao: String(ev.descricao || ""), temaCentral: p.temaCentral || "",
+    publicoAlvo: p.publicoAlvo || "", programacao,
+    formulario: ev.formulario || [],
+    lgpdTexto: textoLgpd(ev),
+    endereco: String(ev.local || ""),
+    transmissaoPublicada: ev.transmissao?.publicada === true,
+    modalidade: temOnline && temPresencial ? "hibrido" : temOnline ? "online" : "presencial",
+  };
 }
 
 // Rate limit em memória, por IP, nas rotas públicas que gravam ou procuram
@@ -1845,18 +1892,40 @@ function inscricaoExcedeu(ip) {
 // FALHAS por IP (código do monitor errado ou inscrição não achada): assim
 // o brute-force do código e a varredura de nomes pelo código de 6 travam,
 // e o monitor de verdade, que acerta, nunca esbarra no limite.
-const checkinFalhas = new Map();
-function checkinFalhouExcedeu(ip) {
-  const agora = Date.now();
-  const recentes = (checkinFalhas.get(ip) || []).filter((t) => agora - t < 300_000);
-  checkinFalhas.set(ip, recentes);
-  if (checkinFalhas.size > 2000) for (const [k, v] of checkinFalhas) if (!v.length) checkinFalhas.delete(k);
-  return recentes.length >= 20;   // 20 falhas em 5 min — inalcançável credenciando de verdade
+// A revisão da 2ª geração (ago/2026) separou os CONTADORES: as rotas da
+// transmissão (assistir, heartbeat, mural, troca de atividades) têm o seu,
+// senão 20 links vencidos abertos no Wi-Fi do campus travavam o
+// credenciamento físico da porta — e vice-versa. E nessas rotas o freio só
+// alcança quem FALHOU: valida-se o token primeiro, e o válido passa SEMPRE
+// (atrás do NAT o campus inteiro é um IP; um portão por IP antes da
+// validação suprimia a presença de todos por causa de meia dúzia de links
+// velhos batendo em vazio).
+function criarFreioDeFalhas() {
+  const falhas = new Map();
+  return {
+    excedeu(ip) {
+      const agora = Date.now();
+      const recentes = (falhas.get(ip) || []).filter((t) => agora - t < 300_000);
+      falhas.set(ip, recentes);
+      if (falhas.size > 2000) for (const [k, v] of falhas) if (!v.length) falhas.delete(k);
+      return recentes.length >= 20;   // 20 falhas em 5 min — inalcançável usando de verdade
+    },
+    falhou(ip) {
+      const arr = falhas.get(ip) || [];
+      arr.push(Date.now());
+      falhas.set(ip, arr);
+    },
+  };
 }
-function checkinFalhou(ip) {
-  const arr = checkinFalhas.get(ip) || [];
-  arr.push(Date.now());
-  checkinFalhas.set(ip, arr);
+const freioCheckin = criarFreioDeFalhas();   // a porta física (código do monitor)
+const freioOnline = criarFreioDeFalhas();    // transmissão, heartbeat, mural e atividades
+// falha nas rotas online: conta e, estourado o freio, o ruído vira 429 —
+// só para quem segue errando; token válido nunca passa por aqui
+function falhaOnline(req, res, status, msg) {
+  freioOnline.falhou(req.ip);
+  if (freioOnline.excedeu(req.ip))
+    return res.status(429).json({ error: "Muitas tentativas sem sucesso. Aguarde alguns minutos." });
+  return res.status(status).json({ error: msg });
 }
 
 // O código do monitor confere? Em tempo constante, como toda credencial.
@@ -1909,6 +1978,13 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     if (!cpf) return res.status(400).json({ error: "O CPF informado não é válido — confira os números digitados." });
     if (!RE_EMAIL_INSCRICAO.test(email))
       return res.status(400).json({ error: "Informe um e-mail válido — é nele que chega a confirmação da inscrição." });
+    // LGPD: sem a ciência e a concordância EXPRESSAS não há inscrição — o
+    // registro do aceite (data + versão do texto) é a prova, e ela é do
+    // servidor, não da tela. A caixa de comunicações futuras é opcional.
+    if (b.consentimento !== true)
+      return res.status(400).json({ error: "Para se inscrever é preciso ler e concordar com o tratamento dos dados pessoais descrito na página." });
+    const atividadesPedidas = [...new Set((Array.isArray(b.atividades) ? b.atividades : [])
+      .map((x) => String(x || "").trim()).filter(Boolean))].slice(0, 100);
 
     // dedupe, vagas e prazo se conferem DENTRO da fila: entre a leitura e a
     // gravação não pode entrar outra inscrição que fure a checagem
@@ -1921,11 +1997,25 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       parts.inscritos = parts.inscritos || [];
       if (jaInscrito(parts.inscritos, { cpf, email }))
         return { erro: [409, "Este CPF ou e-mail já está inscrito neste evento. Use a opção “já me inscrevi” para reaver o seu link."], gravar: false };
+      // campos extras validados contra o catálogo DA BASE (o cliente pode
+      // estar com um formulário desatualizado — o catálogo gravado decide)
+      const respostas = validarRespostas(a.evento.formulario || [], b.respostas);
+      if (!respostas.ok) return { erro: [400, respostas.erros.join(" ")], gravar: false };
+      // as atividades marcadas, uma a uma — a vaga por atividade também só
+      // vale conferida aqui dentro
+      for (const idAtv of atividadesPedidas) {
+        const pode = podeEscolherAtividade(a.evento, idAtv, parts.inscritos, []);
+        if (!pode.ok) return { erro: [pode.semVaga ? 409 : 400, pode.motivo], gravar: false };
+      }
       const inscrito = {
         nome, cpf, email, telefone, curso,
         ch: a.proposta?.cargaHoraria || "",
         origem: "online", inscritoEm: new Date().toISOString(),
         token: gerarToken(a.evento.chaveQr), presente: false,
+        atividades: atividadesPedidas,
+        respostas: respostas.respostas,
+        consentimento: { em: new Date().toISOString(), versao: versaoLgpd(textoLgpd(a.evento)) },
+        comunicacoes: b.comunicacoes === true,
       };
       parts.inscritos.push(inscrito);
       a.atualizadoEm = new Date().toISOString();
@@ -2004,21 +2094,77 @@ app.get("/api/publico/eventos/:slug/inscricao/:token", async (req, res) => {
     const r = await acharInscricao(req.params.slug, req.params.token);
     if (!r) return res.status(404).json({ error: "Inscrição não encontrada — confira o link recebido por e-mail." });
     const p = r.acao.proposta || {};
+    const ev = r.acao.evento || {};
+    // as atividades marcadas saem com título e horário (dados do evento,
+    // que já são públicos) — é a lista da credencial do próprio dono
+    const prog = ev.programacao || [];
+    const atividades = (r.inscrito.atividades || [])
+      .map((id) => prog.find((x) => x?.id === id)).filter(Boolean)
+      .map(({ id, titulo, dia, horaInicio, horaFim, local }) =>
+        ({ id, titulo, dia: dia || "", horaInicio: horaInicio || "", horaFim: horaFim || "", local: local || "" }));
     res.json({
       evento: {
-        slug: r.acao.evento.slug, nome: p.nomeAtividade || "", curso: r.acao.curso || "",
+        slug: ev.slug, nome: p.nomeAtividade || "", curso: r.acao.curso || "",
         periodoInicio: p.periodoInicio || "", periodoFim: p.periodoFim || "",
         local: p.local || "", municipio: p.municipio || "",
+        transmissaoPublicada: ev.transmissao?.publicada === true,
       },
       inscricao: {
         nome: r.inscrito.nome || "", inscritoEm: r.inscrito.inscritoEm || "",
         codigo: codigoDe(r.inscrito.token),
         presente: r.inscrito.presente === true, presenteEm: r.inscrito.presenteEm || "",
+        atividades,
       },
     });
   } catch (e) {
     console.error("Erro ao abrir a inscrição:", e);
     res.status(500).json({ error: "Não foi possível abrir a inscrição agora." });
+  }
+});
+
+/**
+ * Troca das atividades DEPOIS da inscrição — o token assinado é a
+ * autenticação, e o corpo substitui o conjunto inteiro (marcar e desmarcar
+ * são a mesma operação). Vale enquanto as inscrições estão abertas (página
+ * ativa e prazo), mas a vaga GERAL não conta: o participante já tem a dele.
+ * A vaga POR ATIVIDADE conta excluindo o que já é dele (manter não disputa).
+ */
+app.post("/api/publico/eventos/:slug/inscricao/:token/atividades", async (req, res) => {
+  try {
+    const pedidas = [...new Set((Array.isArray(req.body?.atividades) ? req.body.atividades : [])
+      .map((x) => String(x || "").trim()).filter(Boolean))].slice(0, 100);
+    const r = await comAcoes((acoes) => {
+      const a = eventoPorSlug(acoes, req.params.slug);
+      if (!a) return { erro: [404, "Evento não encontrado."], falha: true, gravar: false };
+      const t = String(req.params.token || "").trim().toLowerCase();
+      if (!tokenValido(a.evento.chaveQr, t))
+        return { erro: [404, "Inscrição não encontrada — confira o link recebido por e-mail."], falha: true, gravar: false };
+      const inscrito = (a.participantes?.inscritos || [])
+        .find((x) => String(x?.token || "").toLowerCase() === t);
+      if (!inscrito)
+        return { erro: [404, "Inscrição não encontrada — confira o link recebido por e-mail."], falha: true, gravar: false };
+      if (!a.evento.ativo)
+        return { erro: [409, "As inscrições deste evento não estão abertas."], gravar: false };
+      const ate = prazoInscricao(a.evento, a);
+      if (ate && hojeLocalISO() > ate)
+        return { erro: [409, "O prazo de inscrição deste evento já se encerrou."], gravar: false };
+      const atuais = Array.isArray(inscrito.atividades) ? inscrito.atividades : [];
+      for (const idAtv of pedidas) {
+        const pode = podeEscolherAtividade(a.evento, idAtv, a.participantes?.inscritos, atuais);
+        if (!pode.ok) return { erro: [pode.semVaga ? 409 : 400, pode.motivo], gravar: false };
+      }
+      inscrito.atividades = pedidas;
+      a.atualizadoEm = new Date().toISOString();
+      return { atividades: pedidas };
+    });
+    if (r.erro) {
+      if (r.falha) return falhaOnline(req, res, r.erro[0], r.erro[1]);   // token inválido alimenta o freio
+      return res.status(r.erro[0]).json({ error: r.erro[1] });
+    }
+    res.json({ ok: true, atividades: r.atividades });
+  } catch (e) {
+    console.error("Erro na troca de atividades:", e);
+    res.status(500).json({ error: "Não foi possível gravar agora. Tente de novo em instantes." });
   }
 });
 
@@ -2050,7 +2196,7 @@ app.get("/api/publico/eventos/:slug/inscricao/:token/qr.svg", async (req, res) =
  */
 app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
   try {
-    if (checkinFalhouExcedeu(req.ip))
+    if (freioCheckin.excedeu(req.ip))
       return res.status(429).json({ error: "Muitas tentativas sem sucesso. Aguarde alguns minutos e confira o código com a coordenação." });
     const b = req.body || {};
     const r = await comAcoes((acoes) => {
@@ -2058,26 +2204,306 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
       if (!a) return { erro: [404, "Evento não encontrado."], gravar: false };
       if (!codigoMonitorConfere(a.evento, b.codigoMonitor))
         return { erro: [403, "Código do monitor incorreto — confira com a coordenação do evento."], falha: true, gravar: false };
+      // a atividade do credenciamento ("" = entrada geral): erro de escolha
+      // do monitor não é ataque — recusa sem contar no freio
+      let atv = null;
+      if (String(b.atividade || "").trim()) {
+        atv = (a.evento.programacao || []).find((x) => x?.id === String(b.atividade).trim()) || null;
+        if (!atv) return { erro: [400, "Atividade não encontrada na programação — atualize a tela do credenciamento."], gravar: false };
+      }
       const inscrito = inscritoPorToken(a.evento, a.participantes?.inscritos,
         { token: b.token, codigo: b.codigo });
       if (!inscrito) return { erro: [404, "Inscrição não encontrada."], falha: true, gravar: false };
-      if (inscrito.presente === true)
-        return { ja: true, nome: inscrito.nome || "", presenteEm: inscrito.presenteEm || "", gravar: false };
-      inscrito.presente = true;
-      inscrito.presenteEm = new Date().toISOString();
-      inscrito.presentePor = "monitor";
-      a.atualizadoEm = new Date().toISOString();
-      return { nome: inscrito.nome || "", presenteEm: inscrito.presenteEm };
+      const idAtv = atv ? atv.id : "";
+      const extras = atv ? {
+        atividade: atv.titulo,
+        // presença vale mesmo sem a marcação (a pessoa chegou e participou —
+        // remanejamento de última hora é rotina de evento), mas a tela avisa
+        ...(atv.inscricao === "propria" && !(inscrito.atividades || []).includes(atv.id)
+          ? { naoInscritoNaAtividade: true } : {}),
+      } : {};
+      const presencas = inscrito.presencas || (inscrito.presencas = []);
+      const anterior = presencas.find((x) => String(x?.atividade || "") === idAtv);
+      const agora = new Date().toISOString();
+      // idempotente POR NÍVEL: repetir a mesma atividade (ou a entrada geral)
+      // devolve a primeira hora; registro antigo sem `presencas` conta como
+      // a entrada geral já feita. MAS presença DESFEITA pela gestão volta a
+      // valer aqui (achado da revisão de ago/2026): responder "já
+      // credenciado" com presente=false deixaria a pessoa fora do export de
+      // presentes sem ninguém perceber — quem se apresenta de novo, conta.
+      if (anterior || (!atv && !presencas.length && inscrito.presente === true)) {
+        if (inscrito.presente === true)
+          return { ja: true, nome: inscrito.nome || "",
+            presenteEm: anterior?.em || inscrito.presenteEm || "", ...extras, gravar: false };
+        if (anterior) { anterior.em = agora; anterior.por = "monitor"; }
+        inscrito.presente = true;
+        inscrito.presenteEm = agora;
+        inscrito.presentePor = "monitor";
+        a.atualizadoEm = agora;
+        return { nome: inscrito.nome || "", presenteEm: agora, ...extras };
+      }
+      presencas.push({ atividade: idAtv, em: agora, por: "monitor" });
+      // o agregado continua: a PRIMEIRA presença de qualquer nível marca o
+      // participante como presente no evento (é o que o export AEE e a régua
+      // 3/3 leem)
+      if (inscrito.presente !== true) {
+        inscrito.presente = true;
+        inscrito.presenteEm = agora;
+        inscrito.presentePor = "monitor";
+      }
+      a.atualizadoEm = agora;
+      return { nome: inscrito.nome || "", presenteEm: agora, ...extras };
     });
     if (r.erro) {
-      if (r.falha) checkinFalhou(req.ip);   // código errado / inscrição não achada contam ao freio
+      if (r.falha) freioCheckin.falhou(req.ip);   // código errado / inscrição não achada contam ao freio
       return res.status(r.erro[0]).json({ error: r.erro[1] });
     }
     // só o nome de QUEM apresentou o token — nada da lista sai por aqui
-    res.json({ ok: true, ja: r.ja === true, nome: r.nome, presenteEm: r.presenteEm });
+    res.json({ ok: true, ja: r.ja === true, nome: r.nome, presenteEm: r.presenteEm,
+      ...(r.atividade ? { atividade: r.atividade } : {}),
+      ...(r.naoInscritoNaAtividade ? { naoInscritoNaAtividade: true } : {}) });
   } catch (e) {
     console.error("Erro no check-in do evento:", e);
     res.status(500).json({ error: "Não foi possível registrar agora. Tente de novo." });
+  }
+});
+
+/** A capa do evento: os bytes da imagem, servidos da configuração. A rota
+ *  existe porque o base64 é pesado demais para viajar nos payloads — quem
+ *  precisa da imagem (página pública, vitrine, miniatura da gestão) busca
+ *  aqui. Sem capa ou com o evento desativado, 404. */
+app.get("/api/publico/eventos/:slug/capa", async (req, res) => {
+  try {
+    const a = eventoPorSlug(await lerAcoes(), req.params.slug);
+    const capa = a?.evento?.ativo ? String(a.evento.capa || "") : "";
+    const m = capa.match(/^data:image\/(jpeg|png|webp);base64,(.+)$/);
+    if (!m) return res.status(404).send("Evento sem capa");
+    res.setHeader("Content-Type", `image/${m[1]}`);
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.send(Buffer.from(m[2], "base64"));
+  } catch (e) {
+    console.error("Erro na capa do evento:", e);
+    res.status(500).send("Erro ao carregar a capa");
+  }
+});
+
+/**
+ * A transmissão, contra o token da inscrição: só com a transmissão
+ * PUBLICADA pela gestão, e cada tipo entrega o seu mínimo — YouTube manda o
+ * id do vídeo (o player é da página); Zoom NÃO manda o link aqui (o link só
+ * sai no POST que registra a presença — é o registro que abre a porta).
+ * O horário de referência é o da primeira atividade online da programação.
+ */
+app.get("/api/publico/eventos/:slug/transmissao/:token", async (req, res) => {
+  try {
+    const r = await acharInscricao(req.params.slug, req.params.token);
+    if (!r)
+      return falhaOnline(req, res, 404, "Inscrição não encontrada — confira o link recebido por e-mail.");
+    const ev = r.acao.evento || {};
+    const t = ev.transmissao || {};
+    if (t.publicada !== true || !t.tipo)
+      return res.status(404).json({ error: "A transmissão deste evento não está publicada." });
+    const atvOnline = (ev.programacao || []).find((x) => x?.modalidade === "online" && (x.dia || x.horaInicio));
+    const base = {
+      tipo: t.tipo, titulo: r.acao.proposta?.nomeAtividade || "",
+      nome: r.inscrito.nome || "",
+      presencaMinutos: Math.max(0, Number(t.presencaMinutos) || 0),
+      dia: atvOnline?.dia || "", horaInicio: atvOnline?.horaInicio || "", horaFim: atvOnline?.horaFim || "",
+    };
+    if (t.tipo === "youtube")
+      return res.json({ ...base, youtubeId: t.youtubeId || "", chatYoutube: t.chatYoutube === true });
+    res.json(base);
+  } catch (e) {
+    console.error("Erro na transmissão do evento:", e);
+    res.status(500).json({ error: "Não foi possível abrir a transmissão agora." });
+  }
+});
+
+/* --------------- presença na transmissão (heartbeat online) ---------------
+   O player manda uma batida por minuto enquanto toca. Gravar o estado a
+   cada batida seria uma escrita por espectador por minuto — o acumulador
+   fica em MEMÓRIA (slug → token → segundos) e o flush grava tudo de um
+   evento numa única passada pela fila, a cada 2 minutos. Batida com token
+   VÁLIDO não conta em freio nenhum (atrás do NAT do campus a turma inteira
+   é o mesmo IP); token inválido conta como falha, como no check-in. */
+const FLUSH_PRESENCA_MS = Number(process.env.EVENTOS_FLUSH_MS) || 120_000;   // env só para testes locais
+const presencaAcum = new Map();   // slug → Map(token → { seg, vis, ultimaEm })
+
+async function flushPresencaOnline(soSlug) {
+  const slugs = soSlug ? [soSlug] : [...presencaAcum.keys()];
+  for (const s of slugs) {
+    const porToken = presencaAcum.get(s);
+    if (!porToken?.size) { presencaAcum.delete(s); continue; }
+    // sem batida nova não há o que gravar — só a faxina das batidas velhas
+    // (`pend` marca até a PRIMEIRA batida, que credita 0 s mas precisa ir à
+    // base: com presencaMinutos 0 é ela que já vale presença)
+    if (![...porToken.values()].some((x) => x.pend)) {
+      for (const [t, x] of porToken) if (Date.now() - x.ultimaEm > 10 * 60_000) porToken.delete(t);
+      if (!porToken.size) presencaAcum.delete(s);
+      continue;
+    }
+    await comAcoes((acoes) => {
+      const a = eventoPorSlug(acoes, s);
+      if (!a) { presencaAcum.delete(s); return { gravar: false }; }
+      const minutos = Math.max(0, Math.trunc(Number(a.evento?.transmissao?.presencaMinutos)) || 0);
+      let mudou = false;
+      for (const i of a.participantes?.inscritos || []) {
+        const ac = i?.token && porToken.get(String(i.token).toLowerCase());
+        if (!ac || !ac.pend) continue;
+        const online = i.online || (i.online = { segundos: 0, segundosVisiveis: 0, ultimaEm: "" });
+        online.segundos = Math.round((online.segundos || 0) + ac.seg);
+        online.segundosVisiveis = Math.round((online.segundosVisiveis || 0) + ac.vis);
+        online.ultimaEm = new Date(ac.ultimaEm).toISOString();
+        // a régua da presença: 0 minutos = presente na primeira batida;
+        // senão, presente ao somar o tempo exigido. Presença física já
+        // marcada não se sobrescreve — só o acumulado se atualiza.
+        if (i.presente !== true && (minutos === 0 || online.segundos >= minutos * 60)) {
+          i.presente = true;
+          i.presenteEm = new Date().toISOString();
+          i.presentePor = "online";
+        }
+        ac.seg = 0; ac.vis = 0; ac.pend = false;   // creditado — o relógio (ultimaEm) continua
+        mudou = true;
+      }
+      for (const [t, x] of porToken) if (Date.now() - x.ultimaEm > 10 * 60_000) porToken.delete(t);
+      if (!porToken.size) presencaAcum.delete(s);
+      if (mudou) a.atualizadoEm = new Date().toISOString();
+      return { gravar: mudou };
+    }).catch((e) => console.error("[eventos] flush da presença online:", e.message));
+  }
+}
+setInterval(() => flushPresencaOnline(), FLUSH_PRESENCA_MS).unref();
+
+app.post("/api/publico/eventos/:slug/presenca-online", async (req, res) => {
+  try {
+    // o sendBeacon do pagehide chega como text/plain — o JSON vem em string
+    const b = typeof req.body === "string"
+      ? (() => { try { return JSON.parse(req.body); } catch { return {}; } })()
+      : req.body || {};
+    const token = String(b.token || "").trim().toLowerCase();
+    const acoes = await lerAcoes();
+    const a = eventoPorSlug(acoes, req.params.slug);
+    const okToken = a && tokenValido(a.evento.chaveQr, token)
+      && (a.participantes?.inscritos || []).some((x) => String(x?.token || "").toLowerCase() === token);
+    if (!okToken)
+      return falhaOnline(req, res, 403, "Sessão de transmissão inválida — abra de novo o link da sua inscrição.");
+    const t = a.evento.transmissao || {};
+    if (t.publicada !== true)
+      return res.status(404).json({ error: "A transmissão deste evento não está publicada." });
+
+    // Zoom: sem embed — o clique registra a presença e SÓ ENTÃO entrega o
+    // link da reunião (o registro é a porta). Direto na fila, sem acumulador.
+    if (b.zoom === true) {
+      if (t.tipo !== "zoom" || !t.zoomUrl)
+        return res.status(404).json({ error: "Este evento não tem reunião do Zoom publicada." });
+      await comAcoes((acs) => {
+        const a2 = eventoPorSlug(acs, req.params.slug);
+        const i = a2 && (a2.participantes?.inscritos || [])
+          .find((x) => String(x?.token || "").toLowerCase() === token);
+        if (!i || i.presente === true) return { gravar: false };
+        i.presente = true;
+        i.presenteEm = new Date().toISOString();
+        i.presentePor = "online (zoom)";
+        a2.atualizadoEm = i.presenteEm;
+        return {};
+      });
+      return res.json({ ok: true, zoomUrl: t.zoomUrl });
+    }
+
+    if (t.tipo !== "youtube")
+      return res.status(400).json({ error: "Este evento não tem transmissão por vídeo." });
+    const porToken = presencaAcum.get(a.evento.slug)
+      || presencaAcum.set(a.evento.slug, new Map()).get(a.evento.slug);
+    const ac = porToken.get(token) || { seg: 0, vis: 0, ultimaEm: 0, pend: false };
+    const agora = Date.now();
+    // a primeira batida só acerta o relógio; as seguintes creditam o tempo
+    // desde a anterior, com teto de 90 s — pausa longa não vira presença
+    if (ac.ultimaEm) {
+      const cred = Math.min(90, (agora - ac.ultimaEm) / 1000);
+      ac.seg += cred;
+      if (b.visivel === true) ac.vis += cred;
+    }
+    ac.ultimaEm = agora;
+    ac.pend = true;
+    porToken.set(token, ac);
+    // acumulador muito cheio não espera o relógio do flush
+    if (porToken.size > 200) flushPresencaOnline(a.evento.slug);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Erro na presença online:", e);
+    res.status(500).json({ error: "Não foi possível registrar agora." });
+  }
+});
+
+/* ------------------------- mural de comentários ---------------------------
+   Interação de quem está inscrito — o token é o portão (o mural NÃO é
+   público): quem lê e escreve é quem tem credencial do evento. A moderação
+   (ocultar/reexibir) é do dono da ação e da gestão, na rota com login. */
+const muralCooldown = new Map();   // token → último envio (ms)
+
+app.post("/api/publico/eventos/:slug/mural", async (req, res) => {
+  try {
+    const token = String(req.body?.token || "").trim().toLowerCase();
+    const texto = String(req.body?.texto || "")
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim().slice(0, 500);
+    if (!texto) return res.status(400).json({ error: "Escreva a mensagem antes de enviar." });
+    // 20 s entre mensagens do mesmo token: conversa, não flood
+    if (Date.now() - (muralCooldown.get(token) || 0) < 20_000)
+      return res.status(429).json({ error: "Aguarde alguns segundos entre uma mensagem e outra." });
+    const r = await comAcoes((acoes) => {
+      const a = eventoPorSlug(acoes, req.params.slug);
+      if (!a) return { erro: [404, "Evento não encontrado."], falha: true, gravar: false };
+      if (!tokenValido(a.evento.chaveQr, token))
+        return { erro: [403, "Só quem está inscrito escreve no mural — abra o link da sua inscrição."], falha: true, gravar: false };
+      const i = (a.participantes?.inscritos || [])
+        .find((x) => String(x?.token || "").toLowerCase() === token);
+      if (!i)
+        return { erro: [403, "Só quem está inscrito escreve no mural — abra o link da sua inscrição."], falha: true, gravar: false };
+      const mural = a.evento.mural || (a.evento.mural = []);
+      if (mural.length >= 800) {
+        // abre espaço descartando o mais antigo já OCULTO; conversa visível
+        // não se apaga em silêncio — sem oculto, o mural recusa
+        const oculto = mural.findIndex((m) => m?.oculto);
+        if (oculto < 0) return { erro: [409, "O mural deste evento está cheio."], gravar: false };
+        mural.splice(oculto, 1);
+      }
+      mural.push({
+        id: gerarIdCurto(new Set(mural.map((m) => m?.id))),
+        nome: i.nome || "", texto, em: new Date().toISOString(), oculto: false,
+      });
+      a.atualizadoEm = new Date().toISOString();
+      return {};
+    });
+    if (r.erro) {
+      if (r.falha) return falhaOnline(req, res, r.erro[0], r.erro[1]);
+      return res.status(r.erro[0]).json({ error: r.erro[1] });
+    }
+    muralCooldown.set(token, Date.now());
+    if (muralCooldown.size > 5000)
+      for (const [k, v] of muralCooldown) if (Date.now() - v > 60_000) muralCooldown.delete(k);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Erro ao escrever no mural:", e);
+    res.status(500).json({ error: "Não foi possível enviar agora. Tente de novo." });
+  }
+});
+
+app.get("/api/publico/eventos/:slug/mural/:token", async (req, res) => {
+  try {
+    const a = eventoPorSlug(await lerAcoes(), req.params.slug);
+    const t = String(req.params.token || "").trim().toLowerCase();
+    const ok = a && tokenValido(a.evento.chaveQr, t)
+      && (a.participantes?.inscritos || []).some((x) => String(x?.token || "").toLowerCase() === t);
+    if (!ok)
+      return falhaOnline(req, res, 404, "Inscrição não encontrada — confira o link recebido por e-mail.");
+    // as últimas 200 visíveis, em ordem cronológica — id, nome e texto são o
+    // que o próprio mural mostra a todos os inscritos
+    const mensagens = (a.evento.mural || []).filter((m) => m && !m.oculto).slice(-200)
+      .map(({ id, nome, texto, em }) => ({ id, nome, texto, em }));
+    res.json({ mensagens });
+  } catch (e) {
+    console.error("Erro ao ler o mural:", e);
+    res.status(500).json({ error: "Não foi possível carregar o mural agora." });
   }
 });
 
@@ -2115,7 +2541,59 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
           return { erro: [400, "Prazo de inscrição inválido."], gravar: false };
         ev.inscricoesAte = d;
       }
+      // tipo errado é 400, nunca 200: normalizar uma string devolveria []
+      // e ZERARIA atividades/campos com resposta de sucesso (achado da
+      // revisão de ago/2026 — mesmo tratamento que vagas e capa já tinham)
+      if (b.programacao !== undefined && !Array.isArray(b.programacao))
+        return { erro: [400, "Programação inválida — envie a lista de atividades."], gravar: false };
+      if (b.formulario !== undefined && !Array.isArray(b.formulario))
+        return { erro: [400, "Formulário inválido — envie a lista de campos."], gravar: false };
+      if (b.transmissao !== undefined && (typeof b.transmissao !== "object" || b.transmissao === null || Array.isArray(b.transmissao)))
+        return { erro: [400, "Configuração de transmissão inválida."], gravar: false };
       if (b.programacao !== undefined) ev.programacao = normalizarProgramacao(b.programacao);
+      if (b.formulario !== undefined) ev.formulario = normalizarFormulario(b.formulario);
+      if (b.local !== undefined) ev.local = String(b.local || "").trim().slice(0, 200);
+      // vazio volta ao texto institucional padrão (LGPD_TEXTO_PADRAO)
+      if (b.lgpdTexto !== undefined) ev.lgpdTexto = String(b.lgpdTexto || "").trim().slice(0, 2000);
+      if (b.capa !== undefined) {
+        const c = String(b.capa || "");
+        if (!c) delete ev.capa;   // "" remove a capa
+        else {
+          const m = c.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+          if (!m) return { erro: [400, "A capa deve ser uma imagem JPEG, PNG ou WebP."], gravar: false };
+          // tamanho DECODIFICADO (3/4 do base64): o teto protege o estado,
+          // que viaja inteiro a cada gravação
+          if (m[2].length * 3 / 4 > 500 * 1024)
+            return { erro: [400, "A capa passa de 500 KB — reduza a imagem antes de enviar."], gravar: false };
+          ev.capa = c;
+        }
+      }
+      if (b.transmissao !== undefined) {
+        const t = b.transmissao || {};
+        if (t.presencaMinutos !== undefined && t.presencaMinutos !== "" && !Number.isFinite(Number(t.presencaMinutos)))
+          return { erro: [400, "Minutos de presença inválidos — use 0 para contar o primeiro acesso."], gravar: false };
+        const tipo = ["youtube", "zoom"].includes(t.tipo) ? t.tipo : "";
+        const entradaYt = String(t.youtubeId || t.url || "").trim();
+        const youtubeId = tipo === "youtube" ? videoIdDe(entradaYt) : "";
+        if (tipo === "youtube" && entradaYt && !youtubeId)
+          return { erro: [400, "Não reconheci o vídeo do YouTube — cole o link da transmissão ou só o ID."], gravar: false };
+        const zoomUrl = tipo === "zoom" ? String(t.zoomUrl || t.url || "").trim().slice(0, 300) : "";
+        if (zoomUrl && !/^https:\/\//i.test(zoomUrl))
+          return { erro: [400, "O link do Zoom precisa começar com https://"], gravar: false };
+        // publicar é o interruptor explícito — e não se publica o que não
+        // tem para onde apontar
+        const publicada = t.publicada === true && !!tipo;
+        if (publicada && tipo === "youtube" && !youtubeId)
+          return { erro: [400, "Informe o vídeo do YouTube antes de publicar a transmissão."], gravar: false };
+        if (publicada && tipo === "zoom" && !zoomUrl)
+          return { erro: [400, "Informe o link da reunião do Zoom antes de publicar a transmissão."], gravar: false };
+        ev.transmissao = {
+          tipo, youtubeId, zoomUrl,
+          chatYoutube: t.chatYoutube === true,
+          presencaMinutos: Math.max(0, Math.trunc(Number(t.presencaMinutos)) || 0),
+          publicada,
+        };
+      }
       const emUso = acoes.filter((x) => x !== a && x?.evento?.slug).map((x) => x.evento.slug);
       if (b.slug !== undefined && String(b.slug).trim()) {
         const s = String(b.slug).trim().toLowerCase();
@@ -2140,7 +2618,10 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
       return { evento: ev };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-    res.json({ ok: true, evento: r.evento });
+    // a resposta passa pelo MESMO strip do GET: a chaveQr recém-gerada e a
+    // capa não viajam nem ao dono (correção de ago/2026 — a resposta antiga
+    // devolvia o evento completo, chave dentro)
+    res.json({ ok: true, evento: eventoSemSegredos(r.evento) });
   } catch (e) {
     console.error("Erro na configuração do evento:", e);
     res.status(500).json({ error: "Falha ao gravar a configuração do evento" });
@@ -2153,6 +2634,10 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
  * token) assina o papel e precisa entrar como presente para sair no export
  * "só presentes". A gestão/o responsável marca por aqui, achando o inscrito
  * pela chave que tiver (token, CPF, e-mail ou nome). Alterna presente.
+ * Com `atividade` (id da programação), o registro é NAQUELA atividade —
+ * assinado como ato da gestão, não do monitor (achado da revisão de
+ * ago/2026); desmarcar a atividade não desfaz a presença geral, que tem o
+ * seu próprio botão.
  */
 app.post("/api/extensao/:id/presenca", async (req, res) => {
   try {
@@ -2171,11 +2656,36 @@ app.post("/api/extensao/:id/presenca", async (req, res) => {
         || ins.find((x) => alvoEmail && String(x.email || "").toLowerCase() === alvoEmail)
         || ins.find((x) => alvoNome && String(x.nome || "").trim().toLowerCase() === alvoNome);
       if (!i) return { erro: [404, "Inscrito não encontrado."], gravar: false };
+      const agora = new Date().toISOString();
+      if (String(b.atividade || "").trim()) {
+        const atv = (a.evento?.programacao || []).find((x) => x?.id === String(b.atividade).trim());
+        if (!atv) return { erro: [400, "Atividade não encontrada na programação."], gravar: false };
+        const presencas = i.presencas || (i.presencas = []);
+        const anterior = presencas.find((p) => String(p?.atividade || "") === atv.id);
+        const marcar = b.presente === undefined ? !anterior : !!b.presente;
+        if (marcar && !anterior) presencas.push({ atividade: atv.id, em: agora, por: `gestão (${u.email})` });
+        if (!marcar && anterior) i.presencas = presencas.filter((p) => p !== anterior);
+        if (marcar && i.presente !== true) {
+          i.presente = true;
+          i.presenteEm = agora;
+          i.presentePor = `gestão (${u.email})`;
+        }
+        a.atualizadoEm = agora;
+        return { nome: i.nome || "", presente: i.presente === true,
+          presenteEm: i.presenteEm || "", atividade: atv.titulo, naAtividade: marcar };
+      }
       const presente = b.presente === undefined ? !(i.presente === true) : !!b.presente;
       i.presente = presente;
-      if (presente) { i.presenteEm = new Date().toISOString(); i.presentePor = `gestão (${u.email})`; }
-      else { i.presenteEm = ""; i.presentePor = ""; }
-      a.atualizadoEm = new Date().toISOString();
+      if (presente) { i.presenteEm = agora; i.presentePor = `gestão (${u.email})`; }
+      else {
+        i.presenteEm = ""; i.presentePor = "";
+        // desfazer tira também o registro GERAL de presencas — deixá-lo
+        // faria os números divergirem do agregado; as presenças POR
+        // ATIVIDADE ficam (são registros de participação nas atividades)
+        if (Array.isArray(i.presencas))
+          i.presencas = i.presencas.filter((p) => String(p?.atividade || "") !== "");
+      }
+      a.atualizadoEm = agora;
       return { nome: i.nome || "", presente: i.presente, presenteEm: i.presenteEm };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
@@ -2186,23 +2696,80 @@ app.post("/api/extensao/:id/presenca", async (req, res) => {
   }
 });
 
+/**
+ * Moderação do mural — do dono da ação e da gestão: ocultar tira a mensagem
+ * da leitura pública (e é o que abre espaço quando o mural enche); reexibir
+ * desfaz. Nada se apaga — o registro fica, só muda a visibilidade.
+ */
+app.post("/api/extensao/:id/mural/:mid", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((x) => x.id === req.params.id);
+      if (!a || !podeVerAcao(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      const m = (a.evento?.mural || []).find((x) => x?.id === req.params.mid);
+      if (!m) return { erro: [404, "Mensagem não encontrada no mural."], gravar: false };
+      m.oculto = req.body?.oculto === true;
+      a.atualizadoEm = new Date().toISOString();
+      return { oculto: m.oculto };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, oculto: r.oculto });
+  } catch (e) {
+    console.error("Erro na moderação do mural:", e);
+    res.status(500).json({ error: "Não foi possível moderar agora." });
+  }
+});
+
 /** A planilha para a certificação na AEE — todos os inscritos ou, com
- *  ?presentes=1, só quem foi credenciado na entrada. */
+ *  ?presentes=1, só quem foi credenciado na entrada. Com ?atividade=<id>,
+ *  o recorte é dos que MARCARAM aquela atividade (e presentes=1 passa a
+ *  olhar a presença NAQUELA atividade), com a CH dela quando declarada —
+ *  é o que certifica minicurso e oficina separadamente do evento. */
 app.get("/api/extensao/:id/inscritos.xlsx", async (req, res) => {
   try {
     const u = await sessaoEx(req, res);
     if (!u) return;
     const acao = (await lerAcoes()).find((a) => a.id === req.params.id);
     if (!acao || !podeVerAcao(u, acao)) return res.status(404).send("Ação não encontrada");
+    let atividade = null;
+    if (String(req.query.atividade || "").trim()) {
+      atividade = (acao.evento?.programacao || []).find((x) => x?.id === String(req.query.atividade).trim());
+      if (!atividade) return res.status(404).send("Atividade não encontrada na programação");
+    }
     const { gerarInscritosAeeXlsx } = await import("./lib/exports.js");
-    const buffer = await gerarInscritosAeeXlsx(acao, { somentePresentes: req.query.presentes === "1" });
+    const buffer = await gerarInscritosAeeXlsx(acao,
+      { somentePresentes: req.query.presentes === "1", atividade });
     const num = (acao.numeroAcao || acao.id).replace(/[^A-Za-z0-9-]/g, "-");
+    const sufixo = `${atividade ? `-${atividade.id}` : ""}${req.query.presentes === "1" ? "-presentes" : ""}`;
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition",
-      `attachment; filename="Inscritos-AEE-${num}${req.query.presentes === "1" ? "-presentes" : ""}.xlsx"`);
+    res.setHeader("Content-Disposition", `attachment; filename="Inscritos-AEE-${num}${sufixo}.xlsx"`);
     res.send(buffer);
   } catch (e) {
     console.error("Erro no export AEE:", e);
+    res.status(500).send("Erro ao gerar a planilha: " + e.message);
+  }
+});
+
+/** A lista COMPLETA do ARCHÉ (dono/gestão): tudo o que a inscrição online
+ *  coletou — contato, atividades, presenças, consentimento e campos extras.
+ *  É o export interno da coordenação; a planilha da AEE continua sendo a
+ *  da certificação. */
+app.get("/api/extensao/:id/inscritos-completo.xlsx", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const acao = (await lerAcoes()).find((a) => a.id === req.params.id);
+    if (!acao || !podeVerAcao(u, acao)) return res.status(404).send("Ação não encontrada");
+    const { gerarInscritosCompletoXlsx } = await import("./lib/exports.js");
+    const buffer = await gerarInscritosCompletoXlsx(acao);
+    const num = (acao.numeroAcao || acao.id).replace(/[^A-Za-z0-9-]/g, "-");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="Inscritos-${num}-completo.xlsx"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro no export completo:", e);
     res.status(500).send("Erro ao gerar a planilha: " + e.message);
   }
 });
@@ -6447,6 +7014,8 @@ app.get(["/eventos/credenciar", "/eventos/credenciar/"], (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "credenciar.html")));
 app.get(/^\/eventos\/[a-z0-9-]+\/inscricao\/[a-zA-Z0-9]+\/?$/, (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "inscricao.html")));
+app.get(/^\/eventos\/[a-z0-9-]+\/assistir\/[a-zA-Z0-9]+\/?$/, (_req, res) =>
+  res.sendFile(path.join(PUBLIC, "eventos", "assistir.html")));
 app.get(/^\/eventos\/[a-z0-9-]+\/?$/, (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "evento.html")));
 app.use(express.static(PUBLIC));
@@ -6465,6 +7034,10 @@ process.on("unhandledRejection", (e) => {
 for (const sinal of ["SIGTERM", "SIGINT"]) {
   process.on(sinal, async () => {
     try {
+      // a presença online acumulada em memória desce à base antes do flush
+      // do estado — melhor esforço: minutos de transmissão não valem perder
+      // o desligamento por eles
+      await flushPresencaOnline().catch(() => {});
       await storage.flush?.();
       console.log("ARCHÉ · estado gravado antes de encerrar");
     } catch (e) {

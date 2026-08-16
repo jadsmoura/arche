@@ -9,7 +9,7 @@
   /* "Minha inscrição" (servida em /eventos/<slug>/inscricao/<token>): o
      token assinado no endereço É a credencial — a página só mostra a
      inscrição de quem tem o link, e nada de ninguém mais. */
-  .cartao{max-width:430px;margin:26px auto 0;text-align:center}
+  .cartao{max-width:460px;margin:26px auto 0;text-align:center}
   .qr-box{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;display:inline-block}
   .qr-box img{width:220px;height:220px;display:block}
   .codigo{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;letter-spacing:.18em;
@@ -17,6 +17,23 @@
   .selo{font-size:12px;font-weight:600;border-radius:20px;padding:4px 12px;display:inline-block}
   .selo.b{background:var(--ok-soft);color:var(--ok)}
   .selo.v{background:var(--wash);color:var(--muted)}
+  .atvs{text-align:left;margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+  .atvs .t{font-family:'Archivo',sans-serif;font-weight:700;font-size:13.5px;color:var(--ink)}
+  .atvs p{font-size:13px;color:var(--ink-soft);margin-top:6px}
+  details.troca{text-align:left;margin-top:14px}
+  details.troca summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--brand-2)}
+  .esc-atv{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);
+    border-radius:10px;margin-top:6px;cursor:pointer;font-size:13.5px;color:var(--ink);font-weight:500;
+    text-transform:none;letter-spacing:0}
+  .esc-atv input{margin-top:3px}
+  .esc-atv .m{font-size:12px;color:var(--muted);font-weight:400;margin-top:2px}
+  .esc-atv.lotada{opacity:.55;cursor:not-allowed}
+  .msg-erro{background:var(--err-soft);color:var(--err);border-radius:10px;padding:10px 13px;
+    font-size:13px;font-weight:600;margin-top:10px;text-align:left}
+  .msg-ok{background:var(--ok-soft);color:var(--ok);border-radius:10px;padding:10px 13px;
+    font-size:13px;font-weight:600;margin-top:10px;text-align:left}
+  .msg-aviso{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 13px;
+    font-size:12.5px;font-weight:500;margin-top:10px;text-align:left;line-height:1.5}
 </style>
 </head>
 <body>
@@ -44,20 +61,18 @@
 <script>
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) ? iso.split("-").reverse().join("/") : "—");
+const $ = (id) => document.getElementById(id);
 const m = location.pathname.match(/^\/eventos\/([^/]+)\/inscricao\/([^/]+)/) || [];
 const SLUG = decodeURIComponent(m[1] || ""), TOKEN = decodeURIComponent(m[2] || "");
 const hora = (iso) => { try { return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
+const faixa = (p) => p.horaInicio ? (p.horaInicio + (p.horaFim ? "–" + p.horaFim : "")) : "";
+let DADOS = null;       // { evento, inscricao } da API
+let PUB = null;         // retrato público (catálogo das atividades) — só carrega na troca
+let TROCA = new Set();  // ids marcados na janela de troca
 
-fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(TOKEN)}`).then(async (r) => {
-  const j = await r.json().catch(() => ({}));
-  const el = document.getElementById("cartao");
-  if (!r.ok) {
-    el.innerHTML = `<div class="card-t">Inscrição não encontrada</div>
-      <p style="font-size:13.5px;color:var(--muted);margin-top:8px">${esc(j.error || "Confira o link recebido por e-mail.")}</p>
-      <a class="bt bt-sec" style="margin-top:14px" href="/eventos/">Ver os eventos</a>`;
-    return;
-  }
-  const e = j.evento, i = j.inscricao;
+function render() {
+  const e = DADOS.evento, i = DADOS.inscricao;
+  const el = $("cartao");
   el.innerHTML = `
     <div class="eyebrow">Credencial de participante</div>
     <div class="card-t" style="font-size:19px;margin-top:8px">${esc(i.nome)}</div>
@@ -74,12 +89,92 @@ fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURICom
       <div><span class="codigo">${esc(i.codigo.toUpperCase())}</span></div>
       <p style="font-size:12px;color:var(--muted);margin-top:6px">código manual, caso a leitura do QR falhe</p>
     </div>
+    ${e.transmissaoPublicada ? `<a class="bt bt-pri" style="width:100%;margin-top:14px"
+      href="/eventos/${encodeURIComponent(SLUG)}/assistir/${encodeURIComponent(TOKEN)}">🖥 Assistir online</a>` : ""}
+    <div class="atvs">
+      <div class="t">Minhas atividades</div>
+      ${(i.atividades || []).length
+        ? i.atividades.map((p) => `<p>• <b>${esc(p.titulo)}</b>${p.dia ? " — " + fmt(p.dia) : ""}${faixa(p) ? ", " + esc(faixa(p)) : ""}${p.local ? " · " + esc(p.local) : ""}</p>`).join("")
+        : '<p style="color:var(--muted)">Nenhuma atividade com vaga própria marcada — as atividades gerais do evento não precisam de marcação.</p>'}
+      <details class="troca" id="d-troca">
+        <summary>Trocar minhas atividades</summary>
+        <div id="troca-corpo"><p style="font-size:12.5px;color:var(--muted);margin-top:6px">Carregando…</p></div>
+      </details>
+    </div>
     <p style="font-size:13px;color:var(--ink-soft);margin-top:14px;text-align:left">
-      <b>Como usar:</b> na entrada do evento, apresente este QR ao monitor (pode ser
-      direto da tela do celular). Se a câmera não ler, informe o código de 6 caracteres.
-      A presença registrada aqui é a que vale para a certificação.</p>`;
-}).catch(() => {
-  document.getElementById("cartao").innerHTML = '<p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente em instantes.</p>';
+      <b>Como usar:</b> na entrada do evento (e na porta de cada atividade), apresente este QR ao
+      monitor — pode ser direto da tela do celular. Se a câmera não ler, informe o código de
+      6 caracteres. A presença registrada aqui é a que vale para a certificação.</p>`;
+  $("d-troca").addEventListener("toggle", (ev) => { if (ev.target.open && !PUB) montarTroca(); }, { once: false });
+}
+
+/* A troca usa o catálogo público do evento (as atividades "propria" e as
+   vagas de agora). Com a página do evento desativada não há catálogo — e o
+   servidor também recusaria a troca: inscrição encerrada, escolha travada. */
+async function montarTroca() {
+  const corpo = $("troca-corpo");
+  try {
+    const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}`);
+    if (!r.ok) throw 0;
+    PUB = (await r.json()).evento;
+  } catch {
+    corpo.innerHTML = '<p class="msg-aviso">As inscrições deste evento não estão abertas — a escolha de atividades está travada. Precisa trocar? Fale com a organização.</p>';
+    return;
+  }
+  TROCA = new Set((DADOS.inscricao.atividades || []).map((p) => p.id));
+  const proprias = (PUB.programacao || []).filter((p) => p.inscricao === "propria");
+  if (!proprias.length) { corpo.innerHTML = '<p class="msg-aviso">Este evento não tem atividades com inscrição própria.</p>'; return; }
+  corpo.innerHTML = proprias.map((p) => {
+    const minha = TROCA.has(p.id);
+    // quem já tem a vaga não a disputa de novo — a atividade lotada continua
+    // marcável para quem já está nela
+    const lotada = !minha && p.vagasRestantes !== null && p.vagasRestantes <= 0;
+    return `<label class="esc-atv ${lotada ? "lotada" : ""}">
+      <input type="checkbox" data-troca="${esc(p.id)}" ${minha ? "checked" : ""} ${lotada ? "disabled" : ""}
+        onchange="this.checked?TROCA.add(this.dataset.troca):TROCA.delete(this.dataset.troca)">
+      <span style="flex:1">${esc(p.titulo)}
+        <div class="m">${p.dia ? fmt(p.dia) + ", " : ""}${esc(faixa(p))}${p.local ? " · " + esc(p.local) : ""}
+          ${p.vagasRestantes === null ? "" : lotada ? " · <b>vagas esgotadas</b>" : ` · ${p.vagasRestantes} vaga(s)`}</div></span>
+    </label>`;
+  }).join("") + `
+    <div id="troca-msg"></div>
+    <button class="bt bt-pri" style="width:100%;margin-top:12px" id="troca-bt" onclick="salvarTroca()">Salvar minhas atividades</button>`;
+}
+
+async function salvarTroca() {
+  const bt = $("troca-bt"); bt.disabled = true;
+  $("troca-msg").innerHTML = "";
+  try {
+    const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(TOKEN)}/atividades`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ atividades: [...TROCA] }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "Não foi possível gravar agora.");
+    // recarrega a credencial: a lista de atividades vem do servidor
+    PUB = null;
+    await carregar();
+  } catch (e) {
+    $("troca-msg").innerHTML = `<div class="msg-erro">${esc(e.message)}</div>`;
+    bt.disabled = false;
+  }
+}
+
+async function carregar() {
+  const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(TOKEN)}`);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    $("cartao").innerHTML = `<div class="card-t">Inscrição não encontrada</div>
+      <p style="font-size:13.5px;color:var(--muted);margin-top:8px">${esc(j.error || "Confira o link recebido por e-mail.")}</p>
+      <a class="bt bt-sec" style="margin-top:14px" href="/eventos/">Ver os eventos</a>`;
+    return;
+  }
+  DADOS = j;
+  render();
+}
+
+carregar().catch(() => {
+  $("cartao").innerHTML = '<p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente em instantes.</p>';
 });
 </script>
 </body>

@@ -8,29 +8,97 @@
 <style>
   /* Página PÚBLICA do evento (servida em /eventos/<slug>): o slug sai do
      próprio endereço. Nada aqui exige login; a API só devolve o retrato
-     institucional do evento — a lista de inscritos nunca sai por ela. */
+     institucional do evento — a lista de inscritos nunca sai por ela.
+     O desenho é mobile-first: quem se inscreve chega pelo celular. */
   .selo{font-size:11px;font-weight:600;border-radius:20px;padding:3px 10px;white-space:nowrap}
   .selo.b{background:var(--ok-soft);color:var(--ok)}
   .selo.e{background:var(--warn-soft);color:var(--warn)}
   .selo.v{background:var(--wash);color:var(--muted)}
-  .prog-dia{font-family:'Archivo',sans-serif;font-weight:700;font-size:14px;color:var(--brand-2);
-    margin:16px 0 6px;padding-bottom:5px;border-bottom:1px solid var(--line)}
-  .prog-item{display:flex;gap:12px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
-  .prog-item:last-child{border-bottom:0}
-  .prog-h{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--brand-2);white-space:nowrap;min-width:52px}
-  .prog-t b{display:block}
-  .prog-t span{color:var(--muted);font-size:12.5px}
-  .duas{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;align-items:start;margin-top:26px}
-  @media(max-width:820px){.duas{grid-template-columns:1fr}}
-  .lgpd{font-size:11.5px;color:var(--muted);margin-top:12px;line-height:1.5}
+
+  /* ------------------------------- hero --------------------------------- */
+  /* A capa (quando o evento tem) entra como fundo com um véu escuro por
+     cima — o texto branco precisa ler em qualquer fotografia; sem capa, o
+     gradiente da marca faz o mesmo papel. */
+  .hero-ev{border-radius:20px;overflow:hidden;margin-top:20px;color:#fff;position:relative;
+    background:linear-gradient(135deg,#1c3742 0%,#2d535c 55%,#40717e 100%);
+    background-size:cover;background-position:center;box-shadow:var(--shadow-lg)}
+  .hero-in{padding:44px 34px 36px;background:linear-gradient(180deg,rgba(16,32,39,.58) 0%,rgba(16,32,39,.82) 100%)}
+  .hero-ev .eyebrow{color:#a9dff0}
+  .hero-ev h1{font-family:'Archivo',sans-serif;font-size:34px;font-weight:800;letter-spacing:-.02em;
+    line-height:1.12;margin:12px 0 0;text-wrap:balance}
+  .hero-meta{font-size:14.5px;margin-top:12px;line-height:1.6;color:#e9f3f7}
+  .hero-meta b{color:#fff}
+  .hero-selos{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .hero-selos .selo{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.25)}
+  .hero-selos .selo.on{background:rgba(113,200,226,.28);border-color:rgba(113,200,226,.6)}
+  .hero-cta{margin-top:22px}
+  @media(max-width:640px){.hero-in{padding:30px 20px 26px}.hero-ev h1{font-size:26px}}
+
+  /* botão flutuante persistente — some depois da inscrição feita */
+  .flutua{position:fixed;right:18px;bottom:18px;z-index:40;box-shadow:0 10px 30px -8px rgba(20,45,55,.6)}
+
+  /* --------------------------- programação ------------------------------ */
+  .abas{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:6px;margin-top:14px}
+  .aba{flex:none;border:1.5px solid var(--line-strong);background:var(--card);color:var(--ink-soft);
+    border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;
+    font-family:'IBM Plex Sans',system-ui,sans-serif}
+  .aba.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  .atv{border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-top:10px;background:var(--card)}
+  .atv-topo{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .atv-h{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:13px;color:var(--brand-2);white-space:nowrap}
+  .atv-t{font-weight:600;font-size:15px;color:var(--ink);flex:1;min-width:200px}
+  .atv-meta{font-size:12.5px;color:var(--muted);margin-top:5px}
+  .atv-selos{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .atv details{margin-top:8px}
+  .atv summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--brand-2)}
+  .atv details p{font-size:13.5px;color:var(--ink-soft);margin-top:6px;white-space:pre-line;line-height:1.6}
+  /* etiqueta do tipo de atividade — cores discretas, uma por tipo */
+  .tp{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+    border-radius:6px;padding:2px 8px;white-space:nowrap}
+  .tp-palestra{background:#e6f5fa;color:#2d535c}
+  .tp-minicurso{background:#e8f5e9;color:#2e7d32}
+  .tp-oficina{background:#fff3e0;color:#b26a00}
+  .tp-curso{background:#ecebf6;color:#5e5091}
+  .tp-mesa{background:#fdecea;color:#a1524c}
+  .tp-roda{background:#eef3f5;color:#40717e}
+  .tp-mostra{background:#f5e9f0;color:#a14c7c}
+  .tp-apresentacao{background:#e9eef5;color:#35608d}
+  .tp-outro{background:#eceff3;color:#657179}
+
+  /* ---------------------------- inscrição ------------------------------- */
+  .duas{display:grid;grid-template-columns:1.25fr 1fr;gap:20px;align-items:start;margin-top:22px}
+  @media(max-width:860px){.duas{grid-template-columns:1fr}}
   .msg-erro{background:var(--err-soft);color:var(--err);border-radius:10px;padding:11px 14px;
     font-size:13.5px;font-weight:600;margin-top:12px}
   .msg-ok{background:var(--ok-soft);color:var(--ok);border-radius:10px;padding:11px 14px;
     font-size:13.5px;font-weight:600;margin-top:12px}
+  .msg-aviso{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:11px 14px;
+    font-size:13px;font-weight:500;margin-top:10px;line-height:1.55}
   .card + .card{margin-top:20px}
   details.reenvio summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--brand-2);margin-top:14px}
   .qr-box{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;display:inline-block}
   .qr-box img{width:180px;height:180px;display:block}
+  .chk{display:flex;gap:10px;align-items:flex-start;margin-top:10px;font-size:13.5px;color:var(--ink-soft);
+    line-height:1.5;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500}
+  .chk input{margin-top:3px}
+  .esc-dia{font-family:'Archivo',sans-serif;font-weight:700;font-size:12.5px;color:var(--brand-2);
+    margin:12px 0 4px;letter-spacing:.02em}
+  .esc-atv{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);
+    border-radius:10px;margin-top:6px;cursor:pointer;transition:.15s;font-weight:500;
+    text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--ink)}
+  .esc-atv:hover{border-color:var(--brand-2)}
+  .esc-atv input{margin-top:3px}
+  .esc-atv .d{flex:1;min-width:0}
+  .esc-atv .m{font-size:12px;color:var(--muted);font-weight:400;margin-top:2px}
+  .esc-atv.lotada{opacity:.55;cursor:not-allowed}
+  .lgpd-box{background:var(--wash);border:1px solid var(--line);border-radius:10px;padding:12px 14px;
+    font-size:12px;color:var(--ink-soft);line-height:1.6;max-height:170px;overflow-y:auto;margin-top:8px}
+  .secao-t{font-family:'Archivo',sans-serif;font-weight:700;font-size:22px;color:var(--ink);
+    letter-spacing:-.01em;margin:34px 0 4px}
+  .secao-s{font-size:13px;color:var(--muted)}
+  .org{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .org .quadro{background:var(--wash);border-radius:12px;padding:12px 18px;font-size:13.5px}
+  .org .quadro b{display:block;color:var(--brand)}
 </style>
 </head>
 <body>
@@ -48,6 +116,7 @@
 </header>
 
 <main id="main"><div class="card" style="margin-top:20px"><p style="color:var(--muted)">Carregando…</p></div></main>
+<a class="bt bt-pri flutua" id="cta-flutua" href="#inscricao" style="display:none">Inscreva-se</a>
 
 <footer>
   <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
@@ -63,6 +132,23 @@ const $ = (id) => document.getElementById(id);
 // o slug é o primeiro segmento depois de /eventos/
 const SLUG = decodeURIComponent((location.pathname.match(/^\/eventos\/([^/]+)/) || [])[1] || "");
 let EV = null;
+let DIA_SEL = "";                 // aba de dia escolhida na programação
+let ESCOLHIDAS = new Set();       // ids das atividades marcadas no formulário
+
+// rótulos dos tipos de atividade (códigos do catálogo de lib/eventos.js —
+// estáveis por contrato; o rótulo mora aqui para a página não depender de
+// mais uma chamada)
+const TIPOS = { palestra: "Palestra", minicurso: "Minicurso", oficina: "Oficina", curso: "Curso",
+  mesa: "Mesa-redonda", roda: "Roda de conversa", mostra: "Mostra", apresentacao: "Apresentação", outro: "Atividade" };
+const MODAL_ROTULO = { presencial: "Presencial", online: "Online", hibrido: "Híbrido" };
+
+// hoje no fuso institucional — é com ele que a página decide "evento já foi"
+const hojeISO = () => {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo",
+      year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  } catch { return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10); }
+};
 
 const diaLongo = (iso) => {
   try {
@@ -71,120 +157,382 @@ const diaLongo = (iso) => {
     return s.charAt(0).toUpperCase() + s.slice(1);
   } catch { return fmt(iso); }
 };
+// "terça, 12/05" — o rótulo curto das abas por dia
+const diaAba = (iso) => {
+  try {
+    const d = new Date(iso + "T12:00:00-03:00");
+    const w = d.toLocaleDateString("pt-BR", { weekday: "long" }).replace(/-feira$/, "");
+    return `${w}, ${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  } catch { return fmt(iso); }
+};
+/* Período compacto do jeito que se fala: "12–15 de maio de 2026" quando o
+   evento cabe num mês; por extenso nas pontas quando cruza mês ou ano. */
+function periodoCompacto(ini, fim) {
+  const ok = (x) => /^\d{4}-\d{2}-\d{2}$/.test(String(x || ""));
+  if (!ok(ini) && !ok(fim)) return "";
+  if (!ok(fim) || ini === fim) return dataExtensa(ok(ini) ? ini : fim);
+  if (!ok(ini)) return dataExtensa(fim);
+  const mesAno = (x) => x.slice(0, 7);
+  if (mesAno(ini) === mesAno(fim))
+    return `${Number(ini.slice(8, 10))}–${dataExtensa(fim)}`;
+  if (ini.slice(0, 4) === fim.slice(0, 4))
+    return `${dataExtensa(ini, { semAno: true })} – ${dataExtensa(fim)}`;
+  return `${dataExtensa(ini)} – ${dataExtensa(fim)}`;
+}
+function dataExtensa(iso, { semAno = false } = {}) {
+  try {
+    const d = new Date(iso + "T12:00:00-03:00");
+    const op = semAno ? { day: "numeric", month: "long" } : { day: "numeric", month: "long", year: "numeric" };
+    return d.toLocaleDateString("pt-BR", op);
+  } catch { return fmt(iso); }
+}
 
+/* Conflito de horário — a MESMA régua de lib/eventos.js, replicada aqui só
+   para o aviso amarelo do formulário (quem barra ou deixa é o participante;
+   o servidor não recusa por conflito). */
+function conflita(a, b) {
+  if (!a?.dia || !b?.dia || a.dia !== b.dia) return false;
+  if (!a.horaInicio || !b.horaInicio) return false;
+  const mais1 = (h) => { const [x, y] = h.split(":").map(Number); const t = x * 60 + y + 1;
+    return String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(t % 60).padStart(2, "0"); };
+  const fim = (x) => (x.horaFim && x.horaFim > x.horaInicio ? x.horaFim : mais1(x.horaInicio));
+  return a.horaInicio < fim(b) && b.horaInicio < fim(a);
+}
+
+const faixaHora = (p) => p.horaInicio ? (p.horaInicio + (p.horaFim ? "–" + p.horaFim : "")) : "—";
+const atvPorId = (id) => (EV?.programacao || []).find((x) => x.id === id);
+
+/* =============================== RENDER ================================== */
 function render() {
   const e = EV;
-  // programação agrupada por dia — a ordem já vem do servidor
-  const dias = [];
-  for (const p of (e.programacao || [])) {
-    const d = dias.find((x) => x.dia === p.dia) || (dias[dias.push({ dia: p.dia, itens: [] }) - 1]);
-    d.itens.push(p);
-  }
-  const progHtml = dias.length ? dias.map((d) => `
-    <div class="prog-dia">${d.dia ? diaLongo(d.dia) : "Programação"}</div>
-    ${d.itens.map((p) => `<div class="prog-item">
-      <span class="prog-h">${esc(p.hora) || "—"}</span>
-      <div class="prog-t"><b>${esc(p.titulo)}</b>
-        ${p.responsavel || p.local ? `<span>${esc(p.responsavel)}${p.responsavel && p.local ? " · " : ""}${esc(p.local)}</span>` : ""}</div>
-    </div>`).join("")}`).join("")
-    : '<p style="color:var(--muted);font-size:13.5px">A programação detalhada será divulgada em breve.</p>';
-
+  const encerrado = e.periodoFim && e.periodoFim < hojeISO();
   const abertas = e.inscricoesAbertas;
   const jaTem = localStorage.getItem("arche-ev-" + SLUG);
-  $("main").innerHTML = `
-    <div class="eyebrow" style="margin-top:8px">Evento de extensão · inscrição gratuita</div>
-    <h1 class="hero-h" style="font-size:30px;margin-top:10px">${esc(e.nome)}</h1>
-    <p class="hero-p" style="margin-top:10px">
-      ${e.temaCentral ? esc(e.temaCentral) + "<br>" : ""}
-      <b>${fmt(e.periodoInicio)} a ${fmt(e.periodoFim)}</b>
-      · ${esc(e.local) || "local a divulgar"}${e.municipio ? " — " + esc(e.municipio) : ""}
-      ${e.cargaHoraria ? " · " + esc(e.cargaHoraria) + "h de carga horária" : ""}</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-      <span class="chip">${esc(e.curso)}</span>
-      ${abertas ? '<span class="selo b" style="align-self:center">inscrições abertas' +
-          (e.inscricoesAte ? " até " + fmt(e.inscricoesAte) : "") + "</span>"
-        : '<span class="selo v" style="align-self:center">inscrições encerradas</span>'}
-      ${e.vagasRestantes === null ? "" : e.vagasRestantes > 0
-        ? `<span class="selo e" style="align-self:center">${e.vagasRestantes} vaga(s) restante(s)</span>`
-        : '<span class="selo v" style="align-self:center">vagas esgotadas</span>'}
-    </div>
+  const capa = e.temCapa ? `/api/publico/eventos/${encodeURIComponent(SLUG)}/capa` : "";
 
-    <div class="duas">
-      <div class="card">
-        <div class="card-t" style="font-size:17px">Sobre o evento</div>
-        ${e.descricao ? `<p style="font-size:14px;line-height:1.65;margin-top:10px;white-space:pre-line">${esc(e.descricao)}</p>` : ""}
-        ${e.publicoAlvo ? `<p style="font-size:13px;color:var(--muted);margin-top:10px"><b>Público-alvo:</b> ${esc(e.publicoAlvo)}</p>` : ""}
-        <div class="card-t" style="font-size:15px;margin-top:20px">Programação</div>
-        ${progHtml}
+  /* ------ 1. hero ------ */
+  const selos = [
+    e.modalidade ? `<span class="selo on">${MODAL_ROTULO[e.modalidade] || esc(e.modalidade)}</span>` : "",
+    abertas ? `<span class="selo">Inscrições abertas${e.inscricoesAte ? " até " + fmt(e.inscricoesAte) : ""}</span>`
+      : `<span class="selo">Inscrições encerradas</span>`,
+    e.vagasRestantes === null ? "" : e.vagasRestantes > 0
+      ? `<span class="selo">${e.vagasRestantes} vaga(s) restante(s)</span>`
+      : `<span class="selo">Vagas esgotadas</span>`,
+    e.cargaHoraria ? `<span class="selo">${esc(e.cargaHoraria)}h de carga horária</span>` : "",
+  ].filter(Boolean).join("");
+  const hero = `
+    <div class="hero-ev" ${capa ? `style="background-image:url('${capa}')"` : ""}>
+      <div class="hero-in">
+        <div class="eyebrow">Evento de extensão · inscrição gratuita</div>
+        <h1>${esc(e.nome)}</h1>
+        <div class="hero-meta">
+          <b>${esc(periodoCompacto(e.periodoInicio, e.periodoFim)) || "datas a divulgar"}</b><br>
+          ${esc(e.local) || "local a divulgar"}${e.municipio ? " — " + esc(e.municipio) : ""} · ${esc(e.curso)}
+        </div>
+        <div class="hero-selos">${selos}</div>
+        ${abertas ? `<div class="hero-cta"><a class="bt bt-pri" href="#inscricao"
+          style="background:#fff;color:var(--brand);box-shadow:none">Inscreva-se gratuitamente ↓</a></div>` : ""}
       </div>
+    </div>
+    ${encerrado ? `<div class="msg-ok" style="background:var(--wash);color:var(--ink-soft)">
+      Este evento já foi realizado. <a href="/eventos/" style="text-decoration:underline;font-weight:700">
+      Veja os eventos com inscrições abertas →</a></div>` : ""}`;
 
+  /* ------ 2. sobre ------ */
+  const sobre = (e.descricao || e.temaCentral || e.publicoAlvo) ? `
+    <div class="secao-t">Sobre o evento</div>
+    <div class="card" style="margin-top:12px">
+      ${e.temaCentral ? `<p style="font-size:14px;font-weight:600;color:var(--brand-2)">${esc(e.temaCentral)}</p>` : ""}
+      ${e.descricao ? `<p style="font-size:14.5px;line-height:1.7;margin-top:${e.temaCentral ? 10 : 0}px;white-space:pre-line">${esc(e.descricao)}</p>` : ""}
+      ${e.publicoAlvo ? `<p style="font-size:13px;color:var(--muted);margin-top:12px"><b>Público-alvo:</b> ${esc(e.publicoAlvo)}</p>` : ""}
+    </div>` : "";
+
+  /* ------ 3. programação (bloco próprio — a aba redesenha SÓ ele) ------ */
+  const progHtml = `<div id="prog-wrap">${progSecao(e)}</div>`;
+
+  /* ------ 4. inscrição ------ */
+  const insc = `
+    <div class="secao-t" id="inscricao">Inscrição</div>
+    <div class="secao-s">Gratuita e feita aqui mesmo — no dia, apresente na entrada o QR que você recebe.</div>
+    <div class="duas">
       <div class="card" id="card-inscricao">
-        <div class="card-t" style="font-size:17px">Inscrição</div>
-        ${jaTem ? `<div class="msg-ok">Você já se inscreveu neste evento por este aparelho.
+        ${jaTem ? `<div class="msg-ok" style="margin-top:0;margin-bottom:12px">Você já se inscreveu neste evento por este aparelho.
             <a href="/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(jaTem)}" style="text-decoration:underline">Abrir minha inscrição →</a></div>` : ""}
-        ${abertas ? `
-          <form id="f" onsubmit="inscrever(event)">
-            <label>Nome completo *</label><input id="i-nome" required autocomplete="name">
-            <label>CPF *</label><input id="i-cpf" required inputmode="numeric" placeholder="000.000.000-00">
-            <label>E-mail *</label><input id="i-email" type="email" required autocomplete="email" placeholder="voce@exemplo.com">
-            <label>Telefone (WhatsApp)</label><input id="i-tel" autocomplete="tel" placeholder="(62) 9…">
-            <label>Curso / instituição</label><input id="i-curso" placeholder="Ex.: Enfermagem — UNIEGO">
-            <div id="f-msg"></div>
-            <button class="bt bt-pri" style="width:100%;margin-top:16px" id="f-bt">Inscrever-me gratuitamente</button>
-            <p class="lgpd">Os dados informados servem à organização do evento e à certificação
-              dos participantes, e não são divulgados publicamente.</p>
-          </form>`
-        : `<p style="font-size:13.5px;color:var(--muted);margin-top:8px">As inscrições deste evento
+        ${abertas ? formInscricao(e) : `<p style="font-size:13.5px;color:var(--muted)">As inscrições deste evento
             não estão abertas${e.vagasRestantes === 0 ? " — as vagas se esgotaram" : ""}.
             Quem já se inscreveu segue com a inscrição válida.</p>`}
         <details class="reenvio">
           <summary>Já me inscrevi e perdi o link</summary>
           <p style="font-size:12.5px;color:var(--muted);margin-top:6px">Informe o CPF e o e-mail
             usados na inscrição — os dois precisam bater — e o link reaparece.</p>
-          <label>CPF</label><input id="r-cpf" inputmode="numeric">
-          <label>E-mail</label><input id="r-email" type="email">
+          <label for="r-cpf">CPF</label><input id="r-cpf" inputmode="numeric">
+          <label for="r-email">E-mail</label><input id="r-email" type="email">
           <div id="r-msg"></div>
           <button class="bt bt-sec" style="margin-top:12px" onclick="recuperar()" type="button">Reaver o meu link</button>
         </details>
       </div>
+      <div>
+        ${blocoLocal(e)}
+        ${blocoOrganizacao(e)}
+      </div>
     </div>`;
+
+  $("main").innerHTML = hero + sobre + progHtml + insc;
+  $("cta-flutua").style.display = abertas && !document.querySelector("#pos-inscricao") ? "" : "none";
+  // o botão flutuante é persistente, mas não precisa cobrir o próprio
+  // formulário: some enquanto a seção de inscrição está na tela
+  try {
+    new IntersectionObserver((ents) => {
+      const fl = $("cta-flutua");
+      if (!fl || !abertas || document.querySelector("#pos-inscricao")) return;
+      fl.style.display = ents.some((x) => x.isIntersecting) ? "none" : "";
+    }).observe($("card-inscricao"));
+  } catch { /* sem IntersectionObserver, o botão só fica fixo */ }
+  avisoConflito();
 }
 
+/* A seção da programação, isolada: a troca de aba de dia redesenha SÓ este
+   bloco — redesenhar a página inteira apagava o que o visitante já tinha
+   digitado no formulário de inscrição (achado da revisão de ago/2026). */
+function progSecao(e) {
+  const prog = e.programacao || [];
+  const dias = [...new Set(prog.map((p) => p.dia || ""))];
+  if (!DIA_SEL || !dias.includes(DIA_SEL)) DIA_SEL = dias[0] ?? "";
+  const abas = dias.length > 1 ? `<div class="abas">${dias.map((d) =>
+    `<button class="aba ${d === DIA_SEL ? "on" : ""}" type="button" onclick="trocarDia('${esc(d)}')">
+      ${d ? esc(diaAba(d)) : "A definir"}</button>`).join("")}</div>` : "";
+  const doDia = prog.filter((p) => (p.dia || "") === DIA_SEL);
+  const cards = doDia.map((p) => `
+    <div class="atv">
+      <div class="atv-topo">
+        <span class="atv-h">${esc(faixaHora(p))}</span>
+        <span class="atv-t">${esc(p.titulo)}</span>
+        <span class="tp tp-${esc(p.tipo || "outro")}">${TIPOS[p.tipo] || "Atividade"}</span>
+      </div>
+      ${p.local || p.responsavel || p.ch ? `<div class="atv-meta">
+        ${[p.responsavel, p.local, p.ch ? p.ch + " de carga horária" : ""].filter(Boolean).map(esc).join(" · ")}</div>` : ""}
+      <div class="atv-selos">
+        ${p.modalidade === "online" ? '<span class="selo v">🖥 online</span>' : ""}
+        ${p.inscricao === "propria" ? (p.vagasRestantes === null
+          ? '<span class="selo e">requer inscrição na atividade</span>'
+          : p.vagasRestantes > 0
+            ? `<span class="selo e">vagas: ${p.vagasRestantes} restante(s)</span>`
+            : '<span class="selo v">vagas esgotadas</span>') : ""}
+      </div>
+      ${p.descricao ? `<details><summary>ver detalhes</summary><p>${esc(p.descricao)}</p></details>` : ""}
+    </div>`).join("");
+  return `
+    <div class="secao-t" id="sec-prog">Programação</div>
+    <div class="secao-s">${dias.length > 1 ? (DIA_SEL ? diaLongo(DIA_SEL) : "Atividades com data a definir") : ""}</div>
+    ${abas}
+    ${prog.length ? (cards || '<p class="secao-s" style="margin-top:12px">Nenhuma atividade neste dia.</p>')
+      : '<div class="card" style="margin-top:12px"><p style="color:var(--muted);font-size:13.5px">A programação detalhada será divulgada em breve.</p></div>'}`;
+}
+function trocarDia(d) {
+  DIA_SEL = d;
+  const w = $("prog-wrap");
+  if (!w) return;
+  w.innerHTML = progSecao(EV);
+  document.getElementById("sec-prog")?.scrollIntoView({ behavior: "instant", block: "start" });
+}
+
+/* ------ 6. local ------ */
+function blocoLocal(e) {
+  const ende = e.endereco || [e.local, e.municipio].filter(Boolean).join(", ");
+  if (!ende) return "";
+  const mapa = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(ende);
+  return `<div class="card">
+    <div class="card-t" style="font-size:16px">Local</div>
+    <p style="font-size:13.5px;color:var(--ink-soft);margin-top:8px">${esc(ende)}</p>
+    <a class="bt bt-sec" style="margin-top:12px" href="${esc(mapa)}" target="_blank" rel="noopener">📍 Ver no mapa</a>
+  </div>`;
+}
+/* ------ 7. organização ------ */
+function blocoOrganizacao(e) {
+  return `<div class="card">
+    <div class="card-t" style="font-size:16px">Organização</div>
+    <div class="org" style="margin-top:10px">
+      <div class="quadro"><b>${esc(e.curso) || "UNIEGO"}</b>PROPPEX · UNIEGO</div>
+    </div>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:10px">Dúvidas sobre o evento ou a inscrição:
+      <a href="mailto:extensao@uniego.edu.br" style="color:var(--brand-2);font-weight:600">extensao@uniego.edu.br</a></p>
+  </div>`;
+}
+
+/* ---------------------- formulário de inscrição -------------------------- */
+function formInscricao(e) {
+  const escolha = blocoEscolhaAtividades(e);
+  const extras = (e.formulario || []).map(campoExtra).join("");
+  return `<form id="f" onsubmit="inscrever(event)">
+    <label for="i-nome">Nome completo *</label><input id="i-nome" required autocomplete="name">
+    <label for="i-cpf">CPF *</label><input id="i-cpf" required inputmode="numeric" placeholder="000.000.000-00">
+    <label for="i-email">E-mail *</label><input id="i-email" type="email" required autocomplete="email" placeholder="voce@exemplo.com">
+    <label for="i-tel">Telefone (WhatsApp)</label><input id="i-tel" autocomplete="tel" placeholder="(62) 9…">
+    <label for="i-curso">Curso / instituição de origem</label><input id="i-curso" placeholder="Ex.: Enfermagem — UNIEGO">
+    ${escolha}
+    ${extras}
+    <div class="secao-t" style="font-size:15px;margin:20px 0 0">Tratamento de dados pessoais</div>
+    <div class="lgpd-box">${esc(e.lgpdTexto || "")}</div>
+    <label class="chk"><input type="checkbox" id="i-lgpd">
+      <span>Li e estou ciente e de acordo com o tratamento dos meus dados descrito acima. <b>*</b></span></label>
+    <label class="chk"><input type="checkbox" id="i-comunic">
+      <span>Aceito receber comunicações da PROPPEX/UNIEGO sobre eventos futuros.</span></label>
+    <div id="f-msg"></div>
+    <button class="bt bt-pri" style="width:100%;margin-top:16px" id="f-bt">Inscrever-me gratuitamente</button>
+  </form>`;
+}
+
+/* Escolha de atividades: só as com inscrição própria, agrupadas por dia,
+   com as vagas restantes ao lado. Conflito de horário AVISA e não trava. */
+function blocoEscolhaAtividades(e) {
+  const proprias = (e.programacao || []).filter((p) => p.inscricao === "propria");
+  if (!proprias.length) return "";
+  const dias = [...new Set(proprias.map((p) => p.dia || ""))];
+  return `<div id="bloco-escolha">
+    <div class="secao-t" style="font-size:15px;margin:20px 0 0">Escolha suas atividades</div>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:4px">Minicursos, oficinas e demais atividades
+      com vaga própria. As atividades gerais (abertura, palestras magnas) não precisam de marcação —
+      quem está inscrito no evento já participa.</p>
+    ${dias.map((d) => `
+      <div class="esc-dia">${d ? esc(diaAba(d)) : "Data a definir"}</div>
+      ${proprias.filter((p) => (p.dia || "") === d).map((p) => {
+        const lotada = p.vagasRestantes !== null && p.vagasRestantes <= 0 && !ESCOLHIDAS.has(p.id);
+        return `<label class="esc-atv ${lotada ? "lotada" : ""}">
+          <input type="checkbox" data-atv="${esc(p.id)}" ${ESCOLHIDAS.has(p.id) ? "checked" : ""}
+            ${lotada ? "disabled" : ""} onchange="marcarAtividade(this)">
+          <span class="d">${esc(p.titulo)}
+            <div class="m">${esc(faixaHora(p))}${p.local ? " · " + esc(p.local) : ""}${p.ch ? " · " + esc(p.ch) : ""}
+              ${p.vagasRestantes === null ? "" : lotada ? " · <b>vagas esgotadas</b>" : ` · ${p.vagasRestantes} vaga(s)`}</div>
+          </span>
+        </label>`;
+      }).join("")}`).join("")}
+    <div id="aviso-conflito"></div>
+  </div>`;
+}
+function marcarAtividade(chk) {
+  const id = chk.dataset.atv;
+  if (chk.checked) ESCOLHIDAS.add(id); else ESCOLHIDAS.delete(id);
+  avisoConflito();
+}
+function avisoConflito() {
+  const el = $("aviso-conflito");
+  if (!el) return;
+  const marcadas = [...ESCOLHIDAS].map(atvPorId).filter(Boolean);
+  const pares = [];
+  for (let i = 0; i < marcadas.length; i++)
+    for (let j = i + 1; j < marcadas.length; j++)
+      if (conflita(marcadas[i], marcadas[j])) pares.push([marcadas[i], marcadas[j]]);
+  el.innerHTML = pares.length ? `<div class="msg-aviso">⚠ <b>Atenção aos horários:</b> ${pares.map(([a, b]) =>
+    `“${esc(a.titulo)}” e “${esc(b.titulo)}” acontecem no mesmo horário (${esc(fmt(a.dia))}, ${esc(faixaHora(a))} / ${esc(faixaHora(b))})`).join("; ")}.
+    Você pode manter as duas marcadas — a escolha é sua.</div>` : "";
+}
+
+/* Campos extras — o catálogo vem do evento; a resposta vai em `respostas`. */
+function campoExtra(c) {
+  const ob = c.obrigatorio ? " *" : "";
+  const cid = "cx-" + c.id;   // id do input, para o rótulo apontar (leitor de tela)
+  const instr = c.instrucoes ? `<p style="font-size:12px;color:var(--muted);margin-top:3px">${esc(c.instrucoes)}</p>` : "";
+  if (c.tipo === "paragrafo")
+    return `<label for="${cid}">${esc(c.rotulo)}${ob}</label>${instr}<textarea id="${cid}" data-campo="${esc(c.id)}" ${c.obrigatorio ? "required" : ""}></textarea>`;
+  if (c.tipo === "selecao")
+    return `<label for="${cid}">${esc(c.rotulo)}${ob}</label>${instr}<select id="${cid}" data-campo="${esc(c.id)}" ${c.obrigatorio ? "required" : ""}>
+      <option value="">Selecione…</option>${(c.opcoes || []).map((o) => `<option>${esc(o)}</option>`).join("")}</select>`;
+  if (c.tipo === "multipla")
+    return `<label>${esc(c.rotulo)}${ob}</label>${instr}${(c.opcoes || []).map((o) =>
+      `<label class="chk" style="margin-top:6px"><input type="checkbox" data-campo-multi="${esc(c.id)}" value="${esc(o)}"><span>${esc(o)}</span></label>`).join("")}`;
+  if (c.tipo === "caixa")
+    return `<label class="chk" style="margin-top:14px"><input type="checkbox" data-campo-caixa="${esc(c.id)}">
+      <span>${esc(c.rotulo)}${ob}${c.instrucoes ? `<div style="font-size:12px;color:var(--muted)">${esc(c.instrucoes)}</div>` : ""}</span></label>`;
+  return `<label for="${cid}">${esc(c.rotulo)}${ob}</label>${instr}<input id="${cid}" data-campo="${esc(c.id)}" ${c.obrigatorio ? "required" : ""}>`;
+}
+function lerRespostas() {
+  const r = {};
+  document.querySelectorAll("[data-campo]").forEach((el) => { r[el.dataset.campo] = el.value; });
+  document.querySelectorAll("[data-campo-caixa]").forEach((el) => { r[el.dataset.campoCaixa] = el.checked; });
+  const multi = {};
+  document.querySelectorAll("[data-campo-multi]").forEach((el) => {
+    (multi[el.dataset.campoMulti] = multi[el.dataset.campoMulti] || []);
+    if (el.checked) multi[el.dataset.campoMulti].push(el.value);
+  });
+  for (const k of Object.keys(multi)) r[k] = multi[k];
+  return r;
+}
+
+/* ------ 5. pós-inscrição ------ */
 function pos(token) {
-  // estado pós-inscrição: o link + o QR na própria página, e o mesmo por e-mail
   const url = `/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(token)}`;
+  const marcadas = [...ESCOLHIDAS].map(atvPorId).filter(Boolean);
   $("card-inscricao").innerHTML = `
+    <div id="pos-inscricao">
     <div class="card-t" style="font-size:17px">Inscrição confirmada ✓</div>
-    <p style="font-size:13.5px;margin-top:8px">Guarde o link abaixo — ele é a sua credencial.
-      Enviamos uma cópia para o seu e-mail. <b>No dia, apresente este QR na entrada:</b></p>
+    <p style="font-size:13.5px;margin-top:8px"><b>Guarde este endereço</b> — o link abaixo é a sua credencial,
+      e enviamos uma cópia para o seu e-mail. No dia, apresente este QR na entrada:</p>
     <div style="text-align:center;margin:16px 0">
       <div class="qr-box"><img alt="QR da inscrição" src="/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(token)}/qr.svg"></div>
       <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--muted);margin-top:8px">
         código manual: <b>${esc(token.slice(0, 6).toUpperCase())}</b></div>
     </div>
-    <a class="bt bt-pri" style="width:100%" href="${url}">Abrir minha inscrição</a>`;
+    ${marcadas.length ? `<div class="card-t" style="font-size:14px">Suas atividades</div>
+      ${marcadas.map((p) => `<p style="font-size:13px;color:var(--ink-soft);margin-top:5px">•
+        <b>${esc(p.titulo)}</b> — ${esc(fmt(p.dia))}, ${esc(faixaHora(p))}${p.local ? " · " + esc(p.local) : ""}</p>`).join("")}
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">Dá para trocar as atividades depois,
+        pela página da sua inscrição.</p>` : ""}
+    <a class="bt bt-pri" style="width:100%;margin-top:14px" href="${url}">Abrir minha inscrição</a>
+    ${EV?.transmissaoPublicada ? `<a class="bt bt-sec" style="width:100%;margin-top:10px"
+      href="/eventos/${encodeURIComponent(SLUG)}/assistir/${encodeURIComponent(token)}">🖥 Assistir online</a>` : ""}
+    </div>`;
+  $("cta-flutua").style.display = "none";
+  $("card-inscricao").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 async function inscrever(ev) {
   ev.preventDefault();
-  const bt = $("f-bt"); bt.disabled = true;
   $("f-msg").innerHTML = "";
+  // a caixa da LGPD não é campo de formulário comum: sem a ciência expressa
+  // não há inscrição — o servidor recusa igual, mas a página explica antes
+  if (!$("i-lgpd").checked) {
+    $("f-msg").innerHTML = '<div class="msg-erro">Para se inscrever, marque a caixa de ciência e concordância com o tratamento dos dados pessoais.</div>';
+    $("i-lgpd").focus();
+    return;
+  }
+  const bt = $("f-bt"); bt.disabled = true;
   try {
     const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/inscrever`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         nome: $("i-nome").value, cpf: $("i-cpf").value, email: $("i-email").value,
         telefone: $("i-tel").value, curso: $("i-curso").value,
+        atividades: [...ESCOLHIDAS],
+        respostas: lerRespostas(),
+        consentimento: $("i-lgpd").checked === true,
+        comunicacoes: $("i-comunic").checked === true,
       }),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || "Não foi possível concluir a inscrição.");
     localStorage.setItem("arche-ev-" + SLUG, j.token);
     pos(j.token);
-  } catch (e) {
-    $("f-msg").innerHTML = `<div class="msg-erro">${esc(e.message)}</div>`;
+  } catch (e2) {
+    $("f-msg").innerHTML = `<div class="msg-erro">${esc(e2.message)}</div>`;
     bt.disabled = false;
+    // vaga que acabou no meio do caminho: recarrega as vagas para a lista
+    // de atividades refletir a lotação de agora
+    if (/vagas/i.test(e2.message)) recarregarVagas();
   }
+}
+
+/* Recarrega as vagas sem perder o que a pessoa já digitou: só o bloco da
+   escolha de atividades se refaz (as marcações vivem em ESCOLHIDAS). */
+async function recarregarVagas() {
+  try {
+    const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}`);
+    if (!r.ok) return;
+    const j = await r.json();
+    EV.programacao = j.evento.programacao;
+    EV.vagasRestantes = j.evento.vagasRestantes;
+    const bloco = $("bloco-escolha");
+    if (bloco) { bloco.outerHTML = blocoEscolhaAtividades(EV); avisoConflito(); }
+  } catch { /* sem rede agora — a próxima tentativa recarrega */ }
 }
 
 async function recuperar() {

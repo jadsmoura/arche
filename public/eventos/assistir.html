@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Assistir — Eventos UNIEGO</title>
+<link rel="stylesheet" href="/assets/arche-ui.css">
+<style>
+  /* Transmissão do evento (servida em /eventos/<slug>/assistir/<token>): o
+     token da inscrição É o ingresso — a API só entrega o vídeo (ou o link
+     do Zoom) a quem tem credencial, e é este token que assina a presença
+     online. A página nunca mostra nada de outro inscrito; o mural é a
+     conversa entre credenciados. */
+  .palco{display:grid;grid-template-columns:1.7fr 1fr;gap:20px;align-items:start;margin-top:22px}
+  @media(max-width:900px){.palco{grid-template-columns:1fr}}
+  .player-wrap{background:#0f2027;border-radius:16px;overflow:hidden;box-shadow:var(--shadow-lg)}
+  .player-16x9{position:relative;width:100%;padding-top:56.25%}
+  .player-16x9 iframe,.player-16x9 #yt-player{position:absolute;inset:0;width:100%;height:100%;border:0}
+  .assistindo{font-size:12.5px;color:var(--muted);margin-top:10px}
+  .assistindo b{color:var(--brand-2)}
+  /* mural */
+  .mural{display:flex;flex-direction:column;max-height:520px}
+  .mural-lista{flex:1;overflow-y:auto;margin-top:10px;padding-right:4px;min-height:120px}
+  .msg{padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+  .msg:last-child{border-bottom:0}
+  .msg b{color:var(--brand-2);font-size:12.5px}
+  .msg .q{color:var(--muted-2);font-size:11px;margin-left:6px}
+  .msg p{color:var(--ink-soft);margin-top:2px;line-height:1.5;word-break:break-word}
+  .mural-envia{display:flex;gap:8px;margin-top:12px}
+  .mural-envia input{flex:1}
+  .msg-erro{background:var(--err-soft);color:var(--err);border-radius:10px;padding:10px 13px;
+    font-size:13px;font-weight:600;margin-top:10px}
+  .chat-aba{margin-top:14px}
+  .chat-aba iframe{width:100%;height:420px;border:1px solid var(--line);border-radius:12px;background:#fff}
+  @media(max-width:900px){.chat-aba{display:none}}
+  .zoom-card{text-align:center;padding:38px 26px}
+</style>
+</head>
+<body>
+<header class="topo">
+  <div class="topo-rule"></div>
+  <div class="topo-inner">
+    <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+    <div class="vr"></div>
+    <div class="topo-txt">
+      <div class="topo-t"><span class="arche-wm"><span class="arche-tx">Transmissão</span></span></div>
+      <div class="topo-s">Eventos · Extensão · PROPPEX / UNIEGO</div>
+    </div>
+    <nav class="topo-nav"><a href="/eventos/">Eventos</a></nav>
+  </div>
+</header>
+
+<main id="main"><div class="card" style="margin-top:20px"><p style="color:var(--muted)">Carregando…</p></div></main>
+
+<footer>
+  <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+  <div class="sep"></div>
+  <p>PROPPEX — Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária.</p>
+</footer>
+
+<script>
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) ? iso.split("-").reverse().join("/") : "");
+const $ = (id) => document.getElementById(id);
+const m = location.pathname.match(/^\/eventos\/([^/]+)\/assistir\/([^/]+)/) || [];
+const SLUG = decodeURIComponent(m[1] || ""), TOKEN = decodeURIComponent(m[2] || "");
+let T = null;             // dados da transmissão (contra o token)
+let player = null;        // player da IFrame API, quando ela carregar
+let modoIframePuro = false;
+
+const URL_PRES = `/api/publico/eventos/${encodeURIComponent(SLUG)}/presenca-online`;
+const horario = () => {
+  const faixa = T.horaInicio ? T.horaInicio + (T.horaFim ? "–" + T.horaFim : "") : "";
+  return [T.dia ? fmt(T.dia) : "", faixa].filter(Boolean).join(", ");
+};
+
+function erroPagina(msg) {
+  $("main").innerHTML = `<div class="card" style="margin-top:20px"><div class="card-t">Transmissão indisponível</div>
+    <p style="font-size:13.5px;color:var(--muted);margin-top:8px">${esc(msg)}</p>
+    <a class="bt bt-sec" style="margin-top:14px" href="/eventos/">Ver os eventos</a></div>`;
+}
+
+/* =============================== YOUTUBE ================================= */
+function paginaYoutube() {
+  const q = horario();
+  $("main").innerHTML = `
+    <div class="eyebrow" style="margin-top:20px">Transmissão ao vivo${q ? " · " + esc(q) : ""}</div>
+    <h1 class="hero-h" style="font-size:26px;margin-top:8px">${esc(T.titulo)}</h1>
+    <div class="palco">
+      <div>
+        <div class="player-wrap"><div class="player-16x9" id="palco-video"><div id="yt-player"></div></div></div>
+        <div class="assistindo">Você está assistindo como <b>${esc(T.nome)}</b> — este link é a sua
+          credencial, pessoal e intransferível. ${T.presencaMinutos > 0
+            ? `A presença é registrada após ${T.presencaMinutos} minuto(s) assistidos.`
+            : "A presença é registrada enquanto você assiste."}</div>
+        ${T.chatYoutube ? `<div class="chat-aba">
+          <div class="card-t" style="font-size:14px">Chat da transmissão (YouTube)</div>
+          <p style="font-size:12px;color:var(--muted);margin:4px 0 8px">O chat exige login no YouTube e
+            só funciona durante a transmissão ao vivo.</p>
+          <iframe src="https://www.youtube.com/live_chat?v=${encodeURIComponent(T.youtubeId)}&embed_domain=${encodeURIComponent(location.hostname)}"
+            title="Chat do YouTube"></iframe>
+        </div>` : ""}
+      </div>
+      ${blocoMural()}
+    </div>`;
+  montarPlayer();
+  iniciarMural();
+}
+
+/* O player entra pela IFrame API do YouTube (host youtube-nocookie), que é o
+   que permite saber se o vídeo ESTÁ TOCANDO — a presença por batida só conta
+   minuto assistido. Se a API não carregar (rede fechada, bloqueador), o
+   iframe puro entra no lugar: sem estado do player, a batida passa a valer
+   com a página visível — melhor um registro aproximado do que nenhum. */
+function montarPlayer() {
+  const t = setTimeout(usarIframePuro, 3500);
+  window.onYouTubeIframeAPIReady = () => {
+    clearTimeout(t);
+    try {
+      player = new YT.Player("yt-player", {
+        host: "https://www.youtube-nocookie.com",
+        videoId: T.youtubeId,
+        playerVars: { enablejsapi: 1, rel: 0, origin: location.origin },
+        events: {
+          onStateChange: (ev) => { if (ev.data === 1) batida(); },   // 1 = PLAYING: a 1ª batida acerta o relógio
+        },
+      });
+    } catch { usarIframePuro(); }
+  };
+  const s = document.createElement("script");
+  s.src = "https://www.youtube.com/iframe_api";
+  s.onerror = () => { clearTimeout(t); usarIframePuro(); };
+  document.head.appendChild(s);
+}
+function usarIframePuro() {
+  if (modoIframePuro || player) return;
+  modoIframePuro = true;
+  $("palco-video").innerHTML = `<iframe
+    src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(T.youtubeId)}?rel=0"
+    title="Transmissão do evento" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+  batida();   // acerta o relógio da presença
+}
+
+/* ------------------- presença por batida (heartbeat) --------------------- */
+function tocando() {
+  if (player) { try { return player.getPlayerState() === 1; } catch { return false; } }
+  // sem a API o melhor sinal disponível é a aba visível
+  return modoIframePuro && document.visibilityState === "visible";
+}
+async function batida() {
+  try {
+    await fetch(URL_PRES, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: TOKEN, visivel: document.visibilityState === "visible" }),
+    });
+  } catch { /* a próxima batida tenta de novo */ }
+}
+setInterval(() => { if (T?.tipo === "youtube" && tocando()) batida(); }, 60_000);
+// a última batida sai no fechamento — sendBeacon com Blob JSON (o servidor
+// também aceita text/plain com JSON dentro)
+window.addEventListener("pagehide", () => {
+  if (T?.tipo !== "youtube") return;
+  try {
+    navigator.sendBeacon(URL_PRES,
+      new Blob([JSON.stringify({ token: TOKEN, visivel: false })], { type: "application/json" }));
+  } catch { /* sem beacon, o acumulador expira sozinho */ }
+});
+
+/* ================================= ZOOM ================================== */
+/* Sem embed: o clique registra a presença e SÓ ENTÃO recebe o link da
+   reunião — o registro é a porta (o zoomUrl nunca chega antes do POST). */
+function paginaZoom() {
+  const q = horario();
+  $("main").innerHTML = `
+    <div class="eyebrow" style="margin-top:20px">Reunião online${q ? " · " + esc(q) : ""}</div>
+    <h1 class="hero-h" style="font-size:26px;margin-top:8px">${esc(T.titulo)}</h1>
+    <div class="palco">
+      <div class="card zoom-card">
+        <div style="width:52px;height:52px;border-radius:14px;background:var(--accent-wash);color:var(--brand-2);
+          display:grid;place-items:center;margin:0 auto 16px;font-size:26px">🎥</div>
+        <div class="card-t" style="font-size:17px">Esta atividade acontece numa reunião do Zoom</div>
+        <p style="font-size:13.5px;color:var(--ink-soft);margin:10px auto 0;max-width:420px">
+          ${q ? `<b>${esc(q)}</b> · ` : ""}Ao entrar, a sua presença fica registrada no evento —
+          é o que vale para a certificação.</p>
+        <div id="zoom-msg"></div>
+        <button class="bt bt-pri" style="margin-top:18px" id="zoom-bt" onclick="entrarZoom()">Entrar na reunião ↗</button>
+        <div class="assistindo" style="margin-top:14px">Você está entrando como <b>${esc(T.nome)}</b>.</div>
+      </div>
+      ${blocoMural()}
+    </div>`;
+  iniciarMural();
+}
+async function entrarZoom() {
+  const bt = $("zoom-bt"); bt.disabled = true;
+  $("zoom-msg").innerHTML = "";
+  try {
+    const r = await fetch(URL_PRES, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: TOKEN, zoom: true }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.zoomUrl) throw new Error(j.error || "Não foi possível abrir a reunião agora.");
+    $("zoom-msg").innerHTML = `<div class="assistindo" style="margin-top:12px">✓ presença registrada —
+      se a janela não abrir, <a href="${esc(j.zoomUrl)}" target="_blank" rel="noopener"
+      style="color:var(--brand-2);font-weight:600;text-decoration:underline">clique aqui</a>.</div>`;
+    window.open(j.zoomUrl, "_blank", "noopener");
+  } catch (e) {
+    $("zoom-msg").innerHTML = `<div class="msg-erro">${esc(e.message)}</div>`;
+  }
+  bt.disabled = false;
+}
+
+/* ================================= MURAL ================================= */
+function blocoMural() {
+  return `<div class="card mural">
+    <div class="card-t" style="font-size:15px">Mural do evento</div>
+    <div class="card-sub" style="margin-top:2px">Conversa entre os inscritos — escrevendo como <b>${esc(T.nome)}</b></div>
+    <div class="mural-lista" id="mural-lista"><p style="color:var(--muted);font-size:13px">Carregando…</p></div>
+    <div id="mural-msg"></div>
+    <div class="mural-envia">
+      <input id="mural-texto" maxlength="500" placeholder="Escreva uma mensagem…"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();enviarMural()}">
+      <button class="bt bt-pri" style="padding:10px 14px" onclick="enviarMural()">Enviar</button>
+    </div>
+  </div>`;
+}
+let MURAL_TIMER = null;
+function iniciarMural() {
+  lerMural();
+  clearInterval(MURAL_TIMER);
+  MURAL_TIMER = setInterval(lerMural, 20_000);
+}
+async function lerMural() {
+  try {
+    const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/mural/${encodeURIComponent(TOKEN)}`);
+    if (!r.ok) return;
+    const j = await r.json();
+    const el = $("mural-lista");
+    if (!el) return;
+    const noFim = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    el.innerHTML = (j.mensagens || []).length ? j.mensagens.map((x) => `<div class="msg">
+        <b>${esc(x.nome)}</b><span class="q">${esc(horaCurta(x.em))}</span>
+        <p>${esc(x.texto)}</p></div>`).join("")
+      : '<p style="color:var(--muted);font-size:13px">Nenhuma mensagem ainda — comece a conversa!</p>';
+    if (noFim) el.scrollTop = el.scrollHeight;   // acompanha a conversa sem roubar a rolagem de quem leu acima
+  } catch { /* a próxima volta tenta */ }
+}
+const horaCurta = (iso) => { try { return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
+async function enviarMural() {
+  const inp = $("mural-texto");
+  const texto = inp.value.trim();
+  if (!texto) return;
+  $("mural-msg").innerHTML = "";
+  try {
+    const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/mural`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: TOKEN, texto }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "Não foi possível enviar agora.");
+    inp.value = "";
+    await lerMural();
+    const el = $("mural-lista"); if (el) el.scrollTop = el.scrollHeight;
+  } catch (e) {
+    $("mural-msg").innerHTML = `<div class="msg-erro">${esc(e.message)}</div>`;
+  }
+}
+
+/* ================================ ENTRADA ================================ */
+fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/transmissao/${encodeURIComponent(TOKEN)}`).then(async (r) => {
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { erroPagina(j.error || "A transmissão não está publicada, ou o link não é válido — confira o endereço recebido na sua inscrição."); return; }
+  T = j;
+  document.title = `${T.titulo} — Transmissão · Eventos UNIEGO`;
+  if (T.tipo === "youtube") paginaYoutube();
+  else if (T.tipo === "zoom") paginaZoom();
+  else erroPagina("A transmissão deste evento não está publicada.");
+}).catch(() => erroPagina("Não foi possível carregar agora. Tente novamente em instantes."));
+</script>
+</body>
+</html>

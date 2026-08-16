@@ -168,27 +168,54 @@ public/
   moldura em branco só confundiria quem vem emitir certificado. A guia diz onde a emissão
   acontece, por que é fora do ARCHÉ, e leva até lá em **nova janela**. O endereço fica em
   `CERTIFICADOS_EXTERNO`, no topo da SPA.
-- **ARCHÉ Eventos** (`lib/eventos.js` + `public/eventos/` + rotas em server.js, ago/2026):
-  gerenciamento de EVENTOS GRATUITOS — uma AÇÃO de extensão aprovada ganha `a.evento`
-  (slug único, descrição, vagas, prazo, programação estruturada, `chaveQr` [segredo HMAC
-  do evento], `codigoMonitor`). Fluxo: a gestão/o responsável ativa a página no card
-  "Evento e inscrições" do detalhe → `arche.app.br/eventos/<slug>` (pública) com inscrição
-  online (nome/CPF/e-mail/telefone/curso, validação de CPF, vagas, prazo, dedupe por CPF
-  OU e-mail, e-mail de confirmação) → cada inscrição ganha um **token assinado** (HMAC da
-  chaveQr) e um QR + código de 6 caracteres → **credenciamento** pelos monitores em
-  `/eventos/credenciar` (PWA sem login, câmera via BarcodeDetector + código manual,
-  protegido pelo `codigoMonitor`), que marca presença → a gestão **exporta o Excel no
-  formato do sistema da AEE** (`gerarInscritosAeeXlsx` lê templates/lista-certificados-aee.xlsx,
-  preserva as 4 abas e o CONFIG; todos ou só presentes) — a **certificação continua na
-  AEE**, o ARCHÉ só entrega a lista. As inscrições online vivem na MESMA lista
-  `participantes.inscritos` da ação. Regras da revisão (ago/2026): o SALVAR genérico da
-  ação **preserva `evento` e mescla as inscrições online/presenças** (`mesclarEventoEInscritos`)
-  — um snapshot velho do formulário não apaga o que os inscritos e os monitores gravaram;
-  a `chaveQr` **nunca sai no payload** (nem público nem autenticado); o check-in tem freio
-  de **tentativas FALHAS** por IP (`checkinFalhouExcedeu`, 20/5min — sucesso não conta, para
-  não travar a fila do evento); o export blinda injeção de fórmula (`'` antes de `=+-@`).
-  Rotas públicas nunca devolvem a lista de inscritos, CPF ou e-mail de terceiros. Sem
-  cobrança/pagamento nesta fase (decisão do dono: eventos gratuitos; financeiro a definir).
+- **ARCHÉ Eventos** (`lib/eventos.js` + `public/eventos/` + rotas em server.js; 2ª geração
+  em ago/2026, no molde Even3/Sympla — pesquisa com 3 agentes sobre as duas plataformas):
+  EVENTOS GRATUITOS de todos os formatos — a ação de extensão ganha `a.evento` e uma página
+  pública em `arche.app.br/eventos/<slug>` no desenho de HOTSITE (hero com capa, abas da
+  programação por dia, "Ver no mapa", CTA flutuante; evento encerrado vira aviso + link à
+  vitrine, a página não morre). A **programação é por ATIVIDADES com id estável** (o campo
+  gravado continua `evento.programacao`; itens com `tipo` do catálogo `TIPOS_ATIVIDADE`,
+  dia, `horaInicio`/`horaFim` [compat: `hora` antigo migra], local, responsável, **vagas
+  próprias**, `ch`, `modalidade` presencial/online e `inscricao: geral|propria`) —
+  simultaneidade é mesmo horário em locais diferentes, SEM entidade "trilha" (é como o
+  Even3 faz). O participante ESCOLHE as atividades `propria` na inscrição e TROCA depois
+  pela credencial (`POST …/inscricao/:token/atividades`); **conflito de horário AVISA e
+  não trava**; vaga por atividade é conferida DENTRO da fila. **Campos extras**
+  configuráveis (`evento.formulario`, 5 tipos, obrigatório por campo; `validarRespostas`
+  no servidor; rótulo público do curso é "Curso / instituição de origem" — participante
+  externo). **LGPD**: consentimento obrigatório NA ROTA de inscrição, gravado com data +
+  versão do texto (`LGPD_TEXTO_PADRAO`; `evento.lgpdTexto` substitui); caixa opcional
+  separada para comunicações; inscrito da planilha sem o campo = nunca consentiu online.
+  **Check-in por atividade**: o PWA `/eventos/credenciar` tem o seletor "Credenciar em",
+  grava `presencas: [{atividade, em, por}]` e mantém `presente` como agregado; presença
+  **desfeita pela gestão volta a valer** num novo credenciamento (achado da revisão); a
+  presença manual da gestão aceita `atividade` e assina "gestão (email)", não "monitor".
+  **Transmissão online** (`evento.transmissao`, publicação explícita): página
+  `/eventos/<slug>/assistir/<token>` — YouTube embedado (nocookie) com **presença por
+  heartbeat** (60s em PLAYING; acumulador em memória + flush de 120s pela fila; régua
+  `presencaMinutos`, 0 = primeiro acesso) e chat da live opcional; **Zoom sem embed**: o
+  link só sai no POST que registra a presença (decisão de pesquisa: nem Even3 nem Sympla
+  embutem Zoom). **Mural de comentários** por token (cooldown 20s/token, teto 800,
+  moderação em `/api/extensao/:id/mural/:mid`). **Capa** base64 no evento, servida por
+  `GET /api/publico/eventos/:slug/capa` e STRIPADA de todo payload junto com a `chaveQr`
+  (`eventoSemSegredos` — vale para GET e para as respostas dos POSTs); `temCapa` no lugar.
+  **Relatório final vinculado**: na ENTREGA o servidor grava `relatorio.numerosEvento`
+  (inscritos, presentes, online, por atividade — snapshot que o cliente não forja), e o
+  quadro sai no PDF timbrado e no Registro docx; o card do evento aparece desde a
+  proposta (fluxo único), mas ATIVAR a página segue exigindo aprovação (`numeroAcao`).
+  **Exports**: AEE geral e POR ATIVIDADE (`?atividade=`, CH da atividade, presentes por
+  `presencas[]`) com o template intocável (4 abas + CONFIG), e a lista completa do ARCHÉ
+  (`inscritos-completo.xlsx`, campos extras em colunas, tudo por `seguro()`).
+  **Freios em DOIS contadores** (revisão de ago/2026): `freioCheckin` é da porta física
+  (portão por IP, 20 falhas/5min, sucesso não conta) e `freioOnline` é das rotas da
+  transmissão/mural/atividades — nelas o token é validado PRIMEIRO e **o válido passa
+  SEMPRE** (atrás do NAT o campus é um IP só; um portão antes da validação derrubava a
+  presença de todos); só a falha conta e, estourado, o ruído vira 429. Config com tipo
+  errado (programacao/formulario/transmissao) é **400, nunca 200-que-zera**. Rotas
+  públicas nunca devolvem a lista de inscritos, CPF, e-mail ou respostas de terceiros;
+  injeção de fórmula blindada em todo export; e-mail de confirmação lista as atividades
+  marcadas. Páginas fixas novas em `/eventos/` entram em `SLUGS_RESERVADOS` ("assistir"
+  incluído). Sem cobrança/pagamento nesta fase (decisão do dono; financeiro a definir).
 - **Devolução da proposta é um CICLO** (`POST /api/extensao/devolver` e `/reenviar`,
   decisão do dono ago/2026): devolver era meio caminho — a PROPPEX escrevia o motivo e
   ele esperava o professor entrar no portal por acaso; e, quando entrava, não tinha como

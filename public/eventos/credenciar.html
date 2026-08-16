@@ -74,6 +74,15 @@
   <!-- passo 2: ler QRs e credenciar -->
   <div class="hide" id="p-scan">
     <div class="res" id="res"></div>
+    <div class="painel hide" id="p-atv">
+      <label>Credenciar em</label>
+      <select id="s-atv" style="width:100%;border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;font-size:16px;background:#fff">
+        <option value="">Entrada geral do evento</option>
+      </select>
+      <p class="dica" style="opacity:1;color:var(--muted)">Na porta de um minicurso/oficina, escolha a
+        atividade — a presença fica registrada nela. Quem chegar sem estar inscrito na atividade é
+        credenciado mesmo assim, com um aviso na tela.</p>
+    </div>
     <div class="painel">
       <div id="cam-area">
         <div class="mira"><video id="video" muted playsinline></video></div>
@@ -115,7 +124,25 @@ function comecar() {
   sessionStorage.setItem("arche-ev-monitor", COD);
   $("p-setup").classList.add("hide");
   $("p-scan").classList.remove("hide");
+  montarAtividades();
   ligarCamera();
+}
+
+/* O seletor de atividade sai do retrato PÚBLICO do evento (só títulos e
+   horários — nada de gente). Com a página do evento desativada não há
+   catálogo, e o credenciamento segue valendo na entrada geral. */
+async function montarAtividades() {
+  $("p-atv").classList.add("hide");
+  try {
+    const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}`);
+    if (!r.ok) return;
+    const ev = (await r.json()).evento || {};
+    const proprias = (ev.programacao || []).filter((p) => p && p.inscricao === "propria" && p.id);
+    if (!proprias.length) return;
+    $("s-atv").innerHTML = '<option value="">Entrada geral do evento</option>' + proprias.map((p) =>
+      `<option value="${esc(p.id)}">${esc(p.titulo)}${p.dia ? " — " + p.dia.split("-").reverse().slice(0, 2).join("/") : ""}${p.horaInicio ? " " + esc(p.horaInicio) : ""}</option>`).join("");
+    $("p-atv").classList.remove("hide");
+  } catch { /* sem catálogo agora — a entrada geral continua funcionando */ }
 }
 function sair() {
   pararCamera();
@@ -127,13 +154,18 @@ function hora(iso) {
   try { return new Date(iso || Date.now()).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); }
   catch { return ""; }
 }
-function resultado(tipo, nome, quando) {
+function resultado(tipo, nome, quando, extras = {}) {
   const el = $("res");
   el.className = "res " + tipo;
+  // a atividade do credenciamento e o aviso "não estava inscrito" entram no
+  // cartão — o monitor decide na hora, com a informação na tela
+  const linhaAtv = extras.atividade ? `<div class="dt">em: ${esc(extras.atividade)}</div>` : "";
+  const aviso = extras.naoInscrito
+    ? '<div class="dt" style="font-weight:700">⚠ não estava inscrito nesta atividade</div>' : "";
   el.innerHTML = tipo === "ok"
-    ? `<div class="ic">✓</div><div class="tt">Credenciado</div><div class="nm">${esc(nome)}</div>`
+    ? `<div class="ic">✓</div><div class="tt">Credenciado</div><div class="nm">${esc(nome)}</div>${linhaAtv}${aviso}`
     : tipo === "ja"
-      ? `<div class="ic">⚠</div><div class="tt">Já credenciado às ${esc(hora(quando))}</div><div class="nm">${esc(nome)}</div>`
+      ? `<div class="ic">⚠</div><div class="tt">Já credenciado às ${esc(hora(quando))}</div><div class="nm">${esc(nome)}</div>${linhaAtv}${aviso}`
       : `<div class="ic">✕</div><div class="tt">Inscrição não encontrada</div><div class="dt">${esc(nome || "Confira o QR ou o código digitado.")}</div>`;
   if (navigator.vibrate) navigator.vibrate(tipo === "ok" ? 80 : [60, 60, 60]);
   FILA.unshift({ tipo, nome: tipo === "erro" ? "(não encontrado)" : nome, h: hora(quando) });
@@ -145,14 +177,16 @@ function resultado(tipo, nome, quando) {
 
 async function checkin(body) {
   try {
+    const atividade = $("s-atv")?.value || "";
     const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/checkin`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...body, codigoMonitor: COD }),
+      body: JSON.stringify({ ...body, codigoMonitor: COD, atividade }),
     });
     const j = await r.json().catch(() => ({}));
     if (r.status === 403) { alert(j.error || "Código do monitor incorreto."); sair(); return; }
     if (!r.ok) { resultado("erro", j.error && !/não encontrada/i.test(j.error) ? j.error : ""); return; }
-    resultado(j.ja ? "ja" : "ok", j.nome, j.presenteEm);
+    resultado(j.ja ? "ja" : "ok", j.nome, j.presenteEm,
+      { atividade: j.atividade, naoInscrito: j.naoInscritoNaAtividade === true });
   } catch {
     resultado("erro", "Sem conexão — tente de novo.");
   }
