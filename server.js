@@ -37,7 +37,7 @@ import {
   CAMPOS_RELATORIO_PARCIAL, CAMPOS_PARCIAL_OBRIGATORIOS, FORMATACAO_RELATORIO,
   PERGUNTAS_AVALIACAO_PROJETO, RESPOSTAS_AVALIACAO_PROJETO, ESCALA_0_5,
   CRITERIOS_AVALIACAO_ORIENTADOR, CRITERIOS_AVALIACAO_ALUNO, PARECERES_CONCLUSIVOS,
-  janelaRelatorio,
+  janelaRelatorio, regularizacaoDe,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import {
@@ -3183,7 +3183,10 @@ async function varrerCobrancaIC() {
     porPessoa.set(alvo, atual);
   };
   for (const p of projetos) {
-    if (p.status !== "aprovado") continue;
+    // projetos em execução — e os do ciclo em REGULARIZAÇÃO (concluídos com
+    // a janela do final reaberta), que são exatamente os que precisam de
+    // lembrete até entregarem
+    if (p.status !== "aprovado" && !regularizacaoDe(p)) continue;
     for (const tipo of TIPOS_RELATORIO) {
       const jan = janelaRelatorio(p, tipo);
       if (!jan?.aberta) continue;
@@ -3400,6 +3403,34 @@ app.post("/api/ic/em/:id/relatorio/validar", async (req, res) => {
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
   res.json({ ok: true, bolsista: r.bolsista });
+});
+
+/* A CHAMADA de preenchimento dos relatórios (gestão, botão na guia): vai a
+   TODO bolsista da turma com relatório exigido ainda não validado — sem o
+   filtro de "já convidado" do convite. `simular` devolve a lista. */
+app.post("/api/ic/em/chamada-relatorio", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "A chamada dos relatórios é da coordenação de pesquisa." });
+  const turma = turmaEmDe(String(req.body?.turma || "")) || turmaEmVigente();
+  const tipos = relatoriosExigidos(turma);
+  const alvos = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo
+    && b.situacao !== "desligado"
+    && tipos.some((t) => b.relatorios?.[t]?.situacao !== "validado"));
+  const semEmail = alvos.filter((b) => !b.email).map((b) => b.nome);
+  const comEmail = alvos.filter((b) => b.email);
+  if (req.body?.simular === true) {
+    return res.json({ turma: turma.ciclo, tipos, chamar: comEmail.map((b) => ({ nome: b.nome, email: b.email })), semEmail });
+  }
+  const { enviarEmail, emailChamadaRelatorioEM } = await import("./lib/mailer.js");
+  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  const falhas = [];
+  for (const b of comEmail) {
+    const meusTipos = tipos.filter((t) => b.relatorios?.[t]?.situacao !== "validado");
+    try { await enviarEmail(emailChamadaRelatorioEM(b, turma, { baseUrl, tipos: meusTipos })); }
+    catch (e) { falhas.push(`${b.nome}: ${e.message}`); }
+  }
+  res.json({ ok: true, turma: turma.ciclo, enviados: comEmail.length - falhas.length, falhas, semEmail });
 });
 
 /* O convite por e-mail, turma a turma (gestão): criar o usuário e — turma
@@ -4654,6 +4685,14 @@ async function completarTurmaEM2025() {
       await readFile(path.join(__dirname, "dados", "ic-em-2025-termos.json"), "utf8"));
     const chaveNome = (v) => String(v || "").trim().toLowerCase()
       .normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ");
+    const projetos = await lerProjetos();
+    // a trajetória do lote aponta origem.lote/id do projeto de graduação
+    // (o id real é de cada ambiente) — resolve-se aqui, como na importação
+    const resolverTrajetoria = (entradas) => (entradas || []).map((e) => {
+      const p = projetos.find((x) => x.origem?.lote === e.origemLote && String(x.origem?.id) === String(e.origemId));
+      return p ? { projetoId: p.id, numero: p.numero, titulo: p.titulo,
+        orientador: p.orientador?.nome || "", de: e.de, ate: e.ate } : null;
+    }).filter(Boolean);
     const r = await comBolsistasEM((lista) => {
       let completados = 0, novos = 0, bolsas = 0;
       for (const t of arq.bolsistas || []) {
@@ -4661,7 +4700,8 @@ async function completarTurmaEM2025() {
         const i = lista.findIndex((x) => x.turma === arq.turma
           && ((cpfT && soDigitos(x.cpf) === cpfT) || chaveNome(x.nome) === chaveNome(t.nome)));
         if (i < 0) {
-          const novo = normalizarBolsistaEM({ ...t, cpf: cpfT, turma: arq.turma, situacao: "concluido" });
+          const novo = normalizarBolsistaEM({ ...t, cpf: cpfT, turma: arq.turma,
+            situacao: "concluido", trajetoria: resolverTrajetoria(t.trajetoria) });
           novo.id = "em_" + crypto.randomUUID().slice(0, 12);
           lista.push(novo);
           novos++;
@@ -4675,6 +4715,12 @@ async function completarTurmaEM2025() {
           if (!junto[c] && v) { junto[c] = v; mexeu = true; }
         }
         if (!junto.bolsa && t.bolsa) { junto.bolsa = t.bolsa; mexeu = true; }
+        // o acompanhamento do termo entra só em quem não tem trajetória
+        // nenhuma — trajetória existente nunca se apaga nem se duplica
+        if (!(base.trajetoria || []).length && (t.trajetoria || []).length) {
+          const tr = resolverTrajetoria(t.trajetoria);
+          if (tr.length) { junto.trajetoria = tr; mexeu = true; }
+        }
         if (mexeu) { lista[i] = normalizarBolsistaEM(junto, { base }); completados++; }
       }
       // a correção explícita: contrato de bolsa vale mais que o resultado
@@ -5325,6 +5371,12 @@ app.post("/api/ic/:id/relatorio", async (req, res) => {
     if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
     if (!podeEnviarRelatorio(meu, projetos[i]))
       return { erro: [403, "O relatório é enviado pelo aluno indicado, com o projeto em execução"], gravar: false };
+    // ciclo em regularização: o projeto está concluído e só o relatório
+    // reaberto (o final de 01/2025) aceita envio
+    if (projetos[i].status === "concluido") {
+      const reg = regularizacaoDe(projetos[i]);
+      if (!reg?.[tipo]) return { erro: [400, "Este projeto está concluído — a regularização reabriu apenas o relatório final."], gravar: false };
+    }
     // a janela: o parcial abre no 4º mês da vigência, o final no 10º.
     // Depois do vencimento o envio segue aceito (e marcado atrasado) —
     // fechar de vez impediria a regularização.

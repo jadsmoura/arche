@@ -413,7 +413,7 @@ const TITULOS = {
   bolsas: ["Bolsas", "Atribuição das bolsas conforme a disponibilidade orçamentária, em ordem de pontuação."],
   editais: ["Editais e Resultados", "Os documentos de cada processo, ano a ano: o edital e o resultado."],
   cronograma: ["Cronograma", "Todas as atividades dos projetos num só lugar."],
-  relatorios: ["Relatórios", "Parciais e finais: o aluno envia, a orientação valida."],
+  relatorios: ["Relatórios", "Parciais e finais: o aluno envia; a orientação valida na IC, e a PROPPEX no Ensino Médio."],
   certificados: ["Certificados", "Participação e orientação nos ciclos concluídos — reunidos pelo seu CPF."],
   projeto: ["Projeto", ""],
 };
@@ -701,7 +701,7 @@ function nav(secao, modo) {
   $("titulo").textContent = t; $("subtitulo").textContent = s; $("crumb").textContent = t;
   $("aviso").innerHTML = faixaVerComo();
 
-  if (secao === "painel") renderPainel();
+  if (secao === "painel") { renderPainel(); if (META.gestao) quadroICEM(); }
   if (secao === "submissao") {
     ATUAL = novoProjeto();
     PODE = { podeEditar: true, podeGerir: true, papel: MANUAL ? "gestao" : "orientador" };
@@ -854,6 +854,7 @@ function renderPainel() {
 
     ${cicloAval}
     ${quadroUsuarios()}
+    ${META.gestao ? '<div id="quadro-icem"></div>' : ""}
     ${panoramaDoCiclo(meus)}
 
     ${(() => {
@@ -929,6 +930,50 @@ const chip2 = (s) => `<span class="badge b-${esc(s)}">${esc({ prevista: "previst
    por isso vem de rota própria e só para o gestor geral, que é quem
    responde pela gestão de acessos. Contagens apenas: nenhum nome, nenhum
    e-mail sai por aqui. */
+/* O quadro do ICEM no Painel (só gestão): a evolução dos relatórios da
+   turma escolhida — entregues, validados e pendentes — sem sair do Painel.
+   Os dados vêm da mesma rota da guia Ensino Médio, carregados uma vez. */
+let TURMA_PAINEL_EM = "";
+async function quadroICEM() {
+  const alvo = $("quadro-icem");
+  if (!alvo || !META.gestao) return;
+  if (!EM) {
+    try { EM = await api("/api/ic/em"); } catch { alvo.innerHTML = ""; return; }
+  }
+  const turmas = (EM.turmas || []).slice().reverse();
+  if (!TURMA_PAINEL_EM || !turmas.some((t) => t.ciclo === TURMA_PAINEL_EM)) {
+    TURMA_PAINEL_EM = (turmas.find((t) => !t.encerrada) || turmas[0] || {}).ciclo || "";
+  }
+  const turma = turmas.find((t) => t.ciclo === TURMA_PAINEL_EM) || {};
+  const da = (EM.bolsistas || []).filter((b) => b.turma === TURMA_PAINEL_EM && b.situacao !== "desligado");
+  const tipos = turma.encerrada ? ["final"] : ["parcial", "final"];
+  const conta = (tipo, s) => da.filter((b) => (b.relatorios?.[tipo]?.situacao || "pendente") === s).length;
+  const barra = (tipo) => {
+    const validados = conta(tipo, "validado"), entregues = conta(tipo, "entregue"),
+      devolvidos = conta(tipo, "devolvido"), pendentes = da.length - validados - entregues - devolvidos;
+    const pct = da.length ? Math.round(((validados + entregues) / da.length) * 100) : 0;
+    return `<div style="margin-top:8px">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <b>Relatório ${tipo}</b>
+        <span class="muted">${validados} validado(s) · ${entregues} a validar · ${devolvidos} devolvido(s) · ${pendentes} pendente(s)</span>
+      </div>
+      <div class="trilho" style="height:10px;border-radius:6px;background:var(--linha);overflow:hidden;margin-top:4px">
+        <div style="height:100%;width:${pct}%;background:var(--acento,#40717e)"></div>
+      </div>
+    </div>`;
+  };
+  alvo.innerHTML = `<div class="card">
+    <div class="card-t" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">ICEM — evolução dos relatórios
+      <select style="width:auto;min-width:220px;font-size:13px" onchange="TURMA_PAINEL_EM=this.value;quadroICEM()">
+        ${turmas.map((t) => `<option value="${esc(t.ciclo)}" ${TURMA_PAINEL_EM === t.ciclo ? "selected" : ""}>Turma ${esc(t.ciclo)}${t.encerrada ? " · encerrada" : " · atual"}</option>`).join("")}
+      </select></div>
+    <div class="card-s">${da.length} bolsista(s)${turma.prazoRelatorioFinal
+      ? ` · prazo do final: <b>${turma.prazoRelatorioFinal.split("-").reverse().join("/")}</b>` : ""} ·
+      a validação é da PROPPEX, na guia <a href="#" onclick="nav('em');return false">Ensino Médio</a>.</div>
+    ${tipos.map(barra).join("")}
+  </div>`;
+}
+
 function quadroUsuarios() {
   if (ME?.papel !== "gestor") return "";
   const u = USUARIOS;
@@ -1028,10 +1073,17 @@ async function renderEM() {
             <option value="">— sem bolsa —</option>
             ${EM.bolsas.map((x) => `<option value="${x.codigo}" ${b.bolsa === x.codigo ? "selected" : ""}>${esc(x.nome)} — R$ ${x.valor}</option>`).join("")}
           </select></div>
-        <div><label>Projeto que acompanha <span class="muted">(trocar aqui fecha o anterior e guarda a trajetória)</span></label>
-          <select onchange="emProjeto('${esc(b.id)}',this.value)">${opcoesProjeto(b)}</select></div>
+        ${turma.encerrada
+          ? `<div><label>Projeto acompanhado</label>
+            <div class="kv" style="padding:9px 0">${(() => {
+              const ult = (b.trajetoria || []).slice(-1)[0];
+              return ult ? `<b>${esc(ult.numero || "")}</b> ${esc((ult.titulo || "").slice(0, 70))} · orientação de ${esc(ult.orientador || "—")}`
+                : '<span class="muted">sem acompanhamento registrado</span>';
+            })()}</div></div>`
+          : `<div><label>Projeto que acompanha <span class="muted">(trocar aqui fecha o anterior e guarda a trajetória)</span></label>
+          <select onchange="emProjeto('${esc(b.id)}',this.value)">${opcoesProjeto(b)}</select></div>`}
       </div>
-      ${pa ? `<div class="kv" style="margin-top:6px">Acompanha <b>${esc(pa.numero || "")}</b> ${esc(pa.titulo.slice(0, 80))} ·
+      ${pa && !turma.encerrada ? `<div class="kv" style="margin-top:6px">Acompanha <b>${esc(pa.numero || "")}</b> ${esc(pa.titulo.slice(0, 80))} ·
         orientação de ${esc(pa.orientador || "—")} · desde ${fmtD(pa.de)}</div>` : ""}
       ${passados.length ? `<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">
           Trajetória (${passados.length} anterior${passados.length > 1 ? "es" : ""})</summary>
@@ -1075,6 +1127,8 @@ async function renderEM() {
         title="Uma linha por bolsista, com CPF, contato, responsável e dados bancários — para os pagamentos">📇 Bolsistas (Excel)</a>` : ""}
       ${da.length ? `<button class="bt bt-sec" onclick="emConvidar()"
         title="Convite por e-mail: o bolsista cria o usuário e — turma atual — escolhe o projeto; turma encerrada — entrega o relatório final">✉️ Convidar por e-mail</button>` : ""}
+      ${da.length ? `<button class="bt bt-sec" onclick="emChamada()"
+        title="Vai a TODO bolsista da turma com relatório ainda não validado — mesmo quem já foi convidado">📣 Chamar para os relatórios</button>` : ""}
     </div>
 
     <div class="kpis">
@@ -1183,6 +1237,26 @@ async function emConvidar() {
   } catch (e) { aviso(e.message, "err"); }
 }
 
+/* A chamada de preenchimento dos relatórios: vai a TODO bolsista da turma
+   com relatório exigido ainda não validado — sem o filtro do convite. */
+async function emChamada() {
+  try {
+    const s = await api("/api/ic/em/chamada-relatorio", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ turma: TURMA_EM, simular: true }) });
+    if (!s.chamar.length) return aviso("Nenhum bolsista com relatório pendente e e-mail nesta turma.", "err");
+    const ok = confirm(`Chamar ${s.chamar.length} bolsista(s) da turma ${TURMA_EM} para preencher o relatório?\n\n`
+      + s.chamar.map((x) => `• ${x.nome} — ${x.email}`).join("\n")
+      + (s.semEmail.length ? `\n\nSem e-mail (não recebem): ${s.semEmail.join(", ")}` : ""));
+    if (!ok) return;
+    const r = await api("/api/ic/em/chamada-relatorio", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ turma: TURMA_EM }) });
+    aviso(`Chamada enviada a ${r.enviados} bolsista(s).${r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""}`,
+      r.falhas.length ? "err" : undefined);
+  } catch (e) { aviso(e.message, "err"); }
+}
+
 /* ------------------ a guia do BOLSISTA do Ensino Médio ------------------- */
 /* O setor pelos olhos do bolsista EM (decisão do dono, ago/2026): ele
    escolhe o curso e o projeto que quer acompanhar — e troca quando quiser —
@@ -1258,7 +1332,9 @@ async function renderMeuEM() {
     const outroMarcado = !!rel.cursoOutro;
     if (r.situacao === "desligado") return "";
     return `<div style="border-top:1px solid var(--linha);margin-top:12px;padding-top:10px">
-      <div style="font-weight:700">${rot} ${situ}</div>
+      <div style="font-weight:700">${rot} ${situ}
+        ${tipo === "final" && r.turma?.prazoRelatorioFinal && rel.situacao !== "validado"
+          ? `<span class="badge b-prevista">prazo: ${esc(r.turma.prazoRelatorioFinal.split("-").reverse().join("/"))}</span>` : ""}</div>
       ${tipo === "final" && r.turma?.encerrada ? `<div class="muted" style="margin:4px 0 6px">É o relatório final que formaliza a conclusão da sua participação na turma.</div>` : ""}
       ${rel.comentario && rel.situacao === "devolvido" ? `<div class="banner ba-warn" style="margin-top:6px"><b>A PROPPEX pediu ajustes:</b> ${esc(rel.comentario)}</div>` : ""}
       ${rel.situacao === "validado" ? `
@@ -1905,7 +1981,7 @@ function renderBolsistas() {
         ${rel("parcial")} ${rel("final")}`} ${contrato}
       </div>
       ${META.gestao ? `<details style="margin-top:6px">
-        <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">👤 Dados do aluno (cadastro do contrato)</summary>
+        <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">👤 Ver dados do aluno (cadastro do contrato, com os dados bancários)</summary>
         <div style="margin-top:6px">
           ${linhaDado("CPF", a.cpf ? a.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "")}
           ${linhaDado("RG", a.rg)}
@@ -1922,9 +1998,7 @@ function renderBolsistas() {
       <div class="exp"><button class="bt bt-ghost" onclick="abrir('${esc(p.id)}')">Abrir o projeto</button>
         ${META.gestao && a.bolsista ? `<a class="bt bt-ghost" target="_blank" rel="noopener"
           href="/api/ic/termos.pdf?edital=${encodeURIComponent(p.edital || META.edital?.numero || "")}&projeto=${encodeURIComponent(p.id)}"
-          title="Termo de compromisso deste projeto, para assinatura">📝 Termo</a>
-        <a class="bt bt-ghost" href="/api/ic/bolsistas.xlsx?edital=${encodeURIComponent(p.edital || META.edital?.numero || "")}&aluno=${encodeURIComponent(a.email || a.cpf || "")}"
-          title="Planilha só deste bolsista — CPF, contato e dados bancários, para o pedido de pagamento">⬇ Exportar dados do aluno</a>` : ""}
+          title="Termo de compromisso deste projeto, para assinatura">📝 Termo</a>` : ""}
       </div>
     </div>`;
   };
@@ -2788,7 +2862,14 @@ function renderCronograma() {
 /* Para a gestão, a guia Relatórios é um radar: cada projeto em execução com
    a sua situação frente aos prazos do edital — EM DIA ou ATRASADO — e nada
    mais. O relatório completo se lê dentro do projeto, num clique. */
+let ABA_REL = "ic";
+const abasRelatorios = () => `<div class="filtros" style="margin-bottom:12px;gap:8px">
+    <button class="bt ${ABA_REL === "ic" ? "bt-pri" : "bt-ghost"}" onclick="ABA_REL='ic';renderRelatorios()">IC — graduação</button>
+    <button class="bt ${ABA_REL === "em" ? "bt-pri" : "bt-ghost"}" onclick="ABA_REL='em';renderRelatorios()">EM — Ensino Médio</button>
+  </div>`;
+
 function renderRelatoriosGestao() {
+  if (ABA_REL === "em") return renderRelatoriosGestaoEM();
   // um ciclo por vez, como nas demais guias — o vigente em evidência;
   // os passados são arquivo: os relatórios aparecem como encerrados
   const editais = editaisOrdenados();
@@ -2801,17 +2882,22 @@ function renderRelatoriosGestao() {
   const fmtBr = (iso) => iso ? iso.split("-").reverse().join("/") : "—";
   const hoje = hojeISO();
 
-  // a situação de UM relatório (parcial ou final) num projeto
+  // a situação de UM relatório (parcial ou final) num projeto. Ordem dos
+  // testes (achado de ago/2026): "sem aluno" e "abre em" vêm ANTES de
+  // qualquer "entregue" — projeto sem aluno indicado não tem relatório
+  // pendente, e o selo antigo o mostrava como "entregue" sem ninguém ter
+  // enviado nada. O ciclo concluído só é "encerrado" quando não há janela
+  // de regularização reaberta (caso do final de 01/2025, até out/2026).
   const prazoDe = (p, tipo) => (p.prazoRelatorios?.prazos || []).find((x) => x.tipo === tipo);
   const sitTipo = (p, tipo) => {
-    if (p.status === "concluido") return `<span class="badge b-validado">encerrado</span>`;
     const x = prazoDe(p, tipo);
+    if (p.status === "concluido" && !x) return `<span class="badge b-validado">encerrado</span>`;
     if (!x) return `<span class="badge b-rascunho">—</span>`;
+    if (!(p.alunos || []).length) return `<span class="badge b-rascunho">sem aluno indicado</span>`;
+    if (hoje < x.abre && x.falta) return `<span class="badge b-rascunho">abre em ${fmtBr(x.abre)}</span>`;
     if (!x.falta) return `<span class="badge b-validado">entregue</span>`;
     if (x.atrasado) return `<span class="badge b-atrasada">atrasado · venceu ${fmtBr(x.vence)}</span>`;
-    return hoje < x.abre
-      ? `<span class="badge b-rascunho">abre em ${fmtBr(x.abre)}</span>`
-      : `<span class="badge b-aprovado">em dia · vence ${fmtBr(x.vence)}</span>`;
+    return `<span class="badge b-aprovado">a entregar · vence ${fmtBr(x.vence)}</span>`;
   };
 
   const listaTipo = (tipo, rotulo) => {
@@ -2836,9 +2922,10 @@ function renderRelatoriosGestao() {
     </details>`;
   };
 
-  const atrasados = cicloVigente ? emExec.filter((p) => p.prazoRelatorios?.atrasado).length : 0;
+  const atrasados = emExec.filter((p) => p.prazoRelatorios?.atrasado).length;
 
   $("v-relatorios").innerHTML = `
+    ${abasRelatorios()}
     <div class="tut"><details><summary>Como os prazos funcionam</summary>
       <ol>
         <li>São dois relatórios por aluno: o <b>parcial</b>, que vence aos 6 meses de execução, e o <b>final</b>, no fim da vigência.</li>
@@ -2858,11 +2945,66 @@ function renderRelatoriosGestao() {
 
     <div class="card">
       <div class="card-t">Relatórios do ciclo ${esc(CICLO_REL)}</div>
-      <div class="card-s">${emExec.length} projeto(s)${cicloVigente
-        ? (atrasados ? ` · <b style="color:var(--warn)">${atrasados} atrasado(s)</b>` : " · todos em dia")
-        : " · ciclo encerrado — relatórios do arquivo"}.</div>
+      <div class="card-s">${emExec.length} projeto(s)${atrasados
+        ? ` · <b style="color:var(--warn)">${atrasados} atrasado(s)</b>`
+        : cicloVigente || emExec.some((p) => p.prazoRelatorios) ? " · todos em dia"
+          : " · ciclo encerrado — relatórios do arquivo"}.</div>
+      ${CICLO_REL === "01/2025" ? `<div class="banner ba-warn"><b>Regularização do ciclo 2025/2026:</b>
+        a entrega do relatório final (o artigo científico) está reaberta <b>até 31/10/2026</b> —
+        os projetos seguem concluídos, só a janela do final voltou a aceitar envio. A cobrança
+        semanal por e-mail está ligada.</div>` : ""}
       ${listaTipo("parcial", "Relatório parcial")}
       ${listaTipo("final", "Relatório final")}
+    </div>`;
+}
+
+/* A aba EM da guia Relatórios (só gestão): a evolução por turma, bolsista a
+   bolsista — quem entregou, quem falta, quem já foi validado. A validação
+   em si fica na guia Ensino Médio, que tem o cartão completo. */
+let TURMA_REL_EM = "";
+async function renderRelatoriosGestaoEM() {
+  const el = $("v-relatorios");
+  el.innerHTML = abasRelatorios() + '<div class="card"><div class="vazio">Carregando o ICEM…</div></div>';
+  if (!EM) {
+    try { EM = await api("/api/ic/em"); }
+    catch (e) { el.innerHTML = abasRelatorios() + `<div class="banner ba-err">${esc(e.message)}</div>`; return; }
+  }
+  const turmas = (EM.turmas || []).slice().reverse();
+  if (!TURMA_REL_EM || !turmas.some((t) => t.ciclo === TURMA_REL_EM)) {
+    TURMA_REL_EM = (turmas.find((t) => t.ciclo === "2025/2026") || turmas[0] || {}).ciclo || "";
+  }
+  const turma = turmas.find((t) => t.ciclo === TURMA_REL_EM) || {};
+  const tipos = turma.encerrada ? ["final"] : ["parcial", "final"];
+  const da = (EM.bolsistas || []).filter((b) => b.turma === TURMA_REL_EM && b.situacao !== "desligado")
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  const selo = (r) => r?.situacao === "validado" ? '<span class="badge b-validado">validado</span>'
+    : r?.situacao === "entregue" ? '<span class="badge b-enviado">entregue — validar</span>'
+      : r?.situacao === "devolvido" ? '<span class="badge b-devolvido">devolvido</span>'
+        : '<span class="badge b-rascunho">pendente</span>';
+  const conta = (tipo, s) => da.filter((b) => (b.relatorios?.[tipo]?.situacao || "pendente") === s).length;
+  el.innerHTML = `
+    ${abasRelatorios()}
+    <div class="filtros" style="margin-bottom:14px">
+      <label style="margin:0;display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--muted)">
+        Turma
+        <select style="width:auto;min-width:240px" onchange="TURMA_REL_EM=this.value;renderRelatorios()">
+          ${turmas.map((t) => `<option value="${esc(t.ciclo)}" ${TURMA_REL_EM === t.ciclo ? "selected" : ""}>Turma ${esc(t.ciclo)}${t.encerrada ? " · encerrada" : " · atual"}</option>`).join("")}
+        </select>
+      </label>
+      <button class="bt bt-sec" onclick="TURMA_EM=TURMA_REL_EM;emChamada()">📣 Chamar para os relatórios</button>
+    </div>
+    <div class="card">
+      <div class="card-t">Relatórios do ICEM — turma ${esc(TURMA_REL_EM)}</div>
+      <div class="card-s">${da.length} bolsista(s) ·
+        ${tipos.map((t) => `${t}: ${conta(t, "validado")} validado(s), ${conta(t, "entregue")} a validar`).join(" · ")}${turma.prazoRelatorioFinal
+          ? ` · prazo do final: <b>${turma.prazoRelatorioFinal.split("-").reverse().join("/")}</b>` : ""}.
+        A validação (da PROPPEX) fica na guia <a href="#" onclick="nav('em');return false">Ensino Médio</a>.</div>
+      ${da.map((b) => `<div class="linha">
+        <div class="txt"><div class="p1">${esc(b.nome)}</div>
+          <div class="p2">${esc((EM.bolsas.find((x) => x.codigo === b.bolsa) || {}).nome || "sem bolsa")}${b.email ? ` · ${esc(b.email)}` : " · <b>sem e-mail</b>"}</div></div>
+        ${tipos.map((t) => `<span style="font-size:12px;color:var(--muted);margin-right:2px">${t}:</span>${selo(b.relatorios?.[t])}`).join(" ")}
+        <button class="bt bt-ghost" onclick="TURMA_EM='${esc(TURMA_REL_EM)}';nav('em')">abrir</button>
+      </div>`).join("") || '<div class="vazio">Nenhum bolsista nesta turma.</div>'}
     </div>`;
 }
 
@@ -3996,6 +4138,9 @@ function renderRelatoriosDoProjeto(p) {
     const r = meuRel(tipo);
     if (r && r.situacao !== "devolvido") return "";
     const prazo = prazoDe(tipo);
+    // projeto concluído: só a janela em REGULARIZAÇÃO reabre formulário
+    // (o final de 01/2025, até out/2026) — sem prazo reaberto, nada de form
+    if (!prazo && p.status === "concluido") return "";
     const aberto = !prazo || !prazo.abre || hojeISO() >= prazo.abre;
     if (!aberto) return `<div class="bloco" id="form-rel-${tipo}">
       <div class="bloco-cab"><span class="t">Relatório ${tipo}</span><span class="badge b-rascunho">ainda não abriu</span></div>

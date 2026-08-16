@@ -451,6 +451,19 @@ public/
   vencer, segue aceito e marcado atrasado (fechar de vez impediria a regularização).
   Projeto ATRASADO = prazo vencido com relatório faltando. A visão do projeto leva
   `prazoRelatorios` junto (verProjeto/rota :id) — é o que diz à tela quando o form abre.
+  **Regularização de ciclo encerrado** (`REGULARIZACAO_RELATORIOS` em lib/ic.js, decisão
+  do dono ago/2026): o ciclo 2025/2026 encerrou sem os finais, e a entrega REABRIU — o
+  artigo de 01/2025 até **31/10/2026** (graduação) e o relatório da turma EM 2025/2026
+  até **30/09/2026** (`prazoRelatorioFinal` em TURMAS_EM). O projeto segue `concluido`;
+  só a janela listada volta a aceitar envio (e entra na cobrança semanal). A guia
+  Relatórios da gestão tem **duas abas — IC e EM** — e o selo por projeto diz a verdade:
+  "sem aluno indicado" e "abre em …" vêm antes de qualquer "entregue" (um projeto sem
+  aluno aparecia como entregue sem ninguém ter enviado nada). O Painel da gestão tem o
+  quadro **"ICEM — evolução dos relatórios"** com seletor de turma, e a guia EM tem a
+  **chamada de preenchimento** (`POST /api/ic/em/chamada-relatorio`) — vai a todo
+  bolsista com relatório não validado, sem o filtro de "já convidado" do convite. As
+  trajetórias da turma 2025/2026 vêm dos termos (a da Ellisa ficou ilegível no manuscrito
+  e ela está sem projeto vinculado — decisão pendente da gestão).
 - **Relatórios estruturados** (decisão do dono, ago/2026 — catálogos em lib/ic.js): o
   PARCIAL segue o roteiro institucional de 7 seções (`CAMPOS_RELATORIO_PARCIAL`; as 5
   primeiras obrigatórias, mín. 30 caracteres) com comprovantes anexáveis; o FINAL é um

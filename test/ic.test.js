@@ -1023,3 +1023,28 @@ test("o modelo institucional dos relatórios: roteiro do parcial, artigo no fina
   const daGestao = visaoDoProjeto(comRel, { email: "g@x.com", gestao: true });
   assert.equal(daGestao.relatorios[0].avaliacaoOrientador.disponibilidade, 5, "gestão lê os dois lados");
 });
+
+test("regularização do ciclo 2025/2026: o final reabre no projeto concluído, até outubro", async () => {
+  const { prazosRelatorios, podeEnviarRelatorio, regularizacaoDe, janelaRelatorio, relatoriosPendentes }
+    = await import("../lib/ic.js");
+  const p = {
+    id: "x", status: "concluido", edital: "01/2025",
+    inicio: "2025-09-01", fim: "2026-08-31",
+    orientador: { nome: "Prof", email: "prof@x.com" },
+    alunos: [{ nome: "Aluna", email: "aluna@x.com" }],
+    relatorios: [],
+  };
+  assert.ok(regularizacaoDe(p), "01/2025 concluído está em regularização");
+  const r = prazosRelatorios(p, "2026-08-20");
+  assert.equal(r.regularizacao, true);
+  assert.deepEqual(r.prazos.map((x) => x.tipo), ["final"], "só o final reabre");
+  assert.equal(r.prazos[0].vence, "2026-10-31", "até outubro (decisão do dono)");
+  assert.equal(janelaRelatorio(p, "final", "2026-09-10").aberta, true);
+  assert.equal(janelaRelatorio(p, "parcial", "2026-09-10"), null, "parcial não reabre");
+  assert.equal(podeEnviarRelatorio({ email: "aluna@x.com", gestao: false }, p), true, "aluno envia mesmo concluído");
+  assert.equal(relatoriosPendentes(p).length, 1, "o final pendente conta");
+  // final validado quita; outros ciclos concluídos seguem fechados
+  const quitado = { ...p, relatorios: [{ id: "r", tipo: "final", aluno: "aluna@x.com", situacao: "validado" }] };
+  assert.equal(relatoriosPendentes(quitado).length, 0);
+  assert.equal(prazosRelatorios({ ...p, edital: "01/2024" }, "2026-08-20"), null, "2024 está finalizado");
+});
