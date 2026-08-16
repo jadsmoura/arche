@@ -484,10 +484,18 @@ public/
   Projeto ATRASADO = prazo vencido com relatório faltando. A visão do projeto leva
   `prazoRelatorios` junto (verProjeto/rota :id) — é o que diz à tela quando o form abre.
   **Regularização de ciclo encerrado** (`REGULARIZACAO_RELATORIOS` em lib/ic.js, decisão
-  do dono ago/2026): o ciclo 2025/2026 encerrou sem os finais, e a entrega REABRIU — o
-  artigo de 01/2025 até **31/10/2026** (graduação) e o relatório da turma EM 2025/2026
-  até **30/09/2026** (`prazoRelatorioFinal` em TURMAS_EM). O projeto segue `concluido`;
-  só a janela listada volta a aceitar envio (e entra na cobrança semanal). A guia
+  do dono ago/2026): o ciclo 2025/2026 encerrou sem os relatórios no sistema, e a entrega
+  REABRIU — no 01/2025 (graduação) o **PARCIAL e o FINAL**, os dois até **31/10/2026**
+  (decisão do dono: o processo inteiro se regulariza pelo sistema — envio, validação e
+  arquivo); o relatório da turma EM 2025/2026 até **30/09/2026** (`prazoRelatorioFinal`
+  em TURMAS_EM). O projeto segue `concluido`; só as janelas listadas voltam a aceitar
+  envio (e entram na cobrança semanal). **O Painel do ALUNO conta os projetos DELE, não
+  os do ciclo vigente** (`meusDeAluno` em renderPainel): contar só o vigente dizia
+  "nenhum projeto" a quem tem relatório do 01/2025 a entregar — e um banner aponta a
+  guia Meus projetos quando há relatório a enviar. O vínculo do cadastro novo já é
+  automático: aluno e orientador casam com o projeto por **e-mail OU CPF**
+  (`papelNoProjeto`), conta `pendente` entra pelo convite (`participaDeAlgum`) e
+  `vincularPorCpf` grava o e-mail da conta no projeto que o esperava. A guia
   Relatórios da gestão tem **duas abas — IC e EM** — e o selo por projeto diz a verdade:
   "sem aluno indicado" e "abre em …" vêm antes de qualquer "entregue" (um projeto sem
   aluno aparecia como entregue sem ninguém ter enviado nada). O Painel da gestão tem o

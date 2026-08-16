@@ -798,8 +798,12 @@ function renderPainel() {
   const minhasPendencias = RELS.pendentes;
 
   const aDarParecer = meus.filter((p) => p.aDarParecer);
+  // o ALUNO não é do ciclo: ele é dos projetos em que foi indicado — inclusive
+  // os do ciclo em regularização (01/2025), que são concluídos de outro edital.
+  // Contar só o vigente dizia "nenhum projeto" a quem tem relatório a entregar.
+  const meusDeAluno = ehAluno() ? meusProjetos() : [];
   const kpis = ehAluno()
-    ? [["Projetos", meus.length, "em que você foi indicado"],
+    ? [["Projetos", meusDeAluno.length, "em que você foi indicado"],
        ["Atividades", etapasCiclo.length, "no seu plano de trabalho"],
        ["Em atraso", atrasadas.length, "atividades vencidas"],
        ["Relatórios a enviar", minhasPendencias.length, "parciais e finais"]]
@@ -882,7 +886,12 @@ function renderPainel() {
       ${foraDoPrazo.slice(0, 8).map((p) => `<a href="#" onclick="abrir('${esc(p.id)}');return false">${esc(p.numero || p.titulo)}</a>`).join(" · ")}${foraDoPrazo.length > 8 ? " · …" : ""}
       — a lista completa está na guia Relatórios.</div>` : ""}
 
-    ${!meus.length ? `<div class="card"><div class="card-t">Comece por aqui</div>
+    ${ehAluno() && meusDeAluno.length && minhasPendencias.length ? `<div class="banner ba-warn">
+      <b>Você tem ${minhasPendencias.length} relatório(s) a enviar.</b> Abra o seu projeto na guia
+      <a href="#" onclick="nav('meusprojetos');return false">Meus projetos</a> e use o botão
+      "preencher relatório" ao lado de cada prazo.</div>` : ""}
+
+    ${!(ehAluno() ? meusDeAluno.length : meus.length) ? `<div class="card"><div class="card-t">Comece por aqui</div>
       <div class="card-s">${ehAluno()
         ? "Você ainda não foi indicado em nenhum projeto. Quem orienta faz a indicação pelo seu e-mail."
         : ehAvaliador()
@@ -3200,10 +3209,10 @@ function renderRelatoriosGestao() {
         : cicloVigente || emExec.some((p) => p.prazoRelatorios) ? " · todos em dia"
           : " · ciclo encerrado — relatórios do arquivo"}.</div>
       ${CICLO_REL === "01/2025" ? `<div class="banner ba-warn"><b>Regularização do ciclo 2025/2026:</b>
-        a entrega do relatório final (o artigo científico) está reaberta <b>até 31/10/2026</b> —
-        os projetos seguem concluídos, só a janela do final voltou a aceitar envio. A cobrança
-        semanal por e-mail está ligada — e o botão <b>📣 Chamar para os relatórios</b>, acima,
-        envia o chamado agora, sem esperar a varredura.</div>` : ""}
+        a entrega do <b>relatório parcial</b> e do <b>final</b> (o artigo científico) está reaberta
+        <b>até 31/10/2026</b> — os projetos seguem concluídos, só as janelas voltaram a aceitar
+        envio e validação. A cobrança semanal por e-mail está ligada — e o botão
+        <b>📣 Chamar para os relatórios</b>, acima, envia o chamado agora, sem esperar a varredura.</div>` : ""}
       ${listaTipo("parcial", "Relatório parcial")}
       ${listaTipo("final", "Relatório final")}
     </div>`;

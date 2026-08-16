@@ -1024,7 +1024,7 @@ test("o modelo institucional dos relatórios: roteiro do parcial, artigo no fina
   assert.equal(daGestao.relatorios[0].avaliacaoOrientador.disponibilidade, 5, "gestão lê os dois lados");
 });
 
-test("regularização do ciclo 2025/2026: o final reabre no projeto concluído, até outubro", async () => {
+test("regularização do ciclo 2025/2026: parcial e final reabrem no projeto concluído, até outubro", async () => {
   const { prazosRelatorios, podeEnviarRelatorio, regularizacaoDe, janelaRelatorio, relatoriosPendentes }
     = await import("../lib/ic.js");
   const p = {
@@ -1037,14 +1037,19 @@ test("regularização do ciclo 2025/2026: o final reabre no projeto concluído, 
   assert.ok(regularizacaoDe(p), "01/2025 concluído está em regularização");
   const r = prazosRelatorios(p, "2026-08-20");
   assert.equal(r.regularizacao, true);
-  assert.deepEqual(r.prazos.map((x) => x.tipo), ["final"], "só o final reabre");
-  assert.equal(r.prazos[0].vence, "2026-10-31", "até outubro (decisão do dono)");
+  // a PROPPEX reabriu os DOIS (decisão do dono, ago/2026): o processo
+  // inteiro — parcial, final e validações — se regulariza pelo sistema
+  assert.deepEqual(r.prazos.map((x) => x.tipo).sort(), ["final", "parcial"], "parcial e final reabrem");
+  for (const x of r.prazos) assert.equal(x.vence, "2026-10-31", "até outubro (decisão do dono)");
   assert.equal(janelaRelatorio(p, "final", "2026-09-10").aberta, true);
-  assert.equal(janelaRelatorio(p, "parcial", "2026-09-10"), null, "parcial não reabre");
+  assert.equal(janelaRelatorio(p, "parcial", "2026-09-10").aberta, true, "o parcial também aceita envio");
   assert.equal(podeEnviarRelatorio({ email: "aluna@x.com", gestao: false }, p), true, "aluno envia mesmo concluído");
-  assert.equal(relatoriosPendentes(p).length, 1, "o final pendente conta");
-  // final validado quita; outros ciclos concluídos seguem fechados
-  const quitado = { ...p, relatorios: [{ id: "r", tipo: "final", aluno: "aluna@x.com", situacao: "validado" }] };
+  assert.equal(relatoriosPendentes(p).length, 2, "parcial e final pendentes contam");
+  // os dois validados quitam; outros ciclos concluídos seguem fechados
+  const quitado = { ...p, relatorios: [
+    { id: "r1", tipo: "parcial", aluno: "aluna@x.com", situacao: "validado" },
+    { id: "r2", tipo: "final", aluno: "aluna@x.com", situacao: "validado" },
+  ] };
   assert.equal(relatoriosPendentes(quitado).length, 0);
   assert.equal(prazosRelatorios({ ...p, edital: "01/2024" }, "2026-08-20"), null, "2024 está finalizado");
 });
