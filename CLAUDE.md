@@ -54,6 +54,15 @@ public/
 
 - **Gestão de acessos** é da conta, não de um setor: o atalho mora no **perfil** do
   gestor (`/perfil/`), não na barra lateral da Extensão.
+- **O portal mostra a cada um os seus setores** (`aplicarVisibilidade` em
+  `assets/arche-nav.js` + `data-setor` nos cartões de `public/index.html`, decisão do
+  dono ago/2026): **aluno** (função `aluno` no perfil) vê só Extensão e Pesquisa·IC;
+  **professor e demais** veem tudo menos a Avaliação; **gestor geral e coordenadores**
+  (qualquer módulo em `modulosDe`) veem tudo; **visitante sem login** vê o portal
+  completo, como sempre (o cartão da Avaliação continua atrás da portaria de senha).
+  É filtro de APRESENTAÇÃO — quem barra é o servidor (login nos setores, portaria na
+  Avaliação); esconder cartão não é porta. Vale para os cartões da página inicial e
+  para os atalhos da barra do topo em todos os setores.
 
 ## Regras de negócio essenciais
 
@@ -519,6 +528,16 @@ public/
   (visaoDoProjeto): o orientador não vê a avaliação que levou, o aluno não vê as notas
   nem o parecer sobre ele; a gestão lê os dois lados. Validar = "encaminhar à PROPPEX"
   (avisa pesquisa@); devolver exige comentário e reabre o envio para o aluno.
+- **A PROPPEX valida relatório EM NOME da orientação** (decisão do dono, ago/2026):
+  orientadores desligados da instituição não voltam para validar, e o relatório do
+  aluno não pode ficar refém disso. `podeValidarRelatorio` já aceitava a gestão; o que
+  muda é que, validando quem NÃO é o orientador do projeto (papel `gestao` em
+  `papelNoProjeto`), a avaliação do desempenho e o parecer conclusivo do FINAL viram
+  **opcionais** — juízo de quem acompanhou o aluno não se exige de quem não acompanhou.
+  O ato fica marcado: `validadoPelaGestao: true` no relatório (sobrevive à
+  normalização) e "— pela PROPPEX, em nome da orientação" no histórico; o painel de
+  validação avisa quando é esse o caso. Para o orientador de verdade, nada muda: as
+  exigências continuam as mesmas.
 - **Cobrança semanal dos relatórios de IC** (`varrerCobrancaIC` no server +
   `emailCobrancaRelatorioIC` no mailer): da abertura da janela até enviar E validar, o
   aluno recebe o lembrete de enviar/corrigir e a orientação, o de validar — um e-mail

@@ -3323,16 +3323,22 @@ async function validar(projetoId, relId, decisao, tipo) {
   if (decisao === "devolvido" && parecer.length < 10)
     return aviso("Escreva no comentário o que o aluno precisa corrigir.", "warn");
   const corpo = { decisao, parecer };
+  // a PROPPEX validando EM NOME da orientação (orientador desligado) não é
+  // obrigada à avaliação de desempenho — juízo de quem acompanhou o aluno
+  const emNome = PODE.papel === "gestao";
   if (tipo === "final" && decisao === "validado") {
     const M = REL_MODELO();
     corpo.avaliacaoAluno = {};
     for (const c of M.criteriosAluno || []) {
       const v = $(`val-${relId}-${c.codigo}`)?.value;
-      if (v === "" || v == null) return aviso("Para validar o final, preencha a avaliação do desempenho do aluno — os 7 critérios.", "warn");
+      if (v === "" || v == null) {
+        if (!emNome) return aviso("Para validar o final, preencha a avaliação do desempenho do aluno — os 7 critérios.", "warn");
+        continue;
+      }
       corpo.avaliacaoAluno[c.codigo] = Number(v);
     }
     corpo.parecerConclusivo = document.querySelector(`input[name="val-parecer-${relId}"]:checked`)?.value || "";
-    if (!corpo.parecerConclusivo) return aviso("Marque o parecer conclusivo do orientador.", "warn");
+    if (!corpo.parecerConclusivo && !emNome) return aviso("Marque o parecer conclusivo do orientador.", "warn");
   }
   if (decisao === "validado" && !confirm(tipo === "final"
     ? "Validar o relatório final e encaminhar à PROPPEX? Com todos os finais validados, o projeto passa a concluído."
@@ -4376,9 +4382,14 @@ function renderRelatoriosDoProjeto(p) {
       </div>
       <div class="muted">Enviado em ${fmtDH(r.enviadoEm)}${r.periodo ? ` · período: ${esc(r.periodo)}` : ""}</div>
       ${corpoDe(r)}
+      ${r.situacao === "validado" && r.validadoPelaGestao ? `<div class="muted" style="margin-top:6px">
+        Validado <b>pela PROPPEX, em nome da orientação</b> — registrado no histórico do projeto.</div>` : ""}
       ${PODE.podeValidar && r.situacao === "enviado" ? `
         <div style="border-top:1px solid var(--linha);margin-top:10px;padding-top:8px">
-          <div style="font-weight:700">Validação da orientação</div>
+          <div style="font-weight:700">${PODE.papel === "gestao" ? "Validação — pela PROPPEX, em nome da orientação" : "Validação da orientação"}</div>
+          ${PODE.papel === "gestao" ? `<div class="muted" style="font-size:12.5px;margin-top:2px">Para orientadores desligados
+            da instituição: a PROPPEX valida (ou devolve) no lugar da orientação, e o ato fica registrado assim no histórico.
+            A avaliação do desempenho e o parecer conclusivo são <b>opcionais</b> neste caso — preencha só se acompanhou o aluno.</div>` : ""}
           <label style="margin-top:6px">Comentário ao aluno <span class="muted">(obrigatório na devolução)</span></label>
           <textarea id="val-com-${esc(r.id)}" rows="3" placeholder="O que está bom, o que precisa ajustar…"></textarea>
           ${r.tipo === "final" ? `

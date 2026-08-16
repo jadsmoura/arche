@@ -5622,9 +5622,15 @@ app.post("/api/ic/:id/relatorio/:rid/validar", async (req, res) => {
     const lista = projetos[i].relatorios || [];
     const j = lista.findIndex((x) => x.id === req.params.rid);
     if (j < 0) return { erro: [404, "Relatório não encontrado"], gravar: false };
+    // a PROPPEX pode validar EM NOME da orientação (decisão do dono,
+    // ago/2026): orientadores desligados da instituição não voltam para
+    // validar, e o relatório do aluno não pode ficar refém disso
+    const emNome = papelNoProjeto(meu, projetos[i]) === "gestao";
     // validar o FINAL fecha o ciclo do aluno: a avaliação do desempenho e o
-    // parecer conclusivo do orientador são obrigatórios nesse ato
-    if (decisao === "validado" && lista[j].tipo === "final") {
+    // parecer conclusivo são obrigatórios quando quem valida é a PRÓPRIA
+    // orientação — a gestão, validando em nome dela, não avalia desempenho
+    // que não acompanhou (preenche se quiser, nunca é obrigada)
+    if (decisao === "validado" && lista[j].tipo === "final" && !emNome) {
       const semNota = CRITERIOS_AVALIACAO_ALUNO.filter((c) => {
         const v = avaliacaoAluno[c.codigo];
         return v === "" || v == null || !Number.isInteger(Number(v));
@@ -5636,7 +5642,8 @@ app.post("/api/ic/:id/relatorio/:rid/validar", async (req, res) => {
     lista[j] = { ...lista[j], situacao: decisao, parecer,
       avaliacaoAluno: Object.keys(avaliacaoAluno).length ? avaliacaoAluno : lista[j].avaliacaoAluno || {},
       parecerConclusivo: parecerConclusivo || lista[j].parecerConclusivo || "",
-      avaliadoPor: u.email, avaliadoEm: new Date().toISOString() };
+      avaliadoPor: u.email, avaliadoEm: new Date().toISOString(),
+      ...(emNome ? { validadoPelaGestao: true } : {}) };
 
     // final validado de todos os alunos encerra o projeto
     const finaisOk = (projetos[i].alunos || []).length > 0 && (projetos[i].alunos || []).every((a) =>
@@ -5645,7 +5652,7 @@ app.post("/api/ic/:id/relatorio/:rid/validar", async (req, res) => {
       ...projetos[i], relatorios: [...lista],
       status: finaisOk && projetos[i].status === "aprovado" ? "concluido" : projetos[i].status,
       atualizadoEm: new Date().toISOString(),
-    }, { quem: u.email, oQue: `${decisao === "validado" ? "validou" : "devolveu"} o relatório ${lista[j].tipo}` });
+    }, { quem: u.email, oQue: `${decisao === "validado" ? "validou" : "devolveu"} o relatório ${lista[j].tipo}${emNome ? " — pela PROPPEX, em nome da orientação" : ""}` });
     return { projeto: projetos[i], tipoRel: lista[j].tipo };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });

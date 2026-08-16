@@ -214,6 +214,32 @@
     return a;
   }
 
+  /* ------------------------- o que cada um vê ---------------------------
+     Filtro de APRESENTAÇÃO (decisão do dono, ago/2026): a página inicial e
+     os atalhos da barra mostram a cada usuário só os setores do seu dia a
+     dia — aluno vê Extensão e Pesquisa·IC; professor e demais veem tudo
+     menos a Avaliação; gestores gerais e coordenadores veem tudo; visitante
+     sem login vê o portal como sempre. Quem BARRA acesso continua sendo o
+     servidor (login nos setores, portaria na Avaliação) — esconder cartão
+     não é porta. Os cartões do portal carregam data-setor com o href. */
+  function aplicarVisibilidade() {
+    fetch("/api/me")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (me) {
+        if (!me || !me.email) return;                      // visitante: tudo como hoje
+        var gestao = me.papel === "gestor" || (me.modulos || []).length > 0;
+        if (gestao) return;                                // gestão e coordenações veem tudo
+        var aluno = me.perfil && me.perfil.funcao === "aluno";
+        var esconder = aluno ? ["/atas/", "/inovacao/", "/arche/"] : ["/arche/"];
+        esconder.forEach(function (href) {
+          var alvos = document.querySelectorAll(
+            '[data-setor="' + href + '"], .arche-topnav a[data-arche-nav="' + href + '"]');
+          for (var i = 0; i < alvos.length; i++) alvos[i].style.display = "none";
+        });
+      })
+      .catch(function () {});
+  }
+
   function montar() {
     estilo();
     var existente = document.querySelector(".arche-topnav");
@@ -255,6 +281,7 @@
     document.body.insertBefore(nav, document.body.firstChild);
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", montar);
-  else montar();
+  function iniciar() { montar(); aplicarVisibilidade(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", iniciar);
+  else iniciar();
 })();
