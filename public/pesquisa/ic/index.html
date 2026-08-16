@@ -946,7 +946,7 @@ async function quadroICEM() {
   }
   const turma = turmas.find((t) => t.ciclo === TURMA_PAINEL_EM) || {};
   const da = (EM.bolsistas || []).filter((b) => b.turma === TURMA_PAINEL_EM && b.situacao !== "desligado");
-  const tipos = turma.encerrada ? ["final"] : ["parcial", "final"];
+  const tipos = turma.relatoriosFinalizados ? [] : turma.encerrada ? ["final"] : ["parcial", "final"];
   const conta = (tipo, s) => da.filter((b) => (b.relatorios?.[tipo]?.situacao || "pendente") === s).length;
   const barra = (tipo) => {
     const validados = conta(tipo, "validado"), entregues = conta(tipo, "entregue"),
@@ -970,7 +970,7 @@ async function quadroICEM() {
     <div class="card-s">${da.length} bolsista(s)${turma.prazoRelatorioFinal
       ? ` · prazo do final: <b>${turma.prazoRelatorioFinal.split("-").reverse().join("/")}</b>` : ""} ·
       a validação é da PROPPEX, na guia <a href="#" onclick="nav('em');return false">Ensino Médio</a>.</div>
-    ${tipos.map(barra).join("")}
+    ${tipos.map(barra).join("") || '<div class="muted" style="margin-top:6px">Os relatórios desta turma foram entregues e encerrados fora do sistema — nada pendente.</div>'}
   </div>`;
 }
 
@@ -1173,6 +1173,7 @@ const emRelatorio = (id, tipo, situacao) => emAcao(`/api/ic/em/${id}/relatorio`,
    (turma vigente) ou só o final (antigas), com a leitura dos 3 campos e a
    validação — que é da PROPPEX, não da orientação. */
 function emBlocoRelatoriosGestao(b, turma) {
+  if (turma?.relatoriosFinalizados) return "";   // turma de arquivo: nada pendente
   const tipos = turma?.encerrada ? ["final"] : ["parcial", "final"];
   const linha = (tipo) => {
     const r = b.relatorios?.[tipo] || {};
@@ -2139,14 +2140,12 @@ function renderMeusProjetos() {
         <div class="linha"><div class="txt"><div class="p1">Vigência do plano</div>
           <div class="p2">${fmtBr(p.inicio)} a ${fmtBr(p.fim)}</div></div></div>
         ${prazos.length ? `<div class="linha"><div class="txt"><div class="p1">Relatórios</div>
-          <div class="p2">${prazos.map((x) => `${x.tipo}: ${x.falta ? `até ${fmtBr(x.vence)}${x.atrasado ? " (atrasado)" : ""}` : "entregue"}`).join(" · ")}</div></div></div>` : ""}
+          <div class="p2" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${prazos.map((x) => `
+            <span>${x.tipo}: ${x.falta ? `até ${fmtBr(x.vence)}${x.atrasado ? " (atrasado)" : ""}` : "entregue"}</span>
+            ${x.falta && hojeISO() >= x.abre ? `<button class="bt bt-sec" style="padding:4px 10px"
+              onclick="abrirRelatorio('${esc(p.id)}','${esc(x.tipo)}')">preencher relatório</button>` : ""}`).join(" ")}</div></div></div>` : ""}
         <div class="exp" style="margin-top:8px">
           <button class="bt bt-pri" onclick="abrir('${esc(p.id)}')">Abrir o projeto</button>
-          ${termosLiberados(p.edital || META.edital?.numero) ? `<a class="bt bt-sec" target="_blank" rel="noopener"
-            href="/api/ic/termo.pdf?projeto=${encodeURIComponent(p.id)}"
-            title="Sua via do termo de compromisso, com as assinaturas da reitoria">📄 Meu termo de compromisso</a>` : ""}
-          <button class="bt bt-ghost" onclick="nav('cronograma')">Meu cronograma</button>
-          <button class="bt bt-ghost" onclick="nav('relatorios')">Meus relatórios</button>
         </div>
       </div>`;
     }).join("") || `<div class="card"><div class="vazio">Você ainda não foi indicado(a) em nenhum projeto.
@@ -2974,7 +2973,7 @@ async function renderRelatoriosGestaoEM() {
     TURMA_REL_EM = (turmas.find((t) => t.ciclo === "2025/2026") || turmas[0] || {}).ciclo || "";
   }
   const turma = turmas.find((t) => t.ciclo === TURMA_REL_EM) || {};
-  const tipos = turma.encerrada ? ["final"] : ["parcial", "final"];
+  const tipos = turma.relatoriosFinalizados ? [] : turma.encerrada ? ["final"] : ["parcial", "final"];
   const da = (EM.bolsistas || []).filter((b) => b.turma === TURMA_REL_EM && b.situacao !== "desligado")
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   const selo = (r) => r?.situacao === "validado" ? '<span class="badge b-validado">validado</span>'
@@ -2995,8 +2994,7 @@ async function renderRelatoriosGestaoEM() {
     </div>
     <div class="card">
       <div class="card-t">Relatórios do ICEM — turma ${esc(TURMA_REL_EM)}</div>
-      <div class="card-s">${da.length} bolsista(s) ·
-        ${tipos.map((t) => `${t}: ${conta(t, "validado")} validado(s), ${conta(t, "entregue")} a validar`).join(" · ")}${turma.prazoRelatorioFinal
+      <div class="card-s">${da.length} bolsista(s)${!tipos.length ? " · relatórios entregues e encerrados fora do sistema — turma de arquivo" : " · "}${tipos.map((t) => `${t}: ${conta(t, "validado")} validado(s), ${conta(t, "entregue")} a validar`).join(" · ")}${turma.prazoRelatorioFinal
           ? ` · prazo do final: <b>${turma.prazoRelatorioFinal.split("-").reverse().join("/")}</b>` : ""}.
         A validação (da PROPPEX) fica na guia <a href="#" onclick="nav('em');return false">Ensino Médio</a>.</div>
       ${da.map((b) => `<div class="linha">
