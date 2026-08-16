@@ -315,6 +315,7 @@
         <section id="v-editais" class="hide"></section>
         <section id="v-bolsistas" class="hide"></section>
         <section id="v-em" class="hide"></section>
+        <section id="v-meuem" class="hide"></section>
         <section id="v-cronograma" class="hide"></section>
         <section id="v-relatorios" class="hide"></section>
         <section id="v-bolsas" class="hide"></section>
@@ -378,7 +379,10 @@ let CICLO_BV = "";
 //   aluno      — cronograma e relatórios (só os dele)
 //   avaliador  — avaliação dos projetos que recebeu, e nada mais
 const SECOES = [
-  { id: "painel", grupo: "INÍCIO", rot: "Painel", ic: '<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>' },
+  { id: "painel", grupo: "INÍCIO", rot: "Painel", ic: '<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>', perfis: ["gestao", "orientador", "aluno", "avaliador"] },
+  // o bolsista do ICEM (perfil "em") tem UMA guia sua: escolher o projeto
+  // que acompanha e entregar o relatório final
+  { id: "meuem", grupo: "INÍCIO", rot: "Ensino Médio", ic: '<path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1 2.7 3 6 3s6-2 6-3v-5"/>', perfis: ["em"] },
   { id: "submissao", grupo: "PROJETOS", rot: "Submissão", ic: '<path d="M12 5v14M5 12h14"/>', perfis: ["gestao", "orientador"] },
   // o aluno indicado tem as suas duas guias: onde ele está e o que precisa informar
   { id: "meusprojetos", grupo: "PROJETOS", rot: "Projetos", ic: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8"/>', perfis: ["aluno"] },
@@ -405,6 +409,7 @@ const TITULOS = {
   classificacao: ["Projetos do edital", "Todos os projetos de cada processo seletivo, em ordem de classificação."],
   bolsistas: ["Bolsistas e Voluntários", "Cada aluno em execução, com as metas do cronograma e as entregas — por ciclo."],
   em: ["Iniciação Científica — Ensino Médio", "O programa ICEM: bolsistas que acompanham projetos para conhecer os cursos, a ciência e o UNIEGO."],
+  meuem: ["Meu ICEM", "Escolha o projeto de pesquisa que você quer acompanhar — e entregue o seu relatório final por aqui."],
   bolsas: ["Bolsas", "Atribuição das bolsas conforme a disponibilidade orçamentária, em ordem de pontuação."],
   editais: ["Editais e Resultados", "Os documentos de cada processo, ano a ano: o edital e o resultado."],
   cronograma: ["Cronograma", "Todas as atividades dos projetos num só lugar."],
@@ -636,7 +641,8 @@ function renderVcLista() {
 }
 
 const rotuloPerfil = () => META.gestao ? "coordenação de pesquisa"
-  : ehAluno() ? "aluno de IC" : ehAvaliador() ? "avaliador ad hoc" : "orientação";
+  : ehAluno() ? "aluno de IC" : ehAvaliador() ? "avaliador ad hoc"
+  : META.perfil === "em" ? "bolsista do Ensino Médio" : "orientação";
 
 function faixaVerComo() {
   if (!COMO) return "";
@@ -678,7 +684,7 @@ async function verComo(email) {
   montarSidebar(); montarVerComo();
   // a seção em que se estava pode não existir para a outra pessoa
   const vale = SECOES.filter((x) => !x.perfis || x.perfis.includes(META.perfil)).map((x) => x.id);
-  nav(vale.includes(SECAO) ? SECAO : "painel");
+  nav(vale.includes(SECAO) ? SECAO : (vale[0] || "painel"));
 }
 
 function nav(secao, modo) {
@@ -686,7 +692,7 @@ function nav(secao, modo) {
   // a inclusão manual vale só para o formulário aberto por ela
   MANUAL = secao === "submissao" && modo === "manual";
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === secao);
-  for (const v of ["painel", "submissao", "gestao", "meusprojetos", "bolsa", "avaliacao", "classificacao", "bolsas", "editais", "bolsistas", "em", "cronograma", "relatorios", "certificados", "projeto"]) $("v-" + v).classList.add("hide");
+  for (const v of ["painel", "submissao", "gestao", "meusprojetos", "bolsa", "avaliacao", "classificacao", "bolsas", "editais", "bolsistas", "em", "meuem", "cronograma", "relatorios", "certificados", "projeto"]) $("v-" + v).classList.add("hide");
   // submissão e projeto compartilham o editor (mesmos ids): a seção que sai
   // do ar é esvaziada, senão getElementById acha os campos escondidos
   for (const v of ["submissao", "projeto"]) if (v !== secao) $("v-" + v).innerHTML = "";
@@ -713,6 +719,7 @@ function nav(secao, modo) {
   if (secao === "classificacao") renderClassificacao();
   if (secao === "bolsistas") renderBolsistas();
   if (secao === "em") renderEM();
+  if (secao === "meuem") renderMeuEM();
   if (secao === "editais") renderEditais();
   if (secao === "cronograma") renderCronograma();
   if (secao === "relatorios") renderRelatorios();
@@ -1031,6 +1038,10 @@ async function renderEM() {
         ${passados.map((e) => `<div class="kv muted">• ${esc(e.numero || "")} ${esc(e.titulo.slice(0, 70))} · ${fmtD(e.de)} → ${fmtD(e.ate)}</div>`).join("")}
       </details>` : ""}
 
+      ${b.relatorio?.texto ? `<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">
+          Relatório final entregue pelo bolsista${b.relatorio.em ? " em " + fmtD(b.relatorio.em.slice(0, 10)) : ""} — ler o texto</summary>
+        <div class="kv" style="white-space:pre-wrap;background:var(--wash);border-radius:8px;padding:10px;margin-top:6px">${esc(b.relatorio.texto)}</div>
+      </details>` : ""}
       <div class="exp" style="margin-top:8px;gap:6px">
         <button class="bt ${b.relatorio?.situacao === "entregue" ? "bt-ghost" : "bt-sec"}"
           onclick="emRelatorio('${esc(b.id)}','${b.relatorio?.situacao === "entregue" ? "pendente" : "entregue"}')">
@@ -1053,6 +1064,8 @@ async function renderEM() {
       ${turma.resultado ? `<a class="bt bt-ghost" target="_blank" rel="noopener" href="${esc(turma.resultado)}">📄 Resultado</a>` : ""}
       ${da.length ? `<a class="bt bt-ghost" target="_blank" rel="noopener" href="/api/ic/em/termos.pdf?turma=${encodeURIComponent(TURMA_EM)}"
         title="Termo de cada bolsista com o Anexo 01 (autorização do responsável) — para a cerimônia de assinaturas">📝 Termos + autorização (PDF)</a>` : ""}
+      ${da.length ? `<button class="bt bt-sec" onclick="emConvidar()"
+        title="Convite por e-mail: o bolsista cria o usuário e — turma atual — escolhe o projeto; turma encerrada — entrega o relatório final">✉️ Convidar por e-mail</button>` : ""}
     </div>
 
     <div class="kpis">
@@ -1094,6 +1107,133 @@ const emRelatorio = (id, situacao) => emAcao(`/api/ic/em/${id}/relatorio`, { sit
   situacao === "entregue" ? "Relatório simplificado registrado." : "Relatório reaberto.");
 const emConint = (id, participou) => emAcao(`/api/ic/em/${id}/conint`, { participou, ano: String(new Date().getFullYear()) },
   participou ? "Participação no CONINT registrada." : "Registro desfeito.");
+
+/* O convite por e-mail da turma: simula primeiro (quem recebe, quem já foi
+   convidado, quem está sem e-mail) e só envia com a confirmação. */
+async function emConvidar() {
+  try {
+    const s = await api("/api/ic/em/convidar", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ turma: TURMA_EM, simular: true }) });
+    if (!s.convidar.length && !s.jaConvidados) return aviso("Nenhum bolsista com e-mail nesta turma.", "err");
+    const reenviar = !s.convidar.length && s.jaConvidados
+      ? confirm(`Todos os ${s.jaConvidados} bolsista(s) com e-mail da turma ${TURMA_EM} já foram convidados.\n\nReenviar o convite a todos?`)
+      : false;
+    if (!reenviar) {
+      if (!s.convidar.length) return;
+      const ok = confirm(`Convidar ${s.convidar.length} bolsista(s) da turma ${TURMA_EM} por e-mail?\n\n`
+        + s.convidar.map((x) => `• ${x.nome} — ${x.email}`).join("\n")
+        + (s.jaConvidados ? `\n\n(${s.jaConvidados} já convidado(s) não recebem de novo)` : "")
+        + (s.semEmail.length ? `\n\nSem e-mail (não recebem): ${s.semEmail.join(", ")}` : ""));
+      if (!ok) return;
+    }
+    const r = await api("/api/ic/em/convidar", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ turma: TURMA_EM, reenviar }) });
+    aviso(`Convite enviado a ${r.enviados} bolsista(s).${r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""}`,
+      r.falhas.length ? "err" : undefined);
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+/* ------------------ a guia do BOLSISTA do Ensino Médio ------------------- */
+/* O setor pelos olhos do bolsista EM (decisão do dono, ago/2026): ele
+   escolhe o curso e o projeto que quer acompanhar — e troca quando quiser —
+   e entrega por aqui o relatório final; nas turmas encerradas, a entrega é
+   o que formaliza a conclusão. */
+let MEU_EM = null;
+async function renderMeuEM() {
+  const el = $("v-meuem");
+  if (!MEU_EM) {
+    el.innerHTML = '<div class="card"><div class="vazio">Carregando o seu registro…</div></div>';
+    try { MEU_EM = await api("/api/ic/em/meu"); }
+    catch (e) { el.innerHTML = `<div class="banner ba-err">${esc(e.message)}</div>`; return; }
+  }
+  const cursosDe = (lista) => [...new Set(lista.map((p) => p.curso).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+  const cartao = (r) => {
+    const vigente = !r.turma?.encerrada && r.situacao === "ativo";
+    const escolha = MEU_EM.escolha && vigente ? MEU_EM.escolha.projetos : [];
+    const doCurso = FILTRO_CURSO_EM
+      ? escolha.filter((p) => p.curso === FILTRO_CURSO_EM) : escolha;
+    const rel = r.relatorio || {};
+    return `<div class="card">
+      <div class="card-t">Turma ${esc(r.turma?.ciclo || "")}
+        ${r.turma?.encerrada ? '<span class="badge b-rascunho">encerrada</span>' : '<span class="badge b-aprovado">em curso</span>'}
+        ${r.bolsa ? `<span class="badge b-validado">${esc(r.bolsa.nome)}</span>` : ""}
+        ${r.situacao === "desligado" ? '<span class="badge b-atrasada">desligado</span>' : ""}</div>
+      <div class="card-s">${esc(r.nome)}${r.escola ? ` · ${esc(r.escola)}` : ""}${r.serie ? ` · ${esc(r.serie)}` : ""}</div>
+
+      ${r.projetoAtual ? `<div class="kv" style="margin-top:4px">Você acompanha
+        <b>${esc(r.projetoAtual.numero || "")} ${esc(r.projetoAtual.titulo.slice(0, 90))}</b> ·
+        orientação de ${esc(r.projetoAtual.orientador || "—")} · desde ${fmtD(r.projetoAtual.de)}</div>`
+        : vigente ? `<div class="banner ba-warn"><b>Você ainda não escolheu um projeto.</b>
+          Escolha abaixo o curso e o projeto de pesquisa que quer acompanhar — a coordenação
+          de pesquisa apresenta você ao orientador.</div>` : ""}
+
+      ${vigente && escolha.length ? `<div class="grid2" style="align-items:end;margin-top:8px">
+        <div><label>Curso</label>
+          <select onchange="FILTRO_CURSO_EM=this.value;renderMeuEM()">
+            <option value="">Todos os cursos</option>
+            ${cursosDe(escolha).map((c) => `<option ${FILTRO_CURSO_EM === c ? "selected" : ""}>${esc(c)}</option>`).join("")}
+          </select></div>
+        <div><label>Projeto de pesquisa</label>
+          <select id="meuem-projeto-${esc(r.id)}">
+            <option value="">— escolha o projeto —</option>
+            ${doCurso.map((p) => `<option value="${esc(p.id)}" ${r.projetoAtual?.projetoId === p.id ? "selected" : ""}>${esc(p.curso)} · ${esc(p.titulo.slice(0, 70))}${p.titulo.length > 70 ? "…" : ""} — ${esc(p.orientador)}</option>`).join("")}
+          </select></div>
+      </div>
+      <div class="exp" style="margin-top:8px">
+        <button class="bt bt-pri" onclick="meuEmEscolher('${esc(r.id)}')">
+          ${r.projetoAtual ? "Trocar para o projeto escolhido" : "Acompanhar este projeto"}</button>
+        <span class="muted" style="align-self:center">Pode trocar quando quiser — a trajetória guarda por onde você passou.</span>
+      </div>` : ""}
+
+      ${(r.trajetoria || []).filter((e) => e.ate).length ? `<details style="margin-top:8px">
+        <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">Sua trajetória</summary>
+        ${r.trajetoria.filter((e) => e.ate).map((e) => `<div class="kv muted">• ${esc(e.numero || "")} ${esc(e.titulo.slice(0, 70))} · ${fmtD(e.de)} → ${fmtD(e.ate)}</div>`).join("")}
+      </details>` : ""}
+
+      <div style="border-top:1px solid var(--linha);margin-top:12px;padding-top:10px">
+        <div style="font-weight:700">Relatório final${rel.situacao === "entregue" ? ` — <span style="color:var(--ok)">entregue${rel.em ? " em " + fmtD(rel.em.slice(0, 10)) : ""}</span>` : ""}</div>
+        <div class="muted" style="margin:4px 0 8px">${r.turma?.encerrada
+          ? "É o relatório final que formaliza a conclusão da sua participação na turma: conte o que você acompanhou, o que aprendeu e como foi a experiência."
+          : "Ao fim da turma, conte aqui o que você acompanhou, o que aprendeu e como foi a experiência (pode enviar de novo para atualizar)."}</div>
+        ${r.situacao === "desligado" ? '<div class="muted">Registro desligado — fale com a coordenação de pesquisa.</div>' : `
+        <textarea id="meuem-relatorio-${esc(r.id)}" rows="7" placeholder="Escreva com as suas palavras (mínimo de 100 caracteres)…">${esc(rel.porAluno ? rel.texto : "")}</textarea>
+        <div class="exp" style="margin-top:8px">
+          <button class="bt bt-pri" onclick="meuEmRelatorio('${esc(r.id)}')">${rel.situacao === "entregue" ? "Enviar de novo (atualiza o texto)" : "Enviar o relatório final"}</button>
+        </div>`}
+      </div>
+    </div>`;
+  };
+
+  el.innerHTML = (MEU_EM.registros || []).map(cartao).join("")
+    || '<div class="card"><div class="vazio">Nenhum registro do ICEM ligado à sua conta.</div></div>';
+}
+let FILTRO_CURSO_EM = "";
+async function meuEmEscolher(id) {
+  const sel = $("meuem-projeto-" + id);
+  if (!sel || !sel.value) return aviso("Escolha o projeto na lista.", "err");
+  try {
+    await api("/api/ic/em/meu/projeto", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, projetoId: sel.value }) });
+    MEU_EM = null; await renderMeuEM();
+    aviso("Pronto! A coordenação de pesquisa vai apresentar você ao orientador.");
+  } catch (e) { aviso(e.message, "err"); }
+}
+async function meuEmRelatorio(id) {
+  const texto = ($("meuem-relatorio-" + id)?.value || "").trim();
+  if (texto.length < 100) return aviso("Conte com as suas palavras o que você acompanhou e aprendeu — o relatório precisa de pelo menos 100 caracteres.", "err");
+  try {
+    await api("/api/ic/em/meu/relatorio", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, texto }) });
+    MEU_EM = null; await renderMeuEM();
+    aviso("Relatório final entregue — obrigado! A coordenação de pesquisa já foi avisada.");
+  } catch (e) { aviso(e.message, "err"); }
+}
 /* --------------------- fim: ICEM ---------------------------------------- */
 
 /* ------------------------- panorama do ciclo ---------------------------- */
@@ -3766,7 +3906,9 @@ async function excluir() {
   }
   montarSidebar();
   montarVerComo();
-  nav("painel");
+  // a primeira guia é a primeira que o perfil enxerga (o bolsista do EM não
+  // tem Painel: a casa dele é a guia Ensino Médio)
+  nav(SECOES.filter((x) => !x.perfis || x.perfis.includes(META.perfil)).map((x) => x.id)[0] || "painel");
   // as contagens do portal vêm depois: são de outra rota e não podem
   // atrasar a abertura do setor
   carregarUsuariosDoPortal();

@@ -132,6 +132,15 @@ public/
   pendente), que diz o que ela PODE. Lista fechada porque cargo escrito à mão não agrupa;
   `normalizarFuncao` reconhece o que já estava gravado em texto livre. Mesmo catálogo no
   `/perfil/` e no painel da gestão — preserve os `codigo`.
+- **Avisos por e-mail das movimentações** (decisão do dono, ago/2026): a Extensão já
+  avisava `extensao@uniego.edu.br` a cada proposta nova (`emailNovaProposta`, env
+  `NOTIFY_EMAIL`); a IC passa a avisar **`pesquisa@uniego.edu.br`** (env
+  `IC_NOTIFY_EMAIL`) — `avisarPesquisa` no server + `emailMovimentacaoIC` no mailer,
+  fire-and-forget (e-mail que falha não trava gravação; ato da própria gestão não avisa).
+  Movimentos cobertos: submissão/reenvio de projeto, relatório entregue pelo aluno,
+  indicação de aluno, pedido de substituição, contestação e — no ICEM — escolha/troca de
+  projeto e relatório final do bolsista. O aviso leva o essencial e o link do setor,
+  nunca nota, parecer ou dado bancário.
 - **Sino de alertas no topo** (`GET /api/alertas` + `arche-nav.js`): mostra à gestão o que
   espera decisão ou atenção — acessos pendentes e cadastros novos (só gestor geral),
   projetos de IC aguardando avaliação, substituições de bolsista, relatórios em atraso,
@@ -363,19 +372,26 @@ public/
   preenchido. A r2 de 2025 completou telefone e dados bancários da graduação. **CPF que
   não valida não entra** (Edileusa/2024 e Anna Gabrielly/2025 vieram errados da fonte — o
   aluno corrige na guia Bolsa). 2022 não tem alunos registrados.
-- **ICEM — Iniciação Científica no Ensino Médio** (`lib/em.js` + guia "Ensino Médio", SÓ
+- **ICEM — Iniciação Científica no Ensino Médio** (`lib/em.js` + guia "Ensino Médio" da
   gestão): **outro programa**, com outra lógica — o bolsista de EM **ACOMPANHA** projetos
   de pesquisa para conhecer os cursos, a ciência e o UNIEGO, e **troca de projeto quando
-  quiser** (a coordenação de pesquisa o apresenta ao orientador e faz a troca). Por isso o
-  registro é DA PESSOA (`ic-em-v1`, chave interna), com **trajetória** de acompanhamentos
-  que nunca se apaga — o vigente é o trecho sem `ate`. Turmas por edital próprio (série
-  02/AAAA: 02/2024, 02/2025, 02/2026-ICEM; PDFs em `public/ic/docs/`), bolsas **12 CNPq
-  (R$ 300) + 12 UNIEGO (R$ 150)** com cota travada na rota, mais **voluntário sem cota**.
-  Relatório é **simplificado** (um por turma, registrado pela gestão) + **CONINT** em
-  outubro. **Menor de idade não tem conta no portal**: tudo é digitado pela gestão, e o
-  termo (5º modelo em lib/termos.js, `termoDoAlunoEM`) sai com o **Anexo 01 — autorização
-  do responsável** na página seguinte, assinado por aluno, responsável e coordenação de
-  pesquisa (`gerarTermosEMPdf`). As turmas sobem no arranque (`subirTurmasEM`,
+  quiser**. Por isso o registro é DA PESSOA (`ic-em-v1`, chave interna), com **trajetória**
+  de acompanhamentos que nunca se apaga — o vigente é o trecho sem `ate`. Turmas por edital
+  próprio (série 02/AAAA: 02/2024, 02/2025, 02/2026-ICEM; PDFs em `public/ic/docs/`, e os
+  editais aparecem POR ANO na guia Editais e na vitrine `/ic/`, ao lado dos 01/AAAA),
+  bolsas **12 CNPq (R$ 300) + 12 UNIEGO (R$ 150)** com cota travada na rota, mais
+  **voluntário sem cota**. Relatório é **simplificado** (um por turma) + **CONINT** em
+  outubro. **O bolsista de EM TEM conta no portal** (decisão do dono, ago/2026, revendo a
+  anterior): a chave é o E-MAIL do registro (`souBolsistaEM` abre o setor até para conta
+  pendente; perfil `em` na SPA → guia "Meu ICEM"). Ele **escolhe o curso e o projeto** que
+  acompanha (`POST /api/ic/em/meu/projeto`, só turma vigente e ativo; troca quando quiser)
+  e **entrega o relatório final** (`/api/ic/em/meu/relatorio`, mín. 100 caracteres,
+  `relatorio.texto`/`porAluno` em lib/em.js) — nas turmas ANTIGAS a entrega é o que
+  formaliza a conclusão. O convite é da gestão (`POST /api/ic/em/convidar`, por turma,
+  registro em `sys-ic-em-convites-v1`; `emailConviteEM`). Os DADOS continuam digitados
+  pela gestão (bolsa, situacao, cadastro), e o termo (5º modelo em lib/termos.js,
+  `termoDoAlunoEM`) sai com o **Anexo 01 — autorização do responsável** na página
+  seguinte, assinado por aluno, responsável e coordenação de pesquisa (`gerarTermosEMPdf`). As turmas sobem no arranque (`subirTurmasEM`,
   `dados/ic-em-{2025,2026}-turma.json`): a trajetória aponta `origem.lote/id` do projeto
   (o id real é de cada ambiente e resolve-se na importação). A remoção dos 22 dos projetos
   de 01/2025 (`removerAlunosEnsinoMedio`, `sys-ic-em-removidos-v1`) usa

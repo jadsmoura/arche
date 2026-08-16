@@ -56,6 +56,19 @@ test("a cota conta por turma e ignora desligados", () => {
   assert.equal(cotas.find((c) => c.codigo === "uniego").usadas, 1);
 });
 
+test("o relatório entregue pelo bolsista guarda o texto e a autoria", () => {
+  const b = normalizarBolsistaEM({ nome: "Lara", turma: "2026/2027", relatorio: {
+    situacao: "entregue", em: "2027-08-01", texto: "Acompanhei o projeto e aprendi.", porAluno: true,
+  } });
+  assert.equal(b.relatorio.situacao, "entregue");
+  assert.equal(b.relatorio.texto, "Acompanhei o projeto e aprendi.");
+  assert.equal(b.relatorio.porAluno, true);
+  // registro da gestão (papel): sem texto, sem autoria do aluno
+  const g = normalizarBolsistaEM({ nome: "Theo", turma: "2026/2027", relatorio: { situacao: "entregue" } });
+  assert.equal(g.relatorio.texto, "");
+  assert.equal(g.relatorio.porAluno, false);
+});
+
 test("a régua do cadastro cobra responsável e projeto — o bolsista é menor", () => {
   const falta = faltaNoBolsistaEM(normalizarBolsistaEM({ nome: "Theo", turma: "2026/2027" }));
   assert.ok(falta.includes("nome do responsável"));

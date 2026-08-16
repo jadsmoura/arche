@@ -150,10 +150,11 @@ app.use(async (req, res, next) => {
   const u = await usuarioDe(req, res);   // renova a sessão de quem está usando
   if (!u) return res.redirect("/entrar?next=" + encodeURIComponent(req.originalUrl));
   if (u.papel === "pendente") {
-    // exceção da IC: aluno indicado e avaliador ad hoc designado entram pelo
-    // convite, que já é nominal (ver sessaoIC). Vale só para este setor.
+    // exceção da IC: aluno indicado, avaliador ad hoc designado e bolsista
+    // do ICEM entram pelo convite, que já é nominal (ver sessaoIC).
     const convidado = req.caminho.startsWith("/pesquisa")
-      && participaDeAlgum(u.email, await lerProjetos(), (await carregarPerfis())[u.email]?.cpf || "");
+      && (participaDeAlgum(u.email, await lerProjetos(), (await carregarPerfis())[u.email]?.cpf || "")
+        || await souBolsistaEM(u.email));
     if (!convidado) return res.redirect("/entrar?pendente=1");
   }
   if (req.caminho.startsWith("/usuarios") && u.papel !== "gestor") return res.redirect("/");
@@ -2280,7 +2281,8 @@ async function sessaoIC(req, res) {
   // o cadastro do bolsista repete o que a pessoa já digitou no perfil: o
   // formulário abre com isso preenchido em vez de pedir CPF duas vezes
   const eu = { ...u, cpf, telefone: meuPerfil.telefone || meuPerfil.whatsapp || "" };
-  if (u.papel === "pendente" && !participaDeAlgum(u.email, await lerProjetos(), cpf)) {
+  if (u.papel === "pendente" && !participaDeAlgum(u.email, await lerProjetos(), cpf)
+    && !(await souBolsistaEM(u.email))) {
     res.status(403).json({ error: "Seu acesso ainda está pendente de aprovação da PROPPEX" });
     return null;
   }
@@ -2293,12 +2295,15 @@ async function sessaoIC(req, res) {
  * indicado e o avaliador ad hoc. Os três últimos vêm do próprio projeto:
  * ninguém precisa cadastrar papel à parte.
  */
-function perfilIC(u, projetos, quem = null) {
+function perfilIC(u, projetos, quem = null, { bolsistaEM = false } = {}) {
   const meu = quem || quemIC(u);
   if (meu.perfilGenerico) return meu.perfilGenerico;   // visão genérica do "ver como"
   if (meu.gestao) return "gestao";
   const papeis = projetos.map((p) => papelNoProjeto(meu, p)).filter(Boolean);
   if (papeis.includes("orientador")) return "orientador";
+  // o bolsista do ICEM sem projeto de graduação é ESTUDANTE do programa, não
+  // docente: a cara do setor para ele é a guia do Ensino Médio (dono, ago/2026)
+  if (!papeis.length && bolsistaEM) return "em";
   if (!papeis.length) return "orientador";     // docente ainda sem projeto: pode submeter
   if (papeis.every((x) => x === "aluno")) return "aluno";
   if (papeis.every((x) => x === "avaliador")) return "avaliador";
@@ -2467,7 +2472,7 @@ app.get("/api/ic/meta", async (req, res) => {
     // o que o perfil já sabe da pessoa, para o cadastro do bolsista abrir
     // preenchido (simulando outra pessoa, não vai — seriam dados dela)
     contato: como ? null : { nome: u.nome || "", cpf: u.cpf || "", telefone: u.telefone || "" },
-    perfil: perfilIC(u, projetos, meu),
+    perfil: perfilIC(u, projetos, meu, { bolsistaEM: como ? false : await souBolsistaEM(u.email) }),
     // quem a coordenação pode simular, e por quais olhos está olhando agora
     // os editais (números, contagens e documentos) são de todos; a lista de
     // pessoas para o "ver como" segue só com a coordenação
@@ -3105,6 +3110,30 @@ async function lerBolsistasEM() {
   const raw = await storage.get(EM_KEY);
   return raw ? JSON.parse(raw) : [];
 }
+/** O e-mail é a chave da conta do bolsista EM (decisão do dono, ago/2026):
+ *  quem consta em algum registro do ICEM entra no setor e vê a guia dele. */
+async function souBolsistaEM(email) {
+  const alvo = String(email || "").trim().toLowerCase();
+  if (!alvo) return false;
+  return (await lerBolsistasEM()).some((b) => b.email === alvo);
+}
+const registrosEMDe = (lista, email) => {
+  const alvo = String(email || "").trim().toLowerCase();
+  return alvo ? (lista || []).filter((b) => b.email === alvo) : [];
+};
+
+/**
+ * Aviso de movimentação à coordenação de pesquisa (pesquisa@uniego.edu.br,
+ * env IC_NOTIFY_EMAIL) — fire-and-forget: e-mail que falha não trava
+ * gravação nenhuma, e ato da própria gestão não gera aviso (quem fez já sabe).
+ */
+function avisarPesquisa(assunto, linhas, titulo) {
+  (async () => {
+    const { enviarEmail, emailMovimentacaoIC } = await import("./lib/mailer.js");
+    await enviarEmail(emailMovimentacaoIC({ assunto, titulo, linhas }));
+  })().catch((e) => console.error("Aviso IC não enviado:", e.message));
+}
+
 let filaEM = Promise.resolve();
 function comBolsistasEM(fn) {
   const proxima = filaEM.then(async () => {
@@ -3129,6 +3158,133 @@ app.get("/api/ic/em", async (req, res) => {
     bolsistas, turmas: TURMAS_EM, bolsas: BOLSAS_EM,
     cotas: Object.fromEntries(TURMAS_EM.map((t) => [t.ciclo, cotasDaTurma(bolsistas, t.ciclo)])),
   });
+});
+
+/* ------------------- o setor pelos olhos do bolsista EM ------------------
+   Decisão do dono (ago/2026): o bolsista do Ensino Médio passa a ter conta
+   no portal — a chave é o E-MAIL do registro. Ele escolhe o curso e o
+   projeto que vai acompanhar (e troca quando quiser) e entrega o relatório
+   final por aqui; nas turmas encerradas, a entrega FORMALIZA a conclusão.
+   A coordenação continua conduzindo: cada movimento avisa pesquisa@. */
+app.get("/api/ic/em/meu", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const lista = await lerBolsistasEM();
+  const meus = registrosEMDe(lista, u.email);
+  if (!meus.length) return res.status(403).json({ error: "Nenhum registro do ICEM está ligado a este e-mail." });
+  const projetos = await lerProjetos();
+  const nomeCurso = (slug) => (CURSOS.find((c) => c.slug === slug) || {}).nome || slug || "";
+  const podeEscolher = meus.some((b) => b.situacao === "ativo" && !turmaEmDe(b.turma)?.encerrada);
+  res.json({
+    registros: meus.map((b) => ({
+      id: b.id, nome: b.nome, escola: b.escola, serie: b.serie,
+      cursoInteresse: b.cursoInteresse, situacao: b.situacao,
+      turma: turmaEmDe(b.turma) || { ciclo: b.turma },
+      bolsa: bolsaEmDe(b.bolsa) || null,
+      projetoAtual: projetoAtualEM(b), trajetoria: b.trajetoria,
+      relatorio: b.relatorio, conint: b.conint,
+    })),
+    // o cardápio da escolha: os projetos EM EXECUÇÃO da graduação — título,
+    // curso e orientação, nada além (o registro completo é do projeto)
+    escolha: podeEscolher ? {
+      projetos: projetos.filter((p) => p.status === "aprovado")
+        .map((p) => ({ id: p.id, numero: p.numero, titulo: p.titulo,
+          curso: nomeCurso(p.curso), orientador: p.orientador?.nome || "" }))
+        .sort((a, b) => a.curso.localeCompare(b.curso, "pt-BR") || a.titulo.localeCompare(b.titulo, "pt-BR")),
+    } : null,
+  });
+});
+
+/* O bolsista escolhe (ou troca) o projeto que acompanha — só na turma
+   vigente e com a situação ativa. A trajetória nunca se apaga. */
+app.post("/api/ic/em/meu/projeto", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const alvoId = String(req.body?.projetoId || "").trim();
+  if (!alvoId) return res.status(400).json({ error: "Escolha o projeto que você quer acompanhar." });
+  const alvo = (await lerProjetos()).find((p) => p.id === alvoId);
+  if (!alvo) return res.status(404).json({ error: "Projeto não encontrado" });
+  if (alvo.status !== "aprovado") return res.status(400).json({ error: "Este projeto não está em execução." });
+  const r = await comBolsistasEM((lista) => {
+    const i = lista.findIndex((x) => x.id === String(req.body?.id || "")
+      && x.email === String(u.email).toLowerCase());
+    if (i < 0) return { erro: [404, "Registro do ICEM não encontrado para a sua conta"], gravar: false };
+    const b = lista[i];
+    if (turmaEmDe(b.turma)?.encerrada) return { erro: [400, "A sua turma já encerrou — a trajetória fica como está."], gravar: false };
+    if (b.situacao !== "ativo") return { erro: [400, "O seu registro não está ativo — fale com a coordenação de pesquisa."], gravar: false };
+    if (projetoAtualEM(b)?.projetoId === alvo.id) return { erro: [400, "Você já acompanha este projeto."], gravar: false };
+    let novo = trocarProjeto(b, { projetoId: alvo.id, numero: alvo.numero,
+      titulo: alvo.titulo, orientador: alvo.orientador?.nome || "" });
+    novo = anotarEM(novo, { quem: u.email, oQue: `escolheu acompanhar ${alvo.numero || alvo.titulo}` });
+    lista[i] = novo;
+    return { bolsista: novo };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  avisarPesquisa(`ICEM: ${r.bolsista.nome} escolheu um projeto`, [
+    ["Bolsista", `${r.bolsista.nome} (turma ${r.bolsista.turma})`],
+    ["Projeto", `${alvo.numero || ""} ${alvo.titulo}`.trim()],
+    ["Orientação", alvo.orientador?.nome || "—"],
+  ], "Bolsista do Ensino Médio escolheu o projeto que vai acompanhar");
+  res.json({ ok: true, bolsista: r.bolsista });
+});
+
+/* O relatório final SIMPLIFICADO, entregue pelo próprio bolsista — nas
+   turmas antigas é o que formaliza a conclusão do processo. */
+app.post("/api/ic/em/meu/relatorio", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const texto = String(req.body?.texto || "").trim();
+  if (texto.length < 100) {
+    return res.status(400).json({ error: "Conte com as suas palavras o que você acompanhou e aprendeu — o relatório precisa de pelo menos 100 caracteres." });
+  }
+  const r = await comBolsistasEM((lista) => {
+    const i = lista.findIndex((x) => x.id === String(req.body?.id || "")
+      && x.email === String(u.email).toLowerCase());
+    if (i < 0) return { erro: [404, "Registro do ICEM não encontrado para a sua conta"], gravar: false };
+    const b = lista[i];
+    if (b.situacao === "desligado") return { erro: [400, "Registro desligado — fale com a coordenação de pesquisa."], gravar: false };
+    lista[i] = anotarEM({ ...b, relatorio: {
+      ...b.relatorio, situacao: "entregue", em: new Date().toISOString(),
+      texto: texto.slice(0, 8000), porAluno: true,
+    } }, { quem: u.email, oQue: "entregou o relatório final pelo portal" });
+    return { bolsista: lista[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  avisarPesquisa(`ICEM: relatório final de ${r.bolsista.nome}`, [
+    ["Bolsista", `${r.bolsista.nome} (turma ${r.bolsista.turma})`],
+    ["Situação", "Relatório final entregue pelo portal"],
+  ], "Relatório final do ICEM entregue");
+  res.json({ ok: true, bolsista: r.bolsista });
+});
+
+/* O convite por e-mail, turma a turma (gestão): criar o usuário e — turma
+   vigente — escolher o projeto; encerrada — entregar o relatório final.
+   `simular` devolve a lista sem enviar; reenvio só com `reenviar: true`. */
+app.post("/api/ic/em/convidar", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "O convite é da coordenação de pesquisa." });
+  const turma = turmaEmDe(String(req.body?.turma || "")) || turmaEmVigente();
+  const CONVITES_EM = "sys-ic-em-convites-v1";
+  const enviados = JSON.parse((await storage.get(CONVITES_EM)) || "{}");
+  const todos = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo && b.situacao !== "desligado");
+  const semEmail = todos.filter((b) => !b.email).map((b) => b.nome);
+  const alvos = todos.filter((b) => b.email && (req.body?.reenviar === true || !enviados[b.email]));
+  if (req.body?.simular === true) {
+    return res.json({ turma: turma.ciclo, convidar: alvos.map((b) => ({ nome: b.nome, email: b.email })),
+      jaConvidados: todos.filter((b) => b.email && enviados[b.email]).length, semEmail });
+  }
+  const { enviarEmail, emailConviteEM } = await import("./lib/mailer.js");
+  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  const falhas = [];
+  for (const b of alvos) {
+    try {
+      await enviarEmail(emailConviteEM(b, turma, { baseUrl }));
+      enviados[b.email] = { em: new Date().toISOString(), turma: turma.ciclo };
+    } catch (e) { falhas.push(`${b.nome}: ${e.message}`); }
+  }
+  await storage.set(CONVITES_EM, JSON.stringify(enviados));
+  res.json({ ok: true, turma: turma.ciclo, enviados: alvos.length - falhas.length, falhas, semEmail });
 });
 
 /* Cria ou edita um bolsista — o cadastro é digitado pela gestão (o termo e
@@ -3416,7 +3572,14 @@ app.post("/api/ic", async (req, res) => {
       return { projeto, convidar: novos };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-    if (r.convidar?.length) convidarAlunosIC(r.projeto, r.convidar);   // sem await: e-mail não trava a gravação
+    if (r.convidar?.length) {
+      convidarAlunosIC(r.projeto, r.convidar);   // sem await: e-mail não trava a gravação
+      if (!quemIC(u).gestao) avisarPesquisa(`Aluno indicado — ${r.projeto.numero || ""}`, [
+        ["Projeto", `${r.projeto.numero || ""} ${r.projeto.titulo || ""}`.trim()],
+        ["Orientação", r.projeto.orientador?.nome || u.email],
+        ["Indicado(s)", r.convidar.map((a) => a.nome).filter(Boolean).join(", ")],
+      ], "Aluno indicado num projeto em execução");
+    }
     res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
   } catch (e) {
     console.error("Erro ao gravar projeto de IC:", e);
@@ -3599,6 +3762,11 @@ app.post("/api/ic/:id/substituicao", async (req, res) => {
     return { projeto: projetos[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  if (!meu.gestao) avisarPesquisa(`Substituição de bolsista pedida — ${r.projeto.numero || ""}`, [
+    ["Projeto", `${r.projeto.numero || ""} ${r.projeto.titulo || ""}`.trim()],
+    ["Orientação", r.projeto.orientador?.nome || u.email],
+    ["Pedido", `sai ${String(b.saiNome || b.saiEmail || "")}, entra ${String(novo.nome || "")}`],
+  ], "Pedido de substituição de bolsista aguarda decisão");
   res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
 });
 
@@ -3658,6 +3826,13 @@ app.post("/api/ic/:id/submeter", async (req, res) => {
     return { projeto: projetos[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  if (!meu.gestao) avisarPesquisa(`Projeto submetido: ${r.projeto.numero || "(sem nº)"}`, [
+    ["Protocolo", r.projeto.numero || "—"],
+    ["Título", r.projeto.titulo || ""],
+    ["Orientação", r.projeto.orientador?.nome || u.email],
+    ["Edital", r.projeto.edital || ""],
+    ["Curso", r.projeto.curso || ""],
+  ], "Novo projeto submetido à avaliação da PROPPEX");
   res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
 });
 
@@ -3747,6 +3922,11 @@ app.post("/api/ic/:id/contestacao", async (req, res) => {
     return { projeto: projetos[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  avisarPesquisa(`Contestação de nota — ${r.projeto.numero || ""}`, [
+    ["Projeto", `${r.projeto.numero || ""} ${r.projeto.titulo || ""}`.trim()],
+    ["Orientação", r.projeto.orientador?.nome || u.email],
+    ["Prazo", "3 dias a partir do resultado preliminar — o pedido também está no sino de alertas"],
+  ], "Contestação de nota registrada");
   res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
 });
 
@@ -4786,6 +4966,12 @@ app.post("/api/ic/:id/relatorio", async (req, res) => {
     return { projeto: projetos[i], relatorio: novo };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  avisarPesquisa(`Relatório ${tipo} entregue — ${r.projeto.numero || ""}`, [
+    ["Projeto", `${r.projeto.numero || ""} ${r.projeto.titulo || ""}`.trim()],
+    ["Aluno", u.nome || u.email],
+    ["Tipo", tipo === "final" ? "Relatório final" : "Relatório parcial"],
+    ["Validação", "A orientação valida (ou devolve) pelo projeto"],
+  ], "Relatório de IC entregue pelo aluno");
   res.json({ ok: true, projeto: verProjeto(u, r.projeto), relatorio: r.relatorio });
 });
 
@@ -4992,6 +5178,13 @@ app.listen(port, () => {
       removerAlunosEnsinoMedio, subirTurmasEM,
       propagarCpfOrientadores, identidadeInstitucionalDoProReitor, criarPreCadastros,
       aplicarAvaliacoesTranscritas,
+      // SEMPRE por último, e a cada arranque (achado de ago/2026 — o caso
+      // Marlana): as migrações acima podem carimbar CPF em projeto que ainda
+      // não tem e-mail, e uma vinculação que rodasse só uma vez, antes delas,
+      // deixaria a pessoa "duplicada" no painel (a conta de um lado, os
+      // projetos pelo CPF do outro) até alguém regravar o perfil. A passada é
+      // idempotente e nunca sobrescreve e-mail existente.
+      vincularPerfisIC,
     ]) {
       try { await etapa(); }
       catch (e) { console.error(`ARCHÉ · falha na migração ${etapa.name}:`, e?.stack || e); }
