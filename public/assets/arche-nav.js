@@ -236,7 +236,16 @@
   function aplicarVisibilidade() {
     quemSou()
       .then(function (me) {
-        if (!me || !me.email) return;                      // visitante: tudo como hoje
+        if (!me || !me.email) {
+          // visitante (decisão do dono, ago/2026): a barra deixa de anunciar
+          // os setores de gestão — os atalhos levariam à tela de login. As
+          // páginas públicas (vitrines, hotsites) ficam só com "Portal".
+          ["/atas/", "/extensao/", "/eventos/gestao/", "/pesquisa/ic/", "/arche/"].forEach(function (href) {
+            var alvos = document.querySelectorAll('.arche-topnav a[data-arche-nav="' + href + '"]');
+            for (var i = 0; i < alvos.length; i++) alvos[i].style.display = "none";
+          });
+          return;
+        }
         var gestao = me.papel === "gestor" || (me.modulos || []).length > 0;
         if (gestao) return;                                // gestão e coordenações veem tudo
         var aluno = me.perfil && me.perfil.funcao === "aluno";

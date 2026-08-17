@@ -59,8 +59,17 @@ const fmt = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) ? iso.split(
 
 fetch("/api/publico/eventos").then(async (r) => {
   const j = await r.json();
-  const lista = (j.eventos || []);
-  document.getElementById("conteudo").innerHTML = lista.length ? lista.map((e) => `
+  // a vitrine mostra os que estão por vir/em curso E o arquivo dos já
+  // realizados (decisão do dono, ago/2026) — a página de um evento não morre,
+  // a vitrine também não esconde a história
+  const hoje = new Date().toISOString().slice(0, 10);
+  const todos = (j.eventos || []);
+  const passou = (e) => e.periodoFim && e.periodoFim < hoje;
+  const vigentes = todos.filter((e) => !passou(e))
+    .sort((a, b) => String(a.periodoInicio || "").localeCompare(String(b.periodoInicio || "")));
+  const realizados = todos.filter(passou)
+    .sort((a, b) => String(b.periodoFim || "").localeCompare(String(a.periodoFim || "")));
+  const cartao = (e) => `
     <a class="card" href="/eventos/${encodeURIComponent(e.slug)}" style="display:flex">
       ${e.temCapa ? `<div class="ev-capa"><img src="/api/publico/eventos/${encodeURIComponent(e.slug)}/capa"
         alt="" loading="lazy" onerror="this.parentElement.style.display='none'"></div>` : ""}
@@ -78,10 +87,18 @@ fetch("/api/publico/eventos").then(async (r) => {
         ${e.local ? `<span class="chip">📍 ${esc(e.local)}</span>` : ""}
         ${e.cargaHoraria ? `<span class="chip">${esc(e.cargaHoraria)}h</span>` : ""}
       </div>
-      <span class="card-cta">Ver o evento e inscrever-se
+      <span class="card-cta">${passou(e) ? "Ver o evento" : "Ver o evento e inscrever-se"}
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-    </a>`).join("")
-    : '<div class="card" style="grid-column:1/-1"><p style="color:var(--muted)">Nenhum evento com inscrições abertas no momento. Volte em breve!</p></div>';
+    </a>`;
+  document.getElementById("conteudo").innerHTML =
+    (vigentes.length
+      ? vigentes.map(cartao).join("")
+      : '<div class="card" style="grid-column:1/-1"><p style="color:var(--muted)">Nenhum evento com inscrições abertas no momento. Volte em breve!</p></div>')
+    + (realizados.length
+      ? `<div style="grid-column:1/-1;margin-top:26px">
+           <p class="eyebrow" style="font-size:12px;letter-spacing:.1em;color:var(--muted)">JÁ REALIZADOS</p>
+         </div>` + realizados.map(cartao).join("")
+      : "");
 }).catch(() => {
   document.getElementById("conteudo").innerHTML = '<div class="card" style="grid-column:1/-1"><p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente em instantes.</p></div>';
 });

@@ -60,11 +60,16 @@ public/
   `assets/arche-nav.js` + `data-setor` nos cartões de `public/index.html`, decisão do
   dono ago/2026): **aluno** (função `aluno` no perfil) vê só Extensão e Pesquisa·IC;
   **professor e demais** veem tudo menos a Avaliação; **gestor geral e coordenadores**
-  (qualquer módulo em `modulosDe`) veem tudo; **visitante sem login** vê o portal
-  completo, como sempre (o cartão da Avaliação continua atrás da portaria de senha).
-  É filtro de APRESENTAÇÃO — quem barra é o servidor (login nos setores, portaria na
-  Avaliação); esconder cartão não é porta. Vale para os cartões da página inicial e
-  para os atalhos da barra do topo em todos os setores.
+  (qualquer módulo em `modulosDe`) veem tudo; **visitante sem login** (revisão do dono,
+  ago/2026) NÃO vê mais o portal completo: a página inicial mostra só a visão pública —
+  os cartões das vitrines (`/ic/`, editais e resultados; `/eventos/`, abertos e já
+  realizados) e o bloco "Entrar no portal" (e-mail + senha direto no card, via
+  `/auth/senha`; código por e-mail e Google pelo `/entrar`). O `#portal-publico` e as
+  classes `so-logado` de `index.html` fazem a troca pelo `/api/me` (erro cai na visão
+  logada — a página nunca fica vazia), e a barra do topo esconde do visitante os
+  atalhos dos setores. É filtro de APRESENTAÇÃO — quem barra é o servidor (login nos
+  setores, portaria na Avaliação); esconder cartão não é porta. Vale para os cartões
+  da página inicial e para os atalhos da barra do topo em todos os setores.
 
 ## Regras de negócio essenciais
 
