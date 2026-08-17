@@ -46,7 +46,7 @@ import {
   podeInscrever as podeInscreverEvento, jaInscrito,
   TIPOS_ATIVIDADE, gerarIdCurto, vagasAtividade, podeEscolherAtividade,
   normalizarFormulario, validarRespostas, LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd,
-  videoIdDe, numerosDoEvento,
+  videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento,
 } from "./lib/eventos.js";
 import {
   TURMAS_EM, BOLSAS_EM, bolsaEmDe, turmaDe as turmaEmDe, turmaVigente as turmaEmVigente,
@@ -2543,6 +2543,15 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
       // PROPPEX conhece e acolheu a atividade que se está divulgando
       if (ev.ativo && !a.numeroAcao)
         return { erro: [400, "Só ação aprovada (com Número da Ação) publica página de evento."], gravar: false };
+      // e só com o PROJETO completo (decisão do dono, ago/2026): a régua é a
+      // dos campos obrigatórios da proposta da Extensão — a trava vale só na
+      // ATIVAÇÃO, para não prender ajustes de um evento que já está no ar
+      if (ev.ativo && !estavaAtivo) {
+        const faltas = faltaNoProjetoDoEvento(a);
+        if (faltas.length)
+          return { erro: [400, "O projeto do evento ainda não está completo para publicação — falta: "
+            + faltas.join(", ") + ". Complete na guia Dados do evento."], gravar: false };
+      }
       if (b.descricao !== undefined) ev.descricao = String(b.descricao || "").trim().slice(0, 4000);
       if (b.vagas !== undefined) {
         const v = Math.trunc(Number(b.vagas));

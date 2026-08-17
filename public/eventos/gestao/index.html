@@ -180,6 +180,35 @@
     .topbar{padding:0 16px}
     .ctx .acoes{margin-left:0}
   }
+  /* janela suspensa do "Cadastrar novo evento" */
+  .ov{position:fixed;inset:0;background:rgba(24,38,50,.55);z-index:10050;display:flex;
+    align-items:flex-start;justify-content:center;padding:24px 12px;overflow-y:auto}
+  .ov-cx{background:#fff;border-radius:16px;max-width:640px;width:100%;padding:22px 22px 18px;
+    box-shadow:0 18px 60px rgba(0,0,0,.25);margin:auto 0}
+  .ov-cx h2{font-size:19px;color:var(--brand);margin-bottom:4px}
+  .ov-cx label{display:block;font-size:12px;font-weight:700;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.06em;margin:12px 0 4px}
+  .ov-cx input,.ov-cx select,.ov-cx textarea{width:100%;border:1.5px solid var(--line);
+    border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;background:#fff}
+  .ov-cx input:focus,.ov-cx select:focus,.ov-cx textarea:focus{outline:none;
+    border-color:var(--brand-2);box-shadow:0 0 0 3px rgba(64,113,126,.13)}
+  .ov-2col{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+  @media(max-width:560px){.ov-2col{grid-template-columns:1fr}}
+  /* assistente por etapas (dentro da mesma janela) */
+  .wiz-topo{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 2px}
+  .wiz-passo{font-size:11px;font-weight:700;color:var(--brand-3);letter-spacing:.1em;text-transform:uppercase}
+  .wiz-dots{display:flex;gap:6px}
+  .wiz-dots i{width:26px;height:5px;border-radius:3px;background:var(--line);transition:background .2s}
+  .wiz-dots i.on{background:var(--brand-3)}
+  .wiz-t{font-family:Sora,sans-serif;font-weight:700;font-size:15px;color:var(--ink);margin:8px 0 2px}
+  .wiz-rev{border:1px solid var(--line);border-radius:10px;padding:4px 14px;margin-top:10px}
+  .wiz-rev .li{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-2);font-size:13px;color:var(--ink-soft)}
+  .wiz-rev .li:last-child{border-bottom:0}
+  .wiz-rev .li b{flex:none;width:150px;color:var(--muted);font-weight:600;font-size:11px;
+    text-transform:uppercase;letter-spacing:.04em;padding-top:2px}
+  @media(max-width:560px){.wiz-rev .li{flex-direction:column;gap:2px}.wiz-rev .li b{width:auto}}
+  /* obrigatório em falta, na guia Dados do evento */
+  .falta{border-color:#e0b25a!important;background:#fffaf0!important}
 </style>
 </head>
 <body>
@@ -213,6 +242,7 @@
 
         <section id="v-painel" class="hide"></section>
         <section id="v-inicio" class="hide"></section>
+        <section id="v-dados" class="hide"></section>
         <section id="v-inscritos" class="hide"></section>
         <section id="v-inscricoes" class="hide"></section>
         <section id="v-pagina" class="hide"></section>
@@ -316,6 +346,7 @@ function numerosEventoLocal(a){
 const IC = {
   painel:'<rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect>',
   inicio:'<path d="M3 10.5 12 3l9 7.5"></path><path d="M5 9.5V21h5v-6h4v6h5V9.5"></path>',
+  dados:'<path d="M9 3h6a1 1 0 0 1 1 1v2H8V4a1 1 0 0 1 1-1z"></path><path d="M16 4h3a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3"></path><path d="M8 11h8M8 15h6"></path>',
   inscritos:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path>',
   inscricoes:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M9 13h6M9 17h4"></path>',
   pagina:'<circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"></path>',
@@ -332,6 +363,8 @@ const SECOES = [
    sub:"Todos os eventos das ações de extensão — números agregados, próximos eventos e a escolha do evento em gestão."},
   {k:"inicio", rot:"Início", grupo:"GESTÃO", ic:IC.inicio, evento:true, tit:"Início",
    sub:"O painel do evento selecionado: situação da página, números e pendências."},
+  {k:"dados", rot:"Dados do evento", grupo:"GESTÃO", ic:IC.dados, evento:true, tit:"Dados do evento",
+   sub:"O projeto de evento da Extensão — a proposta da ação; os campos obrigatórios liberam a publicação da página."},
   {k:"inscritos", rot:"Inscritos e presenças", grupo:"GESTÃO", ic:IC.inscritos, evento:true, tit:"Inscritos e presenças",
    sub:"Quem se inscreveu e quem se credenciou — com a presença manual, geral e por atividade."},
   {k:"inscricoes", rot:"Inscrições", grupo:"PRÉ-EVENTO", ic:IC.inscricoes, evento:true, tit:"Inscrições",
@@ -437,6 +470,7 @@ function nav(secao){
   $("ev-contexto").innerHTML = meta.evento ? contextoHtml(a) : "";
   if(SECAO==="painel") renderPainel();
   else if(SECAO==="inicio") renderInicio(a);
+  else if(SECAO==="dados") renderDados(a);
   else if(SECAO==="inscritos") renderInscritos(a);
   else if(SECAO==="inscricoes") renderInscricoes(a);
   else if(SECAO==="pagina") renderPagina(a);
@@ -495,6 +529,7 @@ function renderPainel(){
       </div>`).join("")}
     </div>`:""}
     <div class="ferramentas">
+      <button class="bt bt-pri" style="white-space:nowrap" onclick="novoEvento()">＋ Cadastrar novo evento</button>
       <input id="l-busca" placeholder="Buscar evento por nome ou curso…" oninput="renderCardsPainel()">
       <span class="muted" id="l-total"></span>
     </div>
@@ -518,9 +553,10 @@ function renderCardsPainel(){
     `<div class="card" style="text-align:center;padding:34px 20px">
       <div style="font-size:15px;font-weight:700;color:var(--ink)">${q?"Nenhum evento encontrado com esta busca.":"Nenhum evento ainda."}</div>
       <div class="muted" style="margin-top:8px;max-width:520px;margin-left:auto;margin-right:auto">
-        O evento nasce de uma <b>ação de extensão</b>: registre a proposta no
-        <a href="/extensao/">ARCHÉ EX</a> e volte aqui para montar a página pública,
-        as inscrições e o credenciamento.</div>
+        Comece pelo botão <b>＋ Cadastrar novo evento</b> — ele registra a ação de
+        extensão e já deixa o evento pronto para montar. Se preferir, a proposta
+        completa também pode ser registrada no <a href="/extensao/">ARCHÉ EX</a>.</div>
+      ${q?"":`<button class="bt bt-pri" style="margin-top:14px" onclick="novoEvento()">＋ Cadastrar novo evento</button>`}
     </div>`;
 
   $("sem-evento").innerHTML = semEvento.length ? `
@@ -537,6 +573,206 @@ function renderCardsPainel(){
         <button class="bt bt-sec" style="padding:7px 12px;font-size:12.5px" onclick="selecionar('${esc(a.id)}')">Configurar evento</button>
       </div>`).join("")}
     </div>` : "";
+}
+
+/* ------------------- cadastrar novo evento (fluxo único) ------------------
+   O botão do Painel geral cria a AÇÃO DE EXTENSÃO com o essencial da
+   proposta e já semeia a configuração do evento — a pessoa cai direto nas
+   guias para montar programação, formulário e página. A proposta segue o
+   caminho institucional de sempre: fila da PROPPEX no ARCHÉ EX (onde pode
+   ser completada), e a página só ativa depois da aprovação. */
+const CURSOS_EV = ["Administração","Agronomia","Ciências Contábeis","Direito","Educação Física",
+  "Enfermagem","Engenharia Civil","Engenharia de Software","Engenharia Mecânica",
+  "Medicina Veterinária","Odontologia","Psicologia","Institucional / PROPPEX"];
+
+/* A régua da publicação da página — RÉPLICA de CAMPOS_PROJETO_EVENTO em
+   lib/eventos.js, que é O DONO da régua (a SPA não importa módulos; ao mudar
+   a lista lá, mude aqui também). É a mesma lista que a ativação confere no
+   servidor: campo em falta = a página não publica. */
+const CAMPOS_PROJETO_EV=[
+  ["curso","curso"],
+  ["nomeAtividade","nome do evento"],
+  ["periodoInicio","data de início"],
+  ["periodoFim","data de encerramento"],
+  ["cargaHoraria","carga horária"],
+  ["publicoAlvo","público-alvo"],
+  ["local","local"],
+  ["municipio","município"],
+  ["justificativa","justificativa"],
+  ["objetivoGeral","objetivo geral"],
+  ["objetivosEspecificos","objetivos específicos"],
+  ["metodologia","metodologia"],
+  ["respNome","nome do responsável"],
+  ["respCargo","cargo do responsável"],
+  ["respTelefone","telefone do responsável"],
+  ["respEmail","e-mail do responsável"],
+];
+const faltasProjetoEv=(a)=>{
+  const p=a?.proposta||{};
+  return CAMPOS_PROJETO_EV
+    .filter(([c])=>!String((c==="curso"?a?.curso:p[c])||"").trim())
+    .map(([,r])=>r);
+};
+
+/* O assistente pergunta POR ETAPAS (pedido do dono, ago/2026): título e
+   curso; público e tema; datas e horários; revisão. Cada resposta fica em
+   NE — voltar não perde nada — e a criação continua a mesma: a AÇÃO DE
+   EXTENSÃO nasce submetida (fila da PROPPEX) e o evento é semeado em
+   rascunho; o restante do projeto se completa na guia Dados do evento. */
+let NE=null;
+function novoEvento(){
+  NE={passo:1, nome:"", curso:CURSOS_EV[0], publico:"", tema:"",
+      inicio:"", fim:"", horario:"", ch:"", local:"", municipio:"Goianésia/GO"};
+  const cx=document.createElement("div");
+  cx.className="ov"; cx.id="ov-novo";
+  cx.onclick=(e)=>{ if(e.target===cx) fecharNovo(); };
+  cx.innerHTML=`<div class="ov-cx" role="dialog" aria-modal="true" aria-label="Cadastrar novo evento" tabindex="-1"
+    onkeydown="enterAvancaNE(event)"></div>`;
+  document.body.appendChild(cx);
+  document.addEventListener("keydown", escFechaNovo);
+  renderPassoNE();
+}
+function escFechaNovo(e){ if(e.key==="Escape") fecharNovo(); }
+function fecharNovo(){ $("ov-novo")?.remove(); document.removeEventListener("keydown", escFechaNovo); NE=null; }
+/* Enter avança a etapa (e, na revisão, cria) — menos em textarea e botão. */
+function enterAvancaNE(e){
+  if(e.key!=="Enter" || !NE) return;
+  const t=e.target?.tagName;
+  if(t==="TEXTAREA"||t==="BUTTON") return;
+  e.preventDefault();
+  if(NE.passo<4) nePasso(1); else criarNovoEvento();
+}
+function nePasso(d){
+  if(d>0){
+    const msg=$("ne-msg");
+    if(NE.passo===1){
+      if(!NE.nome.trim()) return msg.textContent="Dê um nome ao evento.";
+      if(!NE.curso) return msg.textContent="Escolha o curso ou setor.";
+    }
+    if(NE.passo===3){
+      if(!NE.inicio||!NE.fim) return msg.textContent="Informe o período do evento (início e encerramento).";
+      if(NE.fim<NE.inicio) return msg.textContent="O encerramento não pode vir antes do início.";
+    }
+  }
+  NE.passo=Math.min(4,Math.max(1,NE.passo+d));
+  renderPassoNE();
+}
+function renderPassoNE(){
+  const cx=document.querySelector("#ov-novo .ov-cx"); if(!cx||!NE) return;
+  const TITULOS={1:"O evento",2:"Público e tema",3:"Datas e horários",4:"Revisão"};
+  const passos=[1,2,3,4].map(n=>`<i class="${n<=NE.passo?"on":""}"></i>`).join("");
+  const corpo =
+    NE.passo===1 ? `
+      <label for="ne-nome">Nome do evento *</label>
+      <input id="ne-nome" maxlength="200" placeholder="Ex.: III Jornada de Solos do Cerrado"
+        value="${esc(NE.nome)}" oninput="NE.nome=this.value">
+      <label for="ne-curso">Curso / setor *</label>
+      <select id="ne-curso" onchange="NE.curso=this.value">
+        ${CURSOS_EV.map(c=>`<option${c===NE.curso?" selected":""}>${esc(c)}</option>`).join("")}</select>`
+    : NE.passo===2 ? `
+      <label for="ne-publico">Público-alvo</label>
+      <input id="ne-publico" maxlength="200" placeholder="Ex.: acadêmicos, professores e comunidade externa"
+        value="${esc(NE.publico)}" oninput="NE.publico=this.value">
+      <label for="ne-tema">Tema central / breve descrição</label>
+      <textarea id="ne-tema" rows="3" maxlength="2000" oninput="NE.tema=this.value"
+        placeholder="Sai na página pública do evento — dá para refinar depois.">${esc(NE.tema)}</textarea>`
+    : NE.passo===3 ? `
+      <div class="ov-2col">
+        <div><label for="ne-inicio">Início *</label>
+          <input id="ne-inicio" type="date" value="${esc(NE.inicio)}" oninput="NE.inicio=this.value"></div>
+        <div><label for="ne-fim">Encerramento *</label>
+          <input id="ne-fim" type="date" value="${esc(NE.fim)}" oninput="NE.fim=this.value"></div>
+        <div><label for="ne-horario">Horário de funcionamento</label>
+          <input id="ne-horario" maxlength="200" placeholder='Ex.: "das 19h às 22h"'
+            value="${esc(NE.horario)}" oninput="NE.horario=this.value"></div>
+        <div><label for="ne-ch">Carga horária (h)</label>
+          <input id="ne-ch" inputmode="numeric" placeholder="Ex.: 20" value="${esc(NE.ch)}" oninput="NE.ch=this.value"></div>
+        <div><label for="ne-local">Local</label>
+          <input id="ne-local" maxlength="200" placeholder="Ex.: Auditório central do UNIEGO"
+            value="${esc(NE.local)}" oninput="NE.local=this.value"></div>
+        <div><label for="ne-municipio">Município</label>
+          <input id="ne-municipio" maxlength="120" value="${esc(NE.municipio)}" oninput="NE.municipio=this.value"></div>
+      </div>
+      <div class="muted" style="font-size:12px;margin-top:8px">O horário entra como semente da
+        programação em texto — as atividades detalhadas (palestras, minicursos) se montam depois,
+        na guia Programação.</div>`
+    : `
+      <div class="wiz-rev">
+        ${[["Evento",NE.nome],["Curso / setor",NE.curso],["Público-alvo",NE.publico],
+           ["Tema central",NE.tema],
+           ["Período",NE.inicio?`${fmt(NE.inicio)} – ${fmt(NE.fim)}`:""],
+           ["Horário",NE.horario],["Carga horária",NE.ch?NE.ch+" h":""],
+           ["Local",NE.local],["Município",NE.municipio]]
+          .map(([r,v])=>`<div class="li"><b>${r}</b><span>${esc(v)||'<span class="muted">—</span>'}</span></div>`).join("")}
+      </div>
+      <div class="tut" style="font-size:12.5px">
+        Ao criar: <b>a ação de extensão será registrada</b> e segue a análise da PROPPEX;
+        o restante do projeto (justificativa, objetivos, metodologia) se completa na guia
+        <b>Dados do evento</b>; e a página pública só poderá ser <b>publicada com o projeto
+        completo e a ação aprovada</b>.</div>`;
+
+  cx.innerHTML=`
+    <h2>Cadastrar novo evento</h2>
+    <div class="wiz-topo">
+      <span class="wiz-passo">Passo ${NE.passo} de 4</span>
+      <span class="wiz-dots">${passos}</span>
+    </div>
+    <div class="wiz-t">${TITULOS[NE.passo]}</div>
+    ${corpo}
+    <div id="ne-msg" style="color:#c62828;font-size:13px;min-height:1.2em;margin-top:10px"></div>
+    <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
+      ${NE.passo>1?`<button class="bt bt-ghost" onclick="nePasso(-1)">‹ Voltar</button>`:""}
+      ${NE.passo<4?`<button class="bt bt-pri" id="ne-bt" onclick="nePasso(1)">Avançar ›</button>`
+                  :`<button class="bt bt-pri" id="ne-bt" onclick="criarNovoEvento()">Criar o evento</button>`}
+      <button class="bt bt-sec" onclick="fecharNovo()">Cancelar</button>
+    </div>`;
+  setTimeout(()=>{ (cx.querySelector("input,select,textarea")||cx).focus(); },50);
+}
+
+async function criarNovoEvento(){
+  const msg=$("ne-msg"), bt=$("ne-bt");
+  const nome=NE.nome.trim(), inicio=NE.inicio, fim=NE.fim;
+  if(!nome) return msg.textContent="Dê um nome ao evento.";
+  if(!inicio||!fim) return msg.textContent="Informe o período do evento (início e encerramento).";
+  if(fim<inicio) return msg.textContent="O encerramento não pode vir antes do início.";
+  bt.disabled=true; msg.textContent="";
+  try{
+    const agora=new Date().toISOString();
+    const p=ME?.perfil||{};
+    const registro={
+      id:"ext-"+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+      numeroAcao:null, status:"submetida",
+      curso:NE.curso,
+      criadoPor:EU, criadoPorNome:p.nome||ME?.nome||EU,
+      criadoEm:agora, atualizadoEm:agora,
+      proposta:{
+        nomeAtividade:nome, classificacao:"Evento", departamento:NE.curso,
+        temaCentral:NE.tema.trim(),
+        periodoInicio:inicio, periodoFim:fim,
+        programacao:NE.horario.trim(),   // semente em texto — refina-se na guia Dados/Programação
+        cargaHoraria:NE.ch.trim(), publicoAlvo:NE.publico.trim(),
+        local:NE.local.trim(), municipio:NE.municipio.trim(),
+        respNome:p.nome||ME?.nome||EU, respCargo:p.funcao==="professor"?"Professor(a)":"",
+        respTelefone:p.telefone||"", respEmail:EU,
+      },
+      relatorio:{}, participantes:{inscritos:[],palestrantes:[],comissao:[]},
+    };
+    const r1=await fetch("/api/extensao",{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify({acoes:[registro]})});
+    const j1=await r1.json().catch(()=>({}));
+    if(!r1.ok||!j1.ok||!j1.gravadas) throw new Error(j1.error||"Não foi possível registrar a ação.");
+    // semeia a configuração do evento (rascunho) — é o que o traz para o EV
+    const r2=await fetch(`/api/extensao/${encodeURIComponent(registro.id)}/evento`,{method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({descricao:NE.tema.trim(), local:NE.local.trim()})});
+    if(!r2.ok) throw new Error((await r2.json().catch(()=>({}))).error||"A ação foi criada, mas a configuração do evento falhou — abra-a na lista.");
+    fecharNovo();
+    await carregar();
+    // cai direto na guia Dados do evento, com as boas-vindas apontando o que falta
+    ABERTO=registro.id; EV_CAPA=undefined; montarSeletor();
+    DADOS_NOVO=true;
+    nav("dados");
+  }catch(e){ msg.textContent=e.message; bt.disabled=false; }
 }
 
 function cardLista(a){
@@ -575,6 +811,10 @@ function renderInicio(a){
   if(!a.numeroAcao) pend.push(`⏳ <b>A ativação da página depende da aprovação da ação</b> (o Número
     da Ação sai no ARCHÉ EX) — mas o evento já pode ficar todo configurado: inscrições, página,
     programação e transmissão.`);
+  const faltasProj=faltasProjetoEv(a);
+  if(faltasProj.length) pend.push(`<b>Projeto do evento incompleto para publicação</b> — falta:
+    ${esc(faltasProj.join(", "))}. Complete na guia
+    <button class="lk" onclick="nav('dados')">Dados do evento</button>.`);
   if(a.numeroAcao && !ev.ativo) pend.push(`A página pública está em <b>rascunho</b> — ative na guia
     <button class="lk" onclick="nav('pagina')">Página do evento</button>.`);
   if(ev.ativo && !(ev.programacao||[]).length) pend.push(`A página está no ar <b>sem programação</b> —
@@ -620,6 +860,162 @@ function renderInicio(a){
         <button class="bt bt-sec" onclick="nav('exportacoes')">Exportações</button>
       </div>
     </div>`;
+}
+
+/* ====================== GESTÃO · DADOS DO EVENTO ========================
+   O PROJETO DE EVENTO da Extensão — a proposta da ação, editável aqui para
+   quem cria pelo assistente não precisar ir ao ARCHÉ EX completar. Os
+   obrigatórios (a régua de CAMPOS_PROJETO_EV, a mesma do servidor) saem
+   marcados com * e realçados quando vazios; o sumário do topo diz o que
+   ainda falta para a página poder ser publicada.
+
+   PERMISSÃO: a gravação é pelo POST /api/extensao em bloco, e o servidor só
+   aceita do DONO da ação e da gestão da Extensão — o coordenador só do
+   módulo `eventos` opera o evento, mas a proposta não é dele: para ele a
+   guia é somente-leitura. */
+let DD=null, DADOS_NOVO=false;
+const DD_CAMPOS=["nomeAtividade","temaCentral","periodoInicio","periodoFim","cargaHoraria",
+  "publicoAlvo","local","municipio","justificativa","objetivoGeral","objetivosEspecificos",
+  "metodologia","programacao","certificacaoSolicitada","parceria","recursoInstalacao",
+  "recursoMultimidia","recursoOutros","comissaoTexto","respNome","respCargo","respTelefone","respEmail"];
+const DD_OBRIGATORIOS=new Set(CAMPOS_PROJETO_EV.map(([c])=>c));
+
+function soLeituraDados(a){
+  const eu=String(EU||"").toLowerCase();
+  return GESTAO_EV && !GESTAO_EX
+    && String(a.criadoPor||"").toLowerCase()!==eu
+    && String(a.proposta?.respEmail||"").toLowerCase()!==eu;
+}
+
+function renderDados(a){
+  const p=a.proposta||{};
+  const ro=soLeituraDados(a);
+  DD={curso:a.curso||""};
+  for(const c of DD_CAMPOS) DD[c]=p[c]||"";
+  const boasVindas=DADOS_NOVO; DADOS_NOVO=false;
+  const dis=ro?" disabled":"";
+  // um campo do formulário: rótulo (com * nos obrigatórios), input/textarea,
+  // realce .falta quando obrigatório vazio — atualizado a cada tecla
+  const campo=(c,rotulo,{area=false,tipo="text",ph="",dica=""}={})=>{
+    const obg=DD_OBRIGATORIOS.has(c);
+    const cls=obg&&!String(DD[c]).trim()?" class=\"falta\"":"";
+    const lab=`<label for="dd-${c}">${rotulo}${obg?" *":""}${dica?` <span class="muted">(${dica})</span>`:""}</label>`;
+    return area
+      ? `${lab}<textarea id="dd-${c}"${cls}${dis} data-campo="${c}" oninput="ddMudou(this)" placeholder="${esc(ph)}">${esc(DD[c])}</textarea>`
+      : `${lab}<input id="dd-${c}"${cls}${dis} data-campo="${c}" type="${tipo}" value="${esc(DD[c])}" oninput="ddMudou(this)" placeholder="${esc(ph)}">`;
+  };
+  const cursoOpcoes=(CURSOS_EV.includes(DD.curso)||!DD.curso?CURSOS_EV:[DD.curso,...CURSOS_EV])
+    .map(c=>`<option${c===DD.curso?" selected":""}>${esc(c)}</option>`).join("");
+
+  $("v-dados").innerHTML=`
+    ${boasVindas?`<div class="banner ba-info">✓ <b>Evento criado!</b> A ação de extensão foi registrada e
+      segue a análise da PROPPEX. Complete abaixo o projeto do evento — a página pública só poderá ser
+      publicada com os campos obrigatórios preenchidos e a ação aprovada.</div>`:""}
+    ${ro?`<div class="banner ba-info">Guia em <b>somente leitura</b>: os dados do projeto são do
+      responsável pela ação e da gestão da Extensão.</div>`:""}
+    <div id="dd-faltas"></div>
+    <div class="card">
+      <div class="sec-t">Identificação</div>
+      ${campo("nomeAtividade","Nome do evento",{ph:"Ex.: III Jornada de Solos do Cerrado"})}
+      <div class="grid2">
+        <div><label for="dd-curso">Curso / setor *</label>
+          <select id="dd-curso"${(!String(DD.curso).trim())?' class="falta"':""}${dis} data-campo="curso" onchange="ddMudou(this)">${cursoOpcoes}</select></div>
+        <div>${campo("temaCentral","Tema central")}</div>
+      </div>
+      <div class="grid3">
+        <div>${campo("periodoInicio","Início",{tipo:"date"})}</div>
+        <div>${campo("periodoFim","Encerramento",{tipo:"date"})}</div>
+        <div>${campo("cargaHoraria","Carga horária (h)",{ph:"Ex.: 20"})}</div>
+      </div>
+      ${campo("publicoAlvo","Público-alvo",{ph:"Ex.: acadêmicos, professores e comunidade externa"})}
+      <div class="grid2">
+        <div>${campo("local","Local",{ph:"Ex.: Auditório central do UNIEGO"})}</div>
+        <div>${campo("municipio","Município",{ph:"Ex.: Goianésia/GO"})}</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec-t">O projeto</div>
+      ${campo("justificativa","Justificativa",{area:true,ph:"Por que este evento — a demanda que ele atende."})}
+      ${campo("objetivoGeral","Objetivo geral",{area:true})}
+      ${campo("objetivosEspecificos","Objetivos específicos",{area:true,ph:"Um por linha."})}
+      ${campo("metodologia","Metodologia",{area:true,ph:"Como o evento acontece — palestras, oficinas, rodas…"})}
+      ${campo("programacao","Programação (texto)",{area:true,dica:"a da proposta; as atividades detalhadas ficam na guia Programação"})}
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Certificação, parcerias e recursos</div>
+      <div class="grid2">
+        <div>${campo("certificacaoSolicitada","Certificação solicitada",{ph:"Ex.: certificado de participação, 20h"})}</div>
+        <div>${campo("parceria","Parcerias externas",{ph:"Ex.: COREN-GO"})}</div>
+      </div>
+      <div class="grid3">
+        <div>${campo("recursoInstalacao","Instalações",{ph:"Não se aplica"})}</div>
+        <div>${campo("recursoMultimidia","Multimídia",{ph:"Datashow, computadores…"})}</div>
+        <div>${campo("recursoOutros","Outros recursos",{ph:"Não se aplica"})}</div>
+      </div>
+      ${campo("comissaoTexto","Comissão organizadora",{area:true,ph:"Nomes e papéis, um por linha."})}
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Responsável pela ação</div>
+      <div class="grid2">
+        <div>${campo("respNome","Nome")}</div>
+        <div>${campo("respCargo","Cargo",{ph:"Ex.: Professor(a)"})}</div>
+        <div>${campo("respTelefone","Telefone",{ph:"(62) 9…"})}</div>
+        <div>${campo("respEmail","E-mail",{tipo:"email"})}</div>
+      </div>
+    </div>
+
+    ${ro?"":`<div class="exp" style="margin:0 0 18px">
+      <button class="bt bt-pri" onclick="salvarDados('${esc(a.id)}')">💾 Salvar dados do evento</button>
+      <span class="muted" id="dd-msg" style="align-self:center"></span>
+    </div>`}`;
+  ddResumoFaltas();
+}
+
+function ddMudou(el){
+  if(!DD) return;
+  const c=el.dataset.campo;
+  DD[c]=el.value;
+  if(c==="curso"||DD_OBRIGATORIOS.has(c)) el.classList.toggle("falta", !String(el.value).trim());
+  ddResumoFaltas();
+}
+/* O sumário do topo: o que ainda falta para a publicação — some quando completo. */
+function ddResumoFaltas(){
+  const el=$("dd-faltas"); if(!el||!DD) return;
+  const faltas=faltasProjetoEv({curso:DD.curso, proposta:DD});
+  el.innerHTML=faltas.length
+    ? `<div class="banner ba-warn"><b>Faltam para a publicação:</b> ${esc(faltas.join(", "))}.
+       Os campos estão marcados com * e realçados abaixo.</div>`
+    : `<div class="banner ba-info" style="background:var(--ok-soft);color:var(--ok);border-color:#cfeeda">
+       ✓ Projeto completo — a página pode ser publicada (com a ação aprovada).</div>`;
+}
+
+/* Grava a proposta pelo POST /api/extensao em bloco — a ação INTEIRA como
+   está carregada, com a proposta editada por cima. O servidor preserva
+   evento e inscritos pela mescla, e número/situação/apreciação são da
+   gestão (aqui vão os valores já gravados, por clareza). */
+async function salvarDados(id){
+  const a=ACOES.find(x=>x.id===id); if(!a||!DD) return;
+  const msg=$("dd-msg"); if(msg) msg.textContent="Salvando…";
+  const proposta={...(a.proposta||{})};
+  for(const c of DD_CAMPOS) proposta[c]=String(DD[c]??"").trim();
+  const final={...a, curso:String(DD.curso||"").trim(),
+    numeroAcao:a.numeroAcao??null, status:a.status, apreciacao:a.apreciacao,
+    proposta, atualizadoEm:new Date().toISOString()};
+  try{
+    const r=await fetch("/api/extensao",{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify({acoes:[final]})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j.ok) throw new Error(j.error||r.status);
+    if(!j.gravadas) throw new Error("a gravação foi recusada — os dados do projeto são do responsável pela ação e da gestão da Extensão.");
+    await carregar(); montarSeletor(); nav("dados");
+    const m=$("dd-msg"); if(m){ m.textContent="✓ salvo"; setTimeout(()=>{ if($("dd-msg")) $("dd-msg").textContent=""; },3000); }
+  }catch(e){
+    if($("dd-msg")) $("dd-msg").textContent="";
+    alert("Não foi possível salvar os dados do evento: "+e.message);
+  }
 }
 
 /* ================== GESTÃO · INSCRITOS E PRESENÇAS ====================== */
@@ -702,6 +1098,7 @@ function renderPagina(a){
   const ev=a.evento||{};
   EV_CAPA=undefined;
   const link=ev.slug?location.origin+"/eventos/"+encodeURIComponent(ev.slug):"";
+  const faltasProj=faltasProjetoEv(a);
 
   $("v-pagina").innerHTML=`
     ${!a.numeroAcao?`<div class="banner ba-warn">⏳ <b>A página pública só pode ser ativada depois da
@@ -713,6 +1110,10 @@ function renderPagina(a){
         title="${a.numeroAcao?"":"Só ação aprovada (com Número da Ação) publica página de evento."}">
         <input type="checkbox" id="ev-ativo" ${ev.ativo?"checked":""} ${a.numeroAcao?"":"disabled"}>
         página ativa (pública, com inscrição aberta) — grava no "Salvar página"</label>
+      ${!ev.ativo&&faltasProj.length?`<div class="banner ba-warn" style="margin:10px 0 0">A publicação
+        exige o projeto completo — faltam ${faltasProj.length} campo(s)
+        (guia <button class="lk" onclick="nav('dados')">Dados do evento</button>):
+        ${esc(faltasProj.join(", "))}.</div>`:""}
       ${link?`<div class="banner ba-info" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px">
         <b>Link público:</b>
         <a href="${esc(link)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(link)}</a>
@@ -1189,7 +1590,7 @@ function presencaManualEv(id, token, cpf, email){
    que veio no corpo, então o que a guia não mandou fica exatamente como
    está. Nunca se envia a configuração inteira de uma vez. */
 async function salvarParteEvento(id, body){
-  const msg=$("ev-msg"); if(msg) msg.textContent="Salvando…";
+  const msg=$("ev-msg"); if(msg){ msg.textContent="Salvando…"; msg.style.color=""; }
   try{
     const r=await fetch(`/api/extensao/${id}/evento`,{method:"POST",
       headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
@@ -1199,8 +1600,11 @@ async function salvarParteEvento(id, body){
     const m=$("ev-msg"); if(m){ m.textContent="✓ salvo"; setTimeout(()=>{ if($("ev-msg")) $("ev-msg").textContent=""; },3000); }
     return true;
   }catch(e){
-    if($("ev-msg")) $("ev-msg").textContent="";
-    alert("Não foi possível salvar o evento: "+e.message);
+    // a recusa do servidor sai COMO VEIO (é o caso da trava de publicação:
+    // o 400 lista o que falta no projeto) — na tela quando há onde, senão no alerta
+    const m=$("ev-msg");
+    if(m){ m.textContent="✕ "+e.message; m.style.color="var(--err)"; }
+    else alert("Não foi possível salvar o evento: "+e.message);
     return false;
   }
 }

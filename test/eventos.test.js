@@ -10,6 +10,7 @@ import {
   TIPOS_ATIVIDADE, atividadesInscriviveis, vagasAtividade, conflitoHorario,
   podeEscolherAtividade, normalizarFormulario, validarRespostas,
   LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd, videoIdDe, numerosDoEvento,
+  faltaNoProjetoDoEvento, CAMPOS_PROJETO_EVENTO,
 } from "../lib/eventos.js";
 
 /* --------------------------------- slug --------------------------------- */
@@ -469,4 +470,30 @@ test("export completo: colunas fixas + uma por campo extra, tudo por seguro()", 
   assert.equal(caio[5], "lista da coordenação");
   assert.equal(caio[10] ?? "", "", "sem consentimento a célula fica em branco — a ausência é informação");
   assert.equal(caio[11] ?? "", "", "comunicações só de quem consentiu online");
+});
+
+/* --------------------- projeto do evento (publicação) -------------------- */
+test("faltaNoProjetoDoEvento: a régua da publicação é a da proposta da Extensão", () => {
+  // ação vazia: falta tudo — na ordem do catálogo
+  const faltas = faltaNoProjetoDoEvento({ proposta: {} });
+  assert.equal(faltas.length, CAMPOS_PROJETO_EVENTO.length);
+  assert.equal(faltas[0], "curso");
+  assert.ok(faltas.includes("justificativa"));
+  assert.ok(faltas.includes("metodologia"));
+
+  // projeto completo: nada falta
+  const completa = {
+    curso: "Agronomia",
+    proposta: {
+      nomeAtividade: "Jornada", periodoInicio: "2026-09-10", periodoFim: "2026-09-12",
+      cargaHoraria: "20", publicoAlvo: "Acadêmicos", local: "Auditório", municipio: "Goianésia/GO",
+      justificativa: "j", objetivoGeral: "o", objetivosEspecificos: "e", metodologia: "m",
+      respNome: "Fulano", respCargo: "Professor", respTelefone: "(62) 9", respEmail: "f@uniego.edu.br",
+    },
+  };
+  assert.deepEqual(faltaNoProjetoDoEvento(completa), []);
+
+  // campo só com espaços não conta como preenchido
+  const quase = { ...completa, proposta: { ...completa.proposta, justificativa: "   " } };
+  assert.deepEqual(faltaNoProjetoDoEvento(quase), ["justificativa"]);
 });

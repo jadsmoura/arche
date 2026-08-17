@@ -89,7 +89,10 @@ public/
   abre nenhum setor da gestão. Passam **sem digitar nada** quem já está logado no ARCHÉ
   (professores, coordenações, gestão) e quem chega pelo **link de acesso** (`/arche/?acesso=…`),
   que é o que a PROPPEX manda ao **avaliador do MEC** — ele não tem conta e não vai criar uma.
-  O link aparece na página inicial só para gestor geral (`GET /api/av/link`) e se invalida em
+  O link aparece na página inicial só para gestor geral (`GET /api/av/link`) — e o botão
+  "Gerar link" dos avaliadores ad hoc nas telas de dossiê embute o MESMO passe no endereço
+  (correção de ago/2026, por append de `<script>` nas 12 páginas do app compilado: sem o
+  passe, o avaliador caía na tela de senha) — e se invalida em
   bloco trocando `AV_LINK_VERSAO`. A mesma portaria vale para as APIs que o módulo usa
   (`/api/estado*` nas chaves abertas e os três `/api/drive/upload*`), senão bastaria pular a
   tela e ler tudo pela API. Para trocar a senha, mude a env var — não o código.
@@ -238,7 +241,16 @@ public/
   registra organiza o próprio evento), a gestão da Extensão e a coordenação do módulo
   `eventos`; aluno não vê o cartão (participa pela página pública). A ação de extensão
   continua sendo a mãe do evento — proposta, aprovação e relatório no ARCHÉ EX, com
-  atalhos cruzados nas duas pontas. **E-mail do setor: eventos@uniego.edu.br**
+  atalhos cruzados nas duas pontas. **"Cadastrar novo evento" é um ASSISTENTE em 4
+  passos** no Painel geral (título/curso → público/tema → datas/horários/local →
+  revisão): cria a AÇÃO (status `submetida`, no shape do EX) e semeia `a.evento`,
+  caindo na guia **"Dados do evento"** (abaixo de Início) — o formulário do projeto
+  (a proposta da ação) com a régua `CAMPOS_PROJETO_EVENTO`/`faltaNoProjetoDoEvento`
+  (lib/eventos.js): **publicar a página exige o projeto completo** — a trava é do
+  SERVIDOR, na ATIVAÇÃO (além do `numeroAcao`), e a tela espelha com o sumário
+  "faltam para a publicação". Coordenador só do módulo `eventos` vê os Dados em
+  somente-leitura (a proposta é do responsável e da gestão da Extensão — o POST em
+  bloco o recusaria de todo modo). **E-mail do setor: eventos@uniego.edu.br**
   (env EVENTOS_NOTIFY_EMAIL) — contato do hotsite, do texto LGPD padrão e da confirmação
   de inscrição, e destinatário do aviso automático quando uma página de evento entra no
   ar (`emailEventoAtivado`, fire-and-forget).
