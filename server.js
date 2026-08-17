@@ -197,6 +197,19 @@ app.use(async (req, res, next) => {
    Passam sem digitar nada quem chega pelo link de acesso (`?acesso=…`, o que
    se manda ao avaliador) e quem já está logado no ARCHÉ. */
 const liberadoNaAv = (req) => !!lerSelo(req) || !!lerSessao(req);
+// O selo do atalho /avaliador é de VISUALIZAÇÃO (decisão do dono, ago/2026):
+// abre as páginas e lê as chaves da Avaliação, mas NENHUMA escrita passa —
+// avaliador externo olha, não muda. Quem também tem sessão no ARCHÉ (um
+// professor que por acaso abriu o atalho) mantém os próprios direitos.
+const somenteLeituraNaAv = (req) => lerSelo(req)?.via === "avaliador" && !lerSessao(req);
+
+/* Atalho público do avaliador — arche.app.br/avaliador (decisão do dono,
+   ago/2026): entra SEM senha, direto no bloco ARCHÉ Avaliador do módulo
+   (Indicadores e Produção). O selo emitido é o de visualização acima. */
+app.get(["/avaliador", "/avaliador/"], (_req, res) => {
+  emitirSelo(res, "avaliador");
+  res.redirect("/arche/");
+});
 
 app.use((req, res, next) => {
   if (!AREA_AV.test(req.caminho)) return next();
@@ -1268,6 +1281,7 @@ const CHAVES_PROTEGIDAS = /^(extensao-|pesquisa-|inovacao-|auth-usuarios)/;
 async function podeEscrever(req, chave) {
   if (CHAVES_INTERNAS.test(chave)) return false; // só o próprio servidor grava
   if (!liberadoNaAv(req)) return false;          // portaria da Avaliação
+  if (somenteLeituraNaAv(req)) return false;     // o atalho /avaliador só olha
   if (!CHAVES_PROTEGIDAS.test(chave)) return true;
   const u = await usuarioDe(req);
   return !!u && u.papel !== "pendente";
@@ -1328,7 +1342,12 @@ app.get("/api/estado/list", async (req, res) => {
 // Os três uploads abaixo são da Avaliação e do dossiê: valem a mesma portaria
 // das páginas, senão a barreira só existiria na tela.
 app.use(["/api/drive/upload", "/api/drive/upload-avaliacao", "/api/drive/upload-doc-institucional"],
-  (req, res, next) => (liberadoNaAv(req) ? next() : res.status(403).json({ error: "Acesso restrito" })));
+  (req, res, next) => {
+    if (!liberadoNaAv(req)) return res.status(403).json({ error: "Acesso restrito" });
+    if (somenteLeituraNaAv(req))
+      return res.status(403).json({ error: "O acesso de avaliador é somente de visualização." });
+    next();
+  });
 
 app.post("/api/drive/upload", upload.single("file"), async (req, res) => {
   try {

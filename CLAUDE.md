@@ -92,7 +92,12 @@ public/
   O link aparece na página inicial só para gestor geral (`GET /api/av/link`) — e o botão
   "Gerar link" dos avaliadores ad hoc nas telas de dossiê embute o MESMO passe no endereço
   (correção de ago/2026, por append de `<script>` nas 12 páginas do app compilado: sem o
-  passe, o avaliador caía na tela de senha) — e se invalida em
+  passe, o avaliador caía na tela de senha). Há ainda o **atalho público
+  `arche.app.br/avaliador`** (decisão do dono, ago/2026): entra SEM senha no bloco ARCHÉ
+  Avaliador com um selo de **VISUALIZAÇÃO** (`via: "avaliador"` no cookie;
+  `somenteLeituraNaAv` no server) — páginas e leituras abrem, mas NENHUMA escrita passa
+  (PUT/beacon do `/api/estado` e os três uploads recusam 403); quem também tem sessão no
+  ARCHÉ mantém os próprios direitos. O link de acesso completo se invalida em
   bloco trocando `AV_LINK_VERSAO`. A mesma portaria vale para as APIs que o módulo usa
   (`/api/estado*` nas chaves abertas e os três `/api/drive/upload*`), senão bastaria pular a
   tela e ler tudo pela API. Para trocar a senha, mude a env var — não o código.
