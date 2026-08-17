@@ -1956,3 +1956,27 @@ window.addEventListener('pagehide', function(){
 <script src="/assets/arche-nav.js" defer></script>
 </body>
 </html>
+
+<script>
+/* ARCHÉ (ago/2026): o link gerado para o avaliador ad hoc precisa carregar o
+   passe da portaria (?acesso=…) — sem ele, quem o recebe cai na tela de
+   senha, e o avaliador não tem senha nem conta. O passe vem de /api/av/link
+   (só a gestão geral o obtém; sem ele o link sai como antes). Append de
+   propósito: o app da Avaliação é compilado e não se refatora. */
+(function () {
+  var CHAVE = "";
+  fetch("/api/av/link").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+    if (!d || !d.url) return;
+    try { CHAVE = new URL(d.url).searchParams.get("acesso") || ""; } catch (e) { /* segue sem passe */ }
+  }).catch(function () {});
+  var bt = document.getElementById("genLink");
+  var campo = document.getElementById("linkField");
+  if (!bt || !campo) return;
+  // roda DEPOIS do gerador original (listener registrado por último): o campo
+  // já tem o endereço — só falta o passe
+  bt.addEventListener("click", function () {
+    if (!CHAVE || !campo.value || campo.value.indexOf("acesso=") >= 0) return;
+    campo.value += (campo.value.indexOf("?") >= 0 ? "&" : "?") + "acesso=" + encodeURIComponent(CHAVE);
+  });
+})();
+</script>
