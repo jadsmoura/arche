@@ -145,6 +145,19 @@
     font-weight:600;border-bottom:1px solid var(--line)}
   table.pt td{border-bottom:1px solid var(--line-2);padding:8px 10px;color:var(--ink-soft)}
   table.pt td.bad{color:var(--err);font-weight:600}
+  /* listas de participantes: recolhidas, com busca e paginação */
+  details.part-bloco summary{list-style:none;display:flex;align-items:center;gap:8px}
+  details.part-bloco summary::-webkit-details-marker{display:none}
+  details.part-bloco summary::before{content:"▸";color:var(--accent);font-size:13px;transition:.15s}
+  details.part-bloco[open] summary::before{transform:rotate(90deg)}
+  .part-ferr{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .part-ferr input{flex:1;min-width:200px;border:1.5px solid var(--line);border-radius:9px;
+    padding:8px 11px;font-size:13px;font-family:inherit}
+  .part-ferr select{border:1.5px solid var(--line);border-radius:9px;padding:8px 10px;
+    font-size:13px;font-family:inherit;background:#fff}
+  .part-pag{display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap}
+  .part-pag .bt{padding:6px 12px;font-size:12.5px}
+  .part-pag .bt[disabled]{opacity:.45;cursor:default}
   table.pt .rm{color:var(--err);cursor:pointer;font-weight:700}
   table.pt a{color:var(--brand-3);font-weight:600}
   .cnt{font-size:12.5px;color:var(--muted);margin:8px 0}
@@ -965,7 +978,8 @@ function renderLista(){
     return `<div class="item" onclick="nav('detalhe','${a.id}')">
       <div class="nm">${esc(a.proposta.nomeAtividade)}
         <div class="cs">${esc(a.curso)} · ${a.numeroAcao?("Ação "+a.numeroAcao):"sem número"} · ${fmt(a.proposta.periodoInicio)} a ${fmt(a.proposta.periodoFim)}</div>
-        ${marcas(a)}</div>
+        ${marcas(a)}
+        ${acoesRapidas(a,s)}</div>
       ${atraso?`<span style="font-size:11.5px;font-weight:700;color:var(--warn);white-space:nowrap;margin-right:8px">${atraso} dia${atraso===1?"":"s"} de atraso</span>`:""}
       <span class="badge b-${s}">${STATUS_LABEL[s]}</span></div>`;
   }).join("") : '<div class="card muted">Nenhuma proposta encontrada com esses filtros.</div>';
@@ -1286,20 +1300,74 @@ async function adicionarCola(id){
   renderTabelasPart(a);
   alert(`✅ ${add} participante(s) adicionados${dup?` · ${dup} duplicado(s) ignorado(s)`:""}.`);
 }
+/* As listas de participantes são LONGAS (um evento traz centenas de nomes):
+   cada categoria fica recolhida, com busca e paginação — 30 por página por
+   padrão (decisão do dono, ago/2026). O estado vive fora do render para
+   sobreviver ao redesenho da tabela. */
+const PART_PAG = { inscritos:{p:1,n:30,q:"",ab:false}, palestrantes:{p:1,n:30,q:"",ab:false}, comissao:{p:1,n:30,q:"",ab:false} };
+
+const CAT_PART=[["inscritos","Inscritos / participantes"],["palestrantes","Palestrantes"],["comissao","Comissão organizadora"]];
+
+// o CHASSI (bloco recolhível + busca + seletor) se desenha uma vez; buscar e
+// paginar trocam só o corpo — redesenhar tudo a cada tecla tirava o foco do
+// campo de busca
 function renderTabelasPart(a){
-  const cats=[["inscritos","Inscritos / participantes"],["palestrantes","Palestrantes"],["comissao","Comissão organizadora"]];
-  $("p-tabelas").innerHTML = cats.map(([c,titulo])=>{
-    const l=a.participantes[c]||[];
-    if(!l.length) return `<div class="cnt">— ${titulo}: nenhum registrado ainda.</div>`;
-    return `<div class="sec-t" style="margin-top:16px">${titulo} · ${l.length}</div>
-      <table class="pt"><thead><tr>${c==="palestrantes"?"<th>Palestra</th>":""}<th>Nome</th><th>Matrícula</th><th>CPF</th><th>E-mail</th><th>CH</th><th></th></tr></thead>
-      <tbody>${l.map((x,i)=>`<tr>
-        ${c==="palestrantes"?`<td>${esc(x.palestra||"")}</td>`:""}
-        <td>${esc(x.nome)}</td><td>${esc(x.matricula||"")}</td>
-        <td class="${x.cpf&&!cpfValido(x.cpf)?"bad":""}">${esc(fmtCPF(x.cpf||""))}</td>
-        <td>${esc(x.email||"")}</td><td>${esc(x.ch||"")}</td>
-        <td class="rm" title="remover" onclick="removerPart('${a.id}','${c}',${i})">✕</td></tr>`).join("")}</tbody></table>`;
+  $("p-tabelas").innerHTML = CAT_PART.map(([c,titulo])=>{
+    const todos=a.participantes[c]||[];
+    if(!todos.length) return `<div class="cnt">— ${titulo}: nenhum registrado ainda.</div>`;
+    const st=PART_PAG[c];
+    const opts=[10,30,50,100,0].map(n=>`<option value="${n}"${st.n===n?" selected":""}>${n===0?"todos":n+" por página"}</option>`).join("");
+    return `<details class="part-bloco" ${st.ab?"open":""} ontoggle="PART_PAG['${c}'].ab=this.open">
+      <summary class="sec-t" style="margin-top:16px;cursor:pointer"><span id="pt-tit-${c}">${titulo} · ${todos.length}</span></summary>
+      <div class="part-ferr">
+        <input id="pt-q-${c}" placeholder="Buscar por nome, matrícula, CPF ou e-mail…" value="${esc(st.q||"")}"
+          oninput="PART_PAG['${c}'].q=this.value;PART_PAG['${c}'].p=1;renderCorpoPart('${a.id}','${c}')">
+        <select onchange="PART_PAG['${c}'].n=Number(this.value);PART_PAG['${c}'].p=1;renderCorpoPart('${a.id}','${c}')">${opts}</select>
+      </div>
+      <div id="pt-corpo-${c}"></div>
+    </details>`;
   }).join("");
+  for(const [c] of CAT_PART) if((a.participantes[c]||[]).length) renderCorpoPart(a.id,c);
+}
+
+function renderCorpoPart(id,c){
+  const a=ACOES.find(x=>x.id===id); if(!a) return;
+  const alvo=$("pt-corpo-"+c); if(!alvo) return;
+  const todos=a.participantes[c]||[];
+  const st=PART_PAG[c];
+  const q=(st.q||"").trim().toLowerCase();
+  // guarda o índice REAL: remover aponta para a posição na lista inteira,
+  // não na página filtrada
+  const filtrados=todos.map((x,i)=>({x,i})).filter(({x})=>!q
+    || String(x.nome||"").toLowerCase().includes(q)
+    || String(x.matricula||"").toLowerCase().includes(q)
+    || String(x.email||"").toLowerCase().includes(q)
+    || (soNum(q) && soNum(x.cpf||"").includes(soNum(q))));
+  const porPag=st.n===0?(filtrados.length||1):st.n;
+  const paginas=Math.max(1,Math.ceil(filtrados.length/porPag));
+  if(st.p>paginas) st.p=paginas;
+  const ini=(st.p-1)*porPag;
+  const pagina=filtrados.slice(ini,ini+porPag);
+  const tit=$("pt-tit-"+c);
+  if(tit){ const rot=(CAT_PART.find(x=>x[0]===c)||[])[1]||""; tit.textContent=`${rot} · ${todos.length}${q?` (${filtrados.length} no filtro)`:""}`; }
+  alvo.innerHTML = (pagina.length?`<table class="pt"><thead><tr>${c==="palestrantes"?"<th>Palestra</th>":""}<th>Nome</th><th>Matrícula</th><th>CPF</th><th>E-mail</th><th>CH</th><th></th></tr></thead>
+    <tbody>${pagina.map(({x,i})=>`<tr>
+      ${c==="palestrantes"?`<td>${esc(x.palestra||"")}</td>`:""}
+      <td>${esc(x.nome)}</td><td>${esc(x.matricula||"")}</td>
+      <td class="${x.cpf&&!cpfValido(x.cpf)?"bad":""}">${esc(fmtCPF(x.cpf||""))}</td>
+      <td>${esc(x.email||"")}</td><td>${esc(x.ch||"")}</td>
+      <td class="rm" title="remover" onclick="removerPart('${a.id}','${c}',${i})">✕</td></tr>`).join("")}</tbody></table>`
+    : `<div class="cnt">— ninguém encontrado com esta busca.</div>`)
+    + (paginas>1?`<div class="part-pag">
+      <button class="bt bt-ghost" ${st.p<=1?"disabled":""} onclick="pagPart('${a.id}','${c}',-1)">‹ anterior</button>
+      <span class="cnt">página ${st.p} de ${paginas} · ${filtrados.length} registro(s)</span>
+      <button class="bt bt-ghost" ${st.p>=paginas?"disabled":""} onclick="pagPart('${a.id}','${c}',1)">próxima ›</button>
+    </div>`:"");
+}
+const soNum=(v)=>String(v||"").replace(/\D/g,"");
+function pagPart(id,cat,d){
+  PART_PAG[cat].p=Math.max(1,PART_PAG[cat].p+d);
+  renderCorpoPart(id,cat);
 }
 async function removerPart(id,cat,i){
   const a=ACOES.find(x=>x.id===id); if(!a)return;
@@ -1447,6 +1515,24 @@ async function registrarAcao(id){
   a.apreciacao=$("d-apreciacao")?.value.trim()||a.apreciacao;
   a.status="registrada"; a.atualizadoEm=new Date().toISOString();
   await salvar(); renderLista(); renderDetalhe(id);
+}
+
+/* Atalhos no cartão da lista (Propostas e Relatórios): emitir os documentos e
+   validar sem abrir a ação — é o que a gestão faz em série ao conferir uma
+   fila (decisão do dono, ago/2026). `stopPropagation` porque o cartão inteiro
+   navega ao detalhe. A PROPOSTA em PDF sai sem lista de participantes: quem
+   carrega nomes é o Registro de Atividade, como nos modelos em papel. */
+function acoesRapidas(a,s){
+  if(!PROPPEX) return "";
+  const bt=(rot,fn,tit)=>`<button class="bt bt-ghost" style="padding:5px 10px;font-size:11.5px"
+    title="${esc(tit)}" onclick="event.stopPropagation();${fn}">${rot}</button>`;
+  const temRel=!!a.relatorio?.entregueEm;
+  return `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+    ${bt("📄 Proposta (PDF)",`exportar('${a.id}','proposta')`,"Formulário da proposta em PDF timbrado — sem lista de participantes")}
+    ${temRel?bt("🖨 Relatório final (PDF)",`exportar('${a.id}','pdf')`,"Relatório final em PDF timbrado, com a lista de participantes"):""}
+    ${temRel?bt("📑 Registro (.docx)",`exportar('${a.id}','registro')`,"Registro de Atividade de Extensão em Word"):""}
+    ${temRel&&s!=="registrada"?bt("✓ Validar e registrar",`registrarAcao('${a.id}')`,"Finalizar a ação como registrada"):""}
+  </div>`;
 }
 function exportar(id,tipo){ window.open(`/api/extensao/export/${tipo}/${id}`,"_blank"); }
 

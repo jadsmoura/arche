@@ -1832,6 +1832,14 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
       buffer = await gerarRelatorioPdf(acao);
       nome = `Relatorio-Final-${num}.pdf`;
       mime = "application/pdf";
+    } else if (tipo === "proposta") {
+      // a PROPOSTA em PDF, no formulário institucional — sem lista de
+      // participantes: quem carrega nomes é o Registro de Atividade (o
+      // relatório), como nos modelos em papel (decisão do dono, ago/2026)
+      const { gerarPropostaPdf } = await import("./lib/pdf.js");
+      buffer = await gerarPropostaPdf(acao);
+      nome = `Proposta-${num}.pdf`;
+      mime = "application/pdf";
     } else {
       return res.status(400).send("Tipo inválido");
     }
