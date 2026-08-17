@@ -20,14 +20,66 @@
   a:hover{color:var(--brand-2)}
   ::selection{background:var(--accent);color:var(--brand)}
   button{font-family:Figtree,system-ui,sans-serif}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#c3ccd6;border-radius:6px}
+  .f-disp{font-family:Sora,sans-serif}
 
-  .wrap{max-width:1100px;margin:0 auto;padding:26px 16px 60px}
-  .cab h1{font-family:Sora,sans-serif;font-weight:800;font-size:26px;color:var(--brand);margin:0 0 4px}
-  .cab h1 b{color:var(--brand-3)}
-  .cab .sub{color:var(--muted);font-size:14px;max-width:720px;line-height:1.5}
-  .cab .mail{font-size:12.5px;color:var(--muted);margin-top:6px}
-  .cab .quem{display:inline-block;font-size:11.5px;font-weight:600;border-radius:20px;padding:3px 10px;
-    background:var(--wash);color:var(--brand-3);margin-top:10px}
+  /* ------------------------------- casca ---------------------------------
+     A mesma casca dos demais setores (ARCHÉ EX / IC): barra lateral escura
+     fixa à esquerda, conteúdo com trilha e título à direita. A diferença do
+     EV é o SELETOR DE EVENTO no topo da barra (molde Even3, pedido do dono):
+     trocar ali troca o evento de TODAS as guias de evento de uma vez. */
+  .app{display:flex;min-height:100vh}
+  .side{width:250px;flex:none;background:var(--brand);color:#fff;display:flex;flex-direction:column;
+    position:sticky;top:0;height:100vh}
+  .side-marca{padding:20px 22px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .side-marca span{font-family:Sora,sans-serif;font-weight:800;font-size:16px;letter-spacing:.02em;color:#fff}
+  .side-marca b{color:var(--accent);font-weight:800}
+  .side-sel{padding:14px 14px 10px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .side-sel .rot{display:block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:rgba(255,255,255,.4);font-weight:600;margin:0 2px 6px}
+  .side-sel select{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);
+    color:#fff;border-radius:8px;padding:8px 10px;font-size:12.5px;font-family:Figtree,system-ui,sans-serif}
+  .side-sel select:focus{outline:none;border-color:var(--accent);box-shadow:none}
+  .side-sel select option,.side-sel select optgroup{color:var(--ink);background:#fff}
+  .side-sel .todos{background:none;border:0;color:rgba(255,255,255,.55);cursor:pointer;
+    font-size:11.5px;font-weight:600;padding:8px 2px 0}
+  .side-sel .todos:hover{color:#fff}
+  .side-nav{padding:10px 12px;flex:1;overflow-y:auto}
+  .side-lab{font-size:10px;letter-spacing:.16em;color:rgba(255,255,255,.35);font-weight:600;padding:12px 12px 6px}
+  .side-item{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:8px;cursor:pointer;
+    margin-bottom:2px;font-size:13.5px;font-weight:500;background:transparent;color:rgba(255,255,255,.62);
+    border-left:3px solid transparent;border-right:0;border-top:0;border-bottom:0;width:100%;text-align:left;
+    transition:background .15s,color .15s}
+  .side-item:hover{color:#fff;background:rgba(255,255,255,.06)}
+  .side-item.on{background:rgba(113,200,226,.14);color:#fff;border-left-color:var(--accent)}
+  .side-item svg{flex:none}
+  .side-pe{padding:14px 16px;border-top:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:11px}
+  .side-pe .av{width:34px;height:34px;border-radius:50%;background:var(--brand-3);display:grid;place-items:center;
+    font-weight:700;font-size:13px;color:#fff;flex:none;overflow:hidden}
+  .side-pe .av img{width:100%;height:100%;object-fit:cover}
+  .side-pe .nm{font-size:13px;font-weight:600;color:#fff;line-height:1.3}
+  .side-pe .pp{font-size:11px;color:rgba(255,255,255,.5)}
+  .side-pe .sair{margin-left:auto;background:none;border:0;color:rgba(255,255,255,.5);cursor:pointer;font-size:11.5px;font-weight:600}
+  .side-pe .sair:hover{color:#fff}
+
+  .conteudo{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar{height:60px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;
+    justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:5}
+  .crumb{font-size:13px;color:var(--muted)}
+  .crumb b{color:var(--ink);font-weight:600}
+  .topbar .dir{display:flex;align-items:center;gap:14px;font-size:12.5px;color:var(--muted)}
+  .area{padding:28px 32px;flex:1}
+  .limite{max-width:1180px}
+  h1{font-family:Sora,sans-serif;font-weight:700;font-size:24px;color:var(--ink);margin:0 0 4px}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 22px}
+
+  /* faixa do evento selecionado, no topo do conteúdo das guias de evento */
+  .ctx{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--wash);
+    border:1px solid #cfe6f2;border-radius:10px;padding:10px 14px;margin-bottom:18px}
+  .ctx .nm{font-family:Sora,sans-serif;font-weight:700;font-size:14px;color:var(--brand)}
+  .ctx .meta{font-size:12.5px;color:var(--muted)}
+  .ctx .acoes{margin-left:auto;display:flex;gap:8px;align-items:center}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:18px}
   .sec-t{font-family:Sora,sans-serif;font-weight:700;font-size:15px;color:var(--ink);margin:0 0 6px;
@@ -75,14 +127,13 @@
   table.pt td{border-bottom:1px solid var(--line-2);padding:8px 10px;color:var(--ink-soft)}
   .cnt{font-size:12.5px;color:var(--muted);margin:8px 0}
   .scrollx{overflow-x:auto}
-  .f-disp{font-family:Sora,sans-serif}
   .linha{display:flex;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line-2)}
   .linha:last-child{border-bottom:0}
   .linha .txt{flex:1;min-width:0}
   .linha .p1{font-size:13px;color:var(--ink-soft);font-weight:600}
 
   /* --------------------------- lista de eventos --------------------------- */
-  .ferramentas{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:18px 0 14px}
+  .ferramentas{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0 14px}
   .ferramentas input{max-width:340px}
   .evcard{display:flex;gap:14px;align-items:stretch;background:#fff;border:1px solid var(--line);
     border-radius:12px;margin-bottom:12px;cursor:pointer;overflow:hidden;
@@ -98,11 +149,7 @@
   .evcard .nums{font-size:12.5px;color:var(--ink-soft);margin-top:8px;font-weight:600}
   @media(max-width:560px){.evcard{flex-direction:column}.evcard .thumb{width:100%;height:90px}}
 
-  /* -------------------------- operação: cabeçalho ------------------------- */
-  .op-topo{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px}
-  .op-topo .tt{flex:1;min-width:220px}
-  .op-topo h2{font-family:Sora,sans-serif;font-weight:700;font-size:20px;color:var(--brand);line-height:1.3}
-  .op-topo .meta{font-size:13px;color:var(--muted);margin-top:4px}
+  /* --------------------------- editor de atividades ----------------------- */
   .atv-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fafbfc}
   .g-atv{display:grid;grid-template-columns:1fr 140px 106px 106px auto;gap:8px;align-items:center}
   .g-atv2{display:grid;grid-template-columns:1.2fr 1fr 96px 96px;gap:8px;margin-top:8px}
@@ -113,48 +160,96 @@
   .chk input{width:auto}
   .rm{color:var(--err);cursor:pointer;font-weight:700}
   .tut{background:var(--info-soft);border:1px solid #cfe6f2;border-radius:10px;padding:14px 16px;margin:12px 0;font-size:13px;line-height:1.6}
+
+  /* ------------------------------ celular ---------------------------------
+     A lateral vira cabeçalho: marca + usuário na 1ª linha, o seletor de
+     evento logo abaixo e o menu horizontal ROLÁVEL por último (o mesmo
+     comportamento responsivo do ARCHÉ EX, que o dono usa no celular). */
+  @media(max-width:760px){
+    .app{flex-direction:column}
+    .side{width:100%;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center}
+    .side-marca{border-bottom:0;padding:14px 16px}
+    .side-sel{flex:1 1 100%;order:2;border-bottom:0;padding:0 12px 4px}
+    .side-nav{padding:8px 10px;flex:1 1 100%;order:3;overflow-x:auto}
+    .side-nav #menu{display:flex;gap:6px}
+    .side-lab{display:none}
+    .side-item{width:auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent;border-radius:8px}
+    .side-item.on{border-left:0;border-bottom-color:var(--accent)}
+    .side-pe{border-top:0;margin-left:auto;order:1;padding:10px 14px}
+    .area{padding:20px 14px}
+    .topbar{padding:0 16px}
+    .ctx .acoes{margin-left:0}
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header class="cab">
-    <h1>ARCHÉ <b>EV</b> · Eventos</h1>
-    <div class="sub">A operação dos eventos das ações de extensão — página pública, inscrições,
-      credenciamento e transmissão. A proposta, a aprovação e o relatório da ação continuam no
-      <a href="/extensao/">ARCHÉ EX</a>.</div>
-    <div class="mail">Setor de eventos: <a href="mailto:eventos@uniego.edu.br">eventos@uniego.edu.br</a></div>
-    <span class="quem" id="quem-ve" hidden></span>
-  </header>
-
-  <!-- ============ LISTA ============ -->
-  <section id="v-lista">
-    <div class="ferramentas">
-      <input id="l-busca" placeholder="Buscar evento por nome ou curso…" oninput="renderLista()">
-      <span class="muted" id="l-total"></span>
+<div class="app">
+  <!-- barra lateral -->
+  <nav class="side">
+    <a class="side-marca" href="/" title="Voltar ao portal">
+      <svg width="24" height="24" viewBox="0 0 40 40" aria-hidden="true"><path d="M8 37 L8 20 A12 12 0 0 1 32 20 L32 37" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/><circle cx="20" cy="21" r="4" fill="#71c8e2"/></svg>
+      <span>ARCHÉ <b>EV</b></span>
+    </a>
+    <div class="side-sel">
+      <span class="rot">Evento em gestão</span>
+      <select id="sel-evento" onchange="trocarEvento(this.value)" title="Trocar aqui troca o evento de todas as guias"></select>
+      <button class="todos" onclick="nav('painel')">‹ ver todos os eventos</button>
     </div>
-    <div id="ev-cards"></div>
-    <div id="sem-evento"></div>
-  </section>
+    <div class="side-nav"><div id="menu"></div></div>
+    <div class="side-pe" id="rodape-usuario"></div>
+  </nav>
 
-  <!-- ============ OPERAÇÃO ============ -->
-  <section id="v-op" class="hide"></section>
+  <!-- conteúdo -->
+  <div class="conteudo">
+    <div class="topbar">
+      <div class="crumb">ARCHÉ EV <span style="color:var(--muted-2)">/</span> <b id="crumb">Painel geral</b></div>
+      <div class="dir"><span id="dir-info"></span></div>
+    </div>
+    <div class="area">
+      <div class="limite">
+        <h1 id="titulo">Painel geral</h1>
+        <div class="sub" id="subtitulo"></div>
+        <div id="ev-contexto"></div>
+
+        <section id="v-painel" class="hide"></section>
+        <section id="v-inicio" class="hide"></section>
+        <section id="v-inscritos" class="hide"></section>
+        <section id="v-inscricoes" class="hide"></section>
+        <section id="v-pagina" class="hide"></section>
+        <section id="v-programacao" class="hide"></section>
+        <section id="v-credenciamento" class="hide"></section>
+        <section id="v-transmissao" class="hide"></section>
+        <section id="v-exportacoes" class="hide"></section>
+        <section id="v-acao" class="hide"></section>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
 /* =========================================================================
-   ARCHÉ EV — a sala de operação dos eventos. O evento nasce de uma ação de
-   extensão (é `a.evento`); aqui se opera a página pública, as inscrições,
-   o credenciamento, a transmissão e o mural. Toda escrita passa pelas rotas
-   dedicadas do servidor (POST /:id/evento, /presenca, /mural/:mid) — NUNCA
-   pelo POST /api/extensao em bloco: a coordenação do módulo "eventos" não
-   tem essa permissão, e um save em bloco poderia recusar.
+   ARCHÉ EV — a sala de operação dos eventos, agora na casca padrão dos
+   setores (barra lateral à esquerda) com o SELETOR DE EVENTO no topo da
+   barra, no molde do painel do organizador do Even3 (pedido do dono):
+   escolhe-se ali (ou num card do Painel geral) o evento em gestão, e as
+   guias de evento — Início, Inscritos, Inscrições, Página, Programação,
+   Credenciamento, Transmissão, Exportações, Ação — passam a operá-lo.
+
+   O evento nasce de uma ação de extensão (é `a.evento`); toda escrita passa
+   pelas rotas dedicadas do servidor (POST /:id/evento, /presenca,
+   /mural/:mid) — NUNCA pelo POST /api/extensao em bloco: a coordenação do
+   módulo "eventos" não tem essa permissão, e um save em bloco poderia
+   recusar. Cada guia salva SÓ os campos que edita (a rota do evento aplica
+   campo a campo o que veio no corpo, então o resto fica como está).
    ========================================================================= */
 let ACOES = [], ME = null, EU = "", GESTAO_EX = false, GESTAO_EV = false;
 let TIPOS_ATV = [["palestra","Palestra"],["minicurso","Minicurso"],["oficina","Oficina"],["curso","Curso"],
   ["mesa","Mesa-redonda"],["roda","Roda de conversa"],["mostra","Mostra"],["apresentacao","Apresentação"],
   ["outro","Outro"]].map(([codigo,rotulo])=>({codigo,rotulo}));
 let LGPD_PADRAO = "";
-let EV_PROG = [], EV_FORM = [], EV_TIMER = null, ABERTO = null;
+let EV_PROG = [], EV_FORM = [], EV_TIMER = null;
+let ABERTO = null;      // id da AÇÃO do evento em gestão (o do seletor da barra)
+let SECAO = "painel";   // guia atual
 // a capa nunca viaja nos payloads (só `temCapa`): o que a tela envia fica
 // aqui — undefined = não mexeu; "" = remover; dataURL = capa nova
 let EV_CAPA;
@@ -169,6 +264,13 @@ function fmtDataHora(iso){
   return `${z(d.getDate())}/${z(d.getMonth()+1)}/${d.getFullYear()} às ${z(d.getHours())}h${z(d.getMinutes())}`;
 }
 function fmtCPF(v){ const d=String(v||"").replace(/\D/g,""); return d.length===11?d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,"$1.$2.$3-$4"):v; }
+// data de hoje no fuso institucional (America/Sao_Paulo)
+const hojeISO = ()=>{
+  try{
+    return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",
+      year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  }catch{ return new Date(Date.now()-3*3600*1000).toISOString().slice(0,10); }
+};
 
 async function carregar(){
   const r = await fetch("/api/extensao");
@@ -207,8 +309,201 @@ function numerosEventoLocal(a){
   };
 }
 
-/* ============================== LISTA =================================== */
-function renderLista(){
+/* ============================== NAVEGAÇÃO ================================
+   Guias no molde Even3, adaptadas ao ARCHÉ EV: Painel geral em cima de
+   tudo; depois as guias do EVENTO SELECIONADO agrupadas em GESTÃO,
+   PRÉ-EVENTO, EVENTO e GERAL. `evento:true` = exige evento selecionado. */
+const IC = {
+  painel:'<rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect>',
+  inicio:'<path d="M3 10.5 12 3l9 7.5"></path><path d="M5 9.5V21h5v-6h4v6h5V9.5"></path>',
+  inscritos:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path>',
+  inscricoes:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M9 13h6M9 17h4"></path>',
+  pagina:'<circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"></path>',
+  programacao:'<rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M16 2v4M8 2v4M3 9h18"></path>',
+  credenciamento:'<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h7v7h-7z"></path>',
+  transmissao:'<circle cx="12" cy="12" r="2"></circle><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 19.1a10 10 0 0 1 0-14.2M19.1 4.9a10 10 0 0 1 0 14.2"></path>',
+  exportacoes:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5M12 15V3"></path>',
+  acao:'<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><path d="M15 3h6v6M10 14 21 3"></path>',
+};
+const icone = (p)=>`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+
+const SECOES = [
+  {k:"painel", rot:"Painel geral", grupo:"", ic:IC.painel, evento:false, tit:"Painel geral",
+   sub:"Todos os eventos das ações de extensão — números agregados, próximos eventos e a escolha do evento em gestão."},
+  {k:"inicio", rot:"Início", grupo:"GESTÃO", ic:IC.inicio, evento:true, tit:"Início",
+   sub:"O painel do evento selecionado: situação da página, números e pendências."},
+  {k:"inscritos", rot:"Inscritos e presenças", grupo:"GESTÃO", ic:IC.inscritos, evento:true, tit:"Inscritos e presenças",
+   sub:"Quem se inscreveu e quem se credenciou — com a presença manual, geral e por atividade."},
+  {k:"inscricoes", rot:"Inscrições", grupo:"PRÉ-EVENTO", ic:IC.inscricoes, evento:true, tit:"Inscrições",
+   sub:"Vagas, prazo, campos extras do formulário e o texto de consentimento (LGPD)."},
+  {k:"pagina", rot:"Página do evento", grupo:"PRÉ-EVENTO", ic:IC.pagina, evento:true, tit:"Página do evento",
+   sub:"A página pública (hotsite): ativação, endereço, descrição, local e capa."},
+  {k:"programacao", rot:"Programação", grupo:"PRÉ-EVENTO", ic:IC.programacao, evento:true, tit:"Programação",
+   sub:"As atividades do evento — tipo, horários, vagas próprias — e os contadores por atividade."},
+  {k:"credenciamento", rot:"Credenciamento", grupo:"EVENTO", ic:IC.credenciamento, evento:true, tit:"Credenciamento",
+   sub:"O código do monitor, o link do credenciamento por QR e a lista em papel de contingência."},
+  {k:"transmissao", rot:"Transmissão e mural", grupo:"EVENTO", ic:IC.transmissao, evento:true, tit:"Transmissão e mural",
+   sub:"A transmissão online (YouTube ou Zoom) e a moderação do mural de comentários."},
+  {k:"exportacoes", rot:"Exportações", grupo:"GERAL", ic:IC.exportacoes, evento:true, tit:"Exportações",
+   sub:"As planilhas do evento — AEE (geral, por atividade, só presentes) e a lista completa do ARCHÉ."},
+  {k:"acao", rot:"Ação de extensão", grupo:"GERAL", ic:IC.acao, evento:true, tit:"A ação de extensão",
+   sub:"A ação-mãe deste evento — proposta, aprovação e relatório vivem no ARCHÉ EX."},
+];
+
+function montarSidebar(){
+  let grupo=null;
+  $("menu").innerHTML = SECOES.map(s=>{
+    const cab = (s.grupo && s.grupo!==grupo) ? `<div class="side-lab">${s.grupo}</div>` : "";
+    grupo=s.grupo;
+    return cab+`<button class="side-item" data-k="${s.k}" onclick="nav('${s.k}')">${icone(s.ic)}${s.rot}</button>`;
+  }).join("");
+
+  const p = ME?.perfil||{};
+  const nome = p.tratamento || p.nome || (ME?.nome && ME.nome!==ME?.email ? ME.nome : (ME?.email||"—"));
+  const papel = GESTAO_EX ? "Coordenação · PROPPEX" : GESTAO_EV ? "Coordenação de eventos" : "Operação dos meus eventos";
+  const base = (p.nome || (ME?.email||"?").split("@")[0].replace(/[._-]/g," ")).trim().split(/\s+/);
+  const sigla = ((base[0]||"?")[0] + ((base[1]||"")[0]||"")).toUpperCase();
+  $("rodape-usuario").innerHTML = ME ? `
+    <a class="av" href="/perfil/" title="Meu perfil">${p.foto?`<img src="${esc(p.foto)}" alt="">`:esc(sigla)}</a>
+    <a href="/perfil/" style="line-height:1.3;min-width:0;text-decoration:none">
+      <div class="nm">${esc(nome)}</div><div class="pp">${esc(papel)}</div></a>
+    <button class="sair" onclick="sair()">sair</button>` : "";
+
+  $("dir-info").textContent = GESTAO_EX ? "Você vê e opera todos os eventos"
+    : GESTAO_EV ? "Você opera todos os eventos das ações de extensão"
+    : (EU ? "Você opera os eventos das suas próprias ações" : "");
+}
+
+async function sair(){
+  try{ await fetch("/auth/sair",{method:"POST"}); }catch{ /* ignora */ }
+  location.href="/";
+}
+
+/* O seletor de evento da barra lateral: os eventos que a pessoa enxerga
+   (nome + no ar/rascunho) e, num grupo à parte, as ações que ainda não têm
+   o evento configurado. Trocar aqui troca o evento de TODAS as guias. */
+function montarSeletor(){
+  const sel=$("sel-evento"); if(!sel) return;
+  const nomeDe=(a)=>a.proposta?.nomeAtividade||"(sem nome)";
+  const com=ACOES.filter(a=>a.evento), sem=ACOES.filter(a=>!a.evento);
+  sel.innerHTML = `<option value=""${ABERTO?"":" selected"}>— escolher evento —</option>`
+    + com.map(a=>`<option value="${esc(a.id)}"${a.id===ABERTO?" selected":""}>${esc(nomeDe(a))} · ${a.evento.ativo?"no ar":"rascunho"}</option>`).join("")
+    + (sem.length?`<optgroup label="Ações sem evento (configurar)">${
+        sem.map(a=>`<option value="${esc(a.id)}"${a.id===ABERTO?" selected":""}>${esc(nomeDe(a))}</option>`).join("")}</optgroup>`:"");
+}
+
+/* Trocar o evento em gestão — pelo seletor da barra ou por um card do
+   Painel geral (as duas coisas são o MESMO ato). Numa guia de evento,
+   fica-se nela, agora com o outro evento; do Painel geral, vai-se ao
+   Início do evento escolhido. */
+function trocarEvento(id){
+  if(!id){ ABERTO=null; clearInterval(EV_TIMER); montarSeletor(); nav("painel"); return; }
+  if(!ACOES.some(a=>a.id===id)) return;
+  ABERTO=id; EV_CAPA=undefined;
+  montarSeletor();
+  const meta=SECOES.find(s=>s.k===SECAO);
+  nav(meta&&meta.evento?SECAO:"inicio");
+}
+const selecionar = (id)=>trocarEvento(id);
+
+/* Deep-link: a URL guarda "#<guia>" ou "#<guia>/<id da ação>" — recarregar
+   a página volta à mesma guia com o mesmo evento selecionado. O formato da
+   tela anterior ("#e/<id>") segue aceito e vira "#inicio/<id>". */
+function nav(secao){
+  const meta = SECOES.find(s=>s.k===secao) || SECOES[0];
+  SECAO = meta.k;
+  clearInterval(EV_TIMER);
+  document.querySelectorAll(".limite > section").forEach(s=>s.classList.add("hide"));
+  document.querySelectorAll(".side-item").forEach(b=>b.classList.toggle("on", b.dataset.k===SECAO));
+  $("titulo").textContent = meta.tit;
+  $("subtitulo").textContent = meta.sub;
+  $("crumb").textContent = meta.rot;
+  const a = ABERTO ? ACOES.find(x=>x.id===ABERTO) : null;
+  if(a===null && ABERTO){ ABERTO=null; montarSeletor(); }
+  try{ history.replaceState(null,"","#"+SECAO+(meta.evento&&a?"/"+encodeURIComponent(a.id):"")); }catch{}
+  const alvo=$("v-"+SECAO);
+
+  if(meta.evento && !a){
+    $("ev-contexto").innerHTML="";
+    alvo.innerHTML=`<div class="card" style="text-align:center;padding:34px 20px">
+      <div style="font-size:15px;font-weight:700;color:var(--ink)">Nenhum evento selecionado.</div>
+      <div class="muted" style="margin:8px 0 16px">Escolha o evento em gestão no seletor da barra
+        lateral ou num card do Painel geral.</div>
+      <button class="bt bt-sec" onclick="nav('painel')">Ir ao Painel geral</button></div>`;
+    alvo.classList.remove("hide");
+    window.scrollTo(0,0); return;
+  }
+
+  $("ev-contexto").innerHTML = meta.evento ? contextoHtml(a) : "";
+  if(SECAO==="painel") renderPainel();
+  else if(SECAO==="inicio") renderInicio(a);
+  else if(SECAO==="inscritos") renderInscritos(a);
+  else if(SECAO==="inscricoes") renderInscricoes(a);
+  else if(SECAO==="pagina") renderPagina(a);
+  else if(SECAO==="programacao") renderProgramacao(a);
+  else if(SECAO==="credenciamento") renderCredenciamento(a);
+  else if(SECAO==="transmissao") renderTransmissao(a);
+  else if(SECAO==="exportacoes") renderExportacoes(a);
+  else if(SECAO==="acao") renderAcao(a);
+  alvo.classList.remove("hide");
+  if(meta.evento) agendarEvento(a.id);
+  window.scrollTo(0,0);
+}
+
+/* faixa do evento em gestão, no topo das guias de evento */
+function contextoHtml(a){
+  const ev=a.evento||{}; const p=a.proposta||{};
+  return `<div class="ctx">
+    <span class="nm">${esc(p.nomeAtividade||"(sem nome)")}</span>
+    <span class="meta">${esc(a.curso||"")}${a.numeroAcao?` · ${esc(a.numeroAcao)}`:" · ação ainda sem número"}${p.periodoInicio?` · ${fmt(p.periodoInicio)} – ${fmt(p.periodoFim)}`:""}</span>
+    <span class="badge" style="background:${ev.ativo?"var(--ok-soft)":"#eceff3"};color:${ev.ativo?"var(--ok)":"var(--muted)"}">${ev.ativo?"página no ar":"rascunho"}</span>
+    <span class="acoes">
+      <button class="lk" onclick="nav('painel')" title="Escolher outro evento">trocar</button>
+      <button class="bt bt-ghost" style="padding:5px 10px;font-size:12px" onclick="atualizarEvento('${esc(a.id)}')" title="Recarregar inscritos e presenças">↻ Atualizar</button>
+    </span>
+  </div>`;
+}
+
+/* ============================ PAINEL GERAL ============================== */
+function renderPainel(){
+  const com=ACOES.filter(a=>a.evento);
+  const noAr=com.filter(a=>a.evento.ativo===true);
+  const totais=com.reduce((t,a)=>{ const n=numerosEventoLocal(a);
+    t.insc+=n.inscritos; t.pres+=n.presentes; return t; },{insc:0,pres:0});
+  const hoje=hojeISO();
+  const proximos=com
+    .filter(a=>String(a.proposta?.periodoFim||"")>=hoje)
+    .sort((x,y)=>String(x.proposta?.periodoInicio||"").localeCompare(String(y.proposta?.periodoInicio||"")))
+    .slice(0,5);
+
+  $("v-painel").innerHTML=`
+    <div class="stat" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+      <div class="s"><b>${noAr.length}</b><span>Eventos no ar</span></div>
+      <div class="s"><b>${com.length-noAr.length}</b><span>Rascunhos</span></div>
+      <div class="s"><b>${totais.insc}</b><span>Inscritos (todos)</span></div>
+      <div class="s"><b style="color:var(--ok)">${totais.pres}</b><span>Presentes (todos)</span></div>
+    </div>
+    ${proximos.length?`<div class="card">
+      <div class="sec-t">Próximos eventos</div>
+      ${proximos.map(a=>`<div class="linha">
+        <div class="txt">
+          <div class="p1">${esc(a.proposta?.nomeAtividade||"(sem nome)")}</div>
+          <div class="muted">${fmt(a.proposta?.periodoInicio)} – ${fmt(a.proposta?.periodoFim)} · ${esc(a.curso||"")} ·
+            ${a.evento.ativo?"página no ar":"rascunho"} · ${numerosEventoLocal(a).inscritos} inscrito(s)</div>
+        </div>
+        <button class="bt bt-sec" style="padding:6px 12px;font-size:12.5px" onclick="selecionar('${esc(a.id)}')">Gerenciar →</button>
+      </div>`).join("")}
+    </div>`:""}
+    <div class="ferramentas">
+      <input id="l-busca" placeholder="Buscar evento por nome ou curso…" oninput="renderCardsPainel()">
+      <span class="muted" id="l-total"></span>
+    </div>
+    <div id="ev-cards"></div>
+    <div id="sem-evento"></div>`;
+  renderCardsPainel();
+}
+
+function renderCardsPainel(){
   const q=($("l-busca")?.value||"").trim().toLowerCase();
   const bate=(a)=>!q || String(a.proposta?.nomeAtividade||"").toLowerCase().includes(q)
     || String(a.curso||"").toLowerCase().includes(q);
@@ -216,7 +511,7 @@ function renderLista(){
     .sort((x,y)=>Number(y.evento?.ativo===true)-Number(x.evento?.ativo===true)
       || String(y.proposta?.periodoInicio||"").localeCompare(String(x.proposta?.periodoInicio||"")));
   const semEvento=ACOES.filter(a=>!a.evento).filter(bate);
-  $("l-total").textContent = comEvento.length
+  if($("l-total")) $("l-total").textContent = comEvento.length
     ? `${comEvento.length} evento(s)${q?" no filtro":""}` : "";
 
   $("ev-cards").innerHTML = comEvento.length ? comEvento.map(cardLista).join("") :
@@ -239,7 +534,7 @@ function renderLista(){
           <div class="p1">${esc(a.proposta?.nomeAtividade||"(sem nome)")}</div>
           <div class="muted">${esc(a.curso||"")}${a.numeroAcao?` · ${esc(a.numeroAcao)}`:" · ainda sem número"}${a.proposta?.periodoInicio?` · ${fmt(a.proposta.periodoInicio)}–${fmt(a.proposta.periodoFim)}`:""}</div>
         </div>
-        <button class="bt bt-sec" style="padding:7px 12px;font-size:12.5px" onclick="abrir('${esc(a.id)}')">Configurar evento</button>
+        <button class="bt bt-sec" style="padding:7px 12px;font-size:12.5px" onclick="selecionar('${esc(a.id)}')">Configurar evento</button>
       </div>`).join("")}
     </div>` : "";
 }
@@ -253,7 +548,7 @@ function cardLista(a){
     ? `<img src="/api/publico/eventos/${encodeURIComponent(ev.slug)}/capa" alt="" onerror="this.remove()">` : "";
   const inicial=esc((p.nomeAtividade||"E").trim().charAt(0).toUpperCase());
   const tr=ev.transmissao||{};
-  return `<button class="evcard" onclick="abrir('${esc(a.id)}')">
+  return `<button class="evcard" onclick="selecionar('${esc(a.id)}')">
     <div class="thumb">${capa||inicial}</div>
     <div class="corpo">
       <div class="nm">${esc(p.nomeAtividade||"(sem nome)")}</div>
@@ -267,31 +562,194 @@ function cardLista(a){
   </button>`;
 }
 
-/* ============================ NAVEGAÇÃO ================================= */
-function abrir(id){
-  const a=ACOES.find(x=>x.id===id);
-  if(!a) return;
-  ABERTO=id;
-  $("v-lista").classList.add("hide");
-  $("v-op").classList.remove("hide");
-  renderOp(id);
-  try{ history.replaceState(null,"","#e/"+encodeURIComponent(id)); }catch{}
-  window.scrollTo(0,0);
-}
-function voltar(){
-  ABERTO=null;
-  clearInterval(EV_TIMER);
-  $("v-op").classList.add("hide");
-  $("v-lista").classList.remove("hide");
-  try{ history.replaceState(null,"",location.pathname); }catch{}
-  renderLista();
-  window.scrollTo(0,0);
+/* ========================= GESTÃO · INÍCIO ============================== */
+function renderInicio(a){
+  const ev=a.evento||{};
+  const n=numerosEventoLocal(a);
+  const tr=ev.transmissao||{};
+  const link=ev.slug?location.origin+"/eventos/"+encodeURIComponent(ev.slug):"";
+  const vagasTxt=Number(ev.vagas)>0?`${Math.max(0,Number(ev.vagas)-n.inscritos)} de ${ev.vagas}`:"ilimitadas";
+
+  // pendências: o que espera um ato da coordenação
+  const pend=[];
+  if(!a.numeroAcao) pend.push(`⏳ <b>A ativação da página depende da aprovação da ação</b> (o Número
+    da Ação sai no ARCHÉ EX) — mas o evento já pode ficar todo configurado: inscrições, página,
+    programação e transmissão.`);
+  if(a.numeroAcao && !ev.ativo) pend.push(`A página pública está em <b>rascunho</b> — ative na guia
+    <button class="lk" onclick="nav('pagina')">Página do evento</button>.`);
+  if(ev.ativo && !(ev.programacao||[]).length) pend.push(`A página está no ar <b>sem programação</b> —
+    monte as atividades na guia <button class="lk" onclick="nav('programacao')">Programação</button>.`);
+  if(ev.ativo && ev.inscricoesAte && ev.inscricoesAte<hojeISO()) pend.push(`O prazo de inscrição
+    (${fmt(ev.inscricoesAte)}) já passou — a página segue no ar, mas sem inscrição nova.`);
+
+  $("v-inicio").innerHTML=`
+    ${pend.map(t=>`<div class="banner ${t.startsWith("⏳")?"ba-warn":"ba-info"}">${t}</div>`).join("")}
+    <div class="stat" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+      <div class="s"><b id="ev-cnt-insc">${n.inscritos}</b><span>Inscritos</span></div>
+      <div class="s"><b id="ev-cnt-pres" style="color:var(--ok)">${n.presentes}</b><span>Presentes (credenciados)</span></div>
+      <div class="s"><b id="ev-cnt-vagas">${vagasTxt}</b><span>Vagas restantes</span></div>
+      <div class="s"><b>${(ev.programacao||[]).length}</b><span>Atividades</span></div>
+      <div class="s"><b>${n.comentariosMural}</b><span>Mensagens no mural</span></div>
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Situação</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+        <span class="badge" style="background:${ev.ativo?"var(--ok-soft)":"#eceff3"};color:${ev.ativo?"var(--ok)":"var(--muted)"}">${ev.ativo?"página no ar":"página em rascunho"}</span>
+        <span class="badge" style="background:${tr.publicada?"var(--wash)":"#eceff3"};color:${tr.publicada?"var(--brand-3)":"var(--muted)"}">${tr.publicada?"▶ transmissão publicada":"transmissão não publicada"}</span>
+      </div>
+      ${link&&ev.ativo?`<div class="banner ba-info" style="margin:12px 0 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <b>Link público:</b>
+        <a href="${esc(link)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(link)}</a>
+        <button class="bt bt-sec" style="padding:5px 10px;font-size:12px" onclick="copiarTexto('${esc(link)}',this)">⧉ copiar</button>
+      </div>`:""}
+      <div class="muted" style="margin-top:12px">Página pública de inscrição gratuita, credenciamento
+        por QR na entrada (geral e por atividade) e transmissão online. A <b>certificação continua no
+        sistema da AEE</b> — exporte a planilha na guia Exportações e importe lá.</div>
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Atalhos do evento</div>
+      <div class="exp">
+        <button class="bt bt-sec" onclick="nav('inscricoes')">Inscrições</button>
+        <button class="bt bt-sec" onclick="nav('pagina')">Página do evento</button>
+        <button class="bt bt-sec" onclick="nav('programacao')">Programação</button>
+        <button class="bt bt-sec" onclick="nav('inscritos')">Inscritos e presenças</button>
+        <button class="bt bt-sec" onclick="nav('credenciamento')">Credenciamento</button>
+        <button class="bt bt-sec" onclick="nav('transmissao')">Transmissão e mural</button>
+        <button class="bt bt-sec" onclick="nav('exportacoes')">Exportações</button>
+      </div>
+    </div>`;
 }
 
-/* ============================ OPERAÇÃO ================================== */
-function renderOp(id){
-  const a=ACOES.find(x=>x.id===id);
-  if(!a){ $("v-op").innerHTML='<div class="card">Evento não encontrado. <button class="lk" onclick="voltar()">← voltar</button></div>'; return; }
+/* ================== GESTÃO · INSCRITOS E PRESENÇAS ====================== */
+function renderInscritos(a){
+  const ev=a.evento||{};
+  const inscritos=a.participantes?.inscritos||[];
+  const presentes=inscritos.filter(x=>x.presente===true).length;
+  const vagasTxt=Number(ev.vagas)>0?`${Math.max(0,Number(ev.vagas)-inscritos.length)} de ${ev.vagas}`:"ilimitadas";
+  const proprias=(ev.programacao||[]).filter(x=>x.inscricao==="propria"&&x.id);
+
+  $("v-inscritos").innerHTML=`
+    <div class="stat" style="margin-top:0">
+      <div class="s"><b id="ev-cnt-insc">${inscritos.length}</b><span>Inscritos</span></div>
+      <div class="s"><b id="ev-cnt-pres" style="color:var(--ok)">${presentes}</b><span>Presentes (credenciados)</span></div>
+      <div class="s"><b id="ev-cnt-vagas">${vagasTxt}</b><span>Vagas restantes</span></div>
+    </div>
+    <div class="card">
+      <div class="sec-t">Inscritos e presenças</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 6px">
+        <input id="ev-busca" placeholder="Buscar por nome, e-mail ou CPF…" style="max-width:280px" oninput="renderInscritosEv(ACOES.find(x=>x.id==='${esc(a.id)}'))">
+        ${proprias.length?`<label style="margin:0;display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--muted)">Atividade
+          <select id="ev-atv-sel" style="width:auto;max-width:240px;font-size:12.5px;padding:6px 30px 6px 8px"
+            onchange="renderInscritosEv(ACOES.find(x=>x.id==='${esc(a.id)}'))">
+            <option value="">evento inteiro (geral)</option>
+            ${proprias.map(x=>`<option value="${esc(x.id)}">${esc(x.titulo)}</option>`).join("")}
+          </select></label>`:""}
+      </div>
+      ${proprias.length?`<div class="muted" style="font-size:12px;margin-bottom:6px">O seletor de atividade
+        vale para a presença manual: escolhida uma atividade, o botão "✓ presente" registra a presença
+        nela (para quem tem QR emitido).</div>`:""}
+      <div id="ev-inscritos" class="scrollx"></div>
+      <div class="muted" style="font-size:12px;margin-top:8px">Com a página ativa, a lista e os
+        contadores se atualizam sozinhos a cada 30 segundos — sem tocar na busca.</div>
+    </div>`;
+  renderInscritosEv(a);
+}
+
+/* ===================== PRÉ-EVENTO · INSCRIÇÕES ========================== */
+function renderInscricoes(a){
+  const ev=a.evento||{};
+  EV_FORM=(ev.formulario||[]).map(c=>({...c, opcoesTxt:(c.opcoes||[]).join(", ")}));
+
+  $("v-inscricoes").innerHTML=`
+    <div class="card">
+      <div class="sec-t">Vagas e prazo</div>
+      <div class="grid3" style="margin-top:12px">
+        <div><label style="margin-top:0">Vagas <span class="muted">(0 = ilimitado)</span></label>
+          <input type="number" id="ev-vagas" min="0" value="${esc(ev.vagas??0)}"></div>
+        <div><label style="margin-top:0">Inscrições até <span class="muted">(vazio = fim do evento)</span></label>
+          <input type="date" id="ev-prazo" value="${esc(ev.inscricoesAte||"")}"></div>
+        <div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Campos extras do formulário de inscrição</div>
+      <div class="muted" style="margin:8px 0">Além dos fixos (nome, CPF, e-mail, telefone,
+        curso/instituição). As respostas aparecem só aqui e nos exports — nunca na página pública.</div>
+      <div id="ev-form"></div>
+      <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="EV_FORM.push({id:'',rotulo:'',tipo:'texto',opcoesTxt:'',obrigatorio:false,instrucoes:''});renderFormEv()">＋ Adicionar campo</button>
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Tratamento de dados (LGPD)</div>
+      <label>Texto de consentimento <span class="muted">(vazio = padrão institucional)</span></label>
+      <textarea id="ev-lgpd" placeholder="Deixe em branco para usar o texto padrão da PROPPEX/UNIEGO.">${esc(ev.lgpdTexto||"")}</textarea>
+      <details style="margin-top:6px"><summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--brand-3)">ver o texto padrão institucional</summary>
+        <div class="tut" style="font-size:12.5px">${esc(LGPD_PADRAO||"(carregando…)")}</div></details>
+    </div>
+
+    <div class="exp" style="margin:0 0 18px">
+      <button class="bt bt-pri" onclick="salvarInscricoes('${esc(a.id)}')">💾 Salvar inscrições</button>
+      <span class="muted" id="ev-msg" style="align-self:center"></span>
+    </div>`;
+  renderFormEv();
+}
+
+/* =================== PRÉ-EVENTO · PÁGINA DO EVENTO ====================== */
+function renderPagina(a){
+  const ev=a.evento||{};
+  EV_CAPA=undefined;
+  const link=ev.slug?location.origin+"/eventos/"+encodeURIComponent(ev.slug):"";
+
+  $("v-pagina").innerHTML=`
+    ${!a.numeroAcao?`<div class="banner ba-warn">⏳ <b>A página pública só pode ser ativada depois da
+      aprovação da ação</b> — mas o evento já pode ficar todo configurado aqui. Aprovada a ação no
+      ARCHÉ EX, é só ativar.</div>`:""}
+    <div class="card">
+      <div class="sec-t">Ativação e endereço</div>
+      <label class="chk" style="margin-top:12px"
+        title="${a.numeroAcao?"":"Só ação aprovada (com Número da Ação) publica página de evento."}">
+        <input type="checkbox" id="ev-ativo" ${ev.ativo?"checked":""} ${a.numeroAcao?"":"disabled"}>
+        página ativa (pública, com inscrição aberta) — grava no "Salvar página"</label>
+      ${link?`<div class="banner ba-info" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px">
+        <b>Link público:</b>
+        <a href="${esc(link)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(link)}</a>
+        <button class="bt bt-sec" style="padding:5px 10px;font-size:12px" onclick="copiarTexto('${esc(link)}',this)">⧉ copiar</button>
+      </div>`:""}
+      ${ev.slug?`<label>Endereço da página <span class="muted">(mudar não quebra inscrições já feitas)</span></label>
+        <div style="display:flex;gap:6px;align-items:center"><span class="muted" style="white-space:nowrap">/eventos/</span>
+          <input id="ev-slug" value="${esc(ev.slug||"")}" style="max-width:340px"></div>`
+        :`<div class="muted" style="margin-top:10px">O endereço público (slug) é emitido na primeira ativação da página.</div>`}
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Conteúdo da página</div>
+      <label>Descrição da página pública</label>
+      <textarea id="ev-desc" placeholder="O que é o evento, para quem, o que levar…">${esc(ev.descricao||"")}</textarea>
+      <label>Endereço do evento (local) <span class="muted">(sai na página com o link "Ver no mapa")</span></label>
+      <input id="ev-local" value="${esc(ev.local||"")}" placeholder="Ex.: Auditório central do UNIEGO — Av. Universitária, Goianésia/GO">
+      <label>Capa da página <span class="muted">(JPEG, PNG ou WebP, até 500 KB — aparece no topo do hotsite e na vitrine)</span></label>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <span id="ev-capa-prev">${ev.temCapa
+          ? (ev.slug&&ev.ativo
+            ? `<img src="/api/publico/eventos/${encodeURIComponent(ev.slug)}/capa?v=${Date.now()}" alt="capa" style="height:64px;border-radius:8px;border:1px solid var(--line)">`
+            : '<span class="muted" style="font-size:12.5px">✓ capa enviada (a miniatura aparece com a página ativa)</span>')
+          : '<span class="muted" style="font-size:12.5px">— sem capa: o hotsite usa o gradiente institucional.</span>'}</span>
+        <input type="file" id="ev-capa-file" accept="image/jpeg,image/png,image/webp" style="max-width:280px" onchange="lerCapaEv(this)">
+        ${ev.temCapa?`<button class="bt bt-ghost" style="padding:6px 10px;font-size:12px" onclick="removerCapaEv()">✕ remover capa</button>`:""}
+      </div>
+    </div>
+
+    <div class="exp" style="margin:0 0 18px">
+      <button class="bt bt-pri" onclick="salvarPagina('${esc(a.id)}')">💾 Salvar página</button>
+      <span class="muted" id="ev-msg" style="align-self:center"></span>
+    </div>`;
+}
+
+/* ===================== PRÉ-EVENTO · PROGRAMAÇÃO ========================= */
+function renderProgramacao(a){
   const ev=a.evento||{};
   // compat na edição: item antigo tinha só `hora` — vira horaInicio; os ids
   // existentes são preservados (são a chave das marcações dos inscritos)
@@ -302,212 +760,170 @@ function renderOp(id){
     inscricao:p.inscricao==="propria"?"propria":"geral",
     modalidade:p.modalidade==="online"?"online":"presencial",
   }));
-  EV_FORM=(ev.formulario||[]).map(c=>({...c, opcoesTxt:(c.opcoes||[]).join(", ")}));
-  EV_CAPA=undefined;
-  const tr=ev.transmissao||{};
-  const p=a.proposta||{};
-  const inscritos=a.participantes?.inscritos||[];
-  const presentes=inscritos.filter(x=>x.presente===true).length;
-  const link=ev.slug?location.origin+"/eventos/"+encodeURIComponent(ev.slug):"";
+
+  $("v-programacao").innerHTML=`
+    <div class="card">
+      <div class="sec-t">Atividades da programação</div>
+      <div class="muted" style="margin:8px 0">Cada atividade tem tipo, horário e, se quiser, vaga
+        própria — "exige inscrição própria" faz o participante marcá-la no formulário (minicurso,
+        oficina); sem a marca, quem está inscrito no evento já participa (abertura, palestra magna).</div>
+      <div id="ev-prog"></div>
+      <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="novaAtividadeEv()">＋ Adicionar atividade</button>
+    </div>
+
+    <div class="exp" style="margin:0 0 18px">
+      <button class="bt bt-pri" onclick="salvarProgramacao('${esc(a.id)}')">💾 Salvar programação</button>
+      <span class="muted" id="ev-msg" style="align-self:center"></span>
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Inscritos e presentes por atividade</div>
+      <div id="ev-cnt-atv" style="margin-top:8px">${contadoresAtividadeHtml(a)||'<div class="cnt">— sem atividade com inscrição própria ou presença registrada.</div>'}</div>
+      <div class="muted" style="font-size:12px">Com a página ativa, os contadores se atualizam sozinhos
+        a cada 30 segundos — sem tocar no que você estiver editando acima.</div>
+    </div>`;
+  renderProgEv();
+}
+
+/* ===================== EVENTO · CREDENCIAMENTO ========================== */
+function renderCredenciamento(a){
+  const ev=a.evento||{};
   const linkMonitor=ev.slug?location.origin+"/eventos/credenciar?e="+encodeURIComponent(ev.slug):"";
-  const vagasTxt=Number(ev.vagas)>0?`${Math.max(0,Number(ev.vagas)-inscritos.length)} de ${ev.vagas}`:"ilimitadas";
-  const proprias=EV_PROG.filter(x=>x.inscricao==="propria"&&x.id);
 
-  $("v-op").innerHTML=`<div id="card-evento">
-  <div class="op-topo">
-    <button class="bt bt-ghost" onclick="voltar()">← voltar</button>
-    <div class="tt">
-      <h2>${esc(p.nomeAtividade||"(sem nome)")}</h2>
-      <div class="meta">${esc(a.curso||"")}${a.numeroAcao?` · ${esc(a.numeroAcao)}`:" · ação ainda sem número"}${p.periodoInicio?` · ${fmt(p.periodoInicio)} – ${fmt(p.periodoFim)}`:""}
-        · <span class="badge" style="background:${ev.ativo?"var(--ok-soft)":"#eceff3"};color:${ev.ativo?"var(--ok)":"var(--muted)"}">${ev.ativo?"página no ar":"rascunho"}</span></div>
-    </div>
-    <button class="bt bt-ghost" onclick="atualizarEvento('${esc(a.id)}')" title="Recarregar inscritos e presenças">↻ Atualizar</button>
-  </div>
-
-  <!-- ======== situação e acessos ======== -->
-  <div class="card">
-    <div class="sec-t">Situação e acessos</div>
-    <div class="muted" style="margin-bottom:12px">Página pública de inscrição gratuita, credenciamento
-      por QR na entrada (geral e por atividade) e transmissão online. A <b>certificação continua no
-      sistema da AEE</b> — exporte a planilha de inscritos e importe lá.</div>
-    ${!a.numeroAcao?`<div class="banner ba-warn">⏳ <b>A página pública só pode ser ativada depois da
-      aprovação da ação</b> — mas o evento já pode ficar todo configurado aqui: atividades, formulário,
-      capa e transmissão. Aprovada a ação no ARCHÉ EX, é só ativar.</div>`:""}
-    <label class="chk" style="margin-top:0"
-      title="${a.numeroAcao?"":"Só ação aprovada (com Número da Ação) publica página de evento."}">
-      <input type="checkbox" id="ev-ativo" ${ev.ativo?"checked":""} ${a.numeroAcao?"":"disabled"}>
-      página ativa (pública, com inscrição aberta) — grava no "Salvar configuração"</label>
-    ${ev.slug?`
-    <div class="banner ba-info" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <b>Link público:</b>
-        <a href="${esc(link)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(link)}</a>
-        <button class="bt bt-sec" style="padding:5px 10px;font-size:12px" onclick="copiarTexto('${esc(link)}',this)">⧉ copiar</button>
+  // a chaveQr nunca chega ao cliente (eventoSemSegredos) — o sinal de que o
+  // credenciamento já foi emitido é o slug, que nasce na primeira ativação
+  $("v-credenciamento").innerHTML = ev.slug ? `
+    <div class="card">
+      <div class="sec-t">Equipe da porta</div>
+      <div class="banner ba-info" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <b>Código do monitor:</b>
+          <span id="ev-moncode" class="f-disp" style="letter-spacing:.15em" data-cod="${esc(ev.codigoMonitor||"")}">••••••</span>
+          <button class="bt bt-ghost" style="padding:5px 10px;font-size:12px" onclick="mostrarMonitorEv(this)">👁 mostrar</button>
+          <button class="bt bt-ghost" style="padding:5px 10px;font-size:12px" onclick="regenerarMonitorEv('${esc(a.id)}')" title="O código antigo deixa de valer na hora">↻ regenerar</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <b>Credenciamento (PWA):</b>
+          <a href="${esc(linkMonitor)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(linkMonitor)}</a>
+          <button class="bt bt-sec" style="padding:5px 10px;font-size:12px" onclick="copiarTexto('${esc(linkMonitor)}',this)">⧉ copiar</button>
+          <a class="bt bt-sec" style="padding:5px 10px;font-size:12px" href="${esc(linkMonitor)}" target="_blank" rel="noopener">📷 abrir credenciamento</a>
+        </div>
+        <div class="muted" style="font-size:12px">O código do monitor é o que a equipe da porta digita no
+          credenciamento — passe a ela junto com o link acima. Regenerar invalida o anterior.
+          No credenciamento dá para escolher <b>em qual atividade</b> se está credenciando.</div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <b>Código do monitor:</b>
-        <span id="ev-moncode" class="f-disp" style="letter-spacing:.15em" data-cod="${esc(ev.codigoMonitor||"")}">••••••</span>
-        <button class="bt bt-ghost" style="padding:5px 10px;font-size:12px" onclick="mostrarMonitorEv(this)">👁 mostrar</button>
-        <button class="bt bt-ghost" style="padding:5px 10px;font-size:12px" onclick="regenerarMonitorEv('${esc(a.id)}')" title="O código antigo deixa de valer na hora">↻ regenerar</button>
-        <a class="bt bt-sec" style="padding:5px 10px;font-size:12px" href="${esc(linkMonitor)}" target="_blank" rel="noopener">📷 abrir credenciamento</a>
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Contingência do dia</div>
+      <div class="muted" style="margin:8px 0">Se o celular do monitor falhar, a porta confere pelo nome
+        e pelo código de cada inscrito e colhe assinatura — a presença entra depois, manual, na guia
+        Inscritos e presenças.</div>
+      <div class="exp">
+        <button class="bt bt-ghost" onclick="imprimirListaEvento('${esc(a.id)}')">🖨 Lista em papel</button>
       </div>
-      <div class="muted" style="font-size:12px">O código do monitor é o que a equipe da porta digita no
-        credenciamento — passe a ela junto com o link acima. Regenerar invalida o anterior.</div>
-    </div>`:""}
-  </div>
+    </div>`
+  : `<div class="card" style="text-align:center;padding:34px 20px">
+      <div style="font-size:15px;font-weight:700;color:var(--ink)">O credenciamento é emitido na primeira ativação da página.</div>
+      <div class="muted" style="margin:8px 0 16px">Ative a página pública (guia Página do evento) para o
+        sistema emitir o QR dos inscritos, o código do monitor e o link do credenciamento.</div>
+      <button class="bt bt-sec" onclick="nav('pagina')">Ir à Página do evento</button>
+    </div>`;
+}
 
-  <!-- ======== contadores ======== -->
-  <div class="card">
-    <div class="sec-t">Contadores</div>
-    <div class="stat" style="margin-top:12px">
-      <div class="s"><b id="ev-cnt-insc">${inscritos.length}</b><span>Inscritos</span></div>
-      <div class="s"><b id="ev-cnt-pres" style="color:var(--ok)">${presentes}</b><span>Presentes (credenciados)</span></div>
-      <div class="s"><b id="ev-cnt-vagas">${vagasTxt}</b><span>Vagas restantes</span></div>
+/* =================== EVENTO · TRANSMISSÃO E MURAL ======================= */
+function renderTransmissao(a){
+  const ev=a.evento||{};
+  const tr=ev.transmissao||{};
+
+  $("v-transmissao").innerHTML=`
+    <div class="card">
+      <div class="sec-t">Transmissão online</div>
+      <div class="grid3" style="margin-top:12px">
+        <div><label style="margin-top:0">Tipo</label>
+          <select id="ev-tr-tipo" onchange="renderDicaTransmissao()">
+            <option value="" ${!tr.tipo?"selected":""}>Nenhuma</option>
+            <option value="youtube" ${tr.tipo==="youtube"?"selected":""}>YouTube (ao vivo)</option>
+            <option value="zoom" ${tr.tipo==="zoom"?"selected":""}>Zoom (reunião)</option>
+          </select></div>
+        <div><label style="margin-top:0">Link ou ID <span class="muted">(YouTube aceita a URL — o ID sai dela)</span></label>
+          <input id="ev-tr-link" value="${esc(tr.tipo==="zoom"?(tr.zoomUrl||""):(tr.youtubeId||""))}" placeholder="https://…"></div>
+        <div><label style="margin-top:0">Presença após (min) <span class="muted">(0 = no primeiro acesso)</span></label>
+          <input type="number" id="ev-tr-min" min="0" value="${esc(tr.presencaMinutos??0)}"></div>
+      </div>
+      <label class="chk" id="ev-tr-chat-w">
+        <input type="checkbox" id="ev-tr-chat" ${tr.chatYoutube?"checked":""}>
+        mostrar o chat da live do YouTube na página de assistir (só desktop)</label>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">
+        <span class="badge" style="background:${tr.publicada?"var(--ok-soft)":"#eceff3"};color:${tr.publicada?"var(--ok)":"var(--muted)"}">
+          ${tr.publicada?"transmissão publicada":"transmissão não publicada"}</span>
+        <button class="bt ${tr.publicada?"bt-warn":"bt-ok"}" style="padding:7px 12px;font-size:12.5px"
+          onclick="publicarTransmissaoEv('${esc(a.id)}',${tr.publicada?"false":"true"})">
+          ${tr.publicada?"⏹ Recolher transmissão":"▶ Publicar transmissão"}</button>
+        <button class="bt bt-pri" style="padding:7px 14px;font-size:12.5px" onclick="salvarTransmissao('${esc(a.id)}')">💾 Salvar transmissão</button>
+        <span class="muted" id="ev-msg"></span>
+      </div>
+      <div class="muted" style="font-size:12px;margin-top:8px">Publicada, cada inscrito ganha o botão
+        <b>Assistir online</b> na própria credencial (e no e-mail de confirmação) — o endereço é
+        <span style="font-family:ui-monospace,monospace">/eventos/${esc(ev.slug||"…")}/assistir/&lt;código da inscrição&gt;</span>.
+        Assistindo pelo link, a presença é registrada sozinha.</div>
     </div>
-    <div id="ev-cnt-atv">${contadoresAtividadeHtml(a)}</div>
-    <div class="muted" style="font-size:12px">Com a página ativa, os contadores e a lista de inscritos
-      se atualizam sozinhos a cada 30 segundos — sem tocar no que você estiver editando abaixo.</div>
-  </div>
 
-  <!-- ======== página pública ======== -->
-  <div class="card">
-    <div class="sec-t">Página pública</div>
-    <div class="grid3" style="margin-top:12px">
-      <div><label style="margin-top:0">Vagas <span class="muted">(0 = ilimitado)</span></label>
-        <input type="number" id="ev-vagas" min="0" value="${esc(ev.vagas??0)}"></div>
-      <div><label style="margin-top:0">Inscrições até <span class="muted">(vazio = fim do evento)</span></label>
-        <input type="date" id="ev-prazo" value="${esc(ev.inscricoesAte||"")}"></div>
-      <div></div>
-    </div>
-    ${ev.slug?`<label>Endereço da página <span class="muted">(mudar não quebra inscrições já feitas)</span></label>
-      <div style="display:flex;gap:6px;align-items:center"><span class="muted" style="white-space:nowrap">/eventos/</span>
-        <input id="ev-slug" value="${esc(ev.slug||"")}" style="max-width:340px"></div>`:""}
-    <label>Descrição da página pública</label>
-    <textarea id="ev-desc" placeholder="O que é o evento, para quem, o que levar…">${esc(ev.descricao||"")}</textarea>
-    <label>Endereço do evento (local) <span class="muted">(sai na página com o link "Ver no mapa")</span></label>
-    <input id="ev-local" value="${esc(ev.local||"")}" placeholder="Ex.: Auditório central do UNIEGO — Av. Universitária, Goianésia/GO">
-    <label>Capa da página <span class="muted">(JPEG, PNG ou WebP, até 500 KB — aparece no topo do hotsite e na vitrine)</span></label>
-    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-      <span id="ev-capa-prev">${ev.temCapa
-        ? (ev.slug&&ev.ativo
-          ? `<img src="/api/publico/eventos/${encodeURIComponent(ev.slug)}/capa?v=${Date.now()}" alt="capa" style="height:64px;border-radius:8px;border:1px solid var(--line)">`
-          : '<span class="muted" style="font-size:12.5px">✓ capa enviada (a miniatura aparece com a página ativa)</span>')
-        : '<span class="muted" style="font-size:12.5px">— sem capa: o hotsite usa o gradiente institucional.</span>'}</span>
-      <input type="file" id="ev-capa-file" accept="image/jpeg,image/png,image/webp" style="max-width:280px" onchange="lerCapaEv(this)">
-      ${ev.temCapa?`<button class="bt bt-ghost" style="padding:6px 10px;font-size:12px" onclick="removerCapaEv()">✕ remover capa</button>`:""}
-    </div>
-  </div>
+    <div class="card">
+      <div class="sec-t">💬 Mural da transmissão</div>
+      <div class="muted" style="margin:8px 0">${(ev.mural||[]).length} mensagem(ns) — moderação:
+        ocultar tira da leitura pública, nada se apaga.</div>
+      <div id="ev-mural-corpo"></div>
+    </div>`;
+  renderDicaTransmissao();
+  renderMuralEv(a);
+}
 
-  <!-- ======== atividades ======== -->
-  <div class="card">
-    <div class="sec-t">Atividades da programação</div>
-    <div class="muted" style="margin:8px 0">Cada atividade tem tipo, horário e, se quiser, vaga
-      própria — "exige inscrição própria" faz o participante marcá-la no formulário (minicurso,
-      oficina); sem a marca, quem está inscrito no evento já participa (abertura, palestra magna).</div>
-    <div id="ev-prog"></div>
-    <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="novaAtividadeEv()">＋ Adicionar atividade</button>
-  </div>
+/* ====================== GERAL · EXPORTAÇÕES ============================= */
+function renderExportacoes(a){
+  const ev=a.evento||{};
+  const proprias=(ev.programacao||[]).filter(x=>x.inscricao==="propria"&&x.id);
 
-  <!-- ======== campos extras ======== -->
-  <div class="card">
-    <div class="sec-t">Campos extras do formulário de inscrição</div>
-    <div class="muted" style="margin:8px 0">Além dos fixos (nome, CPF, e-mail, telefone,
-      curso/instituição). As respostas aparecem só aqui e nos exports — nunca na página pública.</div>
-    <div id="ev-form"></div>
-    <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="EV_FORM.push({id:'',rotulo:'',tipo:'texto',opcoesTxt:'',obrigatorio:false,instrucoes:''});renderFormEv()">＋ Adicionar campo</button>
-  </div>
-
-  <!-- ======== LGPD ======== -->
-  <div class="card">
-    <div class="sec-t">Tratamento de dados (LGPD)</div>
-    <label>Texto de consentimento <span class="muted">(vazio = padrão institucional)</span></label>
-    <textarea id="ev-lgpd" placeholder="Deixe em branco para usar o texto padrão da PROPPEX/UNIEGO.">${esc(ev.lgpdTexto||"")}</textarea>
-    <details style="margin-top:6px"><summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--brand-3)">ver o texto padrão institucional</summary>
-      <div class="tut" style="font-size:12.5px">${esc(LGPD_PADRAO||"(carregando…)")}</div></details>
-  </div>
-
-  <!-- ======== transmissão ======== -->
-  <div class="card">
-    <div class="sec-t">Transmissão online</div>
-    <div class="grid3" style="margin-top:12px">
-      <div><label style="margin-top:0">Tipo</label>
-        <select id="ev-tr-tipo" onchange="renderDicaTransmissao()">
-          <option value="" ${!tr.tipo?"selected":""}>Nenhuma</option>
-          <option value="youtube" ${tr.tipo==="youtube"?"selected":""}>YouTube (ao vivo)</option>
-          <option value="zoom" ${tr.tipo==="zoom"?"selected":""}>Zoom (reunião)</option>
-        </select></div>
-      <div><label style="margin-top:0">Link ou ID <span class="muted">(YouTube aceita a URL — o ID sai dela)</span></label>
-        <input id="ev-tr-link" value="${esc(tr.tipo==="zoom"?(tr.zoomUrl||""):(tr.youtubeId||""))}" placeholder="https://…"></div>
-      <div><label style="margin-top:0">Presença após (min) <span class="muted">(0 = no primeiro acesso)</span></label>
-        <input type="number" id="ev-tr-min" min="0" value="${esc(tr.presencaMinutos??0)}"></div>
-    </div>
-    <label class="chk" id="ev-tr-chat-w">
-      <input type="checkbox" id="ev-tr-chat" ${tr.chatYoutube?"checked":""}>
-      mostrar o chat da live do YouTube na página de assistir (só desktop)</label>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
-      <span class="badge" style="background:${tr.publicada?"var(--ok-soft)":"#eceff3"};color:${tr.publicada?"var(--ok)":"var(--muted)"}">
-        ${tr.publicada?"transmissão publicada":"transmissão não publicada"}</span>
-      <button class="bt ${tr.publicada?"bt-warn":"bt-ok"}" style="padding:7px 12px;font-size:12.5px"
-        onclick="publicarTransmissaoEv('${esc(a.id)}',${tr.publicada?"false":"true"})">
-        ${tr.publicada?"⏹ Recolher transmissão":"▶ Publicar transmissão"}</button>
-    </div>
-    <div class="muted" style="font-size:12px;margin-top:6px">Publicada, cada inscrito ganha o botão
-      <b>Assistir online</b> na própria credencial (e no e-mail de confirmação) — o endereço é
-      <span style="font-family:ui-monospace,monospace">/eventos/${esc(ev.slug||"…")}/assistir/&lt;código da inscrição&gt;</span>.
-      Assistindo pelo link, a presença é registrada sozinha.</div>
-  </div>
-
-  <div class="exp" style="margin:0 0 18px">
-    <button class="bt bt-pri" onclick="salvarEvento('${esc(a.id)}')">💾 Salvar configuração do evento</button>
-    <span class="muted" id="ev-msg" style="align-self:center"></span>
-  </div>
-
-  <!-- ======== inscritos e presenças ======== -->
-  <div class="card">
-    <div class="sec-t">Inscritos e presenças</div>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 6px">
-      <input id="ev-busca" placeholder="Buscar por nome, e-mail ou CPF…" style="max-width:280px" oninput="renderInscritosEv(ACOES.find(x=>x.id==='${esc(a.id)}'))">
-      ${proprias.length?`<label style="margin:0;display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--muted)">Atividade
-        <select id="ev-atv-sel" style="width:auto;max-width:240px;font-size:12.5px;padding:6px 30px 6px 8px"
-          onchange="renderInscritosEv(ACOES.find(x=>x.id==='${esc(a.id)}'))">
+  $("v-exportacoes").innerHTML=`
+    <div class="card">
+      <div class="sec-t">Planilhas da AEE (certificação)</div>
+      <div class="muted" style="margin:8px 0">O template oficial da AEE, pronto para importar no
+        sistema de certificados. O seletor recorta por atividade: quem a marcou (e, com "só
+        presentes", quem tem presença NELA), com a CH declarada na atividade.</div>
+      ${proprias.length?`<label style="margin:0 0 8px;display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--muted)">Atividade
+        <select id="ev-atv-sel" style="width:auto;max-width:280px;font-size:12.5px;padding:6px 30px 6px 8px">
           <option value="">evento inteiro (geral)</option>
           ${proprias.map(x=>`<option value="${esc(x.id)}">${esc(x.titulo)}</option>`).join("")}
         </select></label>`:""}
+      <div class="exp" style="margin:0">
+        <button class="bt bt-sec" onclick="exportarAee('${esc(a.id)}',false)">📊 Excel AEE — todos</button>
+        <button class="bt bt-sec" onclick="exportarAee('${esc(a.id)}',true)">📊 Excel AEE — só presentes</button>
+      </div>
     </div>
-    <div class="exp" style="margin:0 0 6px">
-      <button class="bt bt-sec" onclick="exportarAee('${esc(a.id)}',false)">📊 Excel AEE — todos</button>
-      <button class="bt bt-sec" onclick="exportarAee('${esc(a.id)}',true)">📊 — só presentes</button>
-      <button class="bt bt-sec" onclick="exportarCompleto('${esc(a.id)}')" title="Workbook com contato, atividades, presenças, consentimento LGPD e os campos extras">📋 Lista completa (ARCHÉ)</button>
-      <button class="bt bt-ghost" onclick="imprimirListaEvento('${esc(a.id)}')" title="Contingência do dia: a lista em papel, com o código de cada inscrito">🖨 Lista em papel</button>
-    </div>
-    ${proprias.length?`<div class="muted" style="font-size:12px;margin-bottom:6px">O seletor de atividade
-      vale para os exports da AEE <b>e</b> para a presença manual: escolhida uma atividade, o botão
-      "✓ presente" registra a presença nela (para quem tem QR emitido).</div>`:""}
-    <div id="ev-inscritos" class="scrollx"></div>
-  </div>
 
-  <!-- ======== mural ======== -->
-  <div class="card">
-    <div class="sec-t">💬 Mural da transmissão</div>
-    <div class="muted" style="margin:8px 0">${(ev.mural||[]).length} mensagem(ns) — moderação:
-      ocultar tira da leitura pública, nada se apaga.</div>
-    <div id="ev-mural-corpo"></div>
-  </div>
+    <div class="card">
+      <div class="sec-t">Lista completa (ARCHÉ)</div>
+      <div class="muted" style="margin:8px 0">Workbook com contato, atividades marcadas, presenças,
+        consentimento LGPD e as respostas dos campos extras — uma coluna por campo.</div>
+      <div class="exp" style="margin:0">
+        <button class="bt bt-sec" onclick="exportarCompleto('${esc(a.id)}')">📋 Lista completa (.xlsx)</button>
+      </div>
+    </div>`;
+}
 
-  <!-- ======== a ação-mãe ======== -->
-  <div class="card">
-    <div class="sec-t">A ação de extensão desta página</div>
-    <div class="muted" style="margin-top:8px;line-height:1.6">O ARCHÉ EV é a sala de operação do
-      evento; a <b>ação de extensão é a mãe dele</b> — a proposta, a aprovação (que emite o Número
-      da Ação), o relatório final e os participantes para certificação vivem no ARCHÉ EX.</div>
-    <div class="exp"><a class="bt bt-sec" href="/extensao/">Abrir a ação no ARCHÉ EX →</a></div>
-  </div>
-
-  <button class="bt bt-ghost" onclick="voltar()" style="margin-bottom:24px">← voltar à lista</button>
-  </div>`;
-
-  renderProgEv(); renderFormEv(); renderDicaTransmissao();
-  renderInscritosEv(a); renderMuralEv(a); agendarEvento(a.id);
+/* ==================== GERAL · AÇÃO DE EXTENSÃO ========================== */
+function renderAcao(a){
+  $("v-acao").innerHTML=`
+    <div class="card">
+      <div class="sec-t">A ação de extensão desta página</div>
+      <div class="muted" style="margin-top:8px;line-height:1.6">O ARCHÉ EV é a sala de operação do
+        evento; a <b>ação de extensão é a mãe dele</b> — a proposta, a aprovação (que emite o Número
+        da Ação), o relatório final e os participantes para certificação vivem no ARCHÉ EX.</div>
+      <div class="kv" style="margin-top:12px;font-size:13.5px;color:var(--ink-soft)">
+        <b>${esc(a.proposta?.nomeAtividade||"(sem nome)")}</b> · ${esc(a.curso||"")}
+        ${a.numeroAcao?` · ${esc(a.numeroAcao)}`:" · ação ainda sem número (aguardando aprovação)"}</div>
+      <div class="exp"><a class="bt bt-sec" href="/extensao/">Abrir a ação no ARCHÉ EX →</a></div>
+    </div>`;
 }
 
 const contadoresAtividadeHtml=(a)=>{
@@ -616,14 +1032,14 @@ function lerCapaEv(inp){
     EV_CAPA=String(r.result||"");
     const prev=$("ev-capa-prev");
     if(prev) prev.innerHTML=`<img src="${EV_CAPA}" alt="capa nova" style="height:64px;border-radius:8px;border:1px solid var(--line)">
-      <span class="muted" style="font-size:12px;display:block">prévia — grava no "Salvar"</span>`;
+      <span class="muted" style="font-size:12px;display:block">prévia — grava no "Salvar página"</span>`;
   };
   r.readAsDataURL(f);
 }
 function removerCapaEv(){
   EV_CAPA="";
   const prev=$("ev-capa-prev");
-  if(prev) prev.innerHTML='<span class="muted" style="font-size:12.5px">capa marcada para remoção — grava no "Salvar".</span>';
+  if(prev) prev.innerHTML='<span class="muted" style="font-size:12.5px">capa marcada para remoção — grava no "Salvar página".</span>';
   const inp=$("ev-capa-file"); if(inp) inp.value="";
 }
 
@@ -692,6 +1108,8 @@ function renderInscritosEv(a){
     : `<div class="cnt">— ${todos.length?"ninguém encontrado com esta busca.":"nenhum inscrito ainda."}</div>`;
 }
 
+/* Atualiza os números da guia aberta sem tocar em formulário: cada bloco só
+   existe numa guia, e quem não está na tela é ignorado. */
 function atualizarContadoresEvento(a){
   const inscritos=a.participantes?.inscritos||[];
   const ev=a.evento||{};
@@ -699,20 +1117,22 @@ function atualizarContadoresEvento(a){
   if($("ev-cnt-pres")) $("ev-cnt-pres").textContent=inscritos.filter(x=>x.presente===true).length;
   if($("ev-cnt-vagas")) $("ev-cnt-vagas").textContent=Number(ev.vagas)>0
     ? `${Math.max(0,Number(ev.vagas)-inscritos.length)} de ${ev.vagas}` : "ilimitadas";
-  if($("ev-cnt-atv")) $("ev-cnt-atv").innerHTML=contadoresAtividadeHtml(a);
+  if($("ev-cnt-atv")) $("ev-cnt-atv").innerHTML=contadoresAtividadeHtml(a)
+    ||'<div class="cnt">— sem atividade com inscrição própria ou presença registrada.</div>';
   renderMuralEv(a);
 }
 
-/* Contadores "ao vivo" no dia do evento: enquanto a operação está aberta e a
-   página do evento ativa, recarrega a cada 30 s — só números, a tabela e o
-   mural, sem tocar nos formulários (senão o refresco apagaria o que se
-   digita). */
+/* Contadores "ao vivo" no dia do evento: enquanto uma guia de evento está
+   aberta e a página do evento ativa, recarrega a cada 30 s — só números, a
+   tabela de inscritos e o mural, sem tocar nos formulários (senão o
+   refresco apagaria o que se digita). */
 function agendarEvento(id){
   clearInterval(EV_TIMER);
   const a0=ACOES.find(x=>x.id===id);
   if(!a0?.evento?.ativo) return;
   EV_TIMER=setInterval(async()=>{
-    if($("v-op").classList.contains("hide")||!$("card-evento")||ABERTO!==id){ clearInterval(EV_TIMER); return; }
+    const meta=SECOES.find(s=>s.k===SECAO);
+    if(!meta?.evento||ABERTO!==id){ clearInterval(EV_TIMER); return; }
     try{
       await carregar();
       const a=ACOES.find(x=>x.id===id); if(!a) return;
@@ -723,7 +1143,8 @@ function agendarEvento(id){
 
 async function atualizarEvento(id){
   try{ await carregar(); }catch(e){ alert(e.message); return; }
-  renderOp(id);
+  montarSeletor();
+  nav(SECAO);
 }
 
 /* presença manual (gestão): para quem veio da lista da coordenação (sem QR)
@@ -763,7 +1184,60 @@ function presencaManualEv(id, token, cpf, email){
   return marcarPresencaEv(id, token, cpf, email, true);
 }
 
-/* --------------------------- salvar / publicar --------------------------- */
+/* --------------------------- salvar / publicar ---------------------------
+   Cada guia salva SÓ o que edita: a rota do evento aplica campo a campo o
+   que veio no corpo, então o que a guia não mandou fica exatamente como
+   está. Nunca se envia a configuração inteira de uma vez. */
+async function salvarParteEvento(id, body){
+  const msg=$("ev-msg"); if(msg) msg.textContent="Salvando…";
+  try{
+    const r=await fetch(`/api/extensao/${id}/evento`,{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    await carregar(); montarSeletor(); nav(SECAO);
+    const m=$("ev-msg"); if(m){ m.textContent="✓ salvo"; setTimeout(()=>{ if($("ev-msg")) $("ev-msg").textContent=""; },3000); }
+    return true;
+  }catch(e){
+    if($("ev-msg")) $("ev-msg").textContent="";
+    alert("Não foi possível salvar o evento: "+e.message);
+    return false;
+  }
+}
+
+/* Página do evento: ativação, endereço, descrição, local e capa. A capa só
+   entra no corpo quando a tela mexeu nela — mandar sempre apagaria a que
+   está gravada (o payload nunca traz o base64 de volta). */
+function salvarPagina(id){
+  const body={
+    ativo:$("ev-ativo")?.checked||false,
+    descricao:$("ev-desc")?.value||"",
+    local:$("ev-local")?.value||"",
+  };
+  if(EV_CAPA!==undefined) body.capa=EV_CAPA;
+  const slugEl=$("ev-slug");
+  if(slugEl&&slugEl.value.trim()) body.slug=slugEl.value.trim();
+  return salvarParteEvento(id, body);
+}
+
+/* Inscrições: vagas, prazo, campos extras e o texto LGPD. */
+function salvarInscricoes(id){
+  return salvarParteEvento(id, {
+    vagas:$("ev-vagas")?.value||0,
+    inscricoesAte:$("ev-prazo")?.value||"",
+    formulario:EV_FORM.map(c=>({ id:c.id||"", rotulo:c.rotulo||"", tipo:c.tipo||"texto",
+      opcoes:String(c.opcoesTxt||"").split(",").map(s=>s.trim()).filter(Boolean),
+      obrigatorio:!!c.obrigatorio, instrucoes:c.instrucoes||"" })),
+    lgpdTexto:$("ev-lgpd")?.value||"",
+  });
+}
+
+/* Programação: só a lista de atividades — os ids vão preservados no próprio
+   objeto (são a chave das marcações dos inscritos). */
+function salvarProgramacao(id){
+  return salvarParteEvento(id, {programacao:EV_PROG});
+}
+
 function lerTransmissaoEv(publicada){
   const tipo=$("ev-tr-tipo")?.value||"";
   const valor=$("ev-tr-link")?.value.trim()||"";
@@ -776,54 +1250,20 @@ function lerTransmissaoEv(publicada){
     publicada,
   };
 }
-
-/* Grava TUDO o que a tela editou pela rota dedicada do evento — os ids das
-   atividades vão preservados no próprio objeto. */
-async function salvarEvento(id, {publicada}={}){
-  const msg=$("ev-msg"); if(msg) msg.textContent="Salvando…";
+/* Transmissão: sem o parâmetro, publicar/recolher não muda no salvar comum. */
+function salvarTransmissao(id,{publicada}={}){
   const atual=ACOES.find(x=>x.id===id);
-  // sem o parâmetro, publicar/recolher não muda no salvar comum
   const pub = publicada===undefined ? atual?.evento?.transmissao?.publicada===true : publicada;
-  const body={
-    ativo:$("ev-ativo")?.checked||false,
-    descricao:$("ev-desc")?.value||"",
-    vagas:$("ev-vagas")?.value||0,
-    inscricoesAte:$("ev-prazo")?.value||"",
-    programacao:EV_PROG,
-    formulario:EV_FORM.map(c=>({ id:c.id||"", rotulo:c.rotulo||"", tipo:c.tipo||"texto",
-      opcoes:String(c.opcoesTxt||"").split(",").map(s=>s.trim()).filter(Boolean),
-      obrigatorio:!!c.obrigatorio, instrucoes:c.instrucoes||"" })),
-    local:$("ev-local")?.value||"",
-    lgpdTexto:$("ev-lgpd")?.value||"",
-    transmissao:lerTransmissaoEv(pub),
-  };
-  // a capa só entra no corpo quando a tela mexeu nela — mandar sempre
-  // apagaria a que está gravada (o payload nunca traz o base64 de volta)
-  if(EV_CAPA!==undefined) body.capa=EV_CAPA;
-  const slugEl=$("ev-slug");
-  if(slugEl&&slugEl.value.trim()) body.slug=slugEl.value.trim();
-  try{
-    const r=await fetch(`/api/extensao/${id}/evento`,{method:"POST",
-      headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-    const j=await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error(j.error||r.status);
-    await carregar(); renderOp(id);
-    const m=$("ev-msg"); if(m){ m.textContent="✓ salvo"; setTimeout(()=>{ if($("ev-msg")) $("ev-msg").textContent=""; },3000); }
-    return true;
-  }catch(e){
-    if($("ev-msg")) $("ev-msg").textContent="";
-    alert("Não foi possível salvar o evento: "+e.message);
-    return false;
-  }
+  return salvarParteEvento(id, {transmissao:lerTransmissaoEv(pub)});
 }
 
 /* Publicar/recolher é o interruptor explícito da transmissão — passa pelo
-   MESMO salvar (grava a configuração toda), só virando a chave `publicada`. */
+   MESMO salvar da guia, só virando a chave `publicada`. */
 async function publicarTransmissaoEv(id, publicar){
   if(publicar && !($("ev-tr-tipo")?.value))
     return alert("Escolha o tipo da transmissão (YouTube ou Zoom) e informe o link antes de publicar.");
   if(!publicar && !confirm("Recolher a transmissão?\n\nA página de assistir deixa de funcionar para os inscritos até você publicar de novo.")) return;
-  await salvarEvento(id, {publicada:publicar});
+  await salvarTransmissao(id, {publicada:publicar});
 }
 
 function mostrarMonitorEv(bt){
@@ -839,7 +1279,7 @@ async function regenerarMonitorEv(id){
       headers:{"Content-Type":"application/json"},body:JSON.stringify({regenerarCodigoMonitor:true})});
     const j=await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||r.status);
-    await carregar(); renderOp(id);
+    await carregar(); montarSeletor(); nav(SECAO);
   }catch(e){ alert("Não foi possível regenerar: "+e.message); }
 }
 
@@ -899,27 +1339,31 @@ function imprimirListaEvento(id){
   }catch{ /* segue sem sessão (modo dev) — a guarda de verdade é a do servidor */ }
   try{ await carregar(); }
   catch(e){
-    $("ev-cards").innerHTML=`<div class="card">⚠ ${esc(e.message)}</div>`;
+    montarSidebar();
+    $("v-painel").innerHTML=`<div class="card">⚠ ${esc(e.message)}</div>`;
+    $("v-painel").classList.remove("hide");
     return;
   }
-  const quem=$("quem-ve");
-  if(quem){
-    if(GESTAO_EX||GESTAO_EV){
-      quem.textContent = GESTAO_EX ? "Coordenação — você vê e opera todos os eventos"
-        : "Coordenação de eventos — você opera todos os eventos das ações de extensão";
-      quem.hidden=false;
-    }else if(EU){
-      quem.textContent="Você opera os eventos das suas próprias ações";
-      quem.hidden=false;
-    }
-  }
-  renderLista();
-  // link direto #e/<id> (recarregar a página no evento aberto volta a ele)
-  const m=location.hash.match(/^#e\/(.+)$/);
+  montarSidebar();
+  // deep-link: "#<guia>" ou "#<guia>/<id>"; o formato antigo "#e/<id>"
+  // (da tela anterior a esta casca) vira "#inicio/<id>"
+  let guia="painel";
+  let m=location.hash.match(/^#e\/(.+)$/);
   if(m){
     const id=decodeURIComponent(m[1]);
-    if(ACOES.some(a=>a.id===id)) abrir(id);
+    if(ACOES.some(a=>a.id===id)){ ABERTO=id; guia="inicio"; }
+  }else{
+    m=location.hash.match(/^#([a-z]+)(?:\/(.+))?$/);
+    if(m && SECOES.some(s=>s.k===m[1])){
+      guia=m[1];
+      if(m[2]){
+        const id=decodeURIComponent(m[2]);
+        if(ACOES.some(a=>a.id===id)) ABERTO=id;
+      }
+    }
   }
+  montarSeletor();
+  nav(guia);
 })();
 </script>
 <script src="/assets/arche-nav.js" defer></script>
