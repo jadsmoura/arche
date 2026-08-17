@@ -1534,11 +1534,14 @@ function cardEvento(a){
       Evento e inscrições
       <span class="badge" style="background:${ev.ativo?"var(--ok-soft)":"#eceff3"};color:${ev.ativo?"var(--ok)":"var(--muted)"}">${ev.ativo?"página ativa":"página desativada"}</span>
       <span style="flex:1"></span>
+      <a class="bt bt-ghost" style="padding:6px 10px;font-size:12px" href="/eventos/gestao/"
+        title="A sala de operação de todos os eventos — ARCHÉ EV">📅 Operar no ARCHÉ EV</a>
       <button class="bt bt-ghost" style="padding:6px 10px;font-size:12px" onclick="atualizarEvento('${a.id}')" title="Recarregar inscritos e presenças">↻ Atualizar</button>
     </div>
     <div class="muted" style="margin-bottom:12px">Página pública de inscrição gratuita, credenciamento
       por QR na entrada (geral e por atividade) e transmissão online. A <b>certificação continua no
-      sistema da AEE</b> — exporte a planilha abaixo e importe lá.</div>
+      sistema da AEE</b> — exporte a planilha abaixo e importe lá. A operação do dia a dia também
+      vive no setor <b>ARCHÉ EV</b> (barra do topo).</div>
     ${!a.numeroAcao?`<div class="banner ba-warn">⏳ <b>A página pública só pode ser ativada depois da
       aprovação da ação</b> — mas o evento já pode ficar todo configurado aqui: atividades, formulário,
       capa e transmissão. Aprovada a ação, é só ativar.</div>`:""}

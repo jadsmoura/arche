@@ -158,7 +158,9 @@ app.use((req, res, next) => {
 });
 
 // Setores de gestão exigem login (Avaliação Institucional continua aberta).
-const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios)(\/|$)/;
+// /eventos/* segue PÚBLICO (hotsite, inscrição, credenciamento, assistir) —
+// só a sala de gestão do ARCHÉ EV, em /eventos/gestao, pede sessão.
+const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios)(\/|$)|^\/eventos\/gestao(\/|$)/;
 app.use(async (req, res, next) => {
   // HEAD também (achado de ago/2026): o express.static responde HEAD, e a
   // guarda só de GET deixava um HEAD sem sessão confirmar a existência
@@ -1415,6 +1417,9 @@ function comAcoes(fn) {
   return proxima;
 }
 const gereEx = (u) => !!u?.modulos?.includes("extensao");
+// a coordenação do ARCHÉ EV: opera todos os EVENTOS (página, inscrições,
+// credenciamento, transmissão), sem alcançar a gestão da Extensão em si
+const gereEv = (u) => !!u?.modulos?.includes("eventos");
 
 /**
  * Ao salvar a ação pelo formulário, o EVENTO e as INSCRIÇÕES ONLINE/PRESENÇAS
@@ -1445,6 +1450,11 @@ const minhaAcao = (u, a) => {
     || String(a?.proposta?.respEmail || "").toLowerCase() === e);
 };
 const podeVerAcao = (u, a) => gereEx(u) || minhaAcao(u, a);
+// operação do EVENTO de uma ação: o dono da ação (quem registrou organiza o
+// próprio evento), a gestão da Extensão e a coordenação do módulo eventos.
+// Vale só para as rotas do evento — proposta, aprovação e relatório seguem
+// sendo da Extensão.
+const podeOperarEvento = (u, a) => podeVerAcao(u, a) || gereEv(u);
 
 async function sessaoEx(req, res) {
   const u = await usuarioDe(req, res);
@@ -1471,12 +1481,16 @@ app.get("/api/extensao", async (req, res) => {
   try {
     const u = await sessaoEx(req, res);
     if (!u) return;
-    const acoes = (await lerAcoes()).filter((a) => podeVerAcao(u, a)).map((a) =>
-      a.evento ? { ...a, evento: eventoSemSegredos(a.evento) } : a);
+    // recorte: as próprias ações e, para a gestão da Extensão, todas; a
+    // coordenação do ARCHÉ EV vê também toda ação COM evento (é o setor
+    // dela), sem enxergar o restante da Extensão alheia
+    const acoes = (await lerAcoes())
+      .filter((a) => podeVerAcao(u, a) || (gereEv(u) && a.evento))
+      .map((a) => a.evento ? { ...a, evento: eventoSemSegredos(a.evento) } : a);
     // os catálogos que o editor do evento usa (tipos de atividade e o texto
     // padrão da LGPD) seguem junto: a SPA não os duplica
     res.json({
-      acoes, gestao: gereEx(u), eu: u.email,
+      acoes, gestao: gereEx(u), gestaoEventos: gereEv(u), eu: u.email,
       tiposAtividade: TIPOS_ATIVIDADE, lgpdPadrao: LGPD_TEXTO_PADRAO,
     });
   } catch (e) {
@@ -2521,7 +2535,8 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
     const b = req.body || {};
     const r = await comAcoes((acoes) => {
       const a = acoes.find((x) => x.id === req.params.id);
-      if (!a || !podeVerAcao(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (!a || !podeOperarEvento(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      const estavaAtivo = a.evento?.ativo === true;
       const ev = { ...(a.evento || {}) };
       if (b.ativo !== undefined) ev.ativo = !!b.ativo;
       // página pública só de ação APROVADA: o número é o que diz que a
@@ -2615,9 +2630,18 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
       if (b.regenerarCodigoMonitor && ev.chaveQr) ev.codigoMonitor = gerarCodigoMonitor();
       a.evento = ev;
       a.atualizadoEm = new Date().toISOString();
-      return { evento: ev };
+      return { evento: ev, ativou: ev.ativo === true && !estavaAtivo, acao: a };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    // página entrou no ar → aviso ao setor de eventos (eventos@uniego.edu.br),
+    // fire-and-forget: e-mail que falha não desfaz a ativação
+    if (r.ativou) {
+      try {
+        const { enviarEmail, emailEventoAtivado } = await import("./lib/mailer.js");
+        enviarEmail(emailEventoAtivado(r.acao))
+          .catch((e) => console.error("[eventos] aviso de ativação não enviado:", e.message));
+      } catch (e) { console.error("[eventos] aviso de ativação:", e.message); }
+    }
     // a resposta passa pelo MESMO strip do GET: a chaveQr recém-gerada e a
     // capa não viajam nem ao dono (correção de ago/2026 — a resposta antiga
     // devolvia o evento completo, chave dentro)
@@ -2648,7 +2672,7 @@ app.post("/api/extensao/:id/presenca", async (req, res) => {
     const alvoTok = String(b.token || "").trim().toLowerCase(), alvoNome = String(b.nome || "").trim().toLowerCase();
     const r = await comAcoes((acoes) => {
       const a = acoes.find((x) => x.id === req.params.id);
-      if (!a || !podeVerAcao(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (!a || !podeOperarEvento(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
       const ins = a.participantes?.inscritos || [];
       // casa pela chave mais forte que vier: token → CPF → e-mail → nome
       const i = ins.find((x) => alvoTok && String(x.token || "").toLowerCase() === alvoTok)
@@ -2707,7 +2731,7 @@ app.post("/api/extensao/:id/mural/:mid", async (req, res) => {
     if (!u) return;
     const r = await comAcoes((acoes) => {
       const a = acoes.find((x) => x.id === req.params.id);
-      if (!a || !podeVerAcao(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (!a || !podeOperarEvento(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
       const m = (a.evento?.mural || []).find((x) => x?.id === req.params.mid);
       if (!m) return { erro: [404, "Mensagem não encontrada no mural."], gravar: false };
       m.oculto = req.body?.oculto === true;
@@ -2732,7 +2756,7 @@ app.get("/api/extensao/:id/inscritos.xlsx", async (req, res) => {
     const u = await sessaoEx(req, res);
     if (!u) return;
     const acao = (await lerAcoes()).find((a) => a.id === req.params.id);
-    if (!acao || !podeVerAcao(u, acao)) return res.status(404).send("Ação não encontrada");
+    if (!acao || !podeOperarEvento(u, acao)) return res.status(404).send("Ação não encontrada");
     let atividade = null;
     if (String(req.query.atividade || "").trim()) {
       atividade = (acao.evento?.programacao || []).find((x) => x?.id === String(req.query.atividade).trim());
@@ -2761,7 +2785,7 @@ app.get("/api/extensao/:id/inscritos-completo.xlsx", async (req, res) => {
     const u = await sessaoEx(req, res);
     if (!u) return;
     const acao = (await lerAcoes()).find((a) => a.id === req.params.id);
-    if (!acao || !podeVerAcao(u, acao)) return res.status(404).send("Ação não encontrada");
+    if (!acao || !podeOperarEvento(u, acao)) return res.status(404).send("Ação não encontrada");
     const { gerarInscritosCompletoXlsx } = await import("./lib/exports.js");
     const buffer = await gerarInscritosCompletoXlsx(acao);
     const num = (acao.numeroAcao || acao.id).replace(/[^A-Za-z0-9-]/g, "-");
@@ -7016,6 +7040,10 @@ app.get(/^\/eventos\/[a-z0-9-]+\/inscricao\/[a-zA-Z0-9]+\/?$/, (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "inscricao.html")));
 app.get(/^\/eventos\/[a-z0-9-]+\/assistir\/[a-zA-Z0-9]+\/?$/, (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "assistir.html")));
+// a sala de gestão do ARCHÉ EV (com login — a guarda é a do topo): entra
+// ANTES do padrão de slug, senão "gestao" viraria página de evento
+app.get(["/eventos/gestao", "/eventos/gestao/"], (_req, res) =>
+  res.sendFile(path.join(PUBLIC, "eventos", "gestao", "index.html")));
 app.get(/^\/eventos\/[a-z0-9-]+\/?$/, (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "evento.html")));
 app.use(express.static(PUBLIC));

@@ -250,7 +250,8 @@ test("LGPD: o texto do evento substitui o padrão, e a versão acompanha o texto
   assert.equal(versaoLgpd("a"), versaoLgpd("a"), "mesma redação, mesma versão");
   assert.notEqual(versaoLgpd("a"), versaoLgpd("b"), "trocar a redação troca a versão gravada");
   assert.match(LGPD_TEXTO_PADRAO, /13\.709\/2018/, "o padrão cita a lei");
-  assert.match(LGPD_TEXTO_PADRAO, /extensao@uniego\.edu\.br/, "e o canal de contato");
+  assert.match(LGPD_TEXTO_PADRAO, /eventos@uniego\.edu\.br/,
+    "e o canal de contato do setor (eventos@, decisão do dono ago/2026)");
 });
 
 /* ---------------------------- transmissão -------------------------------- */

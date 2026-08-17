@@ -42,6 +42,8 @@ templates/           Template xlsx de certificados + logo UNIEGO (não alterar e
 public/
   index.html         Portal (2 seções: Gestão PROPPEX | Avaliação Institucional)
   extensao/          Módulo Extensão (SPA vanilla JS) — propostas, relatórios, participantes
+  eventos/           Páginas PÚBLICAS dos eventos (hotsite, inscrição, credenciar, assistir)
+                     + gestao/ = ARCHÉ EV, o setor de OPERAÇÃO dos eventos (com login)
   pesquisa/ic/       ARCHÉ IC — Iniciação Científica (SPA vanilla, mesmo desenho do EX/AT)
   atas/              ARCHÉ AT — Atas e Colegiados (SPA vanilla, mesmo desenho do EX)
   arche/             Avaliação Institucional (app COMPILADO do Manus — NÃO refatorar;
@@ -66,7 +68,8 @@ public/
 
 ## Regras de negócio essenciais
 
-- **Setores protegidos** (exigem login): `/extensao`, `/pesquisa`, `/inovacao`, `/atas`, `/usuarios`.
+- **Setores protegidos** (exigem login): `/extensao`, `/pesquisa`, `/inovacao`, `/atas`,
+  `/usuarios` e `/eventos/gestao` (o restante de `/eventos/*` é público de propósito).
   **Avaliação (`/arche/`) continua SEM login** — não criar conta, papel nem sessão nela.
 - **Todo guarda compara `req.caminho`, nunca `req.path`**: o `req.path` chega CRU (sem
   decodificar `%2f`, sem colapsar `//`) e o `express.static` resolve o caminho já
@@ -91,11 +94,15 @@ public/
   (`identidadeInstitucionalDoProReitor` gravou o e-mail do UNIEGO nos projetos dele, o que
   também encerra o casamento por nome na conta pessoal).
 - **Coordenação por setor** (`/usuarios/`, ação `coordenar`): o gestor geral designa
-  coordenadores para qualquer um dos quatro módulos — `extensao`, `pesquisa`, `inovacao`
-  e `atas`. Dentro do setor marcado a pessoa tem o alcance da PROPPEX (no ARCHÉ AT, vê
-  as atas de todos os órgãos, o Acompanhamento e os alertas); fora dele é submissora, e
-  a gestão de acessos continua exclusiva dos gestores gerais. Cada setor decide isso
-  lendo `modulos` da sessão (`gereAtas`, `gereIC`) — nunca o papel sozinho.
+  coordenadores para qualquer um dos cinco módulos — `extensao`, `pesquisa`, `inovacao`,
+  `atas` e `eventos`. Dentro do setor marcado a pessoa tem o alcance da PROPPEX (no ARCHÉ
+  AT, vê as atas de todos os órgãos, o Acompanhamento e os alertas); fora dele é
+  submissora, e a gestão de acessos continua exclusiva dos gestores gerais. Cada setor
+  decide isso lendo `modulos` da sessão (`gereAtas`, `gereIC`, `gereEv`) — nunca o papel
+  sozinho. O módulo `eventos` (ARCHÉ EV, ago/2026) tem alcance PRÓPRIO: opera todos os
+  EVENTOS (vê toda ação COM `evento`; `podeOperarEvento` nas rotas do evento) sem
+  enxergar o restante da Extensão — a aprovação da ação e o relatório seguem sendo da
+  gestão da Extensão.
 - **Todo cadastro novo entra como submissor automaticamente** (decisão do dono, ago/2026):
   `aprovarCadastroNovo` no server aprova no primeiro login — contas `@uniego.edu.br` já
   entravam assim, e as pendentes antigas convergem ao entrar de novo. O registro fica em
@@ -216,6 +223,20 @@ public/
   injeção de fórmula blindada em todo export; e-mail de confirmação lista as atividades
   marcadas. Páginas fixas novas em `/eventos/` entram em `SLUGS_RESERVADOS` ("assistir"
   incluído). Sem cobrança/pagamento nesta fase (decisão do dono; financeiro a definir).
+  **ARCHÉ EV é o SETOR dos eventos** (decisão do dono, ago/2026): cartão próprio na página
+  inicial e atalho "Eventos" na barra, apontando a `/eventos/gestao` (SPA com login; a
+  guarda está em AREAS_PROTEGIDAS; "gestao" nos SLUGS_RESERVADOS) — a sala de operação de
+  TODOS os eventos: lista com busca e contadores, e a operação completa de cada um
+  (atividades, campos extras, LGPD, capa, transmissão, inscritos e presenças por
+  atividade, mural, exports, código do monitor). Usa SÓ as rotas dedicadas do evento —
+  nunca o POST em bloco de /api/extensao. Quem entra: o dono da ação (o professor que
+  registra organiza o próprio evento), a gestão da Extensão e a coordenação do módulo
+  `eventos`; aluno não vê o cartão (participa pela página pública). A ação de extensão
+  continua sendo a mãe do evento — proposta, aprovação e relatório no ARCHÉ EX, com
+  atalhos cruzados nas duas pontas. **E-mail do setor: eventos@uniego.edu.br**
+  (env EVENTOS_NOTIFY_EMAIL) — contato do hotsite, do texto LGPD padrão e da confirmação
+  de inscrição, e destinatário do aviso automático quando uma página de evento entra no
+  ar (`emailEventoAtivado`, fire-and-forget).
 - **Devolução da proposta é um CICLO** (`POST /api/extensao/devolver` e `/reenviar`,
   decisão do dono ago/2026): devolver era meio caminho — a PROPPEX escrevia o motivo e
   ele esperava o professor entrar no portal por acaso; e, quando entrava, não tinha como

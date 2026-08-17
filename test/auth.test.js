@@ -116,9 +116,9 @@ test("limite de tentativas de senha", () => {
 });
 
 /* ------------------------- coordenação por setor ------------------------- */
-test("os quatro setores podem ter coordenação designada", () => {
-  assert.deepEqual(MODULOS, ["extensao", "pesquisa", "inovacao", "atas"],
-    "atas entra na lista como qualquer outro setor");
+test("os cinco setores podem ter coordenação designada", () => {
+  assert.deepEqual(MODULOS, ["extensao", "pesquisa", "inovacao", "atas", "eventos"],
+    "eventos (ARCHÉ EV) entra na lista como qualquer outro setor");
 });
 
 test("coordenador de um setor gere aquele setor, e só aquele", async () => {

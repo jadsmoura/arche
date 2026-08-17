@@ -16,6 +16,8 @@
     // mesma ordem dos cartões do portal
     { href: "/atas/",        rot: "Atas",              teste: function (p) { return p.indexOf("/atas") === 0; } },
     { href: "/extensao/",    rot: "Extensão",          teste: function (p) { return p.indexOf("/extensao") === 0; } },
+    // o EV fica colado à Extensão de propósito: o evento É uma ação dela
+    { href: "/eventos/gestao/", rot: "Eventos",        teste: function (p) { return p.indexOf("/eventos/gestao") === 0; } },
     { href: "/pesquisa/ic/", rot: "Pesquisa · IC",     teste: function (p) { return p.indexOf("/pesquisa") === 0; } },
     { href: "/arche/",       rot: "Avaliação",         teste: function (p) { return p.indexOf("/arche") === 0; } },
   ];
@@ -238,7 +240,11 @@
         var gestao = me.papel === "gestor" || (me.modulos || []).length > 0;
         if (gestao) return;                                // gestão e coordenações veem tudo
         var aluno = me.perfil && me.perfil.funcao === "aluno";
-        var esconder = aluno ? ["/atas/", "/inovacao/", "/arche/"] : ["/arche/"];
+        // aluno não organiza evento (participa pela página pública) — o
+        // setor EV é de quem propõe e opera
+        var esconder = aluno
+          ? ["/atas/", "/inovacao/", "/arche/", "/eventos/gestao/"]
+          : ["/arche/"];
         esconder.forEach(function (href) {
           var alvos = document.querySelectorAll(
             '[data-setor="' + href + '"], .arche-topnav a[data-arche-nav="' + href + '"]');

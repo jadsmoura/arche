@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARCHÉ EV · Eventos · PROPPEX / UNIEGO</title>
+<link rel="icon" href="/arche/favicon.svg">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Figtree:wght@400;500;600;700&display=swap');
+  :root{
+    --brand:#1c3742; --brand-2:#2d535c; --brand-3:#40717e; --accent:#71c8e2;
+    --bg:#eef1f4; --card:#fff; --line:#dde4e8; --line-2:#eceff3; --wash:#e6f5fa;
+    --ink:#182632; --ink-soft:#3a4650; --muted:#657179; --muted-2:#a9b4c0;
+    --ok:#3f8a5d; --ok-soft:#e5f3ea; --warn:#c98a2b; --warn-soft:#fbf3e4;
+    --err:#a1524c; --err-soft:#f6e9e7; --info:#40717e; --info-soft:#e8f4fa;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);font-family:Figtree,system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+  a{color:var(--brand-3);text-decoration:none}
+  a:hover{color:var(--brand-2)}
+  ::selection{background:var(--accent);color:var(--brand)}
+  button{font-family:Figtree,system-ui,sans-serif}
+
+  .wrap{max-width:1100px;margin:0 auto;padding:26px 16px 60px}
+  .cab h1{font-family:Sora,sans-serif;font-weight:800;font-size:26px;color:var(--brand);margin:0 0 4px}
+  .cab h1 b{color:var(--brand-3)}
+  .cab .sub{color:var(--muted);font-size:14px;max-width:720px;line-height:1.5}
+  .cab .mail{font-size:12.5px;color:var(--muted);margin-top:6px}
+  .cab .quem{display:inline-block;font-size:11.5px;font-weight:600;border-radius:20px;padding:3px 10px;
+    background:var(--wash);color:var(--brand-3);margin-top:10px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:18px}
+  .sec-t{font-family:Sora,sans-serif;font-weight:700;font-size:15px;color:var(--ink);margin:0 0 6px;
+    padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .muted{color:var(--muted);font-size:12.5px;font-weight:400}
+  .hide{display:none!important}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  .grid2>*,.grid3>*,.stat>*{min-width:0}
+  @media(max-width:760px){.grid2,.grid3{grid-template-columns:1fr}}
+  label{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin:12px 0 5px;
+    text-transform:uppercase;letter-spacing:.04em}
+  input,select,textarea{width:100%;border:1px solid #cfd6de;border-radius:8px;padding:10px 12px;
+    font-family:Figtree,system-ui,sans-serif;font-size:14px;background:#fff;color:var(--ink);transition:border-color .15s,box-shadow .15s}
+  textarea{min-height:84px;resize:vertical;line-height:1.55}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand-3);box-shadow:0 0 0 3px rgba(64,113,126,.12)}
+
+  .bt{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid transparent;
+    border-radius:8px;padding:10px 16px;font-size:13.5px;font-weight:600;cursor:pointer;transition:.15s}
+  .bt-pri{background:var(--brand);color:#fff}
+  .bt-pri:hover{background:var(--brand-2)}
+  .bt-sec{background:var(--info-soft);color:var(--brand);border-color:#cfe6f2}
+  .bt-sec:hover{background:#dbeef8}
+  .bt-ghost{background:#fff;color:var(--muted);border-color:#cfd6de}
+  .bt-ghost:hover{color:var(--ink);border-color:var(--brand-3)}
+  .bt-ok{background:var(--ok-soft);color:var(--ok);border-color:#cfeeda}
+  .bt-warn{background:var(--warn-soft);color:var(--warn);border-color:#f0e0bd}
+  .bt:disabled{opacity:.5;cursor:not-allowed}
+  .exp{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .lk{background:none;border:0;color:var(--brand-3);cursor:pointer;font-weight:600;font-size:12.5px;padding:0}
+  .lk:hover{color:var(--brand-2)}
+
+  .badge{display:inline-block;font-size:11px;font-weight:600;border-radius:20px;padding:3px 10px;white-space:nowrap}
+  .banner{border-radius:10px;padding:13px 15px;margin-bottom:14px;font-size:13.5px;font-weight:500;line-height:1.5}
+  .ba-warn{background:var(--warn-soft);color:var(--warn);border:1px solid #f0e0bd}
+  .ba-info{background:var(--info-soft);color:var(--brand);border:1px solid #cfe6f2}
+
+  .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:14px}
+  .stat .s{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .stat .s b{font-family:Sora,sans-serif;font-size:22px;display:block;color:var(--ink);line-height:1.1}
+  .stat .s span{font-size:11.5px;color:var(--muted)}
+  table.pt{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+  table.pt th{background:#f7f9fb;color:var(--muted);padding:9px 10px;text-align:left;font-size:11.5px;
+    font-weight:600;border-bottom:1px solid var(--line)}
+  table.pt td{border-bottom:1px solid var(--line-2);padding:8px 10px;color:var(--ink-soft)}
+  .cnt{font-size:12.5px;color:var(--muted);margin:8px 0}
+  .scrollx{overflow-x:auto}
+  .f-disp{font-family:Sora,sans-serif}
+  .linha{display:flex;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line-2)}
+  .linha:last-child{border-bottom:0}
+  .linha .txt{flex:1;min-width:0}
+  .linha .p1{font-size:13px;color:var(--ink-soft);font-weight:600}
+
+  /* --------------------------- lista de eventos --------------------------- */
+  .ferramentas{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:18px 0 14px}
+  .ferramentas input{max-width:340px}
+  .evcard{display:flex;gap:14px;align-items:stretch;background:#fff;border:1px solid var(--line);
+    border-radius:12px;margin-bottom:12px;cursor:pointer;overflow:hidden;
+    transition:border-color .15s,box-shadow .15s;text-align:left;width:100%;padding:0}
+  .evcard:hover{border-color:var(--brand-3);box-shadow:0 2px 10px -4px rgba(28,55,66,.18)}
+  .evcard .thumb{width:120px;flex:none;background:linear-gradient(135deg,var(--brand),var(--brand-3));
+    display:grid;place-items:center;color:var(--accent);font-family:Sora,sans-serif;font-weight:800;font-size:28px}
+  .evcard .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .evcard .corpo{flex:1;min-width:0;padding:14px 16px}
+  .evcard .nm{font-weight:700;font-size:15px;color:var(--ink)}
+  .evcard .meta{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .evcard .selos{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .evcard .nums{font-size:12.5px;color:var(--ink-soft);margin-top:8px;font-weight:600}
+  @media(max-width:560px){.evcard{flex-direction:column}.evcard .thumb{width:100%;height:90px}}
+
+  /* -------------------------- operação: cabeçalho ------------------------- */
+  .op-topo{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px}
+  .op-topo .tt{flex:1;min-width:220px}
+  .op-topo h2{font-family:Sora,sans-serif;font-weight:700;font-size:20px;color:var(--brand);line-height:1.3}
+  .op-topo .meta{font-size:13px;color:var(--muted);margin-top:4px}
+  .atv-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fafbfc}
+  .g-atv{display:grid;grid-template-columns:1fr 140px 106px 106px auto;gap:8px;align-items:center}
+  .g-atv2{display:grid;grid-template-columns:1.2fr 1fr 96px 96px;gap:8px;margin-top:8px}
+  .g-campo{display:grid;grid-template-columns:1.4fr 170px auto;gap:8px;align-items:center}
+  @media(max-width:760px){.g-atv,.g-atv2,.g-campo{grid-template-columns:1fr}}
+  .chk{display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;
+    font-weight:500;color:var(--ink);margin-top:8px}
+  .chk input{width:auto}
+  .rm{color:var(--err);cursor:pointer;font-weight:700}
+  .tut{background:var(--info-soft);border:1px solid #cfe6f2;border-radius:10px;padding:14px 16px;margin:12px 0;font-size:13px;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="cab">
+    <h1>ARCHÉ <b>EV</b> · Eventos</h1>
+    <div class="sub">A operação dos eventos das ações de extensão — página pública, inscrições,
+      credenciamento e transmissão. A proposta, a aprovação e o relatório da ação continuam no
+      <a href="/extensao/">ARCHÉ EX</a>.</div>
+    <div class="mail">Setor de eventos: <a href="mailto:eventos@uniego.edu.br">eventos@uniego.edu.br</a></div>
+    <span class="quem" id="quem-ve" hidden></span>
+  </header>
+
+  <!-- ============ LISTA ============ -->
+  <section id="v-lista">
+    <div class="ferramentas">
+      <input id="l-busca" placeholder="Buscar evento por nome ou curso…" oninput="renderLista()">
+      <span class="muted" id="l-total"></span>
+    </div>
+    <div id="ev-cards"></div>
+    <div id="sem-evento"></div>
+  </section>
+
+  <!-- ============ OPERAÇÃO ============ -->
+  <section id="v-op" class="hide"></section>
+</div>
+
+<script>
+/* =========================================================================
+   ARCHÉ EV — a sala de operação dos eventos. O evento nasce de uma ação de
+   extensão (é `a.evento`); aqui se opera a página pública, as inscrições,
+   o credenciamento, a transmissão e o mural. Toda escrita passa pelas rotas
+   dedicadas do servidor (POST /:id/evento, /presenca, /mural/:mid) — NUNCA
+   pelo POST /api/extensao em bloco: a coordenação do módulo "eventos" não
+   tem essa permissão, e um save em bloco poderia recusar.
+   ========================================================================= */
+let ACOES = [], ME = null, EU = "", GESTAO_EX = false, GESTAO_EV = false;
+let TIPOS_ATV = [["palestra","Palestra"],["minicurso","Minicurso"],["oficina","Oficina"],["curso","Curso"],
+  ["mesa","Mesa-redonda"],["roda","Roda de conversa"],["mostra","Mostra"],["apresentacao","Apresentação"],
+  ["outro","Outro"]].map(([codigo,rotulo])=>({codigo,rotulo}));
+let LGPD_PADRAO = "";
+let EV_PROG = [], EV_FORM = [], EV_TIMER = null, ABERTO = null;
+// a capa nunca viaja nos payloads (só `temCapa`): o que a tela envia fica
+// aqui — undefined = não mexeu; "" = remover; dataURL = capa nova
+let EV_CAPA;
+
+const $ = (id)=>document.getElementById(id);
+const esc = (s)=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = (d)=>{ const [a,m,dd]=String(d||"").slice(0,10).split("-"); return (a&&m&&dd)?`${dd}/${m}/${a}`:""; };
+function fmtDataHora(iso){
+  const d=iso?new Date(iso):null;
+  if(!d||isNaN(d)) return "—";
+  const z=(n)=>String(n).padStart(2,"0");
+  return `${z(d.getDate())}/${z(d.getMonth()+1)}/${d.getFullYear()} às ${z(d.getHours())}h${z(d.getMinutes())}`;
+}
+function fmtCPF(v){ const d=String(v||"").replace(/\D/g,""); return d.length===11?d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,"$1.$2.$3-$4"):v; }
+
+async function carregar(){
+  const r = await fetch("/api/extensao");
+  if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error || "Falha ao carregar os eventos");
+  const j = await r.json();
+  ACOES = j.acoes || [];
+  GESTAO_EX = j.gestao === true;
+  GESTAO_EV = j.gestaoEventos === true;
+  EU = j.eu || EU;
+  if(Array.isArray(j.tiposAtividade) && j.tiposAtividade.length) TIPOS_ATV = j.tiposAtividade;
+  if(j.lgpdPadrao) LGPD_PADRAO = j.lgpdPadrao;
+  for(const a of ACOES){
+    a.proposta = a.proposta || {};
+    const p = a.participantes || (a.participantes = {});
+    p.inscritos = p.inscritos || [];
+  }
+}
+
+/* Réplica local de numerosDoEvento (lib/eventos.js): os contadores da lista
+   e os por atividade se calculam do que a tela já tem. */
+function numerosEventoLocal(a){
+  const ev=a.evento||{}; const inscritos=a.participantes?.inscritos||[];
+  const online=inscritos.filter(i=>i?.origem==="online").length;
+  const presDe=(id)=>inscritos.filter(i=>(i?.presencas||[]).some(p=>String(p?.atividade||"")===id)).length;
+  const marcou=(id)=>inscritos.filter(i=>Array.isArray(i?.atividades)&&i.atividades.includes(id)).length;
+  const porAtividade=(ev.programacao||[])
+    .filter(p=>p?.id&&(p.inscricao==="propria"||presDe(p.id)>0))
+    .map(p=>({id:p.id,titulo:p.titulo||"",inscritos:marcou(p.id),presentes:presDe(p.id)}));
+  return {
+    inscritos:inscritos.length,
+    presentes:inscritos.filter(i=>i?.presente===true).length,
+    online, manuais:inscritos.length-online,
+    presentesOnline:inscritos.filter(i=>/^online/.test(String(i?.presentePor||""))).length,
+    porAtividade,
+    comentariosMural:(ev.mural||[]).filter(m=>m&&!m.oculto).length,
+  };
+}
+
+/* ============================== LISTA =================================== */
+function renderLista(){
+  const q=($("l-busca")?.value||"").trim().toLowerCase();
+  const bate=(a)=>!q || String(a.proposta?.nomeAtividade||"").toLowerCase().includes(q)
+    || String(a.curso||"").toLowerCase().includes(q);
+  const comEvento=ACOES.filter(a=>a.evento).filter(bate)
+    .sort((x,y)=>Number(y.evento?.ativo===true)-Number(x.evento?.ativo===true)
+      || String(y.proposta?.periodoInicio||"").localeCompare(String(x.proposta?.periodoInicio||"")));
+  const semEvento=ACOES.filter(a=>!a.evento).filter(bate);
+  $("l-total").textContent = comEvento.length
+    ? `${comEvento.length} evento(s)${q?" no filtro":""}` : "";
+
+  $("ev-cards").innerHTML = comEvento.length ? comEvento.map(cardLista).join("") :
+    `<div class="card" style="text-align:center;padding:34px 20px">
+      <div style="font-size:15px;font-weight:700;color:var(--ink)">${q?"Nenhum evento encontrado com esta busca.":"Nenhum evento ainda."}</div>
+      <div class="muted" style="margin-top:8px;max-width:520px;margin-left:auto;margin-right:auto">
+        O evento nasce de uma <b>ação de extensão</b>: registre a proposta no
+        <a href="/extensao/">ARCHÉ EX</a> e volte aqui para montar a página pública,
+        as inscrições e o credenciamento.</div>
+    </div>`;
+
+  $("sem-evento").innerHTML = semEvento.length ? `
+    <div class="card">
+      <div class="sec-t">Ações sem evento</div>
+      <div class="muted" style="margin-bottom:6px">Ações de extensão que você pode operar e que ainda
+        não têm o evento configurado — dá para deixar tudo pronto antes mesmo da aprovação
+        (só a ativação da página exige o Número da Ação).</div>
+      ${semEvento.map(a=>`<div class="linha">
+        <div class="txt">
+          <div class="p1">${esc(a.proposta?.nomeAtividade||"(sem nome)")}</div>
+          <div class="muted">${esc(a.curso||"")}${a.numeroAcao?` · ${esc(a.numeroAcao)}`:" · ainda sem número"}${a.proposta?.periodoInicio?` · ${fmt(a.proposta.periodoInicio)}–${fmt(a.proposta.periodoFim)}`:""}</div>
+        </div>
+        <button class="bt bt-sec" style="padding:7px 12px;font-size:12.5px" onclick="abrir('${esc(a.id)}')">Configurar evento</button>
+      </div>`).join("")}
+    </div>` : "";
+}
+
+function cardLista(a){
+  const ev=a.evento||{};
+  const n=numerosEventoLocal(a);
+  const p=a.proposta||{};
+  const periodo=p.periodoInicio?`${fmt(p.periodoInicio)} – ${fmt(p.periodoFim)}`:"";
+  const capa = ev.temCapa && ev.slug && ev.ativo
+    ? `<img src="/api/publico/eventos/${encodeURIComponent(ev.slug)}/capa" alt="" onerror="this.remove()">` : "";
+  const inicial=esc((p.nomeAtividade||"E").trim().charAt(0).toUpperCase());
+  const tr=ev.transmissao||{};
+  return `<button class="evcard" onclick="abrir('${esc(a.id)}')">
+    <div class="thumb">${capa||inicial}</div>
+    <div class="corpo">
+      <div class="nm">${esc(p.nomeAtividade||"(sem nome)")}</div>
+      <div class="meta">${esc(a.curso||"")}${a.numeroAcao?` · ${esc(a.numeroAcao)}`:""}${periodo?` · ${periodo}`:""}</div>
+      <div class="selos">
+        <span class="badge" style="background:${ev.ativo?"var(--ok-soft)":"#eceff3"};color:${ev.ativo?"var(--ok)":"var(--muted)"}">${ev.ativo?"página no ar":"rascunho"}</span>
+        ${tr.publicada?'<span class="badge" style="background:var(--wash);color:var(--brand-3)">▶ transmissão publicada</span>':""}
+      </div>
+      <div class="nums">${n.inscritos} inscrito(s) · ${n.presentes} presente(s) · ${(ev.programacao||[]).length} atividade(s)</div>
+    </div>
+  </button>`;
+}
+
+/* ============================ NAVEGAÇÃO ================================= */
+function abrir(id){
+  const a=ACOES.find(x=>x.id===id);
+  if(!a) return;
+  ABERTO=id;
+  $("v-lista").classList.add("hide");
+  $("v-op").classList.remove("hide");
+  renderOp(id);
+  try{ history.replaceState(null,"","#e/"+encodeURIComponent(id)); }catch{}
+  window.scrollTo(0,0);
+}
+function voltar(){
+  ABERTO=null;
+  clearInterval(EV_TIMER);
+  $("v-op").classList.add("hide");
+  $("v-lista").classList.remove("hide");
+  try{ history.replaceState(null,"",location.pathname); }catch{}
+  renderLista();
+  window.scrollTo(0,0);
+}
+
+/* ============================ OPERAÇÃO ================================== */
+function renderOp(id){
+  const a=ACOES.find(x=>x.id===id);
+  if(!a){ $("v-op").innerHTML='<div class="card">Evento não encontrado. <button class="lk" onclick="voltar()">← voltar</button></div>'; return; }
+  const ev=a.evento||{};
+  // compat na edição: item antigo tinha só `hora` — vira horaInicio; os ids
+  // existentes são preservados (são a chave das marcações dos inscritos)
+  EV_PROG=(ev.programacao||[]).map(p=>({
+    id:p.id||"", tipo:p.tipo||"palestra", titulo:p.titulo||"", descricao:p.descricao||"",
+    dia:p.dia||"", horaInicio:p.horaInicio||p.hora||"", horaFim:p.horaFim||"",
+    local:p.local||"", responsavel:p.responsavel||"", vagas:Number(p.vagas)||0, ch:p.ch||"",
+    inscricao:p.inscricao==="propria"?"propria":"geral",
+    modalidade:p.modalidade==="online"?"online":"presencial",
+  }));
+  EV_FORM=(ev.formulario||[]).map(c=>({...c, opcoesTxt:(c.opcoes||[]).join(", ")}));
+  EV_CAPA=undefined;
+  const tr=ev.transmissao||{};
+  const p=a.proposta||{};
+  const inscritos=a.participantes?.inscritos||[];
+  const presentes=inscritos.filter(x=>x.presente===true).length;
+  const link=ev.slug?location.origin+"/eventos/"+encodeURIComponent(ev.slug):"";
+  const linkMonitor=ev.slug?location.origin+"/eventos/credenciar?e="+encodeURIComponent(ev.slug):"";
+  const vagasTxt=Number(ev.vagas)>0?`${Math.max(0,Number(ev.vagas)-inscritos.length)} de ${ev.vagas}`:"ilimitadas";
+  const proprias=EV_PROG.filter(x=>x.inscricao==="propria"&&x.id);
+
+  $("v-op").innerHTML=`<div id="card-evento">
+  <div class="op-topo">
+    <button class="bt bt-ghost" onclick="voltar()">← voltar</button>
+    <div class="tt">
+      <h2>${esc(p.nomeAtividade||"(sem nome)")}</h2>
+      <div class="meta">${esc(a.curso||"")}${a.numeroAcao?` · ${esc(a.numeroAcao)}`:" · ação ainda sem número"}${p.periodoInicio?` · ${fmt(p.periodoInicio)} – ${fmt(p.periodoFim)}`:""}
+        · <span class="badge" style="background:${ev.ativo?"var(--ok-soft)":"#eceff3"};color:${ev.ativo?"var(--ok)":"var(--muted)"}">${ev.ativo?"página no ar":"rascunho"}</span></div>
+    </div>
+    <button class="bt bt-ghost" onclick="atualizarEvento('${esc(a.id)}')" title="Recarregar inscritos e presenças">↻ Atualizar</button>
+  </div>
+
+  <!-- ======== situação e acessos ======== -->
+  <div class="card">
+    <div class="sec-t">Situação e acessos</div>
+    <div class="muted" style="margin-bottom:12px">Página pública de inscrição gratuita, credenciamento
+      por QR na entrada (geral e por atividade) e transmissão online. A <b>certificação continua no
+      sistema da AEE</b> — exporte a planilha de inscritos e importe lá.</div>
+    ${!a.numeroAcao?`<div class="banner ba-warn">⏳ <b>A página pública só pode ser ativada depois da
+      aprovação da ação</b> — mas o evento já pode ficar todo configurado aqui: atividades, formulário,
+      capa e transmissão. Aprovada a ação no ARCHÉ EX, é só ativar.</div>`:""}
+    <label class="chk" style="margin-top:0"
+      title="${a.numeroAcao?"":"Só ação aprovada (com Número da Ação) publica página de evento."}">
+      <input type="checkbox" id="ev-ativo" ${ev.ativo?"checked":""} ${a.numeroAcao?"":"disabled"}>
+      página ativa (pública, com inscrição aberta) — grava no "Salvar configuração"</label>
+    ${ev.slug?`
+    <div class="banner ba-info" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <b>Link público:</b>
+        <a href="${esc(link)}" target="_blank" rel="noopener" style="word-break:break-all">${esc(link)}</a>
+        <button class="bt bt-sec" style="padding:5px 10px;font-size:12px" onclick="copiarTexto('${esc(link)}',this)">⧉ copiar</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <b>Código do monitor:</b>
+        <span id="ev-moncode" class="f-disp" style="letter-spacing:.15em" data-cod="${esc(ev.codigoMonitor||"")}">••••••</span>
+        <button class="bt bt-ghost" style="padding:5px 10px;font-size:12px" onclick="mostrarMonitorEv(this)">👁 mostrar</button>
+        <button class="bt bt-ghost" style="padding:5px 10px;font-size:12px" onclick="regenerarMonitorEv('${esc(a.id)}')" title="O código antigo deixa de valer na hora">↻ regenerar</button>
+        <a class="bt bt-sec" style="padding:5px 10px;font-size:12px" href="${esc(linkMonitor)}" target="_blank" rel="noopener">📷 abrir credenciamento</a>
+      </div>
+      <div class="muted" style="font-size:12px">O código do monitor é o que a equipe da porta digita no
+        credenciamento — passe a ela junto com o link acima. Regenerar invalida o anterior.</div>
+    </div>`:""}
+  </div>
+
+  <!-- ======== contadores ======== -->
+  <div class="card">
+    <div class="sec-t">Contadores</div>
+    <div class="stat" style="margin-top:12px">
+      <div class="s"><b id="ev-cnt-insc">${inscritos.length}</b><span>Inscritos</span></div>
+      <div class="s"><b id="ev-cnt-pres" style="color:var(--ok)">${presentes}</b><span>Presentes (credenciados)</span></div>
+      <div class="s"><b id="ev-cnt-vagas">${vagasTxt}</b><span>Vagas restantes</span></div>
+    </div>
+    <div id="ev-cnt-atv">${contadoresAtividadeHtml(a)}</div>
+    <div class="muted" style="font-size:12px">Com a página ativa, os contadores e a lista de inscritos
+      se atualizam sozinhos a cada 30 segundos — sem tocar no que você estiver editando abaixo.</div>
+  </div>
+
+  <!-- ======== página pública ======== -->
+  <div class="card">
+    <div class="sec-t">Página pública</div>
+    <div class="grid3" style="margin-top:12px">
+      <div><label style="margin-top:0">Vagas <span class="muted">(0 = ilimitado)</span></label>
+        <input type="number" id="ev-vagas" min="0" value="${esc(ev.vagas??0)}"></div>
+      <div><label style="margin-top:0">Inscrições até <span class="muted">(vazio = fim do evento)</span></label>
+        <input type="date" id="ev-prazo" value="${esc(ev.inscricoesAte||"")}"></div>
+      <div></div>
+    </div>
+    ${ev.slug?`<label>Endereço da página <span class="muted">(mudar não quebra inscrições já feitas)</span></label>
+      <div style="display:flex;gap:6px;align-items:center"><span class="muted" style="white-space:nowrap">/eventos/</span>
+        <input id="ev-slug" value="${esc(ev.slug||"")}" style="max-width:340px"></div>`:""}
+    <label>Descrição da página pública</label>
+    <textarea id="ev-desc" placeholder="O que é o evento, para quem, o que levar…">${esc(ev.descricao||"")}</textarea>
+    <label>Endereço do evento (local) <span class="muted">(sai na página com o link "Ver no mapa")</span></label>
+    <input id="ev-local" value="${esc(ev.local||"")}" placeholder="Ex.: Auditório central do UNIEGO — Av. Universitária, Goianésia/GO">
+    <label>Capa da página <span class="muted">(JPEG, PNG ou WebP, até 500 KB — aparece no topo do hotsite e na vitrine)</span></label>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <span id="ev-capa-prev">${ev.temCapa
+        ? (ev.slug&&ev.ativo
+          ? `<img src="/api/publico/eventos/${encodeURIComponent(ev.slug)}/capa?v=${Date.now()}" alt="capa" style="height:64px;border-radius:8px;border:1px solid var(--line)">`
+          : '<span class="muted" style="font-size:12.5px">✓ capa enviada (a miniatura aparece com a página ativa)</span>')
+        : '<span class="muted" style="font-size:12.5px">— sem capa: o hotsite usa o gradiente institucional.</span>'}</span>
+      <input type="file" id="ev-capa-file" accept="image/jpeg,image/png,image/webp" style="max-width:280px" onchange="lerCapaEv(this)">
+      ${ev.temCapa?`<button class="bt bt-ghost" style="padding:6px 10px;font-size:12px" onclick="removerCapaEv()">✕ remover capa</button>`:""}
+    </div>
+  </div>
+
+  <!-- ======== atividades ======== -->
+  <div class="card">
+    <div class="sec-t">Atividades da programação</div>
+    <div class="muted" style="margin:8px 0">Cada atividade tem tipo, horário e, se quiser, vaga
+      própria — "exige inscrição própria" faz o participante marcá-la no formulário (minicurso,
+      oficina); sem a marca, quem está inscrito no evento já participa (abertura, palestra magna).</div>
+    <div id="ev-prog"></div>
+    <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="novaAtividadeEv()">＋ Adicionar atividade</button>
+  </div>
+
+  <!-- ======== campos extras ======== -->
+  <div class="card">
+    <div class="sec-t">Campos extras do formulário de inscrição</div>
+    <div class="muted" style="margin:8px 0">Além dos fixos (nome, CPF, e-mail, telefone,
+      curso/instituição). As respostas aparecem só aqui e nos exports — nunca na página pública.</div>
+    <div id="ev-form"></div>
+    <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="EV_FORM.push({id:'',rotulo:'',tipo:'texto',opcoesTxt:'',obrigatorio:false,instrucoes:''});renderFormEv()">＋ Adicionar campo</button>
+  </div>
+
+  <!-- ======== LGPD ======== -->
+  <div class="card">
+    <div class="sec-t">Tratamento de dados (LGPD)</div>
+    <label>Texto de consentimento <span class="muted">(vazio = padrão institucional)</span></label>
+    <textarea id="ev-lgpd" placeholder="Deixe em branco para usar o texto padrão da PROPPEX/UNIEGO.">${esc(ev.lgpdTexto||"")}</textarea>
+    <details style="margin-top:6px"><summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--brand-3)">ver o texto padrão institucional</summary>
+      <div class="tut" style="font-size:12.5px">${esc(LGPD_PADRAO||"(carregando…)")}</div></details>
+  </div>
+
+  <!-- ======== transmissão ======== -->
+  <div class="card">
+    <div class="sec-t">Transmissão online</div>
+    <div class="grid3" style="margin-top:12px">
+      <div><label style="margin-top:0">Tipo</label>
+        <select id="ev-tr-tipo" onchange="renderDicaTransmissao()">
+          <option value="" ${!tr.tipo?"selected":""}>Nenhuma</option>
+          <option value="youtube" ${tr.tipo==="youtube"?"selected":""}>YouTube (ao vivo)</option>
+          <option value="zoom" ${tr.tipo==="zoom"?"selected":""}>Zoom (reunião)</option>
+        </select></div>
+      <div><label style="margin-top:0">Link ou ID <span class="muted">(YouTube aceita a URL — o ID sai dela)</span></label>
+        <input id="ev-tr-link" value="${esc(tr.tipo==="zoom"?(tr.zoomUrl||""):(tr.youtubeId||""))}" placeholder="https://…"></div>
+      <div><label style="margin-top:0">Presença após (min) <span class="muted">(0 = no primeiro acesso)</span></label>
+        <input type="number" id="ev-tr-min" min="0" value="${esc(tr.presencaMinutos??0)}"></div>
+    </div>
+    <label class="chk" id="ev-tr-chat-w">
+      <input type="checkbox" id="ev-tr-chat" ${tr.chatYoutube?"checked":""}>
+      mostrar o chat da live do YouTube na página de assistir (só desktop)</label>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
+      <span class="badge" style="background:${tr.publicada?"var(--ok-soft)":"#eceff3"};color:${tr.publicada?"var(--ok)":"var(--muted)"}">
+        ${tr.publicada?"transmissão publicada":"transmissão não publicada"}</span>
+      <button class="bt ${tr.publicada?"bt-warn":"bt-ok"}" style="padding:7px 12px;font-size:12.5px"
+        onclick="publicarTransmissaoEv('${esc(a.id)}',${tr.publicada?"false":"true"})">
+        ${tr.publicada?"⏹ Recolher transmissão":"▶ Publicar transmissão"}</button>
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:6px">Publicada, cada inscrito ganha o botão
+      <b>Assistir online</b> na própria credencial (e no e-mail de confirmação) — o endereço é
+      <span style="font-family:ui-monospace,monospace">/eventos/${esc(ev.slug||"…")}/assistir/&lt;código da inscrição&gt;</span>.
+      Assistindo pelo link, a presença é registrada sozinha.</div>
+  </div>
+
+  <div class="exp" style="margin:0 0 18px">
+    <button class="bt bt-pri" onclick="salvarEvento('${esc(a.id)}')">💾 Salvar configuração do evento</button>
+    <span class="muted" id="ev-msg" style="align-self:center"></span>
+  </div>
+
+  <!-- ======== inscritos e presenças ======== -->
+  <div class="card">
+    <div class="sec-t">Inscritos e presenças</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 6px">
+      <input id="ev-busca" placeholder="Buscar por nome, e-mail ou CPF…" style="max-width:280px" oninput="renderInscritosEv(ACOES.find(x=>x.id==='${esc(a.id)}'))">
+      ${proprias.length?`<label style="margin:0;display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--muted)">Atividade
+        <select id="ev-atv-sel" style="width:auto;max-width:240px;font-size:12.5px;padding:6px 30px 6px 8px"
+          onchange="renderInscritosEv(ACOES.find(x=>x.id==='${esc(a.id)}'))">
+          <option value="">evento inteiro (geral)</option>
+          ${proprias.map(x=>`<option value="${esc(x.id)}">${esc(x.titulo)}</option>`).join("")}
+        </select></label>`:""}
+    </div>
+    <div class="exp" style="margin:0 0 6px">
+      <button class="bt bt-sec" onclick="exportarAee('${esc(a.id)}',false)">📊 Excel AEE — todos</button>
+      <button class="bt bt-sec" onclick="exportarAee('${esc(a.id)}',true)">📊 — só presentes</button>
+      <button class="bt bt-sec" onclick="exportarCompleto('${esc(a.id)}')" title="Workbook com contato, atividades, presenças, consentimento LGPD e os campos extras">📋 Lista completa (ARCHÉ)</button>
+      <button class="bt bt-ghost" onclick="imprimirListaEvento('${esc(a.id)}')" title="Contingência do dia: a lista em papel, com o código de cada inscrito">🖨 Lista em papel</button>
+    </div>
+    ${proprias.length?`<div class="muted" style="font-size:12px;margin-bottom:6px">O seletor de atividade
+      vale para os exports da AEE <b>e</b> para a presença manual: escolhida uma atividade, o botão
+      "✓ presente" registra a presença nela (para quem tem QR emitido).</div>`:""}
+    <div id="ev-inscritos" class="scrollx"></div>
+  </div>
+
+  <!-- ======== mural ======== -->
+  <div class="card">
+    <div class="sec-t">💬 Mural da transmissão</div>
+    <div class="muted" style="margin:8px 0">${(ev.mural||[]).length} mensagem(ns) — moderação:
+      ocultar tira da leitura pública, nada se apaga.</div>
+    <div id="ev-mural-corpo"></div>
+  </div>
+
+  <!-- ======== a ação-mãe ======== -->
+  <div class="card">
+    <div class="sec-t">A ação de extensão desta página</div>
+    <div class="muted" style="margin-top:8px;line-height:1.6">O ARCHÉ EV é a sala de operação do
+      evento; a <b>ação de extensão é a mãe dele</b> — a proposta, a aprovação (que emite o Número
+      da Ação), o relatório final e os participantes para certificação vivem no ARCHÉ EX.</div>
+    <div class="exp"><a class="bt bt-sec" href="/extensao/">Abrir a ação no ARCHÉ EX →</a></div>
+  </div>
+
+  <button class="bt bt-ghost" onclick="voltar()" style="margin-bottom:24px">← voltar à lista</button>
+  </div>`;
+
+  renderProgEv(); renderFormEv(); renderDicaTransmissao();
+  renderInscritosEv(a); renderMuralEv(a); agendarEvento(a.id);
+}
+
+const contadoresAtividadeHtml=(a)=>{
+  const por=numerosEventoLocal(a).porAtividade;
+  return por.length?`<div class="scrollx" style="margin:-4px 0 14px"><table class="pt">
+    <thead><tr><th>Atividade</th><th>Inscritos</th><th>Presentes</th></tr></thead>
+    <tbody>${por.map(x=>`<tr><td>${esc(x.titulo)}</td><td>${x.inscritos}</td><td>${x.presentes}</td></tr>`).join("")}</tbody>
+  </table></div>`:"";
+};
+
+/* ------------------------ editor de atividades --------------------------- */
+function novaAtividadeEv(){
+  EV_PROG.push({id:"",tipo:"palestra",titulo:"",descricao:"",dia:"",horaInicio:"",horaFim:"",
+    local:"",responsavel:"",vagas:0,ch:"",inscricao:"geral",modalidade:"presencial"});
+  renderProgEv();
+}
+function moverAtvEv(i,d){
+  const j=i+d; if(j<0||j>=EV_PROG.length) return;
+  [EV_PROG[i],EV_PROG[j]]=[EV_PROG[j],EV_PROG[i]];
+  renderProgEv();
+}
+/* Editor das atividades: um card por atividade. O id é preservado escondido
+   no próprio objeto — é ele que os inscritos marcaram, e mudar id romperia
+   os vínculos. */
+function renderProgEv(){
+  const el=$("ev-prog"); if(!el) return;
+  el.innerHTML = EV_PROG.length ? EV_PROG.map((p,i)=>`
+    <div class="atv-card">
+      <div class="g-atv">
+        <select onchange="EV_PROG[${i}].tipo=this.value">
+          ${TIPOS_ATV.map(t=>`<option value="${esc(t.codigo)}" ${p.tipo===t.codigo?"selected":""}>${esc(t.rotulo)}</option>`).join("")}</select>
+        <input type="date" value="${esc(p.dia)}" oninput="EV_PROG[${i}].dia=this.value">
+        <input type="time" title="hora de início" value="${esc(p.horaInicio)}" oninput="EV_PROG[${i}].horaInicio=this.value">
+        <input type="time" title="hora de término" value="${esc(p.horaFim)}" oninput="EV_PROG[${i}].horaFim=this.value">
+        <span style="display:flex;gap:4px;justify-content:flex-end">
+          <button class="bt bt-ghost" style="padding:5px 9px;font-size:12px" title="subir" ${i===0?"disabled":""} onclick="moverAtvEv(${i},-1)">↑</button>
+          <button class="bt bt-ghost" style="padding:5px 9px;font-size:12px" title="descer" ${i===EV_PROG.length-1?"disabled":""} onclick="moverAtvEv(${i},1)">↓</button>
+          <button class="bt bt-ghost" style="padding:5px 9px;font-size:12px;color:var(--err)" title="remover atividade" onclick="EV_PROG.splice(${i},1);renderProgEv()">✕</button>
+        </span>
+      </div>
+      <input placeholder="título da atividade *" value="${esc(p.titulo)}" oninput="EV_PROG[${i}].titulo=this.value" style="margin-top:8px">
+      <div class="g-atv2">
+        <input placeholder="responsável / ministrante" value="${esc(p.responsavel)}" oninput="EV_PROG[${i}].responsavel=this.value">
+        <input placeholder="local / sala" value="${esc(p.local)}" oninput="EV_PROG[${i}].local=this.value">
+        <input type="number" min="0" placeholder="vagas" title="vagas da atividade (0 = sem limite próprio)" value="${p.vagas||""}" oninput="EV_PROG[${i}].vagas=this.value">
+        <input placeholder="CH (4h)" title="carga horária da atividade — usada no export da AEE por atividade" value="${esc(p.ch)}" oninput="EV_PROG[${i}].ch=this.value">
+      </div>
+      <div style="display:flex;gap:18px;align-items:center;margin-top:8px;flex-wrap:wrap">
+        <label class="chk" style="margin:0;font-size:12.5px">
+          <input type="checkbox" ${p.inscricao==="propria"?"checked":""}
+            onchange="EV_PROG[${i}].inscricao=this.checked?'propria':'geral'">
+          exige inscrição própria (o participante marca; conta vaga)</label>
+        <label class="chk" style="margin:0;font-size:12.5px">
+          modalidade
+          <select style="width:auto;font-size:12.5px;padding:5px 30px 5px 8px" onchange="EV_PROG[${i}].modalidade=this.value">
+            <option value="presencial" ${p.modalidade!=="online"?"selected":""}>presencial</option>
+            <option value="online" ${p.modalidade==="online"?"selected":""}>online</option>
+          </select></label>
+      </div>
+      <details style="margin-top:8px" ${p.descricao?"open":""}>
+        <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--brand-3)">descrição da atividade (aparece no "ver detalhes" da página)</summary>
+        <textarea style="margin-top:6px;min-height:56px" oninput="EV_PROG[${i}].descricao=this.value">${esc(p.descricao)}</textarea>
+      </details>
+    </div>`).join("")
+    : '<div class="cnt">— nenhuma atividade ainda; a página pública diz que a programação sai em breve.</div>';
+}
+
+/* ------------------------ campos extras do form -------------------------- */
+const TIPOS_CAMPO_EV=[["texto","Texto curto"],["paragrafo","Parágrafo"],["selecao","Seleção (uma opção)"],
+  ["multipla","Múltipla escolha"],["caixa","Caixa de marcar"]];
+function renderFormEv(){
+  const el=$("ev-form"); if(!el) return;
+  el.innerHTML = EV_FORM.length ? EV_FORM.map((c,i)=>`
+    <div class="atv-card" style="padding:10px 12px">
+      <div class="g-campo">
+        <input placeholder="pergunta / rótulo do campo *" value="${esc(c.rotulo||"")}" oninput="EV_FORM[${i}].rotulo=this.value">
+        <select onchange="EV_FORM[${i}].tipo=this.value;renderFormEv()">
+          ${TIPOS_CAMPO_EV.map(([v,l])=>`<option value="${v}" ${c.tipo===v?"selected":""}>${l}</option>`).join("")}</select>
+        <span style="display:flex;gap:10px;align-items:center">
+          <label class="chk" style="margin:0;font-size:12.5px">
+            <input type="checkbox" ${c.obrigatorio?"checked":""} onchange="EV_FORM[${i}].obrigatorio=this.checked">obrigatório</label>
+          <span class="rm" title="remover campo" onclick="EV_FORM.splice(${i},1);renderFormEv()">✕</span>
+        </span>
+      </div>
+      ${["selecao","multipla"].includes(c.tipo)?`<input style="margin-top:8px" placeholder="opções separadas por vírgula (ex.: Manhã, Tarde, Noite)"
+        value="${esc(c.opcoesTxt||"")}" oninput="EV_FORM[${i}].opcoesTxt=this.value">`:""}
+      <input style="margin-top:8px" placeholder="instruções ao inscrito (opcional)" value="${esc(c.instrucoes||"")}" oninput="EV_FORM[${i}].instrucoes=this.value">
+    </div>`).join("")
+    : '<div class="cnt">— nenhum campo extra; o formulário fica só com os fixos.</div>';
+}
+
+function renderDicaTransmissao(){
+  const tipo=$("ev-tr-tipo")?.value||"";
+  const w=$("ev-tr-chat-w"); if(w) w.style.display = tipo==="youtube" ? "" : "none";
+  const l=$("ev-tr-link");
+  if(l) l.placeholder = tipo==="zoom" ? "https://us02web.zoom.us/j/…" : tipo==="youtube" ? "https://www.youtube.com/watch?v=… ou o ID" : "—";
+}
+
+/* ----------------------------- capa ------------------------------------- */
+function lerCapaEv(inp){
+  const f=inp.files&&inp.files[0]; if(!f) return;
+  if(!/^image\/(jpeg|png|webp)$/.test(f.type)){ alert("A capa deve ser JPEG, PNG ou WebP."); inp.value=""; return; }
+  if(f.size>500*1024){ alert("A capa passa de 500 KB — reduza a imagem antes de enviar."); inp.value=""; return; }
+  const r=new FileReader();
+  r.onload=()=>{
+    EV_CAPA=String(r.result||"");
+    const prev=$("ev-capa-prev");
+    if(prev) prev.innerHTML=`<img src="${EV_CAPA}" alt="capa nova" style="height:64px;border-radius:8px;border:1px solid var(--line)">
+      <span class="muted" style="font-size:12px;display:block">prévia — grava no "Salvar"</span>`;
+  };
+  r.readAsDataURL(f);
+}
+function removerCapaEv(){
+  EV_CAPA="";
+  const prev=$("ev-capa-prev");
+  if(prev) prev.innerHTML='<span class="muted" style="font-size:12.5px">capa marcada para remoção — grava no "Salvar".</span>';
+  const inp=$("ev-capa-file"); if(inp) inp.value="";
+}
+
+/* --------------------------- mural (moderação) --------------------------- */
+function renderMuralEv(a){
+  const el=$("ev-mural-corpo"); if(!el||!a) return;
+  const mural=a.evento?.mural||[];
+  el.innerHTML = mural.length ? mural.slice().reverse().map(m=>`
+    <div class="linha" style="align-items:flex-start;${m.oculto?"opacity:.55":""}">
+      <div class="txt">
+        <div class="p1">${esc(m.nome||"—")} <span class="muted" style="font-weight:400">· ${fmtDataHora(m.em)}</span>
+          ${m.oculto?'<span class="badge" style="background:var(--err-soft);color:var(--err);margin-left:6px">oculta</span>':""}</div>
+        <div style="font-size:13px;color:var(--ink-soft);white-space:pre-line;margin-top:2px">${esc(m.texto||"")}</div>
+      </div>
+      <button class="bt ${m.oculto?"bt-ok":"bt-ghost"}" style="padding:4px 10px;font-size:11.5px"
+        onclick="moderarMural('${esc(a.id)}','${esc(m.id)}',${m.oculto?"false":"true"})">${m.oculto?"reexibir":"ocultar"}</button>
+    </div>`).join("")
+    : '<div class="cnt">— nenhuma mensagem no mural ainda.</div>';
+}
+async function moderarMural(id,mid,oculto){
+  try{
+    const r=await fetch(`/api/extensao/${id}/mural/${encodeURIComponent(mid)}`,{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify({oculto})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    const a=ACOES.find(x=>x.id===id);
+    const m=a?.evento?.mural?.find(x=>x.id===mid);
+    if(m) m.oculto=oculto;
+    renderMuralEv(a);
+  }catch(e){ alert("Não foi possível moderar: "+e.message); }
+}
+
+/* ------------------------ inscritos e presenças -------------------------- */
+function renderInscritosEv(a){
+  const el=$("ev-inscritos"); if(!el||!a) return;
+  const q=($("ev-busca")?.value||"").trim().toLowerCase();
+  const todos=a.participantes?.inscritos||[];
+  const prog=a.evento?.programacao||[];
+  const tituloAtv=(id)=>prog.find(p=>p?.id===id)?.titulo||"?";
+  const lista=todos.filter(x=>!q
+    || String(x.nome||"").toLowerCase().includes(q)
+    || String(x.email||"").toLowerCase().includes(q)
+    || String(x.cpf||"").replace(/\D/g,"").includes(q.replace(/\D/g,"")||"§"));
+  const hora=(iso)=>{ try{ return new Date(iso).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}); }catch{ return ""; } };
+  el.innerHTML = lista.length ? `<table class="pt">
+    <thead><tr><th>Nome</th><th>Contato</th><th>Origem</th><th>Código</th><th>Atividades</th><th>Presença</th></tr></thead>
+    <tbody>${lista.map(x=>{
+      const marcadas=(x.atividades||[]).map(tituloAtv);
+      const porAtv=(x.presencas||[]).filter(p=>p&&p.atividade);
+      return `<tr>
+      <td>${esc(x.nome)}</td>
+      <td>${esc(x.email||"")}${x.telefone?`<br><span class="muted">${esc(x.telefone)}</span>`:""}</td>
+      <td>${x.origem==="online"?`online${x.inscritoEm?` <span class="muted">${esc(hora(x.inscritoEm))}</span>`:""}`:"lista da coordenação"}</td>
+      <td style="font-family:ui-monospace,monospace">${x.token?esc(x.token.slice(0,6).toUpperCase()):"—"}</td>
+      <td title="${esc(marcadas.join(" · "))}">${marcadas.length||"—"}</td>
+      <td>${x.presente===true
+        ? `<span class="badge" style="background:var(--ok-soft);color:var(--ok)" title="${esc(porAtv.map(p=>tituloAtv(p.atividade)).join(" · "))}">✓ ${esc(hora(x.presenteEm))}${porAtv.length?` · ${porAtv.length} atv`:""}</span>
+           <button class="lk" style="margin-left:6px;font-size:11px" title="Desfazer a presença geral"
+             onclick="marcarPresencaEv('${esc(a.id)}','${esc(x.token||"")}','${esc(x.cpf||"")}','${esc(x.email||"")}',false)">desfazer</button>
+           ${$("ev-atv-sel")?.value?`<button class="bt bt-sec" style="padding:2px 9px;font-size:11px;margin-left:4px" title="Registrar presença também na atividade escolhida acima"
+             onclick="presencaAtividadeEv('${esc(a.id)}','${esc(x.token||"")}','${esc(x.cpf||"")}','${esc(x.email||"")}')">＋ na atividade</button>`:""}`
+        : `<button class="bt bt-sec" style="padding:2px 9px;font-size:11px" title="Marcar presença à mão — na atividade escolhida acima (quem tem QR) ou na entrada geral"
+             onclick="presencaManualEv('${esc(a.id)}','${esc(x.token||"")}','${esc(x.cpf||"")}','${esc(x.email||"")}')">✓ presente</button>`}</td>
+    </tr>`;}).join("")}</tbody></table>
+    <div class="cnt">${lista.length} de ${todos.length} inscrito(s)${q?" no filtro":""}.</div>`
+    : `<div class="cnt">— ${todos.length?"ninguém encontrado com esta busca.":"nenhum inscrito ainda."}</div>`;
+}
+
+function atualizarContadoresEvento(a){
+  const inscritos=a.participantes?.inscritos||[];
+  const ev=a.evento||{};
+  if($("ev-cnt-insc")) $("ev-cnt-insc").textContent=inscritos.length;
+  if($("ev-cnt-pres")) $("ev-cnt-pres").textContent=inscritos.filter(x=>x.presente===true).length;
+  if($("ev-cnt-vagas")) $("ev-cnt-vagas").textContent=Number(ev.vagas)>0
+    ? `${Math.max(0,Number(ev.vagas)-inscritos.length)} de ${ev.vagas}` : "ilimitadas";
+  if($("ev-cnt-atv")) $("ev-cnt-atv").innerHTML=contadoresAtividadeHtml(a);
+  renderMuralEv(a);
+}
+
+/* Contadores "ao vivo" no dia do evento: enquanto a operação está aberta e a
+   página do evento ativa, recarrega a cada 30 s — só números, a tabela e o
+   mural, sem tocar nos formulários (senão o refresco apagaria o que se
+   digita). */
+function agendarEvento(id){
+  clearInterval(EV_TIMER);
+  const a0=ACOES.find(x=>x.id===id);
+  if(!a0?.evento?.ativo) return;
+  EV_TIMER=setInterval(async()=>{
+    if($("v-op").classList.contains("hide")||!$("card-evento")||ABERTO!==id){ clearInterval(EV_TIMER); return; }
+    try{
+      await carregar();
+      const a=ACOES.find(x=>x.id===id); if(!a) return;
+      atualizarContadoresEvento(a); renderInscritosEv(a);
+    }catch{ /* sem rede agora — a próxima volta tenta de novo */ }
+  },30000);
+}
+
+async function atualizarEvento(id){
+  try{ await carregar(); }catch(e){ alert(e.message); return; }
+  renderOp(id);
+}
+
+/* presença manual (gestão): para quem veio da lista da coordenação (sem QR)
+   ou assinou o papel — o credenciamento por QR é dos inscritos online.
+   SEMPRE pela rota autenticada da gestão: o registro sai assinado
+   "gestão (email)", nunca "monitor". */
+async function marcarPresencaEv(id, token, cpf, email, presente){
+  try{
+    const r=await fetch("/api/extensao/"+id+"/presenca",{method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({token,cpf,email,presente})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    await carregar();
+    const a=ACOES.find(x=>x.id===id);
+    if(a){ atualizarContadoresEvento(a); renderInscritosEv(a); }
+  }catch(e){ alert("Não foi possível marcar a presença: "+e.message); }
+}
+/* Presença manual COM atividade — mesma rota autenticada; funciona também
+   para o inscrito da lista em papel, sem token: a rota acha por CPF/e-mail. */
+async function presencaAtividadeEv(id, token, cpf, email){
+  const atv=$("ev-atv-sel")?.value||"";
+  try{
+    const r=await fetch("/api/extensao/"+id+"/presenca",{method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({token, cpf, email, atividade:atv, presente:true})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    await carregar();
+    const a2=ACOES.find(x=>x.id===id);
+    if(a2){ atualizarContadoresEvento(a2); renderInscritosEv(a2); }
+  }catch(e){ alert("Não foi possível registrar na atividade: "+e.message); }
+}
+function presencaManualEv(id, token, cpf, email){
+  const atv=$("ev-atv-sel")?.value||"";
+  if(atv) return presencaAtividadeEv(id, token, cpf, email);
+  return marcarPresencaEv(id, token, cpf, email, true);
+}
+
+/* --------------------------- salvar / publicar --------------------------- */
+function lerTransmissaoEv(publicada){
+  const tipo=$("ev-tr-tipo")?.value||"";
+  const valor=$("ev-tr-link")?.value.trim()||"";
+  return {
+    tipo,
+    youtubeId: tipo==="youtube"?valor:"",     // URL ou ID — o servidor extrai
+    zoomUrl: tipo==="zoom"?valor:"",
+    chatYoutube: $("ev-tr-chat")?.checked||false,
+    presencaMinutos: Number($("ev-tr-min")?.value)||0,
+    publicada,
+  };
+}
+
+/* Grava TUDO o que a tela editou pela rota dedicada do evento — os ids das
+   atividades vão preservados no próprio objeto. */
+async function salvarEvento(id, {publicada}={}){
+  const msg=$("ev-msg"); if(msg) msg.textContent="Salvando…";
+  const atual=ACOES.find(x=>x.id===id);
+  // sem o parâmetro, publicar/recolher não muda no salvar comum
+  const pub = publicada===undefined ? atual?.evento?.transmissao?.publicada===true : publicada;
+  const body={
+    ativo:$("ev-ativo")?.checked||false,
+    descricao:$("ev-desc")?.value||"",
+    vagas:$("ev-vagas")?.value||0,
+    inscricoesAte:$("ev-prazo")?.value||"",
+    programacao:EV_PROG,
+    formulario:EV_FORM.map(c=>({ id:c.id||"", rotulo:c.rotulo||"", tipo:c.tipo||"texto",
+      opcoes:String(c.opcoesTxt||"").split(",").map(s=>s.trim()).filter(Boolean),
+      obrigatorio:!!c.obrigatorio, instrucoes:c.instrucoes||"" })),
+    local:$("ev-local")?.value||"",
+    lgpdTexto:$("ev-lgpd")?.value||"",
+    transmissao:lerTransmissaoEv(pub),
+  };
+  // a capa só entra no corpo quando a tela mexeu nela — mandar sempre
+  // apagaria a que está gravada (o payload nunca traz o base64 de volta)
+  if(EV_CAPA!==undefined) body.capa=EV_CAPA;
+  const slugEl=$("ev-slug");
+  if(slugEl&&slugEl.value.trim()) body.slug=slugEl.value.trim();
+  try{
+    const r=await fetch(`/api/extensao/${id}/evento`,{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    await carregar(); renderOp(id);
+    const m=$("ev-msg"); if(m){ m.textContent="✓ salvo"; setTimeout(()=>{ if($("ev-msg")) $("ev-msg").textContent=""; },3000); }
+    return true;
+  }catch(e){
+    if($("ev-msg")) $("ev-msg").textContent="";
+    alert("Não foi possível salvar o evento: "+e.message);
+    return false;
+  }
+}
+
+/* Publicar/recolher é o interruptor explícito da transmissão — passa pelo
+   MESMO salvar (grava a configuração toda), só virando a chave `publicada`. */
+async function publicarTransmissaoEv(id, publicar){
+  if(publicar && !($("ev-tr-tipo")?.value))
+    return alert("Escolha o tipo da transmissão (YouTube ou Zoom) e informe o link antes de publicar.");
+  if(!publicar && !confirm("Recolher a transmissão?\n\nA página de assistir deixa de funcionar para os inscritos até você publicar de novo.")) return;
+  await salvarEvento(id, {publicada:publicar});
+}
+
+function mostrarMonitorEv(bt){
+  const el=$("ev-moncode"); if(!el) return;
+  const oculto=el.textContent.includes("•");
+  el.textContent=oculto?(el.dataset.cod||"—"):"••••••";
+  bt.textContent=oculto?"🙈 ocultar":"👁 mostrar";
+}
+async function regenerarMonitorEv(id){
+  if(!confirm("Gerar um NOVO código do monitor?\n\nO código atual deixa de valer na hora — a equipe da porta precisa receber o novo.")) return;
+  try{
+    const r=await fetch(`/api/extensao/${id}/evento`,{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify({regenerarCodigoMonitor:true})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    await carregar(); renderOp(id);
+  }catch(e){ alert("Não foi possível regenerar: "+e.message); }
+}
+
+function copiarTexto(txt,bt){
+  (navigator.clipboard?.writeText(txt)||Promise.reject()).then(()=>{
+    const t=bt.textContent; bt.textContent="✓ copiado"; setTimeout(()=>bt.textContent=t,2000);
+  }).catch(()=>prompt("Copie o endereço:",txt));
+}
+
+/* -------------------------------- exports -------------------------------- */
+function exportarAee(id,soPresentes){
+  // o seletor de atividade recorta o export: quem marcou a atividade (e,
+  // com "só presentes", quem tem presença NELA), com a CH declarada nela
+  const atv=$("ev-atv-sel")?.value||"";
+  const q=[soPresentes?"presentes=1":"", atv?`atividade=${encodeURIComponent(atv)}`:""].filter(Boolean).join("&");
+  window.open(`/api/extensao/${id}/inscritos.xlsx${q?"?"+q:""}`,"_blank");
+}
+function exportarCompleto(id){
+  window.open(`/api/extensao/${id}/inscritos-completo.xlsx`,"_blank");
+}
+
+/* A lista em PAPEL — contingência do dia: se o celular do monitor falhar,
+   a porta confere pelo nome e pelo código, e colhe assinatura. */
+function imprimirListaEvento(id){
+  const a=ACOES.find(x=>x.id===id); if(!a) return;
+  const inscritos=(a.participantes?.inscritos||[]).slice()
+    .sort((x,y)=>String(x.nome||"").localeCompare(String(y.nome||""),"pt-BR"));
+  const w=window.open("","_blank");
+  if(!w){ alert("O navegador bloqueou a janela de impressão — libere pop-ups para este site."); return; }
+  w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+    <title>Lista de credenciamento — ${esc(a.numeroAcao||"")}</title>
+    <style>body{font-family:system-ui,sans-serif;font-size:12px;margin:24px;color:#182632}
+    h1{font-size:16px;margin:0}h2{font-size:12px;font-weight:400;color:#555;margin:4px 0 14px}
+    table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:5px 7px;text-align:left}
+    th{background:#eee;font-size:10.5px;text-transform:uppercase}
+    td.ass{width:26%}@media print{button{display:none}}</style></head><body>
+    <h1>${esc(a.proposta?.nomeAtividade||"")}</h1>
+    <h2>Lista de credenciamento — ${esc(a.numeroAcao||"")} · ${esc(a.curso||"")} ·
+      ${inscritos.length} inscrito(s) · impressa em ${new Date().toLocaleString("pt-BR")}</h2>
+    <button onclick="print()">Imprimir</button>
+    <table><thead><tr><th>#</th><th>Nome</th><th>CPF</th><th>Código</th><th>Assinatura</th></tr></thead>
+    <tbody>${inscritos.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.nome||"")}</td>
+      <td>${esc(fmtCPF(x.cpf||"")||x.matricula||"")}</td>
+      <td style="font-family:monospace">${x.token?esc(x.token.slice(0,6).toUpperCase()):"—"}</td>
+      <td class="ass"></td></tr>`).join("")}</tbody></table></body></html>`);
+  w.document.close();
+}
+
+/* ================================ INIT ================================== */
+(async function init(){
+  try{
+    const r = await fetch("/api/me");
+    if(r.status===401){ location.href="/entrar?next="+encodeURIComponent(location.pathname); return; }
+    ME = await r.json();
+    if(ME.papel==="pendente"){ location.href="/entrar?pendente=1"; return; }
+    EU = ME.email||"";
+  }catch{ /* segue sem sessão (modo dev) — a guarda de verdade é a do servidor */ }
+  try{ await carregar(); }
+  catch(e){
+    $("ev-cards").innerHTML=`<div class="card">⚠ ${esc(e.message)}</div>`;
+    return;
+  }
+  const quem=$("quem-ve");
+  if(quem){
+    if(GESTAO_EX||GESTAO_EV){
+      quem.textContent = GESTAO_EX ? "Coordenação — você vê e opera todos os eventos"
+        : "Coordenação de eventos — você opera todos os eventos das ações de extensão";
+      quem.hidden=false;
+    }else if(EU){
+      quem.textContent="Você opera os eventos das suas próprias ações";
+      quem.hidden=false;
+    }
+  }
+  renderLista();
+  // link direto #e/<id> (recarregar a página no evento aberto volta a ele)
+  const m=location.hash.match(/^#e\/(.+)$/);
+  if(m){
+    const id=decodeURIComponent(m[1]);
+    if(ACOES.some(a=>a.id===id)) abrir(id);
+  }
+})();
+</script>
+<script src="/assets/arche-nav.js" defer></script>
+</body>
+</html>
