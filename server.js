@@ -204,11 +204,14 @@ const liberadoNaAv = (req) => !!lerSelo(req) || !!lerSessao(req);
 const somenteLeituraNaAv = (req) => lerSelo(req)?.via === "avaliador" && !lerSessao(req);
 
 /* Atalho público do avaliador — arche.app.br/avaliador (decisão do dono,
-   ago/2026): entra SEM senha, direto no bloco ARCHÉ Avaliador do módulo
-   (Indicadores e Produção). O selo emitido é o de visualização acima. */
-app.get(["/avaliador", "/avaliador/"], (_req, res) => {
+   ago/2026): entra SEM senha numa página EXCLUSIVA com os dois painéis do
+   avaliador (Indicadores e Produção) — o avaliador fica restrito ao que vai
+   avaliar; o /arche/ completo (com os acessos de submissão) continua atrás
+   da portaria para quem alimenta o dossiê. O selo emitido é o de
+   visualização acima: as telas abrem, nada se grava. */
+app.get(["/avaliador", "/avaliador/", "/avaliador/index.html"], (_req, res) => {
   emitirSelo(res, "avaliador");
-  res.redirect("/arche/");
+  res.sendFile(path.join(PUBLIC, "avaliador", "index.html"));
 });
 
 app.use((req, res, next) => {

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>ARCHÉ Avaliador — UNIEGO</title>
+<link rel="icon" href="/arche/favicon.svg">
+<style>
+  /* Página EXCLUSIVA do avaliador (decisão do dono, ago/2026): o link
+     arche.app.br/avaliador é o que a PROPPEX passa ao avaliador — ela mostra
+     SÓ os dois painéis que ele vai usar, sem os acessos de submissão do
+     módulo (/arche/ segue completo para quem alimenta o dossiê). A rota que
+     serve esta página emite o selo de VISUALIZAÇÃO: as telas abrem, nada se
+     grava. Mesma identidade visual do módulo da Avaliação. */
+  :root{--bg:#eef1f4;--brand:#1c3742;--brand-2:#2d535c;--accent:#40717e;--accent-2:#71c8e2;
+    --wash:#e6f5fa;--ink:#182632;--muted:#657179;--line:#dde4e8}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Figtree","IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg);color:var(--ink);min-height:100vh;display:flex;flex-direction:column}
+  header{background:#fff;border-bottom:1px solid var(--line);padding:14px 26px;
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  header img{height:44px}
+  header .tit b{font-size:17px;letter-spacing:.04em;color:var(--brand)}
+  header .tit div{font-size:12px;color:var(--muted)}
+  header .dir{margin-left:auto}
+  main{flex:1;max-width:980px;width:100%;margin:0 auto;padding:38px 20px 60px}
+  .eyebrow{font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--accent);text-transform:uppercase}
+  h1{font-size:34px;color:var(--brand);margin:8px 0 2px;display:flex;align-items:center;gap:10px}
+  .lema{font-style:italic;color:var(--muted);font-size:13.5px;line-height:1.5}
+  .selo-ro{display:inline-block;background:var(--wash);color:var(--brand-2);border:1px solid #c9e6f0;
+    border-radius:999px;padding:5px 14px;font-size:12.5px;font-weight:600;margin-top:16px}
+  .bloco{background:#fff;border-radius:18px;padding:26px 26px 22px;margin-top:26px;
+    box-shadow:0 2px 14px rgba(24,38,50,.06)}
+  .bloco h2{font-size:21px;color:var(--brand)}
+  .bloco .sub{font-size:13px;font-weight:600;color:var(--accent);margin-top:2px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}
+  @media(max-width:720px){.cards{grid-template-columns:1fr}h1{font-size:28px}}
+  .card{background:#fbfcfd;border:1px solid var(--line);border-radius:14px;padding:20px;
+    text-decoration:none;color:inherit;display:flex;flex-direction:column;gap:10px;transition:.15s}
+  .card:hover{border-color:var(--accent);box-shadow:0 4px 16px rgba(24,38,50,.09);transform:translateY(-1px)}
+  .card .ic{width:44px;height:44px;border-radius:11px;background:var(--wash);color:var(--brand-2);
+    display:flex;align-items:center;justify-content:center;border:1px solid #c9e6f0}
+  .card h3{font-size:16.5px;color:var(--brand)}
+  .card p{font-size:13.5px;color:var(--muted);line-height:1.55;flex:1}
+  .cta{display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,var(--brand),var(--brand-2));
+    color:#fff;border-radius:10px;padding:12px 16px;font-size:14px;font-weight:700}
+  footer{background:#fff;border-top:1px solid var(--line);padding:18px 26px;display:flex;
+    align-items:center;gap:18px;flex-wrap:wrap;justify-content:center}
+  footer img{height:34px;opacity:.9}
+  footer p{font-size:12px;color:var(--muted);text-align:center;line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+  <img src="/assets/logo-uniego.png" alt="UNIEGO — Centro Universitário Evangélico de Goianésia">
+  <div class="tit">
+    <b>ARCHÉ</b>
+    <div>Sistema de Apoio à avaliação in loco — SINAES/INEP — UNIEGO / PROPPEX</div>
+  </div>
+  <img class="dir" src="/assets/logo-proppex.png" alt="PROPPEX">
+</header>
+
+<main>
+  <p class="eyebrow">Plataforma de Avaliação · SINAES · INEP/MEC</p>
+  <h1>
+    <svg width="34" height="34" viewBox="0 0 40 42" aria-hidden="true"><path d="M7 39 V20 a13 13 0 0 1 26 0 V39" fill="none" stroke="#1c3742" stroke-width="4.2" stroke-linecap="round"/><circle cx="20" cy="20" r="3.4" fill="#71c8e2"/></svg>
+    ARCHÉ Avaliador
+  </h1>
+  <p class="lema">Avaliação, Registro e Comprovação para Habilitação no Ensino.<br>
+    do grego <em>arché</em> — Origem, Fundamento, Princípio.</p>
+  <span class="selo-ro">Acesso de visualização — os documentos abrem para consulta, nada é alterado</span>
+
+  <div class="bloco">
+    <h2>Painéis do avaliador</h2>
+    <p class="sub">Acesso exclusivo para avaliadores designados</p>
+    <div class="cards">
+      <a class="card" href="/arche/avaliacao/?perfil=avaliador">
+        <span class="ic" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 14l2 2 4-4"/></svg>
+        </span>
+        <h3>Avaliador de Indicadores</h3>
+        <p>Acesse o painel de avaliação dos indicadores das três dimensões do instrumento SINAES/INEP.</p>
+        <span class="cta">Acessar painel
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </span>
+      </a>
+      <a class="card" href="/arche/dossie/?perfil=avaliador">
+        <span class="ic" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </span>
+        <h3>Avaliador de Produção</h3>
+        <p>Acesse o painel de avaliação dos documentos de produção docente e comprovantes do Lattes.</p>
+        <span class="cta">Acessar painel
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </span>
+      </a>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <img src="/assets/logo-uniego.png" alt="UNIEGO">
+  <p>Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária — PROPPEX<br>
+    Centro Universitário Evangélico de Goianésia — UNIEGO · Apoio à avaliação in loco — SINAES/INEP</p>
+  <img src="/assets/logo-proppex.png" alt="PROPPEX">
+</footer>
+</body>
+</html>
