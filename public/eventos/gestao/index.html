@@ -418,7 +418,10 @@ async function sair(){
 function montarSeletor(){
   const sel=$("sel-evento"); if(!sel) return;
   const nomeDe=(a)=>a.proposta?.nomeAtividade||"(sem nome)";
-  const com=ACOES.filter(a=>a.evento), sem=ACOES.filter(a=>!a.evento);
+  // ação vinda do processo em PAPEL não é candidata a evento (decisão do
+  // dono, ago/2026): o EV é dos eventos geridos dentro do sistema; o que
+  // correu por fora vive no ARCHÉ EX, com proposta, relatório e listas
+  const com=ACOES.filter(a=>a.evento), sem=ACOES.filter(a=>!a.evento&&!a.origemPapel);
   sel.innerHTML = `<option value=""${ABERTO?"":" selected"}>— escolher evento —</option>`
     + com.map(a=>`<option value="${esc(a.id)}"${a.id===ABERTO?" selected":""}>${esc(nomeDe(a))} · ${a.evento.ativo?"no ar":"rascunho"}</option>`).join("")
     + (sem.length?`<optgroup label="Ações sem evento (configurar)">${
@@ -545,7 +548,7 @@ function renderCardsPainel(){
   const comEvento=ACOES.filter(a=>a.evento).filter(bate)
     .sort((x,y)=>Number(y.evento?.ativo===true)-Number(x.evento?.ativo===true)
       || String(y.proposta?.periodoInicio||"").localeCompare(String(x.proposta?.periodoInicio||"")));
-  const semEvento=ACOES.filter(a=>!a.evento).filter(bate);
+  const semEvento=ACOES.filter(a=>!a.evento&&!a.origemPapel).filter(bate);
   if($("l-total")) $("l-total").textContent = comEvento.length
     ? `${comEvento.length} evento(s)${q?" no filtro":""}` : "";
 

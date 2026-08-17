@@ -5867,37 +5867,78 @@ async function zerarAlunosIniciais() {
  * EXT-AAAA-NNN pela MESMA sequência oficial da aprovação (extensao-config-v1)
  * — número não se inventa — e nunca sobrescreve ação que já exista.
  */
-async function subirAcoesMigradasExtensao() {
-  const marca = "sys-ex-lote-semana-enf-2026";
+/* Lotes de ações transcritas do processo em PAPEL — cada um sobe uma vez só
+   (a marca `sys-ex-lote-*` é o que impede um deploy de ressuscitar ação que a
+   PROPPEX apagou de propósito). Estas ações NÃO ganham `evento`: o ARCHÉ EV é
+   dos eventos geridos DENTRO do sistema (página, inscrição online,
+   credenciamento); o que correu por fora entra pelo ARCHÉ EX, com proposta,
+   relatório e listas — decisão do dono, ago/2026. */
+const LOTES_EXTENSAO = [
+  { arquivo: "ex-semana-enf-2026.json", marca: "sys-ex-lote-semana-enf-2026", rotulo: "Semana de Enfermagem 2026" },
+  { arquivo: "ex-lote-eventos-2026.json", marca: "sys-ex-lote-eventos-2026", rotulo: "Ações de 2026 (Abril Laranja, Encontro Família, Ciências Agrárias)" },
+];
+
+/* Ação que veio do papel não é candidata a evento (decisão do dono, ago/2026):
+   marca as que já estavam gravadas antes de o campo existir — a da Semana de
+   Enfermagem, entre elas —, para o ARCHÉ EV deixar de oferecê-las. */
+async function marcarAcoesDePapel() {
+  const marca = "sys-ex-origem-papel-v1";
   try {
     if (await storage.get(marca)) return;
-    let lote = [];
-    try {
-      lote = JSON.parse(await readFile(path.join(__dirname, "dados", "ex-semana-enf-2026.json"), "utf8")).acoes || [];
-    } catch { return; }   // sem o arquivo, nada a subir
-    const acoes = JSON.parse((await storage.get(EX_KEY)) || "[]");
-    let entraram = 0;
-    for (const a of lote || []) {
-      if (acoes.some((x) => x.id === a.id)) continue;
-      if (!a.numeroAcao) {
-        const ano = Number(String(a.aprovadoEm || a.proposta?.periodoFim || "").slice(0, 4))
-          || Number(hojeLocalISO().slice(0, 4));
-        const raw = await storage.get("extensao-config-v1");
-        let cfg = raw ? JSON.parse(raw) : { ano, seq: 0 };
-        if (cfg.ano !== ano) cfg = { ano, seq: 0 };
-        cfg.seq++;
-        a.numeroAcao = `EXT-${ano}-${String(cfg.seq).padStart(3, "0")}`;
-        await storage.set("extensao-config-v1", JSON.stringify(cfg));
-      }
-      acoes.push(a);
-      entraram++;
+    const ids = new Set();
+    for (const { arquivo } of LOTES_EXTENSAO) {
+      try {
+        const j = JSON.parse(await readFile(path.join(__dirname, "dados", arquivo), "utf8"));
+        for (const a of j.acoes || []) if (a?.id) ids.add(a.id);
+      } catch { /* sem o arquivo, segue */ }
     }
-    if (entraram) await storage.set(EX_KEY, JSON.stringify(acoes));
-    await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), acoes: entraram }));
-    await storage.flush?.();
-    console.log(`ARCHÉ EX · Semana de Enfermagem 2026: ${entraram} ação(ões) migrada(s) do processo em papel`);
+    if (!ids.size) return;
+    const r = await comAcoes((acoes) => {
+      let n = 0;
+      for (const a of acoes) {
+        if (ids.has(a.id) && a.origemPapel !== true) { a.origemPapel = true; n++; }
+      }
+      return { n, gravar: n > 0 };
+    });
+    await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), acoes: r.n }));
+    if (r.n) console.log(`ARCHÉ EX · ${r.n} ação(ões) marcada(s) como vindas do processo em papel`);
   } catch (e) {
-    console.error("Falha ao subir as ações migradas da extensão:", e.message);
+    console.error("Falha ao marcar as ações de papel:", e.message);
+  }
+}
+
+async function subirAcoesMigradasExtensao() {
+  for (const { arquivo, marca, rotulo } of LOTES_EXTENSAO) {
+    try {
+      if (await storage.get(marca)) continue;
+      let lote = [];
+      try {
+        lote = JSON.parse(await readFile(path.join(__dirname, "dados", arquivo), "utf8")).acoes || [];
+      } catch { continue; }   // sem o arquivo, nada a subir
+      const acoes = JSON.parse((await storage.get(EX_KEY)) || "[]");
+      let entraram = 0;
+      for (const a of lote || []) {
+        if (acoes.some((x) => x.id === a.id)) continue;
+        if (!a.numeroAcao) {
+          const ano = Number(String(a.aprovadoEm || a.proposta?.periodoFim || "").slice(0, 4))
+            || Number(hojeLocalISO().slice(0, 4));
+          const raw = await storage.get("extensao-config-v1");
+          let cfg = raw ? JSON.parse(raw) : { ano, seq: 0 };
+          if (cfg.ano !== ano) cfg = { ano, seq: 0 };
+          cfg.seq++;
+          a.numeroAcao = `EXT-${ano}-${String(cfg.seq).padStart(3, "0")}`;
+          await storage.set("extensao-config-v1", JSON.stringify(cfg));
+        }
+        acoes.push(a);
+        entraram++;
+      }
+      if (entraram) await storage.set(EX_KEY, JSON.stringify(acoes));
+      await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), acoes: entraram }));
+      await storage.flush?.();
+      console.log(`ARCHÉ EX · ${rotulo}: ${entraram} ação(ões) migrada(s) do processo em papel`);
+    } catch (e) {
+      console.error(`Falha ao subir o lote ${arquivo} da extensão:`, e.message);
+    }
   }
 }
 
@@ -7123,7 +7164,9 @@ app.listen(port, () => {
   // deles (e só depois: num arranque limpo os projetos precisam existir
   // primeiro), os anexos dos formulários — cronogramas e planilhas de
   // produção — são ligados a cada projeto.
-  migrarAcoesExtensao().then(() => subirAcoesMigradasExtensao());
+  migrarAcoesExtensao()
+    .then(() => subirAcoesMigradasExtensao())
+    .then(() => marcarAcoesDePapel());
   // A ORDEM importa (num arranque limpo os projetos precisam existir antes de
   // qualquer coisa que os altere), mas uma etapa que falhe não pode levar as
   // seguintes junto: encadeadas por .then, um erro no meio fazia as de baixo

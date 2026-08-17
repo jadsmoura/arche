@@ -272,12 +272,21 @@ public/
   ação demorou. E-mail que falha não trava a devolução — o motivo já está gravado.
 - Fluxo da Extensão: proposta → aprovação (nº `EXT-AAAA-NNN`) → relatório final →
   participantes (3/3 completa) → certificados → registrada. Não alterar o formato do nº.
-- **Ações migradas do processo em papel** (`subirAcoesMigradasExtensao`, marca
-  `sys-ex-lote-semana-enf-2026`): a Semana de Enfermagem 2026 entrou transcrita dos
-  documentos da coordenação (dados/ex-semana-enf-2026.json — proposta, relatório e os
-  168 participantes com CPF). O número é emitido na migração pela MESMA sequência
-  oficial da aprovação (`extensao-config-v1`) — número não se inventa — e a apreciação
-  registra o nº do sistema anterior (206719). Nunca sobrescreve ação existente.
+- **Ações migradas do processo em papel** (`subirAcoesMigradasExtensao` + `LOTES_EXTENSAO`,
+  um arquivo em `dados/` e uma marca `sys-ex-lote-*` por lote): entraram transcritas dos
+  documentos das coordenações a Semana de Enfermagem 2026 (168 participantes) e, em
+  ago/2026, o lote `ex-lote-eventos-2026.json` — **Abril Laranja** (Med. Veterinária, 73
+  inscritos + 10 na organização), **Encontro Família UNIEGO** (Ação Comunitária, só a
+  proposta: fica `aprovada`, aguardando relatório e listas) e **III Semana de Ciências
+  Agrárias & 43ª Semana SENAR** (Agronomia, 307 inscritos). O número é emitido na migração
+  pela MESMA sequência oficial da aprovação (`extensao-config-v1`) — número não se inventa
+  — e a apreciação registra o nº do sistema anterior (206719, 206734, 206733, 206731).
+  Nunca sobrescreve ação existente. **Ação de papel NÃO vira evento** (decisão do dono,
+  ago/2026): elas nascem com `origemPapel: true` (`marcarAcoesDePapel` carimba as que já
+  estavam gravadas) e o ARCHÉ EV as omite do seletor e do bloco "Ações sem evento" — o EV
+  é dos eventos geridos DENTRO do sistema (página pública, inscrição online,
+  credenciamento); o que correu por fora se presta contas pelo ARCHÉ EX, com proposta,
+  relatório e listas.
 - **Atraso do relatório e ciclo na Extensão** (guia Relatórios): o **ciclo de uma ação é o
   ano em que ela ENCERRA** (`anoDaAcao`, por `periodoFim`) — é o que a PROPPEX usa para
   fechar o exercício —, e o filtro por ciclo se monta das próprias ações. Ação aprovada com

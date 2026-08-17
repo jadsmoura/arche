@@ -1,0 +1,3463 @@
+{
+ "lote": "eventos-2026",
+ "acoes": [
+  {
+   "id": "ext-abril-laranja-2026",
+   "numeroAcao": null,
+   "status": "relatorio-entregue",
+   "curso": "Medicina Veterinária",
+   "criadoPor": "medvetturricelli@outlook.com",
+   "criadoPorNome": "Turricelli Rezende Turrioni",
+   "criadoEm": "2026-04-09T12:00:00.000Z",
+   "aprovadoEm": "2026-04-09T12:00:00.000Z",
+   "atualizadoEm": "2026-05-08T12:00:00.000Z",
+   "proposta": {
+    "nomeAtividade": "Ação social beneficente Abril Laranja",
+    "classificacao": "Outro",
+    "classificacaoOutro": "Ação social",
+    "departamento": "Medicina Veterinária",
+    "temaCentral": "Arrecadação de insumos para as associações de proteção animal de Goianésia",
+    "periodoInicio": "2026-04-07",
+    "periodoFim": "2026-04-30",
+    "cargaHoraria": "10",
+    "publicoAlvo": "Alunos dos cursos de Medicina Veterinária, Psicologia e Direito",
+    "local": "UNIEGO",
+    "municipio": "Goianésia/GO",
+    "justificativa": "Projeto visa arrecadar produtos de limpeza para manutenção de espaço destinado a acomodação dos animais resgatados de rua em situação de vulnerabilidade e alimentação para eles. O objetivo é ajudar as instituições, organizações e associações sem fins lucrativos e voluntariado na manutenção dos espaços e da vida dos animais que são por muitas vezes abandonados e sofreram maus tratos.",
+    "objetivoGeral": "Arrecadar insumos para ajudar as associações de proteção animal, visando colaborar na manutenção dos espaços e na alimentação dos animais.",
+    "objetivosEspecificos": "Arrecadar produtos de limpeza para a manutenção dos espaços de acomodação;\nArrecadar alimentação para os animais resgatados;\nEnvolver os acadêmicos em ação de benefício social;\nFortalecer a parceria com as ONGs de proteção animal do município.",
+    "metodologia": "Arrecadação aberta de 09/04/2026 a 30/04/2026, com pontos de coleta na instituição e mobilização dos acadêmicos pelos cursos participantes; entrega dos materiais às ONGs parceiras ao final do período.",
+    "programacao": "Abertura da arrecadação em 09/04/2026; coleta contínua até 30/04/2026; entrega dos materiais às ONGs ASPAGO e PET HOUSE.",
+    "certificacaoSolicitada": "Certificado de participação — 10 horas (participantes) e 20 horas (diretoria da LAPA, organização)",
+    "comissaoTexto": "Diretoria da LAPA — organização (20 horas): Rafaela Galvão, Larauanny Vitória, Jullia Eduarda, Maria Clara Flores, Maria Daiany, Kauan Avelar, Jhenyffer Katlen Pereira, Giselle Magalhães, Geovanna Fernanda e Danielly Pacini.",
+    "parceria": "ONGs de proteção animal de Goianésia: ASPAGO e PET HOUSE",
+    "recursoInstalacao": "Não se aplica",
+    "recursoMultimidia": "Não se aplica",
+    "recursoOutros": "Não se aplica",
+    "respNome": "Turricelli Rezende Turrioni",
+    "respCargo": "Professor",
+    "respTelefone": "(62) 98294-8122",
+    "respEmail": "medvetturricelli@outlook.com"
+   },
+   "relatorio": {
+    "conteudoProgramatico": "Ação social de arrecadação aberta no dia 09/04/2026 até o dia 30/04/2026. Metodologia utilizada: arrecadação de produtos de limpeza e alimentação para os animais das ONGs parceiras.",
+    "bolsistas": "Não houve",
+    "alunosCurricular": "Não se aplica",
+    "alunosNaoCurricular": "Rafaela Galvão, Larauanny Vitória, Jullia Eduarda, Maria Clara Flores, Maria Daiany, Kauan Avelar, Jhenyffer Katlen Pereira, Giselle Magalhães, Geovanna Fernanda, Danielly Pacini",
+    "docentesEnvolvidos": "Prof. Esp. Turricelli Turrioni; Prof. Me. Alexandre Gomes; Profa. Ma. Naílla Crystine de Carvalho Dias",
+    "avaliacaoResultados": "Arrecadação foi um sucesso, um volume expressivo de materiais direcionados às ONGs, tudo isso partindo da iniciativa de nossos alunos engajados com ações de benefício social, focados no bem-estar dos animais.",
+    "qtdDiscentes": "83",
+    "qtdDocentes": "3",
+    "qtdTecnicos": "0",
+    "despesa": "",
+    "receita": "",
+    "linksPortfolio": "",
+    "entregueEm": "2026-05-08T12:00:00.000Z"
+   },
+   "participantes": {
+    "inscritos": [
+     {
+      "nome": "Maria Eduarda Gonçalves",
+      "matricula": "G2420043",
+      "cpf": "10251431169",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Thamires Duarte Babugem",
+      "matricula": "G2420178",
+      "cpf": "08948977130",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Alexandre Luiz Carmo Santana",
+      "matricula": "G2320051",
+      "cpf": "70683973100",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Alynne Damascena Arruda",
+      "matricula": "G24100174",
+      "cpf": "04362555102",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Scarlath Cristina Ferreira",
+      "matricula": "G2610333",
+      "cpf": "70304588180",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Lucas Antônio Ferreira Botelho",
+      "matricula": "G2610218",
+      "cpf": "70892960167",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Lyce Lorrani Cardoso de Sousa",
+      "matricula": "G2610213",
+      "cpf": "07358605136",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Gabriella Rodrigues Brito",
+      "matricula": "G2610032",
+      "cpf": "70729780112",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Samir Magela Leal Diniz",
+      "matricula": "G24200002",
+      "cpf": "06757150166",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Cleber Ferreira dos Santos",
+      "matricula": "G2610029",
+      "cpf": "70691299129",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Ana Clara H. de Morais",
+      "matricula": "G2610437",
+      "cpf": "70942073100",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Karen Luiza Santos",
+      "matricula": "G2610259",
+      "cpf": "05157512198",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Ana Luíza Lopes Santana",
+      "matricula": "G2510204",
+      "cpf": "06389869150",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Eloise de Carvalho Sousa",
+      "matricula": "G2510103",
+      "cpf": "09186586165",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Ana Carolina Bastos Carneiro",
+      "matricula": "G2510102",
+      "cpf": "03437885197",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Miguel de Souza",
+      "matricula": "G2610422",
+      "cpf": "70500087105",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Lucas Gabriel Siqueira",
+      "matricula": "G25220013",
+      "cpf": "70649318188",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Kaique Dias dos Santos",
+      "matricula": "G2510073",
+      "cpf": "06514157130",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Richard Ferreira",
+      "matricula": "G2520015",
+      "cpf": "10729047997",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Lucas Gabriel Aguiar Macedo",
+      "matricula": "G2410127",
+      "cpf": "02879585155",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Marianna Zanetti",
+      "matricula": "G2610025",
+      "cpf": "12821275609",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Julio Cesar Boges de Paula",
+      "matricula": "G2510056",
+      "cpf": "10563154152",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Maria Geovana Vieira Lorenço",
+      "matricula": "G2610119",
+      "cpf": "70571948111",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Joyce Thauany Oliveira Carvalho",
+      "matricula": "G2520100",
+      "cpf": "71145947123",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Laura Aparecida Rubens Cavalcante",
+      "matricula": "G2410035",
+      "cpf": "47080478863",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Geandra França Gonçalves de Sousa",
+      "matricula": "G2510030",
+      "cpf": "70420093125",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Kethelen P. Lima de Castro",
+      "matricula": "G2520177",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Rosilene Santiago Silva",
+      "matricula": "G2610219",
+      "cpf": "07305715131",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Arthur de Souza Salgado",
+      "matricula": "G2610358",
+      "cpf": "08968328137",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Ana Luiza Moraes",
+      "matricula": "G2510217",
+      "cpf": "71075104106",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Lucas Fernando de Souza Tostes",
+      "matricula": "G2320282",
+      "cpf": "00433124113",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Rayane de Oliveira Silva",
+      "matricula": "G2320128",
+      "cpf": "03241589129",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Barbara Borges Vieira",
+      "matricula": "G2410240",
+      "cpf": "02518157140",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Jordana Ribeiro Cordeiro da Silva",
+      "matricula": "G2510308",
+      "cpf": "07594490150",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Gustavo da Silva Borges",
+      "matricula": "G2410232",
+      "cpf": "05394178151",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Daniele Alves Araujo",
+      "matricula": "G24103133",
+      "cpf": "70755351100",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Amanda Galvão",
+      "matricula": "G2610438",
+      "cpf": "71161125108",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Eduardo Rissatti Barcelos",
+      "matricula": "G2610416",
+      "cpf": "70189571179",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Anna Laura de Freitas Borges Goulart",
+      "matricula": "G2520045",
+      "cpf": "08537000108",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Jovanna Aparecida Passos Ferreira",
+      "matricula": "G2520123",
+      "cpf": "70668625112",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Vitória Gabriele Silva",
+      "matricula": "G2510239",
+      "cpf": "71053065132",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Maria Eduarda Abadia Costa",
+      "matricula": "G2510161",
+      "cpf": "03851280105",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Ana Lara Morais Barbosa",
+      "matricula": "G2610103",
+      "cpf": "04612826159",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Jorje Antonio Fernandes Nascimento",
+      "matricula": "G2520134",
+      "cpf": "04154154117",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Adrielly Laira de Lima Andrade",
+      "matricula": "G2610066",
+      "cpf": "71186912162",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Orrânny Cristine M. Silva",
+      "matricula": "G2420181",
+      "cpf": "71165625164",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "João Victor Rodrigues",
+      "matricula": "G2510415",
+      "cpf": "70332512118",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Maria Gabriely Ferreira Mendes dos Santos",
+      "matricula": "G2610402",
+      "cpf": "05999373190",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Fernanda Santos Ceribeli",
+      "matricula": "G2610324",
+      "cpf": "70496360108",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Clara Victória Cardoso Silva",
+      "matricula": "G2610443",
+      "cpf": "09195176179",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Emerson Miguel Lima Matos",
+      "matricula": "G2310061",
+      "cpf": "71068048190",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Luana Cristina Ferreira Uemura",
+      "matricula": "G2610197",
+      "cpf": "04883666158",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Victor Gabriel Borges Bastos",
+      "matricula": "G2420084",
+      "cpf": "71179725131",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Maria Eduarda Mendes Miranda",
+      "matricula": "G2510221",
+      "cpf": "71160559163",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Maria Eduarda Tavares Silva",
+      "matricula": "G2610053",
+      "cpf": "08755857108",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Fernando Pereira de Lima",
+      "matricula": "G2320057",
+      "cpf": "01881369161",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Thiago dos Santos Mota",
+      "matricula": "G2320169",
+      "cpf": "71596940158",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Victor Lucas Morais Souza",
+      "matricula": "G2320208",
+      "cpf": "70976653192",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Samara Rayka Rodrigues de Moura",
+      "matricula": "G2320170",
+      "cpf": "08042766173",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Luis Henrique Alves de Sousa",
+      "matricula": "G261089",
+      "cpf": "04090880130",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "curso": "Psicologia"
+     },
+     {
+      "nome": "Mateus Tavares Pires",
+      "matricula": "G2510369",
+      "cpf": "75306840191",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Samara Camargo De Morais",
+      "matricula": "G2320013",
+      "cpf": "70668385138",
+      "email": "",
+      "telefone": "",
+      "ch": "10"
+     },
+     {
+      "nome": "Adriely Eloísa Dias de Oliveira",
+      "matricula": "G2510150",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "periodo": "3ºA",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Ana Júlia Gomes de Souza",
+      "matricula": "G2520070",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "periodo": "3ºA",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Ana Lívia Ramos Almeida",
+      "matricula": "G2510272",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "periodo": "3ºA",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Laura Rodrigues Silva",
+      "matricula": "G2510100",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "periodo": "3ºA",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Luiz Felipe Augusto dos Santos Batista",
+      "matricula": "G2510020",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "periodo": "3ºA",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Sara Cardoso Mendes",
+      "matricula": "G2510289",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "periodo": "3ºA",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Tainara dos Santos Fonseca",
+      "matricula": "G2510402",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "periodo": "3ºA",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Thaiane Faria dos Santos",
+      "matricula": "G2510016",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "periodo": "3ºA",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Yasmin Aires dos Reis",
+      "matricula": "G2510293",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "periodo": "3ºA",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Ana Eliza Alves da Silva",
+      "matricula": "G2510027",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "periodo": "3ºB",
+      "curso": "Direito"
+     },
+     {
+      "nome": "Floracy Isabelle Silva do Carmo",
+      "matricula": "G2510296",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "10",
+      "periodo": "3ºB",
+      "curso": "Direito"
+     }
+    ],
+    "palestrantes": [],
+    "comissao": [
+     {
+      "nome": "Rafaela Pinheiro Galvão",
+      "matricula": "G2320192",
+      "cpf": "06995474155",
+      "email": "",
+      "telefone": "",
+      "ch": "20"
+     },
+     {
+      "nome": "Larauanny Vitória",
+      "matricula": "G2320025",
+      "cpf": "71076918131",
+      "email": "",
+      "telefone": "",
+      "ch": "20"
+     },
+     {
+      "nome": "Jullia Eduarda Santos de Jesus",
+      "matricula": "G2410288",
+      "cpf": "07249008102",
+      "email": "",
+      "telefone": "",
+      "ch": "20"
+     },
+     {
+      "nome": "Maria Clara Flores de Oliveira",
+      "matricula": "G2410359",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "20"
+     },
+     {
+      "nome": "Maria Daiany de Freitas Rodrigues",
+      "matricula": "G2320117",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "20"
+     },
+     {
+      "nome": "Kauan De Castro Avelar",
+      "matricula": "G2410132",
+      "cpf": "09375997197",
+      "email": "",
+      "telefone": "",
+      "ch": "20"
+     },
+     {
+      "nome": "Jhenyffer Kathen Pereira Oliveira",
+      "matricula": "G2410030",
+      "cpf": "07070699123",
+      "email": "",
+      "telefone": "",
+      "ch": "20"
+     },
+     {
+      "nome": "Giselle Magalhães do Nascimento",
+      "matricula": "G2420073",
+      "cpf": "71530079110",
+      "email": "",
+      "telefone": "",
+      "ch": "20"
+     },
+     {
+      "nome": "Geovanna Fernanda",
+      "matricula": "G2410452",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "20"
+     },
+     {
+      "nome": "Danielly Lopes Pacini",
+      "matricula": "G2320088",
+      "cpf": "03751879102",
+      "email": "",
+      "telefone": "",
+      "ch": "20"
+     }
+    ]
+   },
+   "apreciacao": "Ação migrada do processo em papel (ago/2026). Número no sistema anterior: 206734. Órgãos envolvidos: ONGs PetHouse e ASPAGO.",
+   "origemPapel": true
+  },
+  {
+   "id": "ext-familia-uniego-2026",
+   "numeroAcao": null,
+   "status": "aprovada",
+   "curso": "Institucional / PROPPEX",
+   "criadoPor": "camila.cardoso@uniego.edu.br",
+   "criadoPorNome": "Camila Cardoso",
+   "criadoEm": "2026-05-26T12:00:00.000Z",
+   "aprovadoEm": "2026-05-26T12:00:00.000Z",
+   "atualizadoEm": "2026-05-26T12:00:00.000Z",
+   "proposta": {
+    "nomeAtividade": "Encontro Família — UNIEGO",
+    "classificacao": "Outro",
+    "classificacaoOutro": "Evento institucional",
+    "departamento": "Coordenação de Ação Comunitária",
+    "temaCentral": "Integração, convivência e valorização humana entre colaboradores e suas famílias",
+    "periodoInicio": "2026-06-13",
+    "periodoFim": "2026-06-13",
+    "cargaHoraria": "4",
+    "publicoAlvo": "Colaboradores do UNIEGO e familiares",
+    "local": "Centro Universitário Evangélico de Goianésia (UNIEGO)",
+    "municipio": "Goianésia/GO",
+    "justificativa": "A proposta é realizar uma ação institucional de integração, convivência e valorização humana, a ser desenvolvida de forma colaborativa pelos cursos e setores do UNIEGO. A iniciativa prevê a realização de atividades interativas, momentos de convivência e oficinas integrativas voltadas exclusivamente aos colaboradores e seus familiares, com foco em promover a aproximação entre os colaboradores, expandir os laços afetivos e estimular interações humanas saudáveis no ambiente de trabalho. Busca-se, por meio dessa vivência compartilhada, consolidar um ambiente institucional mais acolhedor, harmônico e conectado com as realidades familiares daqueles que constroem o Centro Universitário diariamente.",
+    "objetivoGeral": "Promover a aproximação, o diálogo e a integração genuína entre os membros do corpo docente e administrativo e seus familiares, contribuindo diretamente para a melhoria do clima organizacional e a construção de um ambiente de trabalho mais harmônico.",
+    "objetivosEspecificos": "Aproximar colaboradores e familiares por meio de atividades interativas;\nExpandir os laços afetivos e estimular interações humanas saudáveis;\nConsolidar um ambiente institucional acolhedor e harmônico;\nFortalecer o sentimento de pertença e o orgulho institucional.",
+    "metodologia": "Atividades interativas, momentos de convivência e oficinas integrativas conduzidas de forma colaborativa pelos cursos e setores do UNIEGO.",
+    "programacao": "Encontro de um dia (13/06/2026), com 4 horas de atividades integrativas.",
+    "certificacaoSolicitada": "",
+    "comissaoTexto": "Coordenação de Ação Comunitária, com apoio dos cursos e setores do UNIEGO.",
+    "parceria": "Colaboradores do UNIEGO",
+    "recursoInstalacao": "Estrutura física do UNIEGO",
+    "recursoMultimidia": "Não se aplica",
+    "recursoOutros": "Não se aplica",
+    "respNome": "Camila Cardoso",
+    "respCargo": "Coordenadora de Ação Comunitária",
+    "respTelefone": "(62) 3389-7350",
+    "respEmail": "camila.cardoso@uniego.edu.br"
+   },
+   "relatorio": {},
+   "participantes": {
+    "inscritos": [],
+    "palestrantes": [],
+    "comissao": []
+   },
+   "apreciacao": "Ação migrada do processo em papel (ago/2026). Número no sistema anterior: 001/2026.1 — 206733. Parecer favorável da Coordenadoria de Ação Comunitária: a metodologia fortalece a imagem institucional, com viabilidade técnica, logística e impacto psicossocial significativo; aprovação integral recomendada. AGUARDA o relatório final e as listas de participantes.",
+   "origemPapel": true
+  },
+  {
+   "id": "ext-semana-agrarias-2026",
+   "numeroAcao": null,
+   "status": "relatorio-entregue",
+   "curso": "Agronomia",
+   "criadoPor": "ayure.silva@uniego.edu.br",
+   "criadoPorNome": "Ayure Gomes da Silva",
+   "criadoEm": "2026-04-01T12:00:00.000Z",
+   "aprovadoEm": "2026-04-10T12:00:00.000Z",
+   "atualizadoEm": "2026-05-10T12:00:00.000Z",
+   "proposta": {
+    "nomeAtividade": "III Semana de Ciências Agrárias & 43ª Semana SENAR",
+    "classificacao": "Evento",
+    "departamento": "Agronomia",
+    "temaCentral": "Integração entre os cursos que atuam na cadeia do agronegócio brasileiro",
+    "periodoInicio": "2026-04-23",
+    "periodoFim": "2026-04-25",
+    "cargaHoraria": "12",
+    "publicoAlvo": "Alunos dos cursos de Agronomia e Medicina Veterinária, alunos do AgroColégio, produtores rurais e comunidade externa",
+    "local": "Dependências do Centro Universitário Evangélico de Goianésia",
+    "municipio": "Goianésia/GO",
+    "justificativa": "Promover discussão científica, propagação de conhecimentos e desenvolvimento acadêmico aos alunos dos cursos de Agronomia e Medicina Veterinária, propondo a cumplicidade e a interação entre os cursos que atuam diretamente na cadeia do agronegócio brasileiro.",
+    "objetivoGeral": "Promover discussão científica, propagação de conhecimentos e desenvolvimento acadêmico aos alunos dos cursos de Agronomia e Medicina Veterinária.",
+    "objetivosEspecificos": "Fomentar palestras e cursos práticos em horários variados;\nIntegrar os cursos de Agronomia e Medicina Veterinária;\nAproximar a academia dos produtores rurais e da comunidade externa;\nRealizar Dia de Campo integrado com estações conduzidas pelos alunos.",
+    "metodologia": "Durante o evento, com o intuito de promover a interação e a aprendizagem, foram realizadas palestras e cursos práticos das 07h30 às 22h30, com diferentes atividades para alunos com diferentes demandas de horários. O fechamento se deu com um Dia de Campo integrado, no qual os alunos assumiram a responsabilidade de desenvolver os trabalhos dentro de cada estação — 7 estações entre os cursos de Medicina Veterinária e Agronomia.",
+    "programacao": "23 a 25/04/2026: palestras e cursos práticos das 07h30 às 22h30; encerramento com Dia de Campo integrado em 7 estações.",
+    "certificacaoSolicitada": "Certificado de participação — 12 horas",
+    "comissaoTexto": "Coordenações dos cursos de Agronomia e Medicina Veterinária, com apoio do Sistema FAEG/SENAR Goiás.",
+    "parceria": "Sistema FAEG/SENAR Goiás",
+    "recursoInstalacao": "Dependências do UNIEGO; aluguel de 500 cadeiras",
+    "recursoMultimidia": "Recursos audiovisuais da instituição, sistema de som e projetor de imagem",
+    "recursoOutros": "",
+    "respNome": "Ayure Gomes da Silva",
+    "respCargo": "Coordenadora do curso de Agronomia",
+    "respTelefone": "(62) 99231-5509",
+    "respEmail": "ayure.silva@uniego.edu.br"
+   },
+   "relatorio": {
+    "conteudoProgramatico": "Palestras e cursos práticos das 07h30 às 22h30 ao longo de três dias, com encerramento em Dia de Campo integrado, no qual os alunos conduziram os trabalhos em 7 estações entre os cursos de Medicina Veterinária e Agronomia.",
+    "bolsistas": "Não houve",
+    "alunosCurricular": "Alunos dos cursos de Agronomia e Medicina Veterinária",
+    "alunosNaoCurricular": "Alunos do AgroColégio, produtores rurais e comunidade externa",
+    "docentesEnvolvidos": "Alexandre Lopes Gomes; Naílla Crystine de Carvalho Dias; Turricelli Rezende Turrioni; Fablynny Jhiordany de Moura Souza; Sarah Maria Oliveira Souza; Márcia Leopoldina Cardoso Segantini; Ayure Gomes da Silva; Jadson Belém de Moura; Manoel Henrique Reis de Carvalho; Leidane dos Santos Lucas; Erivelton Gonçalves da Cunha; Wagner Gonçalves",
+    "avaliacaoResultados": "Tivemos a oportunidade de alcançar um grande grupo de participantes, difundindo a cultura de integração dentro do agro no Estado de Goiás. Todas as atividades realizadas tiveram adesão dos alunos e da comunidade. O evento não teve fins de arrecadação de verba, ocorrendo de forma gratuita para todos os participantes. Público atingido: 450 pessoas, distribuídas entre alunos dos cursos de Medicina Veterinária e Agronomia, alunos do AgroColégio, produtores rurais e comunidade externa.",
+    "qtdDiscentes": "307",
+    "qtdDocentes": "12",
+    "qtdTecnicos": "1",
+    "despesa": "",
+    "receita": "",
+    "linksPortfolio": "",
+    "entregueEm": "2026-05-10T12:00:00.000Z"
+   },
+   "participantes": {
+    "inscritos": [
+     {
+      "nome": "Adrielly Laira De Lima Andrade",
+      "matricula": "G2610066",
+      "cpf": "71186912162",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Amanda Galvão De Oliveira",
+      "matricula": "G2610438",
+      "cpf": "71161125108",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Ana Clara Humberto De Morais",
+      "matricula": "G2610437",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Ana Gyulia Vieira De Oliveira",
+      "matricula": "G2610001",
+      "cpf": "71148878173",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Ana Lara Alves De Souza",
+      "matricula": "G2610010",
+      "cpf": "71339839156",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Ana Lara Morais Barbosa",
+      "matricula": "G2610103",
+      "cpf": "04612826159",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Angelo Neto",
+      "matricula": "G2610383",
+      "cpf": "09208037177",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Arthur De Souza Salgado",
+      "matricula": "G2610358",
+      "cpf": "08968328137",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Caroline Fernandes De Oliveira",
+      "matricula": "G2610026",
+      "cpf": "71410804143",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Clara Victoria Cardoso Silva",
+      "matricula": "G2610443",
+      "cpf": "09195176179",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Cleber Ferreira Dos Santos",
+      "matricula": "G2610029",
+      "cpf": "70691299129",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Davi Antony Da Silva Cantuario",
+      "matricula": "G2610005",
+      "cpf": "10287260585",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Davi Augusto",
+      "matricula": "G2610076",
+      "cpf": "10661125173",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Eduardo Rissatti Barcelos",
+      "matricula": "G2610416",
+      "cpf": "70189571179",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Emilly Vitoria Silva Ferreira",
+      "matricula": "G2610062",
+      "cpf": "08648082161",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Fellipe Rodrigues Lobo",
+      "matricula": "G2610065",
+      "cpf": "09228572108",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Gabriel Marques Guerrero De Souza",
+      "matricula": "G2610128",
+      "cpf": "09121681104",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Gabriella Rodrigues Brito",
+      "matricula": "G2610032",
+      "cpf": "70729780112",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Gustavo Gonçalves",
+      "matricula": "G2610338",
+      "cpf": "08877915145",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Henrique Afonso Rodrigues Braz",
+      "matricula": "G2610334",
+      "cpf": "07901238194",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "José Martins Ferreira Netto",
+      "matricula": "G2610209",
+      "cpf": "70358985145",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Karen Luiza Santos",
+      "matricula": "G2610259",
+      "cpf": "05157512198",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Kayk Gabriel Ferreira Magalhães",
+      "matricula": "G2610057",
+      "cpf": "71112998179",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Lara Rafaelly Fontes Barbosa",
+      "matricula": "G2610405",
+      "cpf": "70692579109",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Lauany Vitória",
+      "matricula": "G2610031",
+      "cpf": "71138278106",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Leonardo Cury",
+      "matricula": "G2610366",
+      "cpf": "07630938152",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Lucas Antônio Ferreira Botelho",
+      "matricula": "G2610218",
+      "cpf": "70892960167",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Lyce Lorrani Cardoso De Sousa",
+      "matricula": "G2610213",
+      "cpf": "07358605136",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Maria Gabriely Ferreira Mendes Dos Santos",
+      "matricula": "G2610402",
+      "cpf": "05999373190",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Maria Geovana Vieira Lourenço",
+      "matricula": "G2610119",
+      "cpf": "70571948111",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Mariana Da Silva Oliveira",
+      "matricula": "G2610074",
+      "cpf": "70868445193",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Marianna Zanetti",
+      "matricula": "G2610025",
+      "cpf": "12821275609",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Miguel De Souza Klein",
+      "matricula": "G2610422",
+      "cpf": "70500087105",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Otavio Augusto Magalhães De Lima",
+      "matricula": "G2610328",
+      "cpf": "09156606109",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Pedro Otávio Carvalhaes Martins",
+      "matricula": "G-2610157",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Rosilene Santiago Silva",
+      "matricula": "G2610219",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Scarlath Cristina Ferreira",
+      "matricula": "G2610333",
+      "cpf": "70304588180",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Thaynara Rander Carvalho Silva",
+      "matricula": "G2610245",
+      "cpf": "07239131106",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Vinicius De Souza Adorno",
+      "matricula": "G2610141",
+      "cpf": "03265627101",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Vítor Soares De Abreu Silva",
+      "matricula": "G2610201",
+      "cpf": "03829534108",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "1°"
+     },
+     {
+      "nome": "Andrey Cornelio Silva Santos",
+      "matricula": "G2520051",
+      "cpf": "07016658155",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Anna Laura De Freitas Borges Goulart",
+      "matricula": "G2520045",
+      "cpf": "08537000108",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Gabriel Mendes Assunção",
+      "matricula": "G2520163",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Guilherme Augusto De Lima Oliveira",
+      "matricula": "G2520183",
+      "cpf": "71807994163",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Guilherme Muriel",
+      "matricula": "G2520068",
+      "cpf": "04052117166",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Gustavo Fernandes Vieira",
+      "matricula": "G2520025",
+      "cpf": "03784361129",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Jorge Antônio Fernandes Nascimento",
+      "matricula": "G2520133",
+      "cpf": "04154154117",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Jovanna A. Passos Ferreira",
+      "matricula": "G2520123",
+      "cpf": "70668625112",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Joyce Thauany Oliveira Carvalho",
+      "matricula": "G2520100",
+      "cpf": "71145947123",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Kemelly Lorrany Souza Silva",
+      "matricula": "G2520120",
+      "cpf": "71272423131",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Kethelen Pereira Lima De Castro",
+      "matricula": "G2520177",
+      "cpf": "06822366164",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Lucas Gabriel Siqueira",
+      "matricula": "G2520013",
+      "cpf": "70649318188",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Maria Eduarda Batista Auad Arantes",
+      "matricula": "G2520037",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Richard Junior Zanotelli Ferreira",
+      "matricula": "G2520015",
+      "cpf": "10729047997",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Sofia Ribeiro Borges",
+      "matricula": "G2520102",
+      "cpf": "05180006139",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Viviane Alves Oliveira",
+      "matricula": "G2520034",
+      "cpf": "00562974164",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Yasmym Luizy Alves De Lima",
+      "matricula": "G2520104",
+      "cpf": "70782923160",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "2°"
+     },
+     {
+      "nome": "Amanda Queiroz Santos",
+      "matricula": "G2510378",
+      "cpf": "07429563180",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Ana Carolina Bastos Carneiro",
+      "matricula": "G2510102",
+      "cpf": "03437885197",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Ana Clara Alves Barbosa",
+      "matricula": "G2510086",
+      "cpf": "03454144116",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Ana Luiza Lopes Santana",
+      "matricula": "G2510204",
+      "cpf": "06389869150",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Ana Luiza Moraes",
+      "matricula": "G2510217",
+      "cpf": "71075104106",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Anna Elisa Conceicão Silva",
+      "matricula": "G2510134",
+      "cpf": "05622279119",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Eloise De Carvalho Sousa",
+      "matricula": "g2510103",
+      "cpf": "09186586165",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Izaac Gomes Oliveira Silva",
+      "matricula": "G2510040",
+      "cpf": "05060727114",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Jaqueline Pereira De Paula Carvalho",
+      "matricula": "G2510406",
+      "cpf": "02647332150",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "João Gabriel De Oliveira Morais",
+      "matricula": "G2510189",
+      "cpf": "70660196107",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "João Víctor Rodrigues De Jesus",
+      "matricula": "G2510415",
+      "cpf": "70332512118",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "João Vitor Viana Faria",
+      "matricula": "G2510392",
+      "cpf": "11042844135",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Jordana Ribeiro Cordeiro Da Silva",
+      "matricula": "G2510308",
+      "cpf": "07594490150",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Julia Nominato Sousa Costa",
+      "matricula": "G2510159",
+      "cpf": "08386547111",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Julio César Borges De Paula",
+      "matricula": "G2510056",
+      "cpf": "10563154152",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Kaique Dias Dos Santos",
+      "matricula": "G2510073",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Larice Soares Costa",
+      "matricula": "G2510438",
+      "cpf": "07391600105",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Larissa Lopes Da Silva",
+      "matricula": "G2510276",
+      "cpf": "10768056128",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Laura Felix Rodrigues",
+      "matricula": "G2510098",
+      "cpf": "70856138150",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Laura Salgado Braudes",
+      "matricula": "G2510113",
+      "cpf": "70924099186",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Maria Eduarda Mendes Miranda",
+      "matricula": "G2510221",
+      "cpf": "71160559163",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Mateus Tavares Pires",
+      "matricula": "G2510369",
+      "cpf": "75306840191",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Maurício Eduardo Cardoso",
+      "matricula": "G2510343",
+      "cpf": "07869812102",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Rafael Alves Dos Santos",
+      "matricula": "G2510307",
+      "cpf": "70932329144",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "3°"
+     },
+     {
+      "nome": "Ana Clara Gomes Louzada",
+      "matricula": "G2420045",
+      "cpf": "09140391132",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "4°"
+     },
+     {
+      "nome": "Arthur Patricio Ferreira E Souza",
+      "matricula": "G2420177",
+      "cpf": "07481962189",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "4°"
+     },
+     {
+      "nome": "Douglas Vieira",
+      "matricula": "G2420158",
+      "cpf": "06160947109",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "4°"
+     },
+     {
+      "nome": "Geandra França Gonçalves De Sousa",
+      "matricula": "G2510030",
+      "cpf": "70420093125",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "4°"
+     },
+     {
+      "nome": "Giselle Magalhães",
+      "matricula": "G2420073",
+      "cpf": "71530079110",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "4°"
+     },
+     {
+      "nome": "Gustavo Soares De Lima Borges",
+      "matricula": "G2420029",
+      "cpf": "07407666199",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "4°"
+     },
+     {
+      "nome": "Lauana Munique Dos Santos",
+      "matricula": "G2420166",
+      "cpf": "70511431155",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "4°"
+     },
+     {
+      "nome": "Luis Eduardo Gomes Euripedes",
+      "matricula": "G2420062",
+      "cpf": "08427013116",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "4°"
+     },
+     {
+      "nome": "Maria Eduarda Gonçalves",
+      "matricula": "G2420043",
+      "cpf": "10251431169",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "4°"
+     },
+     {
+      "nome": "Orânny Cristine Magalhães Silva",
+      "matricula": "G2420181",
+      "cpf": "71165625164",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "4°"
+     },
+     {
+      "nome": "Samir Magela Leal Diniz",
+      "matricula": "G2420002",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "4°"
+     },
+     {
+      "nome": "Thamires Duarte Babugem",
+      "matricula": "G2420178",
+      "cpf": "08948977130",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "4°"
+     },
+     {
+      "nome": "Victor Gabriel Borges Bastos",
+      "matricula": "G2420084",
+      "cpf": "71179725131",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "4°"
+     },
+     {
+      "nome": "Alynne Damascena Arruda",
+      "matricula": "G2410017",
+      "cpf": "04362555102",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Ana Carla Ribeiro Silva",
+      "matricula": "G2410236",
+      "cpf": "03845537108",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Antônio Gonçalves Sobrinho Neto",
+      "matricula": "G2410385",
+      "cpf": "70884865126",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Bárbara Borges Vieira",
+      "matricula": "G2410240",
+      "cpf": "02518157140",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Carla Martins",
+      "matricula": "G2410040",
+      "cpf": "71107707102",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Daniele Alves Araújo",
+      "matricula": "G2410133",
+      "cpf": "70755351100",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Darlan Kelvyn Santana Silva",
+      "matricula": "G2410205",
+      "cpf": "70647377101",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Eduardo Ribeiro Chaves",
+      "matricula": "G2410221",
+      "cpf": "07918830199",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Emilly Vitoria Menezes Oliveira",
+      "matricula": "G-2410430",
+      "cpf": "03740868180",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Fernando Barbosa Ferreira",
+      "matricula": "G2410316",
+      "cpf": "00463968107",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Gustavo Da Silva Borges",
+      "matricula": "G2410232",
+      "cpf": "05394178151",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Gustavo Ribeiro Dos Santos",
+      "matricula": "G2410166",
+      "cpf": "70666919119",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Jhenyffer Katlen Pereira Oliveira Silva De Miranda",
+      "matricula": "G2410030",
+      "cpf": "07070699123",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Kaique Lourenço Ferreira",
+      "matricula": "G2410151",
+      "cpf": "08647645103",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Kauan De Castro Avelar",
+      "matricula": "G2410132",
+      "cpf": "09375997197",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Laura Aparecida Rubens Cavalcante",
+      "matricula": "G2410035",
+      "cpf": "47080478863",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Lucas Gabriel Aguiar Macedo",
+      "matricula": "G2410127",
+      "cpf": "02879585155",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Maria Clara Flores De Oliveira",
+      "matricula": "G2410359",
+      "cpf": "05400105106",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Murillo Ribeiro Silva",
+      "matricula": "G2410193",
+      "cpf": "04973591114",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Pedro Henrique Cunha Felix",
+      "matricula": "G2410405",
+      "cpf": "70732845106",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Tayna Raissa Alves",
+      "matricula": "G2410109",
+      "cpf": "70649053109",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "5°"
+     },
+     {
+      "nome": "Alexandre Luiz Carmo Santana",
+      "matricula": "G2320051",
+      "cpf": "70683973100",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Alexandre Ribeiro",
+      "matricula": "G2320072",
+      "cpf": "70840030100",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Arthur Dutra",
+      "matricula": "G2320184",
+      "cpf": "71457998122",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Danielly",
+      "matricula": "G2320088",
+      "cpf": "03751879102",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Gabriel Menezes Protasio",
+      "matricula": "G2320010",
+      "cpf": "02262012105",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Gabriel Rodrigues Castro",
+      "matricula": "G2320044",
+      "cpf": "05119659152",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Gabriel Viana Moreira",
+      "matricula": "G2320130",
+      "cpf": "70752744143",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Geovanna Fernanda Alves Fonseca",
+      "matricula": "G2410459",
+      "cpf": "71211689107",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Gustavo Silva De Oliveira",
+      "matricula": "G2320052",
+      "cpf": "70549083170",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "João Carneiro Neto",
+      "matricula": "G2320033",
+      "cpf": "70591227100",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "João Manoel Fonseca Silva",
+      "matricula": "G2320087",
+      "cpf": "08253750102",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "João Paulo Vaz Duarte",
+      "matricula": "G2320163",
+      "cpf": "03584907152",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Jullia Eduarda Santos De Jesus",
+      "matricula": "G2410288",
+      "cpf": "07249008102",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Larauanny Vitoria Ferreira Barbosa",
+      "matricula": "G2320025",
+      "cpf": "71076918131",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Lucas Fernando De Souza Tostes",
+      "matricula": "G2320282",
+      "cpf": "00433124113",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Maria Daiany De Freitas Rodrigues",
+      "matricula": "G2320117",
+      "cpf": "34987645866",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Otávio D’abadia E Silva Pinto Neto",
+      "matricula": "G2320063",
+      "cpf": "71064719171",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Rafaela Pinheiro Galvão",
+      "matricula": "G2320192",
+      "cpf": "06995474155",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Rayane De Oliveira Silva",
+      "matricula": "G2320128",
+      "cpf": "03241589129",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Samara Camargo De Morais",
+      "matricula": "G2320013",
+      "cpf": "70668385138",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Waytler Sales Silva",
+      "matricula": "G2410287",
+      "cpf": "05280655139",
+      "email": "",
+      "telefone": "",
+      "ch": "12",
+      "periodo": "6°"
+     },
+     {
+      "nome": "Alessandro Pereira de Freitas Silva",
+      "matricula": "G2510349",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Alinne Vogado Soares",
+      "matricula": "G2520150",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Amanda Ribeiro",
+      "matricula": "G2310305",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Ana Clara Barbosa Sousa",
+      "matricula": "G2520152",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Ana Clara Gomes Camargo",
+      "matricula": "G2510094",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Ana Clara Lacerda Lima",
+      "matricula": "G2210080",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Ana karla lima da silva",
+      "matricula": "G2320272",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Anna luiza Soares de Castro",
+      "matricula": "G2610073",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Antonio Gomes Pereira filho",
+      "matricula": "G2220175",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Arthur Emanoel Lourenço Menezes",
+      "matricula": "G2520115",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Arthur Humberto Rodrigues",
+      "matricula": "G2510024",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Arthur Humberto Rodrigues",
+      "matricula": "G2510024",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Arthur Monteiro da Silva Ferreira",
+      "matricula": "G2610145",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Augusto junior Bispo carvalho",
+      "matricula": "g2610202",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Beatriz Araújo Borges",
+      "matricula": "G2410223",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Bernardo Henrique Bonfim Barbosa Andrade",
+      "matricula": "G2610276",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Bruna Gomes Martins",
+      "matricula": "G2220212",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Bruno buiat Barros",
+      "matricula": "G2520139",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Carllos Eduardo Reis Vieira",
+      "matricula": "G2610369",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Carlos Eduardo Santa Cruz Costa",
+      "matricula": "G2120019",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Carlos Henrique Vieira Lima",
+      "matricula": "G2510158",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Carolina de Paiva christmann",
+      "matricula": "G2610198",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "César Henrique Santana Dutra",
+      "matricula": "G2310207",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "cristefer tavares monteiro",
+      "matricula": "G2410135",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Danilo Barros Alves da Cunha",
+      "matricula": "G2310031",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Dinaelly Salustriano Alves",
+      "matricula": "G2610330",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Dinaelly Salustriano Alves",
+      "matricula": "G2610330",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Dione Eduardo de Souza Camargo",
+      "matricula": "G2310173",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Diorgnes da Silva Carneiro",
+      "matricula": "G2610440",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Douglas Nazário da Silva",
+      "matricula": "G2510022",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Ellienay mychell Moreira silva",
+      "matricula": "G2310416",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Evellyn Vitória Souza Silva",
+      "matricula": "G2510413",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Fábio Alves filho",
+      "matricula": "G2320109",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Fabio Fernando Medeiros do Nascimento Júnior",
+      "matricula": "G2410206",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Fátima Gardênia de Araújo Carlos",
+      "matricula": "G26104108",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Felipe Carvalho Vilela",
+      "matricula": "G2410063",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Felipe Minduri",
+      "matricula": "G2510416",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Felipe Rodrigues Godoi",
+      "matricula": "G2510178",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Flavio Augusto Morwira Damascena",
+      "matricula": "G2210048",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Francisco Souza sobrinho Netto",
+      "matricula": "G2610153",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Gabriel Alcantara Coelho",
+      "matricula": "G2220217",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Gabriel Araújo Rodrigues",
+      "matricula": "G2610411",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Gabriel Davi Rodrigues da silva",
+      "matricula": "G2610139",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Gabriel Henrique Moreira Santos",
+      "matricula": "G2310279",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Gabriel Ribeiro",
+      "matricula": "G2610263",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Gabriela Faria",
+      "matricula": "G2510354",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Gabriela Rodrigues de Oliveira",
+      "matricula": "G2510287",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Gabrielly lavine Freitas Borges",
+      "matricula": "G2410077",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Galileu Fausto Dias Lula",
+      "matricula": "G2610165",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Geovana Francisca Silva",
+      "matricula": "G2120068",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Geovana Vieira Silva",
+      "matricula": "G2610287",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Gessica Vitória Ribeiro Rodrigues",
+      "matricula": "G2310264",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Guilherme Antônio Oliveira Batista",
+      "matricula": "G2310083",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Guilherme Cabral",
+      "matricula": "G2510398",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Guilherme Frederico de Deus Rabelo",
+      "matricula": "G2210148",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Guilherme Henrique Félix Coelho",
+      "matricula": "G2510263",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Guilherme Jesus dos Santos Cabral",
+      "matricula": "G2510398",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Guilherme Rodrigues dos Santos",
+      "matricula": "G2120102",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Gustavo Dias de Carvalho",
+      "matricula": "G2510127",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Gustavo Henrique Gonçalves cunha",
+      "matricula": "G2010295",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Gustavo Henrique Lima de Morais.",
+      "matricula": "G2510045",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Gyan Lucas de Souza Oliveira",
+      "matricula": "G2310569",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Heitor Alves Bernardes Rocha",
+      "matricula": "G2310075",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Hélio Samuel Nunes Guimarães",
+      "matricula": "G2420092",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Hellen Kariny Batista Caixeta",
+      "matricula": "G2310551",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Henrique Gabriel Silva Lopes",
+      "matricula": "G2410153",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Henrique Vaz Coelho",
+      "matricula": "G2510093",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Iago Antonio da Silva",
+      "matricula": "G2410422",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Isadora Ribeiro silva",
+      "matricula": "G2420106",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Jean Carlos Ferreira",
+      "matricula": "G2210248",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Jeísa Valentin De Oliveira",
+      "matricula": "G2310224",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "João Augusto Patrício",
+      "matricula": "G2310049",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "João Gabriel Rufino silva",
+      "matricula": "G2510145",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "João Henrique Alves Telles",
+      "matricula": "G2610105",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "João Lucas Rodrigues Vidal",
+      "matricula": "G2210204",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "João Pedro Costa Venâncio Camargo",
+      "matricula": "G2310020",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "João Pedro Siqueira Oliveira",
+      "matricula": "G2510288",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "João vitor Valença Jordão",
+      "matricula": "G2420054",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "José Gonçalves de Souza Neto",
+      "matricula": "G2510028",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "José Henrique Miranda do Carmo",
+      "matricula": "G2510146",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "José Otávio da Silva",
+      "matricula": "G2420015",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "José Walace Borges Crisóstomo",
+      "matricula": "G2510243",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Joyce Machado Cabral",
+      "matricula": "G2320172",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Kalita Lorrane Souza Silva",
+      "matricula": "G2210324",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Kalleby kayo Sousa",
+      "matricula": "G2510184",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Karina Cristina Rodrigues",
+      "matricula": "g2610348",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Karla Fabiana Mendes França",
+      "matricula": "G1720145",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Kauã Felipe",
+      "matricula": "G2410052",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Kauã Vitor Nunes Pereira",
+      "matricula": "G2420114",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Kauane Lorraine Pereira Santos",
+      "matricula": "G2320008",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Kauê Alex Gonçalves Gomes",
+      "matricula": "G2610433",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "kayk Allexandre Duarte Nonato de Lima",
+      "matricula": "G2410202",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Kelle Alline Soares da Fonseca",
+      "matricula": "G2310268",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Lara de Melo Cardoso",
+      "matricula": "G2520129",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Lara Gabriela",
+      "matricula": "G2510414",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Leandra Messias Cláudio",
+      "matricula": "G2520022",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Letícia Gonçalves de Oliveira",
+      "matricula": "G2320168",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Lorrany Gomes Sabalius",
+      "matricula": "G2220193",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Luana Borges Vieira",
+      "matricula": "G2510209",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Lucas Batista Brandão",
+      "matricula": "G1920071",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Lucas Batista Ferreira",
+      "matricula": "G2320315",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Lucas Escobar Simões",
+      "matricula": "G2510085",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Lucas Gabriel Alves da Silva",
+      "matricula": "G2420033",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Lucas Riann",
+      "matricula": "G2120100",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Lucas Rocha Reis",
+      "matricula": "G1720407",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Luis Carlos Ferreira Pereira",
+      "matricula": "G2110069",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Luiz Eduardo Arantes Bonifacio Dos santos",
+      "matricula": "G2610356",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Marcelly Siqueira França",
+      "matricula": "G2220195",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Marcos Filho Hilario",
+      "matricula": "G2610386",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Marcos Henrique Martins Jesus Oliveira",
+      "matricula": "G2520006",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Marcos Leandro Faria dos Santos",
+      "matricula": "G2410180",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Marcos Vinícius dias da costa",
+      "matricula": "G2120138",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Maria Clara de Faria do Carmo",
+      "matricula": "G2410285",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Maria Clara Xavier Afonso",
+      "matricula": "G2510082",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Maria Eduarda Soares de Albergaria",
+      "matricula": "G2610234",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Maria Fernanda Rodrigues de Oliveira",
+      "matricula": "G2610135",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Maria Fernanda Rodrigues de Oliveira",
+      "matricula": "G2610135",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Maria Gabriella Ribeiro Santos",
+      "matricula": "G2610382",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Maria Luiza Neves da Silva",
+      "matricula": "G2610346",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Maria Vitória Nascimento Moura",
+      "matricula": "G2520172",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Mariana Sales de Jesus",
+      "matricula": "G2420095",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Mariane Carvalho Christmann",
+      "matricula": "G2610364",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Marianna Vigario Porto Assis Fernandes",
+      "matricula": "G2310267",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Mariza Gomes Rodrigues Diniz",
+      "matricula": "G2310321",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Marya Eduarda Magalhães Peixoto",
+      "matricula": "G2520097",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Matheus Dias Teles",
+      "matricula": "G2420082",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Matheus Victor da Costa Souza",
+      "matricula": "G2410098",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Mauricio Carvalho de Oliveira",
+      "matricula": "G2210197",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Mirella Antonella",
+      "matricula": "G2420057",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Moabe Viana da Silva",
+      "matricula": "G2610441",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Moabe Viana da Silva",
+      "matricula": "G2610441",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Nathan Batista Mascarenhas",
+      "matricula": "G2410097",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Nathan Dorneles Silva",
+      "matricula": "G2510079",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "natiele Alves Luz",
+      "matricula": "G2310308",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Nicoly Natielle Rodrigues Crisostomo",
+      "matricula": "G2520066",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Núria Rafaella Aragão Vasconcelos",
+      "matricula": "G2120192",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Osiel Barbosa Camargo",
+      "matricula": "G2310086",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Paulo Henrique",
+      "matricula": "G1025232",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Paulo Rogério Olívio da Silva",
+      "matricula": "G2510348",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Paulo Sérgio Alves Gomes",
+      "matricula": "G2310074",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Pedro Antônio Tavares Martins",
+      "matricula": "G2610290",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "pedro carrijo martins morais",
+      "matricula": "G2410090",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Pedro Henrique Barbosa Rocha",
+      "matricula": "G2610314",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Pedro Henrique Gonçalves Lima",
+      "matricula": "G2210044",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Pedro Henrique Moreira Campos",
+      "matricula": "G2410172",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Pedro Lucas Rodrigues Lima",
+      "matricula": "G2610312",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Pedro Soares Lemos",
+      "matricula": "G2410185",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Poliana Chayene Pereira Do Nascimento",
+      "matricula": "G2610406",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Rafaella Maia",
+      "matricula": "G2210029",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Renã César Dorneles Santos",
+      "matricula": "G2310335",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Renato Alves Filho",
+      "matricula": "G2420110",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Rhyvia Santana Oliveira",
+      "matricula": "G2320174",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Ryan victor Pereira moraes",
+      "matricula": "G2010076",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "SAMUEL DE OLIVEIRA DUARTE",
+      "matricula": "G2420077",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Sandielly Luiz Pereira",
+      "matricula": "G2610313",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Sarah Silva Araújo",
+      "matricula": "G2320178",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Tainara Pereira de Morais",
+      "matricula": "G2310253",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Verônica Silva Azevedo",
+      "matricula": "G2210081",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Verônica Silva França",
+      "matricula": "G2510330",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Victor Fernandes Pena",
+      "matricula": "G2410145",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Victor Gabriel melo Gonçalves",
+      "matricula": "G2610384",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Victor Hugo Freitas Teixeira",
+      "matricula": "G2610385",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Vinícyus Lamonier Pires",
+      "matricula": "G2420012",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Vitor Hugo Cristino Cavalcante",
+      "matricula": "G2210099",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Vitor Hugo Muniz Galdino",
+      "matricula": "G2310192",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Vitor Manoel Silva Costa",
+      "matricula": "G2410074",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Vitória Gabriele Mendes da Silva",
+      "matricula": "G2520062",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Waliston Fernando Batista Moura",
+      "matricula": "G2410249",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "wellington jeronimo",
+      "matricula": "G2510061",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Willian Matheus Araújo Santos",
+      "matricula": "G2520125",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     },
+     {
+      "nome": "Yasmim Lopes de Jesus",
+      "matricula": "G2520122",
+      "cpf": "",
+      "email": "",
+      "telefone": "",
+      "ch": "12"
+     }
+    ],
+    "palestrantes": [],
+    "comissao": []
+   },
+   "apreciacao": "Ação migrada do processo em papel (ago/2026). Número no sistema anterior: 206731. Órgão envolvido: SENAR. Público atingido declarado no relatório: 450 pessoas.",
+   "origemPapel": true
+  }
+ ]
+}
