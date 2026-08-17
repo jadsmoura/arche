@@ -214,6 +214,15 @@ app.get(["/avaliador", "/avaliador/", "/avaliador/index.html"], (_req, res) => {
   res.sendFile(path.join(PUBLIC, "avaliador", "index.html"));
 });
 
+/* Como o visitante entrou na Avaliação — para a barra do topo saber que o
+   selo é o de VISUALIZAÇÃO e se reduzir à navegação do avaliador (sem os
+   atalhos dos setores, que só o levariam a telas de login). Devolve apenas
+   o modo do próprio cookie de quem pergunta — nenhum dado de ninguém. */
+app.get("/api/av/quem", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ via: lerSelo(req)?.via || null, logado: !!lerSessao(req) });
+});
+
 app.use((req, res, next) => {
   if (!AREA_AV.test(req.caminho)) return next();
   if (req.query.acesso !== undefined && String(req.query.acesso) === chaveAcesso()) {

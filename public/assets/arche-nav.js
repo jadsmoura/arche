@@ -304,7 +304,58 @@
     document.body.insertBefore(nav, document.body.firstChild);
   }
 
-  function iniciar() { montar(); aplicarVisibilidade(); }
+  /* --------------------- modo AVALIADOR (visualização) -------------------
+     Quem entrou pelo atalho arche.app.br/avaliador carrega o selo de
+     visualização e NÃO deve ver os atalhos dos setores (só o levariam a
+     telas de login): dentro da Avaliação, a barra se reduz à navegação dele
+     — a marca e o "← Página do avaliador". Os links do próprio app que
+     apontam ao início do módulo (/arche/, com os acessos de submissão)
+     passam a voltar à página do avaliador. Quem tem sessão no ARCHÉ nunca
+     entra neste modo. */
+  function montarModoAvaliador() {
+    var alvo = document.querySelector(".arche-topnav");
+    if (!alvo) {
+      alvo = document.createElement("nav");
+      alvo.className = "arche-topnav";
+      var marca = document.createElement("a");
+      marca.href = "/avaliador"; marca.className = "nav-brand"; marca.textContent = "ARCHÉ";
+      alvo.appendChild(marca);
+      document.body.insertBefore(alvo, document.body.firstChild);
+    }
+    var dir = document.createElement("span");
+    dir.className = "nav-dir";
+    var volta = document.createElement("a");
+    volta.href = "/avaliador"; volta.className = "nav-portal";
+    volta.textContent = "← Página do avaliador";
+    dir.appendChild(volta);
+    alvo.appendChild(dir);
+    // "Início"/marca do app apontam ao módulo completo — no modo avaliador,
+    // voltam à página dele (compara o caminho resolvido, não o texto)
+    var links = alvo.querySelectorAll("a");
+    for (var i = 0; i < links.length; i++) {
+      try {
+        var p = new URL(links[i].href, location.origin).pathname;
+        if (p === "/arche/" || p === "/arche") links[i].href = "/avaliador";
+      } catch (e) { /* href torto: deixa como está */ }
+    }
+  }
+
+  function iniciar() {
+    // dentro da Avaliação, primeiro se descobre QUEM olha: o selo de
+    // visualização troca a barra inteira (a consulta é local e rápida;
+    // qualquer erro cai na barra normal)
+    if (caminho.indexOf("/arche") === 0) {
+      fetch("/api/av/quem")
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (q) {
+          if (q && q.via === "avaliador" && !q.logado) montarModoAvaliador();
+          else { montar(); aplicarVisibilidade(); }
+        })
+        .catch(function () { montar(); aplicarVisibilidade(); });
+      return;
+    }
+    montar(); aplicarVisibilidade();
+  }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", iniciar);
   else iniciar();
 })();
