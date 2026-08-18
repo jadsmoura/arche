@@ -857,10 +857,18 @@ function cardLista(a){
   </div>`;
 }
 
-/* Publicar e tirar do ar DIRETO no cartão (decisão do dono, ago/2026): a
-   autorização da página é o ato mais frequente da gestão e estava escondida
-   numa guia interna. O botão diz o que falta quando não dá para publicar —
-   quem recusa de verdade é o servidor (ação aprovada + projeto completo).
+/* A gestão do evento acontece NO CARTÃO (decisão do dono, ago/2026): aprovar
+   a ação e tirar a página do ar são os dois atos mais frequentes da
+   coordenação, e estavam espalhados — a aprovação num setor à parte (o ARCHÉ
+   EX) e a publicação numa guia interna. São dois botões, aqui: "Aprovar
+   evento" (emite o Número da Ação) e "Despublicar evento".
+
+   O Número da Ação NÃO se digita: ele sai da sequência oficial da Extensão,
+   no servidor — por ano, na ordem em que as ações são aprovadas.
+
+   Quem APROVA é a gestão da Extensão (é ato do setor que numera o processo);
+   quem PUBLICA é quem opera o evento. O botão diz o que falta quando não dá
+   para publicar, e quem recusa de verdade é o servidor.
    `stopPropagation` porque o cartão inteiro abre o evento. */
 function atalhosCard(a){
   const ev=a.evento||{};
@@ -870,18 +878,34 @@ function atalhosCard(a){
   if(ev.ativo){
     const link=ev.slug?location.origin+"/eventos/"+encodeURIComponent(ev.slug):"";
     return linha(
-      bt("⏸ Tirar do ar",`publicarCard('${esc(a.id)}',false)`,"Recolhe a página pública; inscrições feitas continuam válidas")
+      bt("⏸ Despublicar evento",`publicarCard('${esc(a.id)}',false)`,"Recolhe a página pública; inscrições feitas continuam válidas")
       + (link?`<a class="bt bt-ghost" style="padding:6px 12px;font-size:12.5px" href="${esc(link)}"
           target="_blank" rel="noopener" onclick="event.stopPropagation()">↗ ver a página</a>`:""));
   }
-  const faltas=faltasProjetoEv(a);
   if(!a.numeroAcao)
-    return linha(`<span class="muted" style="font-size:12px">⏳ aguarda a aprovação da ação (Número da Ação) para publicar</span>`);
+    return linha(GESTAO_EX
+      ? bt("✓ Aprovar evento",`aprovarCard('${esc(a.id)}')`,
+          "Aprova a ação de extensão e emite o Número da Ação — depois disso a página pode ir ao ar","bt-pri")
+      : `<span class="muted" style="font-size:12px">⏳ aguarda a aprovação da ação (Número da Ação) para publicar</span>`);
+  const faltas=faltasProjetoEv(a);
   if(faltas.length)
     return linha(`<span class="muted" style="font-size:12px">📝 faltam ${faltas.length} campo(s) do projeto</span>`
       + bt("Completar dados",`selecionar('${esc(a.id)}','dados')`,"Abrir a guia Dados do evento: "+faltas.join(", ")));
-  return linha(bt("✓ Publicar página",`publicarCard('${esc(a.id)}',true)`,
+  return linha(bt("✓ Publicar evento",`publicarCard('${esc(a.id)}',true)`,
     "Coloca a página pública no ar e abre as inscrições","bt-pri"));
+}
+
+/* Aprovar a ação daqui: o número é emitido pelo servidor, na sequência
+   oficial da Extensão — a tela nunca o inventa nem o pede à gestão. */
+async function aprovarCard(id){
+  const a=ACOES.find(x=>x.id===id); if(!a) return;
+  const nome=a.proposta?.nomeAtividade||"este evento";
+  if(!confirm(`Aprovar "${nome}" e emitir o Número da Ação?\n\nA ação de extensão passa a APROVADA e a página do evento fica liberada para publicação.`)) return;
+  const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/aprovar`,{method:"POST"});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ alert(j.error||"Não foi possível aprovar agora."); return; }
+  await carregar(); montarSeletor(); nav(SECAO);
+  alert(`✅ Evento aprovado!\nNúmero da Ação: ${j.numeroAcao}`);
 }
 
 async function publicarCard(id,ativo){
@@ -889,7 +913,7 @@ async function publicarCard(id,ativo){
   const nome=a.proposta?.nomeAtividade||"este evento";
   if(!confirm(ativo
     ? `Publicar a página de "${nome}"?\n\nA página fica pública e as inscrições abrem.`
-    : `Tirar do ar a página de "${nome}"?\n\nA página deixa de ser pública. As inscrições já feitas continuam válidas e o credenciamento segue funcionando.`)) return;
+    : `Despublicar "${nome}"?\n\nA página deixa de ser pública. As inscrições já feitas continuam válidas e o credenciamento segue funcionando.`)) return;
   const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/evento`,{method:"POST",
     headers:{"Content-Type":"application/json"},body:JSON.stringify({ativo})});
   const j=await r.json().catch(()=>({}));
@@ -907,9 +931,11 @@ function renderInicio(a){
 
   // pendências: o que espera um ato da coordenação
   const pend=[];
-  if(!a.numeroAcao) pend.push(`⏳ <b>A ativação da página depende da aprovação da ação</b> (o Número
-    da Ação sai no ARCHÉ EX) — mas o evento já pode ficar todo configurado: inscrições, página,
-    programação e transmissão.`);
+  if(!a.numeroAcao) pend.push(`⏳ <b>A ativação da página depende da aprovação da ação</b> — o evento
+    já pode ficar todo configurado (inscrições, página, programação e transmissão), mas só vai ao ar
+    depois do Número da Ação. ${GESTAO_EX
+      ? `<button class="lk" onclick="aprovarCard('${esc(a.id)}')">Aprovar evento agora</button>`
+      : "A aprovação é da gestão da Extensão."}`);
   const faltasProj=faltasProjetoEv(a);
   if(faltasProj.length) pend.push(`<b>Projeto do evento incompleto para publicação</b> — falta:
     ${esc(faltasProj.join(", "))}. Complete na guia

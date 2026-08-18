@@ -259,6 +259,19 @@ public/
   (env EVENTOS_NOTIFY_EMAIL) — contato do hotsite, do texto LGPD padrão e da confirmação
   de inscrição, e destinatário do aviso automático quando uma página de evento entra no
   ar (`emailEventoAtivado`, fire-and-forget).
+- **A gestão do evento acontece NO CARTÃO** (decisão do dono, ago/2026): os dois atos
+  mais frequentes da coordenação estavam espalhados — aprovar a ação ficava noutro setor
+  (o ARCHÉ EX) e publicar, dentro de uma guia. Agora o cartão do Painel geral traz
+  **"✓ Aprovar evento"** (só para a gestão da Extensão, quando ainda não há `numeroAcao`)
+  e **"⏸ Despublicar evento"** quando a página está no ar; entre os dois, "Publicar
+  evento" ou o que falta do projeto. **O Número da Ação não se digita**: sai da sequência
+  oficial (`EXT-AAAA-NNN`, por ano, na ordem em que as ações são aprovadas).
+- **Quem emite o Número da Ação é o SERVIDOR** (`POST /api/extensao/:id/aprovar`, só
+  `gereEx`): até ago/2026 quem somava 1 na sequência era o formulário do ARCHÉ EX, pelo
+  `/api/estado` — duas coordenações aprovando ao mesmo tempo liam o mesmo número e
+  emitiam o MESMO. A emissão agora é feita dentro da fila de escrita das ações
+  (`comAcoes`), num ato só, e a rota recusa aprovar o que já tem número. Foi o último
+  uso do `/api/estado` na Extensão: `extensao-config-v1` é lida e gravada só no servidor.
 - **Devolução da proposta é um CICLO** (`POST /api/extensao/devolver` e `/reenviar`,
   decisão do dono ago/2026): devolver era meio caminho — a PROPPEX escrevia o motivo e
   ele esperava o professor entrar no portal por acaso; e, quando entrava, não tinha como

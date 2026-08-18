@@ -1672,6 +1672,54 @@ app.post("/api/extensao/reenviar", async (req, res) => {
   }
 });
 
+/* ------------------------- aprovação da ação -----------------------------
+   Aprovar emite o Número da Ação (EXT-AAAA-NNN), e o número é a peça mais
+   séria da Extensão: ele numera o processo institucional e não pode repetir.
+   Até ago/2026 quem emitia era o FORMULÁRIO (lê `extensao-config-v1` pelo
+   /api/estado, soma 1 e grava): duas coordenações aprovando ao mesmo tempo
+   liam a mesma sequência e emitiam o MESMO número. Aqui a emissão é do
+   servidor, dentro da fila de escrita das ações — a sequência é lida e
+   gravada num ato só, em ordem de chegada.
+
+   A sequência é POR ANO e corre na ordem em que as ações são aprovadas, que
+   é a ordem em que a PROPPEX as recebe (decisão do dono, ago/2026). */
+app.post("/api/extensao/:id/aprovar", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    if (!gereEx(u)) return res.status(403).json({ error: "Somente a gestão da Extensão aprova ações." });
+    const r = await comAcoes(async (acoes) => {
+      const i = acoes.findIndex((a) => a.id === req.params.id);
+      if (i < 0) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (acoes[i].numeroAcao)
+        return { erro: [400, `Esta ação já está aprovada, com o número ${acoes[i].numeroAcao}.`], gravar: false };
+      if (!["submetida", "devolvida"].includes(acoes[i].status))
+        return { erro: [400, "Só se aprova proposta que está em análise."], gravar: false };
+      // ano pelo calendário de Brasília: aprovar em 31/12 à noite não pode
+      // emitir número do ano seguinte (nem zerar a sequência antes da hora)
+      const ano = Number(hojeLocalISO().slice(0, 4));
+      const raw = await storage.get("extensao-config-v1");
+      let cfg = raw ? JSON.parse(raw) : { ano, seq: 0 };
+      if (cfg.ano !== ano) cfg = { ano, seq: 0 };
+      cfg.seq++;
+      const agora = new Date().toISOString();
+      acoes[i] = {
+        ...acoes[i], status: "aprovada", motivoDevolucao: "",
+        numeroAcao: `EXT-${ano}-${String(cfg.seq).padStart(3, "0")}`,
+        aprovadoEm: agora, aprovadoPor: u.email, atualizadoEm: agora,
+      };
+      await storage.set("extensao-config-v1", JSON.stringify(cfg));
+      return { acao: acoes[i] };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, numeroAcao: r.acao.numeroAcao,
+      acao: r.acao.evento ? { ...r.acao, evento: eventoSemSegredos(r.acao.evento) } : r.acao });
+  } catch (e) {
+    console.error("Erro ao aprovar ação de extensão:", e);
+    res.status(500).json({ error: "Falha ao aprovar" });
+  }
+});
+
 app.post("/api/extensao/notificar", async (req, res) => {
   try {
     const { id } = req.body || {};

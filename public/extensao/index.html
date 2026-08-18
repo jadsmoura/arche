@@ -324,9 +324,8 @@
 const CURSOS = ["Administração","Agronomia","Ciências Contábeis","Direito","Educação Física",
   "Enfermagem","Engenharia Civil","Engenharia de Software","Engenharia Mecânica",
   "Medicina Veterinária","Odontologia","Psicologia","Institucional / PROPPEX"];
-// as ações vêm de /api/extensao (recorte por pessoa); só a configuração
-// do setor continua no estado comum
-const KEYCFG = "extensao-config-v1";
+// as ações vêm de /api/extensao (recorte por pessoa) e a sequência oficial
+// do Número da Ação vive no servidor — nada da Extensão passa pelo /api/estado
 // GESTAO = o que a conta realmente é. PROPPEX = o que a tela está mostrando.
 // A PROPPEX pode assistir ao sistema como um professor veria — útil para
 // orientar docentes sem precisar de outra conta. É apenas uma visão: as
@@ -343,16 +342,6 @@ let LGPD_PADRAO = "";
 // id da proposta devolvida que está sendo corrigida no formulário (null = nova)
 let EDITANDO = null;
 
-async function stGet(chave){
-  const r = await fetch("/api/estado?chave="+encodeURIComponent(chave));
-  if(!r.ok) return null;
-  return (await r.json()).value;
-}
-async function stSet(chave, valor){
-  const r = await fetch("/api/estado",{method:"PUT",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({chave, valor})});
-  if(!r.ok) throw new Error("Falha ao salvar");
-}
 async function carregar(){
   // As ações NÃO passam mais pelo /api/estado: elas guardam CPF e contato de
   // participantes, e ali qualquer conta aprovada baixava a base inteira. O
@@ -1396,21 +1385,22 @@ async function enviarRelatorio(id){
   await salvar();
   alert("✅ Relatório enviado à PROPPEX!"); renderLista(); renderDetalhe(id);
 }
+/* Aprovar é ato da gestão, e quem emite o Número da Ação é o SERVIDOR
+   (rota /api/extensao/:id/aprovar): a sequência oficial é lida e gravada
+   num ato só, na fila de escrita das ações. Emitir aqui, no formulário,
+   fazia duas coordenações aprovando ao mesmo tempo lerem a mesma sequência
+   e emitirem o MESMO número. */
 async function aprovar(id){
   const a=ACOES.find(x=>x.id===id); if(!a)return;
   if(!confirm(`Aprovar a proposta "${a.proposta.nomeAtividade}" e emitir o Número da Ação?`)) return;
-  const cfgRaw=await stGet(KEYCFG);
-  // ano pelo calendário de Brasília: aprovar em 31/12 à noite não pode emitir
-  // número do ano seguinte (e zerar a sequência antes da hora)
-  const ano=Number(hojeISO().slice(0,4));
-  let cfg=cfgRaw?JSON.parse(cfgRaw):{ano,seq:0};
-  if(cfg.ano!==ano){cfg={ano,seq:0};}
-  cfg.seq++;
-  a.numeroAcao=`EXT-${ano}-${String(cfg.seq).padStart(3,"0")}`;
-  a.status="aprovada"; a.motivoDevolucao=""; a.atualizadoEm=new Date().toISOString();
-  a.aprovadoEm=new Date().toISOString();   // base da cobrança do relatório
-  await stSet(KEYCFG, JSON.stringify(cfg)); await salvar();
-  alert(`✅ Aprovada!\nNúmero da Ação: ${a.numeroAcao}`); renderLista(); renderDetalhe(id);
+  try{
+    const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/aprovar`,{method:"POST"});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    await carregar();
+    alert(`✅ Aprovada!\nNúmero da Ação: ${j.numeroAcao}`);
+    renderLista(); renderDetalhe(id);
+  }catch(e){ alert("Não foi possível aprovar: "+e.message); }
 }
 /* Devolver é ato da gestão, e agora fecha o ciclo: quem devolve escreve o
    motivo, o responsável recebe o e-mail com ele na hora e a proposta volta
