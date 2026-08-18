@@ -2591,7 +2591,11 @@ app.get("/api/eventos/wallet/diagnostico", async (req, res) => {
       preenchida: !!bruto, caracteres: bruto.length,
       colaramOJsonInteiro: bruto.trim().startsWith("{"),
       trazMarcadorPEM: bruto.includes("BEGIN") && bruto.includes("PRIVATE KEY"),
-      terminaEmEND: /-----END [A-Z ]*PRIVATE KEY-----\\?n?"?,?\s*\}?\s*$/.test(bruto.trim()),
+      // "chegou inteiro" se o JSON fecha em } ou se a PEM termina no END —
+      // são as duas formas válidas de colar, e cada uma acaba num lugar
+      chegouInteiro: bruto.trim().startsWith("{")
+        ? bruto.trim().endsWith("}")
+        : /-----END [A-Z ]*PRIVATE KEY-----\\?n?\s*$/.test(bruto.trim()),
       quebrasDeLinhaEscritas: bruto.includes("\\n"), quebrasDeLinhaReais: bruto.includes("\n"),
       lidaComoChave: !!chave, tipo: chave ? chave.asymmetricKeyType : "", assina, erro,
     },
