@@ -416,6 +416,20 @@ public/
   quem não gere já preserva `status`, `numeroAcao` e `apreciacao`). O vaivém fica em
   `devolucoes` e aparece recolhido na ação: é o que explica, meses depois, por que uma
   ação demorou. E-mail que falha não trava a devolução — o motivo já está gravado.
+- **Curricularização da Extensão** (`lib/curricularizacao.js` + bloco na proposta do ARCHÉ EX,
+  pedido do dono ago/2026): a Resolução CNE/CES nº 7/2018 exige 10% da carga horária do curso
+  em extensão, e o avaliador do MEC não pergunta "vocês fazem extensão?" — pergunta QUAL
+  disciplina do PPC cada ação atende e QUANTAS horas foram curricularizadas. A proposta ganha
+  a caixa "vinculada a disciplina(s) do curso", que abre uma lista de componentes (disciplina,
+  período da matriz, CH curricularizada, acadêmicos alcançados, docente e — só se for de outro
+  curso — o curso), mais o texto da integração. É **opcional e não trava a submissão** (a
+  maioria das ações não é curricularizada), mas o que estiver pela metade não conta: o quadro
+  soma só o componente com período e CH. Desmarcar **zera os componentes** — disciplina
+  esquecida num vínculo desfeito somaria hora que ninguém cumpriu. O vínculo sai na ficha da
+  ação, no **PDF da proposta e do relatório** e no Registro de Atividade (.docx), e a gestão vê
+  o quadro por curso no Painel (`GET /api/extensao/curricularizacao`), contando **só o que
+  comprova** — aprovada, com relatório entregue ou registrada; proposta em análise não é
+  comprovação. Os `codigo` de `PERIODOS` são a chave do que já está gravado.
 - Fluxo da Extensão: proposta → aprovação (nº `EXT-AAAA-NNN`) → relatório final →
   participantes (3/3 completa) → certificados → registrada. Não alterar o formato do nº.
 - **Ações migradas do processo em papel** (`subirAcoesMigradasExtensao` + `LOTES_EXTENSAO`,

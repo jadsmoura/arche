@@ -268,6 +268,25 @@
             </div>
             <label>Parcerias externas</label><input id="f-parceria" placeholder="Ex.: COREN-GO">
 
+            <div class="sec-t">Curricularização da Extensão</div>
+            <p class="muted" style="font-size:12.5px;margin:-2px 0 8px">
+              A Resolução CNE/CES nº 7/2018 exige que ao menos 10% da carga horária do curso
+              seja de extensão. Se esta ação atende a alguma disciplina do PPC, informe abaixo —
+              é o que comprova a curricularização ao avaliador do MEC. A maioria das ações
+              não é curricularizada; deixe desmarcado nesse caso.</p>
+            <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
+              <input type="checkbox" id="f-cur" onchange="mostrarCurricularizacao()" style="width:auto;margin:0">
+              <span>Esta ação está vinculada a disciplina(s) do curso (curricularização da extensão)</span>
+            </label>
+            <div id="f-cur-bloco" class="hide" style="margin-top:10px">
+              <div id="f-cur-linhas"></div>
+              <button type="button" class="bt bt-sec" onclick="addComponente()" style="margin-top:6px">+ Outra disciplina</button>
+              <label style="margin-top:10px">Como a ação se integra ao componente curricular
+                <span class="muted">(o que os acadêmicos fazem, e como isso é avaliado na disciplina)</span></label>
+              <textarea id="f-cur-integracao" style="min-height:70px"></textarea>
+              <div id="f-cur-aviso" class="muted" style="font-size:12.5px;margin-top:6px"></div>
+            </div>
+
             <div class="sec-t">Responsável pela ação</div>
             <div class="grid2">
               <div><label>Nome completo *</label><input id="f-resp-nome"></div>
@@ -339,6 +358,8 @@ let TIPOS_ATV = [["palestra","Palestra"],["minicurso","Minicurso"],["oficina","O
   ["mesa","Mesa-redonda"],["roda","Roda de conversa"],["mostra","Mostra"],["apresentacao","Apresentação"],
   ["outro","Outro"]].map(([codigo,rotulo])=>({codigo,rotulo}));
 let LGPD_PADRAO = "";
+// períodos da matriz para a curricularização — vêm do servidor (lib/curricularizacao.js)
+let PERIODOS_MATRIZ = [];
 // id da proposta devolvida que está sendo corrigida no formulário (null = nova)
 let EDITANDO = null;
 
@@ -353,6 +374,7 @@ async function carregar(){
   if(Array.isArray(j.tiposAtividade) && j.tiposAtividade.length) TIPOS_ATV = j.tiposAtividade;
   if(Number(j.minFotosRelatorio)>0) MIN_FOTOS = Number(j.minFotosRelatorio);
   if(j.lgpdPadrao) LGPD_PADRAO = j.lgpdPadrao;
+  if(Array.isArray(j.periodosMatriz) && j.periodosMatriz.length) PERIODOS_MATRIZ = j.periodosMatriz;
   // normaliza registros antigos/importados: sem isso, uma ação sem o bloco de
   // participantes quebra a tela de detalhe ao renderizar as listas
   for(const a of ACOES){
@@ -742,7 +764,7 @@ function renderPainel(){
         <div class="p2">${quando(e.q)}</div></div></div>`).join("")
     : '<div class="vazio">Sem movimentação recente.</div>';
 
-  $("v-painel").innerHTML = kpis + panoramaExtensao(universo) + `
+  $("v-painel").innerHTML = kpis + quadroCurricularizacao() + panoramaExtensao(universo) + `
     <div class="duplo">
       <div class="card">
         <div class="card-t">Ações por situação</div>
@@ -830,6 +852,156 @@ async function renderCobrancas(){
     </div>`:""}`;
 }
 
+const rotuloPeriodo = (c) =>
+  (PERIODOS_MATRIZ.find(p=>p.codigo===String(c||""))||{}).rotulo || "";
+
+/* O quadro que responde ao avaliador do MEC: quais disciplinas do PPC a
+   extensão atende, em cada curso, e quantas horas. Só da gestão, e só com o
+   que COMPROVA — quem conta é o servidor (lib/curricularizacao.js), porque
+   proposta em análise não vira comprovação. Carrega depois da tela, para não
+   segurar o painel se a rota demorar. */
+let CUR_QUADRO = null, CUR_ANO = "";
+function quadroCurricularizacao(){
+  if(!PROPPEX) return "";
+  if(CUR_QUADRO===null){ carregarCurricularizacao(); return `<div class="card" id="cur-quadro">
+    <div class="card-t">Curricularização da Extensão</div>
+    <div class="muted" style="font-size:13px">Carregando o quadro por curso…</div></div>`; }
+  const anos = [...new Set(ACOES.map(a=>anoDaAcao(a)).filter(Boolean))].sort((a,b)=>b-a);
+  const sel = `<select onchange="CUR_ANO=this.value;CUR_QUADRO=null;renderPainel()"
+      style="width:auto;padding:5px 8px;font-size:12.5px">
+      <option value="">todos os ciclos</option>
+      ${anos.map(a=>`<option value="${a}"${String(CUR_ANO)===String(a)?" selected":""}>ciclo ${a}</option>`).join("")}
+    </select>`;
+  const cursos = CUR_QUADRO;
+  const horas = cursos.reduce((s,c)=>s+c.horas,0);
+  const corpo = cursos.length ? cursos.map(c=>`
+    <details style="border-top:1px solid var(--linha);padding:8px 0">
+      <summary style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;font-size:13.5px">
+        <b>${esc(c.curso)}</b>
+        <span class="muted">${c.horas}h · ${c.acoes} ação(ões) · ${c.disciplinas.length} disciplina(s)</span>
+      </summary>
+      ${c.disciplinas.map(d=>`<div class="p2" style="margin:4px 0 0 12px">• ${esc(d.disciplina)}${
+        d.periodo?` — ${esc(rotuloPeriodo(d.periodo)||d.periodo)}`:""} · ${d.horas}h em ${d.acoes} ação(ões)</div>`).join("")}
+    </details>`).join("")
+    : `<div class="vazio">Nenhuma ação curricularizada${CUR_ANO?` no ciclo ${esc(CUR_ANO)}`:""} ainda.
+       O vínculo com a disciplina se informa na proposta.</div>`;
+  return `<div class="card" id="cur-quadro">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div><div class="card-t" style="margin:0">Curricularização da Extensão</div>
+        <div class="card-s" style="margin:2px 0 0">${horas}h vinculadas a componentes curriculares
+          em ${cursos.length} curso(s) — Res. CNE/CES nº 7/2018 (mínimo de 10% da matriz)</div></div>
+      ${sel}
+    </div>
+    <div style="margin-top:10px">${corpo}</div>
+    <div class="muted" style="font-size:12px;margin-top:8px">Conta apenas ações aprovadas, com
+      relatório entregue ou registradas — proposta em análise não comprova.</div>
+  </div>`;
+}
+
+async function carregarCurricularizacao(){
+  try{
+    const r = await fetch("/api/extensao/curricularizacao"+(CUR_ANO?`?ano=${encodeURIComponent(CUR_ANO)}`:""));
+    CUR_QUADRO = r.ok ? ((await r.json()).cursos||[]) : [];
+  }catch{ CUR_QUADRO = []; }
+  const el = $("cur-quadro");
+  if(el) el.outerHTML = quadroCurricularizacao();
+}
+
+/* Na ficha da ação, o vínculo aparece como quadro — é o que a coordenação
+   mostra ao avaliador, e o que o professor confere antes de reenviar. */
+function blocoCurricularizacao(p){
+  const c = p?.curricularizacao;
+  if(!c || c.vinculada!==true) return "";
+  const comp = c.componentes||[];
+  const horas = comp.reduce((s,x)=>s+(Number(x.cargaHoraria)||0),0);
+  return `<div class="kv" style="background:var(--wash);border-radius:10px;padding:10px 12px">
+    <b>Curricularização da Extensão</b> — ${horas}h em ${comp.length} disciplina(s)
+    <span class="muted">(Res. CNE/CES 7/2018)</span>
+    ${comp.map(x=>`<div style="margin-top:6px">• <b>${esc(x.disciplina)}</b>${
+      x.periodo?` — ${esc(rotuloPeriodo(x.periodo)||x.periodo)}`:""}${
+      x.curso?` · ${esc(x.curso)}`:""}${x.cargaHoraria?` · ${esc(x.cargaHoraria)}h`:""}${
+      x.academicos?` · ${esc(x.academicos)} acadêmicos`:""}${
+      x.docente?`<br><span class="muted" style="margin-left:12px">Docente: ${esc(x.docente)}</span>`:""}</div>`).join("")}
+    ${c.integracao?`<div style="margin-top:8px">${esc(c.integracao).replace(/\n/g,"<br>")}</div>`:""}
+  </div>`;
+}
+
+/* ------------------- CURRICULARIZAÇÃO DA EXTENSÃO -----------------------
+   O vínculo da ação com o componente curricular: é o que a Resolução
+   CNE/CES 7/2018 cobra e o que o avaliador do MEC pede para conferir os 10%
+   da matriz. A maioria das ações não é curricularizada — por isso o bloco
+   nasce fechado e nada aqui trava a submissão. Quem confere se o vínculo
+   está completo é o servidor (lib/curricularizacao.js); a tela só avisa. */
+function mostrarCurricularizacao(){
+  const on = $("f-cur").checked;
+  $("f-cur-bloco").classList.toggle("hide", !on);
+  if(on && !$("f-cur-linhas").children.length) addComponente();
+  avisoCurricularizacao();
+}
+
+function addComponente(dados){
+  const d = dados || {};
+  const i = $("f-cur-linhas").children.length;
+  const ops = PERIODOS_MATRIZ.map(p=>
+    `<option value="${esc(p.codigo)}"${String(d.periodo||"")===p.codigo?" selected":""}>${esc(p.rotulo)}</option>`).join("");
+  const div = document.createElement("div");
+  div.className = "cur-linha";
+  div.style.cssText = "border:1px solid var(--linha);border-radius:10px;padding:10px;margin-bottom:8px";
+  div.innerHTML = `
+    <div class="grid2">
+      <div><label>Disciplina / componente curricular *</label>
+        <input class="cur-disc" value="${esc(d.disciplina||"")}" placeholder="Como está no PPC"></div>
+      <div><label>Período da matriz</label><select class="cur-per">
+        <option value="">Selecione…</option>${ops}</select></div>
+    </div>
+    <div class="grid3">
+      <div><label>Carga horária curricularizada (h)</label>
+        <input type="number" min="1" class="cur-ch" value="${d.cargaHoraria||""}"></div>
+      <div><label>Acadêmicos alcançados</label>
+        <input type="number" min="1" class="cur-ac" value="${d.academicos||""}"></div>
+      <div><label>Docente da disciplina</label>
+        <input class="cur-doc" value="${esc(d.docente||"")}"></div>
+    </div>
+    <div><label>Curso <span class="muted">(em branco = o curso da ação)</span></label>
+      <input class="cur-curso" value="${esc(d.curso||"")}" placeholder="Só se a disciplina for de outro curso"></div>
+    ${i>0?`<button type="button" class="bt bt-sec" style="margin-top:8px"
+      onclick="this.closest('.cur-linha').remove();avisoCurricularizacao()">Remover esta disciplina</button>`:""}`;
+  div.querySelectorAll("input,select").forEach(el=>el.addEventListener("input",avisoCurricularizacao));
+  $("f-cur-linhas").appendChild(div);
+  avisoCurricularizacao();
+}
+
+function lerCurricularizacao(){
+  if(!$("f-cur").checked) return {vinculada:false, componentes:[], integracao:""};
+  const componentes = [...document.querySelectorAll("#f-cur-linhas .cur-linha")].map(l=>({
+    disciplina: l.querySelector(".cur-disc").value.trim(),
+    periodo: l.querySelector(".cur-per").value,
+    cargaHoraria: Number(l.querySelector(".cur-ch").value)||0,
+    academicos: Number(l.querySelector(".cur-ac").value)||0,
+    docente: l.querySelector(".cur-doc").value.trim(),
+    curso: l.querySelector(".cur-curso").value.trim(),
+  })).filter(c=>c.disciplina);
+  return {vinculada:true, componentes, integracao:$("f-cur-integracao").value.trim()};
+}
+
+function avisoCurricularizacao(){
+  const el = $("f-cur-aviso"); if(!el) return;
+  const c = lerCurricularizacao();
+  if(!c.vinculada){ el.textContent=""; return; }
+  const falta = [];
+  if(!c.componentes.length) falta.push("informe a disciplina");
+  c.componentes.forEach((x,i)=>{
+    const onde = c.componentes.length>1 ? ` (${i+1}ª disciplina)` : "";
+    if(!x.periodo) falta.push(`o período da matriz${onde}`);
+    if(!x.cargaHoraria) falta.push(`a carga horária curricularizada${onde}`);
+  });
+  const horas = c.componentes.reduce((s,x)=>s+x.cargaHoraria,0);
+  el.innerHTML = falta.length
+    ? `⚠ Para comprovar a curricularização, falta ${esc(falta.join("; "))}. A proposta pode ser
+       enviada assim mesmo — mas o quadro do curso só conta o que está completo.`
+    : `✓ ${horas}h curricularizadas em ${c.componentes.length} disciplina(s).`;
+}
+
 /* ============================== NOVA PROPOSTA =========================== */
 function montarForm(){
   $("f-curso").innerHTML = '<option value="">Selecione…</option>'+CURSOS.map(c=>`<option>${c}</option>`).join("");
@@ -876,6 +1048,7 @@ async function enviarProposta(){
       recursoOutros:$("f-rec-outros").value.trim(),
       respNome:$("f-resp-nome").value.trim(), respCargo:$("f-resp-cargo").value.trim(),
       respTelefone:$("f-resp-tel").value.trim(), respEmail:$("f-resp-email").value.trim(),
+      curricularizacao: lerCurricularizacao(),
     },
     // o que já existe na ação não se perde na correção: relatório,
     // participantes e apreciação continuam onde estavam
@@ -1060,6 +1233,7 @@ function renderDetalhe(id){
     ${p.programacao?`<div class="kv"><b>Programação:</b><br>${esc(p.programacao).replace(/\n/g,"<br>")}</div>`:""}
     ${p.certificacaoSolicitada?`<div class="kv"><b>Certificação solicitada:</b><br>${esc(p.certificacaoSolicitada).replace(/\n/g,"<br>")}</div>`:""}
     ${p.parceria?`<div class="kv"><b>Parcerias:</b> ${esc(p.parceria)}</div>`:""}
+    ${blocoCurricularizacao(p)}
     <div class="kv"><b>Responsável:</b> ${esc(p.respNome)} — ${esc(p.respCargo)} · ${esc(p.respTelefone)} · ${esc(p.respEmail)}</div>`;
 
   /* ---- ações do PROPPEX sobre a proposta ---- */
@@ -1510,6 +1684,17 @@ function preencherFormulario(a){
   por("f-resp-nome",p.respNome); por("f-resp-cargo",p.respCargo);
   por("f-resp-tel",p.respTelefone); por("f-resp-email",p.respEmail);
   $("f-class-outro-w").classList.toggle("hide", p.classificacao!=="Outro");
+  // curricularização: o bloco volta como foi gravado, disciplina por disciplina
+  const cur = p.curricularizacao || {};
+  $("f-cur").checked = cur.vinculada === true;
+  $("f-cur-linhas").innerHTML = "";
+  por("f-cur-integracao", cur.integracao);
+  if(cur.vinculada){
+    (cur.componentes||[]).forEach(c=>addComponente(c));
+    if(!(cur.componentes||[]).length) addComponente();
+  }
+  $("f-cur-bloco").classList.toggle("hide", !$("f-cur").checked);
+  avisoCurricularizacao();
   marcarCorrecao(a);
 }
 
@@ -1533,6 +1718,9 @@ function marcarCorrecao(a){
 function cancelarCorrecao(){
   EDITANDO=null;
   document.querySelectorAll("#v-nova input,#v-nova textarea").forEach(i=>i.value="");
+  // a caixa não é input de texto, e as linhas de disciplina ficariam para trás
+  $("f-cur").checked=false; $("f-cur-linhas").innerHTML="";
+  $("f-cur-bloco").classList.add("hide");
   // o select é remontado: a correção pode ter injetado um curso fora da lista
   montarForm();
   $("f-municipio").value="Goianésia/GO";

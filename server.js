@@ -70,6 +70,9 @@ import {
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
 import { dataCivil, hojeLocalISO } from "./lib/datas.js";
 import { MIN_FOTOS_RELATORIO, faltamFotos, avisoFotos, fotosDoPortfolio } from "./lib/portfolio.js";
+import {
+  PERIODOS as PERIODOS_MATRIZ, normalizarCurricularizacao, panoramaCurricularizacao,
+} from "./lib/curricularizacao.js";
 import { CREDENCIAMENTO, MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
 import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
@@ -1576,7 +1579,7 @@ app.get("/api/extensao", async (req, res) => {
       tiposAtividade: TIPOS_ATIVIDADE, lgpdPadrao: LGPD_TEXTO_PADRAO,
       tiposBloco: TIPOS_BLOCO, categoriasApoio: CATEGORIAS_APOIO,
       redesSociais: REDES_SOCIAIS, frequencias: FREQUENCIAS, minFotosRelatorio: MIN_FOTOS_RELATORIO,
-      papeisComissao: PAPEIS_COMISSAO,
+      papeisComissao: PAPEIS_COMISSAO, periodosMatriz: PERIODOS_MATRIZ,
     });
   } catch (e) {
     console.error("Erro ao listar ações de extensão:", e);
@@ -1617,6 +1620,13 @@ app.post("/api/extensao", async (req, res) => {
         // presenças são MESCLADAS por cima do que o formulário mandou.
         const preservado = base ? mesclarEventoEInscritos(base, nova) : {};
         const final = { ...nova, ...controlado, ...preservado, atualizadoEm: new Date().toISOString() };
+        // Curricularização: o vínculo com o componente curricular é o que
+        // comprova os 10% da matriz ao avaliador do MEC, e por isso passa
+        // pela régua do catálogo aqui — desmarcado, nenhuma disciplina fica
+        // para trás somando hora que ninguém cumpriu.
+        if (final.proposta)
+          final.proposta = { ...final.proposta,
+            curricularizacao: normalizarCurricularizacao(final.proposta.curricularizacao) };
         // Números do evento no relatório: na ENTREGA (entregueEm aparecendo
         // agora) de uma ação com evento, o SERVIDOR fotografa os números do
         // sistema de inscrições — snapshot datado, calculado da ação já
@@ -1651,6 +1661,26 @@ app.post("/api/extensao", async (req, res) => {
   } catch (e) {
     console.error("Erro ao gravar ação de extensão:", e);
     res.status(500).json({ error: "Falha ao gravar" });
+  }
+});
+
+/**
+ * Quadro da curricularização, por curso — é a resposta à pergunta que o
+ * avaliador do MEC faz: quais disciplinas do PPC esta instituição atende com
+ * extensão, e quantas horas. Conta só o que comprova (ação aprovada, com
+ * relatório entregue ou registrada); proposta em análise não é comprovação.
+ * Só a gestão da Extensão: é quadro institucional, não recorte de ninguém.
+ */
+app.get("/api/extensao/curricularizacao", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    if (!gereEx(u)) return res.status(403).json({ error: "Restrito à gestão da Extensão" });
+    const ano = /^\d{4}$/.test(String(req.query.ano || "")) ? Number(req.query.ano) : null;
+    res.json({ ano, cursos: panoramaCurricularizacao(await lerAcoes(), { ano }) });
+  } catch (e) {
+    console.error("Erro no quadro de curricularização:", e);
+    res.status(500).json({ error: "Falha ao montar o quadro" });
   }
 });
 
