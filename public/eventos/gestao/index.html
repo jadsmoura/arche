@@ -1230,9 +1230,12 @@ function renderPagina(a){
       <textarea id="ev-desc" placeholder="O que é o evento, para quem, o que levar…">${esc(ev.descricao||"")}</textarea>
       <label>Endereço do evento (local) <span class="muted">(sai na página com o link "Ver no mapa")</span></label>
       <input id="ev-local" value="${esc(ev.local||"")}" placeholder="Ex.: Auditório central do UNIEGO — Av. Universitária, Goianésia/GO">
-      <label>Capa da página <span class="muted">(JPEG, PNG ou WebP, até 500 KB — aparece no topo do hotsite e na vitrine)</span></label>
+      <label>Capa da página — arte de <b style="color:var(--brand-2)">1600 × 640 px</b>
+        <span class="muted">(JPEG, PNG ou WebP, até 500 KB — aparece no topo do hotsite e na vitrine)</span></label>
       <div class="tut" style="font-size:12.5px;margin:6px 0 10px">
-        🎨 <b>Medida ideal da arte: 1600 × 640 px</b> (proporção 5:2, deitada), em JPEG ou WebP até 500 KB.
+        🎨 <b>Passe esta medida a quem for criar a arte: 1600 × 640 pixels</b> (proporção 5:2, deitada;
+        se preferir o dobro para telas de alta resolução, 2400 × 960 px serve igual). Formato JPEG ou
+        WebP, até 500 KB.
         <ul style="margin:6px 0 0 18px;line-height:1.65">
           <li>A imagem é <b>recortada pelo centro</b> para preencher o espaço: deixe o título e a logomarca
             no <b>miolo</b> da arte, com folga nas bordas — o que fica nas pontas pode ser cortado.</li>
