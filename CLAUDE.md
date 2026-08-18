@@ -82,6 +82,24 @@ public/
   passarem ao largo da guarda e caírem direto no disco, servindo a SPA da gestão **sem
   login** (achado da revisão adversarial de ago/2026). Um middleware normaliza uma vez, no
   topo, e recusa com 400 o que nem decodifica.
+- **O `firebase-config.js` das páginas POR CURSO** (correção de ago/2026): o app compilado
+  carrega `../firebase-config.js` em toda página — é ele que define `window.storage`, quem
+  grava o dossiê. Nas páginas de curso (`/arche/avaliacao/<curso>/` e `/arche/dossie/<curso>/`)
+  esse caminho relativo caía num diretório sem o arquivo: 404, página sem `window.storage`,
+  e NADA era salvo (a tela montava e o comprovante ia ao Drive, mas ao recarregar o dossiê
+  voltava vazio). Só Psicologia escapava, por morar um nível acima. O arquivo é UM só,
+  servido também nesses dois caminhos por uma rota no server — copiá-lo seria manter três
+  versões da mesma coisa.
+- **O docente ajusta a produção importada** (append em `public/arche/dossie/*`, decisão do
+  dono ago/2026): o XML do Lattes traz artigo que não é da pessoa ou que não deveria constar,
+  e falta o que saiu depois da última atualização do currículo — reexportar o XML inteiro por
+  um item só é caro. O docente **exclui** o item (com **Desfazer** no aviso e a lista
+  "Excluídas por você", que restaura com um clique — engano não vira perda) e **inclui
+  produção à mão** (tipo, título, ano, autores, veículo), que entra sem comprovante para ele
+  anexar em seguida. Só o DOCENTE, no próprio dossiê; PROPPEX e avaliador seguem só olhando.
+  O que ele excluiu e o que incluiu viaja no MESMO registro do dossiê, e é **reaplicado depois
+  de cada reimportação** do XML (senão o excluído voltaria e o manual sumiria) — a chave é o
+  que o item afirma (tipo + título + ano), não o id, que muda a cada exportação.
 - **Portaria da Avaliação** (`lib/portaria.js`, decisão do dono em ago/2026): como o cartão do
   módulo fica na página inicial, à vista de qualquer visitante, a entrada pede uma **senha
   compartilhada** (`AV_SENHA`, "uniego" por padrão) — só para barrar quem chegou ali por acaso.

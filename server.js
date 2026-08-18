@@ -7183,6 +7183,20 @@ app.get(["/eventos/gestao", "/eventos/gestao/"], (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "gestao", "index.html")));
 app.get(/^\/eventos\/[a-z0-9-]+\/?$/, (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "evento.html")));
+/* O app compilado da Avaliação carrega `../firebase-config.js` em TODA página
+   — é ele que define `window.storage`, quem grava o dossiê. Nas páginas POR
+   CURSO (/arche/avaliacao/<curso>/ e /arche/dossie/<curso>/) esse caminho
+   relativo cai num diretório onde o arquivo não existe: o script vinha 404 e a
+   página abria SEM `window.storage`. Tudo parecia funcionar — a tela montava, o
+   comprovante subia para o Drive —, mas nada era salvo: ao recarregar, o
+   dossiê voltava vazio. Só Psicologia escapava, por morar um nível acima
+   (achado de ago/2026, com os professores já enviando currículo).
+   O arquivo é UM só, servido também nesses dois caminhos — copiá-lo seria
+   manter três versões da mesma coisa. A portaria da Avaliação vale igual:
+   este trecho roda depois dela. */
+app.get(["/arche/avaliacao/firebase-config.js", "/arche/dossie/firebase-config.js"], (_req, res) =>
+  res.sendFile(path.join(PUBLIC, "arche", "firebase-config.js")));
+
 app.use(express.static(PUBLIC));
 
 /* --------------------- ENCERRAMENTO E TAREFAS DE FUNDO ------------------- */

@@ -1959,3 +1959,400 @@ window.addEventListener('pagehide', function(){
   });
 })();
 </script>
+<style>
+/* ARCHÉ · ajustes do docente na produção (ago/2026) */
+.ex-selo{font-size:11px;font-weight:600;color:var(--gold);background:#fdf6e7;border:1px solid #f0e0bd;
+  border-radius:999px;padding:2px 8px;white-space:nowrap}
+.btn.sm.ex-excluir{border-color:var(--line);color:var(--muted);background:transparent}
+.btn.sm.ex-excluir:hover{border-color:#dc2626;color:#dc2626;background:#fef2f2}
+.ex-lixeira{margin:0 20px 16px;border:1px dashed var(--line);border-radius:10px;background:#fbfcfe}
+.ex-lixeira summary{cursor:pointer;padding:10px 14px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.ex-lixeira summary:hover{color:var(--ink)}
+.ex-lx{display:flex;gap:12px;align-items:flex-start;padding:9px 14px;border-top:1px solid var(--line-soft)}
+.ex-lx .t{flex:1;font-size:13px;color:var(--ink-soft)}
+.ex-lx .t small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
+.ex-toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,140%);z-index:10000;
+  display:flex;align-items:center;gap:12px;max-width:min(620px,92vw);
+  background:var(--ink);color:#fff;border-radius:12px;padding:12px 14px;font-size:13.5px;
+  box-shadow:0 16px 40px -12px rgba(0,0,0,.45);transition:transform .22s ease;opacity:.98}
+.ex-toast.on{transform:translate(-50%,0)}
+.ex-toast span{flex:1;line-height:1.35}
+.ex-toast button{border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:12.5px;padding:7px 12px}
+.ex-toast .ex-desfazer{background:#fff;color:var(--ink)}
+.ex-toast .ex-fechar{background:transparent;color:#fff;opacity:.7;font-size:16px;padding:4px 8px}
+.ex-ajuda{font-size:12.5px;color:var(--muted);line-height:1.45;margin:-6px 0 4px}
+.modal-box textarea{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;
+  font-size:14px;font-family:inherit;outline:none;resize:vertical;min-height:64px}
+.modal-box textarea:focus{border-color:var(--brand-2)}
+</style>
+<script>
+/* ARCHÉ · Avaliação (ago/2026) — o docente ajusta a produção importada.
+   O XML do Lattes traz, de vez em quando, artigo que não é da pessoa ou que
+   não deveria constar; e falta o que foi publicado depois da última
+   atualização do currículo. Reexportar o XML inteiro por causa de um item só
+   é caro — então o docente EXCLUI o item errado, com DESFAZER (engano não
+   pode virar perda: o excluído fica listado e volta com um clique), e INCLUI
+   à mão a produção que falta.
+
+   Quem mexe é só o DOCENTE, no próprio dossiê: PROPPEX e avaliador seguem
+   em leitura (e o save-guard do app já impede os dois de gravar).
+
+   Append de propósito — o app da Avaliação é compilado e não se refatora.
+   Este bloco embrulha cinco funções do app (itemRow, renderProf,
+   serializeState, deserializeAndMerge e handleImport); nada dentro delas
+   muda. O que o docente excluiu e o que incluiu viaja no MESMO registro do
+   dossiê, para não haver duas verdades sobre a mesma lista. */
+(function () {
+  "use strict";
+  try {
+    if (typeof itemRow !== "function" || typeof renderProf !== "function" ||
+        typeof serializeState !== "function" || typeof CATS === "undefined") return;
+  } catch (e) { return; }
+
+  var ANO = new Date().getFullYear();
+  var ANO_MIN = ANO - 3;          // o dossiê só considera os últimos 4 anos
+  // formação (diplomas) fica fora: quem inclui diploma à mão é a secretaria,
+  // com o documento; aqui é produção
+  var CATS_MANUAL = ["artigos", "livros", "capitulos", "eventos", "tecnica", "orientacoes"];
+
+  function souDono() { return state.role === "docente"; }
+  function chaveDoProf(p) { return p.lattesId ? "lattes:" + p.lattesId : "nome:" + (p.nome || "").toLowerCase(); }
+  function normT(s) {
+    return (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  }
+  /* A chave do item é o que ele AFIRMA (tipo + título + ano), não o id: o id
+     muda a cada reimportação do XML, o que o item diz não muda. É ela que faz
+     a exclusão sobreviver a um novo XML. */
+  function chaveItem(it) { return (it.cat || "") + "|" + normT(it.title).slice(0, 40) + "|" + (it.year || ""); }
+  function catInfo(k) { return CATS.filter(function (c) { return c.key === k; })[0] || null; }
+  function grupoDe(p, cat) {
+    var g = p.data.groups.filter(function (x) { return x.key === cat; })[0];
+    if (g) return g;
+    var base = catInfo(cat);
+    if (!base) return null;
+    g = Object.assign({}, base, { items: [] });
+    p.data.groups.push(g);
+    var ordem = CATS.map(function (c) { return c.key; });
+    p.data.groups.sort(function (a, b) { return ordem.indexOf(a.key) - ordem.indexOf(b.key); });
+    return g;
+  }
+  function recontar(p) {
+    p.data.total = p.data.groups.reduce(function (s, g) { return s + g.items.length; }, 0);
+  }
+  function guiaDaCat(cat) {
+    var g = GUIAS.filter(function (x) { return x.cats.indexOf(cat) >= 0; })[0];
+    return g ? g.key : state.guia;
+  }
+  function marcarManuais(p) {
+    if (!p || !p.data || !p.exManuais || !p.exManuais.length) return;
+    var ids = {}, chaves = {};
+    p.exManuais.forEach(function (m) { ids[m.id] = true; chaves[chaveItem(m)] = true; });
+    p.data.groups.forEach(function (g) {
+      g.items.forEach(function (it) { if (ids[it.id] || chaves[chaveItem(it)]) it.manual = true; });
+    });
+  }
+
+  /* ------------------------- excluir e desfazer ------------------------- */
+  function excluir(id) {
+    var p = current();
+    if (!p || !p.data || !souDono()) return;
+    for (var i = 0; i < p.data.groups.length; i++) {
+      var g = p.data.groups[i];
+      var j = -1;
+      for (var k = 0; k < g.items.length; k++) if (g.items[k].id === id) { j = k; break; }
+      if (j < 0) continue;
+      var it = g.items[j];
+      if (it.anexo && it.anexo.path &&
+          !confirm("Esta produção já tem comprovante anexado.\n\n“" + it.title +
+                   "”\n\nExcluir mesmo assim? O comprovante enviado deixa de constar no dossiê."))
+        return;
+      g.items.splice(j, 1);
+      p.exExcluidas = p.exExcluidas || [];
+      p.exExcluidas.unshift({ item: JSON.parse(JSON.stringify(it)), em: new Date().toISOString() });
+      if (p.exExcluidas.length > 100) p.exExcluidas.length = 100;
+      // produção incluída à mão e depois excluída não pode voltar na reimportação
+      p.exManuais = (p.exManuais || []).filter(function (m) { return m.id !== it.id; });
+      recontar(p);
+      renderProf();
+      scheduleSave();
+      aviso("Produção excluída: “" + (it.title || "") + "”", it.id);
+      return;
+    }
+  }
+
+  function restaurar(id) {
+    var p = current();
+    if (!p || !p.data || !souDono() || !p.exExcluidas) return;
+    var reg = null;
+    p.exExcluidas = p.exExcluidas.filter(function (x) {
+      if (!reg && x.item && x.item.id === id) { reg = x; return false; }
+      return true;
+    });
+    if (!reg) return;
+    var it = reg.item;
+    var g = grupoDe(p, it.cat);
+    if (!g) return;
+    var repetido = g.items.some(function (x) { return chaveItem(x) === chaveItem(it); });
+    if (!repetido) g.items.push(it);
+    if (it.manual) {
+      p.exManuais = p.exManuais || [];
+      if (!p.exManuais.some(function (m) { return m.id === it.id; })) p.exManuais.push(JSON.parse(JSON.stringify(it)));
+    }
+    recontar(p);
+    state.guia = guiaDaCat(it.cat);
+    renderProf();
+    scheduleSave();
+    esconderAviso();
+  }
+
+  function aviso(texto, idDesfazer) {
+    var t = document.getElementById("exToast");
+    if (!t) {
+      t = document.createElement("div");
+      t.id = "exToast";
+      t.className = "ex-toast";
+      document.body.appendChild(t);
+      t.addEventListener("click", function (e) {
+        if (e.target.closest(".ex-fechar")) esconderAviso();
+      });
+    }
+    t.innerHTML = "<span>" + escapeHtml(texto) + "</span>" +
+      (idDesfazer ? '<button class="ex-desfazer" data-ex-desfazer="' + escapeHtml(idDesfazer) + '">Desfazer</button>' : "") +
+      '<button class="ex-fechar" aria-label="Fechar">×</button>';
+    t.classList.add("on");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(esconderAviso, 15000);
+  }
+  function esconderAviso() {
+    var t = document.getElementById("exToast");
+    if (t) { t.classList.remove("on"); clearTimeout(t._timer); }
+  }
+
+  /* --------------------- incluir produção à mão ------------------------- */
+  function abrirModal() {
+    var p = current();
+    if (!p || !p.data || !souDono()) return;
+    var guia = GUIAS.filter(function (g) { return g.key === state.guia; })[0];
+    var sugerida = (guia ? guia.cats.filter(function (c) { return CATS_MANUAL.indexOf(c) >= 0; })[0] : "") || "artigos";
+    var ov = document.createElement("div");
+    ov.className = "modal-overlay";
+    ov.innerHTML =
+      '<div class="modal-box">' +
+        "<h3>Incluir produção manualmente</h3>" +
+        '<p class="ex-ajuda">Para o que foi publicado depois da última atualização do Lattes, ou o que ' +
+        "não veio na exportação. A produção entra na lista <b>sem comprovante</b> — anexe o documento em " +
+        "seguida, como nas demais. O dossiê considera as produções a partir de " + ANO_MIN + ".</p>" +
+        "<label>Tipo de produção</label><select id=\"exCat\">" +
+        CATS.filter(function (c) { return CATS_MANUAL.indexOf(c.key) >= 0; }).map(function (c) {
+          return '<option value="' + c.key + '"' + (c.key === sugerida ? " selected" : "") + ">" +
+            escapeHtml(c.label.replace(/ \(.*\)/, "")) + "</option>";
+        }).join("") +
+        "</select>" +
+        "<label>Título</label><textarea id=\"exTitulo\" placeholder=\"Título do artigo, livro, capítulo, trabalho…\"></textarea>" +
+        '<label>Ano</label><input id="exAno" type="number" inputmode="numeric" min="' + ANO_MIN + '" max="' + (ANO + 1) + '" value="' + ANO + '">' +
+        "<label>Autores</label><input id=\"exAutores\" placeholder=\"Como aparecem na publicação\">" +
+        "<label>Periódico, evento ou editora</label><input id=\"exDetalhe\" placeholder=\"Ex.: Revista Brasileira de …\">" +
+        '<div class="modal-actions">' +
+          '<button class="btn btn-cancel" id="exCancelar">Cancelar</button>' +
+          '<button class="btn btn-confirm" id="exSalvar">Incluir produção</button>' +
+        "</div>" +
+      "</div>";
+    document.body.appendChild(ov);
+    function fechar() { ov.remove(); document.removeEventListener("keydown", naTecla); }
+    function naTecla(e) { if (e.key === "Escape") fechar(); }
+    document.addEventListener("keydown", naTecla);
+    ov.addEventListener("click", function (e) { if (e.target === ov) fechar(); });
+    ov.querySelector("#exCancelar").addEventListener("click", fechar);
+    ov.querySelector("#exSalvar").addEventListener("click", function () {
+      var cat = ov.querySelector("#exCat").value;
+      var titulo = ov.querySelector("#exTitulo").value.trim().replace(/\s+/g, " ");
+      var ano = String(ov.querySelector("#exAno").value || "").trim();
+      var autores = ov.querySelector("#exAutores").value.trim();
+      var detalhe = ov.querySelector("#exDetalhe").value.trim();
+      if (titulo.length < 5) { alert("Escreva o título da produção."); ov.querySelector("#exTitulo").focus(); return; }
+      if (!/^\d{4}$/.test(ano) || +ano < ANO_MIN || +ano > ANO + 1) {
+        alert("Informe o ano entre " + ANO_MIN + " e " + (ANO + 1) +
+              ".\n\nO dossiê considera as produções dos últimos quatro anos — fora dessa janela a produção não entra na avaliação.");
+        ov.querySelector("#exAno").focus();
+        return;
+      }
+      var nova = { cat: cat, title: titulo, year: ano };
+      var repetida = profItems(p).some(function (x) { return chaveItem(x) === chaveItem(nova); });
+      if (repetida) { alert("Esta produção já está na lista deste ano — confira antes de incluir de novo."); return; }
+      var base = catInfo(cat);
+      var g = grupoDe(p, cat);
+      if (!g) { alert("Não foi possível incluir esta produção."); return; }
+      var it = {
+        id: "manual-" + cat + "-" + Math.random().toString(36).slice(2, 8),
+        code: base.code + "-M" + String(g.items.length + 1).padStart(2, "0"),
+        title: titulo, detail: detalhe, year: ano, authors: autores,
+        typeTag: "Incluída manualmente", cat: cat,
+        anexo: null, status: "pend", motivo: "", manual: true
+      };
+      g.items.push(it);
+      p.exManuais = p.exManuais || [];
+      p.exManuais.push(JSON.parse(JSON.stringify(it)));
+      recontar(p);
+      state.guia = guiaDaCat(cat);
+      fechar();
+      renderProf();
+      scheduleSave();
+      aviso("Produção incluída. Anexe o comprovante na lista — sem ele ela fica pendente.", null);
+    });
+    ov.querySelector("#exTitulo").focus();
+  }
+
+  /* --------------------------- a lista na tela -------------------------- */
+  var _itemRow = itemRow;
+  itemRow = function (it, showCat) {
+    var html = _itemRow(it, showCat);
+    try {
+      if (!souDono() || !it || it.cat === "_docs_pessoais") return html;
+      var marcado = html.replace('<div class="item">', '<div class="item" data-ex-item="' + escapeHtml(it.id) + '">');
+      var fim = marcado.lastIndexOf("</div></div>");
+      if (fim < 0) return marcado;
+      var extra = (it.manual ? '<span class="ex-selo">incluída à mão</span>' : "") +
+        '<button class="btn sm ex-excluir" data-ex-excluir="' + escapeHtml(it.id) +
+        '" title="Retirar esta produção do dossiê — dá para desfazer">Excluir</button>';
+      return marcado.slice(0, fim) + extra + marcado.slice(fim);
+    } catch (e) { return html; }
+  };
+
+  var _renderProf = renderProf;
+  renderProf = function () {
+    var r = _renderProf.apply(this, arguments);
+    try { enfeitar(); } catch (e) { console.error("[Append produção]", e); }
+    return r;
+  };
+
+  function enfeitar() {
+    var head = document.querySelector("#profView .guiahead");
+    var lista = document.getElementById("guiaList");
+    if (!head || !lista) return;
+    var p = current();
+    var pode = souDono() && p && p.data && state.guia !== "docs-pessoais";
+    var bt = document.getElementById("exIncluir");
+    if (pode) {
+      if (!bt) {
+        bt = document.createElement("button");
+        bt.id = "exIncluir";
+        bt.className = "btn sm ghost";
+        bt.textContent = "+ Incluir produção manualmente";
+        bt.addEventListener("click", abrirModal);
+      }
+      var gc = head.querySelector(".gc");
+      if (gc) head.insertBefore(bt, gc); else head.appendChild(bt);
+      bt.style.display = "";
+    } else if (bt) { bt.style.display = "none"; }
+    renderLixeira(p, lista);
+  }
+
+  function renderLixeira(p, lista) {
+    var box = document.getElementById("exLixeira");
+    var itens = (souDono() && p && p.exExcluidas) ? p.exExcluidas : [];
+    if (!itens.length) { if (box) box.remove(); return; }
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "exLixeira";
+      lista.parentNode.insertBefore(box, lista.nextSibling);
+    }
+    box.innerHTML = '<details class="ex-lixeira"><summary>Excluídas por você (' + itens.length +
+      ") — dá para restaurar</summary>" +
+      itens.slice(0, 50).map(function (x) {
+        var it = x.item || {};
+        var meta = [CATLABEL[it.cat] || "", it.year || "", it.detail || ""].filter(Boolean).join(" · ");
+        return '<div class="ex-lx"><div class="t">' + escapeHtml(it.title || "(sem título)") +
+          "<small>" + escapeHtml(meta) + "</small></div>" +
+          '<button class="btn sm ghost" data-ex-restaurar="' + escapeHtml(it.id) + '">Restaurar</button></div>';
+      }).join("") + "</details>";
+  }
+
+  document.addEventListener("click", function (e) {
+    var alvo = e.target.closest("[data-ex-excluir],[data-ex-restaurar],[data-ex-desfazer]");
+    if (!alvo) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (alvo.hasAttribute("data-ex-excluir")) excluir(alvo.getAttribute("data-ex-excluir"));
+    else restaurar(alvo.getAttribute("data-ex-restaurar") || alvo.getAttribute("data-ex-desfazer"));
+  });
+
+  /* ------------------- o que o docente ajustou é gravado ---------------- */
+  var _ser = serializeState;
+  serializeState = function () {
+    var json = _ser.apply(this, arguments);
+    try {
+      var o = JSON.parse(json);
+      var ajustes = professors.map(function (p) {
+        return {
+          chave: chaveDoProf(p),
+          excluidas: (p.exExcluidas || []).slice(0, 100),
+          manuais: (p.exManuais || []).slice(0, 100)
+        };
+      }).filter(function (x) { return x.excluidas.length || x.manuais.length; });
+      if (!ajustes.length && !o.ajustesProducao) return json;
+      o.ajustesProducao = { versao: 1, profs: ajustes };
+      return JSON.stringify(o);
+    } catch (e) { return json; }
+  };
+
+  var _des = deserializeAndMerge;
+  deserializeAndMerge = function (json) {
+    var r = _des.apply(this, arguments);
+    try {
+      var o = JSON.parse(json);
+      var lista = (o && o.ajustesProducao && o.ajustesProducao.profs) || [];
+      if (!lista.length) return r;
+      var porChave = {};
+      lista.forEach(function (x) { porChave[x.chave] = x; });
+      professors.forEach(function (p) {
+        var x = porChave[chaveDoProf(p)];
+        if (!x) return;
+        p.exExcluidas = x.excluidas || [];
+        p.exManuais = x.manuais || [];
+        marcarManuais(p);
+      });
+    } catch (e) { console.error("[Append produção] restaurar:", e); }
+    return r;
+  };
+
+  /* Reimportar o XML traz de volta o que o Lattes tem — inclusive o que o
+     docente tinha excluído — e leva embora o que ele incluiu à mão. Depois
+     de cada importação, os ajustes são reaplicados: o que ele excluiu sai
+     de novo, o que ele incluiu volta. */
+  if (typeof handleImport === "function") {
+    var _imp = handleImport;
+    handleImport = function (file) {
+      var r = _imp.apply(this, arguments);
+      return Promise.resolve(r).then(function (v) {
+        try {
+          var p = current();
+          if (p && p.data && ((p.exExcluidas || []).length || (p.exManuais || []).length)) {
+            reaplicar(p);
+            renderProf();
+            if (souDono() && typeof doSave === "function") doSave();
+          }
+        } catch (e) { console.error("[Append produção] reimportação:", e); }
+        return v;
+      });
+    };
+  }
+
+  function reaplicar(p) {
+    var fora = {};
+    (p.exExcluidas || []).forEach(function (x) { if (x && x.item) fora[chaveItem(x.item)] = true; });
+    p.data.groups.forEach(function (g) {
+      g.items = g.items.filter(function (it) { return !fora[chaveItem(it)]; });
+    });
+    (p.exManuais || []).forEach(function (m) {
+      var existe = p.data.groups.some(function (g) {
+        return g.items.some(function (it) { return chaveItem(it) === chaveItem(m); });
+      });
+      if (existe) return;
+      var g = grupoDe(p, m.cat);
+      if (g) g.items.push(JSON.parse(JSON.stringify(m)));
+    });
+    marcarManuais(p);
+    recontar(p);
+  }
+})();
+</script>
