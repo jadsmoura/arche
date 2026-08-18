@@ -1089,7 +1089,11 @@ public/
   não contam (`normalizarBusca`), dois termos exigem os dois **na mesma ata**, e o destaque
   vem do servidor em partes marcadas — a tela não repete a normalização. O **recorte por
   autor vale igual**: quem busca só encontra o que já podia ver (a rota filtra por
-  `podeVerAta` antes de varrer). Filtros de órgão, curso, período e situação estreitam.
+  `podeVerAta` antes de varrer). Filtros de órgão, curso, período e situação estreitam. A busca
+  fica **em evidência no alto do Arquivo de atas** ("Busca por conteúdo de atas"), separada do
+  **filtro da lista** (que só olha número, órgão e nomes) — confundir as duas custa tempo de
+  quem procura. E o Arquivo desenha **chassi e lista separados**: redesenhar tudo a cada tecla
+  tirava o cursor da caixa de texto (achado do dono, ago/2026).
 - **Retomar encaminhamentos** (`GET /api/atas/encaminhamentos-anteriores` + botão na pauta):
   encaminhamento sem retomada é a queixa mais comum de quem lê uma série de atas — a
   reunião decide "fulano providencia até tal dia" e ninguém volta ao assunto. A tela traz o

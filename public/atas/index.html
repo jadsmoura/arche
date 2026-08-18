@@ -335,6 +335,13 @@
   .rolagem{overflow-x:auto;margin:0 -6px;padding:0 6px}
   .bolinha{display:inline-block;width:15px;height:15px;border-radius:5px}
   /* resultados da busca: o trecho é a resposta — o destaque tem de saltar */
+  /* a busca por CONTEÚDO em evidência, no alto do arquivo: é outra coisa que
+     o filtro da lista, e confundir as duas custa tempo de quem procura */
+  .busca-conteudo{border-left:4px solid var(--brand-2);background:linear-gradient(90deg,var(--wash),#fff 55%)}
+  .busca-conteudo .bc-t{font-family:Sora,sans-serif;font-weight:700;font-size:15.5px;color:var(--brand)}
+  .busca-conteudo .bc-s{font-size:12.5px;color:var(--muted);line-height:1.55;margin:4px 0 10px}
+  .busca-conteudo .bc-linha{display:flex;gap:8px;flex-wrap:wrap}
+  .busca-conteudo .bc-linha input{flex:1 1 320px;min-width:0}
   .lk{background:none;border:0;padding:0;color:var(--brand-2);font-weight:700;font-size:14px;
     cursor:pointer;font-family:inherit;text-decoration:underline}
   .lk:hover{color:var(--brand)}
@@ -627,7 +634,22 @@ function renderArquivo() {
     (!FILTRO.q || `${a.numero || ""} ${a.titulo} ${a.presidencia?.nome || ""} ${a.secretaria?.nome || ""}`
       .toLowerCase().includes(FILTRO.q.toLowerCase())));
 
+  /* O CHASSI (filtros) e o CORPO (a lista) se desenham separados: redesenhar
+     tudo a cada tecla tirava o cursor da caixa de texto — a pessoa digitava
+     uma letra e tinha de clicar de novo no campo (achado do dono, ago/2026).
+     Agora só a lista se refaz enquanto se digita. */
   $("v-arquivo").innerHTML = `
+    <div class="card busca-conteudo">
+      <div class="bc-t">🔎 Busca por conteúdo de atas</div>
+      <div class="bc-s">Procure um <b>assunto</b> dentro das atas — pontos de pauta, discussões,
+        deliberações, encaminhamentos, informes, presenças e o texto da minuta. Aqui embaixo, o
+        filtro da lista só olha número, órgão e nomes.</div>
+      <div class="bc-linha">
+        <input id="bc-q" placeholder="ex.: matriz curricular, estágio, TCC, autoavaliação…"
+          onkeydown="if(event.key==='Enter')irParaBusca()">
+        <button class="bt bt-pri" onclick="irParaBusca()">Buscar no conteúdo</button>
+      </div>
+    </div>
     <div class="filtros">
       <select onchange="filtrar('orgao',this.value)">${opc("", "Todos os órgãos", FILTRO.orgao)}
         ${META.orgaos.map((o) => opc(o.codigo, o.nome, FILTRO.orgao)).join("")}</select>
@@ -637,14 +659,39 @@ function renderArquivo() {
         ${anos.map((a) => opc(String(a), String(a), FILTRO.ano)).join("")}</select>
       <select onchange="filtrar('status',this.value)">${opc("", "Todas as situações", FILTRO.status)}
         ${META.status.map((s) => opc(s, ROTULO_STATUS[s] || s, FILTRO.status)).join("")}</select>
-      <input placeholder="Buscar por número, órgão ou nome…" value="${esc(FILTRO.q)}" oninput="filtrar('q',this.value)">
+      <input id="arq-q" placeholder="Filtrar esta lista: número, órgão ou nome…" value="${esc(FILTRO.q)}"
+        oninput="filtrar('q',this.value)">
       <button class="bt bt-pri" onclick="nav('nova')">＋ Nova reunião</button>
     </div>
+    <div id="arq-corpo"></div>`;
+  renderArquivoLista();
+}
+
+/* Só a LISTA — é o que se refaz a cada tecla do filtro. */
+function renderArquivoLista() {
+  const alvo = $("arq-corpo"); if (!alvo) return;
+  const f = LISTA.filter((a) =>
+    (!FILTRO.orgao || a.orgao === FILTRO.orgao) &&
+    (!FILTRO.curso || a.curso === FILTRO.curso) &&
+    (!FILTRO.ano || String(a.ano) === FILTRO.ano) &&
+    (!FILTRO.status || a.status === FILTRO.status) &&
+    (!FILTRO.q || `${a.numero || ""} ${a.titulo} ${a.presidencia?.nome || ""} ${a.secretaria?.nome || ""}`
+      .toLowerCase().includes(FILTRO.q.toLowerCase())));
+  alvo.innerHTML = `
     <div class="cnt">${f.length} ata(s) de ${LISTA.length}, por curso e por órgão.
       ${META.gestao
         ? "Como gestão, você vê as atas de todos os órgãos."
-        : "Você vê aqui as atas que registrou; a PROPPEX acompanha as de todos."}</div>
+        : "Você vê aqui as atas que registrou; a PROPPEX acompanha as de todos."}
+      ${FILTRO.q ? ` <b>Procurando um assunto?</b> Use a <button class="lk" style="font-size:13px"
+        onclick="irParaBusca('${esc(FILTRO.q)}')">busca por conteúdo</button>, acima.` : ""}</div>
     ${gruposDoArquivo(f)}`;
+}
+
+/* Leva o termo digitado no arquivo para a busca por conteúdo, já procurando. */
+function irParaBusca(termo) {
+  BUSCA.q = String(termo ?? ($("bc-q")?.value || "")).trim();
+  nav("busca");
+  if (BUSCA.q) fazerBusca();
 }
 
 /* ============================ BUSCA NO ACERVO ===========================
@@ -807,7 +854,12 @@ function gruposDoArquivo(f) {
   }
   return blocos.join("");
 }
-function filtrar(campo, valor) { FILTRO[campo] = valor; renderArquivo(); }
+function filtrar(campo, valor) {
+  FILTRO[campo] = valor;
+  // o filtro de texto refaz SÓ a lista (o campo mantém o cursor); os seletores
+  // podem refazer tudo, mas a lista basta e é mais barata
+  renderArquivoLista();
+}
 
 /* --------------------------- encaminhamentos --------------------------- */
 function renderEncaminhamentos() {

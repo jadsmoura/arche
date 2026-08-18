@@ -658,7 +658,9 @@ test("busca: procura em deliberação, encaminhamento, presença e texto", () =>
   assert.equal(buscarAtas(atas, "aprovada").resultados[0].trechos[0].onde, "Ponto 1 · deliberação");
   assert.equal(buscarAtas(atas, "colegiado").resultados[0].trechos[0].onde, "Ponto 1 · encaminhamento");
   assert.equal(buscarAtas(atas, "thiago").resultados[0].trechos[0].onde, "Presenças");
-  assert.equal(buscarAtas(atas, "estruturante").resultados[0].trechos[0].onde, "Texto da ata");
+  assert.equal(buscarAtas(atas, "reuniu").resultados[0].trechos[0].onde, "Texto da ata");
+  assert.equal(buscarAtas(atas, "ATA-NDE-ENF-2026-003").resultados[0].trechos[0].onde, "Identificação",
+    "o número da ata também se procura por aqui — quem o tem na mão não troca de tela");
 });
 
 test("busca: expressão vazia ou de uma letra não varre nada", () => {
