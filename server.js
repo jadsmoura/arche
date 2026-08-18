@@ -39,7 +39,7 @@ import {
   CRITERIOS_AVALIACAO_ORIENTADOR, CRITERIOS_AVALIACAO_ALUNO, PARECERES_CONCLUSIVOS,
   janelaRelatorio, regularizacaoDe, pedidoEncerramentoPendente, encerramentoAceito,
 } from "./lib/ic.js";
-import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
+import { normalizarCpf, soDigitos, formatarCpf, cpfValido } from "./lib/cpf.js";
 import {
   slugUnico, SLUG_VALIDO, slugReservado, SLUGS_RESERVADOS, gerarChaveQr, gerarCodigoMonitor, gerarToken, tokenValido,
   codigoDe, inscritoPorToken, normalizarProgramacao, vagasRestantes, prazoInscricao,
@@ -48,6 +48,7 @@ import {
   normalizarFormulario, validarRespostas, LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd,
   normalizarBlocos, TIPOS_BLOCO, CATEGORIAS_APOIO, REDES_SOCIAIS, FREQUENCIAS,
   minutosEntre, duracaoBR, eventoControlaFrequencia,
+  PAPEIS_COMISSAO, faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento,
   videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento,
 } from "./lib/eventos.js";
 import {
@@ -1574,6 +1575,7 @@ app.get("/api/extensao", async (req, res) => {
       tiposAtividade: TIPOS_ATIVIDADE, lgpdPadrao: LGPD_TEXTO_PADRAO,
       tiposBloco: TIPOS_BLOCO, categoriasApoio: CATEGORIAS_APOIO,
       redesSociais: REDES_SOCIAIS, frequencias: FREQUENCIAS, minFotosRelatorio: MIN_FOTOS_RELATORIO,
+      papeisComissao: PAPEIS_COMISSAO,
     });
   } catch (e) {
     console.error("Erro ao listar ações de extensão:", e);
@@ -2147,6 +2149,11 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     if (!cpf) return res.status(400).json({ error: "O CPF informado não é válido — confira os números digitados." });
     if (!RE_EMAIL_INSCRICAO.test(email))
       return res.status(400).json({ error: "Informe um e-mail válido — é nele que chega a confirmação da inscrição." });
+    // o telefone entra na planilha de certificados da AEE, que é quem emite:
+    // linha sem telefone lá é certificado que não sai (decisão do dono,
+    // ago/2026) — por isso ele deixou de ser opcional
+    if (telefone.replace(/\D/g, "").length < 10)
+      return res.status(400).json({ error: "Informe o telefone com DDD — ele vai na planilha de emissão do certificado." });
     // LGPD: sem a ciência e a concordância EXPRESSAS não há inscrição — o
     // registro do aceite (data + versão do texto) é a prova, e ela é do
     // servidor, não da tela. A caixa de comunicações futuras é opcional.
@@ -7462,6 +7469,65 @@ app.post("/api/ic/:id/relatorio/:rid/validar", async (req, res) => {
     ], "Relatório validado pela orientação — encaminhado à PROPPEX");
   }
   res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
+});
+
+/* A EQUIPE do evento — palestrantes e comissão organizadora — é quem recebe
+   certificado À PARTE do participante, e sai na mesma planilha da AEE. Rota
+   DEDICADA (o ARCHÉ EV nunca usa o POST em bloco da Extensão) e com a régua
+   do certificado aplicada na gravação: sem CPF/matrícula, e-mail e telefone,
+   a linha não emitiria certificado nenhum — melhor saber agora do que na
+   véspera. */
+app.post("/api/extensao/:id/equipe", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const b = req.body || {};
+    if ((b.palestrantes !== undefined && !Array.isArray(b.palestrantes))
+      || (b.comissao !== undefined && !Array.isArray(b.comissao)))
+      return res.status(400).json({ error: "Envie as listas de palestrantes e da comissão." });
+
+    const prepara = (lista, opts) => (lista || [])
+      .map((x) => normalizarPessoaEvento(x, opts))
+      .filter((x) => x.nome || x.cpf || x.email);
+    const palestrantes = b.palestrantes === undefined ? null : prepara(b.palestrantes, { palestrante: true }).slice(0, 200);
+    const comissao = b.comissao === undefined ? null : prepara(b.comissao, {}).slice(0, 300);
+
+    // o que falta para o certificado sair — nome a nome, para a tela apontar
+    const problemas = [];
+    for (const [lista, opts, rot] of [[palestrantes, { palestrante: true }, "palestrante"], [comissao, {}, "comissão"]]) {
+      for (const pessoa of lista || []) {
+        const falta = faltaParaCertificado(pessoa, opts);
+        if (falta.length) problemas.push(`${pessoa.nome || "(sem nome)"} (${rot}): falta ${falta.join(", ")}`);
+      }
+    }
+    if (problemas.length)
+      return res.status(400).json({ error: `Estes dados vão para a planilha de certificados e são obrigatórios — ${problemas.slice(0, 6).join("; ")}${problemas.length > 6 ? "…" : ""}.` });
+    // CPF informado tem de ser CPF de verdade: certificado emitido com CPF
+    // inválido não se corrige depois de entregue
+    const cpfTorto = [...(palestrantes || []), ...(comissao || [])]
+      .filter((x) => x.cpf && !cpfValido(x.cpf)).map((x) => x.nome);
+    if (cpfTorto.length)
+      return res.status(400).json({ error: `CPF inválido em: ${cpfTorto.slice(0, 5).join(", ")}. Confira os números (ou use a matrícula).` });
+
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((x) => x.id === req.params.id);
+      if (!a) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (!podeOperarEvento(u, a)) return { erro: [403, "Sem permissão para operar este evento"], gravar: false };
+      a.participantes = a.participantes || { inscritos: [], palestrantes: [], comissao: [] };
+      if (palestrantes) a.participantes.palestrantes = palestrantes;
+      if (comissao) a.participantes.comissao = comissao;
+      a.atualizadoEm = new Date().toISOString();
+      return { acao: a };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true,
+      palestrantes: r.acao.participantes.palestrantes || [],
+      comissao: r.acao.participantes.comissao || [],
+      pendencias: pendenciasCertificado(r.acao) });
+  } catch (e) {
+    console.error("Erro ao gravar a equipe do evento:", e);
+    res.status(500).json({ error: "Falha ao gravar" });
+  }
 });
 
 /* A DECISÃO do encerramento é da PROPPEX (decisão do dono, ago/2026), e não

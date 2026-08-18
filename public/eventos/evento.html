@@ -101,6 +101,7 @@
   .esc-atv .d{flex:1;min-width:0}
   .esc-atv .m{font-size:12px;color:var(--muted);font-weight:400;margin-top:2px}
   .esc-atv.lotada{opacity:.55;cursor:not-allowed}
+  .dica-campo{font-size:11.5px;color:var(--muted);margin:-6px 0 2px}
   .lgpd-box{background:var(--wash);border:1px solid var(--line);border-radius:10px;padding:12px 14px;
     font-size:12px;color:var(--ink-soft);line-height:1.6;max-height:170px;overflow-y:auto;margin-top:8px}
   .secao-t{font-family:'Archivo',sans-serif;font-weight:700;font-size:22px;color:var(--ink);
@@ -692,7 +693,8 @@ function formInscricao(e) {
     <label for="i-nome">Nome completo *</label><input id="i-nome" required autocomplete="name">
     <label for="i-cpf">CPF *</label><input id="i-cpf" required inputmode="numeric" placeholder="000.000.000-00">
     <label for="i-email">E-mail *</label><input id="i-email" type="email" required autocomplete="email" placeholder="voce@exemplo.com">
-    <label for="i-tel">Telefone (WhatsApp)</label><input id="i-tel" autocomplete="tel" placeholder="(62) 9…">
+    <label for="i-tel">Telefone (WhatsApp) *</label><input id="i-tel" required autocomplete="tel" placeholder="(62) 9…">
+    <div class="dica-campo">Vai na planilha de emissão do certificado — sem ele o certificado não sai.</div>
     <label for="i-curso">Curso / instituição de origem</label><input id="i-curso" placeholder="Ex.: Enfermagem — UNIEGO">
     ${escolha}
     ${extras}

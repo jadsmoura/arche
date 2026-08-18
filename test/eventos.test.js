@@ -13,6 +13,7 @@ import {
   faltaNoProjetoDoEvento, CAMPOS_PROJETO_EVENTO,
   normalizarBlocos, TIPOS_BLOCO, urlSegura, imagemPequena,
   FREQUENCIAS, minutosEntre, duracaoBR, REDES_SOCIAIS,
+  faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento, PAPEIS_COMISSAO,
 } from "../lib/eventos.js";
 
 /* --------------------------------- slug --------------------------------- */
@@ -601,4 +602,44 @@ test("blocos: vídeo guarda só o ID do YouTube; rede sem endereço não entra",
   assert.equal(v.youtubeId, "dQw4w9WgXcQ");
   assert.equal(r.itens.length, 2, "o link javascript: some");
   assert.equal(r.itens[1].rede, "site", "rede desconhecida vira site");
+});
+
+/* -------------- equipe do evento e a planilha de certificados ------------ */
+test("certificado: a linha da AEE precisa de CPF/matrícula, nome, e-mail e telefone", () => {
+  assert.deepEqual(faltaParaCertificado({ nome: "Ana", cpf: "00548438129", email: "a@x.com", telefone: "62 99999-0000" }), []);
+  assert.deepEqual(faltaParaCertificado({ nome: "Ana", matricula: "2026001", email: "a@x.com", telefone: "62 9" }), [],
+    "matrícula serve quando não há CPF — é a coluna CPF/Matrícula");
+  assert.deepEqual(faltaParaCertificado({ nome: "Ana" }), ["CPF ou matrícula", "e-mail", "telefone"]);
+  assert.deepEqual(faltaParaCertificado({}), ["nome", "CPF ou matrícula", "e-mail", "telefone"]);
+});
+
+test("certificado: o palestrante ainda precisa do título da palestra", () => {
+  const p = { nome: "Prof. João", cpf: "00548438129", email: "j@x.com", telefone: "62 9" };
+  assert.deepEqual(faltaParaCertificado(p, { palestrante: true }), ["título da palestra"]);
+  assert.deepEqual(faltaParaCertificado({ ...p, palestra: "Solos do Cerrado" }, { palestrante: true }), []);
+  assert.deepEqual(faltaParaCertificado(p), [], "na comissão não se pede palestra");
+});
+
+test("pendências do certificado: conta linha a linha, lista a lista", () => {
+  const acao = { participantes: {
+    inscritos: [{ nome: "A", cpf: "00548438129", email: "a@x.com", telefone: "1" }, { nome: "B", cpf: "1" }],
+    palestrantes: [{ nome: "C", cpf: "1", email: "c@x.com", telefone: "1" }],   // sem palestra
+    comissao: [{ nome: "D", matricula: "9", email: "d@x.com", telefone: "1" }],
+  } };
+  assert.deepEqual(pendenciasCertificado(acao), { inscritos: 1, palestrantes: 1, comissao: 0 });
+  assert.deepEqual(pendenciasCertificado({}), { inscritos: 0, palestrantes: 0, comissao: 0 });
+});
+
+test("equipe: a pessoa entra normalizada, com o papel do catálogo", () => {
+  const c = normalizarPessoaEvento({ nome: "  Ana Paula ", cpf: "005.484.381-29", email: "ANA@X.COM", papel: "monitor" });
+  assert.equal(c.nome, "Ana Paula");
+  assert.equal(c.cpf, "00548438129");
+  assert.equal(c.email, "ana@x.com");
+  assert.equal(c.papel, "monitor");
+  assert.equal(normalizarPessoaEvento({ papel: "inventado" }).papel, "colaborador");
+  const p = normalizarPessoaEvento({ nome: "João", palestra: "Solos" }, { palestrante: true });
+  assert.equal(p.palestra, "Solos");
+  assert.equal(p.papel, undefined, "palestrante não tem papel de comissão");
+  assert.deepEqual(PAPEIS_COMISSAO.map((x) => x.codigo),
+    ["coordenacao", "professor", "monitor", "aluno", "colaborador", "apoio"]);
 });

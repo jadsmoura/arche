@@ -323,6 +323,17 @@ public/
   Foto é o anexo com tipo de imagem (nos registros antigos, pela extensão) — documento
   anexado continua entrando no portfólio sem contar para o mínimo. **O relatório continua
   sendo do ARCHÉ EX**: é da ação de extensão, com o PDF timbrado; o ARCHÉ EV leva até lá.
+- **Comissão organizadora e palestrantes** (guia própria no ARCHÉ EV +
+  `POST /api/extensao/:id/equipe`, pedido do dono ago/2026): professores, monitores, alunos
+  organizadores e colaboradores recebem **certificado à parte** do participante, e quem emite
+  é o sistema da AEE pela planilha que o ARCHÉ exporta. As colunas de lá são fixas —
+  **CPF ou matrícula, nome, e-mail, telefone** (e o **título da palestra**, no palestrante) —,
+  e linha incompleta não emite certificado: por isso a régua (`faltaParaCertificado`) vale na
+  **gravação**, não na véspera, e a mesma conta aparece ao vivo na tela e no quadro de
+  pendências das Exportações. **O telefone passou a ser obrigatório também na inscrição
+  pública** pelo mesmo motivo. CPF informado é conferido (`cpfValido`) — certificado emitido
+  com CPF errado não se corrige depois. Papéis em `PAPEIS_COMISSAO`; rota DEDICADA porque o
+  EV não usa o POST em bloco da Extensão.
 - **A credencial do participante** (decisão do dono, ago/2026): a inscrição já nasce
   **pré-preenchida para quem está logado** no ARCHÉ (`/api/me` no hotsite — só os dados da
   PRÓPRIA conta, com o aviso RECOLHIDO numa linha só, que abre no clique e traz a conta usada

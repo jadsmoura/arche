@@ -262,6 +262,7 @@
         <section id="v-pagina" class="hide"></section>
         <section id="v-programacao" class="hide"></section>
         <section id="v-blocos" class="hide"></section>
+        <section id="v-equipe" class="hide"></section>
         <section id="v-credenciamento" class="hide"></section>
         <section id="v-transmissao" class="hide"></section>
         <section id="v-exportacoes" class="hide"></section>
@@ -323,6 +324,8 @@ async function carregar(){
   const j = await r.json();
   ACOES = j.acoes || [];
   GESTAO_EX = j.gestao === true;
+  if(Array.isArray(j.papeisComissao) && j.papeisComissao.length)
+    PAPEIS_COM = j.papeisComissao.map(x=>[x.codigo, x.rotulo]);
   GESTAO_EV = j.gestaoEventos === true;
   EU = j.eu || EU;
   if(Array.isArray(j.tiposAtividade) && j.tiposAtividade.length) TIPOS_ATV = j.tiposAtividade;
@@ -366,6 +369,7 @@ const IC = {
   inscricoes:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M9 13h6M9 17h4"></path>',
   pagina:'<circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"></path>',
   programacao:'<rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M16 2v4M8 2v4M3 9h18"></path>',
+  equipe:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
   blocos:'<rect x="3" y="3" width="18" height="6" rx="1.5"></rect><rect x="3" y="12" width="8" height="9" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect>',
   credenciamento:'<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h7v7h-7z"></path>',
   transmissao:'<circle cx="12" cy="12" r="2"></circle><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 19.1a10 10 0 0 1 0-14.2M19.1 4.9a10 10 0 0 1 0 14.2"></path>',
@@ -383,6 +387,8 @@ const SECOES = [
    sub:"O projeto de evento da Extensão — a proposta da ação; os campos obrigatórios liberam a publicação da página."},
   {k:"inscritos", rot:"Inscritos e presenças", grupo:"GESTÃO", ic:IC.inscritos, evento:true, tit:"Inscritos e presenças",
    sub:"Quem se inscreveu e quem se credenciou — com a presença manual, geral e por atividade."},
+  {k:"equipe", rot:"Comissão organizadora", grupo:"GESTÃO", ic:IC.equipe, evento:true, tit:"Comissão organizadora e palestrantes",
+   sub:"Quem organiza e quem ministra — professores, monitores, alunos e colaboradores que recebem certificado à parte."},
   {k:"inscricoes", rot:"Inscrições", grupo:"PRÉ-EVENTO", ic:IC.inscricoes, evento:true, tit:"Inscrições",
    sub:"Vagas, prazo, campos extras do formulário e o texto de consentimento (LGPD)."},
   {k:"pagina", rot:"Página do evento", grupo:"PRÉ-EVENTO", ic:IC.pagina, evento:true, tit:"Página do evento",
@@ -508,6 +514,7 @@ function nav(secao){
   else if(SECAO==="pagina") renderPagina(a);
   else if(SECAO==="programacao") renderProgramacao(a);
   else if(SECAO==="blocos") renderBlocos(a);
+  else if(SECAO==="equipe") renderEquipe(a);
   else if(SECAO==="credenciamento") renderCredenciamento(a);
   else if(SECAO==="transmissao") renderTransmissao(a);
   else if(SECAO==="exportacoes") renderExportacoes(a);
@@ -1500,11 +1507,34 @@ function renderTransmissao(a){
 }
 
 /* ====================== GERAL · EXPORTAÇÕES ============================= */
+/* O que a planilha da AEE não conseguiria certificar — visto ANTES de
+   exportar. Vale sobretudo para as listas antigas (importadas de planilha)
+   e para os inscritos anteriores à exigência do telefone. */
+function quadroPendenciasCert(a){
+  const p=a.participantes||{};
+  const conta=(lista,pal)=>(lista||[]).filter(x=>faltaCert(x,pal).length).length;
+  const i=conta(p.inscritos,false), pal=conta(p.palestrantes,true), com=conta(p.comissao,false);
+  if(!i && !pal && !com) return `<div class="banner ba-ok">✓ Todas as listas estão completas para a
+    emissão dos certificados (CPF ou matrícula, nome, e-mail e telefone).</div>`;
+  const linha=(n,rot,onde)=>n?`<li><b>${n}</b> ${rot} ${n===1?"está":"estão"} sem os dados completos — ${onde}</li>`:"";
+  return `<div class="banner ba-warn">
+    <b>Faltam dados para a emissão de certificados</b>
+    <ul style="margin:6px 0 0 18px;line-height:1.6">
+      ${linha(i,"inscrito(s)","complete em <b>Inscritos e presenças</b> (ou peça à pessoa pela página do evento)")}
+      ${linha(pal,"palestrante(s)","complete na guia <b>Comissão organizadora</b>")}
+      ${linha(com,"da comissão","complete na guia <b>Comissão organizadora</b>")}
+    </ul>
+    <div class="muted" style="margin-top:6px">A planilha exporta assim mesmo — mas a linha incompleta
+      não emite certificado no sistema da AEE.</div>
+  </div>`;
+}
+
 function renderExportacoes(a){
   const ev=a.evento||{};
   const proprias=(ev.programacao||[]).filter(x=>x.inscricao==="propria"&&x.id);
 
   $("v-exportacoes").innerHTML=`
+    ${quadroPendenciasCert(a)}
     <div class="card">
       <div class="sec-t">Planilhas da AEE (certificação)</div>
       <div class="muted" style="margin:8px 0">O template oficial da AEE, pronto para importar no
@@ -1629,6 +1659,129 @@ function renderProgEv(){
       </details>
     </div>`).join("")
     : '<div class="cnt">— nenhuma atividade ainda; a página pública diz que a programação sai em breve.</div>';
+}
+
+/* ==================== COMISSÃO E PALESTRANTES ==========================
+   Quem ORGANIZA e quem MINISTRA recebe certificado à parte do participante,
+   e quem emite é o sistema da AEE, a partir da planilha que o ARCHÉ exporta.
+   A planilha tem colunas fixas — CPF/matrícula, nome, e-mail, telefone (e a
+   palestra, no palestrante) —, e linha incompleta lá é certificado que não
+   sai: por isso os campos são obrigatórios AQUI, na hora do cadastro, e não
+   uma surpresa na véspera (decisão do dono, ago/2026). */
+let EQ_PAL = [], EQ_COM = [];
+let PAPEIS_COM = [["coordenacao","Coordenação do evento"],["professor","Professor(a)"],
+  ["monitor","Monitor(a)"],["aluno","Aluno(a) organizador(a)"],["colaborador","Colaborador(a)"],
+  ["apoio","Apoio técnico"]];
+
+const faltaCert = (x, pal) => {
+  const f = [];
+  const tem = (v) => String(v ?? "").trim().length > 0;
+  if (!tem(x.nome)) f.push("nome");
+  if (!tem(x.cpf) && !tem(x.matricula)) f.push("CPF ou matrícula");
+  if (!tem(x.email)) f.push("e-mail");
+  if (!tem(x.telefone)) f.push("telefone");
+  if (pal && !tem(x.palestra)) f.push("título da palestra");
+  return f;
+};
+
+function renderEquipe(a){
+  const p = a.participantes || {};
+  EQ_PAL = (p.palestrantes || []).map(x => ({...x}));
+  EQ_COM = (p.comissao || []).map(x => ({...x}));
+  const ch = a.proposta?.cargaHoraria || "";
+  $("v-equipe").innerHTML = `
+    <div class="banner ba-info">Estes dados vão para a <b>planilha de certificados</b> (o sistema da AEE emite):
+      CPF ou matrícula, nome, e-mail e telefone são <b>obrigatórios</b> em cada linha — e o título da palestra,
+      no caso dos palestrantes. Sem eles o certificado não sai. A carga horária em branco usa a do evento${ch?` (${esc(ch)}h)`:""}.</div>
+
+    <div class="card">
+      <div class="sec-t">Palestrantes e ministrantes</div>
+      <div class="muted" style="margin:8px 0">Quem apresenta palestra, oficina ou minicurso. O <b>título da
+        palestra</b> é a primeira coluna da planilha da AEE — é o que sai escrito no certificado.</div>
+      <div id="eq-pal"></div>
+      <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="EQ_PAL.push({});renderEqPal()">＋ Adicionar palestrante</button>
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Comissão organizadora</div>
+      <div class="muted" style="margin:8px 0">Professores, monitores, alunos organizadores e colaboradores.
+        A <b>função</b> aparece na organização do evento; o <b>papel</b> serve para a coordenação se orientar
+        na lista.</div>
+      <div id="eq-com"></div>
+      <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="EQ_COM.push({papel:'colaborador'});renderEqCom()">＋ Adicionar à comissão</button>
+    </div>
+
+    <div class="acoes-rod">
+      <button class="bt bt-pri" onclick="salvarEquipe('${esc(a.id)}')">💾 Salvar equipe</button>
+      <button class="bt bt-sec" onclick="nav('exportacoes')">📊 Ir às exportações</button>
+    </div>`;
+  renderEqPal(); renderEqCom();
+}
+
+const linhaFalta = (f) => f.length
+  ? `<div class="muted" style="color:var(--warn);font-size:12px;margin-top:4px">⚠ falta ${esc(f.join(", "))} — sem isso o certificado não sai</div>` : "";
+
+function renderEqPal(){
+  const el=$("eq-pal"); if(!el) return;
+  el.innerHTML = EQ_PAL.length ? EQ_PAL.map((x,i)=>`
+    <div class="atv-card">
+      <div class="g-atv2">
+        <input placeholder="nome completo *" value="${esc(x.nome||"")}" oninput="EQ_PAL[${i}].nome=this.value;marcaFalta(${i},'pal')">
+        <input placeholder="CPF *" value="${esc(x.cpf||"")}" oninput="EQ_PAL[${i}].cpf=this.value;marcaFalta(${i},'pal')">
+        <input placeholder="matrícula (se não tiver CPF)" value="${esc(x.matricula||"")}" oninput="EQ_PAL[${i}].matricula=this.value;marcaFalta(${i},'pal')">
+        <button class="bt bt-ghost" style="padding:5px 9px;font-size:12px;color:var(--err)" onclick="EQ_PAL.splice(${i},1);renderEqPal()">✕</button>
+      </div>
+      <div class="g-atv2" style="margin-top:6px">
+        <input placeholder="e-mail *" value="${esc(x.email||"")}" oninput="EQ_PAL[${i}].email=this.value;marcaFalta(${i},'pal')">
+        <input placeholder="telefone *" value="${esc(x.telefone||"")}" oninput="EQ_PAL[${i}].telefone=this.value;marcaFalta(${i},'pal')">
+        <input placeholder="instituição" value="${esc(x.instituicao||"")}" oninput="EQ_PAL[${i}].instituicao=this.value">
+      </div>
+      <input style="margin-top:6px" placeholder="título da palestra / oficina *" value="${esc(x.palestra||"")}" oninput="EQ_PAL[${i}].palestra=this.value;marcaFalta(${i},'pal')">
+      <div id="falta-pal-${i}">${linhaFalta(faltaCert(x,true))}</div>
+    </div>`).join("") : '<div class="cnt">— nenhum palestrante cadastrado.</div>';
+}
+
+function renderEqCom(){
+  const el=$("eq-com"); if(!el) return;
+  el.innerHTML = EQ_COM.length ? EQ_COM.map((x,i)=>`
+    <div class="atv-card">
+      <div class="g-atv2">
+        <input placeholder="nome completo *" value="${esc(x.nome||"")}" oninput="EQ_COM[${i}].nome=this.value;marcaFalta(${i},'com')">
+        <input placeholder="CPF *" value="${esc(x.cpf||"")}" oninput="EQ_COM[${i}].cpf=this.value;marcaFalta(${i},'com')">
+        <input placeholder="matrícula (se não tiver CPF)" value="${esc(x.matricula||"")}" oninput="EQ_COM[${i}].matricula=this.value;marcaFalta(${i},'com')">
+        <button class="bt bt-ghost" style="padding:5px 9px;font-size:12px;color:var(--err)" onclick="EQ_COM.splice(${i},1);renderEqCom()">✕</button>
+      </div>
+      <div class="g-atv2" style="margin-top:6px">
+        <input placeholder="e-mail *" value="${esc(x.email||"")}" oninput="EQ_COM[${i}].email=this.value;marcaFalta(${i},'com')">
+        <input placeholder="telefone *" value="${esc(x.telefone||"")}" oninput="EQ_COM[${i}].telefone=this.value;marcaFalta(${i},'com')">
+        <select onchange="EQ_COM[${i}].papel=this.value">
+          ${PAPEIS_COM.map(([c,r])=>`<option value="${c}" ${x.papel===c?"selected":""}>${esc(r)}</option>`).join("")}
+        </select>
+        <input placeholder="CH (em branco = a do evento)" value="${esc(x.ch||"")}" oninput="EQ_COM[${i}].ch=this.value">
+      </div>
+      <input style="margin-top:6px" placeholder="função no evento (ex.: recepção e credenciamento)" value="${esc(x.funcao||"")}" oninput="EQ_COM[${i}].funcao=this.value">
+      <div id="falta-com-${i}">${linhaFalta(faltaCert(x,false))}</div>
+    </div>`).join("") : '<div class="cnt">— ninguém na comissão ainda.</div>';
+}
+
+/* o aviso do que falta acompanha a digitação, sem redesenhar a linha (o campo
+   perderia o foco a cada tecla) */
+function marcaFalta(i, qual){
+  const alvo=$(`falta-${qual}-${i}`); if(!alvo) return;
+  const x = qual==="pal" ? EQ_PAL[i] : EQ_COM[i];
+  alvo.innerHTML = linhaFalta(faltaCert(x, qual==="pal"));
+}
+
+async function salvarEquipe(id){
+  try{
+    const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/equipe`,{method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({palestrantes:EQ_PAL, comissao:EQ_COM})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||"Não foi possível salvar.");
+    await carregar(); nav("equipe");
+    alert("✅ Equipe salva. Os dados entram na planilha de certificados da AEE.");
+  }catch(e){ alert(e.message); }
 }
 
 /* ========================= BLOCOS DA PÁGINA =============================
