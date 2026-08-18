@@ -253,7 +253,10 @@
   .cal-mes .dia.passado{opacity:.55}
   @media(max-width:900px){.cal-mes .cab-sem{display:none}}
   /* legenda: também é filtro — clicar na cor mostra só aquele espaço */
-  .legenda{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .legenda{display:flex;flex-wrap:wrap;gap:6px}
+  .legenda-t{margin:16px 0 7px;padding-top:14px;border-top:1px solid var(--line);
+    font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+  .legenda-t span{font-weight:400;text-transform:none;letter-spacing:0}
   .legenda .lg{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-soft);
     background:#fff;border:1px solid var(--line);border-radius:20px;padding:4px 10px;cursor:pointer}
   .legenda .lg:hover{border-color:var(--brand-3)}
@@ -485,6 +488,12 @@ async function renderAgenda() {
     </select>`;
 
   $("v-agenda").innerHTML = `
+    <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div><div class="card-t" style="margin:0">Precisa de um espaço?</div>
+        <div class="card-s" style="margin:2px 0 0">Confira no calendário abaixo e envie o pedido —
+          ele cai na mesa da responsável pela reserva.</div></div>
+      <button class="bt bt-pri" onclick="nav('nova')">+ Solicitar espaço</button>
+    </div>
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px">
         <div><div class="card-t" style="margin:0">${rotuloMesTitulo(AG_MES)}</div>
@@ -497,7 +506,6 @@ async function renderAgenda() {
           <button class="bt bt-ghost" onclick="AG_MES=mesVizinho(AG_MES,1);AGENDA=null;renderAgenda()">→</button>
         </div>
       </div>
-      ${legendaEspacos()}
       <div class="cal cal-mes">
         ${["dom", "seg", "ter", "qua", "qui", "sex", "sáb"].map((d) => `<div class="cab-sem">${d}</div>`).join("")}
         ${Array.from({ length: vazias }, () => '<div class="dia fora"></div>').join("")}
@@ -506,11 +514,7 @@ async function renderAgenda() {
           ${(porDia[d] || []).join("") || '<div class="muted" style="font-size:11px">livre</div>'}
         </div>`).join("")}
       </div>
-    </div>
-    <div class="card">
-      <div class="card-t">Solicitar um espaço</div>
-      <div class="card-s">Achou um horário livre? O pedido cai na mesa da responsável pela reserva.</div>
-      <button class="bt bt-pri" onclick="nav('nova')">+ Solicitar espaço</button>
+      ${legendaEspacos()}
     </div>`;
 }
 
@@ -524,7 +528,8 @@ const corEspaco = (id) => (DADOS?.espacos || []).find((e) => e.id === id)?.cor |
 
 function legendaEspacos() {
   const usados = (DADOS?.espacos || []).filter((e) => e.ativo !== false);
-  return `<div class="legenda">${usados.map((e) => `<span class="lg${AG_ESPACO === e.id ? " on" : ""}"
+  return `<div class="legenda-t">Cores dos espaços <span>— clique numa para ver só ela</span></div>
+  <div class="legenda">${usados.map((e) => `<span class="lg${AG_ESPACO === e.id ? " on" : ""}"
     onclick="AG_ESPACO='${esc(e.id)}';AGENDA=null;renderAgenda()" title="Ver só ${esc(e.nome)}">
     <i style="background:${esc(e.cor || "#40717e")}"></i>${esc(e.nome)}</span>`).join("")}
     ${AG_ESPACO ? `<span class="lg limpar" onclick="AG_ESPACO='';AGENDA=null;renderAgenda()">× ver todos</span>` : ""}

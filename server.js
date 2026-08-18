@@ -3560,6 +3560,38 @@ async function subirEspacosIniciais() {
 }
 
 /**
+ * As ETIQUETAS DE COR chegaram depois do catálogo (ago/2026): quem já tinha o
+ * catálogo gravado ficou com todos os espaços na cor de reserva — e um
+ * calendário monocromático não responde "o auditório está livre?" numa
+ * olhada, que é para o que a cor serve.
+ *
+ * Esta passada aplica a cor do catálogo semente aos espaços que ainda estão
+ * na cor padrão, uma única vez. Só toca no que está no padrão: cor escolhida
+ * pela gestão é decisão dela, e migração não desfaz decisão.
+ */
+async function aplicarCoresDosEspacos() {
+  try {
+    if (await storage.get("sys-esp-cores-v1")) return;
+    const gravados = await lerEspacos();
+    let mudou = 0;
+    const novos = gravados.map((e) => {
+      const padrao = ESPACOS_PADRAO.find((x) => x.id === e.id);
+      if (!padrao?.cor || e.cor !== "#40717e") return e;
+      mudou++;
+      return { ...e, cor: padrao.cor };
+    });
+    if (mudou) {
+      await storage.set(ESP_ESPACOS, JSON.stringify(normalizarEspacos(novos)));
+      await storage.flush?.();
+    }
+    await storage.set("sys-esp-cores-v1", new Date().toISOString());
+    console.log(`[espacos] cores aplicadas a ${mudou} espaço(s)`);
+  } catch (e) {
+    console.error("[espacos] falha ao aplicar as cores:", e.message);
+  }
+}
+
+/**
  * As reservas que a recepção anotava À MÃO (planilha do auditório, 2026):
  * sobem uma única vez, marcadas por `sys-esp-lote-<nome>`. A marca é o que
  * impede um deploy de ressuscitar reserva que a gestão apagou de propósito.
@@ -8481,6 +8513,7 @@ app.listen(port, () => {
       propagarCpfOrientadores, identidadeInstitucionalDoProReitor, criarPreCadastros,
       aplicarAvaliacoesTranscritas,
       subirEspacosIniciais,      // catálogo do ARCHÉ ES, uma única vez
+      aplicarCoresDosEspacos,    // as etiquetas de cor, no catálogo já gravado
       subirReservasMigradas,     // e as reservas que a recepção anotava à mão
       // SEMPRE por último, e a cada arranque (achado de ago/2026 — o caso
       // Marlana): as migrações acima podem carimbar CPF em projeto que ainda
