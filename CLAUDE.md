@@ -357,11 +357,16 @@ public/
   pontas e nenhum passe chega envelhecido. O cartão leva o logotipo do UNIEGO e a capa do
   evento (quando houver), e a **classe vai definida no próprio JWT** — assim a configuração
   se resume ao emissor e à conta de serviço, sem criar classe à mão no console
-  (`GOOGLE_WALLET_CLASS_ID` só se quiserem personalizar a arte lá). Tudo isso fica atrás
-  das env vars (`GOOGLE_WALLET_ISSUER_ID`, `GOOGLE_WALLET_SA_EMAIL`,
-  `GOOGLE_WALLET_SA_KEY`): sem elas o servidor devolve `walletGoogle: false`, o botão não
-  se desenha em lugar nenhum e a rota responde 501 — nada quebra, e o QR em PNG continua
-  valendo na entrada; (3) o
+  (`GOOGLE_WALLET_CLASS_ID` só se quiserem personalizar a arte lá). São **duas env vars**:
+  `GOOGLE_WALLET_ISSUER_ID` e `GOOGLE_WALLET_SA_KEY`, que recebe o **arquivo JSON da conta
+  de serviço INTEIRO**, como o Google o entrega — `credenciaisWallet` tira dele a chave e o
+  `client_email` (que vira o `iss` do JWT). Foi assim que a configuração parou de quebrar
+  (ago/2026): recortar a `private_key` e colá-la num campo de uma linha a truncava, e o
+  passe morria num 500 mudo. `GOOGLE_WALLET_SA_EMAIL` sobrou como opcional, para quem colar
+  a chave sozinha, e `GET /api/eventos/wallet/diagnostico` (só gestor geral) diz o que
+  chegou — nunca a chave, só o formato dela. Sem as variáveis o servidor devolve
+  `walletGoogle: false`, o botão não se desenha em lugar nenhum e a rota responde 501 —
+  nada quebra, e o QR em PNG continua valendo na entrada; (3) o
   **Apple Wallet** exige certificado do Apple Developer Program (.pkpass sem assinatura o
   iPhone recusa) e por isso não tem botão enquanto a instituição não tiver o certificado.
 - **Credenciamento: o mesmo QR não se lê duas vezes** (achado no teste do dono, ago/2026):
