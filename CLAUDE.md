@@ -30,6 +30,8 @@ lib/cpf.js           CPF: validação, normalização e a chave de vínculo dos 
 lib/edital.js        Edital 01/2026: modalidades, grupos DGP/CNPq e pontuação docente
 lib/termos.js        Termos de Compromisso da IC: o texto institucional dos 4 modelos
 dados/               Lotes de importação (ic-edital-01-2026.json: as 33 submissões)
+lib/espacos.js       ARCHÉ ES: espaços, conflito de horário, bloqueios e agenda
+lib/curricularizacao.js  Vínculo da ação de extensão com o componente curricular (MEC)
 lib/pautas.js        Catálogo da Pauta Regulatória (indicadores INEP) e conformidade
 lib/redator.js       Redação da minuta da ata: modelo (padrão) | gemini | anthropic
 lib/assistente.js    Assistente de escrita dos campos da ata (só ARCHÉ AT)
@@ -51,6 +53,7 @@ public/
   ic/                Vitrine PÚBLICA da IC (sem login, de propósito): editais, resultados
                      e a lista simplificada dos projetos — arquivo para o MEC. Os PDFs dos
                      editais e dos resultados publicados vivem em public/ic/docs/
+  espacos/           ARCHÉ ES — Reserva de Espaços (SPA vanilla, mesmo desenho do EX/AT)
   entrar/ perfil/ usuarios/   Login (código por e-mail + Google), perfil, gestão de acessos
 ```
 
@@ -74,7 +77,7 @@ public/
 ## Regras de negócio essenciais
 
 - **Setores protegidos** (exigem login): `/extensao`, `/pesquisa`, `/inovacao`, `/atas`,
-  `/usuarios` e `/eventos/gestao` (o restante de `/eventos/*` é público de propósito).
+  `/espacos`, `/usuarios` e `/eventos/gestao` (o restante de `/eventos/*` é público de propósito).
   **Avaliação (`/arche/`) continua SEM login** — não criar conta, papel nem sessão nela.
 - **Todo guarda compara `req.caminho`, nunca `req.path`**: o `req.path` chega CRU (sem
   decodificar `%2f`, sem colapsar `//`) e o `express.static` resolve o caminho já
@@ -125,8 +128,8 @@ public/
   (`identidadeInstitucionalDoProReitor` gravou o e-mail do UNIEGO nos projetos dele, o que
   também encerra o casamento por nome na conta pessoal).
 - **Coordenação por setor** (`/usuarios/`, ação `coordenar`): o gestor geral designa
-  coordenadores para qualquer um dos cinco módulos — `extensao`, `pesquisa`, `inovacao`,
-  `atas` e `eventos`. Dentro do setor marcado a pessoa tem o alcance da PROPPEX (no ARCHÉ
+  coordenadores para qualquer um dos seis módulos — `extensao`, `pesquisa`, `inovacao`,
+  `atas`, `eventos` e `espacos`. Dentro do setor marcado a pessoa tem o alcance da PROPPEX (no ARCHÉ
   AT, vê as atas de todos os órgãos, o Acompanhamento e os alertas); fora dele é
   submissora, e a gestão de acessos continua exclusiva dos gestores gerais. Cada setor
   decide isso lendo `modulos` da sessão (`gereAtas`, `gereIC`, `gereEv`) — nunca o papel
@@ -1159,6 +1162,41 @@ public/
   ficam de fora por decisão do dono, para não induzir dependência num texto que é autoria
   do professor. O assistente **nunca cria conteúdo**: exige texto do autor (mín. 15
   caracteres) e só reescreve. Sem chave de IA, os botões não aparecem.
+
+- **ARCHÉ ES — Reserva de Espaços** (`lib/espacos.js` + `public/espacos/` + rotas
+  `/api/espacos/*`, decisão do dono ago/2026): auditório, quadra, mini auditórios, sala de
+  transmissão, salas de aula e laboratórios eram reservados por WhatsApp e caderno na
+  recepção — duas turmas no mesmo auditório era o desfecho previsível. Três chaves internas
+  (`esp-espacos-v1`, `esp-reservas-v1`, `esp-bloqueios-v1`, fora do `/api/estado`, porque
+  guardam contato de quem pediu) e uma fila de escrita (`comReservas`), que é o que faz a
+  trava valer: dois pedidos simultâneos só se enxergam dentro dela.
+  **Espaço confirmado ou bloqueado RECUSA o pedido** — não é aviso, é 409; o calendário
+  existe para o engano não chegar até lá. **Solicitação concorrente não trava** (é a fila, e
+  quem decide é a gestão), mas aparece para quem decide.
+  **Nem todo espaço é único**, e o catálogo diz de que tipo cada um é (`conflito`):
+  `unico` (auditório, quadra, convivência, sala da reitoria, transmissão — sobrepor é
+  choque), `por-detalhe` (sala de reuniões da coordenação, uma POR CURSO; laboratório, um
+  por nome — choca com quem pediu o MESMO complemento) e `multiplo` (sala de aula, das quais
+  há dezenas: pedir cinco no bloco C não colide com quem pediu três). Espaço com complemento
+  o exige (bloco A–E, curso, nome do laboratório).
+  **Um pedido leva VÁRIOS espaços e um PERÍODO de datas**: evento grande toma o campus
+  inteiro por uma semana, e abrir doze pedidos seria transformar um ato em doze.
+  **Fluxo** (como o dono o descreveu): solicitação → cai na caixa da **responsável pela
+  reserva** (`ESPACOS_NOTIFY_EMAIL`, padrão `raiane.naves@uniego.edu.br`, com cópia a
+  `eventos@uniego.edu.br`), que **confirma** o que está pré-autorizada a decidir ou
+  **encaminha à PROPPEX** (`ESPACOS_PROPPEX_EMAIL`); recusa exige motivo, e quem pediu é
+  avisado a cada passo. A responsável é a **coordenação do módulo `espacos`**; a PROPPEX é o
+  gestor geral. Protocolo `RES-AAAA-NNN` emitido pelo SERVIDOR, na ordem dos pedidos.
+  **Quem pede**: qualquer conta aprovada — professor, coordenação, setor, acadêmico; a
+  comunidade externa entra pelo pedido que alguém da casa registra em nome dela
+  (`INTERESSADOS`). **Bloqueios** (reforma, recesso) são da gestão, valem o DIA inteiro e
+  travam como reserva confirmada. **A agenda é de todos**: `GET /api/espacos/agenda` (exige
+  login) devolve `reservaPublica` — onde, quando, para quê e de que órgão, **nunca** o
+  telefone, o e-mail ou a justificativa de ninguém —, e o calendário dos próximos 14 dias
+  aparece na **página inicial** do portal, que é onde o pedido em cima do ocupado se evita.
+  Pedidos aguardando entram no **sino** da gestão. `GET /api/espacos/ocupacao` conta horas
+  por espaço (só confirmadas) — o número que se leva ao conselho.
+  Ao mexer no catálogo, **preserve os `id`**: são a chave do que já está reservado.
 
 ## Identidade visual
 

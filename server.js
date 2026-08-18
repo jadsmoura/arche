@@ -73,6 +73,11 @@ import { MIN_FOTOS_RELATORIO, faltamFotos, avisoFotos, fotosDoPortfolio } from "
 import {
   PERIODOS as PERIODOS_MATRIZ, normalizarCurricularizacao, panoramaCurricularizacao,
 } from "./lib/curricularizacao.js";
+import {
+  ESPACOS_PADRAO, BLOCOS as BLOCOS_ESP, INTERESSADOS, ROTULO_STATUS as ROTULO_STATUS_ESP,
+  OCUPA, VIVA, normalizarEspacos, normalizarReserva, normalizarBloqueio, validarReserva,
+  conflitos, impedimentos, agenda, reservaPublica, ocupacaoPorEspaco, minhaReserva,
+} from "./lib/espacos.js";
 import { CREDENCIAMENTO, MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
 import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
@@ -168,7 +173,7 @@ app.use((req, res, next) => {
 // Setores de gestão exigem login (Avaliação Institucional continua aberta).
 // /eventos/* segue PÚBLICO (hotsite, inscrição, credenciamento, assistir) —
 // só a sala de gestão do ARCHÉ EV, em /eventos/gestao, pede sessão.
-const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios)(\/|$)|^\/eventos\/gestao(\/|$)/;
+const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios|espacos)(\/|$)|^\/eventos\/gestao(\/|$)/;
 app.use(async (req, res, next) => {
   // HEAD também (achado de ago/2026): o express.static responde HEAD, e a
   // guarda só de GET deixava um HEAD sem sessão confirmar a existência
@@ -682,6 +687,19 @@ app.get("/api/alertas", async (req, res) => {
       if (vencidos.length) alertas.push({ setor: "Atas", n: vencidos.length, link: "/atas/",
         texto: `${vencidos.length} encaminhamento(s) com prazo vencido`,
         detalhe: vencidos.slice(0, 3).map((e) => `${e.orgao}: ${e.acao}`.slice(0, 70)).join(" · ") });
+    }
+
+    if (u.modulos.includes("espacos")) {
+      // pedido de espaço tem prazo curto por natureza: quem pede o auditório
+      // para semana que vem precisa da resposta esta semana
+      const reservas = await lerReservas();
+      const aguardando = reservas.filter((r) => r.status === "solicitada").length;
+      if (aguardando) alertas.push({ setor: "Espaços", n: aguardando, link: "/espacos/",
+        texto: `${aguardando} pedido(s) de reserva aguardando confirmação` });
+      // encaminhada é o degrau da PROPPEX: só o gestor geral a resolve
+      const naProppex = reservas.filter((r) => r.status === "encaminhada").length;
+      if (naProppex && geral) alertas.push({ setor: "Espaços", n: naProppex, link: "/espacos/",
+        texto: `${naProppex} reserva(s) encaminhada(s) para decisão da PROPPEX` });
     }
 
     res.json({ alertas, total: alertas.reduce((s, a) => s + (a.n || 1), 0) });
@@ -1275,7 +1293,7 @@ function cursoFrom(req) {
 // Chaves internas do servidor: invisíveis e não graváveis pela API pública.
 // "auth-*" guarda sessão/usuários; "sys-*", registros operacionais (ex.: quais
 // ações já receberam cobrança de relatório).
-const CHAVES_INTERNAS = /^(auth-|sys-|atas-|ic-|ex-)/;
+const CHAVES_INTERNAS = /^(auth-|sys-|atas-|ic-|ex-|esp-)/;
 
 app.get("/api/estado", async (req, res) => {
   try {
@@ -3390,6 +3408,351 @@ app.get("/api/extensao/:id/inscritos-completo.xlsx", async (req, res) => {
     res.status(500).send("Erro ao gerar a planilha: " + e.message);
   }
 });
+
+/* ================== ARCHÉ ES — RESERVA DE ESPAÇOS =======================
+   Auditório, quadra, mini auditórios, salas de aula e laboratórios: poucos,
+   disputados, e até ago/2026 reservados por WhatsApp. Três chaves internas
+   (fora do /api/estado, porque guardam contato de quem pediu):
+   `esp-espacos-v1` (catálogo), `esp-reservas-v1` e `esp-bloqueios-v1`.
+
+   O fluxo é o que o dono descreveu: o pedido cai para a RESPONSÁVEL pela
+   reserva (coordenação do módulo `espacos`), que confirma o que está
+   pré-autorizada a decidir ou encaminha à PROPPEX. Espaço já confirmado ou
+   bloqueado TRAVA o pedido — e quem barra é este servidor, dentro da fila de
+   escrita, porque dois pedidos simultâneos são exatamente o caso em que a
+   conferência da tela não vale nada.
+   ======================================================================== */
+const ESP_ESPACOS = "esp-espacos-v1";
+const ESP_RESERVAS = "esp-reservas-v1";
+const ESP_BLOQUEIOS = "esp-bloqueios-v1";
+const ESP_SEQ = "esp-config-v1";
+
+const gereEsp = (u) => !!u?.modulos?.includes("espacos");
+
+async function lerEspacos() {
+  const raw = await storage.get(ESP_ESPACOS);
+  const lista = raw ? normalizarEspacos(JSON.parse(raw)) : [];
+  return lista.length ? lista : normalizarEspacos(ESPACOS_PADRAO);
+}
+async function lerReservas() {
+  const raw = await storage.get(ESP_RESERVAS);
+  return raw ? JSON.parse(raw) : [];
+}
+async function lerBloqueios() {
+  const raw = await storage.get(ESP_BLOQUEIOS);
+  return raw ? JSON.parse(raw) : [];
+}
+
+/* Fila serializada: é ela que faz a trava de conflito valer. Duas pessoas
+   pedindo o mesmo auditório no mesmo segundo leem a mesma agenda; só dentro
+   da fila a segunda enxerga a primeira. */
+let filaEsp = Promise.resolve();
+function comReservas(fn) {
+  const proxima = filaEsp.then(async () => {
+    const reservas = await lerReservas();
+    const r = await fn(reservas);
+    if (r?.gravar !== false) {
+      await storage.set(ESP_RESERVAS, JSON.stringify(reservas));
+      await storage.flush?.();
+    }
+    return r;
+  });
+  filaEsp = proxima.catch(() => {});
+  return proxima;
+}
+
+/** Protocolo RES-AAAA-NNN, na ordem em que as reservas são pedidas. Emitido
+    aqui dentro, como o número da ação de extensão: sequência no cliente é
+    número repetido esperando acontecer. */
+async function novoProtocoloReserva() {
+  const ano = Number(hojeLocalISO().slice(0, 4));
+  const raw = await storage.get(ESP_SEQ);
+  let cfg = raw ? JSON.parse(raw) : { ano, seq: 0 };
+  if (cfg.ano !== ano) cfg = { ano, seq: 0 };
+  cfg.seq++;
+  await storage.set(ESP_SEQ, JSON.stringify(cfg));
+  return `RES-${ano}-${String(cfg.seq).padStart(3, "0")}`;
+}
+
+/** Semente do catálogo, uma única vez (a marca impede que um deploy ressuscite
+    espaço que a gestão apagou de propósito). */
+async function subirEspacosIniciais() {
+  try {
+    if (await storage.get("sys-esp-catalogo-v1")) return;
+    if (!(await storage.get(ESP_ESPACOS)))
+      await storage.set(ESP_ESPACOS, JSON.stringify(normalizarEspacos(ESPACOS_PADRAO)));
+    await storage.set("sys-esp-catalogo-v1", new Date().toISOString());
+    console.log("[espacos] catálogo inicial gravado");
+  } catch (e) { console.error("[espacos] falha ao semear o catálogo:", e.message); }
+}
+
+/** A sessão do setor: exige login (a guarda de AREAS_PROTEGIDAS já barrou a
+    página; aqui é a API). Qualquer conta aprovada pede reserva — professor,
+    coordenação, setor e aluno; a comunidade externa entra pelo pedido que
+    alguém da casa registra em nome dela. */
+async function sessaoEsp(req, res) {
+  const u = await usuarioDe(req, res);
+  if (!u) { res.status(401).json({ error: "Faça login para usar a reserva de espaços." }); return null; }
+  if (u.papel === "pendente") { res.status(403).json({ error: "Seu acesso ainda não foi liberado." }); return null; }
+  return u;
+}
+
+const podeVerReserva = (u, r) => gereEsp(u) || minhaReserva(u.email, r);
+
+/** GET /api/espacos — o que a tela precisa para abrir: catálogo, catálogos
+    de apoio e as reservas que a pessoa pode ver. */
+app.get("/api/espacos", async (req, res) => {
+  try {
+    const u = await sessaoEsp(req, res);
+    if (!u) return;
+    const [espacos, reservas, bloqueios] = await Promise.all([lerEspacos(), lerReservas(), lerBloqueios()]);
+    const perfil = (await carregarPerfis())[u.email] || {};
+    res.json({
+      eu: u.email, nome: perfil.nome || u.nome, telefone: perfil.telefone || "",
+      gestao: gereEsp(u), gestorGeral: u.papel === "gestor",
+      espacos, blocos: BLOCOS_ESP, interessados: INTERESSADOS, cursos: CURSOS.map((c) => c.nome),
+      bloqueios,
+      reservas: reservas.filter((r) => podeVerReserva(u, r)),
+    });
+  } catch (e) {
+    console.error("Erro ao abrir a reserva de espaços:", e);
+    res.status(500).json({ error: "Não foi possível carregar os espaços agora." });
+  }
+});
+
+/** GET /api/espacos/agenda — o calendário que TODO usuário logado vê, no
+    setor e na página inicial. Diz onde, quando e para quê; nunca quem pediu,
+    nem a justificativa. É o que evita o pedido em cima do que já está
+    ocupado — e ninguém precisa de contato alheio para isso. */
+app.get("/api/espacos/agenda", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u || u.papel === "pendente") return res.status(401).json({ error: "Faça login para ver a agenda." });
+    const de = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.de || "")) ? String(req.query.de) : hojeLocalISO();
+    const ate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.ate || "")) ? String(req.query.ate) : somaDias(de, 30);
+    const espaco = String(req.query.espaco || "");
+    const [espacos, reservas, bloqueios] = await Promise.all([lerEspacos(), lerReservas(), lerBloqueios()]);
+    res.json({
+      de, ate, espacos,
+      reservas: agenda(reservas, { de, ate, espaco }).map((r) => reservaPublica(espacos, r)),
+      bloqueios: bloqueios.filter((b) => b.dataFim >= de && b.dataInicio <= ate
+        && (!espaco || b.espacos.includes(espaco))),
+    });
+  } catch (e) {
+    console.error("Erro na agenda de espaços:", e);
+    res.status(500).json({ error: "Não foi possível carregar a agenda agora." });
+  }
+});
+
+/**
+ * POST /api/espacos/reservas — pede o espaço. `simular: true` devolve os
+ * impedimentos sem gravar nada: é o que a tela usa para avisar ANTES de
+ * enviar. A trava real é aqui dentro, na fila.
+ */
+app.post("/api/espacos/reservas", async (req, res) => {
+  try {
+    const u = await sessaoEsp(req, res);
+    if (!u) return;
+    const espacos = await lerEspacos();
+    const perfil = (await carregarPerfis())[u.email] || {};
+    const simular = req.body?.simular === true;
+    const bruto = req.body?.reserva || req.body || {};
+    const nova = normalizarReserva(bruto, { espacos, base: {
+      id: "res-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      status: "solicitada",
+      solicitante: { email: u.email, nome: perfil.nome || u.nome || u.email, telefone: perfil.telefone || "" },
+    } });
+    nova.solicitante.telefone = String(bruto?.solicitante?.telefone || perfil.telefone || "").trim().slice(0, 40);
+    const erros = validarReserva(nova, { espacos });
+    if (erros.length) return res.status(400).json({ error: erros.join(" "), erros });
+
+    const bloqueios = await lerBloqueios();
+    if (simular) {
+      const reservas = await lerReservas();
+      const imp = impedimentos(nova, { reservas, bloqueios, espacos });
+      return res.json({ simulacao: true, ...imp,
+        concorrentes: conflitos(reservas, nova, { espacos, apenasConfirmadas: false })
+          .filter((c) => !OCUPA(c)).map((c) => reservaPublica(espacos, c)) });
+    }
+
+    const r = await comReservas(async (reservas) => {
+      const imp = impedimentos(nova, { reservas, bloqueios, espacos });
+      if (!imp.livre) return { erro: [409, imp.motivos.join(" ")], gravar: false };
+      nova.protocolo = await novoProtocoloReserva();
+      nova.historico = [{ em: new Date().toISOString(), por: u.email, acao: "solicitada" }];
+      reservas.push(nova);
+      return { reserva: nova };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+
+    // aviso à responsável pela reserva, com cópia ao setor de eventos —
+    // fire-and-forget: e-mail que falha não desfaz a solicitação
+    avisarReserva(r.reserva, espacos, "nova").catch(() => {});
+    res.json({ ok: true, reserva: r.reserva });
+  } catch (e) {
+    console.error("Erro ao solicitar espaço:", e);
+    res.status(500).json({ error: "Não foi possível registrar a solicitação agora." });
+  }
+});
+
+/**
+ * POST /api/espacos/reservas/:id/decidir — o degrau da responsável pela
+ * reserva e o da PROPPEX, na mesma rota porque o ato é o mesmo:
+ *   confirmar  (gestão do módulo ou gestor geral)
+ *   encaminhar (a responsável manda o caso à PROPPEX)
+ *   recusar    (com motivo — recusa sem motivo não se explica depois)
+ * Confirmar reconfere o conflito: entre o pedido e a decisão, outra reserva
+ * pode ter sido confirmada para o mesmo espaço.
+ */
+app.post("/api/espacos/reservas/:id/decidir", async (req, res) => {
+  try {
+    const u = await sessaoEsp(req, res);
+    if (!u) return;
+    const acao = String(req.body?.acao || "");
+    if (!["confirmar", "recusar", "encaminhar"].includes(acao))
+      return res.status(400).json({ error: "Ação inválida." });
+    if (!gereEsp(u) && u.papel !== "gestor")
+      return res.status(403).json({ error: "Só a responsável pela reserva e a PROPPEX decidem." });
+    if (acao === "encaminhar" && u.papel === "gestor" && !gereEsp(u))
+      return res.status(400).json({ error: "A PROPPEX é o destino do encaminhamento." });
+    const motivo = String(req.body?.motivo || "").trim().slice(0, 500);
+    if (acao === "recusar" && !motivo)
+      return res.status(400).json({ error: "Escreva o motivo da recusa." });
+
+    const [espacos, bloqueios] = await Promise.all([lerEspacos(), lerBloqueios()]);
+    const r = await comReservas((reservas) => {
+      const i = reservas.findIndex((x) => x.id === req.params.id);
+      if (i < 0) return { erro: [404, "Reserva não encontrada."], gravar: false };
+      const atual = reservas[i];
+      if (!VIVA(atual)) return { erro: [400, `Esta reserva está ${ROTULO_STATUS[atual.status].toLowerCase()}.`], gravar: false };
+      if (acao === "confirmar") {
+        const imp = impedimentos(atual, { reservas, bloqueios, espacos });
+        if (!imp.livre) return { erro: [409, `Não dá para confirmar: ${imp.motivos.join(" ")}`], gravar: false };
+      }
+      const novo = acao === "confirmar" ? "confirmada" : acao === "recusar" ? "recusada" : "encaminhada";
+      reservas[i] = { ...atual, status: novo, atualizadoEm: new Date().toISOString(),
+        decisao: { por: u.email, em: new Date().toISOString(), acao, motivo },
+        historico: [...(atual.historico || []),
+          { em: new Date().toISOString(), por: u.email, acao: novo, motivo }] };
+      return { reserva: reservas[i] };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    avisarReserva(r.reserva, espacos, acao).catch(() => {});
+    res.json({ ok: true, reserva: r.reserva });
+  } catch (e) {
+    console.error("Erro ao decidir a reserva:", e);
+    res.status(500).json({ error: "Não foi possível registrar a decisão agora." });
+  }
+});
+
+/** POST /api/espacos/reservas/:id/cancelar — de quem pediu (desistiu) e da
+    gestão (o espaço foi requisitado). O espaço volta a ficar livre na hora. */
+app.post("/api/espacos/reservas/:id/cancelar", async (req, res) => {
+  try {
+    const u = await sessaoEsp(req, res);
+    if (!u) return;
+    const motivo = String(req.body?.motivo || "").trim().slice(0, 500);
+    const r = await comReservas((reservas) => {
+      const i = reservas.findIndex((x) => x.id === req.params.id);
+      if (i < 0) return { erro: [404, "Reserva não encontrada."], gravar: false };
+      if (!podeVerReserva(u, reservas[i])) return { erro: [403, "Esta reserva não é sua."], gravar: false };
+      if (!VIVA(reservas[i])) return { erro: [400, "Esta reserva já foi encerrada."], gravar: false };
+      reservas[i] = { ...reservas[i], status: "cancelada", atualizadoEm: new Date().toISOString(),
+        historico: [...(reservas[i].historico || []),
+          { em: new Date().toISOString(), por: u.email, acao: "cancelada", motivo }] };
+      return { reserva: reservas[i] };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    const espacos = await lerEspacos();
+    avisarReserva(r.reserva, espacos, "cancelar").catch(() => {});
+    res.json({ ok: true, reserva: r.reserva });
+  } catch (e) {
+    console.error("Erro ao cancelar a reserva:", e);
+    res.status(500).json({ error: "Não foi possível cancelar agora." });
+  }
+});
+
+/** POST /api/espacos/catalogo — a gestão mantém os espaços. Grava o catálogo
+    inteiro (é uma lista curta), com a régua do lib. */
+app.post("/api/espacos/catalogo", async (req, res) => {
+  try {
+    const u = await sessaoEsp(req, res);
+    if (!u) return;
+    if (!gereEsp(u)) return res.status(403).json({ error: "Restrito à gestão dos espaços." });
+    const espacos = normalizarEspacos(req.body?.espacos);
+    if (!espacos.length) return res.status(400).json({ error: "O catálogo não pode ficar vazio." });
+    await storage.set(ESP_ESPACOS, JSON.stringify(espacos));
+    await storage.flush?.();
+    res.json({ ok: true, espacos });
+  } catch (e) {
+    console.error("Erro ao gravar o catálogo de espaços:", e);
+    res.status(500).json({ error: "Não foi possível gravar o catálogo." });
+  }
+});
+
+/** POST /api/espacos/bloqueios — reforma, recesso, manutenção. Da gestão, e
+    trava o pedido como uma reserva confirmada. `remover: id` apaga. */
+app.post("/api/espacos/bloqueios", async (req, res) => {
+  try {
+    const u = await sessaoEsp(req, res);
+    if (!u) return;
+    if (!gereEsp(u)) return res.status(403).json({ error: "Restrito à gestão dos espaços." });
+    const lista = await lerBloqueios();
+    if (req.body?.remover) {
+      const fora = lista.filter((b) => b.id !== String(req.body.remover));
+      await storage.set(ESP_BLOQUEIOS, JSON.stringify(fora));
+      await storage.flush?.();
+      return res.json({ ok: true, bloqueios: fora });
+    }
+    const novo = normalizarBloqueio(req.body?.bloqueio || {}, { base: {
+      id: "blq-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      criadoPor: u.email,
+    } });
+    if (!novo.espacos.length) return res.status(400).json({ error: "Escolha ao menos um espaço." });
+    if (!novo.dataInicio) return res.status(400).json({ error: "Informe a data do bloqueio." });
+    if (!novo.motivo) return res.status(400).json({ error: "Escreva o motivo do bloqueio." });
+    lista.push(novo);
+    await storage.set(ESP_BLOQUEIOS, JSON.stringify(lista));
+    await storage.flush?.();
+    res.json({ ok: true, bloqueios: lista });
+  } catch (e) {
+    console.error("Erro ao gravar bloqueio:", e);
+    res.status(500).json({ error: "Não foi possível gravar o bloqueio." });
+  }
+});
+
+/** GET /api/espacos/ocupacao — quantas horas cada espaço foi usado. É o
+    número que a gestão leva ao conselho quando se discute construir mais uma
+    sala; conta só o confirmado. */
+app.get("/api/espacos/ocupacao", async (req, res) => {
+  try {
+    const u = await sessaoEsp(req, res);
+    if (!u) return;
+    if (!gereEsp(u)) return res.status(403).json({ error: "Restrito à gestão dos espaços." });
+    const de = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.de || "")) ? String(req.query.de) : "";
+    const ate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.ate || "")) ? String(req.query.ate) : "";
+    const [espacos, reservas] = await Promise.all([lerEspacos(), lerReservas()]);
+    res.json({ de, ate, espacos: ocupacaoPorEspaco(reservas, espacos, { de, ate }) });
+  } catch (e) {
+    console.error("Erro na ocupação dos espaços:", e);
+    res.status(500).json({ error: "Não foi possível calcular a ocupação." });
+  }
+});
+
+/* O aviso por e-mail. A responsável pela reserva recebe TODA solicitação
+   (env ESPACOS_NOTIFY_EMAIL), com cópia ao setor de eventos; o solicitante
+   recebe a decisão. Fire-and-forget, como os demais avisos do ARCHÉ: e-mail
+   que falha não desfaz o que já está gravado. */
+async function avisarReserva(reserva, espacos, momento) {
+  try {
+    const { enviarEmail, emailReservaEspaco } = await import("./lib/mailer.js");
+    for (const msg of emailReservaEspaco(reserva, espacos, momento)) {
+      if (msg?.para) await enviarEmail(msg);
+    }
+  } catch (e) {
+    console.error("[espacos] aviso por e-mail não enviado:", e.message);
+  }
+}
 
 /* ======================== ARCHÉ AT — ATAS =============================== */
 // As atas ficam numa única chave interna (atas-reunioes-v1); toda leitura e
@@ -7930,6 +8293,7 @@ app.listen(port, () => {
       chamadaRegularizacao012025,
       propagarCpfOrientadores, identidadeInstitucionalDoProReitor, criarPreCadastros,
       aplicarAvaliacoesTranscritas,
+      subirEspacosIniciais,      // catálogo do ARCHÉ ES, uma única vez
       // SEMPRE por último, e a cada arranque (achado de ago/2026 — o caso
       // Marlana): as migrações acima podem carimbar CPF em projeto que ainda
       // não tem e-mail, e uma vinculação que rodasse só uma vez, antes delas,
