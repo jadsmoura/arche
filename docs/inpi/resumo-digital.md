@@ -6,20 +6,20 @@ hash a partir do commit indicado. **Não edite este arquivo à mão.**
 | | |
 |---|---|
 | Programa | ARCHÉ — Portal de gestão da PROPPEX / UNIEGO |
-| Commit | `c18c8aa14a1ce576c7df7e3b3295554cab271c56` |
+| Commit | `8953362fad53ab26edded777098f47eb6d678a4b` |
 | Data do commit | 2026-08-18 |
-| Árvore de trabalho | **com alterações não commitadas** — gere de novo a partir de um commit limpo |
-| Arquivos de código-fonte | 74 |
-| Linhas | 43.343 |
-| Bytes | 2.393.007 |
+| Árvore de trabalho | limpa (idêntica ao commit) |
+| Arquivos de código-fonte | 75 |
+| Linhas | 43.473 |
+| Bytes | 2.398.397 |
 | Algoritmo | SHA-512 |
-| Arquivo que originou o hash | `docs/inpi/arche-codigo-fonte-c18c8aa1.txt` |
+| Arquivo que originou o hash | `docs/inpi/arche-codigo-fonte-8953362f.txt` |
 
 ## Resumo digital SHA-512
 
 ```
-d58e0e32988f8874204f6f48fbd715cd6f61fd30345aa5e667c779ac1c20079f
-90306f53a3f022f698c56c6a28179907eefcba483d903428d03100777de8c85d
+d2160642430a794cb15c8e915d132018c645999065565b20f11f10f3d25e72d0
+ec83e662659528736ed37975d8d08fe27ee69f952f1908e520baeebe4956d677
 ```
 
 ## O que o pacote NÃO inclui
@@ -85,6 +85,7 @@ d58e0e32988f8874204f6f48fbd715cd6f61fd30345aa5e667c779ac1c20079f
 | `scripts/gdrive-auth.mjs` | 77 | `d02d07261389` |
 | `scripts/gdrive-check.mjs` | 40 | `6e9b783db644` |
 | `scripts/gdrive-rm.mjs` | 27 | `e516aee11b90` |
+| `scripts/pacote-inpi.mjs` | 130 | `0ea48ff8c7a9` |
 | `scripts/reorg-por-curso.mjs` | 59 | `12b9c3e0a4e0` |
 | `server.js` | 8540 | `9a30a2a3abf1` |
 | `test/alertas.test.js` | 211 | `6cd98e27d4e5` |
