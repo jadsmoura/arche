@@ -2522,27 +2522,41 @@ app.get("/api/publico/eventos/:slug/inscricao/:token/evento.ics", async (req, re
 
    Até lá, o que resolve na prática está acima: o QR em PNG para guardar na
    galeria e o evento no calendário do celular. */
-const walletConfigurada = () =>
-  !!(process.env.GOOGLE_WALLET_ISSUER_ID && process.env.GOOGLE_WALLET_SA_EMAIL
-    && process.env.GOOGLE_WALLET_SA_KEY);
+/* A credencial da conta de serviço chega por env var, e o caminho que ela faz
+   até lá é irregular: o JSON do Google traz "\n" escrito, a colagem no painel
+   do Render às vezes leva as aspas junto, e o campo de uma linha corta o bloco
+   no meio. Nenhum desses casos é erro de quem configurou — todos descrevem a
+   mesma chave.
 
-/* A chave da conta de serviço chega por env var, e o caminho que ela faz até
-   lá é irregular: o JSON do Google traz "\n" escrito, a colagem no painel do
-   Render às vezes leva as aspas junto, e há quem cole o ARQUIVO INTEIRO no
-   campo. Nenhum desses casos é erro de quem configurou — todos descrevem a
-   mesma chave. Então normalizamos aqui, e o que não vira PEM se explica na
-   tela em vez de morrer num 500 mudo. */
-function chaveDaContaDeServico(bruto) {
-  let s = String(bruto || "").trim();
-  if (!s) return null;
-  if (s.startsWith("{")) {                       // colaram o JSON da conta inteiro
-    try { s = String(JSON.parse(s).private_key || ""); } catch { /* segue como texto */ }
+   Por isso o caminho RECOMENDADO é colar o ARQUIVO JSON INTEIRO, como ele foi
+   baixado, em GOOGLE_WALLET_SA_KEY: dele saem a chave e o endereço da conta,
+   e não sobra recorte para errar. GOOGLE_WALLET_SA_EMAIL só é preciso quando
+   se cola a private_key sozinha. O que ainda assim não virar chave se explica
+   na tela, em vez de morrer num 500 mudo. */
+function credenciaisWallet() {
+  const bruto = String(process.env.GOOGLE_WALLET_SA_KEY || "").trim();
+  if (!bruto) return { chave: null, email: "" };
+  let s = bruto, email = String(process.env.GOOGLE_WALLET_SA_EMAIL || "").trim();
+  if (s.startsWith("{")) {                       // o arquivo da conta, inteiro
+    try {
+      const j = JSON.parse(s);
+      s = String(j.private_key || "");
+      if (!email) email = String(j.client_email || "").trim();
+    } catch { /* não era JSON válido: segue como texto */ }
   }
   if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'")))
     s = s.slice(1, -1);                          // veio com as aspas do JSON
   s = s.replace(/\\r/g, "").replace(/\\n/g, "\n").replace(/\r\n/g, "\n").trim();
-  try { return crypto.createPrivateKey(s); } catch { return null; }
+  let chave = null;
+  try { chave = crypto.createPrivateKey(s); } catch { /* fica null: quem chamou avisa */ }
+  return { chave, email };
 }
+
+const walletConfigurada = () => {
+  if (!process.env.GOOGLE_WALLET_ISSUER_ID || !process.env.GOOGLE_WALLET_SA_KEY) return false;
+  const { chave, email } = credenciaisWallet();
+  return !!(chave && email);
+};
 
 const dataBR = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) ? iso.split("-").reverse().join("/") : "");
 const periodoBR = (ini, fim) => {
@@ -2558,9 +2572,8 @@ const periodoBR = (ini, fim) => {
 app.get("/api/eventos/wallet/diagnostico", async (req, res) => {
   if (!(await exigirGestor(req, res))) return;
   const emissor = String(process.env.GOOGLE_WALLET_ISSUER_ID || "");
-  const email = String(process.env.GOOGLE_WALLET_SA_EMAIL || "");
   const bruto = String(process.env.GOOGLE_WALLET_SA_KEY || "");
-  const chave = chaveDaContaDeServico(bruto);
+  const { chave, email } = credenciaisWallet();
   let assina = false, erro = "";
   if (chave) {
     try { crypto.createSign("RSA-SHA256").update("arche").sign(chave, "base64url"); assina = true; }
@@ -2572,10 +2585,13 @@ app.get("/api/eventos/wallet/diagnostico", async (req, res) => {
       preenchido: !!email,
       pareceContaDeServico: /@[\w-]+\.iam\.gserviceaccount\.com$/.test(email.trim()),
       dominio: email.includes("@") ? email.split("@").pop() : "",
+      origem: process.env.GOOGLE_WALLET_SA_EMAIL ? "variável própria" : "lido do JSON",
     },
     chave: {
       preenchida: !!bruto, caracteres: bruto.length,
+      colaramOJsonInteiro: bruto.trim().startsWith("{"),
       trazMarcadorPEM: bruto.includes("BEGIN") && bruto.includes("PRIVATE KEY"),
+      terminaEmEND: /-----END [A-Z ]*PRIVATE KEY-----\\?n?"?,?\s*\}?\s*$/.test(bruto.trim()),
       quebrasDeLinhaEscritas: bruto.includes("\\n"), quebrasDeLinhaReais: bruto.includes("\n"),
       lidaComoChave: !!chave, tipo: chave ? chave.asymmetricKeyType : "", assina, erro,
     },
@@ -2630,19 +2646,19 @@ app.get("/api/publico/eventos/:slug/inscricao/:token/wallet", async (req, res) =
       ...(ev.capa ? { heroImage: { sourceUri: { uri: `${base}/api/publico/eventos/${encodeURIComponent(ev.slug || "")}/capa` } } } : {}),
       linksModuleData: { uris: [{ uri: `${base}/eventos/${encodeURIComponent(ev.slug || "")}`, description: "Página do evento" }] },
     };
+    const { chave, email } = credenciaisWallet();
+    if (!chave || !email) {
+      console.error("[wallet] credencial da conta de serviço não reconhecida");
+      return falhar(500, "A credencial da conta de serviço não foi reconhecida. Em GOOGLE_WALLET_SA_KEY, cole o arquivo JSON da conta de serviço INTEIRO, como foi baixado — não é preciso recortar a chave.");
+    }
     const agora = Math.floor(Date.now() / 1000);
     const cabecalho = { alg: "RS256", typ: "JWT" };
     const corpo = {
-      iss: process.env.GOOGLE_WALLET_SA_EMAIL,
+      iss: email,
       aud: "google", typ: "savetowallet", iat: agora,
       origins: [base],
       payload: { ...(classeNoJwt.length ? { genericClasses: classeNoJwt } : {}), genericObjects: [objeto] },
     };
-    const chave = chaveDaContaDeServico(process.env.GOOGLE_WALLET_SA_KEY);
-    if (!chave) {
-      console.error("[wallet] GOOGLE_WALLET_SA_KEY não foi lida como chave privada");
-      return falhar(500, "A chave da conta de serviço não foi reconhecida. Confira a variável GOOGLE_WALLET_SA_KEY: ela deve conter a private_key do arquivo JSON inteira, do -----BEGIN PRIVATE KEY----- ao -----END PRIVATE KEY-----.");
-    }
     const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
     const assinar = `${b64(cabecalho)}.${b64(corpo)}`;
     const assinatura = crypto.createSign("RSA-SHA256").update(assinar).sign(chave, "base64url");
