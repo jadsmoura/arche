@@ -58,6 +58,7 @@
   <p>PROPPEX — Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária.</p>
 </footer>
 
+<script src="/assets/arche-wallet.js"></script>
 <script>
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) ? iso.split("-").reverse().join("/") : "—");
@@ -117,24 +118,17 @@ function render() {
    existe aqui — quando existir, entra ao lado. */
 function guardarNoCelular() {
   const raiz = `/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(TOKEN)}`;
-  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+  return `${DADOS.walletGoogle ? `<div style="margin-top:14px;text-align:center">
+      ${botaoGoogleWallet(SLUG, TOKEN, "width:100%;max-width:280px")}
+      <p style="font-size:12px;color:var(--muted);margin-top:6px">A credencial fica no seu celular,
+        com o QR pronto na tela de bloqueio.</p>
+    </div>` : ""}
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
     <a class="bt bt-sec" style="flex:1 1 180px" href="${raiz}/qr.png" download>⬇ Baixar o QR</a>
     <a class="bt bt-sec" style="flex:1 1 180px" href="${raiz}/evento.ics">📅 Adicionar ao calendário</a>
-    ${DADOS.walletGoogle ? `<button class="bt bt-sec" style="flex:1 1 180px" onclick="paraCarteira()">👛 Google Wallet</button>` : ""}
   </div>
   <p style="font-size:12px;color:var(--muted);margin-top:6px">O QR baixado vale offline — guarde na
     galeria do celular e apresente na entrada, mesmo sem internet no local.</p>`;
-}
-async function paraCarteira() {
-  try {
-    const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(TOKEN)}/wallet`);
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.url) throw new Error(j.error || "não foi possível gerar o passe");
-    location.href = j.url;
-  } catch (e) {
-    alert("Não foi possível abrir a carteira digital agora.\n" + e.message
-      + "\n\nUse “Baixar o QR” — ele vale igual na entrada.");
-  }
 }
 
 /* A troca usa o catálogo público do evento (as atividades "propria" e as

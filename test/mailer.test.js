@@ -53,6 +53,16 @@ test("sem data de início não há reserva a descrever — e o e-mail sai igual"
   assert.match(msg.corpoHtml, /Sua inscrição está confirmada/);
 });
 
+test("o botão da carteira só sai onde há conta de emissor, e é link simples", () => {
+  const sem = emailInscricaoEvento(acao, inscrito);
+  assert.equal(/Google Wallet/.test(sem.corpoHtml), false);
+
+  const com = emailInscricaoEvento(acao, inscrito, { wallet: true });
+  assert.match(com.corpoHtml, /Adicionar ao Google Wallet/);
+  // aponta para a rota que assina o passe na hora — o link não envelhece
+  assert.match(com.corpoHtml, new RegExp(`inscricao/${inscrito.token}/wallet\\?ir=1`));
+});
+
 test("o QR viaja embutido, e o bloco da reserva não atrapalha o corpo", () => {
   const msg = emailInscricaoEvento(acao, inscrito, { qrPng: Buffer.from("png") });
   assert.equal(msg.anexos[0].cid, "qr-inscricao");

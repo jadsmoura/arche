@@ -203,6 +203,7 @@
     Página pública · dados fornecidos pelo sistema ARCHÉ.</p>
 </footer>
 
+<script src="/assets/arche-wallet.js"></script>
 <script>
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) ? iso.split("-").reverse().join("/") : "—");
@@ -210,6 +211,8 @@ const $ = (id) => document.getElementById(id);
 // o slug é o primeiro segmento depois de /eventos/
 const SLUG = decodeURIComponent((location.pathname.match(/^\/eventos\/([^/]+)/) || [])[1] || "");
 let EV = null;
+// o botão da carteira digital só existe onde a instituição tem a conta de emissor
+let WALLET = false;
 let DIA_SEL = "";                 // aba de dia escolhida na programação
 let ESCOLHIDAS = new Set();       // ids das atividades marcadas no formulário
 
@@ -804,6 +807,8 @@ function pos(token) {
         <b>${esc(p.titulo)}</b> — ${esc(fmt(p.dia))}, ${esc(faixaHora(p))}${p.local ? " · " + esc(p.local) : ""}</p>`).join("")}
       <p style="font-size:12px;color:var(--muted);margin-top:8px">Dá para trocar as atividades depois,
         pela página da sua inscrição.</p>` : ""}
+    ${WALLET ? `<div style="margin-top:14px;text-align:center">
+      ${botaoGoogleWallet(SLUG, token, "width:100%;max-width:280px")}</div>` : ""}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
       <a class="bt bt-sec" style="flex:1 1 170px" download
         href="/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(token)}/qr.png">⬇ Baixar o QR</a>
@@ -894,7 +899,8 @@ fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}`).then(async (r) => {
       <a class="bt bt-sec" style="margin-top:14px" href="/eventos/">Ver os eventos abertos</a></div>`;
     return;
   }
-  EV = j.evento; document.title = `${EV.nome} — Eventos UNIEGO`; render();
+  EV = j.evento; WALLET = j.walletGoogle === true;
+  document.title = `${EV.nome} — Eventos UNIEGO`; render();
 }).catch(() => {
   $("main").innerHTML = '<div class="card" style="margin-top:20px"><p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente em instantes.</p></div>';
 });

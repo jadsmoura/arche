@@ -350,9 +350,18 @@ public/
   com o QR escaneável** — é assim que o passe do Sympla aparece no Google Wallet (aquele
   cartão traz "Ver e-mail" no rodapé: quem o monta é o Gmail lendo o e-mail, não uma conta de
   emissor). O bloco é invisível para quem lê e some quando a ação não tem data;
-  (2) o botão **"Adicionar ao Google Wallet"** está implementado e fica atrás das env vars
-  (`GOOGLE_WALLET_ISSUER_ID`, `GOOGLE_WALLET_SA_EMAIL`, `GOOGLE_WALLET_SA_KEY`,
-  `GOOGLE_WALLET_CLASS_ID`) — sem elas a rota responde 501 e o botão nem aparece; (3) o
+  (2) o botão **"Adicionar ao Google Wallet"** (`public/assets/arche-wallet.js`) aparece no
+  **painel do inscrito**, no hotsite logo após inscrever-se e no e-mail de confirmação —
+  é um LINK simples para a rota do passe com **`?ir=1`**, que assina o JWT na hora e
+  redireciona ao `pay.google.com`: sem JavaScript no meio, o mesmo endereço serve às três
+  pontas e nenhum passe chega envelhecido. O cartão leva o logotipo do UNIEGO e a capa do
+  evento (quando houver), e a **classe vai definida no próprio JWT** — assim a configuração
+  se resume ao emissor e à conta de serviço, sem criar classe à mão no console
+  (`GOOGLE_WALLET_CLASS_ID` só se quiserem personalizar a arte lá). Tudo isso fica atrás
+  das env vars (`GOOGLE_WALLET_ISSUER_ID`, `GOOGLE_WALLET_SA_EMAIL`,
+  `GOOGLE_WALLET_SA_KEY`): sem elas o servidor devolve `walletGoogle: false`, o botão não
+  se desenha em lugar nenhum e a rota responde 501 — nada quebra, e o QR em PNG continua
+  valendo na entrada; (3) o
   **Apple Wallet** exige certificado do Apple Developer Program (.pkpass sem assinatura o
   iPhone recusa) e por isso não tem botão enquanto a instituição não tiver o certificado.
 - **Credenciamento: o mesmo QR não se lê duas vezes** (achado no teste do dono, ago/2026):

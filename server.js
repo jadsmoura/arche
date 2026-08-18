@@ -2126,7 +2126,8 @@ app.get("/api/publico/eventos/:slug", async (req, res) => {
     const a = eventoPorSlug(await lerAcoes(), req.params.slug);
     if (!a || !a.evento.ativo)
       return res.status(404).json({ error: "Evento não encontrado — a página pode ter sido encerrada." });
-    res.json({ evento: eventoPublico(a, { detalhe: true }) });
+    // walletGoogle diz ao hotsite se o botão da carteira tem para onde levar
+    res.json({ evento: eventoPublico(a, { detalhe: true }), walletGoogle: walletConfigurada() });
   } catch (e) {
     console.error("Erro na página pública do evento:", e);
     res.status(500).json({ error: "Não foi possível carregar o evento agora." });
@@ -2215,7 +2216,7 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
         });
       } catch (e) { console.error("[eventos] QR do e-mail não gerado:", e.message); }
       await enviarEmail(emailInscricaoEvento(r.acao, r.inscrito,
-        { baseUrl: `${req.protocol}://${req.get("host")}`, qrPng }));
+        { baseUrl: `${req.protocol}://${req.get("host")}`, qrPng, wallet: walletConfigurada() }));
     } catch (e) {
       console.error("[eventos] confirmação de inscrição não enviada:", e.message);
     }
@@ -2525,17 +2526,37 @@ const walletConfigurada = () =>
   !!(process.env.GOOGLE_WALLET_ISSUER_ID && process.env.GOOGLE_WALLET_SA_EMAIL
     && process.env.GOOGLE_WALLET_SA_KEY);
 
+const dataBR = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) ? iso.split("-").reverse().join("/") : "");
+const periodoBR = (ini, fim) => {
+  const a = dataBR(ini), b = dataBR(fim);
+  return !a ? "—" : (!b || b === a ? a : `${a} a ${b}`);
+};
+
+/* Com `?ir=1` a rota REDIRECIONA em vez de devolver JSON: é o que permite que
+   o botão seja um link simples — no e-mail de confirmação, onde não há
+   JavaScript, e em qualquer lugar que só saiba abrir um endereço. O passe é
+   montado na hora, então o link do e-mail não envelhece. */
 app.get("/api/publico/eventos/:slug/inscricao/:token/wallet", async (req, res) => {
+  const ir = req.query.ir === "1";
+  const falhar = (cod, msg) => ir
+    ? res.status(cod).type("text/plain; charset=utf-8").send(msg)
+    : res.status(cod).json({ error: msg });
   try {
     if (!walletConfigurada())
-      return res.status(501).json({ error: "A carteira digital ainda não está configurada nesta instituição." });
+      return falhar(501, "A carteira digital ainda não está configurada nesta instituição.");
     const r = await acharInscricao(req.params.slug, req.params.token);
-    if (!r) return res.status(404).json({ error: "Inscrição não encontrada" });
+    if (!r) return falhar(404, "Inscrição não encontrada");
     const p = r.acao.proposta || {};
     const ev = r.acao.evento || {};
     const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
     const emissor = process.env.GOOGLE_WALLET_ISSUER_ID;
+    /* Sem GOOGLE_WALLET_CLASS_ID, a CLASSE do passe vai definida no próprio
+       JWT: assim a configuração se resume ao emissor e à conta de serviço —
+       ninguém precisa criar a classe à mão no console antes do primeiro
+       passe. Se a env var vier preenchida, respeitamos a classe já criada
+       lá (é o caso de quem quiser personalizar a arte do cartão). */
     const classe = process.env.GOOGLE_WALLET_CLASS_ID || `${emissor}.arche-evento`;
+    const classeNoJwt = process.env.GOOGLE_WALLET_CLASS_ID ? [] : [{ id: classe }];
     const objeto = {
       id: `${emissor}.${r.inscrito.token}`,
       classId: classe,
@@ -2547,10 +2568,14 @@ app.get("/api/publico/eventos/:slug/inscricao/:token/wallet", async (req, res) =
       barcode: { type: "QR_CODE", value: String(r.inscrito.token),
         alternateText: codigoDe(r.inscrito.token).toUpperCase() },
       textModulesData: [
-        { id: "quando", header: "Quando",
-          body: `${dataCivil(p.periodoInicio)} a ${dataCivil(p.periodoFim)}` },
+        { id: "quando", header: "Quando", body: periodoBR(p.periodoInicio, p.periodoFim) },
         { id: "onde", header: "Onde", body: [p.local, p.municipio].filter(Boolean).join(" — ") || "—" },
       ],
+      // a marca da instituição e, quando houver, a arte do evento: é o que
+      // faz o cartão na carteira parecer o crachá do evento, e não um genérico
+      logo: { sourceUri: { uri: `${base}/assets/logo-uniego.png` },
+        contentDescription: { defaultValue: { language: "pt-BR", value: "UNIEGO" } } },
+      ...(ev.capa ? { heroImage: { sourceUri: { uri: `${base}/api/publico/eventos/${encodeURIComponent(ev.slug || "")}/capa` } } } : {}),
       linksModuleData: { uris: [{ uri: `${base}/eventos/${encodeURIComponent(ev.slug || "")}`, description: "Página do evento" }] },
     };
     const agora = Math.floor(Date.now() / 1000);
@@ -2559,16 +2584,18 @@ app.get("/api/publico/eventos/:slug/inscricao/:token/wallet", async (req, res) =
       iss: process.env.GOOGLE_WALLET_SA_EMAIL,
       aud: "google", typ: "savetowallet", iat: agora,
       origins: [base],
-      payload: { genericObjects: [objeto] },
+      payload: { ...(classeNoJwt.length ? { genericClasses: classeNoJwt } : {}), genericObjects: [objeto] },
     };
     const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
     const assinar = `${b64(cabecalho)}.${b64(corpo)}`;
     const chave = String(process.env.GOOGLE_WALLET_SA_KEY).replace(/\\n/g, "\n");
     const assinatura = crypto.createSign("RSA-SHA256").update(assinar).sign(chave, "base64url");
-    res.json({ url: `https://pay.google.com/gp/v/save/${assinar}.${assinatura}` });
+    const url = `https://pay.google.com/gp/v/save/${assinar}.${assinatura}`;
+    if (ir) return res.redirect(302, url);
+    res.json({ url });
   } catch (e) {
     console.error("Erro no passe da carteira digital:", e);
-    res.status(500).json({ error: "Não foi possível gerar o passe agora." });
+    falhar(500, "Não foi possível gerar o passe agora.");
   }
 });
 
