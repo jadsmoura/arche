@@ -37,7 +37,7 @@ import {
   CAMPOS_RELATORIO_PARCIAL, CAMPOS_PARCIAL_OBRIGATORIOS, FORMATACAO_RELATORIO,
   PERGUNTAS_AVALIACAO_PROJETO, RESPOSTAS_AVALIACAO_PROJETO, ESCALA_0_5,
   CRITERIOS_AVALIACAO_ORIENTADOR, CRITERIOS_AVALIACAO_ALUNO, PARECERES_CONCLUSIVOS,
-  janelaRelatorio, regularizacaoDe,
+  janelaRelatorio, regularizacaoDe, pedidoEncerramentoPendente, encerramentoAceito,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf } from "./lib/cpf.js";
 import {
@@ -650,6 +650,11 @@ app.get("/api/alertas", async (req, res) => {
         s + (p.contestacoes || []).filter((c) => !c.resposta).length, 0);
       if (contest) alertas.push({ setor: "Pesquisa · IC", n: contest, link: "/pesquisa/ic/",
         texto: `${contest} contestação(ões) de nota aguardando resposta` });
+      // pedido de ENCERRAMENTO: o projeto ficou parado no meio da vigência e
+      // só a PROPPEX o encerra — pedido que ninguém vê deixa o aluno preso
+      const encerr = projetos.filter((p) => pedidoEncerramentoPendente(p)).length;
+      if (encerr) alertas.push({ setor: "Pesquisa · IC", n: encerr, link: "/pesquisa/ic/",
+        texto: `${encerr} pedido(s) de encerramento de projeto aguardando validação` });
     }
 
     if (u.modulos.includes("extensao")) {
@@ -7227,10 +7232,24 @@ app.post("/api/ic/:id/relatorio", async (req, res) => {
   const tipo = String(b.tipo || "");
   if (!TIPOS_RELATORIO.includes(tipo)) return res.status(400).json({ error: "Tipo de relatório inválido" });
 
+  /* PEDIDO DE ENCERRAMENTO (decisão do dono, ago/2026): o aluno pode
+     relatar, no parcial OU no final, que o projeto foi interrompido — o caso
+     que motivou isto foi o desligamento do orientador no meio da vigência.
+     Aí o relatório muda de natureza: não se cobram as seções do roteiro, o
+     artigo da revista nem as avaliações (não há o que avaliar num projeto que
+     não correu) — cobra-se a JUSTIFICATIVA, que é o que a PROPPEX vai ler
+     para encerrar. */
+  const pedeEncerramento = b.encerramento?.pedido === true;
+  const motivoEncerramento = String(b.encerramento?.motivo || "").trim().slice(0, 4000);
+  if (pedeEncerramento && motivoEncerramento.length < 30) {
+    return res.status(400).json({ error: "Explique por que o projeto foi interrompido — a justificativa vai à PROPPEX, que decide o encerramento (mínimo de 30 caracteres)." });
+  }
   // a validação é a do modelo institucional de cada tipo (decisão do dono,
   // ago/2026): o parcial cobra as seções do roteiro; o final, os dados da
   // revista do artigo — o arquivo do artigo entra em seguida, como anexo
-  if (tipo === "parcial") {
+  if (pedeEncerramento) {
+    /* sem mais exigências: o relatório é o registro da interrupção */
+  } else if (tipo === "parcial") {
     const faltam = CAMPOS_PARCIAL_OBRIGATORIOS
       .filter((c) => String(b.campos?.[c] || "").trim().length < 30)
       .map((c) => CAMPOS_RELATORIO_PARCIAL.find((x) => x.campo === c)?.rot || c);
@@ -7258,7 +7277,7 @@ app.post("/api/ic/:id/relatorio", async (req, res) => {
     || !Number.isInteger(Number(v)) || Number(v) < 0 || Number(v) > 5;
   const semNota = CRITERIOS_AVALIACAO_ORIENTADOR
     .filter((c) => fora05(b.avaliacaoOrientador?.[c.codigo]));
-  if (semResposta.length || semNota.length) {
+  if (!pedeEncerramento && (semResposta.length || semNota.length)) {
     return res.status(400).json({ error: "Responda a avaliação do projeto e a avaliação da atuação da orientação — todos os itens, na escala de 0 a 5." });
   }
 
@@ -7300,6 +7319,12 @@ app.post("/api/ic/:id/relatorio", async (req, res) => {
       anexos: j >= 0 ? lista[j].anexos || [] : [],
       enviadoEm: new Date().toISOString(), situacao: "enviado",
       parecer: j >= 0 ? lista[j].parecer || "" : "", avaliadoPor: "", avaliadoEm: "",
+      // o pedido de encerramento viaja no próprio relatório; a decisão da
+      // PROPPEX, quando houver, é preservada num reenvio
+      encerramento: pedeEncerramento
+        ? { ...(j >= 0 ? lista[j].encerramento || {} : {}), pedido: true, motivo: motivoEncerramento,
+            em: new Date().toISOString(), por: u.email }
+        : (j >= 0 ? lista[j].encerramento || {} : {}),
     };
     if (j >= 0) lista[j] = novo; else lista.push(novo);
     projetos[i] = anotarProjeto({ ...projetos[i], relatorios: lista, atualizadoEm: new Date().toISOString() },
@@ -7307,12 +7332,22 @@ app.post("/api/ic/:id/relatorio", async (req, res) => {
     return { projeto: projetos[i], relatorio: novo };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-  avisarPesquisa(`Relatório ${tipo} entregue — ${r.projeto.numero || ""}`, [
-    ["Projeto", `${r.projeto.numero || ""} ${r.projeto.titulo || ""}`.trim()],
-    ["Aluno", u.nome || u.email],
-    ["Tipo", tipo === "final" ? "Relatório final" : "Relatório parcial"],
-    ["Validação", "A orientação valida (ou devolve) pelo projeto"],
-  ], "Relatório de IC entregue pelo aluno");
+  if (pedeEncerramento) {
+    avisarPesquisa(`PEDIDO DE ENCERRAMENTO — ${r.projeto.numero || ""}`, [
+      ["Projeto", `${r.projeto.numero || ""} ${r.projeto.titulo || ""}`.trim()],
+      ["Aluno", u.nome || u.email],
+      ["Relatado no", tipo === "final" ? "Relatório final" : "Relatório parcial"],
+      ["Justificativa", motivoEncerramento.slice(0, 600)],
+      ["Decisão", "A PROPPEX valida o encerramento pelo projeto (a orientação não decide)"],
+    ], "Pedido de encerramento de projeto de IC");
+  } else {
+    avisarPesquisa(`Relatório ${tipo} entregue — ${r.projeto.numero || ""}`, [
+      ["Projeto", `${r.projeto.numero || ""} ${r.projeto.titulo || ""}`.trim()],
+      ["Aluno", u.nome || u.email],
+      ["Tipo", tipo === "final" ? "Relatório final" : "Relatório parcial"],
+      ["Validação", "A orientação valida (ou devolve) pelo projeto"],
+    ], "Relatório de IC entregue pelo aluno");
+  }
   res.json({ ok: true, projeto: verProjeto(u, r.projeto), relatorio: r.relatorio });
 });
 
@@ -7426,6 +7461,69 @@ app.post("/api/ic/:id/relatorio/:rid/validar", async (req, res) => {
         : `Relatório ${r.tipoRel} validado pela orientação`],
     ], "Relatório validado pela orientação — encaminhado à PROPPEX");
   }
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
+});
+
+/* A DECISÃO do encerramento é da PROPPEX (decisão do dono, ago/2026), e não
+   da orientação: no caso que motivou isto — professor desligado no meio da
+   vigência — a orientação é justamente quem não está mais lá para decidir.
+   Aceito, o projeto passa a "encerrado" (nem concluído, nem reprovado: o
+   ciclo não se completou) e o relatório que trouxe o pedido fica validado,
+   como o registro do que aconteceu. Recusado, o motivo fica no histórico e o
+   relatório volta ao caminho normal — a orientação valida ou devolve. */
+app.post("/api/ic/:id/relatorio/:rid/encerramento", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const decisao = String(req.body?.decisao || "");
+  const parecer = String(req.body?.parecer || "").trim().slice(0, 4000);
+  if (!["aceito", "recusado"].includes(decisao))
+    return res.status(400).json({ error: "Decisão inválida — aceitar ou recusar o encerramento." });
+  if (parecer.length < 10)
+    return res.status(400).json({ error: "Escreva o parecer da coordenação — é ele que fica no histórico do projeto." });
+
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    if (!meu.gestao) return { erro: [403, "Quem decide o encerramento do projeto é a PROPPEX."], gravar: false };
+    const lista = [...(projetos[i].relatorios || [])];
+    const j = lista.findIndex((x) => x.id === req.params.rid);
+    if (j < 0) return { erro: [404, "Relatório não encontrado"], gravar: false };
+    if (!lista[j].encerramento?.pedido)
+      return { erro: [400, "Este relatório não traz pedido de encerramento."], gravar: false };
+    if (lista[j].encerramento?.decisao)
+      return { erro: [400, "Este pedido já foi decidido."], gravar: false };
+    const agora = new Date().toISOString();
+    lista[j] = {
+      ...lista[j],
+      // aceito, o relatório do encerramento fica validado: é a peça que
+      // documenta a interrupção. Recusado, segue como estava (enviado) e a
+      // orientação valida ou devolve normalmente
+      situacao: decisao === "aceito" ? "validado" : lista[j].situacao,
+      ...(decisao === "aceito" ? { avaliadoPor: u.email, avaliadoEm: agora, validadoPelaGestao: true } : {}),
+      encerramento: { ...lista[j].encerramento, decisao, parecer, decididoPor: u.email, decididoEm: agora },
+    };
+    projetos[i] = anotarProjeto({
+      ...projetos[i], relatorios: lista,
+      status: decisao === "aceito" ? "encerrado" : projetos[i].status,
+      atualizadoEm: agora,
+    }, { quem: u.email,
+      oQue: decisao === "aceito"
+        ? "encerrou o projeto a pedido do aluno, com parecer da PROPPEX"
+        : "recusou o pedido de encerramento do projeto" });
+    return { projeto: projetos[i], tipoRel: lista[j].tipo, aluno: lista[j].aluno };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  avisarPesquisa(
+    decisao === "aceito"
+      ? `Projeto ENCERRADO — ${r.projeto.numero || ""}`
+      : `Encerramento recusado — ${r.projeto.numero || ""}`,
+    [
+      ["Projeto", `${r.projeto.numero || ""} ${r.projeto.titulo || ""}`.trim()],
+      ["Aluno", r.aluno || "—"],
+      ["Relatado no", r.tipoRel === "final" ? "Relatório final" : "Relatório parcial"],
+      ["Parecer", parecer.slice(0, 600)],
+    ], decisao === "aceito" ? "Encerramento de projeto validado pela PROPPEX" : "Pedido de encerramento recusado");
   res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
 });
 

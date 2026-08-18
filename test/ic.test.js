@@ -13,6 +13,7 @@ import {
   producaoDoOrientador, notaTranscrita, decidindoOProprio, avaliacaoRecebida,
   janelaContestacao, podeContestar, PRAZO_CONTESTACAO_DIAS, atoDeGestao,
   idadeEm, faltaNoCadastroDoBolsista, cadastroDoBolsistaCompleto,
+  pedidoEncerramentoPendente, encerramentoAceito, ROTULO_STATUS,
 } from "../lib/ic.js";
 
 /* -------------------------------- fixtura ------------------------------- */
@@ -571,7 +572,9 @@ test("o histórico guarda quem fez o quê, com teto", () => {
 });
 
 test("as situações do projeto e as modalidades são as previstas", () => {
-  assert.deepEqual(STATUS, ["rascunho", "submetido", "devolvido", "aprovado", "concluido", "reprovado"]);
+  assert.deepEqual(STATUS,
+    ["rascunho", "submetido", "devolvido", "aprovado", "concluido", "reprovado", "encerrado"],
+    "encerrado = interrompido no meio da vigência, a pedido do aluno e por decisão da PROPPEX");
   assert.deepEqual(MODALIDADES.map((m) => m.codigo),
     ["pibic-cnpq", "pibiti-cnpq", "pbic-uniego", "pbiti-uniego", "pbie-uniego", "voluntario"],
     "as seis modalidades do edital 01/2026 — cinco com bolsa e uma voluntária");
@@ -1085,4 +1088,44 @@ test("sigilo cruzado vale também na lista achatada de relatórios (achado ago/2
     { email: "ad@x.com", gestao: false });
   assert.equal(doAvaliador.contestacoes, undefined, "contestação desanonimizaria a proposta");
   assert.equal(doAvaliador.fomento, undefined, "a bolsa concedida não é assunto do parecerista");
+});
+
+/* ------------------- encerramento do projeto no meio ---------------------
+   Professor desligado no meio da gestão, aluno sem orientação, projeto que
+   não tem como seguir: o aluno relata a interrupção no relatório que estiver
+   entregando (parcial OU final) e a PROPPEX decide. */
+test("encerramento: o pedido viaja no relatório e só conta enquanto não decidido", () => {
+  // relatórios vêm da BASE (o formulário não os manda): é o servidor que grava
+  const semPedido = normalizarProjeto({}, { base: { relatorios: [{ tipo: "parcial", aluno: "a@x.com" }] } });
+  assert.equal(pedidoEncerramentoPendente(semPedido), null);
+  assert.equal(semPedido.relatorios[0].encerramento.pedido, false);
+
+  const comPedido = normalizarProjeto({}, { base: { relatorios: [
+    { tipo: "parcial", aluno: "a@x.com",
+      encerramento: { pedido: true, motivo: "O orientador foi desligado em março e o projeto parou." } },
+  ] } });
+  const pend = pedidoEncerramentoPendente(comPedido);
+  assert.equal(pend?.tipo, "parcial");
+  assert.match(pend.encerramento.motivo, /desligado/);
+  assert.equal(encerramentoAceito(comPedido), null, "ainda não há decisão");
+
+  // status também é do servidor: vem da base, não do formulário
+  const decidido = normalizarProjeto({}, { base: { status: "encerrado", relatorios: [
+    { tipo: "final", aluno: "a@x.com",
+      encerramento: { pedido: true, motivo: "Sem orientação desde abril.", decisao: "aceito",
+        parecer: "Encerrado pela PROPPEX.", decididoPor: "pesquisa@uniego.edu.br" } },
+  ] } });
+  assert.equal(pedidoEncerramentoPendente(decidido), null, "decidido sai da fila");
+  assert.equal(encerramentoAceito(decidido)?.tipo, "final");
+  assert.equal(decidido.status, "encerrado");
+  assert.equal(ROTULO_STATUS.encerrado, "Encerrado");
+});
+
+test("encerramento: projeto encerrado não tem prazo de relatório correndo", () => {
+  const p = normalizarProjeto({
+    status: "encerrado", edital: "01/2026",
+    vigenciaInicio: "2026-09-01", vigenciaFim: "2027-08-31",
+  });
+  assert.equal(prazosRelatorios(p, "2027-03-01"), null,
+    "sem prazo: encerrado não entra na cobrança nem aparece atrasado");
 });

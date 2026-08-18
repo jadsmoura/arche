@@ -159,6 +159,8 @@
   .b-aprovado{background:var(--ok-soft);color:var(--ok)}
   .b-concluido{background:var(--roxo-soft);color:var(--roxo)}
   .b-reprovado{background:var(--err-soft);color:var(--err)}
+  /* interrompido no meio da vigência — nem concluído, nem reprovado */
+  .b-encerrado{background:var(--warn-soft);color:var(--warn)}
   .b-prevista{background:#eceff3;color:var(--muted)}
   .b-andamento{background:var(--info-soft);color:var(--info)}
   .b-concluida{background:var(--ok-soft);color:var(--ok)}
@@ -4604,9 +4606,10 @@ function blocoRelatorioIC(p, r) {
       </div>
       <div class="muted">Enviado em ${fmtDH(r.enviadoEm)}${r.periodo ? ` · período: ${esc(r.periodo)}` : ""}</div>
       ${corpoRelatorioIC(p, r)}
+      ${blocoEncerramentoIC(p, r)}
       ${r.situacao === "validado" && r.validadoPelaGestao ? `<div class="muted" style="margin-top:6px">
         Validado <b>pela PROPPEX, em nome da orientação</b> — registrado no histórico do projeto.</div>` : ""}
-      ${PODE.podeValidar && r.situacao === "enviado" ? `
+      ${PODE.podeValidar && r.situacao === "enviado" && !(r.encerramento?.pedido && !r.encerramento?.decisao) ? `
         <div style="border-top:1px solid var(--line);margin-top:10px;padding-top:8px">
           <div style="font-weight:700">${PODE.papel === "gestao" ? "Validação — pela PROPPEX, em nome da orientação" : "Validação da orientação"}</div>
           ${PODE.papel === "gestao" ? `<div class="muted" style="font-size:12.5px;margin-top:2px">Para orientadores desligados
@@ -4625,6 +4628,62 @@ function blocoRelatorioIC(p, r) {
           </div>
         </div>` : ""}
     </div>`;
+}
+
+/* PEDIDO DE ENCERRAMENTO do projeto (decisão do dono, ago/2026). O aluno
+   relata a interrupção no relatório que estiver entregando; quem decide é a
+   PROPPEX — no caso típico (professor desligado no meio da vigência) a
+   orientação é justamente a parte que não está mais lá. Enquanto o pedido
+   espera decisão, a validação comum do relatório não aparece: o que está em
+   jogo é o encerramento, não o mérito do que foi entregue. */
+function blocoEncerramentoIC(p, r) {
+  const e = r.encerramento || {};
+  if (!e.pedido) return "";
+  const cab = `<div style="font-weight:700">⛔ Pedido de encerramento do projeto</div>
+    <div class="muted" style="font-size:12.5px">Relatado pelo aluno no relatório ${esc(r.tipo)}${e.em ? ` · ${fmtDH(e.em)}` : ""}</div>
+    <div style="margin-top:6px;white-space:pre-line">${esc(e.motivo || "")}</div>`;
+  if (e.decisao) {
+    return `<div class="banner ${e.decisao === "aceito" ? "ba-warn" : "ba-info"}" style="margin-top:10px">
+      ${cab}
+      <div style="margin-top:8px;border-top:1px solid rgba(0,0,0,.08);padding-top:6px">
+        <b>${e.decisao === "aceito" ? "Encerramento validado pela PROPPEX" : "Encerramento recusado pela PROPPEX"}</b>
+        ${e.decididoEm ? ` · ${fmtDH(e.decididoEm)}` : ""}
+        <div style="white-space:pre-line;margin-top:4px">${esc(e.parecer || "")}</div>
+      </div></div>`;
+  }
+  const souGestao = PODE.papel === "gestao";
+  return `<div class="banner ba-warn" style="margin-top:10px">
+    ${cab}
+    ${souGestao ? `
+      <div style="margin-top:10px;border-top:1px solid rgba(0,0,0,.08);padding-top:8px">
+        <div style="font-weight:700">Decisão da PROPPEX</div>
+        <div class="muted" style="font-size:12.5px">Aceitar encerra o projeto (situação <b>Encerrado</b>) e valida este
+          relatório como o registro da interrupção. Recusar devolve o relatório ao caminho normal, com o seu parecer.</div>
+        <label style="margin-top:6px">Parecer da coordenação *</label>
+        <textarea id="enc-par-${esc(r.id)}" rows="3" placeholder="O que a PROPPEX apurou e decide…"></textarea>
+        <div class="exp" style="margin-top:8px">
+          <button class="bt bt-err" onclick="decidirEncerramento('${esc(p.id)}','${esc(r.id)}','aceito')">⛔ Encerrar o projeto</button>
+          <button class="bt bt-sec" onclick="decidirEncerramento('${esc(p.id)}','${esc(r.id)}','recusado')">↩ Recusar o pedido</button>
+        </div>
+      </div>`
+      : `<div class="muted" style="margin-top:8px">Aguardando a validação da PROPPEX — é ela que encerra o projeto
+        nestes casos. A orientação não decide.</div>`}
+  </div>`;
+}
+
+async function decidirEncerramento(projetoId, relId, decisao) {
+  const parecer = ($("enc-par-" + relId)?.value || "").trim();
+  if (parecer.length < 10) return aviso("Escreva o parecer da coordenação — ele fica no histórico do projeto.", "warn");
+  if (decisao === "aceito" && !confirm("Encerrar este projeto?\n\nA situação passa a ENCERRADO e o relatório fica validado como registro da interrupção.")) return;
+  try {
+    await api(`/api/ic/${projetoId}/relatorio/${relId}/encerramento`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decisao, parecer }),
+    });
+    document.getElementById("ov-rel-ic")?.remove();
+    await carregar(); montarSidebar(); await abrir(projetoId);
+    aviso(decisao === "aceito" ? "Projeto encerrado — a decisão está no histórico." : "Pedido recusado — o relatório volta ao caminho normal.");
+  } catch (e) { aviso(e.message, "err"); }
 }
 
 /* A janela "ler e validar" da IC (pedido do dono, ago/2026): o orientador —
@@ -4694,6 +4753,7 @@ function renderRelatoriosDoProjeto(p) {
         <input type="file" id="anexos-parcial" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
         ${quadroAvaliacaoProjeto("rp", r?.avaliacaoProjeto || {})}
         ${quadroEscala("rp-ao", M.criteriosOrientador, r?.avaliacaoOrientador || {}, "Avaliação da atuação do orientador (pelo discente)")}
+        ${blocoInterrompido("rp", r)}
         <div class="exp" style="margin-top:12px"><button class="bt bt-pri" onclick="enviarRelatorio('parcial')">Enviar relatório parcial</button></div>
       </div>`;
     }
@@ -4727,6 +4787,7 @@ function renderRelatoriosDoProjeto(p) {
       <textarea id="rf-obs" rows="3">${esc(r?.resumo || "")}</textarea>
       ${quadroAvaliacaoProjeto("rf", r?.avaliacaoProjeto || {})}
       ${quadroEscala("rf-ao", M.criteriosOrientador, r?.avaliacaoOrientador || {}, "Avaliação da atuação do orientador (pelo discente)")}
+      ${blocoInterrompido("rf", r)}
       <div class="exp" style="margin-top:12px"><button class="bt bt-pri" onclick="enviarRelatorio('final')">Enviar relatório final</button></div>
     </div>`;
   };
@@ -4742,6 +4803,32 @@ function renderRelatoriosDoProjeto(p) {
   </div>`;
 }
 
+/* "O projeto foi interrompido" — no PARCIAL e no FINAL, porque a interrupção
+   pode acontecer entre um e outro (decisão do dono, ago/2026). Marcada a
+   caixa, o relatório muda de natureza: o que se pede é a JUSTIFICATIVA, e as
+   seções do roteiro, o artigo e as avaliações deixam de ser cobrados — não há
+   como exigir artigo de um projeto que não correu. Quem decide é a PROPPEX. */
+function blocoInterrompido(pref, r) {
+  const e = r?.encerramento || {};
+  return `
+    <div class="bloco" style="border-color:var(--warn);background:#fffaf2;margin-top:14px">
+      <label style="display:flex;gap:9px;align-items:flex-start;text-transform:none;letter-spacing:0;font-weight:600">
+        <input type="checkbox" id="${pref}-enc" style="width:auto;margin-top:3px" ${e.pedido ? "checked" : ""}
+          onchange="document.getElementById('${pref}-enc-cx').style.display=this.checked?'block':'none'">
+        <span>O projeto foi <b>interrompido ou cancelado</b> — quero registrar isso e pedir o encerramento
+          <div class="muted" style="font-weight:400;margin-top:2px">Ex.: desligamento do orientador, mudança de
+            instituição, desistência, inviabilidade do campo. Marcando aqui, o relatório vale como o registro da
+            interrupção — as demais exigências deixam de ser cobradas — e o pedido vai à PROPPEX, que decide o
+            encerramento. Enquanto isso, o projeto continua como está.</div></span>
+      </label>
+      <div id="${pref}-enc-cx" style="display:${e.pedido ? "block" : "none"};margin-top:8px">
+        <label>Justificativa *</label>
+        <textarea id="${pref}-enc-motivo" rows="4"
+          placeholder="Conte o que aconteceu, desde quando, e o que chegou a ser feito até aqui.">${esc(e.motivo || "")}</textarea>
+      </div>
+    </div>`;
+}
+
 async function enviarRelatorio(tipo) {
   const M = REL_MODELO();
   const corpo = { tipo, periodo: ($("per-" + tipo)?.value || "").trim() };
@@ -4754,8 +4841,33 @@ async function enviarRelatorio(tipo) {
       corpo.avaliacaoOrientador[c.codigo] = v === "" || v == null ? "" : Number(v);
     }
   };
+  // pedido de encerramento: quando marcado, as demais exigências caem
+  const pref = tipo === "parcial" ? "rp" : "rf";
+  const pediuEnc = $(pref + "-enc")?.checked === true;
+  if (pediuEnc) {
+    const motivo = ($(pref + "-enc-motivo")?.value || "").trim();
+    if (motivo.length < 30)
+      return aviso("Explique por que o projeto foi interrompido — a justificativa vai à PROPPEX (mínimo de 30 caracteres).", "warn");
+    corpo.encerramento = { pedido: true, motivo };
+  }
   let arquivos = [];
-  if (tipo === "parcial") {
+  if (pediuEnc) {
+    // o relatório da interrupção leva o que houver: as seções preenchidas, os
+    // dados do artigo se existirem, os anexos — nada é obrigatório
+    corpo.campos = {};
+    for (const s of M.camposParcial || []) corpo.campos[s.campo] = ($(`${pref}-${s.campo}`)?.value || "").trim();
+    if (tipo === "final") {
+      corpo.artigo = {
+        revista: ($("rf-revista")?.value || "").trim(), issn: ($("rf-issn")?.value || "").trim(),
+        qualis: ($("rf-qualis")?.value || "").trim(), link: ($("rf-link")?.value || "").trim(),
+        fatorImpacto: ($("rf-fator")?.value || "").trim(),
+      };
+      corpo.resumo = ($("rf-obs")?.value || "").trim();
+      corpo.campos = { eventos: ($("rf-eventos")?.value || "").trim() };
+    }
+    leAvaliacoes(pref);
+    arquivos = [...($(`anexos-${tipo}`)?.files || [])];
+  } else if (tipo === "parcial") {
     corpo.campos = {};
     for (const s of M.camposParcial || []) corpo.campos[s.campo] = ($("rp-" + s.campo)?.value || "").trim();
     const faltam = (M.obrigatorios || []).filter((c) => (corpo.campos[c] || "").length < 30)
@@ -4794,7 +4906,9 @@ async function enviarRelatorio(tipo) {
       await api(`/api/ic/${ATUAL.id}/relatorio/${r.relatorio.id}/anexo`, { method: "POST", body: fd });
     }
     await carregar(); montarSidebar(); await abrir(ATUAL.id);
-    aviso("Relatório enviado. A orientação e a PROPPEX foram avisadas.");
+    aviso(pediuEnc
+      ? "Registro enviado. A PROPPEX foi avisada e decide o encerramento do projeto."
+      : "Relatório enviado. A orientação e a PROPPEX foram avisadas.");
   } catch (e) { aviso(e.message, "err"); }
 }
 

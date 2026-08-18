@@ -770,6 +770,19 @@ public/
   (visaoDoProjeto): o orientador não vê a avaliação que levou, o aluno não vê as notas
   nem o parecer sobre ele; a gestão lê os dois lados. Validar = "encaminhar à PROPPEX"
   (avisa pesquisa@); devolver exige comentário e reabre o envio para o aluno.
+- **Projeto INTERROMPIDO no meio** (`encerramento` no relatório + `status: "encerrado"`,
+  decisão do dono ago/2026): professor desligado no meio da gestão, aluno sem orientação,
+  campo que se inviabiliza — o projeto não conclui nem se reprova, e ficava preso. Agora o
+  **ALUNO relata a interrupção no relatório que estiver entregando** (parcial OU final: a
+  interrupção pode acontecer entre um e outro), com **justificativa** (mín. 30 caracteres).
+  Marcado o pedido, o relatório muda de natureza — **não se cobram** as seções do roteiro, o
+  artigo da revista nem as avaliações: não há como exigir artigo de projeto que não correu.
+  **Quem decide é a PROPPEX** (`POST /api/ic/:id/relatorio/:rid/encerramento`), nunca a
+  orientação — no caso típico ela é justamente a parte ausente; e a validação comum do
+  relatório some da tela enquanto o pedido espera. Aceito, o projeto passa a **encerrado** e
+  o relatório fica validado como o registro da interrupção; recusado, o parecer fica no
+  histórico e o relatório volta ao caminho normal. O pedido aparece no **sino** da gestão, e
+  projeto encerrado não tem prazo correndo (sai da cobrança e do "atrasado").
 - **A PROPPEX valida relatório EM NOME da orientação** (decisão do dono, ago/2026):
   orientadores desligados da instituição não voltam para validar, e o relatório do
   aluno não pode ficar refém disso. `podeValidarRelatorio` já aceitava a gestão; o que
