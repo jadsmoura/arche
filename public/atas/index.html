@@ -334,6 +334,19 @@
   .matriz td.esq{text-align:left;position:sticky;left:0;background:#fff;z-index:1}
   .rolagem{overflow-x:auto;margin:0 -6px;padding:0 6px}
   .bolinha{display:inline-block;width:15px;height:15px;border-radius:5px}
+  /* resultados da busca: o trecho é a resposta — o destaque tem de saltar */
+  .lk{background:none;border:0;padding:0;color:var(--brand-2);font-weight:700;font-size:14px;
+    cursor:pointer;font-family:inherit;text-decoration:underline}
+  .lk:hover{color:var(--brand)}
+  .res-busca{padding:14px 16px}
+  .res-cab{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  .res-busca .tr{font-size:13.5px;line-height:1.6;color:var(--ink-soft);padding:6px 0;
+    border-top:1px solid var(--line-2)}
+  .res-busca .tr:first-of-type{border-top:0}
+  .res-busca .onde{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    text-transform:uppercase;color:var(--brand-2);background:var(--wash);border-radius:6px;
+    padding:2px 7px;margin-right:8px;white-space:nowrap}
+  .res-busca mark{background:#fff3ba;color:inherit;border-radius:3px;padding:0 2px;font-weight:700}
   .lg{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:12px 0 4px}
   .lg span{display:flex;align-items:center;gap:6px}
   /* itens de grade não podem ser mais largos que a coluna: sem isto, um
@@ -373,6 +386,7 @@
         <section id="v-painel" class="hide"></section>
         <section id="v-nova" class="hide"></section>
         <section id="v-arquivo" class="hide"></section>
+        <section id="v-busca" class="hide"></section>
         <section id="v-encaminhamentos" class="hide"></section>
         <section id="v-regulatoria" class="hide"></section>
         <section id="v-conformidade" class="hide"></section>
@@ -408,6 +422,7 @@ const SECOES = [
   { id: "painel", rot: "Painel", ic: '<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>' },
   { id: "nova", rot: "Nova reunião", ic: '<path d="M12 5v14M5 12h14"/>' },
   { id: "arquivo", rot: "Arquivo de atas", ic: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h8"/>' },
+  { id: "busca", rot: "Buscar no acervo", ic: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>' },
   { id: "regulatoria", rot: "Pauta regulatória", ic: '<path d="M9 2h6a2 2 0 0 1 2 2v2h2a1 1 0 0 1 1 1v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a1 1 0 0 1 1-1h2V4a2 2 0 0 1 2-2z"/><path d="M9 13l2 2 4-4"/>' },
   { id: "conformidade", rot: "Acompanhamento", ic: '<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>', gestao: true },
   { id: "encaminhamentos", rot: "Encaminhamentos", ic: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>' },
@@ -444,7 +459,7 @@ function nav(secao, id) {
   SECAO = secao;
   if (!["nova", "ata"].includes(secao)) selo("");
   for (const b of document.querySelectorAll(".side-item")) b.classList.toggle("on", b.dataset.s === secao);
-  for (const v of ["painel", "nova", "arquivo", "encaminhamentos", "regulatoria", "conformidade", "ata"]) $("v-" + v).classList.add("hide");
+  for (const v of ["painel", "nova", "arquivo", "busca", "encaminhamentos", "regulatoria", "conformidade", "ata"]) $("v-" + v).classList.add("hide");
   // "nova" e "ata" usam o mesmo editor (mesmos ids): a seção que sai do ar é
   // esvaziada, senão getElementById passa a devolver os campos escondidos.
   for (const v of ["nova", "ata"]) if (v !== secao) $("v-" + v).innerHTML = "";
@@ -454,6 +469,7 @@ function nav(secao, id) {
     painel: ["Painel", "Situação das atas dos órgãos colegiados."],
     nova: ["Nova reunião", "Registre a sessão; a minuta é redigida a partir destes campos."],
     arquivo: ["Arquivo de atas", "Todas as atas a que você tem acesso."],
+    busca: ["Buscar no acervo", "Procure uma expressão dentro das atas — pauta, discussão, deliberação, encaminhamento e texto."],
     encaminhamentos: ["Encaminhamentos", "Tarefas deliberadas em sessão, com responsável e prazo."],
     regulatoria: ["Pauta regulatória", "Temas que os instrumentos do INEP/MEC esperam ver debatidos e registrados em ata."],
     conformidade: ["Acompanhamento da PROPPEX", "Quais cursos e órgãos estão cumprindo a pauta regulatória."],
@@ -466,6 +482,7 @@ function nav(secao, id) {
   if (secao === "painel") { renderPainel(); $("v-painel").classList.remove("hide"); }
   if (secao === "nova") { ATUAL = novaAta(); PODE_EDITAR = true; renderEditor("v-nova"); $("v-nova").classList.remove("hide"); }
   if (secao === "arquivo") { renderArquivo(); $("v-arquivo").classList.remove("hide"); }
+  if (secao === "busca") { renderBusca(); $("v-busca").classList.remove("hide"); }
   if (secao === "encaminhamentos") { renderEncaminhamentos(); $("v-encaminhamentos").classList.remove("hide"); }
   if (secao === "regulatoria") { renderRegulatoria(); $("v-regulatoria").classList.remove("hide"); }
   if (secao === "conformidade") { renderConformidade(); $("v-conformidade").classList.remove("hide"); }
@@ -628,6 +645,88 @@ function renderArquivo() {
         ? "Como gestão, você vê as atas de todos os órgãos."
         : "Você vê aqui as atas que registrou; a PROPPEX acompanha as de todos."}</div>
     ${gruposDoArquivo(f)}`;
+}
+
+/* ============================ BUSCA NO ACERVO ===========================
+   "Isso já foi discutido em alguma reunião?" — a pergunta que se faz ao
+   acervo (pedido do dono, ago/2026). Quem varre é o servidor, nas atas que a
+   pessoa pode ver, e devolve o TRECHO com a expressão destacada e o lugar
+   onde ela apareceu ("Ponto 3 · deliberação"): é o trecho que responde; o
+   número e a data dizem onde provar. */
+const BUSCA = { q: "", orgao: "", curso: "", de: "", ate: "", status: "", r: null, buscando: false };
+
+function renderBusca() {
+  const opc = (v, l, sel) => `<option value="${esc(v)}" ${sel === v ? "selected" : ""}>${esc(l)}</option>`;
+  $("v-busca").innerHTML = `
+    <div class="card">
+      <div class="filtros" style="margin:0">
+        <input id="bq" placeholder="o que procurar nas atas… (ex.: matriz curricular, estágio, TCC)"
+          value="${esc(BUSCA.q)}" style="flex:1 1 320px"
+          oninput="BUSCA.q=this.value" onkeydown="if(event.key==='Enter')fazerBusca()">
+        <button class="bt bt-pri" onclick="fazerBusca()">Buscar</button>
+      </div>
+      <div class="filtros" style="margin-top:8px">
+        <select onchange="BUSCA.orgao=this.value;fazerBusca()">${opc("", "Todos os órgãos", BUSCA.orgao)}
+          ${META.orgaos.map((o) => opc(o.codigo, o.nome, BUSCA.orgao)).join("")}</select>
+        <select onchange="BUSCA.curso=this.value;fazerBusca()">${opc("", "Todos os cursos", BUSCA.curso)}
+          ${META.cursos.map((c) => opc(c.slug, c.nome, BUSCA.curso)).join("")}</select>
+        <select onchange="BUSCA.status=this.value;fazerBusca()">${opc("", "Todas as situações", BUSCA.status)}
+          ${META.status.map((x) => opc(x, ROTULO_STATUS[x] || x, BUSCA.status)).join("")}</select>
+        <label class="cnt" style="display:flex;align-items:center;gap:6px;margin:0">de
+          <input type="date" value="${esc(BUSCA.de)}" onchange="BUSCA.de=this.value;fazerBusca()"></label>
+        <label class="cnt" style="display:flex;align-items:center;gap:6px;margin:0">até
+          <input type="date" value="${esc(BUSCA.ate)}" onchange="BUSCA.ate=this.value;fazerBusca()"></label>
+      </div>
+      <div class="cnt" style="margin-top:8px">Procura em pontos de pauta, discussões, deliberações,
+        encaminhamentos, informes, presenças e no texto da ata. Acento e maiúscula não contam;
+        com duas palavras, a ata precisa ter as duas.
+        ${META.gestao ? "Como gestão, a busca varre o acervo inteiro." : "A busca varre as atas que você registrou."}</div>
+    </div>
+    <div id="busca-resultado"></div>`;
+  if (BUSCA.r) pintarBusca();
+  setTimeout(() => $("bq")?.focus(), 60);
+}
+
+async function fazerBusca() {
+  const alvo = $("busca-resultado");
+  if (!BUSCA.q.trim()) { BUSCA.r = null; if (alvo) alvo.innerHTML = ""; return; }
+  if (alvo) alvo.innerHTML = '<div class="cnt">procurando…</div>';
+  try {
+    const p = new URLSearchParams({ q: BUSCA.q });
+    for (const k of ["orgao", "curso", "de", "ate", "status"]) if (BUSCA[k]) p.set(k, BUSCA[k]);
+    BUSCA.r = await api("/api/atas/busca?" + p.toString());
+    pintarBusca();
+  } catch (e) {
+    if (alvo) alvo.innerHTML = `<div class="aviso err">${esc(e.message)}</div>`;
+  }
+}
+
+function pintarBusca() {
+  const alvo = $("busca-resultado"); if (!alvo || !BUSCA.r) return;
+  const r = BUSCA.r;
+  if (!r.total) {
+    alvo.innerHTML = `<div class="card"><div class="cnt">Nada encontrado para
+      <b>${esc(BUSCA.q)}</b> nas ${r.acervo} ata(s) do recorte.
+      <div style="margin-top:6px">Tente uma palavra só, ou o termo como foi escrito na reunião —
+      a busca é literal (não procura sinônimos).</div></div></div>`;
+    return;
+  }
+  const trecho = (t) => `<div class="tr">
+      <span class="onde">${esc(t.onde)}</span>
+      <span>${t.inicioCortado ? "… " : ""}${t.partes.map((p) => p.m ? `<mark>${esc(p.t)}</mark>` : esc(p.t)).join("")}${t.fimCortado ? " …" : ""}</span>
+    </div>`;
+  alvo.innerHTML = `
+    <div class="cnt" style="margin:10px 0 6px">${r.total} ata(s) com
+      ${r.termos.map((t) => `<b>${esc(t)}</b>`).join(" + ")} — de ${r.acervo} no recorte.</div>
+    ${r.resultados.map((a) => `
+      <div class="card res-busca">
+        <div class="res-cab">
+          <button class="lk" onclick="abrir('${esc(a.id)}')">${esc(a.numero || "(sem número — " + (ROTULO_STATUS[a.status] || a.status) + ")")}</button>
+          <span class="badge b-${esc(a.status)}">${esc(ROTULO_STATUS[a.status] || a.status)}</span>
+          <span class="cnt">${esc(a.titulo)} · ${esc(fmtD(a.data))}${a.tipo ? " · " + esc(a.tipo) : ""}</span>
+        </div>
+        ${a.trechos.map(trecho).join("")}
+      </div>`).join("")}`;
 }
 
 /* O arquivo em CATEGORIAS, para as atas não se misturarem: primeiro cada

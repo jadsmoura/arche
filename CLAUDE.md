@@ -1080,6 +1080,16 @@ public/
   ata entra sempre como urgente, faltem 5 ou 150 dias para o fim do semestre.
 - Presenças são digitadas a cada sessão pelo responsável — **não há cadastro fixo de
   composição de órgão**, por decisão do dono (lista fixa emperra o processo).
+- **Busca no acervo** (`buscarAtas` em lib/atas.js + `GET /api/atas/busca`, guia "Buscar no
+  acervo", pedido do dono ago/2026): "isso já foi discutido em alguma reunião?" não se
+  responde abrindo ata por ata. A varredura cobre onde a discussão mora — pontos de pauta,
+  discussões, deliberações, encaminhamentos, informes, observações, presenças e o texto da
+  minuta — e devolve o **TRECHO** com a expressão destacada e o **lugar** ("Ponto 3 ·
+  deliberação"): é o trecho que responde; o número e a data dizem onde provar. Acento e caixa
+  não contam (`normalizarBusca`), dois termos exigem os dois **na mesma ata**, e o destaque
+  vem do servidor em partes marcadas — a tela não repete a normalização. O **recorte por
+  autor vale igual**: quem busca só encontra o que já podia ver (a rota filtra por
+  `podeVerAta` antes de varrer). Filtros de órgão, curso, período e situação estreitam.
 - **Retomar encaminhamentos** (`GET /api/atas/encaminhamentos-anteriores` + botão na pauta):
   encaminhamento sem retomada é a queixa mais comum de quem lê uma série de atas — a
   reunião decide "fulano providencia até tal dia" e ninguém volta ao assunto. A tela traz o

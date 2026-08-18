@@ -6,6 +6,7 @@ import zlib from "node:zlib";
 import {
   numeroAta, proximoSequencial, numerar, serieDe, siglaCurso, normalizarAta,
   validarAta, tituloDe, quorum, encaminhamentos, anotar, orgaoDe, avisosDaAta,
+  buscarAtas, termosDaBusca,
 } from "../lib/atas.js";
 import { extenso, dataExtenso, horaExtenso, redigirPorModelo, provedorAtivo, fichaDaReuniao,
   ESTILOS, estiloDe, estiloPadrao, instrucaoDe } from "../lib/redator.js";
@@ -616,4 +617,58 @@ test("a instrução da IA leva a orientação do estilo sem afrouxar a regra de 
   assert.match(instrucaoDe("concisa"), /concisa/i);
   // estilo desconhecido não deixa a instrução sem orientação nenhuma
   assert.match(instrucaoDe("qualquer"), /EXTENSÃO: padrão/);
+});
+
+/* ------------------------- busca no acervo ------------------------------- */
+const ataDeBusca = (extra = {}) => ({
+  id: "a1", numero: "ATA-NDE-ENF-2026-003", status: "registrada",
+  orgao: "nde", curso: "enfermagem",
+  sessao: { tipo: "ordinária", data: "2026-03-10" },
+  participantes: [{ nome: "Thiago Brito", cargo: "coordenador" }],
+  pauta: [{
+    titulo: "Revisão da matriz curricular",
+    discussao: "O NDE debateu a carga horária de estágio supervisionado.",
+    deliberacao: "Aprovada a alteração da matriz.",
+    encaminhamento: { acao: "Encaminhar ao Colegiado", responsavel: "Thiago", prazo: "2026-04-10" },
+  }],
+  texto: "Aos dez dias do mês de março reuniu-se o Núcleo Docente Estruturante…",
+  ...extra,
+});
+
+test("busca: acento e caixa não contam, e o trecho vem do lugar certo", () => {
+  const r = buscarAtas([ataDeBusca()], "CURRICULAR");
+  assert.equal(r.total, 1);
+  assert.equal(r.resultados[0].numero, "ATA-NDE-ENF-2026-003");
+  const primeiro = r.resultados[0].trechos[0];
+  assert.equal(primeiro.onde, "Ponto 1 · título");
+  assert.equal(primeiro.partes.filter((p) => p.m).map((p) => p.t).join(""), "curricular",
+    "o destaque sai marcado no texto original, com o acento como foi escrito");
+});
+
+test("busca: duas palavras exigem as duas na MESMA ata", () => {
+  const outra = ataDeBusca({ id: "a2", numero: "ATA-COL-ENF-2026-001",
+    pauta: [{ titulo: "Estágio", discussao: "Convênio de campo de prática." }], texto: "" });
+  const atas = [ataDeBusca(), outra];
+  assert.equal(buscarAtas(atas, "estagio matriz").total, 1, "só a que tem as duas");
+  assert.equal(buscarAtas(atas, "estagio").total, 2);
+});
+
+test("busca: procura em deliberação, encaminhamento, presença e texto", () => {
+  const atas = [ataDeBusca()];
+  assert.equal(buscarAtas(atas, "aprovada").resultados[0].trechos[0].onde, "Ponto 1 · deliberação");
+  assert.equal(buscarAtas(atas, "colegiado").resultados[0].trechos[0].onde, "Ponto 1 · encaminhamento");
+  assert.equal(buscarAtas(atas, "thiago").resultados[0].trechos[0].onde, "Presenças");
+  assert.equal(buscarAtas(atas, "estruturante").resultados[0].trechos[0].onde, "Texto da ata");
+});
+
+test("busca: expressão vazia ou de uma letra não varre nada", () => {
+  assert.deepEqual(buscarAtas([ataDeBusca()], ""), { termos: [], total: 0, resultados: [] });
+  assert.deepEqual(buscarAtas([ataDeBusca()], "a"), { termos: [], total: 0, resultados: [] });
+  assert.equal(buscarAtas([ataDeBusca()], "inexistente").total, 0);
+});
+
+test("busca: resultado da sessão mais recente para a mais antiga", () => {
+  const velha = ataDeBusca({ id: "v", sessao: { data: "2025-02-01" } });
+  const nova = ataDeBusca({ id: "n", sessao: { data: "2026-08-01" } });
+  assert.deepEqual(buscarAtas([velha, nova], "matriz").resultados.map((x) => x.id), ["n", "v"]);
 });

@@ -18,6 +18,7 @@ import { varrer, varrerSeVencido, dispensar, situacao } from "./lib/cobranca.js"
 import {
   ATAS_KEY, ORGAOS, CURSOS, STATUS as ATA_STATUS, normalizarAta, validarAta,
   numerar, tituloDe, anotar, encaminhamentos, orgaoDe, podeVerAta, podeEditarAta, statusVigente,
+  buscarAtas,
 } from "./lib/atas.js";
 import {
   PAUTAS, MOMENTOS, CADENCIAS, RITUAL, checklistSemestral, pautasSugeridas, janelaDe,
@@ -3353,6 +3354,36 @@ app.get("/api/atas", async (req, res) => {
     })).sort((x, y) => String(y.sessao?.data || "").localeCompare(String(x.sessao?.data || ""))),
     encaminhamentos: encaminhamentos(atas).filter((e) => e.prazo),
   });
+});
+
+/* A BUSCA no acervo (pedido do dono, ago/2026): "isso já foi discutido em
+   alguma reunião?" é pergunta que ninguém responde abrindo ata por ata. A
+   varredura é feita no servidor sobre as atas que a PESSOA pode ver — o
+   recorte por autor vale igual aqui: buscar não pode virar uma porta para o
+   acervo alheio. Filtros opcionais de órgão, curso, período e situação
+   estreitam o resultado; a expressão é obrigatória. */
+app.get("/api/atas/busca", async (req, res) => {
+  try {
+    const u = await sessaoAtas(req, res);
+    if (!u) return;
+    const q = String(req.query.q || "").slice(0, 200);
+    const orgao = String(req.query.orgao || "");
+    const curso = String(req.query.curso || "");
+    const de = String(req.query.de || "");
+    const ate = String(req.query.ate || "");
+    const status = String(req.query.status || "");
+    let atas = (await lerAtas()).filter((a) => podeVer(u, a));
+    if (orgao) atas = atas.filter((a) => a.orgao === orgao);
+    if (curso) atas = atas.filter((a) => a.curso === curso);
+    if (status) atas = atas.filter((a) => statusVigente(a.status) === status);
+    if (de) atas = atas.filter((a) => String(a.sessao?.data || "") >= de);
+    if (ate) atas = atas.filter((a) => String(a.sessao?.data || "") <= ate);
+    const r = buscarAtas(atas, q);
+    res.json({ ...r, acervo: atas.length, gestao: gereAtas(u) });
+  } catch (e) {
+    console.error("Erro na busca das atas:", e);
+    res.status(500).json({ error: "Não foi possível buscar agora." });
+  }
 });
 
 /* ---------------------- ARCHÉ AT — PAUTA REGULATÓRIA -------------------- */
