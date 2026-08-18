@@ -1,0 +1,42 @@
+ARCHÉ — Portal de gestão da PROPPEX / UNIEGO
+Copyright (c) 2026. Todos os direitos reservados.
+
+Autor: Prof. Dr. Jadson Belém de Moura
+Desenvolvido no âmbito da Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e
+Ação Comunitária (PROPPEX) do Centro Universitário Evangélico de Goianésia
+(UNIEGO).
+
+Este programa de computador é obra protegida pela Lei nº 9.609, de 19 de
+fevereiro de 1998, e pela Lei nº 9.610, de 19 de fevereiro de 1998. A proteção
+independe de registro; o registro no INPI, quando efetuado, serve como prova
+de anterioridade, autoria e conteúdo.
+
+TITULARIDADE PATRIMONIAL
+Observa o art. 4º da Lei nº 9.609/98 e será formalizada em instrumento próprio
+entre o autor e a mantenedora da instituição. Até que esse instrumento exista,
+nada neste arquivo deve ser lido como renúncia, cessão ou reconhecimento de
+titularidade por qualquer das partes. Os direitos morais de autor são
+inalienáveis e irrenunciáveis (art. 2º, § 1º, da Lei nº 9.609/98).
+
+USO E DISTRIBUIÇÃO
+Nenhuma licença é concedida. É vedada a reprodução, a distribuição, a
+modificação, a engenharia reversa, a sublicença ou o uso do código-fonte, no
+todo ou em parte, sem autorização escrita dos titulares. O acesso ao
+repositório, concedido a colaboradores para fins de desenvolvimento, não
+transfere direito algum sobre a obra.
+
+COMPONENTES DE TERCEIROS
+Este repositório contém, além da obra própria:
+
+  · public/arche/ — módulo de Avaliação Institucional, aplicação COMPILADA por
+    terceiro (Manus) e integrada ao portal. Não é obra do autor acima e não
+    está abrangida por esta declaração.
+  · node_modules/ e as dependências declaradas em package.json — bibliotecas
+    de terceiros, cada uma regida pela própria licença.
+  · templates/ e public/assets/ — modelos de documento e identidade visual da
+    UNIEGO, de titularidade da instituição.
+
+DADOS PESSOAIS
+O sistema trata dados pessoais de estudantes, docentes e participantes de
+eventos, nos termos da Lei nº 13.709/2018 (LGPD). O controlador é a
+instituição. Nenhuma base de dados acompanha este repositório.

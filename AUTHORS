@@ -1,0 +1,42 @@
+ARCHÉ — Portal de gestão da PROPPEX / UNIEGO
+Declaração de autoria
+
+AUTOR
+  Prof. Dr. Jadson Belém de Moura
+  Pró-Reitor de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária
+  Centro Universitário Evangélico de Goianésia (UNIEGO)
+  jadson.moura@uniego.edu.br
+
+  Concepção, especificação funcional, regras de negócio, decisões de
+  arquitetura e de fluxo, revisão e homologação de todos os módulos.
+
+FERRAMENTA DE APOIO
+  Parte do código foi escrita com assistência de ferramenta de inteligência
+  artificial (Claude, da Anthropic), operada pelo autor, sob especificação,
+  revisão e aceitação dele.
+
+  Isso não cria coautoria nem titularidade de terceiro: a autoria de obra
+  intelectual é de pessoa natural, e a ferramenta é meio de criação, como um
+  compilador ou um editor de texto. Os provedores da ferramenta não reivindicam
+  direitos sobre a saída gerada.
+
+  Registro desta circunstância por transparência — é a mesma razão pela qual
+  muitos commits deste repositório aparecem com o autor "Claude" no histórico
+  do Git: efeito de configuração do ambiente de desenvolvimento, não atribuição
+  de autoria.
+
+HISTÓRICO
+  Primeiro commit: 13 de agosto de 2026
+  Em produção desde agosto de 2026, em https://arche.app.br
+
+MÓDULOS DE AUTORIA PRÓPRIA
+  ARCHÉ EX  Extensão — propostas, aprovação, relatórios, participantes
+  ARCHÉ EV  Eventos — hotsites, inscrição, credenciamento, transmissão
+  ARCHÉ IC  Iniciação Científica — editais, seleção, bolsas, relatórios
+  ARCHÉ AT  Atas e Colegiados — lavratura, pauta regulatória, conformidade
+  ARCHÉ ES  Reserva de Espaços — agenda, solicitação, conflito e bloqueios
+  Portal, autenticação, perfis, gestão de acessos e geradores de documento
+
+COMPONENTE DE TERCEIRO
+  ARCHÉ AV  Avaliação Institucional (public/arche/) — aplicação compilada por
+            terceiro (Manus), integrada ao portal. Não é obra do autor acima.
