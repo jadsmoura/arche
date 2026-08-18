@@ -302,7 +302,8 @@ public/
   servidor); imagem fora do formato ou grande demais é descartada sem derrubar a gravação.
 - **A credencial do participante** (decisão do dono, ago/2026): a inscrição já nasce
   **pré-preenchida para quem está logado** no ARCHÉ (`/api/me` no hotsite — só os dados da
-  PRÓPRIA conta, com o aviso e o "não sou eu, limpar"; visitante externo segue com o
+  PRÓPRIA conta, com o aviso RECOLHIDO numa linha só, que abre no clique e traz a conta usada
+  e o "não sou eu, limpar"; visitante externo segue com o
   formulário em branco, que é o público da página). O **e-mail de confirmação leva o QR
   embutido** (PNG inline por `cid:`, `multipart/related` no mailer) — é na caixa de entrada
   que a pessoa procura a credencial no dia. Na página da inscrição e logo após inscrever-se
