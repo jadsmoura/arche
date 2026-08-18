@@ -3487,6 +3487,62 @@ async function subirEspacosIniciais() {
   } catch (e) { console.error("[espacos] falha ao semear o catálogo:", e.message); }
 }
 
+/**
+ * As reservas que a recepção anotava À MÃO (planilha do auditório, 2026):
+ * sobem uma única vez, marcadas por `sys-esp-lote-<nome>`. A marca é o que
+ * impede um deploy de ressuscitar reserva que a gestão apagou de propósito.
+ *
+ * Entram como **confirmadas do DIA INTEIRO** (00:00–23:59): a planilha não
+ * tinha horário — o que se sabe é que o auditório estava tomado naquele dia,
+ * e é exatamente isso que precisa travar o pedido novo. Dias consecutivos com
+ * a mesma atividade viraram uma reserva só, que é como a agenda os desenha.
+ *
+ * A migração NÃO passa pela trava de conflito, de propósito: a planilha tem
+ * dias com duas atividades (auditório em turnos diferentes), e recusar a
+ * segunda apagaria um registro que existiu. Elas convivem na base; a trava
+ * segue valendo para todo pedido novo.
+ */
+const LOTES_ESPACOS = ["esp-auditorio-2026.json"];
+
+async function subirReservasMigradas() {
+  for (const arquivo of LOTES_ESPACOS) {
+    const nome = arquivo.replace(/^esp-|\.json$/g, "");
+    const marca = `sys-esp-lote-${nome}`;
+    try {
+      if (await storage.get(marca)) continue;
+      const caminho = path.join(__dirname, "dados", arquivo);
+      const lote = JSON.parse(await readFile(caminho, "utf8"));
+      const espacos = await lerEspacos();
+      let gravadas = 0;
+      for (const r of lote.reservas || []) {
+        const id = `res-${lote.lote}-${r.dataInicio}-${(r.linhas || [])[0] || 0}`;
+        const jaTem = (await lerReservas()).some((x) => x.id === id);
+        if (jaTem) continue;
+        const reserva = normalizarReserva({
+          itens: [{ espaco: lote.espaco }],
+          dataInicio: r.dataInicio, dataFim: r.dataFim,
+          horaInicio: "00:00", horaFim: "23:59",       // dia inteiro: não havia horário
+          atividade: r.atividade, orgao: r.orgao, orgaoOutro: r.orgaoOutro || "",
+          interessado: "setor",
+          justificativa: `Reserva registrada na planilha do auditório de 2026${r.responsavel ? `, por ${r.responsavel}` : ""}.`,
+        }, { espacos, base: { id, status: "confirmada",
+          solicitante: { email: "", nome: r.responsavel || "(planilha da recepção)", telefone: "" },
+          criadoEm: r.solicitadoEm ? `${r.solicitadoEm}T12:00:00.000Z` : new Date().toISOString() } });
+        reserva.protocolo = await novoProtocoloReserva();
+        reserva.origem = { lote: lote.lote, linhas: r.linhas || [], corrigido: !!r.corrigido };
+        reserva.historico = [{ em: reserva.criadoEm, por: "migração",
+          acao: "confirmada", motivo: "Transcrita da planilha de reservas do auditório (2026)" }];
+        await comReservas((reservas) => { reservas.push(reserva); return {}; });
+        gravadas++;
+      }
+      await storage.set(marca, new Date().toISOString());
+      console.log(`[espacos] lote ${nome}: ${gravadas} reserva(s) migrada(s)`);
+    } catch (e) {
+      console.error(`[espacos] falha ao migrar o lote ${nome}:`, e.message);
+    }
+  }
+}
+
 /** A sessão do setor: exige login (a guarda de AREAS_PROTEGIDAS já barrou a
     página; aqui é a API). Qualquer conta aprovada pede reserva — professor,
     coordenação, setor e aluno; a comunidade externa entra pelo pedido que
@@ -8328,6 +8384,7 @@ app.listen(port, () => {
       propagarCpfOrientadores, identidadeInstitucionalDoProReitor, criarPreCadastros,
       aplicarAvaliacoesTranscritas,
       subirEspacosIniciais,      // catálogo do ARCHÉ ES, uma única vez
+      subirReservasMigradas,     // e as reservas que a recepção anotava à mão
       // SEMPRE por último, e a cada arranque (achado de ago/2026 — o caso
       // Marlana): as migrações acima podem carimbar CPF em projeto que ainda
       // não tem e-mail, e uma vinculação que rodasse só uma vez, antes delas,

@@ -1206,6 +1206,18 @@ public/
   Pedidos aguardando entram no **sino** da gestão. `GET /api/espacos/ocupacao` conta horas
   por espaço (só confirmadas) — o número que se leva ao conselho.
   Ao mexer no catálogo, **preserve os `id`**: são a chave do que já está reservado.
+  **Reservas migradas da planilha** (`subirReservasMigradas` + `dados/esp-auditorio-2026.json`,
+  marca `sys-esp-lote-auditorio-2026`): as 75 linhas que a recepção anotava à mão no registro
+  do auditório de 2026 entraram como **confirmadas do DIA INTEIRO** — a planilha não tinha
+  horário, e o que se sabe é que o auditório estava tomado naquele dia, que é justamente o
+  que precisa travar o pedido novo (a tela escreve "dia todo", nunca "00:00"). Dias
+  consecutivos com a mesma atividade viraram uma reserva só (o CONINT, 19 a 30/10). A
+  migração **não passa pela trava de conflito**, de propósito: há dias com duas atividades em
+  turnos diferentes (Jornada Odontológica de manhã, de Psicologia à noite) e recusar a
+  segunda apagaria um registro que existiu — elas convivem, e a trava segue valendo para todo
+  pedido novo. Quatro datas vieram com ano 2025 na fonte e foram corrigidas para 2026
+  (`corrigido` no lote); o órgão foi inferido da atividade, e o que não deu ficou em
+  "Não informado na planilha".
 
 ## Identidade visual
 

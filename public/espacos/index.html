@@ -409,7 +409,7 @@ async function renderAgenda() {
     const pend = r.status !== "confirmada";
     for (let d = r.dataInicio; d <= (r.dataFim || r.dataInicio); d = somaDias(d, 1)) {
       põe(d, `<div class="ev${pend ? " pendente" : ""}" title="${esc(rot)} — ${esc(ROT_STATUS[r.status] || "")}"
-        onclick="detalhe('${r.id}')"><span class="h">${esc(r.horaInicio)}</span> ${esc(r.atividade || "Reserva")}
+        onclick="detalhe('${r.id}')"><span class="h">${esc(diaTodo(r) ? "dia todo" : r.horaInicio)}</span> ${esc(r.atividade || "Reserva")}
         <span class="l">${esc(rot)}${pend ? " · pedido" : ""}</span></div>`);
     }
   }
@@ -462,6 +462,11 @@ function nomeOrgao(codigo, outro) {
   }
   return outro || codigo || "";
 }
+
+/* Reserva sem horário (as migradas da planilha da recepção) ocupa o dia
+   inteiro: dizer "00:00" faria pensar em madrugada. */
+const diaTodo = (r) => r?.horaInicio === "00:00" && r?.horaFim === "23:59";
+const faixaHora = (r) => (diaTodo(r) ? "dia todo" : `${r.horaInicio}–${r.horaFim}`);
 
 const nomeEspaco = (id) => (DADOS?.espacos || []).find((e) => e.id === id)?.nome || id;
 
@@ -680,9 +685,10 @@ function cartaoReserva(r, { comAcoes = false } = {}) {
     const e = (DADOS.espacos || []).find((x) => x.id === i.espaco);
     return [e ? e.nome : i.espaco, i.detalhe, i.quantidade > 1 ? `${i.quantidade} salas` : ""].filter(Boolean).join(" — ");
   }).join(" · ");
+  const hora = diaTodo(r) ? "o dia todo" : `das ${esc(r.horaInicio)} às ${esc(r.horaFim)}`;
   const quando = r.dataInicio === r.dataFim
-    ? `${fmt(r.dataInicio)}, das ${esc(r.horaInicio)} às ${esc(r.horaFim)}`
-    : `${fmt(r.dataInicio)} a ${fmt(r.dataFim)}, das ${esc(r.horaInicio)} às ${esc(r.horaFim)}`;
+    ? `${fmt(r.dataInicio)}, ${hora}`
+    : `${fmt(r.dataInicio)} a ${fmt(r.dataFim)}, ${hora}`;
   const meu = r.solicitante?.email === DADOS.eu;
   const podeCancelar = (meu || DADOS.gestao) && ["solicitada", "encaminhada", "confirmada"].includes(r.status);
   const acoes = comAcoes && DADOS.gestao && ["solicitada", "encaminhada"].includes(r.status)

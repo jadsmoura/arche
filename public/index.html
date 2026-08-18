@@ -348,7 +348,9 @@
         const pend = r.status !== "confirmada";
         for (let d = r.dataInicio; d <= (r.dataFim || r.dataInicio) && d <= dep(hoje, 13); d = dep(d, 1)) {
           if (d < hoje) continue;
-          põe(d, `<li><b>${esc(r.horaInicio)}–${esc(r.horaFim)}</b> ${esc(r.atividade || "Reserva")}
+          const hora = r.horaInicio === "00:00" && r.horaFim === "23:59"
+            ? "dia todo" : `${esc(r.horaInicio)}–${esc(r.horaFim)}`;
+          põe(d, `<li><b>${hora}</b> ${esc(r.atividade || "Reserva")}
             <span>${esc(onde)}${r.orgao ? ` · ${esc(r.orgao)}` : ""}${pend ? " · pedido em análise" : ""}</span></li>`);
         }
       }

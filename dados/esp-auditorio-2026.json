@@ -1,0 +1,815 @@
+{
+ "lote": "auditorio-2026",
+ "fonte": "Registro_reserva_de_auditorio_2026.xlsx — planilha da recepção, transcrita em ago/2026",
+ "espaco": "auditorio-bloco-a",
+ "observacao": "Agendamentos feitos à mão, sem horário: entram como reserva confirmada do DIA INTEIRO.",
+ "reservas": [
+  {
+   "linhas": [
+    27
+   ],
+   "dataInicio": "2026-02-02",
+   "dataFim": "2026-02-02",
+   "atividade": "Acolhida do primeiro periodo de Psicologia (Vespertino e Noturno)",
+   "orgao": "curso-psicologia",
+   "orgaoOutro": "",
+   "responsavel": "Rogerio",
+   "solicitadoEm": "2026-01-27",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    28,
+    29
+   ],
+   "dataInicio": "2026-02-09",
+   "dataFim": "2026-02-10",
+   "atividade": "Reunião de pais colegio couto",
+   "orgao": "outro",
+   "orgaoOutro": "Colégio Couto",
+   "responsavel": "Rafael",
+   "solicitadoEm": "2026-02-06",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    30,
+    31
+   ],
+   "dataInicio": "2026-02-11",
+   "dataFim": "2026-02-12",
+   "atividade": "Acolhida psicologia 2026 a partir das 17:00 hrs",
+   "orgao": "curso-psicologia",
+   "orgaoOutro": "",
+   "responsavel": "Rogerio",
+   "solicitadoEm": "2026-01-13",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    32
+   ],
+   "dataInicio": "2026-02-23",
+   "dataFim": "2026-02-23",
+   "atividade": "Reunião de pais Criar Tocar a partir das 17:00 HRs",
+   "orgao": "outro",
+   "orgaoOutro": "Criar Tocar",
+   "responsavel": "Juliana",
+   "solicitadoEm": "2026-02-19",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    33
+   ],
+   "dataInicio": "2026-02-23",
+   "dataFim": "2026-02-23",
+   "atividade": "Acolhida Engenharias 19:30 hr",
+   "orgao": "outro",
+   "orgaoOutro": "Engenharias",
+   "responsavel": "Alessandro",
+   "solicitadoEm": "2026-02-09",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    34
+   ],
+   "dataInicio": "2026-02-24",
+   "dataFim": "2026-02-24",
+   "atividade": "Acolhida Direito as 19:00 hrs",
+   "orgao": "curso-direito",
+   "orgaoOutro": "",
+   "responsavel": "Luana",
+   "solicitadoEm": "2026-02-06",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    35
+   ],
+   "dataInicio": "2026-02-25",
+   "dataFim": "2026-02-25",
+   "atividade": "Acolhida Odontologia a partir das 08:00",
+   "orgao": "curso-odontologia",
+   "orgaoOutro": "",
+   "responsavel": "Alyne",
+   "solicitadoEm": "2026-02-06",
+   "corrigido": true
+  },
+  {
+   "linhas": [
+    36
+   ],
+   "dataInicio": "2026-02-25",
+   "dataFim": "2026-02-25",
+   "atividade": "Acolhida geral UNIEGO as 19:00",
+   "orgao": "reitoria",
+   "orgaoOutro": "",
+   "responsavel": "Matildes",
+   "solicitadoEm": "2026-02-19",
+   "corrigido": true
+  },
+  {
+   "linhas": [
+    37
+   ],
+   "dataInicio": "2026-02-27",
+   "dataFim": "2026-02-27",
+   "atividade": "Reunião da Liga LPESE 20:30 as 22:00",
+   "orgao": "curso-medicina-veterinaria",
+   "orgaoOutro": "",
+   "responsavel": "Nailla",
+   "solicitadoEm": "2026-02-24",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    48
+   ],
+   "dataInicio": "2026-03-03",
+   "dataFim": "2026-03-03",
+   "atividade": "Reserva sem descrição na planilha",
+   "orgao": "outro",
+   "orgaoOutro": "Não informado na planilha",
+   "responsavel": "Ivandro",
+   "solicitadoEm": "2026-03-03",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    49
+   ],
+   "dataInicio": "2026-03-04",
+   "dataFim": "2026-03-04",
+   "atividade": "Aulão de medicina legal (Direito) a partir das 18:30)",
+   "orgao": "curso-direito",
+   "orgaoOutro": "",
+   "responsavel": "Luana",
+   "solicitadoEm": "2026-02-23",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    52
+   ],
+   "dataInicio": "2026-03-17",
+   "dataFim": "2026-03-17",
+   "atividade": "Aula pratica do NPJ.",
+   "orgao": "curso-direito",
+   "orgaoOutro": "",
+   "responsavel": "Adonis",
+   "solicitadoEm": "2026-03-10",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    53
+   ],
+   "dataInicio": "2026-03-20",
+   "dataFim": "2026-03-20",
+   "atividade": "Cerimonia do Jaleco (Efermagem) a partir das 17:00",
+   "orgao": "outro",
+   "orgaoOutro": "Não informado na planilha",
+   "responsavel": "Talita",
+   "solicitadoEm": "2026-02-11",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    69
+   ],
+   "dataInicio": "2026-04-01",
+   "dataFim": "2026-04-01",
+   "atividade": "Capelania (Matutino/Vespertino/Noturno)",
+   "orgao": "outro",
+   "orgaoOutro": "Capelania",
+   "responsavel": "Pastor Guilherme",
+   "solicitadoEm": "2026-03-11",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    71
+   ],
+   "dataInicio": "2026-04-09",
+   "dataFim": "2026-04-09",
+   "atividade": "Consientização do autismo (Matutino e vespetino)",
+   "orgao": "proppex",
+   "orgaoOutro": "",
+   "responsavel": "Rogerio",
+   "solicitadoEm": "2026-04-02",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    72
+   ],
+   "dataInicio": "2026-04-10",
+   "dataFim": "2026-04-10",
+   "atividade": "Ressurreição Digital e a Exploração Econômica da Imagem Post Mortem: desafios à ordem econômica e à dignidade da pessoa humana",
+   "orgao": "curso-direito",
+   "orgaoOutro": "",
+   "responsavel": "Luana",
+   "solicitadoEm": "2026-02-11",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    73
+   ],
+   "dataInicio": "2026-04-13",
+   "dataFim": "2026-04-13",
+   "atividade": "Aula inaugural da Liga de Pequenos animais (Noturno a partir das 18:00)",
+   "orgao": "curso-medicina-veterinaria",
+   "orgaoOutro": "",
+   "responsavel": "Turricelli",
+   "solicitadoEm": "2026-04-08",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    74
+   ],
+   "dataInicio": "2026-04-15",
+   "dataFim": "2026-04-15",
+   "atividade": "Evento Cesio 137 (Noturno)",
+   "orgao": "proppex",
+   "orgaoOutro": "",
+   "responsavel": "Luana",
+   "solicitadoEm": "2026-03-26",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    75
+   ],
+   "dataInicio": "2026-04-16",
+   "dataFim": "2026-04-16",
+   "atividade": "Reserva sem descrição na planilha",
+   "orgao": "outro",
+   "orgaoOutro": "Não informado na planilha",
+   "responsavel": "",
+   "solicitadoEm": "",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    76
+   ],
+   "dataInicio": "2026-04-17",
+   "dataFim": "2026-04-17",
+   "atividade": "Psicologia",
+   "orgao": "curso-psicologia",
+   "orgaoOutro": "",
+   "responsavel": "Rogerio",
+   "solicitadoEm": "2026-04-16",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    77
+   ],
+   "dataInicio": "2026-04-22",
+   "dataFim": "2026-04-22",
+   "atividade": "Seminario Indigena",
+   "orgao": "proppex",
+   "orgaoOutro": "",
+   "responsavel": "Camila",
+   "solicitadoEm": "2026-04-08",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    78
+   ],
+   "dataInicio": "2026-04-23",
+   "dataFim": "2026-04-23",
+   "atividade": "Medicina Veterinaria e Agronomia",
+   "orgao": "curso-medicina-veterinaria",
+   "orgaoOutro": "",
+   "responsavel": "Camila",
+   "solicitadoEm": "2026-04-16",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    79
+   ],
+   "dataInicio": "2026-04-24",
+   "dataFim": "2026-04-24",
+   "atividade": "Cerimônia do jaleco Turma XII a partir das 18:00",
+   "orgao": "outro",
+   "orgaoOutro": "Não informado na planilha",
+   "responsavel": "Alyne",
+   "solicitadoEm": "2026-03-02",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    80
+   ],
+   "dataInicio": "2026-04-27",
+   "dataFim": "2026-04-27",
+   "atividade": "Reserva sem descrição na planilha",
+   "orgao": "outro",
+   "orgaoOutro": "Não informado na planilha",
+   "responsavel": "",
+   "solicitadoEm": "",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    81
+   ],
+   "dataInicio": "2026-04-28",
+   "dataFim": "2026-04-28",
+   "atividade": "Direito animal em debate: Responsabilidade penal, politicas publicas e proteção Juridica",
+   "orgao": "curso-direito",
+   "orgaoOutro": "",
+   "responsavel": "Camila",
+   "solicitadoEm": "2026-03-26",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    82,
+    83
+   ],
+   "dataInicio": "2026-04-29",
+   "dataFim": "2026-04-30",
+   "atividade": "Quarta jornada de CC e ADM",
+   "orgao": "outro",
+   "orgaoOutro": "Ciências Contábeis e Administração",
+   "responsavel": "Matildes",
+   "solicitadoEm": "2026-03-31",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    90
+   ],
+   "dataInicio": "2026-05-04",
+   "dataFim": "2026-05-04",
+   "atividade": "Seminário de Direito do Trabalho Profa. Marlana (A noite)",
+   "orgao": "curso-direito",
+   "orgaoOutro": "",
+   "responsavel": "Gleidson",
+   "solicitadoEm": "2026-04-16",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    93
+   ],
+   "dataInicio": "2026-05-08",
+   "dataFim": "2026-05-08",
+   "atividade": "Programação de dias das Mães Colegio Couto (Das 07 as 11 hrs)",
+   "orgao": "outro",
+   "orgaoOutro": "Colégio Couto",
+   "responsavel": "Rafael",
+   "solicitadoEm": "2026-04-17",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    94
+   ],
+   "dataInicio": "2026-05-11",
+   "dataFim": "2026-05-11",
+   "atividade": "Rodada de conversa Cesio 137",
+   "orgao": "proppex",
+   "orgaoOutro": "",
+   "responsavel": "Camila",
+   "solicitadoEm": "2026-05-05",
+   "corrigido": true
+  },
+  {
+   "linhas": [
+    95
+   ],
+   "dataInicio": "2026-05-12",
+   "dataFim": "2026-05-12",
+   "atividade": "Cine pipoca ( Psicologia)",
+   "orgao": "curso-psicologia",
+   "orgaoOutro": "",
+   "responsavel": "Jose Mateus",
+   "solicitadoEm": "2026-05-05",
+   "corrigido": true
+  },
+  {
+   "linhas": [
+    96
+   ],
+   "dataInicio": "2026-05-13",
+   "dataFim": "2026-05-13",
+   "atividade": "Semana da Enfermagem",
+   "orgao": "curso-enfermagem",
+   "orgaoOutro": "",
+   "responsavel": "Talita",
+   "solicitadoEm": "2026-02-11",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    97
+   ],
+   "dataInicio": "2026-05-18",
+   "dataFim": "2026-05-18",
+   "atividade": "Jornada de Psicologia (Noturno)",
+   "orgao": "curso-psicologia",
+   "orgaoOutro": "",
+   "responsavel": "Samuel/Rogerio",
+   "solicitadoEm": "2026-05-07",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    98
+   ],
+   "dataInicio": "2026-05-19",
+   "dataFim": "2026-05-19",
+   "atividade": "Abertura da Jornada Odontológica (Noturno)",
+   "orgao": "curso-odontologia",
+   "orgaoOutro": "",
+   "responsavel": "Alyne",
+   "solicitadoEm": "2026-03-12",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    99
+   ],
+   "dataInicio": "2026-05-20",
+   "dataFim": "2026-05-20",
+   "atividade": "Jornada Odontológica (Matutino/Vespertino)",
+   "orgao": "curso-odontologia",
+   "orgaoOutro": "",
+   "responsavel": "Alyne",
+   "solicitadoEm": "2026-03-11",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    100
+   ],
+   "dataInicio": "2026-05-20",
+   "dataFim": "2026-05-20",
+   "atividade": "Jornada de Psicologia (Noturno)",
+   "orgao": "curso-psicologia",
+   "orgaoOutro": "",
+   "responsavel": "Samuel/Rogerio",
+   "solicitadoEm": "2026-05-07",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    101
+   ],
+   "dataInicio": "2026-05-21",
+   "dataFim": "2026-05-21",
+   "atividade": "Jornada Odontológica (Matutino/Vespertino)",
+   "orgao": "curso-odontologia",
+   "orgaoOutro": "",
+   "responsavel": "Alyne",
+   "solicitadoEm": "2026-03-11",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    102
+   ],
+   "dataInicio": "2026-05-21",
+   "dataFim": "2026-05-21",
+   "atividade": "Jornada de Psicologia (Noturno)",
+   "orgao": "curso-psicologia",
+   "orgaoOutro": "",
+   "responsavel": "Samuel/Rogerio",
+   "solicitadoEm": "2026-05-07",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    103
+   ],
+   "dataInicio": "2026-05-22",
+   "dataFim": "2026-05-22",
+   "atividade": "Jornada Odontológica (Matutino/Vespertino)",
+   "orgao": "curso-odontologia",
+   "orgaoOutro": "",
+   "responsavel": "Alyne",
+   "solicitadoEm": "2026-03-11",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    104
+   ],
+   "dataInicio": "2026-05-26",
+   "dataFim": "2026-05-26",
+   "atividade": "Aula pratica para os alunos do 10° e dos 9° A e B de Direito (Noturno)",
+   "orgao": "curso-direito",
+   "orgaoOutro": "",
+   "responsavel": "Adonis",
+   "solicitadoEm": "2026-05-11",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    105
+   ],
+   "dataInicio": "2026-05-27",
+   "dataFim": "2026-05-27",
+   "atividade": "Cerimonia do Jaleco (Medicina Veterinaria a partir das 17:00)",
+   "orgao": "curso-medicina-veterinaria",
+   "orgaoOutro": "",
+   "responsavel": "Alexandre",
+   "solicitadoEm": "2026-02-24",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    106
+   ],
+   "dataInicio": "2026-05-29",
+   "dataFim": "2026-05-29",
+   "atividade": "Devocional Colegio Couto",
+   "orgao": "outro",
+   "orgaoOutro": "Capelania",
+   "responsavel": "Samuel",
+   "solicitadoEm": "2026-05-26",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    112
+   ],
+   "dataInicio": "2026-06-13",
+   "dataFim": "2026-06-13",
+   "atividade": "Atividade Familia UNIEGO",
+   "orgao": "proppex",
+   "orgaoOutro": "",
+   "responsavel": "Camila",
+   "solicitadoEm": "2026-06-03",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    113
+   ],
+   "dataInicio": "2026-06-19",
+   "dataFim": "2026-06-19",
+   "atividade": "Conferencia Conselho Municipal de Saude (Manhã e tarde)",
+   "orgao": "outro",
+   "orgaoOutro": "Conselho Municipal de Saúde",
+   "responsavel": "Marly",
+   "solicitadoEm": "2026-04-27",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    140
+   ],
+   "dataInicio": "2026-08-04",
+   "dataFim": "2026-08-04",
+   "atividade": "Acolhida Criar Tocar as 13:30 horas",
+   "orgao": "outro",
+   "orgaoOutro": "Criar Tocar",
+   "responsavel": "Juliana",
+   "solicitadoEm": "2026-08-03",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    141
+   ],
+   "dataInicio": "2026-08-05",
+   "dataFim": "2026-08-05",
+   "atividade": "Acolhida Criar Tocar as 13:00 horas",
+   "orgao": "outro",
+   "orgaoOutro": "Criar Tocar",
+   "responsavel": "Juliana",
+   "solicitadoEm": "2026-08-03",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    143
+   ],
+   "dataInicio": "2026-08-10",
+   "dataFim": "2026-08-10",
+   "atividade": "Comemoração de dia dos Pais Colegio Couto ( 07:00 horas)",
+   "orgao": "outro",
+   "orgaoOutro": "Colégio Couto",
+   "responsavel": "Kelly",
+   "solicitadoEm": "2026-08-03",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    144
+   ],
+   "dataInicio": "2026-08-11",
+   "dataFim": "2026-08-11",
+   "atividade": "Recepção dos docentes Medicina Veterinaria (as 19:00 horas)",
+   "orgao": "curso-medicina-veterinaria",
+   "orgaoOutro": "",
+   "responsavel": "Alexandre",
+   "solicitadoEm": "2026-08-03",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    145
+   ],
+   "dataInicio": "2026-08-12",
+   "dataFim": "2026-08-12",
+   "atividade": "Lançamento do Concurso de Redação Otavio Lage (Inicio as 06:00)",
+   "orgao": "outro",
+   "orgaoOutro": "Concurso de Redação Otávio Lage",
+   "responsavel": "Carolina",
+   "solicitadoEm": "2026-07-20",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    147
+   ],
+   "dataInicio": "2026-08-19",
+   "dataFim": "2026-08-19",
+   "atividade": "Aula inaugural Engenharia de Software as 19:00 horas",
+   "orgao": "curso-engenharia-software",
+   "orgaoOutro": "",
+   "responsavel": "Ivandro",
+   "solicitadoEm": "2026-08-06",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    148
+   ],
+   "dataInicio": "2026-08-20",
+   "dataFim": "2026-08-20",
+   "atividade": "Acolhida Engenharia Mecanica/civil (as 19:00 horas)",
+   "orgao": "outro",
+   "orgaoOutro": "Engenharias",
+   "responsavel": "Alessandro",
+   "solicitadoEm": "2026-08-17",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    149
+   ],
+   "dataInicio": "2026-08-21",
+   "dataFim": "2026-08-21",
+   "atividade": "Acolhida de novos membros Liga acadêmica Kuma (às 19:00)",
+   "orgao": "curso-psicologia",
+   "orgaoOutro": "",
+   "responsavel": "Rogerio",
+   "solicitadoEm": "2026-08-12",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    150
+   ],
+   "dataInicio": "2026-08-22",
+   "dataFim": "2026-08-22",
+   "atividade": "Aula inaugural Liga de Melhoramento Genetico ( 07:00 as 17:00)",
+   "orgao": "curso-medicina-veterinaria",
+   "orgaoOutro": "",
+   "responsavel": "Alexandre",
+   "solicitadoEm": "2026-08-03",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    161
+   ],
+   "dataInicio": "2026-09-09",
+   "dataFim": "2026-09-09",
+   "atividade": "Palestra Dia do Medico Veterinario (as 19:00)",
+   "orgao": "curso-medicina-veterinaria",
+   "orgaoOutro": "",
+   "responsavel": "Alexandre",
+   "solicitadoEm": "2026-08-03",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    162
+   ],
+   "dataInicio": "2026-09-10",
+   "dataFim": "2026-09-10",
+   "atividade": "SENACER (as 19:00)",
+   "orgao": "proppex",
+   "orgaoOutro": "",
+   "responsavel": "Camila",
+   "solicitadoEm": "2026-08-06",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    163
+   ],
+   "dataInicio": "2026-09-14",
+   "dataFim": "2026-09-14",
+   "atividade": "Dia Mundial do Engenheiro Agrônomo.",
+   "orgao": "curso-agronomia",
+   "orgaoOutro": "",
+   "responsavel": "Ayure",
+   "solicitadoEm": "2026-08-03",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    164
+   ],
+   "dataInicio": "2026-09-25",
+   "dataFim": "2026-09-25",
+   "atividade": "1º Simposio Interligas Medicina Veterinaria palestra (as 19:00)",
+   "orgao": "curso-medicina-veterinaria",
+   "orgaoOutro": "",
+   "responsavel": "Alexandre",
+   "solicitadoEm": "2026-08-03",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    165
+   ],
+   "dataInicio": "2026-09-26",
+   "dataFim": "2026-09-26",
+   "atividade": "1º Simposio Interligas Medicina Veterinaria (das 07:00 as 17:00)",
+   "orgao": "curso-medicina-veterinaria",
+   "orgaoOutro": "",
+   "responsavel": "Alexandre",
+   "solicitadoEm": "2026-08-03",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    183,
+    184,
+    185,
+    186,
+    187,
+    188,
+    189,
+    190,
+    191,
+    192,
+    193,
+    194
+   ],
+   "dataInicio": "2026-10-19",
+   "dataFim": "2026-10-30",
+   "atividade": "CONINT",
+   "orgao": "proppex",
+   "orgaoOutro": "",
+   "responsavel": "Jadson",
+   "solicitadoEm": "2026-08-03",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    202
+   ],
+   "dataInicio": "2026-11-04",
+   "dataFim": "2026-11-04",
+   "atividade": "Palestra Psicologia Violência doméstica ( A partir das 18:00)",
+   "orgao": "curso-psicologia",
+   "orgaoOutro": "",
+   "responsavel": "Claudia",
+   "solicitadoEm": "2026-08-17",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    216
+   ],
+   "dataInicio": "2026-11-28",
+   "dataFim": "2026-11-28",
+   "atividade": "Simpósio do Cavalo, da Liga LPESE (a partir das 08:00 o dia todo)",
+   "orgao": "curso-medicina-veterinaria",
+   "orgaoOutro": "",
+   "responsavel": "Nailla",
+   "solicitadoEm": "2026-08-13",
+   "corrigido": false
+  },
+  {
+   "linhas": [
+    226
+   ],
+   "dataInicio": "2026-12-05",
+   "dataFim": "2026-12-05",
+   "atividade": "Simposio do Cavalo Medicina Veterinaria ( Das 07:00 as 17:00)",
+   "orgao": "curso-medicina-veterinaria",
+   "orgaoOutro": "",
+   "responsavel": "Alexandre",
+   "solicitadoEm": "2026-08-03",
+   "corrigido": false
+  }
+ ]
+}
