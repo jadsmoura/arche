@@ -2128,8 +2128,18 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     // (ou endereço que o Gmail recuse) não pode desfazê-la
     try {
       const { enviarEmail, emailInscricaoEvento } = await import("./lib/mailer.js");
+      // o QR vai EMBUTIDO no e-mail (decisão do dono, ago/2026): é onde a
+      // pessoa vai procurar a credencial no dia. Falhar em desenhá-lo não
+      // cancela o aviso — o e-mail sai com o link e o código manual.
+      let qrPng = null;
+      try {
+        const { default: QRCode } = await import("qrcode");
+        qrPng = await QRCode.toBuffer(String(r.inscrito.token), {
+          type: "png", errorCorrectionLevel: "M", margin: 1, width: 440,
+        });
+      } catch (e) { console.error("[eventos] QR do e-mail não gerado:", e.message); }
       await enviarEmail(emailInscricaoEvento(r.acao, r.inscrito,
-        { baseUrl: `${req.protocol}://${req.get("host")}` }));
+        { baseUrl: `${req.protocol}://${req.get("host")}`, qrPng }));
     } catch (e) {
       console.error("[eventos] confirmação de inscrição não enviada:", e.message);
     }
@@ -2216,6 +2226,8 @@ app.get("/api/publico/eventos/:slug/inscricao/:token", async (req, res) => {
         presente: r.inscrito.presente === true, presenteEm: r.inscrito.presenteEm || "",
         atividades,
       },
+      // o botão da carteira digital só aparece onde ela está configurada
+      walletGoogle: walletConfigurada(),
     });
   } catch (e) {
     console.error("Erro ao abrir a inscrição:", e);
@@ -2287,6 +2299,144 @@ app.get("/api/publico/eventos/:slug/inscricao/:token/qr.svg", async (req, res) =
   }
 });
 
+/** O mesmo QR em PNG, para BAIXAR e guardar na galeria do celular — é o que
+ *  a maioria faz na prática, e funciona sem rede na porta do evento. */
+app.get("/api/publico/eventos/:slug/inscricao/:token/qr.png", async (req, res) => {
+  try {
+    const r = await acharInscricao(req.params.slug, req.params.token);
+    if (!r) return res.status(404).send("Inscrição não encontrada");
+    const { default: QRCode } = await import("qrcode");
+    const png = await QRCode.toBuffer(String(r.inscrito.token), {
+      type: "png", errorCorrectionLevel: "M", margin: 2, width: 720,
+    });
+    const nome = `credencial-${(r.acao.evento?.slug || "evento")}.png`;
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Content-Disposition", `attachment; filename="${nome}"`);
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    res.send(png);
+  } catch (e) {
+    console.error("Erro no QR em PNG:", e);
+    res.status(500).send("Erro ao gerar o QR");
+  }
+});
+
+/* O evento no CALENDÁRIO do participante (.ics). É o que Apple e Google
+   aceitam sem cadastro nenhum, e resolve o problema de verdade: lembrar a
+   pessoa no dia, com o local e o link da credencial junto. As carteiras
+   digitais (rota abaixo) exigem credenciais institucionais; o calendário,
+   não. */
+const icsEsc = (s) => String(s ?? "").replace(/\\/g, "\\\\").replace(/[;,]/g, (c) => "\\" + c).replace(/\r?\n/g, "\\n");
+const icsData = (iso) => String(iso || "").replace(/-/g, "");
+function icsMaisUmDia(iso) {
+  const d = new Date(`${iso}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return icsData(iso);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10).replace(/-/g, "");
+}
+app.get("/api/publico/eventos/:slug/inscricao/:token/evento.ics", async (req, res) => {
+  try {
+    const r = await acharInscricao(req.params.slug, req.params.token);
+    if (!r) return res.status(404).send("Inscrição não encontrada");
+    const p = r.acao.proposta || {};
+    const ev = r.acao.evento || {};
+    const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    const url = `${base}/eventos/${encodeURIComponent(ev.slug || "")}/inscricao/${encodeURIComponent(r.inscrito.token)}`;
+    const inicio = /^\d{4}-\d{2}-\d{2}$/.test(p.periodoInicio || "") ? p.periodoInicio : "";
+    const fim = /^\d{4}-\d{2}-\d{2}$/.test(p.periodoFim || "") ? p.periodoFim : inicio;
+    if (!inicio) return res.status(400).send("Evento sem data definida");
+    const linhas = [
+      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//ARCHE//UNIEGO//PT-BR", "CALSCALE:GREGORIAN",
+      "BEGIN:VEVENT",
+      `UID:${r.inscrito.token}@arche.app.br`,
+      `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").split(".")[0]}Z`,
+      `DTSTART;VALUE=DATE:${icsData(inicio)}`,
+      `DTEND;VALUE=DATE:${icsMaisUmDia(fim)}`,     // DTEND de evento de dia inteiro é exclusivo
+      `SUMMARY:${icsEsc(p.nomeAtividade || "Evento UNIEGO")}`,
+      `LOCATION:${icsEsc([p.local, p.municipio].filter(Boolean).join(" — "))}`,
+      `DESCRIPTION:${icsEsc(`Sua credencial: ${url}\nCódigo manual: ${codigoDe(r.inscrito.token).toUpperCase()}\nApresente o QR na entrada.`)}`,
+      `URL:${icsEsc(url)}`,
+      "BEGIN:VALARM", "TRIGGER:-P1D", "ACTION:DISPLAY",
+      `DESCRIPTION:${icsEsc(`${p.nomeAtividade || "Evento"} é amanhã`)}`, "END:VALARM",
+      "END:VEVENT", "END:VCALENDAR",
+    ];
+    res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${ev.slug || "evento"}.ics"`);
+    res.send(linhas.join("\r\n"));
+  } catch (e) {
+    console.error("Erro no .ics da inscrição:", e);
+    res.status(500).send("Erro ao gerar o calendário");
+  }
+});
+
+/* --------------------------- carteiras digitais --------------------------
+   Google Wallet e Apple Wallet NÃO se resolvem só em código: cada uma exige
+   credencial institucional emitida pela plataforma.
+
+   · Google Wallet — conta de EMISSOR aprovada no Google Pay & Wallet Console
+     e uma conta de serviço com o escopo wallet_object.issuer. Com isso nas
+     env vars (GOOGLE_WALLET_ISSUER_ID, GOOGLE_WALLET_SA_EMAIL,
+     GOOGLE_WALLET_SA_KEY e a classe já criada no console), o botão abaixo
+     passa a funcionar: o passe é um JWT assinado aqui e aberto no
+     pay.google.com. SEM as variáveis, a rota responde 501 e a página nem
+     mostra o botão — nada quebra.
+   · Apple Wallet — exige Apple Developer Program (US$ 99/ano), um Pass Type
+     ID e o certificado de assinatura; um .pkpass sem assinatura o iPhone
+     recusa. Enquanto a instituição não tiver o certificado, não há como
+     gerar o passe, e prometer o botão seria pior que não tê-lo.
+
+   Até lá, o que resolve na prática está acima: o QR em PNG para guardar na
+   galeria e o evento no calendário do celular. */
+const walletConfigurada = () =>
+  !!(process.env.GOOGLE_WALLET_ISSUER_ID && process.env.GOOGLE_WALLET_SA_EMAIL
+    && process.env.GOOGLE_WALLET_SA_KEY);
+
+app.get("/api/publico/eventos/:slug/inscricao/:token/wallet", async (req, res) => {
+  try {
+    if (!walletConfigurada())
+      return res.status(501).json({ error: "A carteira digital ainda não está configurada nesta instituição." });
+    const r = await acharInscricao(req.params.slug, req.params.token);
+    if (!r) return res.status(404).json({ error: "Inscrição não encontrada" });
+    const p = r.acao.proposta || {};
+    const ev = r.acao.evento || {};
+    const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    const emissor = process.env.GOOGLE_WALLET_ISSUER_ID;
+    const classe = process.env.GOOGLE_WALLET_CLASS_ID || `${emissor}.arche-evento`;
+    const objeto = {
+      id: `${emissor}.${r.inscrito.token}`,
+      classId: classe,
+      state: "ACTIVE",
+      hexBackgroundColor: "#1c3742",
+      cardTitle: { defaultValue: { language: "pt-BR", value: "UNIEGO · Evento" } },
+      header: { defaultValue: { language: "pt-BR", value: String(p.nomeAtividade || "Evento").slice(0, 60) } },
+      subheader: { defaultValue: { language: "pt-BR", value: String(r.inscrito.nome || "").slice(0, 60) } },
+      barcode: { type: "QR_CODE", value: String(r.inscrito.token),
+        alternateText: codigoDe(r.inscrito.token).toUpperCase() },
+      textModulesData: [
+        { id: "quando", header: "Quando",
+          body: `${dataCivil(p.periodoInicio)} a ${dataCivil(p.periodoFim)}` },
+        { id: "onde", header: "Onde", body: [p.local, p.municipio].filter(Boolean).join(" — ") || "—" },
+      ],
+      linksModuleData: { uris: [{ uri: `${base}/eventos/${encodeURIComponent(ev.slug || "")}`, description: "Página do evento" }] },
+    };
+    const agora = Math.floor(Date.now() / 1000);
+    const cabecalho = { alg: "RS256", typ: "JWT" };
+    const corpo = {
+      iss: process.env.GOOGLE_WALLET_SA_EMAIL,
+      aud: "google", typ: "savetowallet", iat: agora,
+      origins: [base],
+      payload: { genericObjects: [objeto] },
+    };
+    const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+    const assinar = `${b64(cabecalho)}.${b64(corpo)}`;
+    const chave = String(process.env.GOOGLE_WALLET_SA_KEY).replace(/\\n/g, "\n");
+    const assinatura = crypto.createSign("RSA-SHA256").update(assinar).sign(chave, "base64url");
+    res.json({ url: `https://pay.google.com/gp/v/save/${assinar}.${assinatura}` });
+  } catch (e) {
+    console.error("Erro no passe da carteira digital:", e);
+    res.status(500).json({ error: "Não foi possível gerar o passe agora." });
+  }
+});
+
 /**
  * Check-in na entrada, pelos MONITORES (sem conta — o código do monitor,
  * que a gestão distribui, é a credencial da porta). Aceita o token lido do
@@ -2316,8 +2466,24 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
         { token: b.token, codigo: b.codigo });
       if (!inscrito) return { erro: [404, "Inscrição não encontrada."], falha: true, gravar: false };
       const idAtv = atv ? atv.id : "";
+      /* Quem chega sem ter marcado a atividade É INSCRITO NA HORA (decisão do
+         dono, ago/2026): em evento de programação múltipla muita gente se
+         inscreve só no geral e aparece na oficina — registrar a presença sem
+         a inscrição deixaria a atividade fora da lista da pessoa e, depois,
+         fora do certificado. Só entra havendo VAGA; lotada, a presença vale
+         igual (a pessoa está ali) e o monitor vê o aviso na tela para decidir. */
+      let inscritoAgora = false;
+      if (atv && atv.inscricao === "propria" && !(inscrito.atividades || []).includes(atv.id)) {
+        const pode = podeEscolherAtividade(a.evento, atv.id,
+          a.participantes?.inscritos || [], inscrito.atividades || []);
+        if (pode.ok) {
+          inscrito.atividades = [...(inscrito.atividades || []), atv.id];
+          inscritoAgora = true;
+        }
+      }
       const extras = atv ? {
         atividade: atv.titulo,
+        ...(inscritoAgora ? { inscritoAgora: true } : {}),
         // presença vale mesmo sem a marcação (a pessoa chegou e participou —
         // remanejamento de última hora é rotina de evento), mas a tela avisa
         ...(atv.inscricao === "propria" && !(inscrito.atividades || []).includes(atv.id)
@@ -2335,7 +2501,10 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
       if (anterior || (!atv && !presencas.length && inscrito.presente === true)) {
         if (inscrito.presente === true)
           return { ja: true, nome: inscrito.nome || "",
-            presenteEm: anterior?.em || inscrito.presenteEm || "", ...extras, gravar: false };
+            presenteEm: anterior?.em || inscrito.presenteEm || "", ...extras,
+            // a presença já estava lá, mas a inscrição na atividade pode ter
+            // acabado de nascer — aí há o que gravar
+            ...(inscritoAgora ? {} : { gravar: false }) };
         if (anterior) { anterior.em = agora; anterior.por = "monitor"; }
         inscrito.presente = true;
         inscrito.presenteEm = agora;
@@ -2362,6 +2531,7 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
     // só o nome de QUEM apresentou o token — nada da lista sai por aqui
     res.json({ ok: true, ja: r.ja === true, nome: r.nome, presenteEm: r.presenteEm,
       ...(r.atividade ? { atividade: r.atividade } : {}),
+      ...(r.inscritoAgora ? { inscritoAgora: true } : {}),
       ...(r.naoInscritoNaAtividade ? { naoInscritoNaAtividade: true } : {}) });
   } catch (e) {
     console.error("Erro no check-in do evento:", e);
@@ -2673,9 +2843,11 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
           const m = c.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
           if (!m) return { erro: [400, "A capa deve ser uma imagem JPEG, PNG ou WebP."], gravar: false };
           // tamanho DECODIFICADO (3/4 do base64): o teto protege o estado,
-          // que viaja inteiro a cada gravação
-          if (m[2].length * 3 / 4 > 500 * 1024)
-            return { erro: [400, "A capa passa de 500 KB — reduza a imagem antes de enviar."], gravar: false };
+          // que viaja inteiro a cada gravação. A tela aceita a arte em alta
+          // (até 10 MB) e a reduz para 1600 px antes de mandar — o que chega
+          // aqui já vem pequeno; este teto é a rede de segurança.
+          if (m[2].length * 3 / 4 > 1024 * 1024)
+            return { erro: [400, "A capa passa de 1 MB depois do ajuste — envie uma arte mais leve."], gravar: false };
           ev.capa = c;
         }
       }

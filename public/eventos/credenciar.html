@@ -80,8 +80,25 @@
         <option value="">Entrada geral do evento</option>
       </select>
       <p class="dica" style="opacity:1;color:var(--muted)">Na porta de um minicurso/oficina, escolha a
-        atividade — a presença fica registrada nela. Quem chegar sem estar inscrito na atividade é
-        credenciado mesmo assim, com um aviso na tela.</p>
+        atividade — a presença fica registrada nela. <b>Quem chegar sem ter marcado a atividade é
+        inscrito nela na hora</b> (havendo vaga); lotada, a presença vale igual e a tela avisa.</p>
+      <label class="chk" style="display:flex;gap:9px;align-items:flex-start;margin-top:10px;font-size:13.5px">
+        <input type="checkbox" id="s-perguntar" style="width:20px;height:20px;margin-top:2px">
+        <span>Perguntar a cada leitura <span style="color:var(--muted)">— para o monitor volante, que
+          credencia em atividades diferentes no mesmo plantão. Na porta de uma sala, deixe desmarcado:
+          escolha a atividade uma vez e leia um QR atrás do outro.</span></span>
+      </label>
+    </div>
+    <!-- escolha da atividade a cada leitura (modo "perguntar") -->
+    <div id="p-escolha" class="hide" style="position:fixed;inset:0;background:rgba(10,20,26,.55);z-index:50;
+      display:flex;align-items:flex-end;justify-content:center;padding:12px">
+      <div style="background:#fff;border-radius:16px;width:100%;max-width:520px;max-height:86vh;overflow:auto;padding:18px">
+        <div style="font-weight:700;font-size:17px" id="esc-nome">Credenciar em qual atividade?</div>
+        <p class="dica" style="opacity:1;color:var(--muted);margin:4px 0 12px">A presença fica registrada
+          na atividade escolhida. Quem não estiver inscrito nela entra na lista automaticamente.</p>
+        <div id="esc-lista"></div>
+        <button class="bt bt-sec" onclick="fecharEscolha()">Cancelar esta leitura</button>
+      </div>
     </div>
     <div class="painel">
       <div id="cam-area">
@@ -108,7 +125,19 @@
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const $ = (id) => document.getElementById(id);
 let SLUG = "", COD = "", stream = null, detector = null, lendo = false;
-let ULTIMO = { token: "", em: 0 };   // não repetir o mesmo QR parado na frente da câmera
+/* O MESMO QR não se lê duas vezes. A câmera varre de 350 em 350 ms, e um
+   crachá parado à frente dela era lido de novo a cada poucos segundos: o
+   servidor respondia "já credenciado" e a fila do plantão enchia de repetições
+   (achado no teste do dono, ago/2026). Agora cada credencial lida fica
+   registrada NO APARELHO durante o plantão — chave = token + atividade
+   selecionada, porque credenciar a mesma pessoa NOUTRA atividade é leitura
+   nova e legítima. Leitura repetida não vai ao servidor: avisa na tela e
+   segue. Se a chamada falhar, a chave sai do registro — senão um erro de rede
+   deixaria a pessoa sem credenciar e sem como tentar de novo. */
+const JA_LIDOS = new Map();
+let pausado = false;                 // respiro após cada leitura aceita
+let ATIVIDADES = [];                 // as atividades com inscrição própria
+let escolhendo = null;               // token à espera da escolha da atividade
 const FILA = [];
 
 // a gestão manda o link já com ?e=<slug>; o código do monitor fica guardado
@@ -139,6 +168,7 @@ async function montarAtividades() {
     const ev = (await r.json()).evento || {};
     const proprias = (ev.programacao || []).filter((p) => p && p.inscricao === "propria" && p.id);
     if (!proprias.length) return;
+    ATIVIDADES = proprias;
     $("s-atv").innerHTML = '<option value="">Entrada geral do evento</option>' + proprias.map((p) =>
       `<option value="${esc(p.id)}">${esc(p.titulo)}${p.dia ? " — " + p.dia.split("-").reverse().slice(0, 2).join("/") : ""}${p.horaInicio ? " " + esc(p.horaInicio) : ""}</option>`).join("");
     $("p-atv").classList.remove("hide");
@@ -161,7 +191,9 @@ function resultado(tipo, nome, quando, extras = {}) {
   // cartão — o monitor decide na hora, com a informação na tela
   const linhaAtv = extras.atividade ? `<div class="dt">em: ${esc(extras.atividade)}</div>` : "";
   const aviso = extras.naoInscrito
-    ? '<div class="dt" style="font-weight:700">⚠ não estava inscrito nesta atividade</div>' : "";
+    ? '<div class="dt" style="font-weight:700">⚠ não estava inscrito nesta atividade — sem vaga para incluir</div>'
+    : extras.inscritoAgora
+      ? '<div class="dt" style="font-weight:700">＋ inscrito nesta atividade agora</div>' : "";
   el.innerHTML = tipo === "ok"
     ? `<div class="ic">✓</div><div class="tt">Credenciado</div><div class="nm">${esc(nome)}</div>${linhaAtv}${aviso}`
     : tipo === "ja"
@@ -175,20 +207,25 @@ function resultado(tipo, nome, quando, extras = {}) {
     `<div><span>${esc(f.nome)}</span><span class="s-${f.tipo}">${f.tipo === "ok" ? "✓ " : f.tipo === "ja" ? "já às " : "✕ "}${esc(f.h)}</span></div>`).join("");
 }
 
-async function checkin(body) {
+async function checkin(body, atividadeEscolhida) {
   try {
-    const atividade = $("s-atv")?.value || "";
+    // no modo "perguntar", a atividade vem da escolha da leitura; no padrão,
+    // do seletor do plantão
+    const atividade = atividadeEscolhida !== undefined ? atividadeEscolhida : ($("s-atv")?.value || "");
     const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/checkin`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...body, codigoMonitor: COD, atividade }),
     });
     const j = await r.json().catch(() => ({}));
-    if (r.status === 403) { alert(j.error || "Código do monitor incorreto."); sair(); return; }
-    if (!r.ok) { resultado("erro", j.error && !/não encontrada/i.test(j.error) ? j.error : ""); return; }
+    if (r.status === 403) { alert(j.error || "Código do monitor incorreto."); sair(); return false; }
+    if (!r.ok) { resultado("erro", j.error && !/não encontrada/i.test(j.error) ? j.error : ""); return false; }
     resultado(j.ja ? "ja" : "ok", j.nome, j.presenteEm,
-      { atividade: j.atividade, naoInscrito: j.naoInscritoNaAtividade === true });
+      { atividade: j.atividade, naoInscrito: j.naoInscritoNaAtividade === true,
+        inscritoAgora: j.inscritoAgora === true });
+    return true;
   } catch {
     resultado("erro", "Sem conexão — tente de novo.");
+    return false;
   }
 }
 
@@ -226,19 +263,96 @@ function pararCamera() {
 async function varrer() {
   if (!lendo) return;
   try {
-    const achados = await detector.detect($("video"));
-    if (achados.length) {
-      const bruto = String(achados[0].rawValue || "").trim();
-      // o QR carrega o token (22 hex); se vier uma URL, o token vai dentro dela
-      const tk = (bruto.toLowerCase().match(/[0-9a-f]{22}/) || [])[0];
-      const agora = Date.now();
-      if (tk && !(tk === ULTIMO.token && agora - ULTIMO.em < 4000)) {
-        ULTIMO = { token: tk, em: agora };
-        await checkin({ token: tk });
+    if (!pausado) {
+      const achados = await detector.detect($("video"));
+      if (achados.length) {
+        const bruto = String(achados[0].rawValue || "").trim();
+        // o QR carrega o token (22 hex); se vier uma URL, o token vai dentro dela
+        const tk = (bruto.toLowerCase().match(/[0-9a-f]{22}/) || [])[0];
+        if (tk && $("s-perguntar")?.checked && ATIVIDADES.length) {
+          abrirEscolha(tk);
+        } else if (tk) {
+          const chave = tk + "|" + ($("s-atv")?.value || "");
+          if (JA_LIDOS.has(chave)) {
+            repetido();
+          } else {
+            JA_LIDOS.set(chave, Date.now());
+            pausado = true;
+            const ok = await checkin({ token: tk });
+            if (!ok) JA_LIDOS.delete(chave);   // falhou: dá para tentar de novo
+            setTimeout(() => { pausado = false; }, 1500);
+          }
+        }
       }
     }
   } catch { /* um frame que falhe não derruba a leitura */ }
   setTimeout(varrer, 350);
+}
+
+/* ------------------ modo "perguntar a cada leitura" ---------------------
+   Dois jeitos de credenciar num evento de programação múltipla, e cada um
+   serve a uma situação (pergunta do dono, ago/2026):
+
+   · na PORTA de uma sala — escolha a atividade uma vez, no seletor, e leia
+     um QR atrás do outro. É o modo padrão porque é o que dá conta de fila:
+     perguntar a cada pessoa numa entrada de 200 travaria a porta;
+   · monitor VOLANTE, que roda o campus credenciando em atividades
+     diferentes — aí a pergunta a cada leitura evita o erro caro, que é
+     credenciar meia oficina na atividade errada por causa do seletor
+     esquecido.
+
+   A escolha só aparece com a leitura já feita: primeiro o QR, depois a
+   atividade — assim a lista já vem com o dia de hoje em cima. */
+function abrirEscolha(token) {
+  if (escolhendo) return;
+  escolhendo = token;
+  pausado = true;
+  const hoje = new Date().toISOString().slice(0, 10);
+  const ordenadas = ATIVIDADES.slice().sort((a, b) =>
+    (a.dia === hoje ? 0 : 1) - (b.dia === hoje ? 0 : 1)
+    || String(a.dia || "").localeCompare(String(b.dia || ""))
+    || String(a.horaInicio || "").localeCompare(String(b.horaInicio || "")));
+  const linha = (id, titulo, sub, destaque) =>
+    `<button class="bt ${destaque ? "bt-pri" : "bt-sec"}" style="text-align:left;margin-top:8px"
+      onclick="escolher('${esc(id)}')">${esc(titulo)}${sub ? `<br><span style="font-weight:400;opacity:.8;font-size:12.5px">${esc(sub)}</span>` : ""}</button>`;
+  $("esc-lista").innerHTML =
+    ordenadas.map((p) => linha(p.id, p.titulo,
+      [p.dia ? p.dia.split("-").reverse().slice(0, 2).join("/") : "",
+       p.horaInicio ? p.horaInicio + (p.horaFim ? "–" + p.horaFim : "") : "",
+       p.local || ""].filter(Boolean).join(" · "),
+      p.dia === hoje)).join("")
+    + linha("", "Entrada geral do evento", "sem vínculo com atividade", false);
+  $("p-escolha").classList.remove("hide");
+}
+function fecharEscolha() {
+  escolhendo = null;
+  $("p-escolha").classList.add("hide");
+  setTimeout(() => { pausado = false; }, 800);
+}
+async function escolher(idAtv) {
+  const tk = escolhendo;
+  $("p-escolha").classList.add("hide");
+  escolhendo = null;
+  if (!tk) { pausado = false; return; }
+  const chave = tk + "|" + idAtv;
+  if (JA_LIDOS.has(chave)) { repetido(); setTimeout(() => { pausado = false; }, 1200); return; }
+  JA_LIDOS.set(chave, Date.now());
+  const ok = await checkin({ token: tk }, idAtv);
+  if (!ok) JA_LIDOS.delete(chave);
+  setTimeout(() => { pausado = false; }, 1200);
+}
+
+/* Aviso discreto de leitura repetida: sem ele o monitor acha que a câmera
+   não pegou o código e fica insistindo. Não vai à fila nem ao servidor. */
+let avisoRepetido = 0;
+function repetido() {
+  const agora = Date.now();
+  if (agora - avisoRepetido < 1500) return;
+  avisoRepetido = agora;
+  const el = $("res");
+  el.className = "res ja";
+  el.innerHTML = '<div class="ic">↺</div><div class="tt">Este QR já foi lido</div>'
+    + '<div class="dt">A credencial já passou por aqui neste plantão. Aponte para o próximo.</div>';
 }
 window.addEventListener("pagehide", pararCamera);
 </script>

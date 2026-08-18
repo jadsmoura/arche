@@ -289,6 +289,50 @@ function render() {
     }).observe($("card-inscricao"));
   } catch { /* sem IntersectionObserver, o botão só fica fixo */ }
   avisoConflito();
+  if (abertas) preencherComOUsuario();
+}
+
+/* Quem já tem conta no ARCHÉ não precisa digitar de novo o que a instituição
+   já sabe (pedido do dono, ago/2026). A página é pública e continua servindo
+   ao participante EXTERNO — o formulário só nasce preenchido para quem está
+   logado, e só com os dados da PRÓPRIA conta (o /api/me responde pelo cookie
+   de quem pergunta). Nada é enviado sozinho: a pessoa confere, corrige o que
+   quiser e clica em inscrever-se como qualquer outra. */
+async function preencherComOUsuario() {
+  try {
+    const r = await fetch("/api/me");
+    if (!r.ok) return;                       // visitante sem conta: formulário em branco
+    const u = await r.json();
+    const p = u.perfil || {};
+    const põe = (id, v) => {
+      const el = $(id);
+      if (el && !el.value && v) { el.value = String(v); return true; }
+      return false;
+    };
+    const cpf = String(p.cpf || "").replace(/\D/g, "");
+    const algum = [
+      põe("i-nome", p.nome || u.nome),
+      põe("i-cpf", cpf.length === 11 ? cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : cpf),
+      põe("i-email", u.email),
+      põe("i-tel", p.telefone),
+      põe("i-curso", p.curso),
+    ].some(Boolean);
+    if (!algum) return;
+    const form = $("f");
+    if (!form) return;
+    const av = document.createElement("div");
+    av.className = "msg-ok";
+    av.style.cssText = "margin:0 0 14px";
+    av.innerHTML = `Preenchemos com os dados da sua conta <b>${esc(u.email)}</b> — confira e ajuste
+      se precisar. <button type="button" id="i-limpar" style="background:none;border:none;padding:0;
+      color:inherit;text-decoration:underline;cursor:pointer;font:inherit">Não sou eu, limpar</button>`;
+    form.insertBefore(av, form.firstChild);
+    $("i-limpar").addEventListener("click", () => {
+      for (const id of ["i-nome", "i-cpf", "i-email", "i-tel", "i-curso"]) { const el = $(id); if (el) el.value = ""; }
+      av.remove();
+      $("i-nome").focus();
+    });
+  } catch { /* sem rede para o /api/me: o formulário segue em branco */ }
 }
 
 /* A seção da programação, isolada: a troca de aba de dia redesenha SÓ este
@@ -477,6 +521,14 @@ function pos(token) {
         <b>${esc(p.titulo)}</b> — ${esc(fmt(p.dia))}, ${esc(faixaHora(p))}${p.local ? " · " + esc(p.local) : ""}</p>`).join("")}
       <p style="font-size:12px;color:var(--muted);margin-top:8px">Dá para trocar as atividades depois,
         pela página da sua inscrição.</p>` : ""}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+      <a class="bt bt-sec" style="flex:1 1 170px" download
+        href="/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(token)}/qr.png">⬇ Baixar o QR</a>
+      <a class="bt bt-sec" style="flex:1 1 170px"
+        href="/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(token)}/evento.ics">📅 Adicionar ao calendário</a>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:6px">O QR baixado vale offline — guarde na
+      galeria do celular. O calendário entra com lembrete na véspera.</p>
     <a class="bt bt-pri" style="width:100%;margin-top:14px" href="${url}">Abrir minha inscrição</a>
     ${EV?.transmissaoPublicada ? `<a class="bt bt-sec" style="width:100%;margin-top:10px"
       href="/eventos/${encodeURIComponent(SLUG)}/assistir/${encodeURIComponent(token)}">🖥 Assistir online</a>` : ""}

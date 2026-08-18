@@ -91,6 +91,7 @@ function render() {
     </div>
     ${e.transmissaoPublicada ? `<a class="bt bt-pri" style="width:100%;margin-top:14px"
       href="/eventos/${encodeURIComponent(SLUG)}/assistir/${encodeURIComponent(TOKEN)}">🖥 Assistir online</a>` : ""}
+    ${guardarNoCelular()}
     <div class="atvs">
       <div class="t">Minhas atividades</div>
       ${(i.atividades || []).length
@@ -106,6 +107,34 @@ function render() {
       monitor — pode ser direto da tela do celular. Se a câmera não ler, informe o código de
       6 caracteres. A presença registrada aqui é a que vale para a certificação.</p>`;
   $("d-troca").addEventListener("toggle", (ev) => { if (ev.target.open && !PUB) montarTroca(); }, { once: false });
+}
+
+/* Guardar a credencial no celular. O QR em PNG vai para a galeria e o .ics
+   para o calendário (com lembrete na véspera) — os dois funcionam em
+   qualquer aparelho, sem cadastro nenhum. O passe da Google Wallet só
+   aparece onde a instituição tiver a conta de emissor configurada; a Apple
+   Wallet depende de certificado do Apple Developer Program, que ainda não
+   existe aqui — quando existir, entra ao lado. */
+function guardarNoCelular() {
+  const raiz = `/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(TOKEN)}`;
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+    <a class="bt bt-sec" style="flex:1 1 180px" href="${raiz}/qr.png" download>⬇ Baixar o QR</a>
+    <a class="bt bt-sec" style="flex:1 1 180px" href="${raiz}/evento.ics">📅 Adicionar ao calendário</a>
+    ${DADOS.walletGoogle ? `<button class="bt bt-sec" style="flex:1 1 180px" onclick="paraCarteira()">👛 Google Wallet</button>` : ""}
+  </div>
+  <p style="font-size:12px;color:var(--muted);margin-top:6px">O QR baixado vale offline — guarde na
+    galeria do celular e apresente na entrada, mesmo sem internet no local.</p>`;
+}
+async function paraCarteira() {
+  try {
+    const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(TOKEN)}/wallet`);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.url) throw new Error(j.error || "não foi possível gerar o passe");
+    location.href = j.url;
+  } catch (e) {
+    alert("Não foi possível abrir a carteira digital agora.\n" + e.message
+      + "\n\nUse “Baixar o QR” — ele vale igual na entrada.");
+  }
 }
 
 /* A troca usa o catálogo público do evento (as atividades "propria" e as

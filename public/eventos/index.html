@@ -19,8 +19,12 @@
   .ev-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
   /* a capa (quando o evento tem) coroa o card — servida pela rota pública,
      nunca embutida no payload */
-  .ev-capa{margin:-26px -24px 16px;height:150px;overflow:hidden;background:linear-gradient(135deg,#1c3742,#40717e)}
+  .ev-capa{margin:-26px -24px 16px;height:150px;overflow:hidden;background:linear-gradient(135deg,#1c3742,#40717e);
+    display:flex;align-items:center;justify-content:center}
   .ev-capa img{width:100%;height:100%;object-fit:cover;display:block}
+  /* sem arte, a faixa não some: o gradiente institucional com a inicial do
+     evento mantém todos os cartões do mesmo tamanho na vitrine */
+  .ev-capa .ini{color:#fff;opacity:.34;font-size:56px;font-weight:800;letter-spacing:2px}
 </style>
 </head>
 <body>
@@ -71,8 +75,11 @@ fetch("/api/publico/eventos").then(async (r) => {
     .sort((a, b) => String(b.periodoFim || "").localeCompare(String(a.periodoFim || "")));
   const cartao = (e) => `
     <a class="card" href="/eventos/${encodeURIComponent(e.slug)}" style="display:flex">
-      ${e.temCapa ? `<div class="ev-capa"><img src="/api/publico/eventos/${encodeURIComponent(e.slug)}/capa"
-        alt="" loading="lazy" onerror="this.parentElement.style.display='none'"></div>` : ""}
+      ${e.temCapa
+        ? `<div class="ev-capa"><img src="/api/publico/eventos/${encodeURIComponent(e.slug)}/capa"
+            alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),
+              {className:'ini', textContent:${JSON.stringify(String(e.nome || "?").trim().charAt(0).toUpperCase())}}))"></div>`
+        : `<div class="ev-capa"><span class="ini">${esc(String(e.nome || "?").trim().charAt(0).toUpperCase())}</span></div>`}
       <div class="card-t" style="font-size:18px">${esc(e.nome)}</div>
       <div class="card-sub">${esc(e.curso)} · ${fmt(e.periodoInicio)} a ${fmt(e.periodoFim)}</div>
       <div class="card-d">${esc(e.resumo) || "Ação de extensão do UNIEGO."}</div>

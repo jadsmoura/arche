@@ -277,6 +277,38 @@ public/
   (env EVENTOS_NOTIFY_EMAIL) — contato do hotsite, do texto LGPD padrão e da confirmação
   de inscrição, e destinatário do aviso automático quando uma página de evento entra no
   ar (`emailEventoAtivado`, fire-and-forget).
+- **A credencial do participante** (decisão do dono, ago/2026): a inscrição já nasce
+  **pré-preenchida para quem está logado** no ARCHÉ (`/api/me` no hotsite — só os dados da
+  PRÓPRIA conta, com o aviso e o "não sou eu, limpar"; visitante externo segue com o
+  formulário em branco, que é o público da página). O **e-mail de confirmação leva o QR
+  embutido** (PNG inline por `cid:`, `multipart/related` no mailer) — é na caixa de entrada
+  que a pessoa procura a credencial no dia. Na página da inscrição e logo após inscrever-se
+  há **⬇ Baixar o QR** (PNG, vale offline) e **📅 Adicionar ao calendário** (.ics com
+  lembrete na véspera). **Carteiras digitais**: o passe do **Google Wallet** está
+  implementado e fica atrás das env vars (`GOOGLE_WALLET_ISSUER_ID`,
+  `GOOGLE_WALLET_SA_EMAIL`, `GOOGLE_WALLET_SA_KEY`, `GOOGLE_WALLET_CLASS_ID`) — sem elas a
+  rota responde 501 e o botão nem aparece; o **Apple Wallet** exige certificado do Apple
+  Developer Program (.pkpass sem assinatura o iPhone recusa) e por isso não tem botão
+  enquanto a instituição não tiver o certificado.
+- **Credenciamento: o mesmo QR não se lê duas vezes** (achado no teste do dono, ago/2026):
+  a câmera varre a cada 350 ms e um crachá parado à frente dela era relido, enchendo a fila
+  do plantão de "já credenciado". Cada credencial lida fica registrada NO APARELHO durante o
+  plantão (chave = token + atividade, porque credenciar a mesma pessoa noutra atividade é
+  leitura nova); repetição avisa na tela e não vai ao servidor, e a chave sai do registro se
+  a chamada falhar. **Quem chega sem ter marcado a atividade é inscrito nela na hora**
+  (havendo vaga; lotada, a presença vale igual e a tela avisa) — sem isso a presença ficaria
+  sem a inscrição e a atividade fora do certificado. Dois modos, e cada um serve a uma
+  situação: na PORTA de uma sala, escolhe-se a atividade uma vez no seletor e leem-se os QRs
+  em sequência (padrão — perguntar a cada pessoa travaria uma fila de 200); para o monitor
+  VOLANTE, a caixa **"perguntar a cada leitura"** abre a lista das atividades (as de hoje
+  primeiro) depois de cada QR.
+- **Capa do evento: arte em alta, guardada pequena** (pedido do dono, ago/2026): o arquivo
+  entra com até **10 MB** e o navegador o **reduz para 1600 px** (JPEG, teto de 900 KB)
+  antes de subir — exigir que alguém reduza a arte antes era passar ao usuário um trabalho
+  que o navegador faz sozinho. O teto do servidor (1 MB decodificado) é a rede de segurança:
+  a capa viaja dentro do registro da ação, que é regravado inteiro a cada gravação. Na
+  vitrine, evento **sem arte** não perde a faixa: sai o gradiente institucional com a
+  inicial do nome, para os cartões ficarem do mesmo tamanho.
 - **A gestão do evento acontece NO CARTÃO** (decisão do dono, ago/2026): os dois atos
   mais frequentes da coordenação estavam espalhados — aprovar a ação ficava noutro setor
   (o ARCHÉ EX) e publicar, dentro de uma guia. Agora o cartão do Painel geral traz
