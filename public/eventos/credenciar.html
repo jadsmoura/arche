@@ -50,6 +50,12 @@
     padding:6px 0;border-bottom:1px solid rgba(255,255,255,.08)}
   .fila div:last-child{border-bottom:0}
   .fila .s-ok{color:#8fdba1}.fila .s-ja{color:#ffcc80}.fila .s-erro{color:#ef9a9a}
+  .fila .s-saida{color:#a9dff0}
+  .res.saida{display:block;background:#2159c9;color:#fff}
+  .faixa-fase{font-size:11px;font-weight:800;letter-spacing:.08em;border-radius:6px;padding:2px 7px;
+    vertical-align:middle;margin-left:6px}
+  .faixa-fase.entrada{background:#e8f5e9;color:#2e7d32}
+  .faixa-fase.saida{background:#e6eefc;color:#2159c9}
   .dica{font-size:12px;opacity:.65;margin-top:10px;line-height:1.5}
   /* opções da etapa "onde vou credenciar": título em cima, detalhe embaixo */
   .bt-op{display:block;text-align:left;white-space:normal;line-height:1.35}
@@ -145,6 +151,7 @@ const JA_LIDOS = new Map();
 let pausado = false;                 // respiro após cada leitura aceita
 let ATIVIDADES = [];                 // as atividades com inscrição própria
 let ATV_SEL = "";                    // a atividade do plantão ("" geral, "?" perguntar)
+let FASE = "entrada";                // nas atividades de início e fim: o que se registra agora
 let escolhendo = null;               // token à espera da escolha da atividade
 const FILA = [];
 
@@ -182,7 +189,12 @@ async function montarAtividades() {
     const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}`);
     if (!r.ok) return;
     const ev = (await r.json()).evento || {};
-    ATIVIDADES = (ev.programacao || []).filter((p) => p && p.inscricao === "propria" && p.id);
+    // entram no seletor as atividades que se CREDENCIAM: as de inscrição
+    // própria e as que a coordenação marcou com entrada e saída (uma palestra
+    // longa pode querer contar quem ficou até o fim). "Sem controle de
+    // frequência" não aparece — ali não há o que ler
+    ATIVIDADES = (ev.programacao || []).filter((p) => p && p.id && p.frequencia !== "nenhum"
+      && (p.inscricao === "propria" || p.frequencia === "entrada_saida"));
   } catch { /* sem catálogo agora — a entrada geral continua funcionando */ }
 }
 
@@ -201,12 +213,18 @@ function mostrarOnde() {
   const bt = (valor, titulo, sub, cls) =>
     `<button class="bt bt-op ${cls || "bt-sec"}" onclick="irParaLeitura('${esc(valor)}')">${esc(titulo)}${
       sub ? `<small>${esc(sub)}</small>` : ""}</button>`;
+  const quando = (p) => [p.dia ? p.dia.split("-").reverse().slice(0, 2).join("/") : "",
+    p.horaInicio ? p.horaInicio + (p.horaFim ? "–" + p.horaFim : "") : "",
+    p.local || ""].filter(Boolean).join(" · ");
   $("onde-lista").innerHTML =
-    ordenadas.map((p) => bt(p.id, p.titulo,
-      [p.dia ? p.dia.split("-").reverse().slice(0, 2).join("/") : "",
-       p.horaInicio ? p.horaInicio + (p.horaFim ? "–" + p.horaFim : "") : "",
-       p.local || ""].filter(Boolean).join(" · "),
-      p.dia === hoje ? "bt-pri" : "")).join("")
+    ordenadas.flatMap((p) => p.frequencia === "entrada_saida"
+      // atividade de INÍCIO E FIM aparece duas vezes: o monitor diz o que está
+      // registrando agora. No fim da atividade ele abre o link de novo e
+      // escolhe a saída — é o que evita transformar em saída um crachá relido
+      // por engano, e o que dá conta do plantão de saída, com outro monitor
+      ? [bt(p.id + "|entrada", "➜ " + p.titulo + " — ENTRADA", quando(p), p.dia === hoje ? "bt-pri" : ""),
+         bt(p.id + "|saida", "⇥ " + p.titulo + " — SAÍDA", quando(p) + " · registra quem ficou até o fim", "")]
+      : [bt(p.id, p.titulo, quando(p), p.dia === hoje ? "bt-pri" : "")]).join("")
     + bt("", "Entrada geral do evento", "presença no evento, sem vínculo com atividade")
     + bt("?", "Perguntar a cada leitura", "para quem vai credenciar em atividades diferentes no mesmo plantão");
 }
@@ -214,15 +232,19 @@ function mostrarOnde() {
 /* Abre a leitura já sabendo onde se está credenciando. "" = entrada geral;
    "?" = perguntar a cada QR. */
 function irParaLeitura(valor) {
-  ATV_SEL = valor;
+  const [id, fase] = String(valor).split("|");
+  ATV_SEL = id;
+  FASE = fase === "saida" ? "saida" : "entrada";
   $("p-onde").classList.add("hide");
   $("p-scan").classList.remove("hide");
   $("res").className = "res";
   const faixa = $("faixa-atv");
   if (ATIVIDADES.length) {
-    const atv = ATIVIDADES.find((p) => p.id === valor);
-    $("faixa-nome").textContent = valor === "?" ? "Perguntar a cada leitura"
+    const atv = ATIVIDADES.find((p) => p.id === ATV_SEL);
+    const nome = ATV_SEL === "?" ? "Perguntar a cada leitura"
       : atv ? atv.titulo : "Entrada geral do evento";
+    $("faixa-nome").innerHTML = esc(nome) + (atv && atv.frequencia === "entrada_saida"
+      ? ` <span class="faixa-fase ${FASE}">${FASE === "saida" ? "SAÍDA" : "ENTRADA"}</span>` : "");
     faixa.classList.remove("hide");
   } else {
     faixa.classList.add("hide");
@@ -251,35 +273,44 @@ function resultado(tipo, nome, quando, extras = {}) {
   const aviso = extras.naoInscrito
     ? '<div class="dt" style="font-weight:700">⚠ não estava inscrito nesta atividade — sem vaga para incluir</div>'
     : extras.inscritoAgora
-      ? '<div class="dt" style="font-weight:700">＋ inscrito nesta atividade agora</div>' : "";
-  el.innerHTML = tipo === "ok"
+      ? '<div class="dt" style="font-weight:700">＋ inscrito nesta atividade agora</div>'
+      : extras.entradaSemRegistro
+        ? '<div class="dt" style="font-weight:700">⚠ não havia entrada registrada — registramos a ENTRADA agora</div>' : "";
+  el.innerHTML = tipo === "saida"
+    ? `<div class="ic">→</div><div class="tt">Saída registrada</div><div class="nm">${esc(nome)}</div>${linhaAtv}`
+      + `<div class="dt">permaneceu ${esc(extras.permanencia || "—")}${quando ? " · entrou às " + esc(hora(quando)) : ""}</div>`
+    : tipo === "ok"
     ? `<div class="ic">✓</div><div class="tt">Credenciado</div><div class="nm">${esc(nome)}</div>${linhaAtv}${aviso}`
     : tipo === "ja"
       ? `<div class="ic">⚠</div><div class="tt">Já credenciado às ${esc(hora(quando))}</div><div class="nm">${esc(nome)}</div>${linhaAtv}${aviso}`
       : `<div class="ic">✕</div><div class="tt">Inscrição não encontrada</div><div class="dt">${esc(nome || "Confira o QR ou o código digitado.")}</div>`;
-  if (navigator.vibrate) navigator.vibrate(tipo === "ok" ? 80 : [60, 60, 60]);
-  FILA.unshift({ tipo, nome: tipo === "erro" ? "(não encontrado)" : nome, h: hora(quando) });
+  if (navigator.vibrate) navigator.vibrate(tipo === "ok" || tipo === "saida" ? 80 : [60, 60, 60]);
+  FILA.unshift({ tipo, nome: tipo === "erro" ? "(não encontrado)" : nome,
+    h: tipo === "saida" ? "saída " + hora(extras.saidaEm) : hora(quando) });
   if (FILA.length > 12) FILA.pop();
   $("fila-vazia").style.display = "none";
   $("fila").innerHTML = FILA.map((f) =>
-    `<div><span>${esc(f.nome)}</span><span class="s-${f.tipo}">${f.tipo === "ok" ? "✓ " : f.tipo === "ja" ? "já às " : "✕ "}${esc(f.h)}</span></div>`).join("");
+    `<div><span>${esc(f.nome)}</span><span class="s-${f.tipo}">${
+      f.tipo === "ok" ? "✓ " : f.tipo === "saida" ? "→ " : f.tipo === "ja" ? "já às " : "✕ "}${esc(f.h)}</span></div>`).join("");
 }
 
-async function checkin(body, atividadeEscolhida) {
+async function checkin(body, atividadeEscolhida, faseEscolhida) {
   try {
     // no modo "perguntar", a atividade vem da escolha da leitura; no padrão,
     // do seletor do plantão
     const atividade = atividadeEscolhida !== undefined ? atividadeEscolhida : (ATV_SEL === "?" ? "" : ATV_SEL);
+    const fase = faseEscolhida !== undefined ? faseEscolhida : FASE;
     const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/checkin`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...body, codigoMonitor: COD, atividade }),
+      body: JSON.stringify({ ...body, codigoMonitor: COD, atividade, fase }),
     });
     const j = await r.json().catch(() => ({}));
     if (r.status === 403) { alert(j.error || "Código do monitor incorreto."); sair(); return false; }
     if (!r.ok) { resultado("erro", j.error && !/não encontrada/i.test(j.error) ? j.error : ""); return false; }
-    resultado(j.ja ? "ja" : "ok", j.nome, j.presenteEm,
+    resultado(j.saida ? "saida" : j.ja ? "ja" : "ok", j.nome, j.presenteEm,
       { atividade: j.atividade, naoInscrito: j.naoInscritoNaAtividade === true,
-        inscritoAgora: j.inscritoAgora === true });
+        inscritoAgora: j.inscritoAgora === true, entradaSemRegistro: j.entradaSemRegistro === true,
+        saidaEm: j.saidaEm, permanencia: j.permanenciaTxt });
     return true;
   } catch {
     resultado("erro", "Sem conexão — tente de novo.");
@@ -334,7 +365,10 @@ async function varrer() {
         if (tk && ATV_SEL === "?" && ATIVIDADES.length) {
           abrirEscolha(tk);
         } else if (tk) {
-          const chave = tk + "|" + ATV_SEL;
+          // a chave leva a FASE: a mesma credencial vale na entrada e, no fim
+          // da atividade, na saída — o que não se repete é a mesma leitura
+          // duas vezes no mesmo plantão
+          const chave = tk + "|" + ATV_SEL + "|" + FASE;
           if (JA_LIDOS.has(chave)) {
             repetido();
           } else {
@@ -396,7 +430,11 @@ async function escolher(idAtv) {
   escolhendo = null;
   if (!corpo) { pausado = false; return; }
   const chave = (corpo.token || corpo.codigo || "") + "|" + idAtv;
-  if (JA_LIDOS.has(chave)) { repetido(); setTimeout(() => { pausado = false; }, 1200); return; }
+  const dupla = (ATIVIDADES.find((x) => x.id === idAtv) || {}).frequencia === "entrada_saida";
+  const visto = JA_LIDOS.get(chave);
+  if (visto && (!dupla || Date.now() - visto < 3 * 60 * 1000)) {
+    repetido(); setTimeout(() => { pausado = false; }, 1200); return;
+  }
   JA_LIDOS.set(chave, Date.now());
   const ok = await checkin(corpo, idAtv);
   if (!ok) JA_LIDOS.delete(chave);

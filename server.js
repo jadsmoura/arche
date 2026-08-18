@@ -46,7 +46,8 @@ import {
   podeInscrever as podeInscreverEvento, jaInscrito,
   TIPOS_ATIVIDADE, gerarIdCurto, vagasAtividade, podeEscolherAtividade,
   normalizarFormulario, validarRespostas, LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd,
-  normalizarBlocos, TIPOS_BLOCO, CATEGORIAS_APOIO,
+  normalizarBlocos, TIPOS_BLOCO, CATEGORIAS_APOIO, REDES_SOCIAIS, FREQUENCIAS,
+  minutosEntre, duracaoBR, eventoControlaFrequencia,
   videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento,
 } from "./lib/eventos.js";
 import {
@@ -66,6 +67,7 @@ import {
 } from "./lib/edital.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
 import { dataCivil, hojeLocalISO } from "./lib/datas.js";
+import { MIN_FOTOS_RELATORIO, faltamFotos, avisoFotos, fotosDoPortfolio } from "./lib/portfolio.js";
 import { CREDENCIAMENTO, MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
 import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
@@ -1566,6 +1568,7 @@ app.get("/api/extensao", async (req, res) => {
       acoes, gestao: gereEx(u), gestaoEventos: gereEv(u), eu: u.email,
       tiposAtividade: TIPOS_ATIVIDADE, lgpdPadrao: LGPD_TEXTO_PADRAO,
       tiposBloco: TIPOS_BLOCO, categoriasApoio: CATEGORIAS_APOIO,
+      redesSociais: REDES_SOCIAIS, frequencias: FREQUENCIAS, minFotosRelatorio: MIN_FOTOS_RELATORIO,
     });
   } catch (e) {
     console.error("Erro ao listar ações de extensão:", e);
@@ -1614,6 +1617,11 @@ app.post("/api/extensao", async (req, res) => {
         // fabrica nem o reescreve.
         if (final.relatorio) {
           const entregouAgora = final.relatorio.entregueEm && !base?.relatorio?.entregueEm;
+          // O relatório se prova com IMAGEM: sem o registro fotográfico, a
+          // PROPPEX recebe um texto que ninguém consegue conferir depois
+          // (decisão do dono, ago/2026). A régua é a MESMA da tela.
+          if (entregouAgora && faltamFotos(final))
+            return { erro: [400, avisoFotos(final)], gravar: false };
           const snapshot = entregouAgora && final.evento?.chaveQr
             ? numerosDoEvento(final)
             : base?.relatorio?.numerosEvento;
@@ -1625,6 +1633,9 @@ app.post("/api/extensao", async (req, res) => {
       }
       return { gravadas, recusadas, gravar: gravadas > 0 };
     });
+    // recusa com MOTIVO (hoje só a falta das fotos na entrega do relatório):
+    // nada é gravado e a tela diz exatamente o que falta
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
     if (r.recusadas) console.warn(`[extensao] ${r.recusadas} ação(ões) recusada(s) de ${u.email}`);
     const acoes = (await lerAcoes()).filter((a) => podeVerAcao(u, a)).map((a) =>
       a.evento ? { ...a, evento: eventoSemSegredos(a.evento) } : a);
@@ -1835,7 +1846,8 @@ app.post("/api/extensao/anexo", upload.single("file"), async (req, res) => {
       buffer: req.file.buffer, originalName: req.file.originalname,
       prefix: `extensao/${slug(pre.curso || "geral")}/${slug(pre.numeroAcao || pre.id)}/portfolio`,
     });
-    const anexo = { ...data, enviadoEm: new Date().toISOString(), enviadoPor: u.email };
+    const anexo = { ...data, tipo: req.file.mimetype || "",
+      enviadoEm: new Date().toISOString(), enviadoPor: u.email };
     const r = await comAcoes((acoes) => {
       const acao = acoes.find((a) => a.id === id);
       if (!acao) return { erro: [404, "Ação não encontrada"], gravar: false };
@@ -1989,6 +2001,7 @@ function eventoPublico(a, { detalhe = false } = {}) {
     inscricoesAte: prazoInscricao(ev, a),
     inscricoesAbertas: podeInscreverEvento(a, hojeLocalISO()).ok,
     temCapa: !!ev.capa,
+    controleFrequencia: eventoControlaFrequencia(ev),
   };
   if (!detalhe) return base;
   // as atividades passam pela normalização na saída: o dado antigo (sem id,
@@ -2385,6 +2398,29 @@ app.get("/api/publico/eventos/:slug/apoiador/:iid/logo", async (req, res) => {
   }
 });
 
+/* O QR da PÁGINA do evento (pedido do dono, ago/2026): nem toda reunião dá
+   para inscrever antes — projeta-se este QR no encerramento e quem estava ali
+   se inscreve na hora, pelo celular. Leva ao endereço público do evento, que
+   já é público: não há segredo nenhum neste QR. */
+app.get("/api/publico/eventos/:slug/qr-inscricao.png", async (req, res) => {
+  try {
+    const a = eventoPorSlug(await lerAcoes(), req.params.slug);
+    if (!a?.evento?.ativo) return res.status(404).send("Evento não encontrado");
+    const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    const url = `${base}/eventos/${encodeURIComponent(a.evento.slug)}`;
+    const { default: QRCode } = await import("qrcode");
+    const png = await QRCode.toBuffer(url, { type: "png", errorCorrectionLevel: "M", margin: 2, width: 900 });
+    res.setHeader("Content-Type", "image/png");
+    if (req.query.baixar !== undefined)
+      res.setHeader("Content-Disposition", `attachment; filename="qr-inscricao-${a.evento.slug}.png"`);
+    res.setHeader("Cache-Control", "public, max-age=600");
+    res.send(png);
+  } catch (e) {
+    console.error("Erro no QR de inscrição:", e);
+    res.status(500).send("Erro ao gerar o QR");
+  }
+});
+
 /** O mesmo QR em PNG, para BAIXAR e guardar na galeria do celular — é o que
  *  a maioria faz na prática, e funciona sem rede na porta do evento. */
 app.get("/api/publico/eventos/:slug/inscricao/:token/qr.png", async (req, res) => {
@@ -2552,6 +2588,15 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
         { token: b.token, codigo: b.codigo });
       if (!inscrito) return { erro: [404, "Inscrição não encontrada."], falha: true, gravar: false };
       const idAtv = atv ? atv.id : "";
+      // Evento SEM controle de frequência não tem porta: a inscrição já é a
+      // presença, e todo inscrito conta 100% (decisão do dono, ago/2026)
+      if (!eventoControlaFrequencia(a.evento))
+        return { erro: [400, "Este evento não faz controle de frequência — quem está inscrito já conta como presente."], gravar: false };
+      // Atividade SEM controle de frequência não se credencia (decisão do
+      // dono, ago/2026): quem está inscrito já recebe as horas, e deixar o
+      // monitor ler QR à toa daria a impressão de que a presença importa.
+      if (atv && atv.frequencia === "nenhum")
+        return { erro: [400, `“${atv.titulo}” não faz controle de frequência — quem está inscrito já recebe as horas.`], gravar: false };
       /* Quem chega sem ter marcado a atividade É INSCRITO NA HORA (decisão do
          dono, ago/2026): em evento de programação múltipla muita gente se
          inscreve só no geral e aparece na oficina — registrar a presença sem
@@ -2578,6 +2623,36 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
       const presencas = inscrito.presencas || (inscrito.presencas = []);
       const anterior = presencas.find((x) => String(x?.atividade || "") === idAtv);
       const agora = new Date().toISOString();
+      /* ENTRADA E SAÍDA (decisão do dono, ago/2026): em atividade marcada
+         assim o monitor DIZ o que está registrando — o plantão de saída é
+         outro momento, com o link aberto de novo e a fase escolhida na tela.
+         Deduzir "segunda leitura = saída" transformaria em saída o crachá
+         relido por engano; e o monitor da porta, no fim da oficina, não tem
+         como saber quem já passou por ali. */
+      const fase = String(b.fase || "") === "saida" ? "saida" : "entrada";
+      if (atv && atv.frequencia === "entrada_saida" && fase === "saida") {
+        if (!anterior) {
+          // ninguém registrou a chegada desta pessoa (chegou antes do monitor,
+          // fila grande): a presença vale — registra a ENTRADA e avisa
+          presencas.push({ atividade: idAtv, em: agora, por: "monitor" });
+          if (inscrito.presente !== true) {
+            inscrito.presente = true; inscrito.presenteEm = agora; inscrito.presentePor = "monitor";
+          }
+          a.atualizadoEm = agora;
+          return { nome: inscrito.nome || "", presenteEm: agora, entradaSemRegistro: true, ...extras };
+        }
+        if (anterior.saidaEm)
+          return { ja: true, completa: true, nome: inscrito.nome || "", presenteEm: anterior.em || "",
+            saidaEm: anterior.saidaEm, permanencia: minutosEntre(anterior.em, anterior.saidaEm),
+            ...extras, gravar: false };
+        if (Date.parse(agora) - Date.parse(anterior.em || 0) < 60000)
+          return { ja: true, nome: inscrito.nome || "", presenteEm: anterior.em || "", ...extras, gravar: false };
+        anterior.saidaEm = agora;
+        anterior.saidaPor = "monitor";
+        a.atualizadoEm = agora;
+        return { saida: true, nome: inscrito.nome || "", presenteEm: anterior.em || "",
+          saidaEm: agora, permanencia: minutosEntre(anterior.em, agora), ...extras };
+      }
       // idempotente POR NÍVEL: repetir a mesma atividade (ou a entrada geral)
       // devolve a primeira hora; registro antigo sem `presencas` conta como
       // a entrada geral já feita. MAS presença DESFEITA pela gestão volta a
@@ -2616,6 +2691,11 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
     }
     // só o nome de QUEM apresentou o token — nada da lista sai por aqui
     res.json({ ok: true, ja: r.ja === true, nome: r.nome, presenteEm: r.presenteEm,
+      ...(r.saida ? { saida: true } : {}),
+      ...(r.completa ? { completa: true } : {}),
+      ...(r.entradaSemRegistro ? { entradaSemRegistro: true } : {}),
+      ...(r.saidaEm ? { saidaEm: r.saidaEm } : {}),
+      ...(r.permanencia !== undefined ? { permanencia: r.permanencia, permanenciaTxt: duracaoBR(r.permanencia) } : {}),
       ...(r.atividade ? { atividade: r.atividade } : {}),
       ...(r.inscritoAgora ? { inscritoAgora: true } : {}),
       ...(r.naoInscritoNaAtividade ? { naoInscritoNaAtividade: true } : {}) });
@@ -2930,6 +3010,9 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
         normalizarProgramacao(b.programacao), b.programacao, ev.programacao, "foto");
       if (b.formulario !== undefined) ev.formulario = normalizarFormulario(b.formulario);
       if (b.local !== undefined) ev.local = String(b.local || "").trim().slice(0, 200);
+      // o interruptor do EVENTO: sem controle de frequência, ninguém
+      // credencia e todo inscrito conta como presente
+      if (b.controleFrequencia !== undefined) ev.controleFrequencia = b.controleFrequencia !== false;
       // vazio volta ao texto institucional padrão (LGPD_TEXTO_PADRAO)
       if (b.lgpdTexto !== undefined) ev.lgpdTexto = String(b.lgpdTexto || "").trim().slice(0, 2000);
       if (b.capa !== undefined) {

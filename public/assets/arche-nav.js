@@ -20,6 +20,11 @@
     { href: "/eventos/gestao/", rot: "Eventos",        teste: function (p) { return p.indexOf("/eventos/gestao") === 0; } },
     { href: "/pesquisa/ic/", rot: "Pesquisa · IC",     teste: function (p) { return p.indexOf("/pesquisa") === 0; } },
     { href: "/arche/",       rot: "Avaliação",         teste: function (p) { return p.indexOf("/arche") === 0; } },
+    // a VISÃO PÚBLICA do portal (pedido do dono, ago/2026): a mesma página que
+    // o visitante sem login encontra — vitrine dos editais e resultados da IC e
+    // dos eventos abertos. Quem está logado chega nela por aqui, sem sair da
+    // conta, para conferir o que o público está vendo
+    { href: "/?publico=1",   rot: "Página inicial",    teste: function () { return false; } },
   ];
   var caminho = location.pathname;
 

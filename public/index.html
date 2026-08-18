@@ -104,7 +104,7 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </span>
       </a>
-      <div class="card">
+      <div class="card" id="bloco-entrar">
         <span class="card-topo">
           <span class="card-ic" aria-hidden="true">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -302,10 +302,21 @@ fetch("/api/av/link").then(r => (r.ok ? r.json() : null)).then(d => {
    portal dos setores aparece depois do login, filtrado por papel (o filtro
    fino continua em arche-nav.js). Em erro do /api/me, cai na visão logada —
    o comportamento antigo — para a página nunca ficar vazia. */
+// ?publico=1 mostra a VISÃO PÚBLICA a quem está logado (o atalho "Página
+// inicial" da barra): é como conferir o que o visitante encontra sem sair da
+// conta. Em vez do formulário de entrada, aparece o caminho de volta ao portal.
+const VER_PUBLICO = new URLSearchParams(location.search).get("publico") === "1";
 fetch("/api/me").then((r) => (r.ok ? r.json() : {})).then((me) => {
   const logado = !!(me && me.email);
-  if (logado) document.body.classList.add("arche-logado");
+  if (logado && !VER_PUBLICO) document.body.classList.add("arche-logado");
   else document.getElementById("portal-publico").hidden = false;
+  if (logado && VER_PUBLICO) {
+    const cx = document.getElementById("bloco-entrar");
+    if (cx) cx.innerHTML = `<div class="card-t">Você está no portal</div>
+      <p class="card-d" style="margin-top:6px">Esta é a página que o visitante sem login encontra —
+        as vitrines públicas da Iniciação Científica e dos Eventos. Sua sessão continua aberta.</p>
+      <a class="bt bt-pri" href="/" style="width:100%;margin-top:14px">Voltar ao portal completo</a>`;
+  }
 }).catch(() => { document.body.classList.add("arche-logado"); });
 
 async function entrarComSenha(ev) {

@@ -199,6 +199,13 @@
   .ov-2col{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
   /* clique fora: a janela pisca em vez de fechar — o cadastro não se perde */
   @keyframes ovPiscar{0%{transform:scale(1)}35%{transform:scale(1.015)}100%{transform:scale(1)}}
+  .wiz-op{display:grid;gap:10px;margin-top:8px}
+  .wiz-op .op{display:block;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;
+    background:#fff;transition:.15s}
+  .wiz-op .op:hover{border-color:var(--brand-3)}
+  .wiz-op .op.on{border-color:var(--brand);background:var(--wash);box-shadow:0 0 0 3px rgba(64,113,126,.12)}
+  .wiz-op .op b{display:block;font-size:14px;color:var(--ink)}
+  .wiz-op .op span{display:block;font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.5}
   .ov-cx.ov-piscar{animation:ovPiscar .22s ease-out;box-shadow:0 0 0 3px rgba(64,113,126,.35),0 18px 60px rgba(0,0,0,.25)}
   @media(max-width:560px){.ov-2col{grid-template-columns:1fr}}
   /* assistente por etapas (dentro da mesma janela) */
@@ -672,7 +679,7 @@ const faltasProjetoEv=(a)=>{
 let NE=null;
 function novoEvento(){
   NE={passo:1, nome:"", curso:CURSOS_EV[0], publico:"", tema:"",
-      inicio:"", fim:"", ch:"", municipio:"Goianésia/GO"};
+      inicio:"", fim:"", ch:"", municipio:"Goianésia/GO", controle:true};
   const cx=document.createElement("div");
   cx.className="ov"; cx.id="ov-novo";
   // clicar fora NÃO descarta o cadastro (achado do dono, ago/2026): são 4
@@ -755,13 +762,25 @@ function renderPassoNE(){
         atividade</b>, na guia <b>Programação</b> (decisão do dono, ago/2026): num evento eles
         variam de uma palestra para um minicurso, e é lá que cada um tem o seu horário, sala e
         vagas. O endereço geral do evento (o que sai no mapa da página pública) fica na guia
-        <b>Página do evento</b>.</div>`
+        <b>Página do evento</b>.</div>
+      <label style="margin-top:14px">Este evento terá controle de frequência? *</label>
+      <div class="wiz-op">
+        <label class="op ${NE.controle?"on":""}" onclick="NE.controle=true;renderPassoNE()">
+          <b>Sim — vamos credenciar</b>
+          <span>Os participantes apresentam o QR na entrada. Ao montar a programação, cada atividade
+            escolhe o modo: frequência única, início e fim, ou sem controle naquela atividade.</span></label>
+        <label class="op ${NE.controle?"":"on"}" onclick="NE.controle=false;renderPassoNE()">
+          <b>Não — a inscrição já vale como presença</b>
+          <span>Ninguém para na porta e todos os inscritos contam 100% de frequência. Para evento
+            grande e aberto, em que credenciar é inviável.</span></label>
+      </div>`
     : `
       <div class="wiz-rev">
         ${[["Evento",NE.nome],["Curso / setor",NE.curso],["Público-alvo",NE.publico],
            ["Tema central",NE.tema],
            ["Período",NE.inicio?`${fmt(NE.inicio)} – ${fmt(NE.fim)}`:""],
-           ["Carga horária",NE.ch?NE.ch+" h":""],["Município",NE.municipio]]
+           ["Carga horária",NE.ch?NE.ch+" h":""],["Município",NE.municipio],
+           ["Frequência",NE.controle?"com credenciamento (por atividade)":"sem controle — inscrito conta presente"]]
           .map(([r,v])=>`<div class="li"><b>${r}</b><span>${esc(v)||'<span class="muted">—</span>'}</span></div>`).join("")}
       </div>
       <div class="tut" style="font-size:12.5px">
@@ -824,7 +843,7 @@ async function criarNovoEvento(){
     // semeia a configuração do evento (rascunho) — é o que o traz para o EV
     const r2=await fetch(`/api/extensao/${encodeURIComponent(registro.id)}/evento`,{method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({descricao:NE.tema.trim()})});
+      body:JSON.stringify({descricao:NE.tema.trim(), controleFrequencia:NE.controle!==false})});
     if(!r2.ok) throw new Error((await r2.json().catch(()=>({}))).error||"A ação foi criada, mas a configuração do evento falhou — abra-a na lista.");
     fecharNovo();
     await carregar();
@@ -1261,6 +1280,15 @@ function renderPagina(a){
       <textarea id="ev-desc" placeholder="O que é o evento, para quem, o que levar…">${esc(ev.descricao||"")}</textarea>
       <label>Endereço do evento (local) <span class="muted">(sai na página com o link "Ver no mapa")</span></label>
       <input id="ev-local" value="${esc(ev.local||"")}" placeholder="Ex.: Auditório central do UNIEGO — Av. Universitária, Goianésia/GO">
+      <label>Controle de frequência do evento</label>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:6px">
+        <label class="chk" style="margin:0;font-size:13px">
+          <input type="radio" name="ev-freq" value="1" ${ev.controleFrequencia===false?"":"checked"}>
+          com credenciamento (cada atividade escolhe o modo)</label>
+        <label class="chk" style="margin:0;font-size:13px">
+          <input type="radio" name="ev-freq" value="0" ${ev.controleFrequencia===false?"checked":""}>
+          sem controle — todo inscrito conta presente (100%)</label>
+      </div>
       <label>Capa da página — arte de <b style="color:var(--brand-2)">1600 × 640 px</b>
         <span class="muted">(JPEG, PNG ou WebP, até 10 MB — aparece no topo do hotsite e na vitrine)</span></label>
       <div class="tut" style="font-size:12.5px;margin:6px 0 10px">
@@ -1308,6 +1336,7 @@ function renderProgramacao(a){
     // a foto não vem no payload (só o sinal): `foto` fica undefined até a
     // pessoa enviar uma nova, e o servidor preserva a que já está gravada
     temFoto:p.temFoto===true, instituicao:p.instituicao||"", miniBio:p.miniBio||"",
+    frequencia:p.frequencia||"entrada",
   }));
 
   $("v-programacao").innerHTML=`
@@ -1364,6 +1393,23 @@ function renderCredenciamento(a){
     </div>
 
     <div class="card">
+      <div class="sec-t">QR de inscrição — para projetar</div>
+      <div class="muted" style="margin:8px 0">Nem toda reunião dá para inscrever antes: projete este QR
+        no encerramento e quem estava ali se inscreve na hora, pelo celular. Ele leva à página pública do
+        evento — o mesmo endereço do cartaz e das redes.</div>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        <img src="/api/publico/eventos/${encodeURIComponent(ev.slug)}/qr-inscricao.png" alt="QR de inscrição"
+          style="width:150px;height:150px;border:1px solid var(--line);border-radius:12px;padding:8px;background:#fff">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="bt bt-pri" onclick="qrTelaCheia('${esc(ev.slug)}','${esc((a.proposta?.nomeAtividade||"").replace(/'/g,""))}')">🖥 Mostrar em tela cheia</button>
+          <a class="bt bt-sec" href="/api/publico/eventos/${encodeURIComponent(ev.slug)}/qr-inscricao.png?baixar"
+            download>⬇ Baixar o QR (PNG)</a>
+          <span class="muted" style="font-size:12px">Para o cartaz, o slide ou a porta da sala.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="sec-t">Contingência do dia</div>
       <div class="muted" style="margin:8px 0">Se o celular do monitor falhar, a porta confere pelo nome
         e pelo código de cada inscrito e colhe assinatura — a presença entra depois, manual, na guia
@@ -1378,6 +1424,31 @@ function renderCredenciamento(a){
         sistema emitir o QR dos inscritos, o código do monitor e o link do credenciamento.</div>
       <button class="bt bt-sec" onclick="nav('pagina')">Ir à Página do evento</button>
     </div>`;
+}
+
+/* O QR em tela cheia: é o que se projeta no telão no fim da reunião. Abre
+   numa janela limpa — nome do evento, QR grande e o endereço escrito, para
+   quem preferir digitar. */
+function qrTelaCheia(slug, nome){
+  const w = window.open("", "_blank");
+  if(!w){ alert("O navegador bloqueou a janela. Libere as janelas para este site e tente de novo."); return; }
+  const url = location.origin + "/eventos/" + encodeURIComponent(slug);
+  w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+    <title>Inscreva-se — ${esc(nome||"evento")}</title>
+    <style>body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;
+      justify-content:center;gap:18px;background:#0f2027;color:#fff;
+      font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:center;padding:24px}
+      h1{font-size:clamp(22px,3.4vw,40px);margin:0;font-weight:800}
+      p{margin:0;opacity:.85;font-size:clamp(14px,1.6vw,20px)}
+      img{width:min(56vh,80vw);height:auto;background:#fff;border-radius:20px;padding:18px}
+      code{font-size:clamp(13px,1.5vw,19px);background:rgba(255,255,255,.12);padding:8px 14px;border-radius:10px}</style>
+    </head><body>
+      <h1>${esc(nome||"Inscreva-se")}</h1>
+      <p>Aponte a câmera do celular para o código e faça a sua inscrição</p>
+      <img src="/api/publico/eventos/${encodeURIComponent(slug)}/qr-inscricao.png" alt="QR de inscrição">
+      <code>${esc(url)}</code>
+    </body></html>`);
+  w.document.close();
 }
 
 /* =================== EVENTO · TRANSMISSÃO E MURAL ======================= */
@@ -1486,7 +1557,7 @@ const contadoresAtividadeHtml=(a)=>{
 /* ------------------------ editor de atividades --------------------------- */
 function novaAtividadeEv(){
   EV_PROG.push({id:"",tipo:"palestra",titulo:"",descricao:"",dia:"",horaInicio:"",horaFim:"",
-    local:"",responsavel:"",vagas:0,ch:"",inscricao:"geral",modalidade:"presencial"});
+    local:"",responsavel:"",vagas:0,ch:"",inscricao:"geral",modalidade:"presencial",frequencia:"entrada"});
   renderProgEv();
 }
 function moverAtvEv(i,d){
@@ -1531,6 +1602,14 @@ function renderProgEv(){
             <option value="presencial" ${p.modalidade!=="online"?"selected":""}>presencial</option>
             <option value="online" ${p.modalidade==="online"?"selected":""}>online</option>
           </select></label>
+        <label class="chk" style="margin:0;font-size:12.5px"
+          title="Sem controle: quem está inscrito recebe as horas. Chegada: uma leitura do QR. Entrada e saída: duas leituras, para contar o tempo de permanência.">
+          frequência
+          <select style="width:auto;font-size:12.5px;padding:5px 30px 5px 8px" onchange="EV_PROG[${i}].frequencia=this.value">
+            <option value="nenhum" ${p.frequencia==="nenhum"?"selected":""}>sem controle</option>
+            <option value="entrada" ${(p.frequencia||"entrada")==="entrada"?"selected":""}>presença na chegada</option>
+            <option value="entrada_saida" ${p.frequencia==="entrada_saida"?"selected":""}>entrada e saída</option>
+          </select></label>
       </div>
       <details style="margin-top:8px" ${p.descricao?"open":""}>
         <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--brand-3)">descrição da atividade (aparece no "ver detalhes" da página)</summary>
@@ -1566,8 +1645,13 @@ const TIPOS_BLOCO_UI = [
   ["submissao","Submissão de trabalhos","Leva ao sistema oficial de submissão (o OJS da revista), com prazos e normas."],
   ["anais","Anais do evento","Os anais desta edição e das anteriores, com link e ISSN."],
   ["apoiadores","Apoio e patrocínio","Logotipos de quem realiza, patrocina e apoia o evento."],
+  ["video","Vídeo (YouTube)","Chamada, teaser ou a gravação de uma edição anterior, tocando na própria página."],
+  ["redes","Mídias sociais","Os perfis do evento ou do curso, com os ícones das redes."],
   ["texto","Texto livre","Um assunto à parte: chamada, hospedagem, contato, o que o evento pedir."],
 ];
+const REDES_UI = [["instagram","Instagram"],["facebook","Facebook"],["youtube","YouTube"],
+  ["linkedin","LinkedIn"],["tiktok","TikTok"],["x","X (Twitter)"],["whatsapp","WhatsApp"],
+  ["telegram","Telegram"],["site","Site"]];
 const CATEGORIAS_APOIO_UI = [["realizacao","Realização"],["patrocinio","Patrocínio"],["apoio","Apoio"]];
 
 function renderBlocos(a){
@@ -1599,6 +1683,8 @@ function novoBloco(tipo){
       prazos:[{rotulo:"Prazo final para submissão",data:""},{rotulo:"Divulgação dos aceites",data:""}]},
     anais:{titulo:"Anais do evento", itens:[{titulo:"",ano:"",url:"",issn:""}]},
     apoiadores:{titulo:"Apoio e patrocínio", itens:[{nome:"",categoria:"patrocinio",url:""}]},
+    video:{titulo:"Vídeo do evento"},
+    redes:{titulo:"Acompanhe o evento", itens:[{rede:"instagram",url:""}]},
     texto:{titulo:""},
   }[tipo]||{};
   EV_BLOCOS.push({id:"",tipo,titulo:"",texto:"",url:"",rotuloBotao:"",normasUrl:"",visivel:true,
@@ -1686,6 +1772,31 @@ function corpoBloco(b,i){
       </div>`).join("")}
       <button class="bt bt-ghost" style="padding:6px 11px;font-size:12px;margin-top:8px"
         onclick="EV_BLOCOS[${i}].itens=(EV_BLOCOS[${i}].itens||[]).concat({nome:'',categoria:'patrocinio',url:''});renderBlocosEv()">＋ apoiador</button>`;
+  }
+  if(b.tipo==="video"){
+    return `
+      <input placeholder="link do vídeo no YouTube (cole a URL inteira)" style="margin-top:8px"
+        value="${esc(b.youtubeId||"")}" oninput="EV_BLOCOS[${i}].youtubeId=this.value">
+      <div class="muted" style="margin-top:6px;font-size:12.5px">O vídeo toca dentro da página, sem
+        cookies do YouTube até o visitante dar play. Vale a chamada do evento, um teaser ou a gravação
+        de uma edição anterior.</div>`;
+  }
+  if(b.tipo==="redes"){
+    return `
+      <div class="muted" style="margin-top:10px;font-size:12.5px">Perfis do evento ou do curso:</div>
+      ${(b.itens||[]).map((it,j)=>`<div class="g-atv2" style="margin-top:6px">
+        <select onchange="EV_BLOCOS[${i}].itens[${j}].rede=this.value">
+          ${REDES_UI.map(([c,r])=>`<option value="${c}" ${it.rede===c?"selected":""}>${r}</option>`).join("")}
+        </select>
+        <input placeholder="endereço do perfil (https://…)" value="${esc(it.url||"")}"
+          oninput="EV_BLOCOS[${i}].itens[${j}].url=this.value">
+        <input placeholder="rótulo (opcional: @perfil)" value="${esc(it.rotulo||"")}"
+          oninput="EV_BLOCOS[${i}].itens[${j}].rotulo=this.value">
+        <button class="bt bt-ghost" style="padding:5px 9px;font-size:12px;color:var(--err)"
+          onclick="EV_BLOCOS[${i}].itens.splice(${j},1);renderBlocosEv()">✕</button>
+      </div>`).join("")}
+      <button class="bt bt-ghost" style="padding:6px 11px;font-size:12px;margin-top:8px"
+        onclick="EV_BLOCOS[${i}].itens=(EV_BLOCOS[${i}].itens||[]).concat({rede:'instagram',url:''});renderBlocosEv()">＋ perfil</button>`;
   }
   return `<input placeholder="endereço do botão (opcional)" style="margin-top:8px" value="${esc(b.url||"")}"
       oninput="EV_BLOCOS[${i}].url=this.value">
@@ -2048,11 +2159,14 @@ async function salvarParteEvento(id, body){
    entra no corpo quando a tela mexeu nela — mandar sempre apagaria a que
    está gravada (o payload nunca traz o base64 de volta). */
 function salvarPagina(id){
+  // o interruptor da frequência mora aqui: é decisão do evento, não da página
+  const freq = document.querySelector('input[name="ev-freq"]:checked');
   const body={
     ativo:$("ev-ativo")?.checked||false,
     descricao:$("ev-desc")?.value||"",
     local:$("ev-local")?.value||"",
   };
+  if(freq) body.controleFrequencia = freq.value === "1";
   if(EV_CAPA!==undefined) body.capa=EV_CAPA;
   const slugEl=$("ev-slug");
   if(slugEl&&slugEl.value.trim()) body.slug=slugEl.value.trim();

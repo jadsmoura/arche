@@ -280,7 +280,8 @@ public/
 - **A página do evento tem BLOCOS** (`TIPOS_BLOCO`/`normalizarBlocos` em lib/eventos.js +
   guia "Blocos da página" no ARCHÉ EV, decisão do dono ago/2026): além da espinha fixa (capa,
   sobre, programação, inscrição), cada evento monta as suas seções — **submissão de
-  trabalhos**, **anais**, **apoio e patrocínio** e **texto livre** —, na ordem da lista e com
+  trabalhos**, **anais**, **apoio e patrocínio**, **vídeo do YouTube**, **mídias sociais** e
+  **texto livre** —, na ordem da lista e com
   a barra de seções grudada no topo da página (a página cresceu e precisa ser navegável).
   A **submissão é por LINK**: o sistema oficial é o **OJS da revista**, e receber resumo aqui
   também criaria duas filas para o mesmo trabalho — o bloco leva o autor até lá com prazos e
@@ -300,6 +301,28 @@ public/
   isso, salvar a programação apagaria todas as fotos. O navegador **recorta a foto no quadrado
   a 400 px** e **reduz o logotipo a 320 px** antes de subir (tetos de 90 KB e 70 KB no
   servidor); imagem fora do formato ou grande demais é descartada sem derrubar a gravação.
+- **Controle de frequência é escolha do EVENTO e, depois, de cada atividade** (decisão do
+  dono, ago/2026): o assistente pergunta se o evento terá credenciamento. **Sem controle**
+  (`evento.controleFrequencia: false`), ninguém para na porta e **todo inscrito conta 100%** —
+  o check-in é recusado, e números e exports contam a inscrição como presença. **Com
+  controle**, cada atividade escolhe o modo em `frequencia`: `nenhum` (sem controle nela),
+  `entrada` (frequência única, o padrão) ou `entrada_saida` (início e fim). Na de início e fim
+  o monitor **diz o que está registrando**: a etapa do credenciamento lista a atividade duas
+  vezes (ENTRADA e SAÍDA) e a faixa mostra a fase — deduzir "segunda leitura = saída"
+  transformaria em saída um crachá relido por engano, e o plantão de saída costuma ser de
+  outro monitor. A saída grava `saidaEm` e a permanência; sem entrada registrada, a leitura de
+  saída **registra a entrada** e avisa na tela.
+- **QR de inscrição para projetar** (`/api/publico/eventos/:slug/qr-inscricao.png`, botão na
+  guia Credenciamento): nem toda reunião dá para inscrever antes — o QR da página do evento
+  vai ao telão no encerramento e quem estava ali se inscreve na hora. Tem versão em tela
+  cheia (nome do evento + QR + endereço escrito) e download do PNG para cartaz e slide.
+- **O relatório final exige FOTOS** (`lib/portfolio.js`, decisão do dono ago/2026): a entrega
+  pede **no mínimo 5 fotos** no portfólio da ação, sem teto — o registro fotográfico é o que
+  comprova a realização, e proposta e relatório sozinhos não se conferem depois. A régua é
+  uma só (`faltamFotos`): a tela conta e avisa antes, e o servidor recusa a entrega sem elas.
+  Foto é o anexo com tipo de imagem (nos registros antigos, pela extensão) — documento
+  anexado continua entrando no portfólio sem contar para o mínimo. **O relatório continua
+  sendo do ARCHÉ EX**: é da ação de extensão, com o PDF timbrado; o ARCHÉ EV leva até lá.
 - **A credencial do participante** (decisão do dono, ago/2026): a inscrição já nasce
   **pré-preenchida para quem está logado** no ARCHÉ (`/api/me` no hotsite — só os dados da
   PRÓPRIA conta, com o aviso RECOLHIDO numa linha só, que abre no clique e traz a conta usada

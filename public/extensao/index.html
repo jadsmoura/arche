@@ -351,6 +351,7 @@ async function carregar(){
   const j = await r.json();
   ACOES = j.acoes || [];
   if(Array.isArray(j.tiposAtividade) && j.tiposAtividade.length) TIPOS_ATV = j.tiposAtividade;
+  if(Number(j.minFotosRelatorio)>0) MIN_FOTOS = Number(j.minFotosRelatorio);
   if(j.lgpdPadrao) LGPD_PADRAO = j.lgpdPadrao;
   // normaliza registros antigos/importados: sem isso, uma ação sem o bloco de
   // participantes quebra a tela de detalhe ao renderizar as listas
@@ -1096,7 +1097,8 @@ function renderDetalhe(id){
         <div><label>Receita</label><input id="r-receita" ${lock?"disabled":""} value="${esc(r.receita||"")}" placeholder="Não se aplica"></div>
       </div>
       ${quadroNumerosEvento(a)}
-      <div class="sec-t" style="margin-top:18px">Portfólio / evidências de divulgação</div>
+      <div class="sec-t" style="margin-top:18px">Portfólio de comprovação</div>
+      ${avisoFotosHtml(a)}
       <div class="muted" style="margin-bottom:4px">Anexe imagens e arquivos que julgar pertinentes (fotos, cartazes, prints de publicações…) e informe links de postagens em redes sociais, vídeos, matérias etc. Tudo passa a constar no PDF timbrado do relatório.</div>
       <label>Links de divulgação <span class="muted">(um por linha)</span></label>
       <textarea id="r-links" ${lock?"disabled":""} placeholder="https://instagram.com/p/…&#10;https://youtube.com/watch?v=…" style="min-height:70px">${esc(r.linksPortfolio||"")}</textarea>
@@ -1170,6 +1172,21 @@ function renderDetalhe(id){
   renderInscritosEv(a); renderMuralEv(a); agendarEvento(a.id);
 }
 
+/* O contador das fotos, no alto do portfólio: a pessoa vê quantas faltam
+   ANTES de tentar entregar, e não descobre a exigência no erro. */
+function avisoFotosHtml(a){
+  const fotos=fotosDaAcao(a).length;
+  const faltam=Math.max(0,MIN_FOTOS-fotos);
+  const entregue=!!a.relatorio?.entregueEm;
+  if(entregue && !faltam) return "";
+  return faltam
+    ? `<div class="banner ba-warn" id="fotos-aviso">📷 <b>Fotos do evento: ${fotos} de ${MIN_FOTOS}</b> —
+        ${faltam===1?"falta 1 foto":`faltam ${faltam} fotos`} para poder entregar o relatório.
+        O registro fotográfico é o que comprova a realização; mande quantas quiser, o mínimo é ${MIN_FOTOS}.</div>`
+    : `<div class="banner ba-ok" id="fotos-aviso">📷 <b>${fotos} foto(s) anexada(s)</b> — mínimo cumprido.
+        Fotos a mais são bem-vindas no portfólio.</div>`;
+}
+
 /* ------------------------- portfólio: anexos ----------------------------- */
 function fmtTam(n){ if(!n) return ""; return n>=1048576?(n/1048576).toFixed(1)+" MB":Math.max(1,Math.round(n/1024))+" KB"; }
 function renderAnexos(a){
@@ -1198,6 +1215,9 @@ async function anexarArquivos(id){
     if(!r||!r.ok){ if(msg) msg.textContent=""; alert("⚠ Falha ao anexar "+arquivos[i].name+": "+(j.error||"erro de conexão")); renderAnexos(a); return; }
     a.portfolio=a.portfolio||{}; a.portfolio.anexos=j.anexos||a.portfolio.anexos||[];
   }
+  // o contador de fotos, no topo do bloco, acompanha o que acabou de subir
+  const aviso=$("fotos-aviso");
+  if(aviso) aviso.outerHTML=avisoFotosHtml(a);
   inp.value="";
   if(msg){ msg.textContent="✓ anexado(s) com sucesso"; setTimeout(()=>{ if($("ax-msg")) $("ax-msg").textContent=""; },3000); }
   renderAnexos(a);
@@ -1375,14 +1395,42 @@ function lerRelatorio(){
     linksPortfolio:$("r-links")?.value.trim()||"",
   };
 }
+/* O relatório se prova com IMAGEM (decisão do dono, ago/2026): o registro
+   fotográfico é o que a PROPPEX arquiva e o avaliador pede para ver. O mínimo
+   é de MIN_FOTOS fotos, sem teto — e a régua é a mesma que o servidor aplica
+   na entrega (lib/portfolio.js), para a tela não prometer o que o servidor
+   recusa. As fotos são os próprios anexos do portfólio: documento anexado
+   (lista de presença, folder) continua entrando ali sem contar como foto. */
+let MIN_FOTOS = 5;
+const ehFotoAnexo = (x) => {
+  const tipo = String(x?.tipo || "");
+  return tipo ? tipo.startsWith("image/") : /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?)$/i.test(String(x?.name || ""));
+};
+const fotosDaAcao = (a) => (a?.portfolio?.anexos || []).filter(ehFotoAnexo);
+
 async function enviarRelatorio(id){
   const a=ACOES.find(x=>x.id===id); if(!a)return;
   const r=lerRelatorio();
   if(!r.avaliacaoResultados){ alert("Preencha a Avaliação / resultados alcançados."); return; }
+  const fotos=fotosDaAcao(a).length;
+  if(fotos<MIN_FOTOS){
+    alert(`O relatório precisa de pelo menos ${MIN_FOTOS} fotos do evento.\n\n`
+      + `Há ${fotos} no portfólio — anexe mais ${MIN_FOTOS-fotos} no bloco "Portfólio de comprovação" `
+      + "(logo abaixo do relatório) e entregue em seguida. Fotos a mais são bem-vindas.");
+    document.getElementById("ax-file")?.scrollIntoView({behavior:"smooth",block:"center"});
+    return;
+  }
   if(!(a.participantes.inscritos||[]).length && !confirm("A lista de participantes está vazia. Enviar mesmo assim?")) return;
   a.relatorio={...r, entregueEm:new Date().toISOString()};
   a.status="relatorio-entregue"; a.atualizadoEm=new Date().toISOString();
-  await salvar();
+  try{
+    await salvar();
+  }catch(e){
+    // o servidor recusa a entrega sem as fotos: mostra o motivo dele
+    alert("Não foi possível enviar: "+(e.message||e));
+    delete a.relatorio.entregueEm; a.status="aprovada";
+    return;
+  }
   alert("✅ Relatório enviado à PROPPEX!"); renderLista(); renderDetalhe(id);
 }
 /* Aprovar é ato da gestão, e quem emite o Número da Ação é o SERVIDOR

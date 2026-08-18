@@ -12,6 +12,7 @@ import {
   LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd, videoIdDe, numerosDoEvento,
   faltaNoProjetoDoEvento, CAMPOS_PROJETO_EVENTO,
   normalizarBlocos, TIPOS_BLOCO, urlSegura, imagemPequena,
+  FREQUENCIAS, minutosEntre, duracaoBR, REDES_SOCIAIS,
 } from "../lib/eventos.js";
 
 /* --------------------------------- slug --------------------------------- */
@@ -550,8 +551,12 @@ test("imagemPequena: descarta o que não é imagem ou passa do teto", () => {
   assert.equal(imagemPequena("", 90 * 1024), "");
 });
 
-test("blocos: catálogo com os quatro tipos, códigos preservados", () => {
-  assert.deepEqual(TIPOS_BLOCO.map((t) => t.codigo), ["texto", "submissao", "anais", "apoiadores"]);
+test("blocos: catálogo com os tipos da página, códigos preservados", () => {
+  assert.deepEqual(TIPOS_BLOCO.map((t) => t.codigo),
+    ["texto", "submissao", "anais", "apoiadores", "video", "redes"]);
+  assert.deepEqual(REDES_SOCIAIS.map((r) => r.codigo),
+    ["instagram", "facebook", "youtube", "linkedin", "tiktok", "x", "whatsapp", "telegram", "site"]);
+  assert.deepEqual(FREQUENCIAS.map((f) => f.codigo), ["nenhum", "entrada", "entrada_saida"]);
 });
 
 test("programação: foto grande demais é descartada sem derrubar a atividade", () => {
@@ -560,4 +565,40 @@ test("programação: foto grande demais é descartada sem derrubar a atividade",
   assert.equal(atv.titulo, "Palestra");
   assert.equal(atv.foto, "");
   assert.equal(atv.instituicao, "UNIEGO");
+});
+
+/* ------------------ controle de frequência da atividade ------------------ */
+test("frequência: padrão é presença na chegada; valor torto cai no padrão", () => {
+  const [a, b, c] = normalizarProgramacao([
+    { titulo: "Palestra" },
+    { titulo: "Oficina", frequencia: "entrada_saida" },
+    { titulo: "Mostra", frequencia: "chute" },
+  ]);
+  assert.equal(a.frequencia, "entrada");
+  assert.equal(b.frequencia, "entrada_saida");
+  assert.equal(c.frequencia, "entrada");
+});
+
+test("permanência: minutos entre as leituras, escritos como o monitor lê", () => {
+  assert.equal(minutosEntre("2026-09-10T14:00:00Z", "2026-09-10T16:15:00Z"), 135);
+  assert.equal(minutosEntre("2026-09-10T16:00:00Z", "2026-09-10T14:00:00Z"), 0, "saída antes da entrada não conta");
+  assert.equal(minutosEntre("", ""), 0);
+  assert.equal(duracaoBR(135), "2h15");
+  assert.equal(duracaoBR(120), "2h");
+  assert.equal(duracaoBR(45), "45min");
+  assert.equal(duracaoBR(-3), "0min");
+});
+
+test("blocos: vídeo guarda só o ID do YouTube; rede sem endereço não entra", () => {
+  const [v, r] = normalizarBlocos([
+    { tipo: "video", titulo: "Chamada", youtubeId: "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10" },
+    { tipo: "redes", titulo: "Redes", itens: [
+      { rede: "instagram", url: "https://instagram.com/uniego" },
+      { rede: "tiktok", url: "javascript:alert(1)" },
+      { rede: "desconhecida", url: "https://uniego.edu.br" },
+    ] },
+  ]);
+  assert.equal(v.youtubeId, "dQw4w9WgXcQ");
+  assert.equal(r.itens.length, 2, "o link javascript: some");
+  assert.equal(r.itens[1].rede, "site", "rede desconhecida vira site");
 });
