@@ -277,6 +277,29 @@ public/
   (env EVENTOS_NOTIFY_EMAIL) — contato do hotsite, do texto LGPD padrão e da confirmação
   de inscrição, e destinatário do aviso automático quando uma página de evento entra no
   ar (`emailEventoAtivado`, fire-and-forget).
+- **A página do evento tem BLOCOS** (`TIPOS_BLOCO`/`normalizarBlocos` em lib/eventos.js +
+  guia "Blocos da página" no ARCHÉ EV, decisão do dono ago/2026): além da espinha fixa (capa,
+  sobre, programação, inscrição), cada evento monta as suas seções — **submissão de
+  trabalhos**, **anais**, **apoio e patrocínio** e **texto livre** —, na ordem da lista e com
+  a barra de seções grudada no topo da página (a página cresceu e precisa ser navegável).
+  A **submissão é por LINK**: o sistema oficial é o **OJS da revista**, e receber resumo aqui
+  também criaria duas filas para o mesmo trabalho — o bloco leva o autor até lá com prazos e
+  normas à vista. Os **anais** aceitam esta e as edições anteriores (título, ano, ISSN, link),
+  que é como o CONINT e as semanas de curso publicam. **Apoio** sai sempre no rodapé, agrupado
+  por realização/patrocínio/apoio. Link só `http(s)` (`urlSegura` — um `javascript:` no
+  hotsite seria XSS), e bloco invisível não vai à rota pública.
+- **Palestrantes em banner rotativo** (pedido do dono, ago/2026): a vitrine sai da PRÓPRIA
+  programação — não há cadastro de palestrante à parte —, com **foto, instituição e mini-bio**
+  por atividade. O banner gira de 6 em 6 segundos, para no toque/foco, tem setas e miniaturas
+  e respeita `prefers-reduced-motion`; a foto reaparece pequena na linha da programação.
+- **Imagens do evento nunca viajam nos payloads** (mesma regra da capa): foto de palestrante e
+  logotipo de apoiador ficam na configuração e saem por rota própria
+  (`/api/publico/eventos/:slug/atividade/:aid/foto` e `.../apoiador/:iid/logo`); nos payloads
+  vai só `temFoto`/`temLogo`. Por isso **salvar preserva a imagem gravada**
+  (`preservarImagens` no server): campo ausente é "não mexi", campo vazio é remoção — sem
+  isso, salvar a programação apagaria todas as fotos. O navegador **recorta a foto no quadrado
+  a 400 px** e **reduz o logotipo a 320 px** antes de subir (tetos de 90 KB e 70 KB no
+  servidor); imagem fora do formato ou grande demais é descartada sem derrubar a gravação.
 - **A credencial do participante** (decisão do dono, ago/2026): a inscrição já nasce
   **pré-preenchida para quem está logado** no ARCHÉ (`/api/me` no hotsite — só os dados da
   PRÓPRIA conta, com o aviso e o "não sou eu, limpar"; visitante externo segue com o

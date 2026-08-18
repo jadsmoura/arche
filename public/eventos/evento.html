@@ -96,6 +96,59 @@
   .secao-t{font-family:'Archivo',sans-serif;font-weight:700;font-size:22px;color:var(--ink);
     letter-spacing:-.01em;margin:34px 0 4px}
   .secao-s{font-size:13px;color:var(--muted)}
+  /* ------------------- palestrantes (banner rotativo) -------------------- */
+  .pal-wrap{position:relative;margin-top:14px}
+  .pal-palco{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;
+    box-shadow:var(--shadow);display:grid;grid-template-columns:230px 1fr;min-height:230px}
+  .pal-foto{background:linear-gradient(135deg,#1c3742,#40717e);position:relative}
+  .pal-foto img{width:100%;height:100%;object-fit:cover;display:block}
+  .pal-foto .ini{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#fff;opacity:.4;font-family:'Archivo',sans-serif;font-size:64px;font-weight:800}
+  .pal-txt{padding:24px 26px;display:flex;flex-direction:column;justify-content:center;gap:6px}
+  .pal-nome{font-family:'Archivo',sans-serif;font-size:22px;font-weight:800;color:var(--ink);letter-spacing:-.01em}
+  .pal-inst{font-size:13px;color:var(--brand-2);font-weight:600}
+  .pal-bio{font-size:13.5px;color:var(--ink-soft);line-height:1.6;margin-top:4px}
+  .pal-atv{font-size:14px;color:var(--ink);margin-top:10px;border-top:1px solid var(--line-soft);padding-top:10px}
+  .pal-atv b{color:var(--brand)}
+  .pal-quando{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--muted);margin-top:3px}
+  .pal-navs{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap}
+  .pal-mini{width:44px;height:44px;border-radius:50%;border:2px solid transparent;overflow:hidden;
+    cursor:pointer;background:linear-gradient(135deg,#1c3742,#40717e);padding:0;flex:none;transition:.15s}
+  .pal-mini img{width:100%;height:100%;object-fit:cover;display:block}
+  .pal-mini span{color:#fff;font-weight:700;font-size:15px;line-height:40px;display:block}
+  .pal-mini.on{border-color:var(--brand-2);transform:scale(1.12)}
+  .pal-seta{position:absolute;top:96px;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);
+    background:rgba(255,255,255,.94);color:var(--brand);font-size:17px;cursor:pointer;display:grid;place-items:center;
+    box-shadow:var(--shadow);z-index:2}
+  .pal-seta.esq{left:-14px}.pal-seta.dir{right:-14px}
+  @media(max-width:640px){
+    .pal-palco{grid-template-columns:1fr}
+    .pal-foto{height:220px}
+    .pal-seta{top:auto;bottom:-8px}.pal-seta.esq{left:8px}.pal-seta.dir{right:8px}
+  }
+  /* miniatura de quem ministra, na linha da programação */
+  .atv-quem{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:12.5px;color:var(--ink-soft)}
+  .atv-quem img{width:34px;height:34px;border-radius:50%;object-fit:cover;flex:none}
+
+  /* --------------------------- blocos da página -------------------------- */
+  .subnav{position:sticky;top:0;z-index:30;background:rgba(238,241,244,.92);backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line);margin:18px -20px 0;padding:10px 20px;display:flex;gap:8px;
+    overflow-x:auto;white-space:nowrap}
+  .subnav a{font-size:13px;font-weight:600;color:var(--ink-soft);text-decoration:none;padding:6px 12px;
+    border-radius:999px;border:1px solid transparent}
+  .subnav a:hover{background:var(--card);border-color:var(--line);color:var(--brand)}
+  .prazos{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+  .prazo{background:var(--wash);border-radius:10px;padding:10px 14px;min-width:150px}
+  .prazo b{display:block;font-family:'IBM Plex Mono',monospace;font-size:15px;color:var(--brand)}
+  .prazo span{font-size:12px;color:var(--muted)}
+  .anais-li{display:flex;gap:12px;align-items:baseline;padding:10px 0;border-top:1px solid var(--line-soft)}
+  .anais-li:first-child{border-top:0}
+  .apoio-grupo{margin-top:16px}
+  .apoio-t{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .apoio-grade{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:10px}
+  .apoio-item{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;
+    display:flex;align-items:center;gap:10px;min-height:64px;text-decoration:none;color:var(--ink-soft);font-size:13px}
+  .apoio-item img{height:44px;width:auto;max-width:170px;object-fit:contain;display:block}
   .org{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
   .org .quadro{background:var(--wash);border-radius:12px;padding:12px 18px;font-size:13.5px}
   .org .quadro b{display:block;color:var(--brand)}
@@ -240,12 +293,17 @@ function render() {
 
   /* ------ 2. sobre ------ */
   const sobre = (e.descricao || e.temaCentral || e.publicoAlvo) ? `
-    <div class="secao-t">Sobre o evento</div>
+    <div class="secao-t" id="sobre">Sobre o evento</div>
     <div class="card" style="margin-top:12px">
       ${e.temaCentral ? `<p style="font-size:14px;font-weight:600;color:var(--brand-2)">${esc(e.temaCentral)}</p>` : ""}
       ${e.descricao ? `<p style="font-size:14.5px;line-height:1.7;margin-top:${e.temaCentral ? 10 : 0}px;white-space:pre-line">${esc(e.descricao)}</p>` : ""}
       ${e.publicoAlvo ? `<p style="font-size:13px;color:var(--muted);margin-top:12px"><b>Público-alvo:</b> ${esc(e.publicoAlvo)}</p>` : ""}
     </div>` : "";
+
+  /* ------ 2b. palestrantes (banner rotativo) e blocos do organizador ------ */
+  const palestrantes = secaoPalestrantes(e);
+  const blocosAntes = (e.blocos || []).filter((b) => b.tipo !== "apoiadores").map(blocoHtml).join("");
+  const blocosApoio = (e.blocos || []).filter((b) => b.tipo === "apoiadores").map(blocoHtml).join("");
 
   /* ------ 3. programação (bloco próprio — a aba redesenha SÓ ele) ------ */
   const progHtml = `<div id="prog-wrap">${progSecao(e)}</div>`;
@@ -277,7 +335,8 @@ function render() {
       </div>
     </div>`;
 
-  $("main").innerHTML = hero + sobre + progHtml + insc;
+  $("main").innerHTML = hero + subnav(e) + sobre + palestrantes + progHtml + blocosAntes + insc + blocosApoio;
+  girarPalestrantes();
   $("cta-flutua").style.display = abertas && !document.querySelector("#pos-inscricao") ? "" : "none";
   // o botão flutuante é persistente, mas não precisa cobrir o próprio
   // formulário: some enquanto a seção de inscrição está na tela
@@ -335,6 +394,157 @@ async function preencherComOUsuario() {
   } catch { /* sem rede para o /api/me: o formulário segue em branco */ }
 }
 
+/* -------------------- a barra de seções (navegabilidade) -----------------
+   Com palestrantes, submissão de trabalhos, anais e apoio, a página deixou de
+   caber numa rolagem só — a barra grudada no topo é o que a mantém navegável
+   (pedido do dono, ago/2026). Só aparece com seções suficientes para valer. */
+function subnav(e) {
+  const itens = [
+    (e.descricao || e.temaCentral || e.publicoAlvo) ? ["#sobre", "Sobre"] : null,
+    palestrantesDe(e).length ? ["#palestrantes", "Palestrantes"] : null,
+    (e.programacao || []).length ? ["#programacao", "Programação"] : null,
+    ...(e.blocos || []).map((b) => [`#bloco-${b.id}`, b.titulo || rotuloBloco(b.tipo)]),
+    e.inscricoesAbertas ? ["#inscricao", "Inscrição"] : null,
+  ].filter(Boolean);
+  if (itens.length < 3) return "";
+  return `<nav class="subnav">${itens.map(([href, rot]) =>
+    `<a href="${href}">${esc(rot)}</a>`).join("")}</nav>`;
+}
+const rotuloBloco = (t) => ({ texto: "Informações", submissao: "Trabalhos", anais: "Anais", apoiadores: "Apoio" }[t] || "Seção");
+
+/* ---------------------- palestrantes: banner rotativo --------------------
+   Quem ministra é o que o participante quer ver primeiro numa página de
+   evento acadêmico — é o mesmo lugar que Even3 e Sympla dão aos palestrantes
+   nos hotsites deles. Aqui a vitrine sai da PRÓPRIA programação (não há
+   cadastro de palestrante à parte): toda atividade com responsável entra, e a
+   foto, quando o organizador a enviou. O banner gira sozinho de 6 em 6
+   segundos, para e volta no toque/foco, e respeita quem pediu menos
+   movimento no sistema. */
+function palestrantesDe(e) {
+  return (e.programacao || []).filter((p) => p.responsavel && (p.temFoto || p.miniBio || p.instituicao || p.tipo !== "outro"));
+}
+let PAL = 0, PAL_TIMER = null;
+function secaoPalestrantes(e) {
+  const lista = palestrantesDe(e);
+  if (!lista.length) return "";
+  return `
+    <div class="secao-t" id="palestrantes">Palestrantes e convidados</div>
+    <div class="secao-s">Quem conduz as atividades do evento.</div>
+    <div class="pal-wrap">
+      ${lista.length > 1 ? '<button class="pal-seta esq" onclick="passaPalestrante(-1)" aria-label="Anterior">‹</button>'
+        + '<button class="pal-seta dir" onclick="passaPalestrante(1)" aria-label="Próximo">›</button>' : ""}
+      <div class="pal-palco" id="pal-palco" onmouseenter="pausaPalestrantes()" onmouseleave="girarPalestrantes()"
+        onfocusin="pausaPalestrantes()">${palestranteCartao(lista[0])}</div>
+      ${lista.length > 1 ? `<div class="pal-navs" id="pal-navs">${lista.map((p, i) =>
+        `<button class="pal-mini ${i === 0 ? "on" : ""}" onclick="mostraPalestrante(${i})"
+          title="${esc(p.responsavel)}" aria-label="${esc(p.responsavel)}">${miniFoto(p)}</button>`).join("")}</div>` : ""}
+    </div>`;
+}
+const fotoUrl = (p) => `/api/publico/eventos/${encodeURIComponent(SLUG)}/atividade/${encodeURIComponent(p.id)}/foto`;
+const iniciais = (n) => String(n || "?").trim().split(/\s+/).slice(0, 2).map((x) => x[0] || "").join("").toUpperCase();
+const miniFoto = (p) => p.temFoto
+  ? `<img src="${fotoUrl(p)}" alt="" loading="lazy">`
+  : `<span>${esc(iniciais(p.responsavel))}</span>`;
+function palestranteCartao(p) {
+  return `
+    <div class="pal-foto">
+      ${p.temFoto ? `<img src="${fotoUrl(p)}" alt="${esc(p.responsavel)}" loading="lazy">`
+        : `<div class="ini">${esc(iniciais(p.responsavel))}</div>`}
+    </div>
+    <div class="pal-txt">
+      <div class="pal-nome">${esc(p.responsavel)}</div>
+      ${p.instituicao ? `<div class="pal-inst">${esc(p.instituicao)}</div>` : ""}
+      ${p.miniBio ? `<div class="pal-bio">${esc(p.miniBio)}</div>` : ""}
+      <div class="pal-atv"><b>${esc(p.titulo)}</b>
+        <div class="pal-quando">${esc([p.dia ? fmt(p.dia) : "", faixaHora(p), p.local || ""].filter(Boolean).join(" · "))}</div>
+      </div>
+    </div>`;
+}
+function mostraPalestrante(i) {
+  const lista = palestrantesDe(EV);
+  if (!lista.length) return;
+  PAL = (i + lista.length) % lista.length;
+  const palco = $("pal-palco");
+  if (!palco) return;
+  palco.innerHTML = palestranteCartao(lista[PAL]);
+  const navs = $("pal-navs");
+  if (navs) [...navs.children].forEach((b, n) => b.classList.toggle("on", n === PAL));
+}
+function passaPalestrante(d) { pausaPalestrantes(); mostraPalestrante(PAL + d); girarPalestrantes(); }
+function pausaPalestrantes() { if (PAL_TIMER) { clearInterval(PAL_TIMER); PAL_TIMER = null; } }
+function girarPalestrantes() {
+  pausaPalestrantes();
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  if (palestrantesDe(EV).length < 2) return;
+  PAL_TIMER = setInterval(() => mostraPalestrante(PAL + 1), 6000);
+}
+
+/* ------------------------- blocos do organizador -------------------------
+   O que o hotsite não previu, o organizador monta: texto livre, submissão de
+   trabalhos (que leva ao OJS — o sistema oficial de submissão da revista; o
+   ARCHÉ não recebe resumo, senão haveria duas filas para o mesmo trabalho),
+   anais do evento e desta e de outras edições, e apoio/patrocínio. */
+function blocoHtml(b) {
+  const titulo = esc(b.titulo || rotuloBloco(b.tipo));
+  const texto = b.texto ? `<p style="font-size:14.5px;line-height:1.7;white-space:pre-line">${esc(b.texto)}</p>` : "";
+  const botao = b.url ? `<a class="bt bt-pri" href="${esc(b.url)}" target="_blank" rel="noopener"
+    style="margin-top:14px">${esc(b.rotuloBotao || "Acessar")} ↗</a>` : "";
+  if (b.tipo === "submissao") {
+    const prazos = (b.prazos || []).length ? `<div class="prazos">${b.prazos.map((p) =>
+      `<div class="prazo"><b>${esc(p.data ? fmt(p.data) : "—")}</b><span>${esc(p.rotulo)}</span></div>`).join("")}</div>` : "";
+    return `
+      <div class="secao-t" id="bloco-${esc(b.id)}">${titulo}</div>
+      <div class="card" style="margin-top:12px">
+        ${texto || '<p style="font-size:14.5px;line-height:1.7">A submissão de trabalhos é feita no sistema oficial da revista.</p>'}
+        ${prazos}
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          ${b.url ? `<a class="bt bt-pri" href="${esc(b.url)}" target="_blank" rel="noopener"
+            style="margin-top:14px">${esc(b.rotuloBotao || "Submeter trabalho")} ↗</a>` : ""}
+          ${b.normasUrl ? `<a class="bt bt-sec" href="${esc(b.normasUrl)}" target="_blank" rel="noopener"
+            style="margin-top:14px">Normas e modelo ↗</a>` : ""}
+        </div>
+      </div>`;
+  }
+  if (b.tipo === "anais") {
+    const itens = (b.itens || []).map((i) => `
+      <div class="anais-li">
+        <div style="flex:1">
+          <div style="font-size:14.5px;font-weight:600">${esc(i.titulo)}</div>
+          <div style="font-size:12.5px;color:var(--muted)">${esc([i.ano, i.issn ? "ISSN " + i.issn : ""].filter(Boolean).join(" · "))}</div>
+        </div>
+        ${i.url ? `<a class="bt bt-sec" style="margin:0;padding:8px 14px;font-size:13px"
+          href="${esc(i.url)}" target="_blank" rel="noopener">Acessar ↗</a>` : ""}
+      </div>`).join("");
+    return `
+      <div class="secao-t" id="bloco-${esc(b.id)}">${titulo}</div>
+      <div class="card" style="margin-top:12px">${texto}${itens}${botao}</div>`;
+  }
+  if (b.tipo === "apoiadores") {
+    const cat = [["realizacao", "Realização"], ["patrocinio", "Patrocínio"], ["apoio", "Apoio"]];
+    const grupos = cat.map(([codigo, rotulo]) => {
+      const itens = (b.itens || []).filter((i) => i.categoria === codigo);
+      if (!itens.length) return "";
+      return `<div class="apoio-grupo"><div class="apoio-t">${rotulo}</div>
+        <div class="apoio-grade">${itens.map((i) => {
+          const dentro = i.temLogo
+            ? `<img src="/api/publico/eventos/${encodeURIComponent(SLUG)}/apoiador/${encodeURIComponent(i.id)}/logo"
+                 alt="${esc(i.nome)}" loading="lazy">`
+            : `<span>${esc(i.nome)}</span>`;
+          return i.url
+            ? `<a class="apoio-item" href="${esc(i.url)}" target="_blank" rel="noopener">${dentro}</a>`
+            : `<div class="apoio-item">${dentro}</div>`;
+        }).join("")}</div></div>`;
+    }).join("");
+    return `
+      <div class="secao-t" id="bloco-${esc(b.id)}">${titulo}</div>
+      ${texto ? `<div class="secao-s">${esc(b.texto)}</div>` : ""}
+      ${grupos}`;
+  }
+  return `
+    <div class="secao-t" id="bloco-${esc(b.id)}">${titulo}</div>
+    <div class="card" style="margin-top:12px">${texto}${botao}</div>`;
+}
+
 /* A seção da programação, isolada: a troca de aba de dia redesenha SÓ este
    bloco — redesenhar a página inteira apagava o que o visitante já tinha
    digitado no formulário de inscrição (achado da revisão de ago/2026). */
@@ -353,8 +563,11 @@ function progSecao(e) {
         <span class="atv-t">${esc(p.titulo)}</span>
         <span class="tp tp-${esc(p.tipo || "outro")}">${TIPOS[p.tipo] || "Atividade"}</span>
       </div>
-      ${p.local || p.responsavel || p.ch ? `<div class="atv-meta">
-        ${[p.responsavel, p.local, p.ch ? p.ch + " de carga horária" : ""].filter(Boolean).map(esc).join(" · ")}</div>` : ""}
+      ${p.local || p.ch ? `<div class="atv-meta">
+        ${[p.local, p.ch ? p.ch + " de carga horária" : ""].filter(Boolean).map(esc).join(" · ")}</div>` : ""}
+      ${p.responsavel ? `<div class="atv-quem">
+        ${p.temFoto ? `<img src="${fotoUrl(p)}" alt="" loading="lazy">` : ""}
+        <span><b>${esc(p.responsavel)}</b>${p.instituicao ? " · " + esc(p.instituicao) : ""}</span></div>` : ""}
       <div class="atv-selos">
         ${p.modalidade === "online" ? '<span class="selo v">🖥 online</span>' : ""}
         ${p.inscricao === "propria" ? (p.vagasRestantes === null
@@ -366,7 +579,7 @@ function progSecao(e) {
       ${p.descricao ? `<details><summary>ver detalhes</summary><p>${esc(p.descricao)}</p></details>` : ""}
     </div>`).join("");
   return `
-    <div class="secao-t" id="sec-prog">Programação</div>
+    <div class="secao-t" id="sec-prog"><span id="programacao"></span>Programação</div>
     <div class="secao-s">${dias.length > 1 ? (DIA_SEL ? diaLongo(DIA_SEL) : "Atividades com data a definir") : ""}</div>
     ${abas}
     ${prog.length ? (cards || '<p class="secao-s" style="margin-top:12px">Nenhuma atividade neste dia.</p>')

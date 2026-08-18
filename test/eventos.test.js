@@ -11,6 +11,7 @@ import {
   podeEscolherAtividade, normalizarFormulario, validarRespostas,
   LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd, videoIdDe, numerosDoEvento,
   faltaNoProjetoDoEvento, CAMPOS_PROJETO_EVENTO,
+  normalizarBlocos, TIPOS_BLOCO, urlSegura, imagemPequena,
 } from "../lib/eventos.js";
 
 /* --------------------------------- slug --------------------------------- */
@@ -496,4 +497,67 @@ test("faltaNoProjetoDoEvento: a régua da publicação é a da proposta da Exten
   // campo só com espaços não conta como preenchido
   const quase = { ...completa, proposta: { ...completa.proposta, justificativa: "   " } };
   assert.deepEqual(faltaNoProjetoDoEvento(quase), ["justificativa"]);
+});
+
+/* ---------------------- blocos da página do evento ----------------------- */
+test("blocos: tipo desconhecido vira texto e bloco vazio não entra", () => {
+  const b = normalizarBlocos([
+    { tipo: "inexistente", titulo: "Hospedagem", texto: "Hotéis conveniados." },
+    { tipo: "texto" },                                  // nada preenchido: sai
+  ]);
+  assert.equal(b.length, 1);
+  assert.equal(b[0].tipo, "texto");
+  assert.equal(b[0].titulo, "Hospedagem");
+});
+
+test("blocos: submissão guarda o endereço do OJS e só prazos com rótulo", () => {
+  const [b] = normalizarBlocos([{
+    tipo: "submissao", titulo: "Trabalhos",
+    url: "https://revistas.uniego.edu.br/index.php/anais",
+    normasUrl: "https://revistas.uniego.edu.br/normas.pdf",
+    prazos: [{ rotulo: "Submissão", data: "2026-08-30" }, { rotulo: "", data: "2026-09-01" },
+             { rotulo: "Sem data" }],
+  }]);
+  assert.equal(b.url, "https://revistas.uniego.edu.br/index.php/anais");
+  assert.equal(b.normasUrl, "https://revistas.uniego.edu.br/normas.pdf");
+  assert.deepEqual(b.prazos.map((p) => p.rotulo), ["Submissão", "Sem data"]);
+  assert.equal(b.prazos[1].data, "");                   // data torta não passa
+});
+
+test("blocos: o id do apoiador sobrevive a cada gravação (é a chave do logotipo)", () => {
+  const um = normalizarBlocos([{ tipo: "apoiadores", titulo: "Apoio",
+    itens: [{ nome: "Cooperativa" }, { nome: "Prefeitura", categoria: "patrocinio" }] }]);
+  const dois = normalizarBlocos(um);
+  assert.deepEqual(um[0].itens.map((i) => i.id), dois[0].itens.map((i) => i.id));
+  assert.deepEqual(dois[0].blocoId, undefined);
+  assert.equal(dois[0].itens[1].categoria, "patrocinio");
+  assert.equal(dois[0].itens[0].categoria, "apoio", "categoria desconhecida cai em apoio");
+});
+
+test("urlSegura: só http(s) — javascript: no hotsite seria XSS", () => {
+  assert.equal(urlSegura("https://uniego.edu.br"), "https://uniego.edu.br/");
+  assert.equal(urlSegura("javascript:alert(1)"), "");
+  assert.equal(urlSegura("data:text/html,<script>"), "");
+  assert.equal(urlSegura(""), "");
+});
+
+test("imagemPequena: descarta o que não é imagem ou passa do teto", () => {
+  const bytes = (n) => "A".repeat(Math.ceil(n * 4 / 3));
+  const ok = `data:image/jpeg;base64,${bytes(1000)}`;
+  assert.equal(imagemPequena(ok, 90 * 1024), ok);
+  assert.equal(imagemPequena(`data:image/jpeg;base64,${bytes(200 * 1024)}`, 90 * 1024), "");
+  assert.equal(imagemPequena("data:text/html;base64,AAAA", 90 * 1024), "");
+  assert.equal(imagemPequena("", 90 * 1024), "");
+});
+
+test("blocos: catálogo com os quatro tipos, códigos preservados", () => {
+  assert.deepEqual(TIPOS_BLOCO.map((t) => t.codigo), ["texto", "submissao", "anais", "apoiadores"]);
+});
+
+test("programação: foto grande demais é descartada sem derrubar a atividade", () => {
+  const grande = `data:image/jpeg;base64,${"A".repeat(200 * 1024)}`;
+  const [atv] = normalizarProgramacao([{ titulo: "Palestra", foto: grande, instituicao: "UNIEGO" }]);
+  assert.equal(atv.titulo, "Palestra");
+  assert.equal(atv.foto, "");
+  assert.equal(atv.instituicao, "UNIEGO");
 });

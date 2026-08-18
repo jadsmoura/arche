@@ -46,6 +46,7 @@ import {
   podeInscrever as podeInscreverEvento, jaInscrito,
   TIPOS_ATIVIDADE, gerarIdCurto, vagasAtividade, podeEscolherAtividade,
   normalizarFormulario, validarRespostas, LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd,
+  normalizarBlocos, TIPOS_BLOCO, CATEGORIAS_APOIO,
   videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento,
 } from "./lib/eventos.js";
 import {
@@ -1504,7 +1505,48 @@ async function sessaoEx(req, res) {
 function eventoSemSegredos(ev) {
   if (!ev) return ev;
   const { chaveQr, capa, ...resto } = ev;
+  // fotos de palestrante e logotipos de apoiador seguem a regra da capa:
+  // pesam centenas de KB e têm rota própria — na lista viaja só o sinal de
+  // que existem (a tela busca a imagem pela rota, com o id do item)
+  if (Array.isArray(resto.programacao))
+    resto.programacao = resto.programacao.map(({ foto, ...atv }) => ({ ...atv, temFoto: !!foto }));
+  if (Array.isArray(resto.blocos))
+    resto.blocos = resto.blocos.map((b) => Array.isArray(b.itens)
+      ? { ...b, itens: b.itens.map(({ logo, ...i }) => ({ ...i, temLogo: !!logo })) }
+      : b);
   return { ...resto, temCapa: !!capa };
+}
+
+/**
+ * Devolve a lista normalizada com as imagens que já estavam gravadas — a
+ * menos que quem enviou tenha mandado a imagem nova (fica a nova) ou uma
+ * string vazia (é remoção). Vale para a foto do palestrante na programação e
+ * para o logotipo do apoiador dentro dos blocos.
+ */
+function preservarImagens(nova, enviada, base, campo) {
+  const guardadas = new Map();
+  const guardar = (lista) => {
+    for (const item of lista || []) {
+      if (item?.id && item[campo]) guardadas.set(item.id, item[campo]);
+      for (const sub of item?.itens || []) if (sub?.id && sub[campo]) guardadas.set(sub.id, sub[campo]);
+    }
+  };
+  guardar(base);
+  const mandouVazio = new Set();
+  const marcar = (lista) => {
+    for (const item of lista || []) {
+      if (item?.id && item[campo] === "") mandouVazio.add(item.id);
+      for (const sub of item?.itens || []) if (sub?.id && sub[campo] === "") mandouVazio.add(sub.id);
+    }
+  };
+  marcar(enviada);
+  const aplicar = (item) => {
+    const resolvido = item[campo] || (mandouVazio.has(item.id) ? "" : guardadas.get(item.id) || "");
+    const saida = { ...item, [campo]: resolvido };
+    if (Array.isArray(item.itens)) saida.itens = item.itens.map(aplicar);
+    return saida;
+  };
+  return nova.map(aplicar);
 }
 
 /** A lista que a pessoa pode ver — nunca a base inteira. */
@@ -1523,6 +1565,7 @@ app.get("/api/extensao", async (req, res) => {
     res.json({
       acoes, gestao: gereEx(u), gestaoEventos: gereEv(u), eu: u.email,
       tiposAtividade: TIPOS_ATIVIDADE, lgpdPadrao: LGPD_TEXTO_PADRAO,
+      tiposBloco: TIPOS_BLOCO, categoriasApoio: CATEGORIAS_APOIO,
     });
   } catch (e) {
     console.error("Erro ao listar ações de extensão:", e);
@@ -1951,16 +1994,23 @@ function eventoPublico(a, { detalhe = false } = {}) {
   // as atividades passam pela normalização na saída: o dado antigo (sem id,
   // com `hora`) ganha o shape novo sem migração — e como o item antigo é
   // sempre "geral", o id efêmero que ele ganha aqui não vincula nada
-  const programacao = normalizarProgramacao(ev.programacao).map((atv) => ({
+  const programacao = normalizarProgramacao(ev.programacao).map(({ foto, ...atv }) => ({
     ...atv,
+    temFoto: !!foto,
     vagasRestantes: atv.inscricao === "propria" ? vagasAtividade(atv, inscritos) : null,
   }));
+  // os blocos que o organizador montou (submissão, anais, apoiadores, texto);
+  // os invisíveis não saem, e o logotipo vira `temLogo` — a imagem tem rota
+  const blocos = normalizarBlocos(ev.blocos).filter((b) => b.visivel !== false)
+    .map((b) => Array.isArray(b.itens)
+      ? { ...b, itens: b.itens.map(({ logo, ...i }) => ({ ...i, temLogo: !!logo })) }
+      : b);
   // modalidade derivada, para o selo do topo: das atividades e da transmissão
   const temOnline = programacao.some((x) => x.modalidade === "online") || !!ev.transmissao?.tipo;
   const temPresencial = !programacao.length || programacao.some((x) => x.modalidade !== "online");
   return {
     ...base, descricao: String(ev.descricao || ""), temaCentral: p.temaCentral || "",
-    publicoAlvo: p.publicoAlvo || "", programacao,
+    publicoAlvo: p.publicoAlvo || "", programacao, blocos,
     formulario: ev.formulario || [],
     lgpdTexto: textoLgpd(ev),
     endereco: String(ev.local || ""),
@@ -2296,6 +2346,42 @@ app.get("/api/publico/eventos/:slug/inscricao/:token/qr.svg", async (req, res) =
   } catch (e) {
     console.error("Erro no QR da inscrição:", e);
     res.status(500).send("Erro ao gerar o QR");
+  }
+});
+
+/* As imagens da página do evento — foto de quem ministra a atividade e
+   logotipo de apoiador. Mesma regra da capa: os bytes moram na configuração
+   e saem por rota própria, porque base64 dentro do payload deixaria a lista
+   de eventos pesada. Só com a página ATIVA (é conteúdo público dela). */
+function serviuImagem(res, dataUrl) {
+  const m = String(dataUrl || "").match(/^data:image\/(jpeg|png|webp);base64,(.+)$/);
+  if (!m) return false;
+  res.setHeader("Content-Type", `image/${m[1]}`);
+  res.setHeader("Cache-Control", "public, max-age=300");
+  res.send(Buffer.from(m[2], "base64"));
+  return true;
+}
+app.get("/api/publico/eventos/:slug/atividade/:aid/foto", async (req, res) => {
+  try {
+    const a = eventoPorSlug(await lerAcoes(), req.params.slug);
+    if (!a?.evento?.ativo) return res.status(404).send("Evento não encontrado");
+    const atv = (a.evento.programacao || []).find((x) => x?.id === req.params.aid);
+    if (!serviuImagem(res, atv?.foto)) res.status(404).send("Sem foto");
+  } catch (e) {
+    console.error("Erro na foto da atividade:", e);
+    res.status(500).send("Erro ao carregar a imagem");
+  }
+});
+app.get("/api/publico/eventos/:slug/apoiador/:iid/logo", async (req, res) => {
+  try {
+    const a = eventoPorSlug(await lerAcoes(), req.params.slug);
+    if (!a?.evento?.ativo) return res.status(404).send("Evento não encontrado");
+    const item = (a.evento.blocos || [])
+      .flatMap((b) => b?.itens || []).find((i) => i?.id === req.params.iid);
+    if (!serviuImagem(res, item?.logo)) res.status(404).send("Sem logotipo");
+  } catch (e) {
+    console.error("Erro no logotipo do apoiador:", e);
+    res.status(500).send("Erro ao carregar a imagem");
   }
 });
 
@@ -2831,7 +2917,17 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
         return { erro: [400, "Formulário inválido — envie a lista de campos."], gravar: false };
       if (b.transmissao !== undefined && (typeof b.transmissao !== "object" || b.transmissao === null || Array.isArray(b.transmissao)))
         return { erro: [400, "Configuração de transmissão inválida."], gravar: false };
-      if (b.programacao !== undefined) ev.programacao = normalizarProgramacao(b.programacao);
+      if (b.blocos !== undefined && !Array.isArray(b.blocos))
+        return { erro: [400, "Blocos inválidos — envie a lista de blocos."], gravar: false };
+      // as IMAGENS (foto de palestrante, logotipo de apoiador) não viajam nos
+      // payloads: a tela recebe só `temFoto`/`temLogo`. Salvar a programação
+      // ou os blocos, então, apagaria todas elas — a menos que o que está
+      // gravado seja preservado item a item, como já se faz com a capa. Campo
+      // enviado VAZIO é remoção explícita; campo ausente é "não mexi nele".
+      if (b.blocos !== undefined) ev.blocos = preservarImagens(
+        normalizarBlocos(b.blocos), b.blocos, ev.blocos, "logo");
+      if (b.programacao !== undefined) ev.programacao = preservarImagens(
+        normalizarProgramacao(b.programacao), b.programacao, ev.programacao, "foto");
       if (b.formulario !== undefined) ev.formulario = normalizarFormulario(b.formulario);
       if (b.local !== undefined) ev.local = String(b.local || "").trim().slice(0, 200);
       // vazio volta ao texto institucional padrão (LGPD_TEXTO_PADRAO)

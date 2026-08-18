@@ -254,6 +254,7 @@
         <section id="v-inscricoes" class="hide"></section>
         <section id="v-pagina" class="hide"></section>
         <section id="v-programacao" class="hide"></section>
+        <section id="v-blocos" class="hide"></section>
         <section id="v-credenciamento" class="hide"></section>
         <section id="v-transmissao" class="hide"></section>
         <section id="v-exportacoes" class="hide"></section>
@@ -358,6 +359,7 @@ const IC = {
   inscricoes:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M9 13h6M9 17h4"></path>',
   pagina:'<circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"></path>',
   programacao:'<rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M16 2v4M8 2v4M3 9h18"></path>',
+  blocos:'<rect x="3" y="3" width="18" height="6" rx="1.5"></rect><rect x="3" y="12" width="8" height="9" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect>',
   credenciamento:'<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h7v7h-7z"></path>',
   transmissao:'<circle cx="12" cy="12" r="2"></circle><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 19.1a10 10 0 0 1 0-14.2M19.1 4.9a10 10 0 0 1 0 14.2"></path>',
   exportacoes:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5M12 15V3"></path>',
@@ -380,6 +382,8 @@ const SECOES = [
    sub:"A página pública (hotsite): ativação, endereço, descrição, local e capa."},
   {k:"programacao", rot:"Programação", grupo:"PRÉ-EVENTO", ic:IC.programacao, evento:true, tit:"Programação",
    sub:"As atividades do evento — tipo, horários, vagas próprias — e os contadores por atividade."},
+  {k:"blocos", rot:"Blocos da página", grupo:"PRÉ-EVENTO", ic:IC.blocos, evento:true, tit:"Blocos da página",
+   sub:"O que entra na página além da programação: submissão de trabalhos, anais, apoio e patrocínio, textos."},
   {k:"credenciamento", rot:"Credenciamento", grupo:"EVENTO", ic:IC.credenciamento, evento:true, tit:"Credenciamento",
    sub:"O código do monitor, o link do credenciamento por QR e a lista em papel de contingência."},
   {k:"transmissao", rot:"Transmissão e mural", grupo:"EVENTO", ic:IC.transmissao, evento:true, tit:"Transmissão e mural",
@@ -496,6 +500,7 @@ function nav(secao){
   else if(SECAO==="inscricoes") renderInscricoes(a);
   else if(SECAO==="pagina") renderPagina(a);
   else if(SECAO==="programacao") renderProgramacao(a);
+  else if(SECAO==="blocos") renderBlocos(a);
   else if(SECAO==="credenciamento") renderCredenciamento(a);
   else if(SECAO==="transmissao") renderTransmissao(a);
   else if(SECAO==="exportacoes") renderExportacoes(a);
@@ -1300,6 +1305,9 @@ function renderProgramacao(a){
     local:p.local||"", responsavel:p.responsavel||"", vagas:Number(p.vagas)||0, ch:p.ch||"",
     inscricao:p.inscricao==="propria"?"propria":"geral",
     modalidade:p.modalidade==="online"?"online":"presencial",
+    // a foto não vem no payload (só o sinal): `foto` fica undefined até a
+    // pessoa enviar uma nova, e o servidor preserva a que já está gravada
+    temFoto:p.temFoto===true, instituicao:p.instituicao||"", miniBio:p.miniBio||"",
   }));
 
   $("v-programacao").innerHTML=`
@@ -1528,9 +1536,214 @@ function renderProgEv(){
         <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--brand-3)">descrição da atividade (aparece no "ver detalhes" da página)</summary>
         <textarea style="margin-top:6px;min-height:56px" oninput="EV_PROG[${i}].descricao=this.value">${esc(p.descricao)}</textarea>
       </details>
+      <details style="margin-top:6px" ${(p.temFoto||p.foto||p.instituicao||p.miniBio)?"open":""}>
+        <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--brand-3)">quem ministra: foto, instituição e mini-bio (vitrine de palestrantes da página)</summary>
+        <div class="g-atv2" style="margin-top:6px">
+          <input placeholder="instituição / vínculo" value="${esc(p.instituicao||"")}" oninput="EV_PROG[${i}].instituicao=this.value">
+          <input placeholder="mini-bio (uma ou duas linhas)" value="${esc(p.miniBio||"")}" oninput="EV_PROG[${i}].miniBio=this.value">
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">
+          <span id="foto-prev-${i}">${fotoPrevia(p,i)}</span>
+          <input type="file" accept="image/jpeg,image/png,image/webp" style="max-width:250px" onchange="lerFotoAtv(this,${i})">
+          <span class="muted" style="font-size:12px">quadrada, a partir de 400 × 400 px — o sistema recorta e reduz sozinho</span>
+        </div>
+      </details>
     </div>`).join("")
     : '<div class="cnt">— nenhuma atividade ainda; a página pública diz que a programação sai em breve.</div>';
 }
+
+/* ========================= BLOCOS DA PÁGINA =============================
+   A página do evento tem uma espinha fixa (capa, sobre, programação,
+   inscrição) e, além dela, o que CADA evento precisa: a submissão de
+   trabalhos, os anais, quem apoia, um texto à parte. Isso o organizador monta
+   aqui, em blocos — pedido do dono, ago/2026.
+
+   A submissão de trabalhos é por LINK: o sistema oficial é o OJS da revista,
+   e receber resumo também aqui criaria duas filas para o mesmo trabalho. O
+   bloco leva o autor até lá com os prazos e as normas à vista. */
+let EV_BLOCOS = [];
+const TIPOS_BLOCO_UI = [
+  ["submissao","Submissão de trabalhos","Leva ao sistema oficial de submissão (o OJS da revista), com prazos e normas."],
+  ["anais","Anais do evento","Os anais desta edição e das anteriores, com link e ISSN."],
+  ["apoiadores","Apoio e patrocínio","Logotipos de quem realiza, patrocina e apoia o evento."],
+  ["texto","Texto livre","Um assunto à parte: chamada, hospedagem, contato, o que o evento pedir."],
+];
+const CATEGORIAS_APOIO_UI = [["realizacao","Realização"],["patrocinio","Patrocínio"],["apoio","Apoio"]];
+
+function renderBlocos(a){
+  const ev=a.evento||{};
+  EV_BLOCOS=(ev.blocos||[]).map(b=>JSON.parse(JSON.stringify(b)));
+  $("v-blocos").innerHTML=`
+    <div class="card">
+      <div class="sec-t">Blocos da página pública</div>
+      <div class="muted" style="margin:8px 0">Cada bloco vira uma seção da página do evento, na ordem
+        desta lista, e entra na barra de navegação do topo. O bloco de <b>apoio e patrocínio</b> sai
+        sempre no rodapé da página, depois da inscrição.</div>
+      <div id="ev-blocos"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        ${TIPOS_BLOCO_UI.map(([codigo,rot,ajuda])=>`<button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px"
+          title="${esc(ajuda)}" onclick="novoBloco('${codigo}')">＋ ${esc(rot)}</button>`).join("")}
+      </div>
+    </div>
+    <div class="acoes-rod">
+      <button class="bt bt-pri" onclick="salvarBlocos('${esc(a.id)}')">💾 Salvar blocos</button>
+      ${ev.ativo&&ev.slug?`<a class="bt bt-sec" href="/eventos/${encodeURIComponent(ev.slug)}" target="_blank" rel="noopener">↗ ver a página</a>`:""}
+    </div>`;
+  renderBlocosEv();
+}
+
+function novoBloco(tipo){
+  const padrao={
+    submissao:{titulo:"Submissão de trabalhos", rotuloBotao:"Submeter trabalho",
+      texto:"Os resumos são submetidos no sistema oficial da revista (OJS). Leia as normas antes de enviar.",
+      prazos:[{rotulo:"Prazo final para submissão",data:""},{rotulo:"Divulgação dos aceites",data:""}]},
+    anais:{titulo:"Anais do evento", itens:[{titulo:"",ano:"",url:"",issn:""}]},
+    apoiadores:{titulo:"Apoio e patrocínio", itens:[{nome:"",categoria:"patrocinio",url:""}]},
+    texto:{titulo:""},
+  }[tipo]||{};
+  EV_BLOCOS.push({id:"",tipo,titulo:"",texto:"",url:"",rotuloBotao:"",normasUrl:"",visivel:true,
+    prazos:[],itens:[],...padrao});
+  renderBlocosEv();
+}
+
+function renderBlocosEv(){
+  const el=$("ev-blocos"); if(!el) return;
+  el.innerHTML = EV_BLOCOS.length ? EV_BLOCOS.map((b,i)=>{
+    const rot=(TIPOS_BLOCO_UI.find(t=>t[0]===b.tipo)||["","Bloco"])[1];
+    return `<div class="atv-card">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <span class="badge" style="background:var(--wash);color:var(--brand-3)">${esc(rot)}</span>
+        <input placeholder="título da seção na página" value="${esc(b.titulo||"")}"
+          oninput="EV_BLOCOS[${i}].titulo=this.value" style="flex:1;min-width:200px">
+        <label class="chk" style="margin:0;font-size:12.5px">
+          <input type="checkbox" ${b.visivel!==false?"checked":""} onchange="EV_BLOCOS[${i}].visivel=this.checked">
+          visível</label>
+        <span style="display:flex;gap:4px">
+          <button class="bt bt-ghost" style="padding:5px 9px;font-size:12px" ${i===0?"disabled":""} onclick="moverBloco(${i},-1)">↑</button>
+          <button class="bt bt-ghost" style="padding:5px 9px;font-size:12px" ${i===EV_BLOCOS.length-1?"disabled":""} onclick="moverBloco(${i},1)">↓</button>
+          <button class="bt bt-ghost" style="padding:5px 9px;font-size:12px;color:var(--err)" onclick="removerBloco(${i})">✕</button>
+        </span>
+      </div>
+      <textarea placeholder="texto do bloco (aparece antes dos itens)" style="margin-top:8px;min-height:56px"
+        oninput="EV_BLOCOS[${i}].texto=this.value">${esc(b.texto||"")}</textarea>
+      ${corpoBloco(b,i)}
+    </div>`;
+  }).join("") : '<div class="cnt">— nenhum bloco; a página fica com a programação e a inscrição.</div>';
+}
+
+function corpoBloco(b,i){
+  if(b.tipo==="submissao"){
+    return `
+      <div class="g-atv2" style="margin-top:8px">
+        <input placeholder="endereço do sistema de submissão (OJS)" value="${esc(b.url||"")}" oninput="EV_BLOCOS[${i}].url=this.value">
+        <input placeholder="rótulo do botão (Submeter trabalho)" value="${esc(b.rotuloBotao||"")}" oninput="EV_BLOCOS[${i}].rotuloBotao=this.value">
+      </div>
+      <input placeholder="endereço das normas / modelo de resumo (opcional)" style="margin-top:8px"
+        value="${esc(b.normasUrl||"")}" oninput="EV_BLOCOS[${i}].normasUrl=this.value">
+      <div class="muted" style="margin-top:10px;font-size:12.5px">Prazos (aparecem como quadros na página):</div>
+      ${(b.prazos||[]).map((p,j)=>`<div class="g-atv2" style="margin-top:6px">
+        <input placeholder="o que vence (ex.: prazo final para submissão)" value="${esc(p.rotulo||"")}"
+          oninput="EV_BLOCOS[${i}].prazos[${j}].rotulo=this.value">
+        <input type="date" value="${esc(p.data||"")}" oninput="EV_BLOCOS[${i}].prazos[${j}].data=this.value">
+        <button class="bt bt-ghost" style="padding:5px 9px;font-size:12px;color:var(--err)"
+          onclick="EV_BLOCOS[${i}].prazos.splice(${j},1);renderBlocosEv()">✕</button>
+      </div>`).join("")}
+      <button class="bt bt-ghost" style="padding:6px 11px;font-size:12px;margin-top:8px"
+        onclick="EV_BLOCOS[${i}].prazos=(EV_BLOCOS[${i}].prazos||[]).concat({rotulo:'',data:''});renderBlocosEv()">＋ prazo</button>`;
+  }
+  if(b.tipo==="anais"){
+    return `
+      <div class="muted" style="margin-top:10px;font-size:12.5px">Edições dos anais:</div>
+      ${(b.itens||[]).map((it,j)=>`<div class="g-atv2" style="margin-top:6px">
+        <input placeholder="título (Anais do III CONINT)" value="${esc(it.titulo||"")}" oninput="EV_BLOCOS[${i}].itens[${j}].titulo=this.value">
+        <input placeholder="ano" maxlength="4" value="${esc(it.ano||"")}" oninput="EV_BLOCOS[${i}].itens[${j}].ano=this.value">
+        <input placeholder="ISSN (opcional)" value="${esc(it.issn||"")}" oninput="EV_BLOCOS[${i}].itens[${j}].issn=this.value">
+        <input placeholder="endereço dos anais" value="${esc(it.url||"")}" oninput="EV_BLOCOS[${i}].itens[${j}].url=this.value">
+        <button class="bt bt-ghost" style="padding:5px 9px;font-size:12px;color:var(--err)"
+          onclick="EV_BLOCOS[${i}].itens.splice(${j},1);renderBlocosEv()">✕</button>
+      </div>`).join("")}
+      <button class="bt bt-ghost" style="padding:6px 11px;font-size:12px;margin-top:8px"
+        onclick="EV_BLOCOS[${i}].itens=(EV_BLOCOS[${i}].itens||[]).concat({titulo:'',ano:'',url:'',issn:''});renderBlocosEv()">＋ edição</button>`;
+  }
+  if(b.tipo==="apoiadores"){
+    return `
+      <div class="muted" style="margin-top:10px;font-size:12.5px">Quem apoia (o logotipo entra recortado
+        na altura da faixa; sem logotipo, sai o nome):</div>
+      ${(b.itens||[]).map((it,j)=>`<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px">
+        <div class="g-atv2">
+          <input placeholder="nome *" value="${esc(it.nome||"")}" oninput="EV_BLOCOS[${i}].itens[${j}].nome=this.value">
+          <select onchange="EV_BLOCOS[${i}].itens[${j}].categoria=this.value">
+            ${CATEGORIAS_APOIO_UI.map(([c,r])=>`<option value="${c}" ${it.categoria===c?"selected":""}>${r}</option>`).join("")}
+          </select>
+          <input placeholder="site (opcional)" value="${esc(it.url||"")}" oninput="EV_BLOCOS[${i}].itens[${j}].url=this.value">
+          <button class="bt bt-ghost" style="padding:5px 9px;font-size:12px;color:var(--err)"
+            onclick="EV_BLOCOS[${i}].itens.splice(${j},1);renderBlocosEv()">✕</button>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">
+          <span id="logo-prev-${i}-${j}">${logoPrevia(it)}</span>
+          <input type="file" accept="image/jpeg,image/png,image/webp" style="max-width:230px" onchange="lerLogo(this,${i},${j})">
+        </div>
+      </div>`).join("")}
+      <button class="bt bt-ghost" style="padding:6px 11px;font-size:12px;margin-top:8px"
+        onclick="EV_BLOCOS[${i}].itens=(EV_BLOCOS[${i}].itens||[]).concat({nome:'',categoria:'patrocinio',url:''});renderBlocosEv()">＋ apoiador</button>`;
+  }
+  return `<input placeholder="endereço do botão (opcional)" style="margin-top:8px" value="${esc(b.url||"")}"
+      oninput="EV_BLOCOS[${i}].url=this.value">
+    <input placeholder="rótulo do botão" style="margin-top:8px" value="${esc(b.rotuloBotao||"")}"
+      oninput="EV_BLOCOS[${i}].rotuloBotao=this.value">`;
+}
+
+function logoPrevia(it){
+  const ev=(ABERTO?ACOES.find(x=>x.id===ABERTO):null)?.evento;
+  if(it.logo) return `<img src="${it.logo}" alt="" style="max-height:40px;max-width:130px;border:1px solid var(--line);border-radius:6px;padding:3px">`;
+  if(it.temLogo && ev?.slug && ev?.ativo)
+    return `<img src="/api/publico/eventos/${encodeURIComponent(ev.slug)}/apoiador/${encodeURIComponent(it.id||"")}/logo?v=${Date.now()}"
+      alt="" style="max-height:40px;max-width:130px" onerror="this.remove()">`;
+  if(it.temLogo) return '<span class="muted" style="font-size:12px">✓ logotipo enviado</span>';
+  return '<span class="muted" style="font-size:12px">— sem logotipo</span>';
+}
+async function lerLogo(inp,i,j){
+  const f=inp.files&&inp.files[0]; if(!f) return;
+  if(!/^image\/(jpeg|png|webp)$/.test(f.type)){ alert("O logotipo deve ser JPEG, PNG ou WebP."); inp.value=""; return; }
+  if(f.size>CAPA_MAX_ARQUIVO){ alert("A imagem passa de 10 MB."); inp.value=""; return; }
+  try{
+    EV_BLOCOS[i].itens[j].logo = await reduzirLargura(f, 320, 60*1024);
+    EV_BLOCOS[i].itens[j].temLogo = true;
+    const prev=$(`logo-prev-${i}-${j}`);
+    if(prev) prev.innerHTML=`<img src="${EV_BLOCOS[i].itens[j].logo}" alt="" style="max-height:40px;max-width:130px">
+      <button class="bt bt-ghost" style="padding:4px 8px;font-size:11px" onclick="removerLogo(${i},${j})">✕ remover</button>`;
+  }catch(e){ alert("Não foi possível preparar a imagem neste navegador."); }
+}
+function removerLogo(i,j){
+  EV_BLOCOS[i].itens[j].logo=""; EV_BLOCOS[i].itens[j].temLogo=false;
+  const prev=$(`logo-prev-${i}-${j}`);
+  if(prev) prev.innerHTML='<span class="muted" style="font-size:12px">logotipo marcado para remoção — grava no "Salvar blocos".</span>';
+}
+/* Redução sem recorte (logotipo não se corta: a marca é o que é) */
+async function reduzirLargura(f, largura, teto){
+  const bmp = await createImageBitmap(f);
+  const escala = Math.min(1, largura / bmp.width);
+  const w = Math.max(1, Math.round(bmp.width*escala)), h = Math.max(1, Math.round(bmp.height*escala));
+  const c = document.createElement("canvas"); c.width=w; c.height=h;
+  const ctx=c.getContext("2d");
+  ctx.fillStyle="#fff"; ctx.fillRect(0,0,w,h);
+  ctx.drawImage(bmp,0,0,w,h);
+  bmp.close && bmp.close();
+  let q=0.9, url=c.toDataURL("image/jpeg",q);
+  while(url.length*3/4>teto && q>0.4){ q-=0.1; url=c.toDataURL("image/jpeg",q); }
+  return url;
+}
+
+function moverBloco(i,d){
+  const j=i+d; if(j<0||j>=EV_BLOCOS.length) return;
+  [EV_BLOCOS[i],EV_BLOCOS[j]]=[EV_BLOCOS[j],EV_BLOCOS[i]];
+  renderBlocosEv();
+}
+function removerBloco(i){
+  if(!confirm("Remover este bloco da página?")) return;
+  EV_BLOCOS.splice(i,1); renderBlocosEv();
+}
+function salvarBlocos(id){ return salvarParteEvento(id,{blocos:EV_BLOCOS}); }
 
 /* ------------------------ campos extras do form -------------------------- */
 const TIPOS_CAMPO_EV=[["texto","Texto curto"],["paragrafo","Parágrafo"],["selecao","Seleção (uma opção)"],
@@ -1612,6 +1825,53 @@ async function lerCapaEv(inp){
   if(prev) prev.innerHTML=`<img src="${EV_CAPA}" alt="capa nova" style="height:64px;border-radius:8px;border:1px solid var(--line)">
     <span class="muted" style="font-size:12px;display:block">prévia (${kb} KB depois do ajuste) — grava no "Salvar página"</span>`;
 }
+/* Foto de quem ministra: mesma ideia da capa, em miniatura. Entra do disco
+   como a pessoa tiver (até 10 MB), sai daqui recortada no QUADRADO e reduzida
+   a 400 px — a vitrine de palestrantes é redonda, e guardar a foto original
+   engordaria o registro da ação à toa. */
+function fotoPrevia(p,i){
+  if(p.foto) return `<img src="${p.foto}" alt="" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:1px solid var(--line)">`;
+  const ev = (ABERTO ? ACOES.find(x=>x.id===ABERTO) : null)?.evento;
+  if(p.temFoto && ev?.slug && ev?.ativo)
+    return `<img src="/api/publico/eventos/${encodeURIComponent(ev.slug)}/atividade/${encodeURIComponent(p.id||"")}/foto?v=${Date.now()}"
+      alt="" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:1px solid var(--line)" onerror="this.remove()">`;
+  if(p.temFoto) return '<span class="muted" style="font-size:12px">✓ foto enviada</span>';
+  return '<span class="muted" style="font-size:12px">— sem foto</span>';
+}
+async function lerFotoAtv(inp,i){
+  const f=inp.files&&inp.files[0]; if(!f) return;
+  if(!/^image\/(jpeg|png|webp)$/.test(f.type)){ alert("A foto deve ser JPEG, PNG ou WebP."); inp.value=""; return; }
+  if(f.size>CAPA_MAX_ARQUIVO){ alert("A imagem passa de 10 MB — exporte em qualidade um pouco menor."); inp.value=""; return; }
+  try{
+    EV_PROG[i].foto = await recortarQuadrado(f, 400);
+    EV_PROG[i].temFoto = true;
+    const prev=$("foto-prev-"+i);
+    if(prev) prev.innerHTML=`<img src="${EV_PROG[i].foto}" alt="" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:1px solid var(--line)">
+      <button class="bt bt-ghost" style="padding:4px 8px;font-size:11px" onclick="removerFotoAtv(${i})">✕ remover</button>`;
+  }catch(e){ alert("Não foi possível preparar a imagem neste navegador."); }
+}
+function removerFotoAtv(i){
+  EV_PROG[i].foto=""; EV_PROG[i].temFoto=false;
+  const prev=$("foto-prev-"+i);
+  if(prev) prev.innerHTML='<span class="muted" style="font-size:12px">foto marcada para remoção — grava no "Salvar programação".</span>';
+}
+/* Recorte central em quadrado + redução: a mesma conta da capa, com o corte
+   do lado menor (foto de retrato não pode entrar esticada no círculo). */
+async function recortarQuadrado(f, lado){
+  const bmp = await createImageBitmap(f);
+  const min = Math.min(bmp.width, bmp.height);
+  const sx = (bmp.width - min) / 2, sy = (bmp.height - min) / 2;
+  const c = document.createElement("canvas");
+  c.width = c.height = Math.min(lado, min);
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(bmp, sx, sy, min, min, 0, 0, c.width, c.height);
+  bmp.close && bmp.close();
+  let q = 0.85, url = c.toDataURL("image/jpeg", q);
+  while (url.length * 3 / 4 > 80 * 1024 && q > 0.4) { q -= 0.1; url = c.toDataURL("image/jpeg", q); }
+  return url;
+}
+
 function removerCapaEv(){
   EV_CAPA="";
   const prev=$("ev-capa-prev");
