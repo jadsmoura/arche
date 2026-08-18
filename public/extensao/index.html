@@ -1749,7 +1749,7 @@ function cardEvento(a){
         <select id="ev-tr-tipo" onchange="renderDicaTransmissao()">
           <option value="" ${!tr.tipo?"selected":""}>Nenhuma</option>
           <option value="youtube" ${tr.tipo==="youtube"?"selected":""}>YouTube (ao vivo)</option>
-          <option value="zoom" ${tr.tipo==="zoom"?"selected":""}>Zoom (reunião)</option>
+          <option value="zoom" ${tr.tipo==="zoom"?"selected":""}>Reunião (Zoom, Meet, Teams, outros)</option>
         </select></div>
       <div><label style="margin-top:0">Link ou ID <span class="muted">(YouTube aceita a URL — o ID sai dela)</span></label>
         <input id="ev-tr-link" value="${esc(tr.tipo==="zoom"?(tr.zoomUrl||""):(tr.youtubeId||""))}" placeholder="https://…"></div>
@@ -1895,7 +1895,9 @@ function renderDicaTransmissao(){
   const tipo=$("ev-tr-tipo")?.value||"";
   const w=$("ev-tr-chat-w"); if(w) w.style.display = tipo==="youtube" ? "" : "none";
   const l=$("ev-tr-link");
-  if(l) l.placeholder = tipo==="zoom" ? "https://us02web.zoom.us/j/…" : tipo==="youtube" ? "https://www.youtube.com/watch?v=… ou o ID" : "—";
+  // "zoom" é o CÓDIGO gravado (não se troca sem migrar o que já existe), mas
+  // o rótulo diz o que a coordenação usa de fato: Zoom, Meet, Teams ou outra
+  if(l) l.placeholder = tipo==="zoom" ? "cole o link da sala (Zoom, Meet, Teams…)" : tipo==="youtube" ? "https://www.youtube.com/watch?v=… ou o ID" : "—";
 }
 
 /* --------------------------- capa do evento ------------------------------ */
@@ -2110,7 +2112,7 @@ async function salvarEvento(id, {publicada}={}){
    MESMO salvar (grava a configuração toda), só virando a chave `publicada`. */
 async function publicarTransmissaoEv(id, publicar){
   if(publicar && !($("ev-tr-tipo")?.value))
-    return alert("Escolha o tipo da transmissão (YouTube ou Zoom) e informe o link antes de publicar.");
+    return alert("Escolha o tipo da transmissão (YouTube ao vivo ou sala de reunião) e informe o link antes de publicar.");
   if(!publicar && !confirm("Recolher a transmissão?\n\nA página de assistir deixa de funcionar para os inscritos até você publicar de novo.")) return;
   await salvarEvento(id, {publicada:publicar});
 }
