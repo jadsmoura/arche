@@ -135,6 +135,8 @@
   /* --------------------------- lista de eventos --------------------------- */
   .ferramentas{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0 14px}
   .ferramentas input{max-width:340px}
+  .ferramentas select{max-width:100%;border:1.5px solid var(--line);border-radius:10px;
+    padding:9px 11px;font-size:13.5px;font-family:inherit;background:#fff;color:var(--ink)}
   .evcard{display:flex;gap:14px;align-items:stretch;background:#fff;border:1px solid var(--line);
     border-radius:12px;margin-bottom:12px;cursor:pointer;overflow:hidden;
     transition:border-color .15s,box-shadow .15s;text-align:left;width:100%;padding:0}
@@ -422,8 +424,16 @@ function montarSeletor(){
   // dono, ago/2026): o EV é dos eventos geridos dentro do sistema; o que
   // correu por fora vive no ARCHÉ EX, com proposta, relatório e listas
   const com=ACOES.filter(a=>a.evento), sem=ACOES.filter(a=>!a.evento&&!a.origemPapel);
+  // com muitos eventos a lista corrida vira rolagem: agrupa por ANO (o mais
+  // recente primeiro) e ordena por data dentro de cada grupo
+  const porAno=new Map();
+  for(const a of com){ const y=anoDoEvento(a)||"sem data"; (porAno.get(y)||porAno.set(y,[]).get(y)).push(a); }
+  const anos=[...porAno.keys()].sort().reverse();
   sel.innerHTML = `<option value=""${ABERTO?"":" selected"}>— escolher evento —</option>`
-    + com.map(a=>`<option value="${esc(a.id)}"${a.id===ABERTO?" selected":""}>${esc(nomeDe(a))} · ${a.evento.ativo?"no ar":"rascunho"}</option>`).join("")
+    + anos.map(y=>`<optgroup label="${esc(y)}">${
+        porAno.get(y).sort((x,z)=>String(z.proposta?.periodoInicio||"").localeCompare(String(x.proposta?.periodoInicio||"")))
+          .map(a=>`<option value="${esc(a.id)}"${a.id===ABERTO?" selected":""}>${esc(nomeDe(a))} · ${esc(a.curso||"")} · ${a.evento.ativo?"no ar":"rascunho"}</option>`).join("")
+      }</optgroup>`).join("")
     + (sem.length?`<optgroup label="Ações sem evento (configurar)">${
         sem.map(a=>`<option value="${esc(a.id)}"${a.id===ABERTO?" selected":""}>${esc(nomeDe(a))}</option>`).join("")}</optgroup>`:"");
 }
@@ -534,6 +544,14 @@ function renderPainel(){
     <div class="ferramentas">
       <button class="bt bt-pri" style="white-space:nowrap" onclick="novoEvento()">＋ Cadastrar novo evento</button>
       <input id="l-busca" placeholder="Buscar evento por nome ou curso…" oninput="renderCardsPainel()">
+      <select id="l-curso" onchange="renderCardsPainel()" title="Filtrar por curso">
+        <option value="">Todos os cursos</option>
+        ${cursosDosEventos().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("")}
+      </select>
+      <select id="l-ano" onchange="renderCardsPainel()" title="Filtrar por ano de realização">
+        <option value="">Todos os anos</option>
+        ${anosDosEventos().map(y=>`<option value="${esc(y)}">${esc(y)}</option>`).join("")}
+      </select>
       <span class="muted" id="l-total"></span>
     </div>
     <div id="ev-cards"></div>
@@ -541,25 +559,41 @@ function renderPainel(){
   renderCardsPainel();
 }
 
+/* O ANO do evento é o de REALIZAÇÃO (início): com o tempo a lista cresce, e
+   quem procura pensa "os eventos de 2026", não no ciclo de encerramento que
+   a Extensão usa para fechar exercício. Curso e ano saem dos próprios
+   eventos — nada de catálogo à parte que envelhece. */
+const anoDoEvento=(a)=>String(a?.proposta?.periodoInicio||a?.proposta?.periodoFim||"").slice(0,4);
+const cursosDosEventos=()=>[...new Set(ACOES.filter(a=>a.evento).map(a=>a.curso).filter(Boolean))].sort((x,y)=>x.localeCompare(y,"pt-BR"));
+const anosDosEventos=()=>[...new Set(ACOES.filter(a=>a.evento).map(anoDoEvento).filter(Boolean))].sort().reverse();
+
 function renderCardsPainel(){
   const q=($("l-busca")?.value||"").trim().toLowerCase();
-  const bate=(a)=>!q || String(a.proposta?.nomeAtividade||"").toLowerCase().includes(q)
-    || String(a.curso||"").toLowerCase().includes(q);
+  const fc=$("l-curso")?.value||"", fa=$("l-ano")?.value||"";
+  const bate=(a)=>(!q || String(a.proposta?.nomeAtividade||"").toLowerCase().includes(q)
+      || String(a.curso||"").toLowerCase().includes(q))
+    && (!fc || a.curso===fc) && (!fa || anoDoEvento(a)===fa);
   const comEvento=ACOES.filter(a=>a.evento).filter(bate)
     .sort((x,y)=>Number(y.evento?.ativo===true)-Number(x.evento?.ativo===true)
       || String(y.proposta?.periodoInicio||"").localeCompare(String(x.proposta?.periodoInicio||"")));
-  const semEvento=ACOES.filter(a=>!a.evento&&!a.origemPapel).filter(bate);
+  // o bloco "ações sem evento" segue só a busca: filtrar por ano esconderia
+  // a ação recém-criada de quem quer configurá-la
+  const semEvento=ACOES.filter(a=>!a.evento&&!a.origemPapel).filter(a=>!q
+    || String(a.proposta?.nomeAtividade||"").toLowerCase().includes(q)
+    || String(a.curso||"").toLowerCase().includes(q));
+  const filtrando=!!(q||fc||fa);
   if($("l-total")) $("l-total").textContent = comEvento.length
-    ? `${comEvento.length} evento(s)${q?" no filtro":""}` : "";
+    ? `${comEvento.length} evento(s)${filtrando?" no filtro":""}` : "";
 
   $("ev-cards").innerHTML = comEvento.length ? comEvento.map(cardLista).join("") :
     `<div class="card" style="text-align:center;padding:34px 20px">
-      <div style="font-size:15px;font-weight:700;color:var(--ink)">${q?"Nenhum evento encontrado com esta busca.":"Nenhum evento ainda."}</div>
+      <div style="font-size:15px;font-weight:700;color:var(--ink)">${filtrando?"Nenhum evento encontrado com estes filtros.":"Nenhum evento ainda."}</div>
       <div class="muted" style="margin-top:8px;max-width:520px;margin-left:auto;margin-right:auto">
-        Comece pelo botão <b>＋ Cadastrar novo evento</b> — ele registra a ação de
+        ${filtrando?"Limpe a busca, o curso ou o ano para ver os demais."
+        :`Comece pelo botão <b>＋ Cadastrar novo evento</b> — ele registra a ação de
         extensão e já deixa o evento pronto para montar. Se preferir, a proposta
-        completa também pode ser registrada no <a href="/extensao/">ARCHÉ EX</a>.</div>
-      ${q?"":`<button class="bt bt-pri" style="margin-top:14px" onclick="novoEvento()">＋ Cadastrar novo evento</button>`}
+        completa também pode ser registrada no <a href="/extensao/">ARCHÉ EX</a>.`}</div>
+      ${filtrando?"":`<button class="bt bt-pri" style="margin-top:14px" onclick="novoEvento()">＋ Cadastrar novo evento</button>`}
     </div>`;
 
   $("sem-evento").innerHTML = semEvento.length ? `
@@ -625,7 +659,7 @@ const faltasProjetoEv=(a)=>{
 let NE=null;
 function novoEvento(){
   NE={passo:1, nome:"", curso:CURSOS_EV[0], publico:"", tema:"",
-      inicio:"", fim:"", horario:"", ch:"", local:"", municipio:"Goianésia/GO"};
+      inicio:"", fim:"", ch:"", municipio:"Goianésia/GO"};
   const cx=document.createElement("div");
   cx.className="ov"; cx.id="ov-novo";
   cx.onclick=(e)=>{ if(e.target===cx) fecharNovo(); };
@@ -685,27 +719,22 @@ function renderPassoNE(){
           <input id="ne-inicio" type="date" value="${esc(NE.inicio)}" oninput="NE.inicio=this.value"></div>
         <div><label for="ne-fim">Encerramento *</label>
           <input id="ne-fim" type="date" value="${esc(NE.fim)}" oninput="NE.fim=this.value"></div>
-        <div><label for="ne-horario">Horário de funcionamento</label>
-          <input id="ne-horario" maxlength="200" placeholder='Ex.: "das 19h às 22h"'
-            value="${esc(NE.horario)}" oninput="NE.horario=this.value"></div>
         <div><label for="ne-ch">Carga horária (h)</label>
           <input id="ne-ch" inputmode="numeric" placeholder="Ex.: 20" value="${esc(NE.ch)}" oninput="NE.ch=this.value"></div>
-        <div><label for="ne-local">Local</label>
-          <input id="ne-local" maxlength="200" placeholder="Ex.: Auditório central do UNIEGO"
-            value="${esc(NE.local)}" oninput="NE.local=this.value"></div>
         <div><label for="ne-municipio">Município</label>
           <input id="ne-municipio" maxlength="120" value="${esc(NE.municipio)}" oninput="NE.municipio=this.value"></div>
       </div>
-      <div class="muted" style="font-size:12px;margin-top:8px">O horário entra como semente da
-        programação em texto — as atividades detalhadas (palestras, minicursos) se montam depois,
-        na guia Programação.</div>`
+      <div class="tut" style="font-size:12.5px;margin-top:10px">🕒 <b>Horários e locais entram por
+        atividade</b>, na guia <b>Programação</b> (decisão do dono, ago/2026): num evento eles
+        variam de uma palestra para um minicurso, e é lá que cada um tem o seu horário, sala e
+        vagas. O endereço geral do evento (o que sai no mapa da página pública) fica na guia
+        <b>Página do evento</b>.</div>`
     : `
       <div class="wiz-rev">
         ${[["Evento",NE.nome],["Curso / setor",NE.curso],["Público-alvo",NE.publico],
            ["Tema central",NE.tema],
            ["Período",NE.inicio?`${fmt(NE.inicio)} – ${fmt(NE.fim)}`:""],
-           ["Horário",NE.horario],["Carga horária",NE.ch?NE.ch+" h":""],
-           ["Local",NE.local],["Município",NE.municipio]]
+           ["Carga horária",NE.ch?NE.ch+" h":""],["Município",NE.municipio]]
           .map(([r,v])=>`<div class="li"><b>${r}</b><span>${esc(v)||'<span class="muted">—</span>'}</span></div>`).join("")}
       </div>
       <div class="tut" style="font-size:12.5px">
@@ -752,9 +781,10 @@ async function criarNovoEvento(){
         nomeAtividade:nome, classificacao:"Evento", departamento:NE.curso,
         temaCentral:NE.tema.trim(),
         periodoInicio:inicio, periodoFim:fim,
-        programacao:NE.horario.trim(),   // semente em texto — refina-se na guia Dados/Programação
+        // horário e local NÃO se pedem aqui: variam por atividade e entram na
+        // guia Programação; o endereço geral fica na Página do evento
         cargaHoraria:NE.ch.trim(), publicoAlvo:NE.publico.trim(),
-        local:NE.local.trim(), municipio:NE.municipio.trim(),
+        municipio:NE.municipio.trim(),
         respNome:p.nome||ME?.nome||EU, respCargo:p.funcao==="professor"?"Professor(a)":"",
         respTelefone:p.telefone||"", respEmail:EU,
       },
@@ -767,7 +797,7 @@ async function criarNovoEvento(){
     // semeia a configuração do evento (rascunho) — é o que o traz para o EV
     const r2=await fetch(`/api/extensao/${encodeURIComponent(registro.id)}/evento`,{method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({descricao:NE.tema.trim(), local:NE.local.trim()})});
+      body:JSON.stringify({descricao:NE.tema.trim()})});
     if(!r2.ok) throw new Error((await r2.json().catch(()=>({}))).error||"A ação foi criada, mas a configuração do evento falhou — abra-a na lista.");
     fecharNovo();
     await carregar();
