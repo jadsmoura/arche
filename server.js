@@ -1684,6 +1684,78 @@ app.post("/api/extensao", async (req, res) => {
 });
 
 /**
+ * POST /api/extensao/:id/excluir — apaga um evento cadastrado por engano
+ * (pedido do dono, ago/2026). Duas coisas diferentes podem ser apagadas, e o
+ * servidor escolhe pelo que a ação JÁ VIVEU:
+ *
+ *  · ação sem Número da Ação e sem relatório entregue é cadastro do
+ *    assistente do ARCHÉ EV que não virou nada — some inteira;
+ *  · ação já APROVADA (com número) é processo do setor, e o número é da
+ *    sequência oficial: apagá-la abriria buraco na numeração e sumiria com a
+ *    proposta do professor. Nesse caso some só o EVENTO — a página, a
+ *    programação, os inscritos —, e a ação continua no ARCHÉ EX.
+ *
+ * Quem pode: a gestão da Extensão sempre; o dono da ação enquanto ela não
+ * tiver número. A coordenação só de `eventos` não exclui — ela opera o
+ * evento, não desfaz o processo.
+ *
+ * Exclusão com inscritos exige confirmar o NOME do evento no corpo: o clique
+ * errado apaga o cadastro de gente que se inscreveu, e a segunda digitação é
+ * o que separa o engano da decisão. O que sumiu fica resumido em
+ * `sys-ex-exclusoes-v1` — sem dado pessoal, só o rastro de quem apagou o quê.
+ */
+app.post("/api/extensao/:id/excluir", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const confirmacao = String(req.body?.confirmacao || "").trim();
+    const r = await comAcoes((acoes) => {
+      const i = acoes.findIndex((x) => x.id === req.params.id);
+      if (i < 0) return { erro: [404, "Ação não encontrada"], gravar: false };
+      const a = acoes[i];
+      const dono = minhaAcao(u, a);
+      if (!gereEx(u) && !(dono && !a.numeroAcao))
+        return { erro: [403, "Só a gestão da Extensão exclui uma ação já aprovada."], gravar: false };
+      if (a.status === "registrada")
+        return { erro: [400, "Ação registrada — o ciclo está encerrado e o registro não se apaga."], gravar: false };
+      const inscritos = (a.participantes?.inscritos || []).length;
+      const nome = String(a.proposta?.nomeAtividade || "").trim();
+      if (inscritos && confirmacao !== nome)
+        return { erro: [400, `Este evento tem ${inscritos} inscrito(s). Para excluir, confirme digitando o nome exato: ${nome}`], gravar: false };
+      // ação sem número e sem relatório nunca foi processo: some inteira
+      const soOEvento = !!a.numeroAcao || !!a.relatorio?.entregueEm;
+      const resumo = { em: new Date().toISOString(), por: u.email, id: a.id, nome,
+        curso: a.curso || "", numeroAcao: a.numeroAcao || null, status: a.status || "",
+        inscritos, presentes: (a.participantes?.inscritos || []).filter((x) => x.presente).length,
+        alcance: soOEvento ? "evento" : "acao" };
+      if (soOEvento) {
+        delete acoes[i].evento;
+        acoes[i].participantes = { ...(a.participantes || {}), inscritos: [] };
+        acoes[i].atualizadoEm = new Date().toISOString();
+      } else {
+        acoes.splice(i, 1);
+      }
+      return { resumo };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    // rastro da exclusão, fora do /api/estado: sem ele ninguém explica depois
+    // por que a ação sumiu — e com os dados dentro seria guardar o que se
+    // acabou de apagar
+    try {
+      const chave = "sys-ex-exclusoes-v1";
+      const lista = JSON.parse((await storage.get(chave)) || "[]");
+      lista.push(r.resumo);
+      await storage.set(chave, JSON.stringify(lista.slice(-500)));
+    } catch (e) { console.error("[extensao] registro da exclusão falhou:", e.message); }
+    console.warn(`[extensao] ${u.email} excluiu ${r.resumo.alcance} "${r.resumo.nome}" (${r.resumo.id})`);
+    res.json({ ok: true, ...r.resumo });
+  } catch (e) {
+    console.error("Erro ao excluir a ação/evento:", e);
+    res.status(500).json({ error: "Não foi possível excluir agora." });
+  }
+});
+
+/**
  * Quadro da curricularização, por curso — é a resposta à pergunta que o
  * avaliador do MEC faz: quais disciplinas do PPC esta instituição atende com
  * extensão, e quantas horas. Conta só o que comprova (ação aprovada, com
@@ -3513,30 +3585,49 @@ async function subirReservasMigradas() {
       const caminho = path.join(__dirname, "dados", arquivo);
       const lote = JSON.parse(await readFile(caminho, "utf8"));
       const espacos = await lerEspacos();
-      let gravadas = 0;
-      for (const r of lote.reservas || []) {
-        const id = `res-${lote.lote}-${r.dataInicio}-${(r.linhas || [])[0] || 0}`;
-        const jaTem = (await lerReservas()).some((x) => x.id === id);
-        if (jaTem) continue;
-        const reserva = normalizarReserva({
-          itens: [{ espaco: lote.espaco }],
-          dataInicio: r.dataInicio, dataFim: r.dataFim,
-          horaInicio: "00:00", horaFim: "23:59",       // dia inteiro: não havia horário
-          atividade: r.atividade, orgao: r.orgao, orgaoOutro: r.orgaoOutro || "",
-          interessado: "setor",
-          justificativa: `Reserva registrada na planilha do auditório de 2026${r.responsavel ? `, por ${r.responsavel}` : ""}.`,
-        }, { espacos, base: { id, status: "confirmada",
-          solicitante: { email: "", nome: r.responsavel || "(planilha da recepção)", telefone: "" },
-          criadoEm: r.solicitadoEm ? `${r.solicitadoEm}T12:00:00.000Z` : new Date().toISOString() } });
-        reserva.protocolo = await novoProtocoloReserva();
-        reserva.origem = { lote: lote.lote, linhas: r.linhas || [], corrigido: !!r.corrigido };
-        reserva.historico = [{ em: reserva.criadoEm, por: "migração",
-          acao: "confirmada", motivo: "Transcrita da planilha de reservas do auditório (2026)" }];
-        await comReservas((reservas) => { reservas.push(reserva); return {}; });
-        gravadas++;
-      }
+
+      /* UMA passada pela fila, e UMA emissão de protocolos. A primeira versão
+         gravava reserva por reserva: em produção o estado vive no Drive, e
+         cada gravação reescreve o arquivo inteiro — 61 reservas viravam 122
+         idas ao Drive (a reserva e o contador), o arranque se arrastava e a
+         migração podia nem terminar. O lote é conhecido de antemão; não há
+         concorrência a arbitrar dentro dele. */
+      const ano = Number(hojeLocalISO().slice(0, 4));
+      const cfgBruta = await storage.get(ESP_SEQ);
+      const cfg = cfgBruta ? JSON.parse(cfgBruta) : { ano, seq: 0 };
+      if (cfg.ano !== ano) { cfg.ano = ano; cfg.seq = 0; }
+
+      const r = await comReservas((reservas) => {
+        const vistos = new Set(reservas.map((x) => x.id));
+        let gravadas = 0;
+        for (const linha of lote.reservas || []) {
+          const id = `res-${lote.lote}-${linha.dataInicio}-${(linha.linhas || [])[0] || 0}`;
+          if (vistos.has(id)) continue;
+          cfg.seq++;
+          const reserva = normalizarReserva({
+            itens: [{ espaco: lote.espaco }],
+            dataInicio: linha.dataInicio, dataFim: linha.dataFim,
+            horaInicio: "00:00", horaFim: "23:59",     // dia inteiro: não havia horário
+            atividade: linha.atividade, orgao: linha.orgao, orgaoOutro: linha.orgaoOutro || "",
+            interessado: "setor",
+            justificativa: `Reserva registrada na planilha do auditório de 2026${linha.responsavel ? `, por ${linha.responsavel}` : ""}.`,
+          }, { espacos, base: { id, status: "confirmada",
+            solicitante: { email: "", nome: linha.responsavel || "(planilha da recepção)", telefone: "" },
+            criadoEm: linha.solicitadoEm ? `${linha.solicitadoEm}T12:00:00.000Z` : new Date().toISOString() } });
+          reserva.protocolo = `RES-${cfg.ano}-${String(cfg.seq).padStart(3, "0")}`;
+          reserva.origem = { lote: lote.lote, linhas: linha.linhas || [], corrigido: !!linha.corrigido };
+          reserva.historico = [{ em: reserva.criadoEm, por: "migração",
+            acao: "confirmada", motivo: "Transcrita da planilha de reservas do auditório (2026)" }];
+          reservas.push(reserva);
+          vistos.add(id);
+          gravadas++;
+        }
+        return { gravadas, gravar: gravadas > 0 };
+      });
+      if (r.gravadas) await storage.set(ESP_SEQ, JSON.stringify(cfg));
       await storage.set(marca, new Date().toISOString());
-      console.log(`[espacos] lote ${nome}: ${gravadas} reserva(s) migrada(s)`);
+      await storage.flush?.();
+      console.log(`[espacos] lote ${nome}: ${r.gravadas} reserva(s) migrada(s)`);
     } catch (e) {
       console.error(`[espacos] falha ao migrar o lote ${nome}:`, e.message);
     }
@@ -3569,6 +3660,12 @@ app.get("/api/espacos", async (req, res) => {
       gestao: gereEsp(u), gestorGeral: u.papel === "gestor",
       espacos, blocos: BLOCOS_ESP, interessados: INTERESSADOS,
       cursos: CURSOS.map((c) => c.nome), orgaos: gruposDeOrgao(CURSOS),
+      // os meses que TÊM reserva alimentam o filtro da agenda: com o registro
+      // do auditório migrado, há ocupação em todo o semestre, e um seletor só
+      // com os meses à frente esconderia metade do ano
+      mesesComReserva: [...new Set(reservas.filter(VIVA)
+        .flatMap((r) => [String(r.dataInicio).slice(0, 7), String(r.dataFim || r.dataInicio).slice(0, 7)])
+        .filter((m) => /^\d{4}-\d{2}$/.test(m)))].sort(),
       bloqueios,
       reservas: reservas.filter((r) => podeVerReserva(u, r)),
     });

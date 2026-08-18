@@ -395,6 +395,17 @@ public/
   a capa viaja dentro do registro da ação, que é regravado inteiro a cada gravação. Na
   vitrine, evento **sem arte** não perde a faixa: sai o gradiente institucional com a
   inicial do nome, para os cartões ficarem do mesmo tamanho.
+- **Excluir evento** (`POST /api/extensao/:id/excluir`, botão 🗑 no cartão do ARCHÉ EV,
+  pedido do dono ago/2026): cadastro errado precisava de desfazer — até então só havia
+  "despublicar", que esconde a página e deixa o registro. O servidor escolhe O QUE some pelo
+  que a ação já viveu: **sem Número da Ação e sem relatório**, é cadastro do assistente que
+  não virou nada e some INTEIRA; **já aprovada**, some só o EVENTO (página, programação,
+  inscritos) e a ação continua no ARCHÉ EX — o número vem da sequência oficial e apagá-lo
+  abriria buraco na numeração. Ação **registrada** não se apaga. Quem pode: a gestão da
+  Extensão sempre; o dono, enquanto não houver número. Com inscritos, a confirmação exige
+  **digitar o nome do evento** — é o que separa o clique errado da decisão de apagar o
+  cadastro de quem se inscreveu. O que sumiu fica resumido em `sys-ex-exclusoes-v1` (sem
+  dado pessoal): sem isso ninguém explica depois por que a ação desapareceu.
 - **A gestão do evento acontece NO CARTÃO** (decisão do dono, ago/2026): os dois atos
   mais frequentes da coordenação estavam espalhados — aprovar a ação ficava noutro setor
   (o ARCHÉ EX) e publicar, dentro de uma guia. Agora o cartão do Painel geral traz
@@ -1206,6 +1217,12 @@ public/
   Pedidos aguardando entram no **sino** da gestão. `GET /api/espacos/ocupacao` conta horas
   por espaço (só confirmadas) — o número que se leva ao conselho.
   Ao mexer no catálogo, **preserve os `id`**: são a chave do que já está reservado.
+  **A agenda é MENSAL, com filtro de mês e etiqueta de cor por espaço** (pedido do dono,
+  ago/2026): com o registro do auditório migrado há ocupação em todos os meses do semestre, e
+  a janela corrida de quatro semanas escondia o resto. O seletor traz os meses que TÊM
+  reserva (`mesesComReserva`) mais os doze à frente; cada espaço tem uma `cor` no catálogo, a
+  legenda também FILTRA (clicar na cor mostra só aquele espaço) e a mesma cor aparece na
+  agenda da página inicial, que passou a cobrir 60 dias.
   **Reservas migradas da planilha** (`subirReservasMigradas` + `dados/esp-auditorio-2026.json`,
   marca `sys-esp-lote-auditorio-2026`): as 75 linhas que a recepção anotava à mão no registro
   do auditório de 2026 entraram como **confirmadas do DIA INTEIRO** — a planilha não tinha

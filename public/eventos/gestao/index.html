@@ -906,24 +906,83 @@ function atalhosCard(a){
   const bt=(rot,fn,tit,cls)=>`<button class="bt ${cls||"bt-sec"}" style="padding:6px 12px;font-size:12.5px"
     title="${esc(tit)}" onclick="event.stopPropagation();${fn}">${rot}</button>`;
   const linha=(x)=>`<div class="card-atalhos" onclick="event.stopPropagation()">${x}</div>`;
+  // excluir é o desfazer do cadastro errado: aparece em todos os estados,
+  // porque o engano pode ser notado a qualquer momento
+  const btExcluir = podeExcluir(a)
+    ? bt("🗑 Excluir","excluirEvento('"+esc(a.id)+"')","Apaga este evento — não há como desfazer","bt-err")
+    : "";
   if(ev.ativo){
     const link=ev.slug?location.origin+"/eventos/"+encodeURIComponent(ev.slug):"";
     return linha(
       bt("⏸ Despublicar evento",`publicarCard('${esc(a.id)}',false)`,"Recolhe a página pública; inscrições feitas continuam válidas")
       + (link?`<a class="bt bt-ghost" style="padding:6px 12px;font-size:12.5px" href="${esc(link)}"
-          target="_blank" rel="noopener" onclick="event.stopPropagation()">↗ ver a página</a>`:""));
+          target="_blank" rel="noopener" onclick="event.stopPropagation()">↗ ver a página</a>`:"")
+      + btExcluir);
   }
   if(!a.numeroAcao)
-    return linha(GESTAO_EX
+    return linha((GESTAO_EX
       ? bt("✓ Aprovar evento",`aprovarCard('${esc(a.id)}')`,
           "Aprova a ação de extensão e emite o Número da Ação — depois disso a página pode ir ao ar","bt-pri")
-      : `<span class="muted" style="font-size:12px">⏳ aguarda a aprovação da ação (Número da Ação) para publicar</span>`);
+      : `<span class="muted" style="font-size:12px">⏳ aguarda a aprovação da ação (Número da Ação) para publicar</span>`)
+      + btExcluir);
   const faltas=faltasProjetoEv(a);
   if(faltas.length)
     return linha(`<span class="muted" style="font-size:12px">📝 faltam ${faltas.length} campo(s) do projeto</span>`
-      + bt("Completar dados",`selecionar('${esc(a.id)}','dados')`,"Abrir a guia Dados do evento: "+faltas.join(", ")));
+      + bt("Completar dados",`selecionar('${esc(a.id)}','dados')`,"Abrir a guia Dados do evento: "+faltas.join(", "))
+      + btExcluir);
   return linha(bt("✓ Publicar evento",`publicarCard('${esc(a.id)}',true)`,
-    "Coloca a página pública no ar e abre as inscrições","bt-pri"));
+    "Coloca a página pública no ar e abre as inscrições","bt-pri") + btExcluir);
+}
+
+/* EXCLUIR o evento (pedido do dono, ago/2026): cadastro errado precisa de
+   desfazer, e até aqui só havia "despublicar" — que esconde a página e deixa
+   o registro. A regra de QUEM pode e de O QUE some é do servidor; a tela
+   antecipa as duas coisas para a confirmação dizer a verdade.
+
+   Ação já aprovada não some: o Número da Ação vem da sequência oficial, e
+   apagá-la abriria buraco na numeração e sumiria com a proposta do professor.
+   Nesse caso o que se apaga é o EVENTO — página, programação e inscritos —,
+   e a ação continua no ARCHÉ EX. */
+const podeExcluir = (a) => GESTAO_EX || (!a.numeroAcao && ehMinha(a));
+const ehMinha = (a) => !!EU && (a.criadoPor === EU || a.proposta?.respEmail === EU);
+
+async function excluirEvento(id){
+  const a=ACOES.find(x=>x.id===id); if(!a) return;
+  const nome=(a.proposta?.nomeAtividade||"").trim() || "(sem nome)";
+  const n=numerosEventoLocal(a);
+  const soOEvento = !!a.numeroAcao || !!a.relatorio?.entregueEm;
+  const oQue = soOEvento
+    ? `Isto apaga o EVENTO de "${nome}": a página pública, a programação, as atividades, `
+      + `os inscritos e as presenças.\n\nA ação de extensão ${a.numeroAcao||""} CONTINUA no ARCHÉ EX, `
+      + `com a proposta e o relatório — o número da ação não se apaga.`
+    : `Isto apaga "${nome}" INTEIRO: a ação de extensão, a proposta, a página e tudo o que `
+      + `foi cadastrado nela.`;
+  const perdas = [];
+  if(n.inscritos) perdas.push(`${n.inscritos} inscrito(s)`);
+  if(n.presentes) perdas.push(`${n.presentes} presença(s) registrada(s)`);
+  if((a.evento?.programacao||[]).length) perdas.push(`${a.evento.programacao.length} atividade(s)`);
+  if(!confirm(`Excluir "${nome}"?\n\n${oQue}`
+    + (perdas.length?`\n\nSerão apagados: ${perdas.join(", ")}.`:"")
+    + `\n\n⚠ ESTA AÇÃO É IRREVERSÍVEL — não há como desfazer nem recuperar depois.`)) return;
+
+  // com inscritos, a segunda confirmação é digitar o nome: é o que separa o
+  // clique errado da decisão de apagar o cadastro de quem se inscreveu
+  let confirmacao="";
+  if(n.inscritos){
+    confirmacao = prompt(`Última confirmação.\n\nEste evento tem ${n.inscritos} inscrito(s), `
+      + `e os dados deles serão apagados.\n\nDigite o nome exato do evento para excluir:\n${nome}`) || "";
+    if(confirmacao.trim()!==nome) { if(confirmacao) alert("O nome não confere — nada foi excluído."); return; }
+  }
+  const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/excluir`,{method:"POST",
+    headers:{"Content-Type":"application/json"},body:JSON.stringify({confirmacao:confirmacao.trim()})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ alert(j.error||"Não foi possível excluir agora."); return; }
+  if(ABERTO===id) ABERTO=null;   // o evento em gestão deixou de existir
+  await carregar(); montarSeletor();
+  nav("painel");
+  alert(j.alcance==="evento"
+    ? `Evento excluído. A ação ${j.numeroAcao||""} continua no ARCHÉ EX.`
+    : `"${j.nome}" foi excluído.`);
 }
 
 /* Aprovar a ação daqui: o número é emitido pelo servidor, na sequência

@@ -245,7 +245,21 @@
   .cal .ev{font-size:11.5px;line-height:1.3;border-left:3px solid var(--brand-3);background:var(--wash);
     border-radius:6px;padding:5px 7px;margin-bottom:5px;cursor:pointer}
   .cal .ev:hover{background:var(--accent-wash)}
-  .cal .ev.pendente{border-left-color:var(--info);opacity:.85}
+  .cal .ev.pendente{opacity:.7;border-left-style:dashed}
+  /* grade MENSAL: cabeçalho dos dias da semana e as casas anteriores ao dia 1 */
+  .cal-mes .cab-sem{font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;
+    letter-spacing:.08em;text-align:center;padding:2px 0 4px}
+  .cal-mes .dia.fora{background:transparent;border:0;min-height:0}
+  .cal-mes .dia.passado{opacity:.55}
+  @media(max-width:900px){.cal-mes .cab-sem{display:none}}
+  /* legenda: também é filtro — clicar na cor mostra só aquele espaço */
+  .legenda{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .legenda .lg{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-soft);
+    background:#fff;border:1px solid var(--line);border-radius:20px;padding:4px 10px;cursor:pointer}
+  .legenda .lg:hover{border-color:var(--brand-3)}
+  .legenda .lg.on{border-color:var(--brand);background:var(--accent-wash);font-weight:600}
+  .legenda .lg i{width:10px;height:10px;border-radius:3px;flex:none}
+  .legenda .limpar{color:var(--muted)}
   .cal .ev.bloqueio{border-left-color:var(--warn);background:#fbf3e4}
   .cal .ev .h{font-weight:700;color:var(--ink)}
   .cal .ev .l{color:var(--muted);display:block}
@@ -331,7 +345,7 @@ const somaDias = (iso, n) => {
 const DIAS_SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 const diaDaSemana = (iso) => DIAS_SEMANA[new Date(iso + "T12:00:00Z").getUTCDay()];
 
-let DADOS = null, SECAO = "agenda", AGENDA = null, AG_DE = hojeISO(), AG_ESPACO = "";
+let DADOS = null, SECAO = "agenda", AGENDA = null, AG_MES = hojeISO().slice(0, 7), AG_ESPACO = "";
 let SEL = {};              // espaços marcados no formulário: id → {detalhe, quantidade}
 let OFICIO = null;         // documento anexado ao pedido em preparo
 const ROT_STATUS = { solicitada: "Aguardando a reserva", encaminhada: "Na PROPPEX",
@@ -386,19 +400,46 @@ async function carregar() {
   DADOS = await r.json();
 }
 
+/* A agenda é MENSAL (pedido do dono, ago/2026): o registro do auditório tem
+   reserva em todos os meses do semestre, e uma janela corrida de quatro
+   semanas escondia o resto. O mês é a unidade em que se pensa a agenda de um
+   campus — e é o que o seletor filtra. */
+const primeiroDia = (mes) => `${mes}-01`;
+const ultimoDia = (mes) => {
+  const [a, m] = mes.split("-").map(Number);
+  return `${mes}-${String(new Date(Date.UTC(a, m, 0)).getUTCDate()).padStart(2, "0")}`;
+};
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const rotuloMes = (mes) => `${MESES[Number(mes.slice(5, 7)) - 1]} de ${mes.slice(0, 4)}`;
+// "Maio de 2026", não "Maio De 2026": o CSS capitalize maiusculiza toda
+// palavra, inclusive a preposição
+const rotuloMesTitulo = (mes) => rotuloMes(mes).charAt(0).toUpperCase() + rotuloMes(mes).slice(1);
+const mesVizinho = (mes, n) => {
+  const [a, m] = mes.split("-").map(Number);
+  const d = new Date(Date.UTC(a, m - 1 + n, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+};
+
 async function carregarAgenda() {
-  const ate = somaDias(AG_DE, 27);
-  const url = `/api/espacos/agenda?de=${AG_DE}&ate=${ate}` + (AG_ESPACO ? `&espaco=${encodeURIComponent(AG_ESPACO)}` : "");
+  const de = primeiroDia(AG_MES), ate = ultimoDia(AG_MES);
+  const url = `/api/espacos/agenda?de=${de}&ate=${ate}` + (AG_ESPACO ? `&espaco=${encodeURIComponent(AG_ESPACO)}` : "");
   const r = await fetch(url);
-  AGENDA = r.ok ? await r.json() : { reservas: [], bloqueios: [], de: AG_DE, ate };
+  AGENDA = r.ok ? await r.json() : { reservas: [], bloqueios: [], de, ate };
 }
 
 /* ------------------------------- agenda -------------------------------- */
 async function renderAgenda() {
   if (!AGENDA) { $("v-agenda").innerHTML = '<div class="card"><div class="muted">Carregando a agenda…</div></div>'; await carregarAgenda(); }
-  const de = AGENDA.de, dias = [];
-  for (let i = 0; i < 28; i++) dias.push(somaDias(de, i));
+  const de = AGENDA.de, ate = AGENDA.ate;
   const hoje = hojeISO();
+
+  // o mês desenhado inteiro, começando no domingo — assim as semanas ficam
+  // alinhadas e o dia 1 não aparece solto numa coluna qualquer
+  const primeiro = new Date(de + "T12:00:00Z");
+  const vazias = primeiro.getUTCDay();
+  const dias = [];
+  for (let d = de; d <= ate; d = somaDias(d, 1)) dias.push(d);
 
   // cada reserva ocupa todos os dias do seu período: é assim que o
   // calendário mostra a semana inteira tomada por um evento grande
@@ -408,7 +449,10 @@ async function renderAgenda() {
     const rot = (r.itens || []).map((i) => i.rotulo).join(" · ");
     const pend = r.status !== "confirmada";
     for (let d = r.dataInicio; d <= (r.dataFim || r.dataInicio); d = somaDias(d, 1)) {
-      põe(d, `<div class="ev${pend ? " pendente" : ""}" title="${esc(rot)} — ${esc(ROT_STATUS[r.status] || "")}"
+      if (d < de || d > ate) continue;
+      const cor = (r.itens || [])[0]?.cor || corEspaco((r.itens || [])[0]?.espaco);
+      põe(d, `<div class="ev${pend ? " pendente" : ""}" style="border-left-color:${cor};background:${cor}12"
+        title="${esc(rot)} — ${esc(ROT_STATUS[r.status] || "")}"
         onclick="detalhe('${r.id}')"><span class="h">${esc(diaTodo(r) ? "dia todo" : r.horaInicio)}</span> ${esc(r.atividade || "Reserva")}
         <span class="l">${esc(rot)}${pend ? " · pedido" : ""}</span></div>`);
     }
@@ -416,12 +460,26 @@ async function renderAgenda() {
   for (const b of AGENDA.bloqueios || []) {
     const nomes = (b.espacos || []).map((id) => nomeEspaco(id)).join(" · ");
     for (let d = b.dataInicio; d <= (b.dataFim || b.dataInicio); d = somaDias(d, 1)) {
+      if (d < de || d > ate) continue;
       põe(d, `<div class="ev bloqueio" title="${esc(b.motivo || "")}">⛔ ${esc(b.motivo || "Bloqueado")}
         <span class="l">${esc(nomes)}</span></div>`);
     }
   }
+  const ocupados = Object.keys(porDia).length;
+  const marcas = Object.values(porDia).reduce((n, x) => n + x.length, 0);
 
-  const sel = `<select onchange="AG_ESPACO=this.value;AGENDA=null;renderAgenda()" style="width:auto;padding:7px 10px;font-size:13px">
+  // o seletor cobre os meses em que HÁ reserva, mais os doze meses à frente:
+  // pular para dezembro não deve exigir doze cliques
+  const meses = [...new Set([
+    ...(DADOS.mesesComReserva || []),
+    ...Array.from({ length: 13 }, (_, i) => mesVizinho(hoje.slice(0, 7), i - 1)),
+    AG_MES,
+  ])].sort();
+  const selMes = `<select onchange="AG_MES=this.value;AGENDA=null;renderAgenda()"
+      style="width:auto;padding:7px 10px;font-size:13px">
+      ${meses.map((m) => `<option value="${m}"${m === AG_MES ? " selected" : ""}>${rotuloMes(m)}</option>`).join("")}
+    </select>`;
+  const selEspaco = `<select onchange="AG_ESPACO=this.value;AGENDA=null;renderAgenda()" style="width:auto;padding:7px 10px;font-size:13px">
       <option value="">todos os espaços</option>
       ${(DADOS.espacos || []).map((e) => `<option value="${esc(e.id)}"${AG_ESPACO === e.id ? " selected" : ""}>${esc(e.nome)}${e.local ? ` — ${esc(e.local)}` : ""}</option>`).join("")}
     </select>`;
@@ -429,18 +487,22 @@ async function renderAgenda() {
   $("v-agenda").innerHTML = `
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px">
-        <div><div class="card-t" style="margin:0">${fmt(de)} a ${fmt(dias[27])}</div>
-          <div class="card-s" style="margin:2px 0 0">Confirmadas em cinza-azulado; pedidos aguardando decisão, mais claros; bloqueios em âmbar.</div></div>
+        <div><div class="card-t" style="margin:0">${rotuloMesTitulo(AG_MES)}</div>
+          <div class="card-s" style="margin:2px 0 0">${marcas ? `${marcas} ocupação(ões) em ${ocupados} dia(s)` : "mês livre"}
+            — confirmadas em cinza-azulado; pedidos aguardando decisão, mais claros; bloqueios em âmbar.</div></div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          ${sel}
-          <button class="bt bt-ghost" onclick="AG_DE=somaDias(AG_DE,-28);AGENDA=null;renderAgenda()">← anterior</button>
-          <button class="bt bt-ghost" onclick="AG_DE=hojeISO();AGENDA=null;renderAgenda()">hoje</button>
-          <button class="bt bt-ghost" onclick="AG_DE=somaDias(AG_DE,28);AGENDA=null;renderAgenda()">próximo →</button>
+          ${selMes}${selEspaco}
+          <button class="bt bt-ghost" onclick="AG_MES=mesVizinho(AG_MES,-1);AGENDA=null;renderAgenda()">←</button>
+          <button class="bt bt-ghost" onclick="AG_MES=hojeISO().slice(0,7);AGENDA=null;renderAgenda()">mês atual</button>
+          <button class="bt bt-ghost" onclick="AG_MES=mesVizinho(AG_MES,1);AGENDA=null;renderAgenda()">→</button>
         </div>
       </div>
-      <div class="cal">
-        ${dias.map((d) => `<div class="dia${d === hoje ? " hoje" : ""}">
-          <div class="cab"><span>${diaDaSemana(d)}</span><b>${d.slice(8)}/${d.slice(5, 7)}</b></div>
+      ${legendaEspacos()}
+      <div class="cal cal-mes">
+        ${["dom", "seg", "ter", "qua", "qui", "sex", "sáb"].map((d) => `<div class="cab-sem">${d}</div>`).join("")}
+        ${Array.from({ length: vazias }, () => '<div class="dia fora"></div>').join("")}
+        ${dias.map((d) => `<div class="dia${d === hoje ? " hoje" : ""}${d < hoje ? " passado" : ""}">
+          <div class="cab"><span>${diaDaSemana(d)}</span><b>${d.slice(8)}</b></div>
           ${(porDia[d] || []).join("") || '<div class="muted" style="font-size:11px">livre</div>'}
         </div>`).join("")}
       </div>
@@ -452,21 +514,22 @@ async function renderAgenda() {
     </div>`;
 }
 
-/* O órgão é gravado como CÓDIGO; quem lê vê o nome. Registro antigo, que
-   guardava texto livre, continua aparecendo como está. */
-function nomeOrgao(codigo, outro) {
-  if (codigo === "outro") return outro || "Outro";
-  for (const g of DADOS?.orgaos || []) {
-    const achou = g.opcoes.find((o) => o.codigo === codigo);
-    if (achou) return achou.rotulo;
-  }
-  return outro || codigo || "";
-}
-
-/* Reserva sem horário (as migradas da planilha da recepção) ocupa o dia
-   inteiro: dizer "00:00" faria pensar em madrugada. */
 const diaTodo = (r) => r?.horaInicio === "00:00" && r?.horaFim === "23:59";
 const faixaHora = (r) => (diaTodo(r) ? "dia todo" : `${r.horaInicio}–${r.horaFim}`);
+
+/* A etiqueta de cor por espaço (pedido do dono, ago/2026): num calendário
+   cheio, a cor é o que transforma "o auditório está livre nesse dia?" numa
+   olhada em vez de uma leitura. Vem do catálogo — a gestão a troca lá. */
+const corEspaco = (id) => (DADOS?.espacos || []).find((e) => e.id === id)?.cor || "#40717e";
+
+function legendaEspacos() {
+  const usados = (DADOS?.espacos || []).filter((e) => e.ativo !== false);
+  return `<div class="legenda">${usados.map((e) => `<span class="lg${AG_ESPACO === e.id ? " on" : ""}"
+    onclick="AG_ESPACO='${esc(e.id)}';AGENDA=null;renderAgenda()" title="Ver só ${esc(e.nome)}">
+    <i style="background:${esc(e.cor || "#40717e")}"></i>${esc(e.nome)}</span>`).join("")}
+    ${AG_ESPACO ? `<span class="lg limpar" onclick="AG_ESPACO='';AGENDA=null;renderAgenda()">× ver todos</span>` : ""}
+  </div>`;
+}
 
 const nomeEspaco = (id) => (DADOS?.espacos || []).find((e) => e.id === id)?.nome || id;
 

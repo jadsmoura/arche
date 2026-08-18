@@ -50,6 +50,10 @@
   .ag-vazio{margin:0;color:var(--muted);font-size:13.5px}
   .ag-pe{margin:14px 0 0;font-size:13px}
   .ag-pe a{color:var(--accent);font-weight:600}
+  /* a lista pode cobrir dois meses: rola dentro do cartão em vez de empurrar
+     o resto da página inicial para baixo */
+  .ag-rol{max-height:340px;overflow-y:auto;padding-right:6px}
+  .ag-cont{margin:0 0 4px;font-size:12.5px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -276,7 +280,7 @@
        chegar a ser feito. Mostra onde, quando e para quê — nunca quem pediu.
        Some sozinho para quem não está logado e quando não há nada marcado. -->
   <section class="so-logado" id="agendaEspacos">
-    <p class="eyebrow section-label">AGENDA DOS ESPAÇOS · PRÓXIMOS 14 DIAS</p>
+    <p class="eyebrow section-label" id="agendaEspacosTit">AGENDA DOS ESPAÇOS</p>
     <div id="agendaEspacosCorpo"></div>
   </section>
 
@@ -337,7 +341,10 @@
   const br = (iso) => iso.split("-").reverse().join("/");
   const semana = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  fetch(`/api/espacos/agenda?de=${hoje}&ate=${dep(hoje, 13)}`)
+  // 60 dias: o registro do auditório tem reserva em todos os meses do
+  // semestre, e uma janela de duas semanas escondia quase tudo
+  const ATE = dep(hoje, 59);
+  fetch(`/api/espacos/agenda?de=${hoje}&ate=${ATE}`)
     .then((r) => (r.ok ? r.json() : null))
     .then((j) => {
       if (!j) return;
@@ -346,28 +353,33 @@
       for (const r of j.reservas || []) {
         const onde = (r.itens || []).map((i) => i.rotulo).join(" · ");
         const pend = r.status !== "confirmada";
-        for (let d = r.dataInicio; d <= (r.dataFim || r.dataInicio) && d <= dep(hoje, 13); d = dep(d, 1)) {
+        for (let d = r.dataInicio; d <= (r.dataFim || r.dataInicio) && d <= ATE; d = dep(d, 1)) {
           if (d < hoje) continue;
           const hora = r.horaInicio === "00:00" && r.horaFim === "23:59"
             ? "dia todo" : `${esc(r.horaInicio)}–${esc(r.horaFim)}`;
-          põe(d, `<li><b>${hora}</b> ${esc(r.atividade || "Reserva")}
-            <span>${esc(onde)}${r.orgao ? ` · ${esc(r.orgao)}` : ""}${pend ? " · pedido em análise" : ""}</span></li>`);
+          const cor = (r.itens || [])[0]?.cor || "#40717e";
+          põe(d, `<li style="border-left:3px solid ${cor};padding-left:8px"><b>${hora}</b> ${esc(r.atividade || "Reserva")}
+            <span>${esc(onde)}${pend ? " · pedido em análise" : ""}</span></li>`);
         }
       }
       for (const b of j.bloqueios || []) {
         const nomes = (b.espacos || []).map((id) => (j.espacos || []).find((e) => e.id === id)?.nome || id).join(" · ");
-        for (let d = b.dataInicio; d <= (b.dataFim || b.dataInicio) && d <= dep(hoje, 13); d = dep(d, 1)) {
+        for (let d = b.dataInicio; d <= (b.dataFim || b.dataInicio) && d <= ATE; d = dep(d, 1)) {
           if (d < hoje) continue;
-          põe(d, `<li><b>dia todo</b> ⛔ ${esc(b.motivo || "Bloqueado")} <span>${esc(nomes)}</span></li>`);
+          põe(d, `<li style="border-left:3px solid #c98a2b;padding-left:8px"><b>dia todo</b> ⛔ ${esc(b.motivo || "Bloqueado")} <span>${esc(nomes)}</span></li>`);
         }
       }
       const chaves = Object.keys(dias).sort();
       const bloco = document.getElementById("agendaEspacos");
       const corpo = document.getElementById("agendaEspacosCorpo");
+      const quantos = chaves.reduce((n, k) => n + dias[k].length, 0);
+      document.getElementById("agendaEspacosTit").textContent =
+        `AGENDA DOS ESPAÇOS · ${br(hoje)} A ${br(ATE)}`;
       corpo.innerHTML = `<div class="ag-esp">
-        ${chaves.length ? chaves.map((d) => `<div class="ag-dia"><h3>${semana[new Date(d + "T12:00:00Z").getUTCDay()]}, ${br(d)}</h3>
-          <ul>${dias[d].join("")}</ul></div>`).join("")
-          : '<p class="ag-vazio">Nenhum espaço reservado nos próximos 14 dias.</p>'}
+        ${chaves.length ? `<p class="ag-cont">${quantos} ocupação(ões) em ${chaves.length} dia(s)</p>
+          <div class="ag-rol">${chaves.map((d) => `<div class="ag-dia"><h3>${semana[new Date(d + "T12:00:00Z").getUTCDay()]}, ${br(d)}</h3>
+          <ul>${dias[d].join("")}</ul></div>`).join("")}</div>`
+          : '<p class="ag-vazio">Nenhum espaço reservado nos próximos 60 dias.</p>'}
         <p class="ag-pe"><a href="/espacos/">Ver a agenda completa e solicitar um espaço →</a></p>
       </div>`;
       bloco.removeAttribute("hidden");
