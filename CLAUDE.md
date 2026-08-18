@@ -1189,7 +1189,16 @@ public/
   gestor geral. Protocolo `RES-AAAA-NNN` emitido pelo SERVIDOR, na ordem dos pedidos.
   **Quem pede**: qualquer conta aprovada — professor, coordenação, setor, acadêmico; a
   comunidade externa entra pelo pedido que alguém da casa registra em nome dela
-  (`INTERESSADOS`). **Bloqueios** (reforma, recesso) são da gestão, valem o DIA inteiro e
+  (`INTERESSADOS`). O **órgão é lista suspensa** (`gruposDeOrgao`: os 12 cursos com o
+  prefixo `curso-`, mais `ORGAOS_INSTITUCIONAIS` e "Outro" com texto livre) — órgão escrito
+  à mão não agrupa, e "Enfermagem", "Enf." e "Curso de Enfermagem" virariam três linhas do
+  mesmo curso na ocupação; o que já estava gravado como texto livre continua legível
+  (`rotuloOrgao`). **Ofício** anexável em qualquer pedido e **obrigatório quando vem de
+  fora** (`exigeOficio`: interessado `comunidade` ou órgão `externo`/`comunidade`) — reserva
+  para quem não é da instituição é ato que a gestão precisa poder justificar depois, e a
+  palavra de quem digitou o formulário não é documento. Sobe por `POST /api/espacos/oficio`
+  (PDF, Word ou imagem, até 10 MB) ANTES de a reserva existir, como o portfólio da
+  Extensão, e o link acompanha os e-mails da responsável e da PROPPEX. **Bloqueios** (reforma, recesso) são da gestão, valem o DIA inteiro e
   travam como reserva confirmada. **A agenda é de todos**: `GET /api/espacos/agenda` (exige
   login) devolve `reservaPublica` — onde, quando, para quê e de que órgão, **nunca** o
   telefone, o e-mail ou a justificativa de ninguém —, e o calendário dos próximos 14 dias

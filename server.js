@@ -77,6 +77,7 @@ import {
   ESPACOS_PADRAO, BLOCOS as BLOCOS_ESP, INTERESSADOS, ROTULO_STATUS as ROTULO_STATUS_ESP,
   OCUPA, VIVA, normalizarEspacos, normalizarReserva, normalizarBloqueio, validarReserva,
   conflitos, impedimentos, agenda, reservaPublica, ocupacaoPorEspaco, minhaReserva,
+  gruposDeOrgao, rotuloOrgao,
 } from "./lib/espacos.js";
 import { CREDENCIAMENTO, MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
 import {
@@ -3510,7 +3511,8 @@ app.get("/api/espacos", async (req, res) => {
     res.json({
       eu: u.email, nome: perfil.nome || u.nome, telefone: perfil.telefone || "",
       gestao: gereEsp(u), gestorGeral: u.papel === "gestor",
-      espacos, blocos: BLOCOS_ESP, interessados: INTERESSADOS, cursos: CURSOS.map((c) => c.nome),
+      espacos, blocos: BLOCOS_ESP, interessados: INTERESSADOS,
+      cursos: CURSOS.map((c) => c.nome), orgaos: gruposDeOrgao(CURSOS),
       bloqueios,
       reservas: reservas.filter((r) => podeVerReserva(u, r)),
     });
@@ -3563,7 +3565,7 @@ app.post("/api/espacos/reservas", async (req, res) => {
       solicitante: { email: u.email, nome: perfil.nome || u.nome || u.email, telefone: perfil.telefone || "" },
     } });
     nova.solicitante.telefone = String(bruto?.solicitante?.telefone || perfil.telefone || "").trim().slice(0, 40);
-    const erros = validarReserva(nova, { espacos });
+    const erros = validarReserva(nova, { espacos, cursos: CURSOS });
     if (erros.length) return res.status(400).json({ error: erros.join(" "), erros });
 
     const bloqueios = await lerBloqueios();
@@ -3672,6 +3674,36 @@ app.post("/api/espacos/reservas/:id/cancelar", async (req, res) => {
   }
 });
 
+/**
+ * POST /api/espacos/oficio — sobe o documento que instrui o pedido (ofício
+ * do órgão, da empresa ou da entidade da comunidade). Sobe ANTES da reserva
+ * existir, como no portfólio da Extensão: o arquivo vai ao Drive e o link
+ * volta para acompanhar o formulário. Quem não é da casa não grava reserva
+ * sem ele — a régua está em `exigeOficio`, aplicada na criação.
+ */
+app.post("/api/espacos/oficio", upload.single("file"), async (req, res) => {
+  try {
+    const u = await sessaoEsp(req, res);
+    if (!u) return;
+    if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado." });
+    const ok = /^(application\/pdf|image\/(png|jpe?g|webp)|application\/msword|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document)$/
+      .test(req.file.mimetype || "");
+    if (!ok) return res.status(400).json({ error: "Envie o ofício em PDF, Word ou imagem." });
+    if (req.file.size > 10 * 1024 * 1024)
+      return res.status(400).json({ error: "O arquivo passa de 10 MB." });
+    const data = await files.save({
+      buffer: req.file.buffer, originalName: req.file.originalname,
+      prefix: `espacos/oficios/${hojeLocalISO().slice(0, 4)}`,
+    });
+    res.json({ ok: true, oficio: { ...data, nome: req.file.originalname,
+      tipo: req.file.mimetype, tamanho: req.file.size,
+      enviadoEm: new Date().toISOString(), enviadoPor: u.email } });
+  } catch (e) {
+    console.error("Erro no ofício da reserva:", e);
+    res.status(500).json({ error: e.message || "Não foi possível anexar o ofício." });
+  }
+});
+
 /** POST /api/espacos/catalogo — a gestão mantém os espaços. Grava o catálogo
     inteiro (é uma lista curta), com a régua do lib. */
 app.post("/api/espacos/catalogo", async (req, res) => {
@@ -3746,7 +3778,9 @@ app.get("/api/espacos/ocupacao", async (req, res) => {
 async function avisarReserva(reserva, espacos, momento) {
   try {
     const { enviarEmail, emailReservaEspaco } = await import("./lib/mailer.js");
-    for (const msg of emailReservaEspaco(reserva, espacos, momento)) {
+    // o e-mail lê gente, não código: o órgão vai pelo nome
+    const legivel = { ...reserva, orgao: rotuloOrgao(reserva.orgao, CURSOS, reserva.orgaoOutro) };
+    for (const msg of emailReservaEspaco(legivel, espacos, momento)) {
       if (msg?.para) await enviarEmail(msg);
     }
   } catch (e) {

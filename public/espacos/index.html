@@ -333,6 +333,7 @@ const diaDaSemana = (iso) => DIAS_SEMANA[new Date(iso + "T12:00:00Z").getUTCDay(
 
 let DADOS = null, SECAO = "agenda", AGENDA = null, AG_DE = hojeISO(), AG_ESPACO = "";
 let SEL = {};              // espaços marcados no formulário: id → {detalhe, quantidade}
+let OFICIO = null;         // documento anexado ao pedido em preparo
 const ROT_STATUS = { solicitada: "Aguardando a reserva", encaminhada: "Na PROPPEX",
   confirmada: "Confirmada", recusada: "Recusada", cancelada: "Cancelada" };
 
@@ -451,6 +452,17 @@ async function renderAgenda() {
     </div>`;
 }
 
+/* O órgão é gravado como CÓDIGO; quem lê vê o nome. Registro antigo, que
+   guardava texto livre, continua aparecendo como está. */
+function nomeOrgao(codigo, outro) {
+  if (codigo === "outro") return outro || "Outro";
+  for (const g of DADOS?.orgaos || []) {
+    const achou = g.opcoes.find((o) => o.codigo === codigo);
+    if (achou) return achou.rotulo;
+  }
+  return outro || codigo || "";
+}
+
 const nomeEspaco = (id) => (DADOS?.espacos || []).find((e) => e.id === id)?.nome || id;
 
 function detalhe(id) {
@@ -487,8 +499,16 @@ function renderNova() {
       <div class="card-s">É o que a agenda mostra a todos — e o que a responsável usa para decidir.</div>
       <div class="grid2">
         <div><label>Atividade *</label><input id="f-atividade" placeholder="Ex.: Aula inaugural do curso de Enfermagem"></div>
-        <div><label>Órgão *</label><input id="f-orgao" placeholder="Curso, setor, pró-reitoria ou comunidade"></div>
-        <div><label>Quem solicita *</label><select id="f-interessado">
+        <div><label>Órgão *</label>
+          <select id="f-orgao" onchange="mudouOrgao()">
+            <option value="">Selecione…</option>
+            ${(DADOS.orgaos || []).map((g) => `<optgroup label="${esc(g.grupo)}">
+              ${g.opcoes.map((o) => `<option value="${esc(o.codigo)}">${esc(o.rotulo)}</option>`).join("")}
+            </optgroup>`).join("")}
+          </select>
+          <input id="f-orgao-outro" class="hide" style="margin-top:8px" placeholder="Qual órgão, empresa ou entidade">
+        </div>
+        <div><label>Quem solicita *</label><select id="f-interessado" onchange="mudouOrgao()">
           ${(DADOS.interessados || []).map((i) => `<option value="${esc(i.codigo)}">${esc(i.rotulo)}</option>`).join("")}
         </select></div>
         <div><label>Público previsto</label><input type="number" id="f-publico" min="0" placeholder="Nº de pessoas"></div>
@@ -500,6 +520,13 @@ function renderNova() {
       <input id="f-recursos" placeholder="Ex.: som, projeção, 200 cadeiras, água">
       <label>Observações</label>
       <textarea id="f-obs" style="min-height:60px"></textarea>
+
+      <div class="sec-t">Ofício</div>
+      <p class="muted" id="f-oficio-nota">Se o pedido é de um órgão, de uma empresa ou de uma
+        entidade da comunidade, anexe o ofício que o formaliza. PDF, Word ou imagem, até 10 MB.</p>
+      <input type="file" id="f-oficio-arq" accept=".pdf,.doc,.docx,image/*" onchange="subirOficio()"
+        style="border:1px dashed #cfd6de;background:#fff;padding:9px 12px">
+      <div id="f-oficio-estado" class="muted" style="margin-top:6px"></div>
     </div>
 
     <div id="f-resultado"></div>
@@ -511,6 +538,10 @@ function renderNova() {
       setor de eventos. Você recebe um e-mail a cada passo.</div>`;
   $("f-ini").value = hojeISO();
   $("f-fim").value = hojeISO();
+  $("f-oficio-estado").innerHTML = OFICIO
+    ? `✓ <a href="${esc(OFICIO.link)}" target="_blank" rel="noopener">${esc(OFICIO.nome)}</a> anexado.`
+    : "";
+  mudouOrgao();
   aplicarSelecao();
 }
 
@@ -557,13 +588,60 @@ function sincronizarFim() {
   if (!fim || fim < ini) $("f-fim").value = ini;
 }
 
+/* O ofício é OBRIGATÓRIO quando o pedido vem de fora (decisão do dono,
+   ago/2026): reserva para quem não é da instituição é ato que a gestão
+   precisa poder justificar depois. A régua está no servidor; aqui a tela
+   apenas diz, antes, o que ele vai cobrar. */
+const pedidoExterno = () =>
+  $("f-interessado").value === "comunidade" || ["externo", "comunidade"].includes($("f-orgao").value);
+
+function mudouOrgao() {
+  $("f-orgao-outro").classList.toggle("hide", $("f-orgao").value !== "outro");
+  const nota = $("f-oficio-nota");
+  if (pedidoExterno()) {
+    nota.innerHTML = "<b>Obrigatório neste caso:</b> o pedido é de fora da instituição, e a reserva "
+      + "só se registra com o ofício que a formaliza. PDF, Word ou imagem, até 10 MB.";
+    nota.style.color = "var(--warn)";
+  } else {
+    nota.textContent = "Se o pedido é de um órgão, de uma empresa ou de uma entidade da comunidade, "
+      + "anexe o ofício que o formaliza. PDF, Word ou imagem, até 10 MB.";
+    nota.style.color = "";
+  }
+}
+
+async function subirOficio() {
+  const arq = $("f-oficio-arq").files?.[0];
+  if (!arq) return;
+  $("f-oficio-estado").innerHTML = "Enviando o ofício…";
+  const fd = new FormData();
+  fd.append("file", arq);
+  try {
+    const r = await fetch("/api/espacos/oficio", { method: "POST", body: fd });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "falha no envio");
+    OFICIO = j.oficio;
+    $("f-oficio-estado").innerHTML = `✓ <a href="${esc(OFICIO.link)}" target="_blank" rel="noopener">${esc(OFICIO.nome)}</a>
+      anexado. <a href="#" onclick="tirarOficio();return false">remover</a>`;
+  } catch (e) {
+    OFICIO = null;
+    $("f-oficio-estado").innerHTML = `<span style="color:var(--err)">Não foi possível anexar: ${esc(e.message)}</span>`;
+  }
+}
+function tirarOficio() {
+  OFICIO = null;
+  $("f-oficio-arq").value = "";
+  $("f-oficio-estado").textContent = "";
+}
+
 function lerFormulario() {
   return {
     itens: Object.entries(SEL).map(([espaco, v]) => ({ espaco, detalhe: v.detalhe || "", quantidade: v.quantidade || 1 })),
     dataInicio: $("f-ini").value, dataFim: $("f-fim").value,
     horaInicio: $("f-hi").value, horaFim: $("f-hf").value,
-    atividade: $("f-atividade").value.trim(), orgao: $("f-orgao").value.trim(),
+    atividade: $("f-atividade").value.trim(),
+    orgao: $("f-orgao").value, orgaoOutro: $("f-orgao-outro").value.trim(),
     interessado: $("f-interessado").value,
+    oficio: OFICIO,
     participantes: Number($("f-publico").value) || 0,
     justificativa: $("f-justificativa").value.trim(),
     recursos: $("f-recursos").value.trim(), observacoes: $("f-obs").value.trim(),
@@ -590,7 +668,7 @@ async function enviar() {
     headers: { "Content-Type": "application/json" }, body: JSON.stringify(lerFormulario()) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { $("f-resultado").innerHTML = `<div class="aviso-conflito">${esc(j.error || "Não foi possível enviar.")}</div>`; return; }
-  SEL = {};
+  SEL = {}; OFICIO = null;
   await carregar(); AGENDA = null;
   alert(`Solicitação registrada — protocolo ${j.reserva.protocolo}.\nVocê receberá um e-mail quando houver decisão.`);
   nav("minhas");
@@ -618,7 +696,7 @@ function cartaoReserva(r, { comAcoes = false } = {}) {
       <div><div class="tt">${esc(r.atividade || "(sem atividade)")}</div>
         <div class="mt">${esc(locais)}</div>
         <div class="mt">${quando}</div>
-        <div class="mt">${esc(r.orgao || "")}${r.solicitante?.nome ? ` · ${esc(r.solicitante.nome)}` : ""}${r.protocolo ? ` · ${esc(r.protocolo)}` : ""}</div>
+        <div class="mt">${esc(nomeOrgao(r.orgao, r.orgaoOutro))}${r.solicitante?.nome ? ` · ${esc(r.solicitante.nome)}` : ""}${r.protocolo ? ` · ${esc(r.protocolo)}` : ""}</div>
       </div>
       <span class="badge b-${esc(r.status)}">${esc(ROT_STATUS[r.status] || r.status)}</span>
     </div>
@@ -628,6 +706,8 @@ function cartaoReserva(r, { comAcoes = false } = {}) {
       ${r.observacoes ? `<div class="kv"><b>Observações:</b> ${esc(r.observacoes)}</div>` : ""}
       ${r.solicitante?.telefone ? `<div class="kv"><b>Contato:</b> ${esc(r.solicitante.telefone)}</div>` : ""}
       ${r.participantes ? `<div class="kv"><b>Público previsto:</b> ${esc(r.participantes)}</div>` : ""}
+      ${r.oficio?.link ? `<div class="kv"><b>Ofício:</b>
+        <a href="${esc(r.oficio.link)}" target="_blank" rel="noopener">${esc(r.oficio.nome || "documento")}</a></div>` : ""}
     </details>` : ""}
     ${r.decisao?.motivo ? `<div class="banner ba-warn" style="margin:10px 0 0">${esc(r.decisao.motivo)}</div>` : ""}
     ${acoes}

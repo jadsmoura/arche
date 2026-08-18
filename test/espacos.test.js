@@ -6,6 +6,7 @@ import {
   ESPACOS_PADRAO, INTERESSADOS, STATUS, OCUPA, VIVA, normalizarEspacos, normalizarReserva,
   normalizarBloqueio, validarReserva, sobrepoe, conflitos, impedimentos, agenda,
   reservaPublica, ocupacaoPorEspaco, diasDaReserva, rotuloItem, itensEmDisputa, minhaReserva,
+  ORGAOS_INSTITUCIONAIS, gruposDeOrgao, rotuloOrgao, exigeOficio, normalizarOficio,
 } from "../lib/espacos.js";
 
 const ESP = normalizarEspacos(ESPACOS_PADRAO);
@@ -196,4 +197,63 @@ test("interessado sai do catálogo, e o dono da reserva é quem a pediu", () => 
   assert.equal(minhaReserva("ana@x.com", r), true);
   assert.equal(minhaReserva("outro@x.com", r), false);
   assert.equal(minhaReserva("", r), false);
+});
+
+/* ------------- órgão em lista fechada e ofício do pedido externo ---------
+   Pedido do dono (ago/2026): órgão escrito à mão não agrupa, e reserva para
+   quem é de fora precisa vir instruída por documento. */
+const CURSOS_TESTE = [{ slug: "enfermagem", nome: "Enfermagem" }, { slug: "direito", nome: "Direito" }];
+
+test("o órgão vem de lista: cursos com prefixo próprio, setores pelo código", () => {
+  const grupos = gruposDeOrgao(CURSOS_TESTE);
+  assert.deepEqual(grupos.map((g) => g.grupo), ["Cursos", "Setores e órgãos"]);
+  assert.equal(grupos[0].opcoes[0].codigo, "curso-enfermagem");
+  assert.equal(rotuloOrgao("curso-enfermagem", CURSOS_TESTE), "Enfermagem");
+  assert.equal(rotuloOrgao("proppex", CURSOS_TESTE).startsWith("PROPPEX"), true);
+  assert.equal(rotuloOrgao("outro", CURSOS_TESTE, "Rotary Club"), "Rotary Club");
+  // registro antigo, gravado como texto livre, continua legível
+  assert.equal(rotuloOrgao("Enfermagem", CURSOS_TESTE), "Enfermagem");
+  assert.ok(ORGAOS_INSTITUCIONAIS.every((o) => o.codigo && o.rotulo));
+});
+
+test("órgão fora da lista é recusado, e 'outro' cobra o nome", () => {
+  const fora = pedido({ orgao: "inventado" });
+  assert.ok(validarReserva(fora, { espacos: ESP, hoje: HOJE, cursos: CURSOS_TESTE })
+    .some((e) => /não reconhecido/.test(e)));
+  const outro = pedido({ orgao: "outro" });
+  assert.ok(validarReserva(outro, { espacos: ESP, hoje: HOJE, cursos: CURSOS_TESTE })
+    .some((e) => /qual é o órgão/.test(e)));
+  const ok = pedido({ orgao: "outro", orgaoOutro: "Rotary Club de Goianésia", interessado: "professor" });
+  assert.deepEqual(validarReserva(ok, { espacos: ESP, hoje: HOJE, cursos: CURSOS_TESTE }), []);
+  // sem a lista de cursos, a régua não inventa recusa (compatibilidade)
+  assert.deepEqual(validarReserva(pedido({ orgao: "curso-enfermagem" }), { espacos: ESP, hoje: HOJE }), []);
+});
+
+test("pedido de fora exige ofício; de dentro, o anexo é opcional", () => {
+  const externo = pedido({ interessado: "comunidade", orgao: "comunidade" });
+  assert.equal(exigeOficio(externo), true);
+  assert.ok(validarReserva(externo, { espacos: ESP, hoje: HOJE }).some((e) => /ofício/i.test(e)));
+
+  const comDoc = pedido({ interessado: "comunidade", orgao: "comunidade",
+    oficio: { nome: "oficio.pdf", link: "https://drive.google.com/file/d/abc" } });
+  assert.deepEqual(validarReserva(comDoc, { espacos: ESP, hoje: HOJE }), []);
+  assert.equal(comDoc.oficio.nome, "oficio.pdf");
+
+  // empresa/instituição externa cai na mesma régua, ainda que quem digite
+  // seja um professor da casa
+  assert.equal(exigeOficio(pedido({ orgao: "externo", interessado: "professor" })), true);
+  // de dentro, ninguém é obrigado a anexar nada
+  const interno = pedido({ orgao: "curso-enfermagem", interessado: "coordenador" });
+  assert.equal(exigeOficio(interno), false);
+  assert.deepEqual(validarReserva(interno, { espacos: ESP, hoje: HOJE }), []);
+});
+
+test("ofício sem link não é ofício, e o gravado não some ao reeditar", () => {
+  assert.equal(normalizarOficio({ nome: "so-o-nome.pdf" }), null);
+  assert.equal(normalizarOficio(null), null);
+  const base = { ...pedido({ id: "r9" }), oficio: { nome: "a.pdf", link: "https://x/y", enviadoEm: "2026-08-01T00:00:00Z" } };
+  const reeditada = normalizarReserva({ id: "r9", atividade: "Outro nome" }, { espacos: ESP, base });
+  assert.equal(reeditada.oficio.link, "https://x/y", "editar o pedido não descarta o documento");
+  const removida = normalizarReserva({ id: "r9", oficio: null }, { espacos: ESP, base });
+  assert.equal(removida.oficio, null, "mas dá para tirá-lo de propósito");
 });
