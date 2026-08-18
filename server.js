@@ -2526,11 +2526,63 @@ const walletConfigurada = () =>
   !!(process.env.GOOGLE_WALLET_ISSUER_ID && process.env.GOOGLE_WALLET_SA_EMAIL
     && process.env.GOOGLE_WALLET_SA_KEY);
 
+/* A chave da conta de serviço chega por env var, e o caminho que ela faz até
+   lá é irregular: o JSON do Google traz "\n" escrito, a colagem no painel do
+   Render às vezes leva as aspas junto, e há quem cole o ARQUIVO INTEIRO no
+   campo. Nenhum desses casos é erro de quem configurou — todos descrevem a
+   mesma chave. Então normalizamos aqui, e o que não vira PEM se explica na
+   tela em vez de morrer num 500 mudo. */
+function chaveDaContaDeServico(bruto) {
+  let s = String(bruto || "").trim();
+  if (!s) return null;
+  if (s.startsWith("{")) {                       // colaram o JSON da conta inteiro
+    try { s = String(JSON.parse(s).private_key || ""); } catch { /* segue como texto */ }
+  }
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'")))
+    s = s.slice(1, -1);                          // veio com as aspas do JSON
+  s = s.replace(/\\r/g, "").replace(/\\n/g, "\n").replace(/\r\n/g, "\n").trim();
+  try { return crypto.createPrivateKey(s); } catch { return null; }
+}
+
 const dataBR = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) ? iso.split("-").reverse().join("/") : "");
 const periodoBR = (ini, fim) => {
   const a = dataBR(ini), b = dataBR(fim);
   return !a ? "—" : (!b || b === a ? a : `${a} a ${b}`);
 };
+
+/* Conferência da configuração da carteira, só para o gestor geral: diz o que
+   está preenchido e se a chave assina, SEM devolver a chave nem o e-mail da
+   conta de serviço inteiros. Existe porque o erro de configuração acontece
+   longe daqui — no painel do Render — e adivinhar qual das três variáveis
+   está torta custa uma tarde. */
+app.get("/api/eventos/wallet/diagnostico", async (req, res) => {
+  if (!(await exigirGestor(req, res))) return;
+  const emissor = String(process.env.GOOGLE_WALLET_ISSUER_ID || "");
+  const email = String(process.env.GOOGLE_WALLET_SA_EMAIL || "");
+  const bruto = String(process.env.GOOGLE_WALLET_SA_KEY || "");
+  const chave = chaveDaContaDeServico(bruto);
+  let assina = false, erro = "";
+  if (chave) {
+    try { crypto.createSign("RSA-SHA256").update("arche").sign(chave, "base64url"); assina = true; }
+    catch (e) { erro = e.message; }
+  }
+  res.json({
+    emissor: { preenchido: !!emissor, sóDígitos: /^\d+$/.test(emissor), valor: emissor },
+    contaDeServico: {
+      preenchido: !!email,
+      pareceContaDeServico: /@[\w-]+\.iam\.gserviceaccount\.com$/.test(email.trim()),
+      dominio: email.includes("@") ? email.split("@").pop() : "",
+    },
+    chave: {
+      preenchida: !!bruto, caracteres: bruto.length,
+      trazMarcadorPEM: bruto.includes("BEGIN") && bruto.includes("PRIVATE KEY"),
+      quebrasDeLinhaEscritas: bruto.includes("\\n"), quebrasDeLinhaReais: bruto.includes("\n"),
+      lidaComoChave: !!chave, tipo: chave ? chave.asymmetricKeyType : "", assina, erro,
+    },
+    classe: process.env.GOOGLE_WALLET_CLASS_ID || "(definida no próprio passe)",
+    pronto: !!(emissor && email && chave && assina),
+  });
+});
 
 /* Com `?ir=1` a rota REDIRECIONA em vez de devolver JSON: é o que permite que
    o botão seja um link simples — no e-mail de confirmação, onde não há
@@ -2586,9 +2638,13 @@ app.get("/api/publico/eventos/:slug/inscricao/:token/wallet", async (req, res) =
       origins: [base],
       payload: { ...(classeNoJwt.length ? { genericClasses: classeNoJwt } : {}), genericObjects: [objeto] },
     };
+    const chave = chaveDaContaDeServico(process.env.GOOGLE_WALLET_SA_KEY);
+    if (!chave) {
+      console.error("[wallet] GOOGLE_WALLET_SA_KEY não foi lida como chave privada");
+      return falhar(500, "A chave da conta de serviço não foi reconhecida. Confira a variável GOOGLE_WALLET_SA_KEY: ela deve conter a private_key do arquivo JSON inteira, do -----BEGIN PRIVATE KEY----- ao -----END PRIVATE KEY-----.");
+    }
     const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
     const assinar = `${b64(cabecalho)}.${b64(corpo)}`;
-    const chave = String(process.env.GOOGLE_WALLET_SA_KEY).replace(/\\n/g, "\n");
     const assinatura = crypto.createSign("RSA-SHA256").update(assinar).sign(chave, "base64url");
     const url = `https://pay.google.com/gp/v/save/${assinar}.${assinatura}`;
     if (ir) return res.redirect(302, url);
