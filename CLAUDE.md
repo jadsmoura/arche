@@ -298,10 +298,14 @@ public/
   a chamada falhar. **Quem chega sem ter marcado a atividade é inscrito nela na hora**
   (havendo vaga; lotada, a presença vale igual e a tela avisa) — sem isso a presença ficaria
   sem a inscrição e a atividade fora do certificado. Dois modos, e cada um serve a uma
-  situação: na PORTA de uma sala, escolhe-se a atividade uma vez no seletor e leem-se os QRs
-  em sequência (padrão — perguntar a cada pessoa travaria uma fila de 200); para o monitor
-  VOLANTE, a caixa **"perguntar a cada leitura"** abre a lista das atividades (as de hoje
-  primeiro) depois de cada QR.
+  situação, e a escolha é uma **ETAPA antes de a câmera abrir** (decisão do dono, ago/2026 —
+  seletor solto sobre a câmera convidava ao erro caro: começar a ler sem reparar nele e
+  credenciar meia oficina na entrada geral). A tela pergunta **"Onde você vai credenciar?"**
+  com as atividades de HOJE em cima, a entrada geral e a opção do monitor VOLANTE; escolhida
+  uma, a câmera abre e a atividade fica numa **faixa à vista** (com "trocar") — dali em
+  diante toda leitura vale para ela. No modo volante a pergunta vem DEPOIS de cada leitura
+  (inclusive do código digitado à mão). Evento sem atividade de inscrição própria pula a
+  etapa: não há o que escolher.
 - **Capa do evento: arte em alta, guardada pequena** (pedido do dono, ago/2026): o arquivo
   entra com até **10 MB** e o navegador o **reduz para 1600 px** (JPEG, teto de 900 KB)
   antes de subir — exigir que alguém reduza a arte antes era passar ao usuário um trabalho

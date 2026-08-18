@@ -51,6 +51,9 @@
   .fila div:last-child{border-bottom:0}
   .fila .s-ok{color:#8fdba1}.fila .s-ja{color:#ffcc80}.fila .s-erro{color:#ef9a9a}
   .dica{font-size:12px;opacity:.65;margin-top:10px;line-height:1.5}
+  /* opções da etapa "onde vou credenciar": título em cima, detalhe embaixo */
+  .bt-op{display:block;text-align:left;white-space:normal;line-height:1.35}
+  .bt-op small{display:block;font-weight:400;opacity:.85;font-size:12.5px;margin-top:3px}
   .hide{display:none!important}
 </style>
 </head>
@@ -71,23 +74,27 @@
       “Evento e inscrições” no ARCHÉ EX). Sem ele, nenhum check-in é aceito.</p>
   </div>
 
-  <!-- passo 2: ler QRs e credenciar -->
+  <!-- passo 2: ONDE se vai credenciar (antes de abrir a câmera) -->
+  <div class="painel hide" id="p-onde">
+    <div style="font-weight:700;font-size:17px;color:#182632">Onde você vai credenciar?</div>
+    <p class="dica" style="opacity:1;color:var(--muted);margin-top:4px">A presença fica registrada na
+      atividade escolhida, e <b>toda leitura depois disto vale para ela</b>. Quem chegar sem ter marcado
+      a atividade é inscrito nela na hora (havendo vaga).</p>
+    <div id="onde-lista" style="margin-top:6px"></div>
+    <button class="bt bt-sec" onclick="sair()">← trocar evento / código</button>
+  </div>
+
+  <!-- passo 3: ler QRs e credenciar -->
   <div class="hide" id="p-scan">
     <div class="res" id="res"></div>
-    <div class="painel hide" id="p-atv">
-      <label>Credenciar em</label>
-      <select id="s-atv" style="width:100%;border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;font-size:16px;background:#fff">
-        <option value="">Entrada geral do evento</option>
-      </select>
-      <p class="dica" style="opacity:1;color:var(--muted)">Na porta de um minicurso/oficina, escolha a
-        atividade — a presença fica registrada nela. <b>Quem chegar sem ter marcado a atividade é
-        inscrito nela na hora</b> (havendo vaga); lotada, a presença vale igual e a tela avisa.</p>
-      <label class="chk" style="display:flex;gap:9px;align-items:flex-start;margin-top:10px;font-size:13.5px">
-        <input type="checkbox" id="s-perguntar" style="width:20px;height:20px;margin-top:2px">
-        <span>Perguntar a cada leitura <span style="color:var(--muted)">— para o monitor volante, que
-          credencia em atividades diferentes no mesmo plantão. Na porta de uma sala, deixe desmarcado:
-          escolha a atividade uma vez e leia um QR atrás do outro.</span></span>
-      </label>
+    <!-- a atividade do plantão fica à vista o tempo todo: é o que evita
+         credenciar meia oficina no lugar errado -->
+    <div class="painel hide" id="faixa-atv" style="display:flex;gap:10px;align-items:center;justify-content:space-between;padding:12px 14px">
+      <div style="min-width:0">
+        <div style="font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">Credenciando em</div>
+        <div id="faixa-nome" style="font-weight:700;font-size:15px;color:#182632;overflow:hidden;text-overflow:ellipsis"></div>
+      </div>
+      <button class="bt bt-sec" style="width:auto;margin-top:0;padding:9px 14px;flex:none" onclick="trocarAtividade()">trocar</button>
     </div>
     <!-- escolha da atividade a cada leitura (modo "perguntar") -->
     <div id="p-escolha" class="hide" style="position:fixed;inset:0;background:rgba(10,20,26,.55);z-index:50;
@@ -137,6 +144,7 @@ let SLUG = "", COD = "", stream = null, detector = null, lendo = false;
 const JA_LIDOS = new Map();
 let pausado = false;                 // respiro após cada leitura aceita
 let ATIVIDADES = [];                 // as atividades com inscrição própria
+let ATV_SEL = "";                    // a atividade do plantão ("" geral, "?" perguntar)
 let escolhendo = null;               // token à espera da escolha da atividade
 const FILA = [];
 
@@ -146,37 +154,87 @@ const params = new URLSearchParams(location.search);
 if (params.get("e")) $("s-slug").value = params.get("e");
 if (sessionStorage.getItem("arche-ev-monitor")) $("s-cod").value = sessionStorage.getItem("arche-ev-monitor");
 
-function comecar() {
+/* Escolher a atividade é uma ETAPA, antes de a câmera abrir (decisão do dono,
+   ago/2026): o seletor solto sobre a câmera convidava ao erro caro — começar a
+   ler sem reparar nele e credenciar meia oficina na entrada geral. Agora o
+   monitor diz ONDE está antes de ler o primeiro QR, e a atividade escolhida
+   fica numa faixa à vista durante todo o plantão.
+
+   Evento sem atividade de inscrição própria pula a etapa: não há o que
+   escolher, e o credenciamento é a entrada geral. */
+async function comecar() {
   SLUG = $("s-slug").value.trim().toLowerCase();
   COD = $("s-cod").value.trim().toUpperCase();
   if (!SLUG || COD.length !== 6) { alert("Informe o endereço do evento e o código do monitor (6 caracteres)."); return; }
   sessionStorage.setItem("arche-ev-monitor", COD);
   $("p-setup").classList.add("hide");
-  $("p-scan").classList.remove("hide");
-  montarAtividades();
-  ligarCamera();
+  await montarAtividades();
+  if (ATIVIDADES.length) mostrarOnde();
+  else irParaLeitura("");
 }
 
-/* O seletor de atividade sai do retrato PÚBLICO do evento (só títulos e
-   horários — nada de gente). Com a página do evento desativada não há
-   catálogo, e o credenciamento segue valendo na entrada geral. */
+/* O catálogo sai do retrato PÚBLICO do evento (só títulos e horários — nada
+   de gente). Com a página do evento desativada não há catálogo, e o
+   credenciamento segue valendo na entrada geral. */
 async function montarAtividades() {
-  $("p-atv").classList.add("hide");
+  ATIVIDADES = [];
   try {
     const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}`);
     if (!r.ok) return;
     const ev = (await r.json()).evento || {};
-    const proprias = (ev.programacao || []).filter((p) => p && p.inscricao === "propria" && p.id);
-    if (!proprias.length) return;
-    ATIVIDADES = proprias;
-    $("s-atv").innerHTML = '<option value="">Entrada geral do evento</option>' + proprias.map((p) =>
-      `<option value="${esc(p.id)}">${esc(p.titulo)}${p.dia ? " — " + p.dia.split("-").reverse().slice(0, 2).join("/") : ""}${p.horaInicio ? " " + esc(p.horaInicio) : ""}</option>`).join("");
-    $("p-atv").classList.remove("hide");
+    ATIVIDADES = (ev.programacao || []).filter((p) => p && p.inscricao === "propria" && p.id);
   } catch { /* sem catálogo agora — a entrada geral continua funcionando */ }
 }
+
+/* A etapa da escolha: as atividades de HOJE em cima (é onde o monitor está),
+   depois as demais, a entrada geral e, por último, o modo do monitor volante
+   — que pergunta a cada QR em vez de fixar uma atividade. */
+function mostrarOnde() {
+  pararCamera();
+  $("p-scan").classList.add("hide");
+  $("p-onde").classList.remove("hide");
+  const hoje = new Date().toISOString().slice(0, 10);
+  const ordenadas = ATIVIDADES.slice().sort((a, b) =>
+    (a.dia === hoje ? 0 : 1) - (b.dia === hoje ? 0 : 1)
+    || String(a.dia || "").localeCompare(String(b.dia || ""))
+    || String(a.horaInicio || "").localeCompare(String(b.horaInicio || "")));
+  const bt = (valor, titulo, sub, cls) =>
+    `<button class="bt bt-op ${cls || "bt-sec"}" onclick="irParaLeitura('${esc(valor)}')">${esc(titulo)}${
+      sub ? `<small>${esc(sub)}</small>` : ""}</button>`;
+  $("onde-lista").innerHTML =
+    ordenadas.map((p) => bt(p.id, p.titulo,
+      [p.dia ? p.dia.split("-").reverse().slice(0, 2).join("/") : "",
+       p.horaInicio ? p.horaInicio + (p.horaFim ? "–" + p.horaFim : "") : "",
+       p.local || ""].filter(Boolean).join(" · "),
+      p.dia === hoje ? "bt-pri" : "")).join("")
+    + bt("", "Entrada geral do evento", "presença no evento, sem vínculo com atividade")
+    + bt("?", "Perguntar a cada leitura", "para quem vai credenciar em atividades diferentes no mesmo plantão");
+}
+
+/* Abre a leitura já sabendo onde se está credenciando. "" = entrada geral;
+   "?" = perguntar a cada QR. */
+function irParaLeitura(valor) {
+  ATV_SEL = valor;
+  $("p-onde").classList.add("hide");
+  $("p-scan").classList.remove("hide");
+  $("res").className = "res";
+  const faixa = $("faixa-atv");
+  if (ATIVIDADES.length) {
+    const atv = ATIVIDADES.find((p) => p.id === valor);
+    $("faixa-nome").textContent = valor === "?" ? "Perguntar a cada leitura"
+      : atv ? atv.titulo : "Entrada geral do evento";
+    faixa.classList.remove("hide");
+  } else {
+    faixa.classList.add("hide");
+  }
+  ligarCamera();
+}
+function trocarAtividade() { mostrarOnde(); }
+
 function sair() {
   pararCamera();
   $("p-scan").classList.add("hide");
+  $("p-onde").classList.add("hide");
   $("p-setup").classList.remove("hide");
 }
 
@@ -211,7 +269,7 @@ async function checkin(body, atividadeEscolhida) {
   try {
     // no modo "perguntar", a atividade vem da escolha da leitura; no padrão,
     // do seletor do plantão
-    const atividade = atividadeEscolhida !== undefined ? atividadeEscolhida : ($("s-atv")?.value || "");
+    const atividade = atividadeEscolhida !== undefined ? atividadeEscolhida : (ATV_SEL === "?" ? "" : ATV_SEL);
     const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/checkin`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...body, codigoMonitor: COD, atividade }),
@@ -234,7 +292,11 @@ function manual() {
   if (v.length < 6) { alert("Digite os 6 caracteres do código."); return; }
   $("m-cod").value = "";
   // token completo colado também vale — aí a assinatura é conferida
-  checkin(v.length >= 22 ? { token: v } : { codigo: v.slice(0, 6) });
+  const corpo = v.length >= 22 ? { token: v } : { codigo: v.slice(0, 6) };
+  // no modo volante, o código digitado passa pela mesma pergunta do QR:
+  // credenciar no lugar errado por causa do modo é o erro que se quer evitar
+  if (ATV_SEL === "?" && ATIVIDADES.length) { abrirEscolha(corpo); return; }
+  checkin(corpo);
 }
 
 /* ------------------------- câmera + BarcodeDetector ---------------------- */
@@ -269,10 +331,10 @@ async function varrer() {
         const bruto = String(achados[0].rawValue || "").trim();
         // o QR carrega o token (22 hex); se vier uma URL, o token vai dentro dela
         const tk = (bruto.toLowerCase().match(/[0-9a-f]{22}/) || [])[0];
-        if (tk && $("s-perguntar")?.checked && ATIVIDADES.length) {
+        if (tk && ATV_SEL === "?" && ATIVIDADES.length) {
           abrirEscolha(tk);
         } else if (tk) {
-          const chave = tk + "|" + ($("s-atv")?.value || "");
+          const chave = tk + "|" + ATV_SEL;
           if (JA_LIDOS.has(chave)) {
             repetido();
           } else {
@@ -290,22 +352,21 @@ async function varrer() {
 }
 
 /* ------------------ modo "perguntar a cada leitura" ---------------------
-   Dois jeitos de credenciar num evento de programação múltipla, e cada um
-   serve a uma situação (pergunta do dono, ago/2026):
+   A última opção da etapa "Onde você vai credenciar?". Dois jeitos, um para
+   cada situação (pergunta do dono, ago/2026):
 
-   · na PORTA de uma sala — escolha a atividade uma vez, no seletor, e leia
-     um QR atrás do outro. É o modo padrão porque é o que dá conta de fila:
+   · na PORTA de uma sala — escolhe-se a atividade na etapa e leem-se os QRs
+     um atrás do outro. É o caminho normal, porque é o que dá conta de fila:
      perguntar a cada pessoa numa entrada de 200 travaria a porta;
    · monitor VOLANTE, que roda o campus credenciando em atividades
      diferentes — aí a pergunta a cada leitura evita o erro caro, que é
-     credenciar meia oficina na atividade errada por causa do seletor
-     esquecido.
+     credenciar meia oficina na atividade errada.
 
-   A escolha só aparece com a leitura já feita: primeiro o QR, depois a
-   atividade — assim a lista já vem com o dia de hoje em cima. */
-function abrirEscolha(token) {
+   Aqui a escolha vem DEPOIS da leitura: primeiro o QR, depois a atividade —
+   assim a lista já aparece com o dia de hoje em cima. */
+function abrirEscolha(corpo) {
   if (escolhendo) return;
-  escolhendo = token;
+  escolhendo = typeof corpo === "string" ? { token: corpo } : corpo;
   pausado = true;
   const hoje = new Date().toISOString().slice(0, 10);
   const ordenadas = ATIVIDADES.slice().sort((a, b) =>
@@ -313,8 +374,8 @@ function abrirEscolha(token) {
     || String(a.dia || "").localeCompare(String(b.dia || ""))
     || String(a.horaInicio || "").localeCompare(String(b.horaInicio || "")));
   const linha = (id, titulo, sub, destaque) =>
-    `<button class="bt ${destaque ? "bt-pri" : "bt-sec"}" style="text-align:left;margin-top:8px"
-      onclick="escolher('${esc(id)}')">${esc(titulo)}${sub ? `<br><span style="font-weight:400;opacity:.8;font-size:12.5px">${esc(sub)}</span>` : ""}</button>`;
+    `<button class="bt bt-op ${destaque ? "bt-pri" : "bt-sec"}" onclick="escolher('${esc(id)}')">${
+      esc(titulo)}${sub ? `<small>${esc(sub)}</small>` : ""}</button>`;
   $("esc-lista").innerHTML =
     ordenadas.map((p) => linha(p.id, p.titulo,
       [p.dia ? p.dia.split("-").reverse().slice(0, 2).join("/") : "",
@@ -330,14 +391,14 @@ function fecharEscolha() {
   setTimeout(() => { pausado = false; }, 800);
 }
 async function escolher(idAtv) {
-  const tk = escolhendo;
+  const corpo = escolhendo;
   $("p-escolha").classList.add("hide");
   escolhendo = null;
-  if (!tk) { pausado = false; return; }
-  const chave = tk + "|" + idAtv;
+  if (!corpo) { pausado = false; return; }
+  const chave = (corpo.token || corpo.codigo || "") + "|" + idAtv;
   if (JA_LIDOS.has(chave)) { repetido(); setTimeout(() => { pausado = false; }, 1200); return; }
   JA_LIDOS.set(chave, Date.now());
-  const ok = await checkin({ token: tk }, idAtv);
+  const ok = await checkin(corpo, idAtv);
   if (!ok) JA_LIDOS.delete(chave);
   setTimeout(() => { pausado = false; }, 1200);
 }
