@@ -342,12 +342,19 @@ public/
   embutido** (PNG inline por `cid:`, `multipart/related` no mailer) — é na caixa de entrada
   que a pessoa procura a credencial no dia. Na página da inscrição e logo após inscrever-se
   há **⬇ Baixar o QR** (PNG, vale offline) e **📅 Adicionar ao calendário** (.ics com
-  lembrete na véspera). **Carteiras digitais**: o passe do **Google Wallet** está
-  implementado e fica atrás das env vars (`GOOGLE_WALLET_ISSUER_ID`,
-  `GOOGLE_WALLET_SA_EMAIL`, `GOOGLE_WALLET_SA_KEY`, `GOOGLE_WALLET_CLASS_ID`) — sem elas a
-  rota responde 501 e o botão nem aparece; o **Apple Wallet** exige certificado do Apple
-  Developer Program (.pkpass sem assinatura o iPhone recusa) e por isso não tem botão
-  enquanto a instituição não tiver o certificado.
+  lembrete na véspera). **Carteiras digitais** — são TRÊS caminhos, e o primeiro é o que
+  já funciona sozinho: (1) o **e-mail de confirmação descreve a reserva** em schema.org
+  (`EventReservation` em JSON-LD, `emailInscricaoEvento`), com `underName`, `reservationFor`
+  (datas em -03:00 tiradas da própria programação, local e endereço), `reservationNumber` (o
+  código de 6) e o **`ticketToken: "qrCode:<token>"`, que é o campo que faz o passe nascer
+  com o QR escaneável** — é assim que o passe do Sympla aparece no Google Wallet (aquele
+  cartão traz "Ver e-mail" no rodapé: quem o monta é o Gmail lendo o e-mail, não uma conta de
+  emissor). O bloco é invisível para quem lê e some quando a ação não tem data;
+  (2) o botão **"Adicionar ao Google Wallet"** está implementado e fica atrás das env vars
+  (`GOOGLE_WALLET_ISSUER_ID`, `GOOGLE_WALLET_SA_EMAIL`, `GOOGLE_WALLET_SA_KEY`,
+  `GOOGLE_WALLET_CLASS_ID`) — sem elas a rota responde 501 e o botão nem aparece; (3) o
+  **Apple Wallet** exige certificado do Apple Developer Program (.pkpass sem assinatura o
+  iPhone recusa) e por isso não tem botão enquanto a instituição não tiver o certificado.
 - **Credenciamento: o mesmo QR não se lê duas vezes** (achado no teste do dono, ago/2026):
   a câmera varre a cada 350 ms e um crachá parado à frente dela era relido, enchendo a fila
   do plantão de "já credenciado". Cada credencial lida fica registrada NO APARELHO durante o
