@@ -2434,7 +2434,6 @@ window.addEventListener('pagehide', function(){
     var total = professors.length;
     var alcancam = professors.filter(function (p) { return validProds3y(p) >= MINIMO; }).length;
     var pct = total ? Math.round(alcancam / total * 100) : 0;
-    var semLattes = professors.filter(function (p) { return !p.data; }).length;
 
     var conceito = 1;
     ESCADA.forEach(function (n) { if (pct >= n.p) conceito = n.c; });
@@ -2479,10 +2478,7 @@ window.addEventListener('pagehide', function(){
         + MINIMO + " ou mais produções válidas em " + FAIXA + " — os últimos três anos de produção, "
         + "contados do ano corrente aos três anteriores, porque o ano em curso ainda está pela "
         + "metade. O conceito sai da PROPORÇÃO desses docentes: 10% conceito 2, 20% conceito 3, "
-        + "30% conceito 4, 50% conceito 5; abaixo de 10%, conceito 1. O denominador são os "
-        + total + " docentes do curso"
-        + (semLattes ? ", inclusive os " + semLattes + " que ainda não importaram o Lattes (contam como 0 produções)" : "")
-        + ".";
+        + "30% conceito 4, 50% conceito 5; abaixo de 10%, conceito 1.";
     }
 
     var meta = document.getElementById("ncMeta");
