@@ -137,19 +137,17 @@ fetch("/api/publico/ic").then(async (r) => {
      Acadêmica quando a instituição se chamava FACEG; passou à PROPPEX em
      2026 (decisão da reitoria). O documento antigo aparece com o órgão e o
      nome da época — reescrevê-lo seria falsear o que foi publicado. */
-  const cartaoMon = (e) => `<div class="edital">
-    <div class="ed-cab">
-      <div>
-        <div class="ed-num">Edital ${esc(e.numero)} · Monitoria Acadêmica</div>
-        <div class="ed-sub">${esc(e.titulo)}${e.orgao ? ` · ${esc(e.orgao)}` : ""}</div>
-      </div>
-      ${e.vigente ? '<span class="selo b">vigente</span>' : '<span class="selo">arquivo</span>'}
-    </div>
-    ${e.observacao ? `<div class="ed-sub" style="margin-top:6px">${esc(e.observacao)}</div>` : ""}
-    <div class="ed-bts">
+  const cartaoMon = (e) => `<div style="border-top:1px solid var(--line);padding:16px 0 4px;margin-top:14px">
+    <div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:17px">Edital ${esc(e.numero)} — Monitoria Acadêmica
+      ${e.vigente ? '<span class="selo b" style="vertical-align:2px">vigente</span>' : '<span class="selo v" style="vertical-align:2px">arquivo</span>'}</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:3px">Ciclo ${esc(e.ciclo)} ·
+      ${esc(e.orgao)}${e.instituicao ? ` · ${esc(e.instituicao)}` : ""}</div>
+    ${e.observacao ? `<div style="font-size:13px;color:var(--muted);margin-top:3px">${esc(e.observacao)}</div>` : ""}
+    <div class="exp">
       ${e.documento
-        ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📄 Edital (PDF)</a>`
+        ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📜 Edital (PDF)</a>`
         : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default">Documento não disponível</button>`}
+      ${e.vigente ? `<a class="bt bt-sec" href="/monitoria/">📝 Inscrever projeto no ARCHÉ</a>` : ""}
     </div>
   </div>`;
 

@@ -45,7 +45,7 @@ import {
   MON_KEY, EDITAL as MON_EDITAL, CRONOGRAMA as MON_CRONOGRAMA, VIGENCIA as MON_VIGENCIA,
   PRAZOS as MON_PRAZOS, CH_SEMANAL as MON_CH_SEMANAL, ROTULO_STATUS as MON_ROTULO_STATUS,
   CRITERIOS_MONITOR, RESPOSTAS_CRITERIO, PARECERES as PARECERES_MON,
-  TEXTO_EDITAL as TEXTO_EDITAL_MON, editaisMonitoriaParaLista,
+  TEXTO_EDITAL as TEXTO_EDITAL_MON, ACESSOS as ACESSOS_MON, editaisMonitoriaParaLista,
   normalizarProjeto as normalizarProjetoMon, normalizarRelatorio as normalizarRelatorioMon,
   papelNoProjeto as monPapel, podeVer as monPodeVer, podeEditar as monPodeEditar,
   podeSubmeter as monPodeSubmeter, podeDecidir as monPodeDecidir,
@@ -4790,7 +4790,8 @@ app.get("/api/publico/monitoria/edital.pdf", async (req, res) => {
   try {
     const { gerarEditalMonitoriaPdf } = await import("./lib/pdf.js");
     const buf = await gerarEditalMonitoriaPdf({
-      edital: MON_EDITAL, texto: TEXTO_EDITAL_MON, cronograma: MON_CRONOGRAMA });
+      edital: MON_EDITAL, texto: TEXTO_EDITAL_MON, cronograma: MON_CRONOGRAMA,
+      acessos: ACESSOS_MON });
     enviarPdfMon(res, buf, `edital-monitoria-${MON_EDITAL.numero.replace("/", "-")}.pdf`);
   } catch (e) {
     console.error("Erro no edital da monitoria:", e);
