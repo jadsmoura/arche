@@ -33,7 +33,7 @@
           <option value="coord">Coordenação de curso</option>
           <option value="prof">Professor orientador</option>
           <option value="aluno">Monitor(a)</option>
-          <option value="diac">Diretoria Acadêmica</option>
+          <option value="proppex">PROPPEX</option>
         </select>
       </div>
     </div>
@@ -43,9 +43,9 @@
       <div class="sub" id="subtitulo"></div>
       <div class="aviso-proto">
         <b>Protótipo para discussão — nada aqui é gravado.</b> Os dados são fictícios.
-        As regras seguem o <b>Edital 01/2025 · DIAC — Programa de Monitoria Acadêmica</b>:
+        As regras vêm do <b>Edital 01/2025 — Programa de Monitoria Acadêmica</b>, publicado pela Diretoria Acadêmica quando a instituição era a FACEG. Por decisão da reitoria, o programa passa à <b>PROPPEX</b> a partir de 2026 — os papéis abaixo já refletem isso:
         o projeto é do professor, a análise é da coordenação de curso, a seleção só existe
-        havendo mais candidatos que vagas, e a certificação passa pela Diretoria Acadêmica.
+        havendo mais candidatos que vagas, e a certificação final é da pró-reitoria.
       </div>
       <div id="tela"></div>
     </div></div>
@@ -70,7 +70,7 @@ const CICLO = { codigo: "2026/2", rotulo: "Monitoria 2026/2",
     { t: "Publicação do resultado", quem: "Coordenação de curso", ate: "2026-08-11", agora: true },
     { t: "Entrega do relatório final", quem: "Professor orientador", ate: "2026-12-15" },
     { t: "Encaminhamento à certificação", quem: "Coordenação de curso", ate: "2026-12-20" },
-    { t: "Emissão dos certificados", quem: "Diretoria Acadêmica", ate: "2026-12-22" },
+    { t: "Emissão dos certificados", quem: "PROPPEX", ate: "2026-12-22" },
   ] };
 
 const PROJETOS = [
@@ -125,7 +125,7 @@ const SECOES = [
   { k: "novo", rot: "Novo projeto", tit: "Novo projeto de monitoria", sub: "O que o edital pede do professor — e o plano de trabalho por monitor." },
   { k: "selecao", rot: "Seleção", tit: "Seleção de monitores", sub: "Só existe havendo mais candidatos que vagas. A entrevista é do professor." },
   { k: "monitores", rot: "Monitores", tit: "Monitores e frequência", sub: "Quem está ativo, a carga horária cumprida e o que o certificado vai dizer." },
-  { k: "relatorio", rot: "Relatório e certificação", tit: "Relatório final e certificação", sub: "O relatório é do professor; o certificado do aluno passa pela Diretoria Acadêmica." },
+  { k: "relatorio", rot: "Relatório e certificação", tit: "Relatório final e certificação", sub: "O relatório é do professor; o certificado do aluno passa pela coordenação e pela PROPPEX." },
 ];
 let SECAO = "painel";
 const papel = () => $("papel").value;
@@ -142,7 +142,7 @@ function render() {
   $("subtitulo").textContent = meta.sub;
   $("crumb").textContent = meta.rot;
   $("papel-atual").textContent = { coord: "Coordenação de curso", prof: "Professor orientador",
-    aluno: "Monitor(a)", diac: "Diretoria Acadêmica" }[papel()];
+    aluno: "Monitor(a)", proppex: "PROPPEX" }[papel()];
   menu();
   $("tela").innerHTML = ({ painel, projetos, novo, selecao, monitores, relatorio })[SECAO]();
 }
@@ -179,7 +179,7 @@ function painel() {
     </div>
     <div class="card">
       <div class="card-t">Precisa de você</div>
-      <div class="card-s">${papel() === "coord" ? "Como coordenação de curso" : papel() === "prof" ? "Como professor orientador" : papel() === "diac" ? "Como Diretoria Acadêmica" : "Como monitor(a)"}</div>
+      <div class="card-s">${papel() === "coord" ? "Como coordenação de curso" : papel() === "prof" ? "Como professor orientador" : papel() === "proppex" ? "Como PROPPEX" : "Como monitor(a)"}</div>
       ${papel() === "coord" ? `
         <div class="linha"><div class="txt"><div class="p1">Direito Civil III — analisar projeto</div>
           <div class="p2">Profa. Luana Prado · submetido há 3 dias</div></div>
@@ -194,9 +194,9 @@ function painel() {
         <div class="linha"><div class="txt"><div class="p1">Bioquímica — projeto devolvido</div>
           <div class="p2">Plano de trabalho por monitor (item 2.4)</div></div>
           <span class="badge b-devolvido">corrigir</span></div>` : ""}
-      ${papel() === "diac" ? `
+      ${papel() === "proppex" ? `
         <div class="linha"><div class="txt"><div class="p1">3 certificados aguardando emissão</div>
-          <div class="p2">Relatórios já avaliados pelas coordenações</div></div>
+          <div class="p2">Relatórios já avaliados pelas coordenações de curso</div></div>
           <span class="badge b-aprovado">emitir</span></div>` : ""}
       ${papel() === "aluno" ? `
         <div class="linha"><div class="txt"><div class="p1">Anatomia Humana I — frequência de agosto</div>
@@ -207,7 +207,7 @@ function painel() {
 
   <div class="card">
     <div class="card-t">Monitoria por curso — ciclo ${CICLO.codigo}</div>
-    <div class="card-s">O número que a Diretoria Acadêmica leva ao conselho, e que o INEP pergunta como apoio ao discente.</div>
+    <div class="card-s">O número que a PROPPEX leva ao conselho, e que o INEP pergunta como apoio ao discente.</div>
     ${[["Enfermagem", 2, 3], ["Engenharia Civil", 1, 0], ["Direito", 1, 0], ["Odontologia", 1, 0], ["Psicologia", 1, 1]]
       .map(([c, p, m]) => `<div class="barra"><div class="cab"><span>${c}</span>
         <span>${p} projeto(s) · ${m} monitor(es)</span></div>
@@ -217,7 +217,7 @@ function painel() {
   ${duvidas([
     "O ciclo é <b>semestral</b> (2026/1, 2026/2), como o edital sugere, ou anual?",
     "A monitoria vale <b>atividade complementar</b> (item 1.3) — o ARCHÉ deve calcular e declarar essas horas?",
-    "A PROPPEX enxerga este setor, ou ele é exclusivo da <b>DIAC e das coordenações</b>?",
+    "O ciclo 2026 é o primeiro sob a PROPPEX. O <b>regimento do programa</b> precisa ser reeditado com o novo órgão, ou o edital basta?",
   ])}`;
 }
 
@@ -440,11 +440,11 @@ function relatorio() {
   <div class="card">
     <div class="card-t">Certificação</div>
     <div class="card-s">O edital separa as duas: o docente certifica-se com a conclusão do relatório;
-      o discente, depois da avaliação pela coordenação <b>e</b> pela Diretoria Acadêmica (item 5).</div>
+      o discente, depois da avaliação pela coordenação de curso <b>e</b> pela pró-reitoria (item 5).</div>
     <div class="crono">
       <div class="etapa feita"><div class="t">Relatório final entregue</div><div class="q">Profa. Talita Ribeiro · 12/12/2026</div></div>
       <div class="etapa feita"><div class="t">Avaliado pela coordenação do curso</div><div class="q">Enfermagem · 16/12/2026</div></div>
-      <div class="etapa agora"><div class="t">Encaminhado à Diretoria Acadêmica</div><div class="q">aguardando emissão</div></div>
+      <div class="etapa agora"><div class="t">Encaminhado à PROPPEX</div><div class="q">aguardando emissão</div></div>
       <div class="etapa"><div class="t">Certificados emitidos</div><div class="q">1 docente · 2 discentes</div></div>
     </div>
     <div class="exp">

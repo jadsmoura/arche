@@ -1241,6 +1241,22 @@ public/
   (`corrigido` no lote); o órgão foi inferido da atividade, e o que não deu ficou em
   "Não informado na planilha".
 
+- **ARCHÉ MO — Monitoria Acadêmica** (protótipo em `/prototipos/monitoria.html`; arquivo dos
+  editais em `lib/monitoria.js`): **a reitoria trouxe o programa para a PROPPEX** (decisão de
+  ago/2026). Até 2025 ele era da **Diretoria Acadêmica (DIAC)**, quando a instituição ainda
+  era a FACEG — o Edital 01/2025 traz esse órgão e esse nome, e fica no arquivo **como foi
+  publicado** (mesma regra das atas: documento não se reescreve). Os editais de monitoria
+  aparecem na vitrine pública `/ic/`, no quadro do ANO, ao lado do 01/AAAA (IC) e do 02/AAAA
+  (ICEM); a série da monitoria é **03/AAAA**, para os três conviverem. O desenho do módulo
+  sai do próprio edital: projeto do professor limitado às suas disciplinas, análise da
+  coordenação de curso, **um plano de trabalho por monitor** (item 2.4), seleção só quando há
+  mais candidatos que vagas (entrevista presencial do professor), CH aproveitável como
+  atividade complementar, e **duas certificações** — o docente com a entrega do relatório
+  final, o discente depois da avaliação pela coordenação e pela pró-reitoria.
+- **Protótipos** (`/prototipos/`, atrás de login): telas navegáveis com dados fictícios, para
+  decidir o desenho ANTES de escrever o módulo. Nada ali grava nada, e cada tela termina com
+  as perguntas que levanta. Hoje: Monitoria (MO) e Ligas e Grupos de Pesquisa (LG).
+
 ## Identidade visual
 
 Paleta (mesma do sistema de Avaliação): fundo `#eef1f4`, marca `#1c3742`, hover `#2d535c`,

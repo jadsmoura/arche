@@ -133,21 +133,44 @@ fetch("/api/publico/ic").then(async (r) => {
       ${e.resultadoFase === "preliminar" ? `<span class="selo e" style="align-self:center">resultado final em breve</span>` : ""}
     </div>
   </div>`;
+  /* MONITORIA: por ora só o arquivo do edital. O programa era da Diretoria
+     Acadêmica quando a instituição se chamava FACEG; passou à PROPPEX em
+     2026 (decisão da reitoria). O documento antigo aparece com o órgão e o
+     nome da época — reescrevê-lo seria falsear o que foi publicado. */
+  const cartaoMon = (e) => `<div class="edital">
+    <div class="ed-cab">
+      <div>
+        <div class="ed-num">Edital ${esc(e.numero)} · Monitoria Acadêmica</div>
+        <div class="ed-sub">${esc(e.titulo)}${e.orgao ? ` · ${esc(e.orgao)}` : ""}</div>
+      </div>
+      ${e.vigente ? '<span class="selo b">vigente</span>' : '<span class="selo">arquivo</span>'}
+    </div>
+    ${e.observacao ? `<div class="ed-sub" style="margin-top:6px">${esc(e.observacao)}</div>` : ""}
+    <div class="ed-bts">
+      ${e.documento
+        ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📄 Edital (PDF)</a>`
+        : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default">Documento não disponível</button>`}
+    </div>
+  </div>`;
+
   // um quadro por ano: o título é o ANO, e dentro dele os dois editais
-  const grads = j.editais || [], ems = j.editaisEM || [];
-  const anos = [...new Set([...grads, ...ems].map((e) => anoDe(e.numero)))]
-    .filter(Boolean).sort((a, b) => b - a);
+  const grads = j.editais || [], ems = j.editaisEM || [], mons = j.editaisMonitoria || [];
+  const anos = [...new Set([...grads.map((e) => anoDe(e.numero)), ...ems.map((e) => anoDe(e.numero)),
+    ...mons.map((e) => e.ano)])].filter(Boolean).sort((a, b) => b - a);
   document.getElementById("conteudo").innerHTML = anos.map((ano) => {
     const g = grads.filter((e) => anoDe(e.numero) === ano);
     const m = ems.filter((e) => anoDe(e.numero) === ano);
-    const vigente = [...g, ...m].some((e) => e.vigente);
+    const mo = mons.filter((e) => e.ano === ano);
+    const vigente = [...g, ...m, ...mo].some((e) => e.vigente);
     return `<div class="card" style="padding:24px">
       <div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:22px">${ano}
         ${vigente ? '<span class="selo b" style="vertical-align:3px">ciclo vigente</span>' : ""}</div>
       <div style="font-size:13px;color:var(--muted);margin-top:3px">Os processos seletivos de ${ano}:
-        graduação (01/${ano}) e Ensino Médio (02/${ano}).</div>
+        ${[g.length ? "Iniciação Científica" : "", m.length ? "Ensino Médio" : "", mo.length ? "Monitoria Acadêmica" : ""]
+          .filter(Boolean).join(" · ")}.</div>
       ${g.map(cartaoGrad).join("")}
       ${m.map(cartaoEM).join("")}
+      ${mo.map(cartaoMon).join("")}
     </div>`;
   }).join("") || '<div class="card"><p style="color:var(--muted)">Nenhum edital publicado ainda.</p></div>';
 }).catch(() => {

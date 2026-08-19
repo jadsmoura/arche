@@ -41,6 +41,7 @@ import {
   janelaRelatorio, regularizacaoDe, pedidoEncerramentoPendente, encerramentoAceito,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf, cpfValido } from "./lib/cpf.js";
+import { editaisMonitoriaParaLista } from "./lib/monitoria.js";
 import {
   slugUnico, SLUG_VALIDO, slugReservado, SLUGS_RESERVADOS, gerarChaveQr, gerarCodigoMonitor, gerarToken, tokenValido,
   codigoDe, inscritoPorToken, normalizarProgramacao, vagasRestantes, prazoInscricao,
@@ -736,6 +737,9 @@ app.get("/api/publico/ic", async (req, res) => {
       instituicao: "Centro Universitário Evangélico de Goianésia — UNIEGO",
       editais: editaisConhecidos(projetos, publicados, await termosPublicados()),
       editaisEM: editaisEMParaLista(await resultadosPublicadosEM()),
+      // arquivo dos editais de MONITORIA (o programa passou à PROPPEX em
+      // 2026; os anteriores são da DIAC/FACEG e ficam como foram publicados)
+      editaisMonitoria: editaisMonitoriaParaLista(),
       projetos: projetos
         .filter((p) => p.status !== "rascunho")
         .map((p) => {
@@ -4834,6 +4838,7 @@ app.get("/api/ic/meta", async (req, res) => {
     // pessoas para o "ver como" segue só com a coordenação
     editais: editaisConhecidos(projetos, await resultadosPublicados(), await termosPublicados()),
     editaisEM: editaisEMParaLista(await resultadosPublicadosEM()),
+    editaisMonitoria: editaisMonitoriaParaLista(),
     ...(gereIC(u) ? { pessoas: pessoasDoSetor(projetos) } : {}),
     ...(como ? { simulando: como.email } : {}),
   });
