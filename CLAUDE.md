@@ -105,6 +105,17 @@ public/
   voltava vazio). Só Psicologia escapava, por morar um nível acima. O arquivo é UM só,
   servido também nesses dois caminhos por uma rota no server — copiá-lo seria manter três
   versões da mesma coisa.
+- **Indicador 2.16 no dossiê** (append em `public/arche/dossie/*`, correção do dono ago/2026):
+  o painel simulava o conceito variando o EIXO ERRADO — fixava 50% dos docentes e fazia variar
+  o número de produções (1, 4, 7, 9), limiares que não existem no instrumento. É o contrário:
+  o número de produções é FIXO (**9 nos últimos 3 anos**) e o que varia é a **proporção de
+  docentes** que o alcança — 10% conceito 2, 20% o 3, 30% o 4, 50% o 5; abaixo de 10%, conceito
+  1. Daí a leitura confusa: quatro linhas com percentuais diferentes e a legenda descrevendo
+  outra regra. Havia ainda DUAS JANELAS de anos brigando (o texto dizia "3 anos", um ajuste
+  anterior contava 4 e a legenda saía "2023–2026"): agora a janela é uma, declarada num lugar
+  só e escrita por extenso em todos os rótulos. O painel passa a dizer o DENOMINADOR — todos os
+  docentes do curso, inclusive os que ainda não importaram o Lattes, que é o que o instrumento
+  manda e o que faltava para o número ser interpretável.
 - **O docente ajusta a produção importada** (append em `public/arche/dossie/*`, decisão do
   dono ago/2026): o XML do Lattes traz artigo que não é da pessoa ou que não deveria constar,
   e falta o que saiu depois da última atualização do currículo — reexportar o XML inteiro por

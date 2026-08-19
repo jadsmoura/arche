@@ -2377,3 +2377,139 @@ window.addEventListener('pagehide', function(){
   }
 })();
 </script>
+
+<!-- =====================================================================
+     INDICADOR 2.16 — correção do cálculo (revisão do dono, ago/2026)
+
+     O painel dizia coisas que não se sustentavam, por dois motivos.
+
+     1) A ESCADA VARIAVA O EIXO ERRADO. O instrumento fixa o número de
+        produções (9 nos últimos 3 anos) e faz variar a PROPORÇÃO de
+        docentes que o alcança — 10% conceito 2, 20% o 3, 30% o 4, 50% o 5.
+        O painel fazia o contrário: fixava 50% e variava o número de
+        produções (1, 4, 7, 9), limiares que não existem no instrumento.
+        Daí a leitura confusa: quatro linhas com percentuais diferentes
+        (71 / 62 / 52 / 52) e a legenda descrevendo outra regra.
+
+     2) DUAS JANELAS DE ANOS AO MESMO TEMPO. O texto dizia "últimos 3 anos",
+        a contagem original usava 3 anos e um ajuste posterior a esticou
+        para 4 — a legenda saía "2023–2026" enquanto o título falava em 3
+        anos. Agora a janela é UMA, declarada num lugar só e escrita por
+        extenso em todos os rótulos.
+
+     Fica também explícito o DENOMINADOR: são todos os docentes do curso,
+     inclusive os que ainda não importaram o Lattes. É o que o instrumento
+     manda, e é a informação que faltava para o número ser interpretável —
+     um curso com metade dos currículos por importar parece pior do que é.
+
+     Por append, como todo ajuste em /arche: o app é compilado e não se
+     refatora aqui.
+     ===================================================================== -->
+<script>
+(function(){
+  if (typeof validProds3y !== "function" || typeof renderRoster !== "function") return;
+
+  /* A janela do indicador: o ano corrente e os dois anteriores. Um lugar só —
+     é o que impede o texto de dizer 3 e a conta fazer 4. */
+  var ANOS = 3;
+  var anoAtual = new Date().getFullYear();
+  var anoMin = anoAtual - (ANOS - 1);
+  var FAIXA = anoMin + "–" + anoAtual;
+  var MINIMO = 9;                     // produções exigidas pelo instrumento
+  /* O conceito sai da PROPORÇÃO de docentes que alcança o mínimo. */
+  var ESCADA = [{ c: 2, p: 10 }, { c: 3, p: 20 }, { c: 4, p: 30 }, { c: 5, p: 50 }];
+
+  validProds3y = function (p) {
+    return profItems(p).filter(function (i) {
+      return PROD_CATS.includes(i.cat) && i.year && (+i.year) >= anoMin;
+    }).length;
+  };
+
+  function pintar216() {
+    var total = professors.length;
+    var alcancam = professors.filter(function (p) { return validProds3y(p) >= MINIMO; }).length;
+    var pct = total ? Math.round(alcancam / total * 100) : 0;
+    var semLattes = professors.filter(function (p) { return !p.data; }).length;
+
+    var conceito = 1;
+    ESCADA.forEach(function (n) { if (pct >= n.p) conceito = n.c; });
+
+    var el = document.getElementById("ncConc");
+    if (el) el.textContent = conceito;
+
+    var desc = document.querySelector(".nc-desc");
+    if (desc) {
+      desc.textContent = "Conceito atual (simulado) neste indicador: proporção de docentes com "
+        + MINIMO + " ou mais produções consideradas pelo MEC (tipos do glossário) em " + FAIXA + ".";
+    }
+
+    var ladder = document.getElementById("ncLadder");
+    if (ladder && !total) {
+      // sem docente cadastrado não há proporção: dizer "faltam 0" seria pior
+      // do que não dizer nada
+      ladder.innerHTML = '<div class="nc-lvl" style="border-style:dashed">'
+        + '<span class="nc-lp">Nenhum docente cadastrado no curso — o indicador se calcula '
+        + 'assim que o corpo docente for lançado.</span></div>';
+    } else if (ladder) {
+      var resumo = '<div class="nc-lvl" style="background:var(--paper);border-style:dashed">'
+        + '<span class="nc-lc" style="min-width:auto">Hoje</span>'
+        + '<span class="nc-lp" style="flex:1">'
+        + '<b>' + alcancam + ' de ' + total + ' docentes (' + pct + '%)</b> têm ' + MINIMO
+        + ' ou mais produções em ' + FAIXA + '</span></div>';
+      ladder.innerHTML = resumo + ESCADA.map(function (n) {
+        var precisa = Math.ceil(total * n.p / 100);
+        var ok = pct >= n.p;
+        return '<div class="nc-lvl ' + (ok ? "met" : "") + '">'
+          + '<span class="nc-lc">Conceito ' + n.c + '</span>'
+          + '<span class="nc-lt">≥ ' + n.p + '% dos docentes</span>'
+          + '<span class="nc-lp">a partir de ' + precisa + ' docente' + (precisa === 1 ? "" : "s")
+          + ' com ' + MINIMO + '+' + (ok ? "" : " · faltam " + (precisa - alcancam)) + '</span>'
+          + '<span class="nc-lchk">' + (ok ? "✓" : "") + '</span></div>';
+      }).join("");
+    }
+
+    var cap = document.getElementById("ncCap");
+    if (cap) {
+      cap.textContent = "Regra do instrumento: conta-se quantos docentes do curso têm "
+        + MINIMO + " ou mais produções válidas em " + FAIXA + " (" + ANOS + " anos). O conceito sai da "
+        + "PROPORÇÃO desses docentes — 10% conceito 2, 20% conceito 3, 30% conceito 4, 50% conceito 5; "
+        + "abaixo de 10%, conceito 1. O denominador são os " + total + " docentes do curso"
+        + (semLattes ? ", inclusive os " + semLattes + " que ainda não importaram o Lattes (contam como 0 produções)" : "")
+        + ".";
+    }
+
+    var meta = document.getElementById("ncMeta");
+    if (meta && !meta.classList.contains("hidden")) {
+      var com10 = professors.filter(function (p) { return validProds3y(p) >= 10; }).length;
+      var pct10 = total ? Math.round(com10 / total * 100) : 0;
+      meta.innerHTML = "<b>Diretriz interna da PROPPEX.</b> Meta de 10 produções por docente — o "
+        + "instrumento exige 9 para o Conceito 5; a PROPPEX adota 10 por margem de segurança. "
+        + com10 + " de " + total + " docentes (" + pct10 + "%) já atingem 10 ou mais em " + FAIXA + "."
+        + (pct10 >= 50 ? " ✓ Meta atingida por mais da metade do corpo docente." : "");
+    }
+
+    var badge = document.getElementById("ncBadge");
+    if (badge) {
+      badge.textContent = "Conceito " + conceito;
+      badge.className = "nc-badge " + (conceito >= 5 ? "ok" : "no");
+    }
+  }
+
+  /* Os rótulos soltos pela tela seguem a MESMA janela. */
+  function corrigirRotulos() {
+    document.querySelectorAll(".pc-lab, .s3-lab").forEach(function (el) {
+      el.innerHTML = el.innerHTML
+        .replace("últimos 3 anos", "produções " + FAIXA)
+        .replace(/produções \d{4}–\d{4}/, "produções " + FAIXA);
+    });
+  }
+
+  var _render = renderRoster;
+  renderRoster = function () {
+    var r = _render.apply(this, arguments);
+    try { pintar216(); corrigirRotulos(); } catch (e) { console.error("[2.16]", e); }
+    return r;
+  };
+  try { pintar216(); corrigirRotulos(); } catch (e) { /* antes do primeiro render */ }
+})();
+</script>
