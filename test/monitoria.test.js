@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import {
   CH_SEMANAL, COBRANCA, CRITERIOS_MONITOR, CRONOGRAMA, EDITAL, EDITAIS_MONITORIA,
   PRAZOS, STATUS, cargaHorariaTotal, cobrancaAberta, diasParaRelatorio, certificadosDe, editaisMonitoriaParaLista, faltaNaAvaliacao,
-  faltaNoCadastroDoMonitor, faltaNoProjeto, faltaNoRelatorio, monitorCadastrado,
+  faltaNoCadastroDoMonitor, faltaNoPlano, faltaNoProjeto, faltaNoRelatorio, monitorCadastrado,
   normalizarProjeto, papelNoProjeto, pendenciasDoCiclo, pendenciasDoProjeto,
   podeDecidir, podeEditar, podeSubmeter, proximoCiclo, resumir, panorama,
   semanasDe, submissaoAberta, todosCadastrados, visaoDoProjeto,
@@ -16,6 +16,17 @@ import {
 const CPF_A = "52998224725";   // válidos
 const CPF_B = "11144477735";
 
+/* Um plano de trabalho completo — o que o edital passou a exigir de CADA
+   monitor (item 2.4/2.5): é contra ele que a atuação é avaliada. */
+const PLANO = {
+  atividades: "Auxiliar nas aulas práticas de laboratório, preparar o material das bancadas e "
+    + "conduzir o plantão semanal de dúvidas da turma do 5º período.",
+  horarios: "Terças e quintas, das 14h às 16h",
+  local: "Laboratório de Semiologia (Bloco C)",
+  competencias: "Domínio dos procedimentos de aferição e experiência de condução de grupo de estudo.",
+  acompanhamento: "Reunião semanal de 30 minutos e registro das atividades em planilha compartilhada.",
+};
+
 function projetoBase(extra = {}) {
   return normalizarProjeto({
     curso: "enfermagem", disciplina: "Semiologia e Semiotécnica",
@@ -23,7 +34,7 @@ function projetoBase(extra = {}) {
     chSemanal: 4, inicio: "2026-09-16", fim: "2026-12-12",
     atividades: "Auxiliar o professor nas aulas práticas de laboratório, acompanhar os "
       + "acadêmicos em plantões de estudo e organizar o material didático da disciplina.",
-    monitores: [{ id: "m1", nome: "Marina Duarte", email: "marina@aluno.uniego.edu.br" }],
+    monitores: [{ id: "m1", nome: "Marina Duarte", email: "marina@aluno.uniego.edu.br", plano: PLANO }],
     ...extra,
   });
 }
@@ -110,16 +121,33 @@ test("conclusão anterior ao início é falta", () => {
   assert.ok(f.some((x) => /posterior/.test(x)));
 });
 
-test("item 2.4: com mais de um monitor, cada um precisa do próprio plano de trabalho", () => {
+test("item 2.4: CADA monitor precisa do próprio plano de trabalho, inclusive o único", () => {
   const p = projetoBase({ monitores: [
-    { id: "m1", nome: "Marina Duarte", email: "marina@aluno.uniego.edu.br" },
+    { id: "m1", nome: "Marina Duarte", email: "marina@aluno.uniego.edu.br", plano: PLANO },
     { id: "m2", nome: "Pedro Lima", email: "pedro@aluno.uniego.edu.br" },
   ] });
   const f = faltaNoProjeto(p);
-  assert.ok(f.some((x) => /plano de trabalho de Marina/.test(x)));
+  assert.ok(!f.some((x) => /plano de trabalho de Marina/.test(x)), "o de Marina está completo");
   assert.ok(f.some((x) => /plano de trabalho de Pedro/.test(x)));
-  // com UM monitor só, o plano do projeto é o plano dele — não se cobra duas vezes
+  // e com um monitor só a exigência é a mesma — o plano é dele, não do projeto
+  const sozinho = projetoBase({ monitores: [{ id: "m1", nome: "Ana", email: "ana@x.com" }] });
+  assert.ok(faltaNoProjeto(sozinho).some((x) => /plano de trabalho de Ana/.test(x)));
   assert.deepEqual(faltaNoProjeto(projetoBase()), []);
+});
+
+test("o plano cobra o que se avalia depois, e texto antigo vira a primeira seção", () => {
+  assert.deepEqual(faltaNoPlano({ plano: PLANO }), []);
+  const vazio = faltaNoPlano({ plano: {} });
+  assert.ok(vazio.includes("atividades sob responsabilidade do monitor"));
+  assert.ok(vazio.includes("dias e horários de atuação"));
+  assert.ok(vazio.includes("competências que se espera desenvolver"));
+  assert.ok(vazio.includes("como o professor acompanhará o monitor"));
+  // local e forma de avaliação são opcionais — não travam a submissão
+  assert.ok(!vazio.some((x) => /local de atuação/.test(x)));
+  // o que já estava escrito em texto solto não se perde na mudança de formato
+  const m = normalizarProjeto({ ...projetoBase(), monitores: [
+    { id: "m1", nome: "Ana", email: "a@x.com", planoTrabalho: "Texto antigo do plano." }] });
+  assert.equal(m.monitores[0].plano.atividades, "Texto antigo do plano.");
 });
 
 test("a ficha do monitor cobra o que o edital exige — e o histórico é pendência, não trava", () => {
@@ -141,11 +169,11 @@ test("a ficha do monitor cobra o que o edital exige — e o histórico é pendê
   assert.ok(pendenciasDoProjeto(p).some((x) => /histórico escolar/.test(x)));
 });
 
-test("item 4: mais candidatos que vagas sem data de entrevista vira pendência", () => {
-  const p = projetoBase({ selecao: { candidatos: 4 } });
-  assert.ok(pendenciasDoProjeto(p).some((x) => /entrevista/.test(x)));
-  const ok = projetoBase({ selecao: { candidatos: 4, realizadaEm: "2026-09-03" } });
-  assert.ok(!pendenciasDoProjeto(ok).some((x) => /entrevista/.test(x)));
+test("não há limite de vagas: dez indicações no mesmo projeto passam", () => {
+  const dez = Array.from({ length: 10 }, (_, i) => ({
+    id: `m${i}`, nome: `Monitor ${i + 1}`, email: `m${i}@aluno.uniego.edu.br`, plano: PLANO }));
+  assert.deepEqual(faltaNoProjeto(projetoBase({ monitores: dez })), []);
+  assert.equal(normalizarProjeto(projetoBase({ monitores: dez })).monitores.length, 10);
 });
 
 test("relatório curto demais não sai, e a avaliação exige os quatro critérios e o parecer", () => {

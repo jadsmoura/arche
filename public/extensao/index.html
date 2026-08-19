@@ -206,11 +206,12 @@
   <div class="conteudo">
     <div class="topbar">
       <div class="crumb">ARCHÉ EX <span style="color:var(--muted-2)">/</span> <b id="crumb">Painel</b></div>
-      <div class="dir"><span id="dir-info"></span></div>
+      <div class="dir"><span id="vcAlvo"></span><span id="dir-info"></span></div>
     </div>
 
     <div class="area">
       <div class="limite">
+      <div id="vcFaixa"></div>
         <h1 id="titulo">Painel</h1>
         <div class="sub" id="subtitulo">Visão geral das ações de extensão.</div>
         <div id="aviso-visao"></div>
@@ -337,6 +338,24 @@
   </div>
 </div>
 
+<script src="/assets/arche-vercomo.js"></script>
+<script>
+/* "Ver como…" (decisão do dono, ago/2026): a gestão abre o setor pelos olhos
+   de quem o usa. O recorte é do SERVIDOR — a tela só manda o ?como= nas
+   leituras, e nenhuma escrita passa enquanto a simulação está ligada. O botão
+   só aparece para quem é gestão de verdade: quem manda a lista de pessoas é o
+   servidor, e ele só a manda a ela. */
+ArcheVerComo.instalar({
+  chave: "ex",
+  prefixos: ["/api/extensao"],
+  rotuloGestao: "gestão da Extensão",
+  genericas: [
+    { id: "", rot: "A sua visão", det: "gestão da Extensão", curto: "gestor" },
+    { id: "perfil:professor", rot: "Professor", det: "genérica, ainda sem ação", curto: "professor genérico", faixa: "um professor recém-chegado, ainda sem ação registrada" }
+  ],
+  papeis: { responsavel: { rot: "Responsável", plural: "Responsáveis", cls: "o" }, evento: { rot: "Organiza evento", plural: "Com evento", cls: "v" } },
+});
+</script>
 <script>
 
 /* ============================== BASE ==================================== */

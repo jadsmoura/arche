@@ -277,15 +277,35 @@
   <div class="conteudo">
     <div class="topbar">
       <div class="crumb">ARCHÉ MO <span style="color:var(--muted-2)">/</span> <b id="crumb">Painel</b></div>
-      <div class="dir" id="topDir"></div>
+      <div class="dir"><span id="vcAlvo"></span><span id="topDir"></span></div>
     </div>
     <div class="area"><div class="limite">
+      <div id="vcFaixa"></div>
       <h1 id="titulo">Painel</h1>
       <div class="sub" id="subtitulo"></div>
       <div id="tela"><div class="vazio">Carregando…</div></div>
     </div></div>
   </div>
 </div>
+<script src="/assets/arche-vercomo.js"></script>
+<script>
+/* "Ver como…" (decisão do dono, ago/2026): a gestão abre o setor pelos olhos
+   de quem o usa. O recorte é do SERVIDOR — a tela só manda o ?como= nas
+   leituras, e nenhuma escrita passa enquanto a simulação está ligada. O botão
+   só aparece para quem é gestão de verdade: quem manda a lista de pessoas é o
+   servidor, e ele só a manda a ela. */
+ArcheVerComo.instalar({
+  chave: "mo",
+  prefixos: ["/api/monitoria"],
+  rotuloGestao: "PROPPEX",
+  genericas: [
+    { id: "", rot: "A sua visão", det: "PROPPEX", curto: "gestor" },
+    { id: "perfil:orientador", rot: "Professor", det: "genérica, ainda sem projeto", curto: "professor genérico", faixa: "um professor recém-chegado, ainda sem projeto de monitoria" },
+    { id: "perfil:monitor", rot: "Monitor", det: "genérica, ainda sem indicação", curto: "monitor genérico", faixa: "um acadêmico ainda não indicado em projeto nenhum" }
+  ],
+  papeis: { orientador: { rot: "Professor", plural: "Professores", cls: "o" }, monitor: { rot: "Monitor", plural: "Monitores", cls: "a" } },
+});
+</script>
 <script src="/assets/arche-nav.js"></script>
 <script>
 /* =======================================================================
@@ -501,8 +521,8 @@ function novoProjeto() {
     curso: DADOS.perfil?.curso || "", disciplina: "", ementa: "",
     chSemanal: META().chSemanal?.padrao || 4,
     inicio: META().vigencia?.inicio || "", fim: META().vigencia?.fim || "",
-    atividades: "", selecao: { candidatos: 0, realizadaEm: "", observacao: "" },
-    monitores: [{ id: "m" + Math.random().toString(36).slice(2, 8), nome: "", email: "", planoTrabalho: "" }],
+    atividades: "",
+    monitores: [{ id: "m" + Math.random().toString(36).slice(2, 8), nome: "", email: "", plano: {} }],
   };
   SECAO = "form"; render(); window.scrollTo(0, 0);
 }
@@ -535,22 +555,12 @@ function telaForm() {
 
     <div class="card">
       <div class="card-t">2 — Monitor(es) indicado(s)</div>
-      <div class="card-s">Nome e e-mail bastam: o convite vai para o acadêmico, e é ele quem
-        preenche a própria ficha de inscrição. Com mais de um monitor, cada um precisa do
-        seu plano de trabalho (item 2.4 do edital).</div>
+      <div class="card-s"><b>Não há limite de vagas</b>: indique quantos monitores a disciplina
+        comportar. De cada um o sistema precisa do nome e do e-mail — o convite vai para o
+        acadêmico, e é ele quem preenche a própria ficha de inscrição. Cada monitor leva o seu
+        plano de trabalho (item 2.4) e, no fim do semestre, entrega um relatório individual.</div>
       <div id="monitores">${(p.monitores || []).map(campoMonitor).join("")}</div>
       <div class="exp"><button class="bt bt-ghost" onclick="addMonitor()">+ Indicar outro monitor</button></div>
-    </div>
-
-    <div class="card">
-      <div class="card-t">3 — Processo seletivo <span class="muted">(só se houve mais candidatos que vagas)</span></div>
-      <div class="card-s">Item 4 do edital: havendo mais candidatos, a entrevista é presencial e do professor.</div>
-      <div class="grid3">
-        <div><label>Candidatos inscritos</label><input id="f_cand" type="number" min="0" value="${p.selecao?.candidatos || 0}"></div>
-        <div><label>Entrevista realizada em</label><input id="f_selData" type="date" value="${esc(p.selecao?.realizadaEm || "")}"></div>
-      </div>
-      <label>Observação sobre a seleção</label>
-      <textarea id="f_selObs" style="min-height:60px">${esc(p.selecao?.observacao || "")}</textarea>
     </div>
 
     <div class="exp">
@@ -568,31 +578,37 @@ const campoMonitor = (m, i) => `<div class="mon" data-mid="${esc(m.id)}">
     <div><label>E-mail *</label><input class="m_email" type="email" value="${esc(m.email)}"
       placeholder="o convite vai para este endereço"></div>
   </div>
-  <label>Plano de trabalho deste monitor</label>
-  <textarea class="m_plano" style="min-height:70px">${esc(m.planoTrabalho || "")}</textarea>
+  <div class="sec-t" style="font-size:13.5px">Plano de trabalho deste monitor
+    <span class="muted">· é contra ele que a atuação será avaliada no fim do semestre</span></div>
+  ${(META().camposPlano || []).map((c) => `
+    <label>${esc(c.rotulo)}${c.obrigatorio ? " *" : ' <span class="muted">(opcional)</span>'}</label>
+    <textarea class="m_plano" data-campo="${esc(c.codigo)}" placeholder="${esc(c.dica)}"
+      style="min-height:${(c.linhas || 2) * 22 + 16}px">${esc(m.plano?.[c.codigo] || "")}</textarea>`).join("")}
 </div>`;
 
 function lerForm() {
-  const mons = [...document.querySelectorAll("#monitores .mon")].map((el) => ({
-    id: el.dataset.mid,
-    nome: el.querySelector(".m_nome").value.trim(),
-    email: el.querySelector(".m_email").value.trim(),
-    planoTrabalho: el.querySelector(".m_plano").value.trim(),
-  }));
+  const mons = [...document.querySelectorAll("#monitores .mon")].map((el) => {
+    const plano = {};
+    el.querySelectorAll(".m_plano").forEach((t) => { plano[t.dataset.campo] = t.value.trim(); });
+    return {
+      id: el.dataset.mid,
+      nome: el.querySelector(".m_nome").value.trim(),
+      email: el.querySelector(".m_email").value.trim(),
+      plano,
+    };
+  });
   return {
     ...(RASCUNHO || {}), id: RASCUNHO?.id,
     disciplina: $("f_disciplina").value.trim(), curso: $("f_curso").value,
     ementa: $("f_ementa").value.trim(), chSemanal: Number($("f_ch").value),
     inicio: $("f_inicio").value, fim: $("f_fim").value,
     atividades: $("f_atividades").value.trim(),
-    selecao: { candidatos: Number($("f_cand").value) || 0,
-      realizadaEm: $("f_selData").value, observacao: $("f_selObs").value.trim() },
     monitores: mons,
   };
 }
 function addMonitor() {
   RASCUNHO = lerForm();
-  RASCUNHO.monitores.push({ id: "m" + Math.random().toString(36).slice(2, 8), nome: "", email: "", planoTrabalho: "" });
+  RASCUNHO.monitores.push({ id: "m" + Math.random().toString(36).slice(2, 8), nome: "", email: "", plano: {} });
   render();
 }
 function rmMonitor(id) {
@@ -653,9 +669,6 @@ function telaProjeto() {
       <div class="sec-t">Atividades do monitor</div>
       <div class="kv" style="white-space:pre-wrap">${esc(p.atividades || "—")}</div>
       ${p.ementa ? `<div class="sec-t">Ementa</div><div class="kv" style="white-space:pre-wrap">${esc(p.ementa)}</div>` : ""}
-      ${Number(p.selecao?.candidatos) ? `<div class="sec-t">Processo seletivo</div>
-        <div class="kv">${p.selecao.candidatos} candidato(s) · entrevista em ${dataBR(p.selecao.realizadaEm)}</div>
-        ${p.selecao.observacao ? `<div class="kv">${esc(p.selecao.observacao)}</div>` : ""}` : ""}
       <div class="exp">
         <a class="bt bt-ghost" href="/api/monitoria/${p.id}/projeto.pdf" target="_blank">Projeto em PDF</a>
         ${PROJ.podeEditar ? `<button class="bt bt-sec" onclick="editarProjeto()">Editar projeto</button>` : ""}
@@ -703,8 +716,10 @@ function cardMonitor(p, m, papel) {
       ${m.cadastradoEm ? `<span class="badge b-aprovado">inscrição completa</span>`
         : `<span class="badge b-aguardando-aluno">inscrição pendente</span>`}
     </div>
-    ${m.planoTrabalho ? `<div class="sec-t">Plano de trabalho</div>
-      <div class="kv" style="white-space:pre-wrap">${esc(m.planoTrabalho)}</div>` : ""}
+    ${(META().camposPlano || []).some((c) => m.plano?.[c.codigo]) ? `<div class="sec-t">Plano de trabalho</div>
+      ${(META().camposPlano || []).filter((c) => m.plano?.[c.codigo]).map((c) => `
+        <div class="kv" style="margin-top:7px"><b>${esc(c.rotulo)}</b></div>
+        <div class="kv" style="white-space:pre-wrap">${esc(m.plano[c.codigo])}</div>`).join("")}` : ""}
     ${papel !== "monitor" || souEu ? `<div class="exp">
       ${m.cadastradoEm ? `<a class="bt bt-ghost" href="/api/monitoria/${p.id}/ficha.pdf?monitor=${esc(m.id)}" target="_blank">Ficha de inscrição em PDF</a>` : ""}
       ${r?.enviadoEm ? `<a class="bt bt-ghost" href="/api/monitoria/${p.id}/relatorio.pdf?monitor=${esc(m.id)}" target="_blank">Relatório em PDF</a>` : ""}
@@ -865,6 +880,14 @@ function telaMinha(p, m) {
           <b>${p.chSemanal}h</b> estabelecida no Projeto de Monitoria.</span></label>
       <div class="exp"><button class="bt bt-pri" onclick="salvarInscricao('${p.id}')">Salvar minha inscrição</button></div>
     </div>
+
+    ${(META().camposPlano || []).some((c) => m.plano?.[c.codigo]) ? `<div class="card">
+      <div class="card-t">Meu plano de trabalho</div>
+      <div class="card-s">O que o professor definiu para a sua monitoria — e o que será avaliado ao fim.</div>
+      ${(META().camposPlano || []).filter((c) => m.plano?.[c.codigo]).map((c) => `
+        <div class="kv" style="margin-top:9px"><b>${esc(c.rotulo)}</b></div>
+        <div class="kv" style="white-space:pre-wrap">${esc(m.plano[c.codigo])}</div>`).join("")}
+    </div>` : ""}
 
     <div class="card">
       <div class="card-t">Relatório de atividades</div>

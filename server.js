@@ -45,6 +45,7 @@ import {
   MON_KEY, EDITAL as MON_EDITAL, CRONOGRAMA as MON_CRONOGRAMA, VIGENCIA as MON_VIGENCIA,
   PRAZOS as MON_PRAZOS, CH_SEMANAL as MON_CH_SEMANAL, ROTULO_STATUS as MON_ROTULO_STATUS,
   CRITERIOS_MONITOR, RESPOSTAS_CRITERIO, PARECERES as PARECERES_MON,
+  CAMPOS_PLANO as CAMPOS_PLANO_MON, faltaNoPlano as monFaltaPlano,
   TEXTO_EDITAL as TEXTO_EDITAL_MON, ACESSOS as ACESSOS_MON, editaisMonitoriaParaLista,
   normalizarProjeto as normalizarProjetoMon, normalizarRelatorio as normalizarRelatorioMon,
   papelNoProjeto as monPapel, podeVer as monPodeVer, podeEditar as monPodeEditar,
@@ -1497,6 +1498,88 @@ app.post("/api/drive/upload-doc-institucional", upload.single("file"), async (re
 });
 
 /* ------------------------- EXTENSÃO: NOTIFICAÇÃO ------------------------ */
+/* ======================================================================
+   "VER COMO…" — comum a todos os setores (decisão do dono, ago/2026)
+
+   Nasceu no ARCHÉ IC e provou o seu valor: a coordenação abre o setor
+   pelos olhos de outra pessoa e vê o que ela vê. A pergunta que chega ao
+   suporte é sempre a mesma — "o professor diz que não enxerga a ação dele"
+   —, e respondê-la sem isto obriga a gestão a pedir a senha de alguém.
+
+   Duas garantias, e elas são o que tornam o recurso defensável:
+
+   1. **O recorte é do SERVIDOR.** A simulação troca o USUÁRIO por um
+      sósia sem gestão (`papel: aprovado`, `modulos: []`) e deixa as mesmas
+      funções de permissão rodarem. Se fosse a tela escondendo menu, a
+      simulação mentiria justamente onde importa.
+   2. **É somente leitura.** Escrever com `?como=` gravaria em nome da
+      GESTÃO — a sessão real é dela — enquanto a tela finge ser outra
+      pessoa, e o histórico diria que foi a pessoa quem mexeu.
+
+   O ARCHÉ IC mantém a sua própria versão (`visaoComo`), escrita antes e
+   entrelaçada com o `quem` daquele setor; esta aqui serve aos demais.
+   ====================================================================== */
+
+/** O sósia: quem o setor deve tratar como se fosse o usuário da vez. */
+async function verComoUsuario(req, u, podeSimular) {
+  const alvo = String(req.query?.como || "").trim().toLowerCase();
+  if (!alvo || !podeSimular) return null;
+  // o usuário REAL fica guardado no pedido: o sósia não tem gestão (é o
+  // ponto), mas a lista de pessoas do seletor e o próprio botão continuam
+  // sendo da gestão — sem isto a tela perderia o "ver como" ao usá-lo
+  req.euReal = u;
+  const base = { papel: "aprovado", modulos: [], simulado: true, nome: "" };
+  // "perfil:algo" — a visão GENÉRICA daquele acesso, sem pessoa nenhuma:
+  // um professor recém-chegado, ainda sem nada seu no setor. É como se
+  // confere a CARA de um acesso sem escolher alguém real.
+  if (alvo.startsWith("perfil:")) return { ...base, email: "", cpf: "", perfilGenerico: alvo.slice(7) };
+  // "cpf:000…" — quem ainda não tem conta, mas já aparece nos registros:
+  // mostra o que a pessoa vai encontrar quando se cadastrar.
+  if (alvo.startsWith("cpf:")) return { ...base, email: "", cpf: normalizarCpf(alvo.slice(4)) };
+  const perfis = await carregarPerfis();
+  return { ...base, email: alvo, cpf: perfis[alvo]?.cpf || "", nome: perfis[alvo]?.nome || "" };
+}
+
+/** Quem está de fato logado, mesmo durante uma simulação. */
+const euReal = (req, u) => req.euReal || u;
+
+/** Nada se grava enquanto se olha pelos olhos de outro. */
+function travarEscritaVerComo(prefixo) {
+  app.use(prefixo, (req, res, next) => {
+    if (req.method !== "GET" && req.query?.como) {
+      return res.status(403).json({
+        error: "Você está vendo o setor como outra pessoa — esta visualização é somente leitura.",
+      });
+    }
+    next();
+  });
+}
+["/api/extensao", "/api/atas", "/api/espacos", "/api/monitoria"].forEach(travarEscritaVerComo);
+
+/**
+ * Quem é quem no setor, para a gestão escolher por quais olhos olhar. Sai
+ * dos PRÓPRIOS registros — não há cadastro de papel à parte, em setor
+ * nenhum. Recebe `{ papel: [ {email, cpf, nome} ] }` e devolve a mesma
+ * forma, com as pessoas agrupadas e contadas.
+ */
+function pessoasDeGrupos(grupos) {
+  const saida = {};
+  for (const [papel, lista] of Object.entries(grupos || {})) {
+    const m = new Map();
+    for (const p of lista || []) {
+      const email = String(p?.email || "").trim().toLowerCase();
+      const cpf = soDigitos(p?.cpf);
+      const id = email || (cpf ? `cpf:${cpf}` : "");
+      if (!id) continue;
+      const atual = m.get(id) || { id, email, semConta: !email, nome: "", quantos: 0 };
+      m.set(id, { ...atual, nome: atual.nome || String(p?.nome || "").trim(), quantos: atual.quantos + 1 });
+    }
+    saida[papel] = [...m.values()]
+      .sort((a, b) => (a.nome || a.email).localeCompare(b.nome || b.email, "pt-BR"));
+  }
+  return saida;
+}
+
 /* ======================= ARCHÉ EX — ações de extensão ====================
    As ações saíram do /api/estado (chave `ex-acoes-v1`, interna): elas
    guardam CPF, telefone e e-mail de participantes, e ali qualquer conta
@@ -1573,7 +1656,9 @@ async function sessaoEx(req, res) {
     res.status(403).json({ error: "Seu acesso ainda está pendente de aprovação da PROPPEX" });
     return null;
   }
-  return u;
+  // "ver como": daqui para baixo o setor trata o SÓSIA como se fosse o
+  // usuário — as mesmas funções de permissão, sem exceção nenhuma
+  return (await verComoUsuario(req, u, gereEx(u) || gereEv(u))) || u;
 }
 
 // A CHAVE do QR assina todos os tokens do evento e a CAPA pesa centenas de
@@ -1640,8 +1725,20 @@ app.get("/api/extensao", async (req, res) => {
       .map((a) => a.evento ? { ...a, evento: eventoSemSegredos(a.evento) } : a);
     // os catálogos que o editor do evento usa (tipos de atividade e o texto
     // padrão da LGPD) seguem junto: a SPA não os duplica
+    // as pessoas do setor para o "ver como" — quem submeteu ação (e, no EV,
+    // quem organiza evento). Sai das próprias ações, com a base INTEIRA:
+    // a lista acima já veio recortada pelo papel de quem olha.
+    const real = euReal(req, u);
+    const todas = gereEx(real) || gereEv(real) ? await lerAcoes() : [];
+    const pessoas = todas.length ? pessoasDeGrupos({
+      responsavel: todas.map((a) => ({
+        email: a.proposta?.respEmail || a.criadoPor, nome: a.proposta?.responsavel || "" })),
+      evento: todas.filter((a) => a.evento).map((a) => ({
+        email: a.proposta?.respEmail || a.criadoPor, nome: a.proposta?.responsavel || "" })),
+    }) : null;
     res.json({
       acoes, gestao: gereEx(u), gestaoEventos: gereEv(u), eu: u.email,
+      ...(pessoas ? { pessoas, verComo: String(req.query?.como || "") } : {}),
       tiposAtividade: TIPOS_ATIVIDADE, lgpdPadrao: LGPD_TEXTO_PADRAO,
       tiposBloco: TIPOS_BLOCO, categoriasApoio: CATEGORIAS_APOIO,
       redesSociais: REDES_SOCIAIS, frequencias: FREQUENCIAS, minFotosRelatorio: MIN_FOTOS_RELATORIO,
@@ -3721,7 +3818,7 @@ async function sessaoEsp(req, res) {
   const u = await usuarioDe(req, res);
   if (!u) { res.status(401).json({ error: "Faça login para usar a reserva de espaços." }); return null; }
   if (u.papel === "pendente") { res.status(403).json({ error: "Seu acesso ainda não foi liberado." }); return null; }
-  return u;
+  return (await verComoUsuario(req, u, gereEsp(u))) || u;
 }
 
 const podeVerReserva = (u, r) => gereEsp(u) || minhaReserva(u.email, r);
@@ -3747,6 +3844,13 @@ app.get("/api/espacos", async (req, res) => {
         .filter((m) => /^\d{4}-\d{2}$/.test(m)))].sort(),
       bloqueios,
       reservas: reservas.filter((r) => podeVerReserva(u, r)),
+      // quem já pediu espaço alguma vez — é por esses olhos que a
+      // responsável confere o que o solicitante enxerga da agenda
+      ...(gereEsp(euReal(req, u))
+        ? { pessoas: pessoasDeGrupos({ solicitante: reservas.map((r) => ({
+            email: r.solicitante?.email, nome: r.solicitante?.nome })) }),
+          verComo: String(req.query?.como || "") }
+        : {}),
     });
   } catch (e) {
     console.error("Erro ao abrir a reserva de espaços:", e);
@@ -4095,7 +4199,7 @@ async function sessaoMon(req, res) {
       return null;
     }
   }
-  return u;
+  return (await verComoUsuario(req, u, gereMon(u))) || u;
 }
 
 /** O e-mail do setor recebe as movimentações; a PROPPEX acompanha por lá. */
@@ -4121,6 +4225,7 @@ const monMeta = () => ({
   edital: MON_EDITAL, editais: editaisMonitoriaParaLista(), cronograma: MON_CRONOGRAMA,
   vigencia: MON_VIGENCIA, prazos: MON_PRAZOS, chSemanal: MON_CH_SEMANAL,
   cursos: CURSOS, criterios: CRITERIOS_MONITOR, respostas: RESPOSTAS_CRITERIO,
+  camposPlano: CAMPOS_PLANO_MON,
   pareceres: PARECERES_MON, rotuloStatus: MON_ROTULO_STATUS,
   submissaoAberta: monSubmissaoAberta(), cobranca: MON_COBRANCA,
   cobrancaAberta: cobrancaAbertaMon(), diasParaRelatorio: diasParaRelatorioMon(),
@@ -4145,6 +4250,17 @@ app.get("/api/monitoria", async (req, res) => {
         curso: perfil.curso || "", funcao: perfil.funcao || "",
       },
       projetos: meus.map((p) => monResumir(p, quem)),
+      // orientadores e monitores saem dos próprios projetos — no ARCHÉ MO
+      // não há cadastro de papel à parte, como no resto do portal
+      ...(gereMon(euReal(req, u)) ? {
+        pessoas: pessoasDeGrupos({
+          orientador: lista.map((p) => ({
+            email: p.orientador?.email || p.criadoPor, cpf: p.orientador?.cpf, nome: p.orientador?.nome })),
+          monitor: lista.flatMap((p) => (p.monitores || []).map(
+            (m) => ({ email: m.email, cpf: m.cpf, nome: m.nome }))),
+        }),
+        verComo: String(req.query?.como || ""),
+      } : {}),
       ...(quem.gestao
         ? { panorama: monPanorama(lista), pendencias: monPendencias(lista) }
         : {}),
@@ -4807,7 +4923,8 @@ app.get("/api/monitoria/:id/projeto.pdf", async (req, res) => {
     const p = (await lerMonitorias()).find((x) => x.id === req.params.id);
     if (!p || !monPodeVer(p, quem)) return res.status(404).send("Projeto não encontrado.");
     const { gerarProjetoMonitoriaPdf } = await import("./lib/pdf.js");
-    const buf = await gerarProjetoMonitoriaPdf({ ...monVisao(p, quem), cargaTotal: monCargaTotal(p) });
+    const buf = await gerarProjetoMonitoriaPdf(
+      { ...monVisao(p, quem), cargaTotal: monCargaTotal(p) }, { campos: CAMPOS_PLANO_MON });
     enviarPdfMon(res, buf, `projeto-monitoria-${p.protocolo || p.id}.pdf`);
   } catch (e) {
     console.error("Erro no PDF do projeto de monitoria:", e);
@@ -4828,7 +4945,8 @@ app.get("/api/monitoria/:id/ficha.pdf", async (req, res) => {
       : (p.monitores || []).find((x) => x.id === String(req.query.monitor || "")) || p.monitores?.[0];
     if (!m) return res.status(404).send("Monitor não encontrado.");
     const { gerarFichaMonitoriaPdf } = await import("./lib/pdf.js");
-    enviarPdfMon(res, await gerarFichaMonitoriaPdf(p, m), `ficha-monitoria-${p.protocolo || p.id}.pdf`);
+    enviarPdfMon(res, await gerarFichaMonitoriaPdf(p, m, { campos: CAMPOS_PLANO_MON }),
+      `ficha-monitoria-${p.protocolo || p.id}.pdf`);
   } catch (e) {
     console.error("Erro no PDF da ficha de monitoria:", e);
     res.status(500).send("Não foi possível gerar o documento.");
@@ -4922,7 +5040,7 @@ async function sessaoAtas(req, res) {
     res.status(403).json({ error: "Faça login para acessar as atas" });
     return null;
   }
-  return u;
+  return (await verComoUsuario(req, u, gereAtas(u))) || u;
 }
 
 // Metadados do setor (órgãos, cursos e situações) para montar os formulários.
@@ -4943,9 +5061,17 @@ app.get("/api/atas/meta", async (req, res) => {
 app.get("/api/atas", async (req, res) => {
   const u = await sessaoAtas(req, res);
   if (!u) return;
-  const atas = (await lerAtas()).filter((a) => podeVer(u, a));
+  const todas = await lerAtas();
+  const atas = todas.filter((a) => podeVer(u, a));
+  // o acervo é POR AUTOR: quem lavrou a ata é quem a enxerga. A lista do
+  // "ver como" sai daí — são os secretários e responsáveis de cada órgão.
+  const real = euReal(req, u);
+  const pessoas = gereAtas(real)
+    ? pessoasDeGrupos({ autor: todas.map((a) => ({ email: a.criadoPor, nome: a.secretaria || "" })) })
+    : null;
   res.json({
     gestao: gereAtas(u),
+    ...(pessoas ? { pessoas, verComo: String(req.query?.como || "") } : {}),
     atas: atas.map((a) => ({
       id: a.id, numero: a.numero, orgao: a.orgao, orgaoNome: a.orgaoNome, curso: a.curso,
       titulo: tituloDe(a), status: a.status, sessao: a.sessao, ano: a.ano,

@@ -378,11 +378,12 @@
   <div class="conteudo">
     <div class="topbar">
       <div class="crumb">ARCHÉ AT <span style="color:var(--muted-2)">/</span> <b id="crumb">Painel</b></div>
-      <div class="dir"><span id="dir-info"></span></div>
+      <div class="dir"><span id="vcAlvo"></span><span id="dir-info"></span></div>
     </div>
 
     <div class="area">
       <div class="limite">
+      <div id="vcFaixa"></div>
         <h1 id="titulo">Painel</h1>
         <div class="sub" id="subtitulo">Atas das reuniões dos órgãos colegiados.</div>
         <!-- estado da gravação automática: quem digita precisa saber se o
@@ -406,6 +407,24 @@
 <!-- Escolha dos encaminhamentos que voltam à mesa nesta sessão. -->
 <div class="ov hide" id="ovEnc"></div>
 
+<script src="/assets/arche-vercomo.js"></script>
+<script>
+/* "Ver como…" (decisão do dono, ago/2026): a gestão abre o setor pelos olhos
+   de quem o usa. O recorte é do SERVIDOR — a tela só manda o ?como= nas
+   leituras, e nenhuma escrita passa enquanto a simulação está ligada. O botão
+   só aparece para quem é gestão de verdade: quem manda a lista de pessoas é o
+   servidor, e ele só a manda a ela. */
+ArcheVerComo.instalar({
+  chave: "at",
+  prefixos: ["/api/atas"],
+  rotuloGestao: "gestão das Atas",
+  genericas: [
+    { id: "", rot: "A sua visão", det: "gestão das Atas", curto: "gestor" },
+    { id: "perfil:secretaria", rot: "Secretaria de órgão", det: "genérica, ainda sem ata", curto: "secretaria genérica", faixa: "quem secretaria um órgão e ainda não lavrou ata" }
+  ],
+  papeis: { autor: { rot: "Lavrou ata", plural: "Quem lavra", cls: "o" } },
+});
+</script>
 <script>
 /* ======================================================================
    ARCHÉ AT — Atas e Colegiados.
