@@ -2378,6 +2378,25 @@ window.addEventListener('pagehide', function(){
 })();
 </script>
 
+<style>
+/* Resumo do indicador 2.16 no painel do curso (append, ago/2026): ocupa o
+   lugar da fila de validação para quem gere — a fila segue existindo para o
+   avaliador, que é de quem ela é. */
+.r216{flex:0 0 auto;display:flex;align-items:center;gap:16px;padding:12px 18px;border-radius:10px;
+  background:var(--paper);border:1px solid var(--line);min-width:330px}
+.r216-nota{display:flex;align-items:center;gap:8px;flex:none;padding-right:16px;border-right:1px solid var(--line)}
+.r216-n{font-family:"IBM Plex Mono",monospace;font-size:34px;font-weight:700;color:var(--ink);line-height:1}
+.r216-nl{font-size:10.5px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;line-height:1.25}
+.r216-corpo{min-width:0}
+.r216-frase{font-size:12.5px;color:var(--ink-soft);line-height:1.35}
+.r216-frase b{color:var(--ink)}
+.r216-pct{color:var(--muted)}
+.r216-tipos{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:7px}
+.r216-t{font-size:11px;color:var(--muted);white-space:nowrap}
+.r216-t b{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-soft);font-weight:700}
+.r216-t.total b{color:var(--ok)}
+@media(max-width:820px){.r216{min-width:0;width:100%}}
+</style>
 <!-- =====================================================================
      INDICADOR 2.16 — correção do cálculo (revisão do dono, ago/2026)
 
@@ -2437,6 +2456,12 @@ window.addEventListener('pagehide', function(){
 
     var conceito = 1;
     ESCADA.forEach(function (n) { if (pct >= n.p) conceito = n.c; });
+
+    /* O painel inteiro é ferramenta de CONTROLE da gestão (decisão do dono,
+       ago/2026): o avaliador vem conferir comprovante, não a nota que a
+       instituição simula para si. */
+    var card = document.getElementById("notaCard");
+    if (card) card.style.display = (typeof state === "object" && state.role === "avaliador") ? "none" : "";
 
     var el = document.getElementById("ncConc");
     if (el) el.textContent = conceito;
@@ -2528,10 +2553,69 @@ window.addEventListener('pagehide', function(){
     });
   }
 
+  /* ROTULOS curtos dos tipos que o MEC conta. O catálogo do app traz nomes
+     longos ("Artigos publicados em periódicos…"), que não cabem num resumo. */
+  var TIPOS = [
+    { k: "artigos", r: "Artigos" }, { k: "capitulos", r: "Capítulos" },
+    { k: "livros", r: "Livros" }, { k: "eventos", r: "Trabalhos em eventos" },
+    { k: "tecnica", r: "Produção técnica" },
+  ];
+
+  /* O RESUMO no lugar da fila de validação (pedido do dono, ago/2026): para
+     a gestão, "0 aguardando sua validação" é um quadro que passa a maior
+     parte do tempo vazio; o que ela quer ver ali é a NOTA e o panorama do
+     corpo docente. A fila continua no lugar para o AVALIADOR, que é de quem
+     ela é. */
+  function pintarResumo() {
+    var dash = document.querySelector(".dash-grid");
+    var fila = document.getElementById("queueBox");
+    if (!dash || !fila) return;
+    var avaliador = (typeof state === "object" && state.role === "avaliador");
+
+    var cx = document.getElementById("resumo216");
+    if (!cx) {
+      cx = document.createElement("div");
+      cx.id = "resumo216";
+      cx.className = "r216";
+      fila.parentNode.insertBefore(cx, fila.nextSibling);
+    }
+    fila.style.display = avaliador ? "" : "none";
+    cx.style.display = avaliador ? "none" : "";
+    if (avaliador) return;
+
+    var total = professors.length;
+    var alcancam = professors.filter(function (p) { return validProds3y(p) >= MINIMO; }).length;
+    var pct = total ? Math.round(alcancam / total * 100) : 0;
+    var conceito = 1;
+    ESCADA.forEach(function (n) { if (pct >= n.p) conceito = n.c; });
+
+    var porTipo = {}, somaTudo = 0;
+    professors.forEach(function (p) {
+      profItems(p).forEach(function (i) {
+        if (!PROD_CATS.includes(i.cat) || !i.year || (+i.year) < anoMin) return;
+        porTipo[i.cat] = (porTipo[i.cat] || 0) + 1;
+        somaTudo++;
+      });
+    });
+
+    cx.innerHTML =
+      '<div class="r216-nota"><span class="r216-n">' + conceito + '</span>'
+      + '<span class="r216-nl">Conceito<br>2.16</span></div>'
+      + '<div class="r216-corpo">'
+      + '<div class="r216-frase"><b>' + alcancam + ' de ' + total + ' docentes</b> com ' + MINIMO
+      + ' ou mais produções no triênio ' + FAIXA + ' <span class="r216-pct">(' + pct + '%)</span></div>'
+      + '<div class="r216-tipos">'
+      + TIPOS.map(function (t) {
+        return '<span class="r216-t"><b>' + (porTipo[t.k] || 0) + '</b> ' + t.r + '</span>';
+      }).join("")
+      + '<span class="r216-t total"><b>' + somaTudo + '</b> no total</span>'
+      + '</div></div>';
+  }
+
   var _render = renderRoster;
   renderRoster = function () {
     var r = _render.apply(this, arguments);
-    try { pintar216(); corrigirRotulos(); pintarContagens(); } catch (e) { console.error("[2.16]", e); }
+    try { pintar216(); corrigirRotulos(); pintarContagens(); pintarResumo(); } catch (e) { console.error("[2.16]", e); }
     return r;
   };
   // o cartão do docente é desenhado por outra função: sem envolvê-la, o
@@ -2544,6 +2628,6 @@ window.addEventListener('pagehide', function(){
       return r;
     };
   }
-  try { pintar216(); corrigirRotulos(); pintarContagens(); } catch (e) { /* antes do primeiro render */ }
+  try { pintar216(); corrigirRotulos(); pintarContagens(); pintarResumo(); } catch (e) { /* antes do primeiro render */ }
 })();
 </script>
