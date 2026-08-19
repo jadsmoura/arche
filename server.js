@@ -90,6 +90,9 @@ import {
 } from "./lib/edital.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
 import { dataCivil, diaSerial, hojeLocalISO } from "./lib/datas.js";
+import { classificar as classificarBanda } from "./lib/banda.js";
+import { medir as medirBanda, diagnostico as diagnosticoBanda, zerar as zerarBanda,
+  fecharMedicao } from "./lib/medidor.js";
 import {
   periodoDe, semestresDisponiveis, setorRelatorioDe, setoresDe as setoresDeRelatorio,
   panoramaAtas, panoramaEspacos, panoramaEventos, panoramaExtensao, panoramaIC,
@@ -197,10 +200,71 @@ app.use((req, res, next) => {
   next();
 });
 
+/* ======================================================================
+   DIAGNÓSTICO DE BANDA — a contagem das respostas.
+
+   O Render cobra tráfego de SAÍDA e a franquia acabou sem que ninguém
+   soubesse o que a consumiu. Este middleware conta os bytes que cada
+   resposta escreve, agrupados por origem (o app da Avaliação, os
+   estáticos, os PDFs, as APIs…), e lib/medidor.js soma o que o servidor
+   MANDA para fora — o estado indo ao Drive, os anexos, os e-mails.
+
+   Fica no TOPO da pilha, antes de qualquer rota, porque precisa embrulhar
+   a resposta antes que alguém escreva nela. É barato: dois wrappers de
+   função por requisição e uma soma inteira.
+   ====================================================================== */
+app.use((req, res, next) => {
+  let bytes = 0;
+  const conta = (chunk) => {
+    if (!chunk) return;
+    try { bytes += Buffer.isBuffer(chunk) ? chunk.length : Buffer.byteLength(chunk); }
+    catch { /* chunk exótico: não conta, mas não quebra */ }
+  };
+  const write0 = res.write.bind(res), end0 = res.end.bind(res);
+  res.write = (chunk, ...resto) => { conta(chunk); return write0(chunk, ...resto); };
+  res.end = (chunk, ...resto) => {
+    if (typeof chunk !== "function") conta(chunk);
+    return end0(chunk, ...resto);
+  };
+  res.on("finish", () => {
+    if (!bytes) return;
+    const tipo = String(res.getHeader("content-type") || "");
+    medirBanda(classificarBanda(req.path || "", tipo), bytes);
+  });
+  next();
+});
+
+/** GET /api/banda — o diagnóstico. Só gestor geral: é dado de operação. */
+app.get("/api/banda", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    if (u.papel !== "gestor") return res.status(403).json({ error: "Diagnóstico restrito à gestão." });
+    res.json(await diagnosticoBanda());
+  } catch (e) {
+    console.error("Erro no diagnóstico de banda:", e);
+    res.status(500).json({ error: "Não foi possível montar o diagnóstico." });
+  }
+});
+
+/** POST /api/banda/zerar — recomeça a medição num período limpo. */
+app.post("/api/banda/zerar", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    if (u.papel !== "gestor") return res.status(403).json({ error: "Restrito à gestão." });
+    await zerarBanda();
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Erro ao zerar a medição:", e);
+    res.status(500).json({ error: "Não foi possível zerar." });
+  }
+});
+
 // Setores de gestão exigem login (Avaliação Institucional continua aberta).
 // /eventos/* segue PÚBLICO (hotsite, inscrição, credenciamento, assistir) —
 // só a sala de gestão do ARCHÉ EV, em /eventos/gestao, pede sessão.
-const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios|espacos|monitoria|relatorios|prototipos)(\/|$)|^\/eventos\/gestao(\/|$)/;
+const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios|espacos|monitoria|relatorios|diagnostico|prototipos)(\/|$)|^\/eventos\/gestao(\/|$)/;
 app.use(async (req, res, next) => {
   // HEAD também (achado de ago/2026): o express.static responde HEAD, e a
   // guarda só de GET deixava um HEAD sem sessão confirmar a existência
@@ -223,7 +287,9 @@ app.use(async (req, res, next) => {
         || await souBolsistaEM(u.email)));
     if (!convidado) return res.redirect("/entrar?pendente=1");
   }
-  if (req.caminho.startsWith("/usuarios") && u.papel !== "gestor") return res.redirect("/");
+  // gestão de acessos e diagnóstico de operação são do gestor geral: deixar
+  // a página abrir para depois a API recusar é mostrar porta que não abre
+  if (/^\/(usuarios|diagnostico)/.test(req.caminho) && u.papel !== "gestor") return res.redirect("/");
   // Perfil incompleto: uma etapa antes de entrar no setor (decisão do dono,
   // ago/2026). Cada campo cobrado é usado em algum lugar — sem CPF a pessoa
   // não encontra os próprios projetos, sem titulação a proposta não se
@@ -9689,6 +9755,9 @@ for (const sinal of ["SIGTERM", "SIGINT"]) {
       // o desligamento por eles
       await flushPresencaOnline().catch(() => {});
       await storage.flush?.();
+      // a medição de banda também desce ao disco: o que ela mediu nas
+      // últimas dezenas de segundos é justamente o que interessa guardar
+      await fecharMedicao().catch(() => {});
       console.log("ARCHÉ · estado gravado antes de encerrar");
     } catch (e) {
       console.error("Falha ao gravar o estado no encerramento:", e.message);

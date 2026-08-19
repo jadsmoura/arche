@@ -34,6 +34,8 @@ lib/espacos.js       ARCHÉ ES: espaços, conflito de horário, bloqueios e agen
 lib/curricularizacao.js  Vínculo da ação de extensão com o componente curricular (MEC)
 lib/monitoria.js     ARCHÉ MO: editais, fluxo, réguas, carga horária e certificados
 lib/relatorios.js    Relatório Semestral de Atividades: o panorama de cada setor
+lib/banda.js         Diagnóstico de banda: classificação, contagem e projeção (puro)
+lib/medidor.js       O medidor que roda: acumula em memória e grava no disco LOCAL
 lib/pautas.js        Catálogo da Pauta Regulatória (indicadores INEP) e conformidade
 lib/redator.js       Redação da minuta da ata: modelo (padrão) | gemini | anthropic
 lib/assistente.js    Assistente de escrita dos campos da ata (só ARCHÉ AT)
@@ -60,6 +62,7 @@ public/
                      três papéis — professor, monitor e PROPPEX)
   relatorios/        Relatório Semestral por SETOR (só gestão): números, gráficos e a
                      relação nominal — prestação de contas e comprovação ao MEC
+  diagnostico/       Para onde vão os bytes (só gestor geral): banda de saída por origem
   entrar/ perfil/ usuarios/   Login (código por e-mail + Google), perfil, gestão de acessos
 ```
 
@@ -1323,6 +1326,20 @@ public/
   setor não obriga a revisar as dezenas de chamadas dele, e uma chamada nova não escapa da
   regra sem ninguém notar. Cada setor traz o seu vocabulário e a sua lista de pessoas, tirada
   dos próprios registros. A IC mantém a versão dela, entrelaçada com o META daquele setor.
+- **Diagnóstico de banda** (`lib/banda.js` + `lib/medidor.js` + `/diagnostico/`, só gestor
+  geral, ago/2026): a franquia de 5 GB do Render acabou sem que ninguém soubesse o que a
+  consumira. "Banda" é tudo que SAI do servidor — cada página, cada PDF, cada resposta de API
+  — e também o que o servidor MANDA para fora, que é a parte invisível: em produção o estado
+  vive num arquivo único no Drive e **cada gravação reescreve o arquivo inteiro**
+  (`initDriveStore`), então o gasto cresce com o TAMANHO DO ESTADO, não com o da alteração.
+  O medidor conta os bytes de cada resposta (embrulhando `res.write`/`res.end`) e os do que
+  sai na origem (estado, anexos, e-mails), agrupa por ORIGEM e projeta o mês. Duas regras que
+  o tornam confiável: ele **nunca grava no estado** — mora em `data/banda.json`, no disco
+  local, porque medir no Drive somaria uma reescrita do arquivo inteiro a cada despejo e o
+  diagnóstico passaria a produzir o que mede — e **nunca falha para quem chamou** (contar
+  bytes não derruba pedido). O disco do Render é efêmero: a contagem recomeça a cada deploy,
+  o que basta para um diagnóstico de dias e é o preço de não poluir a conta. As recomendações
+  só aparecem quando o número as justifica, com o quanto cada uma pouparia.
 - **Protótipos** (`/prototipos/`, atrás de login): telas navegáveis com dados fictícios, para
   decidir o desenho ANTES de escrever o módulo. Nada ali grava nada, e cada tela termina com
   as perguntas que levanta. O de **Monitoria cumpriu o papel** — o módulo existe desde
