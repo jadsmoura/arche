@@ -131,6 +131,22 @@ public/
   O que ele excluiu e o que incluiu viaja no MESMO registro do dossiê, e é **reaplicado depois
   de cada reimportação** do XML (senão o excluído voltaria e o manual sumiria) — a chave é o
   que o item afirma (tipo + título + ano), não o id, que muda a cada exportação.
+- **O dossiê grava sem atropelar quem estava junto** (append em `public/arche/dossie/*`,
+  achado de ago/2026): o dossiê é UM documento por curso — os 21 docentes juntos — e a
+  gravação mandava a cópia que estava na memória DA ABA. Duas pessoas com a página aberta ao
+  mesmo tempo, cada uma no próprio dossiê, e a última a gravar devolvia o curso ao estado em
+  que ele estava quando a aba dela carregou: o trabalho da primeira sumia sem aviso e sem
+  rastro. Foi assim que as três produções que a profa. Lessa incluiu à mão em 19/08 (18h04,
+  18h07 e 18h08) desapareceram — os comprovantes ficaram no Drive, os itens não estavam mais
+  em lugar nenhum, e o Indicador 2.16 do curso caiu de 5 para 4 sem que nada explicasse. A
+  gravação passa a ser **LER → MESCLAR → GRAVAR**: relê o documento como está no servidor e
+  devolve só o registro de quem está editando, preservando o dos demais; docente que a aba
+  conhece e o servidor não é ACRESCENTADO (mesclar nunca descarta ninguém); as gravações
+  entram numa fila, senão duas seguidas leriam o mesmo documento e a segunda desfaria a
+  primeira; e se a releitura falhar, cai no comportamento antigo — perder a gravação de quem
+  está trabalhando seria pior que o risco que isto corrige. Os três itens foram restaurados
+  dos próprios comprovantes (título, ano, autoria e veículo lidos dos PDFs no Drive) e
+  entraram como inclusão manual, para sobreviverem à próxima reimportação do Lattes.
 - **Portaria da Avaliação** (`lib/portaria.js`, decisão do dono em ago/2026): como o cartão do
   módulo fica na página inicial, à vista de qualquer visitante, a entrada pede uma **senha
   compartilhada** (`AV_SENHA`, "uniego" por padrão) — só para barrar quem chegou ali por acaso.
