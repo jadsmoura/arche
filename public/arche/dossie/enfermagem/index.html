@@ -2436,11 +2436,13 @@ window.addEventListener('pagehide', function(){
     var conceito = 1;
     ESCADA.forEach(function (n) { if (pct >= n.p) conceito = n.c; });
 
-    /* O painel inteiro é ferramenta de CONTROLE da gestão (decisão do dono,
-       ago/2026): o avaliador vem conferir comprovante, não a nota que a
-       instituição simula para si. */
+    /* A escada CONTINUA à vista para o avaliador (decisão do dono, ago/2026,
+       revendo a de ontem): é ela que mostra, conceito a conceito, o que o
+       curso já alcançou. O que sai da visão dele é o que FALTA — e o "faltam
+       N" da linha não atingida é justamente isso. */
+    var av = ehAvaliador();
     var card = document.getElementById("notaCard");
-    if (card) card.style.display = (typeof state === "object" && state.role === "avaliador") ? "none" : "";
+    if (card) card.style.display = "";
 
     var el = document.getElementById("ncConc");
     if (el) el.textContent = conceito;
@@ -2471,7 +2473,7 @@ window.addEventListener('pagehide', function(){
           + '<span class="nc-lc">Conceito ' + n.c + '</span>'
           + '<span class="nc-lt">≥ ' + n.p + '% dos docentes</span>'
           + '<span class="nc-lp">a partir de ' + precisa + ' docente' + (precisa === 1 ? "" : "s")
-          + ' com ' + MINIMO + '+' + (ok ? "" : " · faltam " + (precisa - alcancam)) + '</span>'
+          + ' com ' + MINIMO + '+' + (ok || av ? "" : " · faltam " + (precisa - alcancam)) + '</span>'
           + '<span class="nc-lchk">' + (ok ? "✓" : "") + '</span></div>';
       }).join("");
     }
@@ -2591,10 +2593,70 @@ window.addEventListener('pagehide', function(){
       + '</div></div>';
   }
 
+  var ehAvaliador = function () {
+    return typeof state === "object" && state.role === "avaliador";
+  };
+
+  /* O AVALIADOR vê o que EXISTE; o que falta é acompanhamento da PROPPEX
+     (decisão do dono, ago/2026). O quadro de cima media COMPROVAÇÃO —
+     percentual médio, itens pendentes, "5 docentes sem currículo importado",
+     as frações x/y por tipo —, e para quem vem conferir produção isso não
+     informa nada: só aponta lacuna. Ele passa a ver os números ABSOLUTOS —
+     docentes, produções no período e quantas têm comprovante anexado —, que
+     é o que ele veio verificar. A escada do 2.16 fica: é o quadro que diz o
+     que o curso alcançou em cada conceito. */
+  function enxugarParaAvaliador() {
+    var av = ehAvaliador();
+
+    // a barra de comprovação é a medida de quanto FALTA anexar: some para ele
+    var prog = document.querySelector(".dash-progress");
+    if (prog) prog.style.display = av ? "none" : "";
+    // sem a barra, a fila ficaria sozinha à esquerda com meia tela de vazio ao
+    // lado; encostada à direita ela guarda o lugar que sempre teve
+    var fila = document.getElementById("queueBox");
+    if (fila) fila.style.marginLeft = av ? "auto" : "";
+    if (!av) return;   // para a gestão, o que o app desenhou é o que vale
+
+    var itens = professors.reduce(function (s, p) { return s.concat(profItems(p)); }, []);
+    var producoes = itens.filter(function (i) { return PROD_CATS.includes(i.cat); });
+    var comComprovante = producoes.filter(function (i) {
+      return i.status !== "pend" && i.status !== "stop";
+    }).length;
+
+    var sum = document.getElementById("summary");
+    if (sum) {
+      sum.innerHTML =
+        '<div class="stat"><span class="num">' + professors.length
+        + '</span><span class="lab">DOCENTES</span></div>'
+        + '<div class="stat"><span class="num">' + producoes.length
+        + '</span><span class="lab">PRODUÇÕES EM ' + FAIXA + '</span></div>'
+        + '<div class="stat"><span class="num">' + comComprovante
+        + '</span><span class="lab">COM COMPROVANTE</span></div>';
+    }
+
+    // por tipo, o NÚMERO de produções — não a fração comprovadas/total
+    var agg = document.getElementById("catagg");
+    if (agg && typeof CATS !== "undefined") {
+      var linhas = CATS.map(function (c) {
+        var n = 0;
+        professors.forEach(function (p) {
+          if (!p.data) return;
+          p.data.groups.forEach(function (g) { if (g.key === c.key) n += g.items.length; });
+        });
+        return { rotulo: String(c.label).replace(/ \(.*\)/, ""), n: n };
+      }).filter(function (x) { return x.n > 0; });
+      agg.innerHTML = linhas.map(function (l) {
+        return '<div class="cagg"><span class="cn">' + l.rotulo
+          + '</span><span class="cv">' + l.n + '</span></div>';
+      }).join("");
+      agg.style.display = linhas.length ? "grid" : "none";
+    }
+  }
+
   var _render = renderRoster;
   renderRoster = function () {
     var r = _render.apply(this, arguments);
-    try { pintar216(); corrigirRotulos(); pintarContagens(); pintarResumo(); } catch (e) { console.error("[2.16]", e); }
+    try { pintar216(); corrigirRotulos(); pintarContagens(); pintarResumo(); enxugarParaAvaliador(); } catch (e) { console.error("[2.16]", e); }
     return r;
   };
   // o cartão do docente é desenhado por outra função: sem envolvê-la, o
@@ -2607,6 +2669,6 @@ window.addEventListener('pagehide', function(){
       return r;
     };
   }
-  try { pintar216(); corrigirRotulos(); pintarContagens(); pintarResumo(); } catch (e) { /* antes do primeiro render */ }
+  try { pintar216(); corrigirRotulos(); pintarContagens(); pintarResumo(); enxugarParaAvaliador(); } catch (e) { /* antes do primeiro render */ }
 })();
 </script>
