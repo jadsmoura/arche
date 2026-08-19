@@ -54,8 +54,26 @@ test("o edital vigente é o da PROPPEX e os antigos ficam com o órgão da époc
 test("a vitrine lista do mais novo para o mais antigo e dá endereço a todos", () => {
   const lista = editaisMonitoriaParaLista();
   assert.equal(lista[0].numero, "03/2026");
-  assert.equal(lista.at(-1).numero, "01/2025");
+  assert.equal(lista.at(-1).numero, "002/2020", "o arquivo começa no ciclo mais antigo");
   assert.ok(lista.every((e) => !!e.documento), "todo edital precisa ter onde ser lido");
+  // a ordem é a do CICLO — ordenar pelo número jogaria o 01/2026 para o fim
+  const ciclos = lista.map((e) => e.ciclo);
+  assert.deepEqual(ciclos, [...ciclos].sort().reverse(), "fora de ordem cronológica");
+  assert.equal(lista.filter((e) => e.vigente).length, 1, "só um edital vigente por vez");
+});
+
+test("o arquivo guarda cada edital como ele foi publicado", () => {
+  const por = (n) => EDITAIS_MONITORIA.find((e) => e.numero === n);
+  // pandemia: 2020/2 remoto, 2021 híbrido — está na cara do documento
+  assert.match(por("002/2020").orgao, /Coordenação de Ensino/);
+  assert.match(por("002/2020").observacao, /remoto/i);
+  assert.match(por("002/2021").instituicao, /Faculdade Evangélica/);
+  // o 01/2026 é da PROAC e não é o 01/2026 da Iniciação Científica
+  assert.equal(por("01/2026").ciclo, "2026/1");
+  assert.match(por("01/2026").orgao, /ProAc/);
+  assert.match(por("01/2026").observacao, /Iniciação\s+Científica/);
+  // nenhum documento do arquivo vale como edital vigente
+  assert.ok(EDITAIS_MONITORIA.filter((e) => e.numero !== "03/2026").every((e) => e.encerrado));
 });
 
 test("o próximo ciclo vira o ano quando o semestre é o segundo", () => {

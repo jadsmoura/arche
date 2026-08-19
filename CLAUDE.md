@@ -1296,7 +1296,17 @@ public/
   `/api/monitoria/*`, ago/2026): **a reitoria trouxe o programa para a PROPPEX**. Até 2025 ele
   era da **Diretoria Acadêmica (DIAC)**, quando a instituição ainda era a FACEG — os Editais
   01/2025 e 02/2025 trazem esse órgão e esse nome, e ficam no arquivo **como foram publicados**
-  (mesma regra das atas: documento não se reescreve). A série da PROPPEX é **03/AAAA**, para
+  (mesma regra das atas: documento não se reescreve). O **arquivo histórico** vai de 2020 a
+  2026 (`EDITAIS_MONITORIA`, PDFs em `public/ic/docs/edital-monitoria-*.pdf`): 002/2020 pela
+  **Coordenação de Ensino Aprendizagem**, 002/2021 e 003/2021 pela **Diretoria Geral**,
+  001/2022, os dois de 2025 pela DIAC e o **01/2026 da Reitoria com a PROAC** — cada um com o
+  órgão e o nome da instituição da época. É por eles que se lê a história do programa: 2020/2
+  correu **integralmente remoto** e 2021 em **ensino híbrido**, e o edital dizia isso na
+  primeira página. A numeração é a da sequência GERAL da instituição, não uma série própria da
+  monitoria (daí 002/2020, 001/2022, 01/2026) — por isso a vitrine ordena por **ciclo**, não
+  por número: ordenar pelo número jogaria o 01/2026 para o fim do arquivo. O 01/2026 da
+  monitoria **não é** o 01/2026 da IC; a observação do catálogo diz isso, porque os dois
+  aparecem no mesmo quadro de 2026. A série da PROPPEX é **03/AAAA**, para
   conviver com o 01/AAAA (IC) e o 02/AAAA (ICEM) no quadro por ano da vitrine `/ic/`; a
   monitoria é semestral, e um segundo edital no mesmo ano toma o número seguinte livre.
   O **Edital 03/2026 é gerado pelo próprio ARCHÉ** (`TEXTO_EDITAL` + `gerarEditalMonitoriaPdf`,
