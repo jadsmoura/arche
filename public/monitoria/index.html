@@ -577,6 +577,12 @@ const campoMonitor = (m, i) => `<div class="mon" data-mid="${esc(m.id)}">
     <div><label>Nome completo *</label><input class="m_nome" value="${esc(m.nome)}"></div>
     <div><label>E-mail *</label><input class="m_email" type="email" value="${esc(m.email)}"
       placeholder="o convite vai para este endereço"></div>
+    <div><label>CPF do acadêmico <span class="muted">(recomendado)</span></label>
+      <input class="m_cpf" inputmode="numeric" value="${esc(m.cpf || "")}" placeholder="000.000.000-00"
+        onblur="conferirCpf(this)"></div>
+    <div style="align-self:end"><div class="doc" id="cpf-${esc(m.id)}" style="margin:0">
+      O CPF liga a indicação à conta que o aluno já tem no portal — mesmo que ele use outro e-mail.
+    </div></div>
   </div>
   <div class="sec-t" style="font-size:13.5px">Plano de trabalho deste monitor
     <span class="muted">· é contra ele que a atuação será avaliada no fim do semestre</span></div>
@@ -594,6 +600,7 @@ function lerForm() {
       id: el.dataset.mid,
       nome: el.querySelector(".m_nome").value.trim(),
       email: el.querySelector(".m_email").value.trim(),
+      cpf: (el.querySelector(".m_cpf")?.value || "").replace(/\D/g, ""),
       plano,
     };
   });
@@ -617,6 +624,33 @@ function rmMonitor(id) {
   render();
 }
 
+/* Ao sair do campo do CPF, a tela diz se aquela pessoa já tem conta — é o
+   que evita o cadastro duplicado antes de ele acontecer. O endereço vem
+   MASCARADO do servidor: serve para reconhecer, não para colecionar. */
+async function conferirCpf(input) {
+  const mon = input.closest(".mon");
+  const cx = document.getElementById("cpf-" + mon.dataset.mid);
+  const cpf = input.value.replace(/\D/g, "");
+  if (!cx) return;
+  if (!cpf) { cx.className = "doc"; cx.style.margin = "0";
+    cx.textContent = "O CPF liga a indicação à conta que o aluno já tem no portal."; return; }
+  const r = await fetch("/api/monitoria/pessoa?cpf=" + encodeURIComponent(cpf));
+  const j = await r.json().catch(() => ({}));
+  cx.style.margin = "0";
+  if (j.invalido) { cx.className = "doc"; cx.style.borderColor = "var(--err)";
+    cx.textContent = "CPF inválido — confira os dígitos."; return; }
+  if (j.achou) {
+    cx.className = "doc ok";
+    cx.innerHTML = `<b>${esc(j.nome || "Pessoa cadastrada")}</b> já tem conta (${esc(j.email)})
+      — o convite vai para ela, sem criar cadastro novo.`;
+    const em = mon.querySelector(".m_email");
+    if (!em.value.trim()) em.placeholder = "pode deixar em branco: o sistema usa a conta encontrada";
+  } else {
+    cx.className = "doc";
+    cx.textContent = "Ainda não há conta com este CPF — o aluno cria a dele pelo convite.";
+  }
+}
+
 async function salvarProjeto(submeter) {
   const projeto = lerForm();
   const r = await fetch("/api/monitoria", { method: "POST",
@@ -624,6 +658,11 @@ async function salvarProjeto(submeter) {
   const j = await r.json();
   if (!r.ok) return alert(j.error || "Não foi possível gravar.");
   RASCUNHO = { ...projeto, id: j.projeto.id };
+  if (j.contasEncontradas?.length) {
+    alert("Encontramos conta no portal para:\n\n"
+      + j.contasEncontradas.map((c) => `• ${c.nome || c.email}`).join("\n")
+      + "\n\nO convite vai para a conta que já existe — não haverá cadastro duplicado.");
+  }
   if (!submeter) { await carregar(); return abrirProjeto(j.projeto.id); }
   if (j.falta?.length) return alert("Faltam dados para submeter:\n\n• " + j.falta.join("\n• "));
   const r2 = await fetch(`/api/monitoria/${j.projeto.id}/submeter`, { method: "POST" });

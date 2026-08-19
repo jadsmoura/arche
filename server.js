@@ -352,8 +352,19 @@ app.post("/api/perfil", async (req, res) => {
   if (b.cpf !== undefined && soDigitos(b.cpf) !== soDigitos(antes.cpf)) {
     const novo = normalizarCpf(b.cpf);
     if (soDigitos(b.cpf) && !novo) return res.status(400).json({ error: "CPF inválido" });
-    if (antes.cpf && novo !== antes.cpf && u.papel !== "gestor")
-      return res.status(400).json({ error: "O CPF já cadastrado só pode ser alterado pela PROPPEX" });
+    if (antes.cpf && novo !== antes.cpf && u.papel !== "gestor") {
+      // A confusão mais comum (relatada por um professor em ago/2026): a
+      // pessoa recebe o convite de OUTRA — o aluno indicado, o monitor — e
+      // tenta cadastrá-la no próprio perfil. A mensagem tem de dizer de quem
+      // é a tela e por onde a outra pessoa entra, senão vira ligação para a
+      // coordenação.
+      return res.status(400).json({
+        error: `Esta tela é o perfil da SUA conta (${u.email}), e o CPF já gravado nela só a PROPPEX `
+          + "altera. Se você quer cadastrar OUTRA pessoa, é ela quem entra no portal com o e-mail dela "
+          + "e preenche o próprio perfil — o convite que você recebeu por e-mail deve ser encaminhado a "
+          + "ela. Se o CPF gravado aqui está errado, peça a correção à PROPPEX.",
+      });
+    }
     const dono = Object.entries(perfis).find(([mail, p]) => mail !== u.email && p?.cpf && p.cpf === novo);
     // PRÉ-CADASTRO: o CPF pode estar num registro que a PROPPEX criou a
     // partir dos documentos do edital, num e-mail que a pessoa não usa mais.
@@ -365,7 +376,12 @@ app.post("/api/perfil", async (req, res) => {
       delete perfis[dono[0]];
       console.log(`[perfil] pré-cadastro de ${dono[0]} transferido para ${u.email} (mesmo CPF)`);
     } else if (novo && dono) {
-      return res.status(409).json({ error: "Este CPF já está cadastrado em outra conta" });
+      return res.status(409).json({
+        error: `Este CPF já está cadastrado na conta ${mascararEmail(dono[0])}. Se ela é sua, entre por `
+          + "ela — os seus projetos estão lá. Se você tem duas contas no portal, a PROPPEX junta as duas "
+          + "sem perder nada (gestão de acessos → juntar cadastros). E se você está tentando cadastrar "
+          + "outra pessoa, é ela quem entra com o e-mail dela e preenche o próprio perfil.",
+      });
     }
     cpf = novo;
   }
@@ -1538,6 +1554,14 @@ async function verComoUsuario(req, u, podeSimular) {
   if (alvo.startsWith("cpf:")) return { ...base, email: "", cpf: normalizarCpf(alvo.slice(4)) };
   const perfis = await carregarPerfis();
   return { ...base, email: alvo, cpf: perfis[alvo]?.cpf || "", nome: perfis[alvo]?.nome || "" };
+}
+
+/* Endereço reconhecível sem ser legível por inteiro: diz de QUEM é a conta a
+   quem já sabe, e não entrega uma lista de e-mails a quem só tem um CPF. */
+function mascararEmail(e) {
+  const [u = "", d = ""] = String(e || "").split("@");
+  const visivel = u.slice(0, Math.min(3, Math.max(1, u.length - 2)));
+  return `${visivel}${"•".repeat(Math.max(2, u.length - visivel.length))}@${d}`;
 }
 
 /** Quem está de fato logado, mesmo durante uma simulação. */
@@ -4272,6 +4296,29 @@ app.get("/api/monitoria", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/monitoria/pessoa?cpf= — a tela do professor confere, ao digitar o
+ * CPF, se aquela pessoa já tem conta. Devolve o NOME e o e-mail MASCARADO:
+ * é o bastante para o professor reconhecer quem é e entender para onde vai o
+ * convite, sem transformar a rota numa consulta de endereços por CPF.
+ */
+app.get("/api/monitoria/pessoa", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const cpf = soDigitos(req.query?.cpf);
+    if (!cpfValido(cpf)) return res.json({ achou: false, invalido: true });
+    const perfis = await carregarPerfis();
+    const achado = Object.entries(perfis).find(([, p]) => soDigitos(p?.cpf) === cpf);
+    if (!achado) return res.json({ achou: false });
+    res.json({ achou: true, nome: achado[1].nome || "", email: mascararEmail(achado[0]),
+      curso: achado[1].curso || "", funcao: achado[1].funcao || "" });
+  } catch (e) {
+    console.error("Erro ao consultar pessoa por CPF:", e);
+    res.status(500).json({ error: "Não foi possível consultar." });
+  }
+});
+
 /** GET /api/monitoria/certificados — os meus, calculados dos projetos. */
 app.get("/api/monitoria/certificados", async (req, res) => {
   try {
@@ -4370,21 +4417,68 @@ app.post("/api/monitoria", async (req, res) => {
         novo.criadoEm = new Date().toISOString();
         monAnotar(novo, { acao: "Projeto criado", por: u.email });
         lista.push(novo);
-        return { ok: true, projeto: novo };
+        return { ok: true, projeto: novo, casar: true };
       }
       if (!monPodeEditar(lista[i], quem))
         return { erro: [403, "Este projeto não está mais aberto para edição."], gravar: false };
       const atualizado = normalizarProjetoMon(body, { anterior: lista[i] });
       lista[i] = atualizado;
-      return { ok: true, projeto: atualizado };
+      return { ok: true, projeto: atualizado, casar: true };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-    res.json({ ok: true, projeto: monVisao(r.projeto, quem), falta: monFaltaProjeto(r.projeto) });
+    // o CPF informado na indicação encontra a conta que a pessoa já tem —
+    // feito depois da gravação, numa segunda passada pela fila, para não
+    // segurar a escrita esperando a leitura dos perfis
+    let achados = [];
+    if (r.casar) {
+      const r2 = await comMonitorias(async (lista) => {
+        const p = lista.find((x) => x.id === r.projeto.id);
+        if (!p) return { gravar: false };
+        achados = await casarMonitoresPorCpf(p);
+        return { ok: true, projeto: p };
+      });
+      if (r2?.projeto) r.projeto = r2.projeto;
+    }
+    res.json({ ok: true, projeto: monVisao(r.projeto, quem), falta: monFaltaProjeto(r.projeto),
+      contasEncontradas: achados });
   } catch (e) {
     console.error("Erro ao gravar o projeto de monitoria:", e);
     res.status(500).json({ error: "Não foi possível gravar o projeto." });
   }
 });
+
+/**
+ * O CPF do indicado, quando o professor o informa, encontra a conta que a
+ * pessoa JÁ TEM no portal (pedido do dono, ago/2026). Vale a pena porque o
+ * aluno costuma ter dois endereços — o institucional e o pessoal —, e o
+ * professor indica pelo que ele conhece: sem isto nasceria uma segunda conta
+ * para a mesma pessoa, com os projetos dela espalhados entre as duas.
+ *
+ * Quem manda é a CONTA existente: o convite passa a ir para o e-mail dela, e
+ * o que o cadastro já sabe (nome, curso, telefone, matrícula) entra no que
+ * estiver em branco — nunca por cima do que a pessoa gravou.
+ */
+async function casarMonitoresPorCpf(projeto) {
+  const perfis = await carregarPerfis();
+  const porCpf = new Map();
+  for (const [mail, perfil] of Object.entries(perfis)) {
+    if (perfil?.cpf) porCpf.set(soDigitos(perfil.cpf), { email: mail, perfil });
+  }
+  const achados = [];
+  for (const m of projeto.monitores || []) {
+    const cpf = soDigitos(m.cpf);
+    if (!cpf || !cpfValido(cpf)) continue;
+    const conta = porCpf.get(cpf);
+    if (!conta) continue;
+    if (String(m.email || "").toLowerCase() !== conta.email) achados.push({ nome: m.nome, email: conta.email });
+    m.email = conta.email;                       // o convite vai para a conta que existe
+    m.nome = m.nome || conta.perfil.nome || "";
+    m.curso = m.curso || conta.perfil.curso || "";
+    m.telefone = m.telefone || conta.perfil.telefone || "";
+    m.matricula = m.matricula || conta.perfil.matricula || "";
+  }
+  return achados;
+}
 
 /** POST /api/monitoria/:id/submeter — emite o protocolo, fecha a proposta e
     convida os monitores indicados. É aqui que o processo começa a existir. */
