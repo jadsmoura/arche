@@ -845,9 +845,10 @@ function telaMinha(p, m) {
   const podeEnviar = emExecucao && !["validado", "homologado"].includes(r.status);
   return `
     <div class="card">
-      <div class="card-t">Ficha de inscrição</div>
-      <div class="card-s">É ela que valida a sua indicação (item 3.2 do edital). Enquanto não estiver
-        completa, o projeto não segue para a PROPPEX.</div>
+      <div class="card-t">Minha inscrição</div>
+      <div class="card-s">Tudo pelo formulário — não há documento a anexar (item 3.3 do edital):
+        a matrícula e o histórico a Coordenação confere nos sistemas acadêmicos. Enquanto a
+        inscrição não estiver completa, o projeto não segue para a PROPPEX.</div>
       ${completo ? `<div class="banner ba-ok">Inscrição completa, enviada em ${dataBR(m.cadastradoEm)}.
         Você ainda pode corrigir os dados abaixo.</div>` : ""}
       <div class="grid2">
@@ -858,19 +859,6 @@ function telaMinha(p, m) {
         <div><label>Curso *</label><select id="i_curso"><option value="">Selecione…</option>
           ${(META().cursos || []).map((c) => `<option value="${esc(c.slug)}"${c.slug === m.curso ? " selected" : ""}>${esc(c.nome)}</option>`).join("")}</select></div>
         <div><label>Período *</label><input id="i_periodo" value="${esc(m.periodo || "")}" placeholder="Ex.: 6º"></div>
-      </div>
-      <div class="sec-t">Documentos</div>
-      <div class="doc ${m.documentos?.matricula ? "ok" : ""}" id="doc_matricula">
-        <b>Comprovante de matrícula *</b>
-        <span style="flex:1">${m.documentos?.matricula ? esc(m.documentos.matricula.nome || "anexado") : "obrigatório"}</span>
-        <input type="file" id="up_matricula" accept="application/pdf,image/*" style="width:auto"
-          onchange="subirDoc('${p.id}','matricula')">
-      </div>
-      <div class="doc ${m.documentos?.historico ? "ok" : ""}" id="doc_historico">
-        <b>Histórico escolar</b>
-        <span style="flex:1">${m.documentos?.historico ? esc(m.documentos.historico.nome || "anexado") : "o edital pede; a PROPPEX aceita depois se a secretaria atrasar"}</span>
-        <input type="file" id="up_historico" accept="application/pdf,image/*" style="width:auto"
-          onchange="subirDoc('${p.id}','historico')">
       </div>
       <div class="sec-t">Declaração de disponibilidade</div>
       <label style="display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--ink-soft);font-weight:500">
@@ -916,34 +904,17 @@ function telaMinha(p, m) {
     </div>`;
 }
 
-let DOCS = {};
-async function subirDoc(id, qual) {
-  const el = $("up_" + qual);
-  if (!el.files?.[0]) return;
-  const fd = new FormData();
-  fd.append("file", el.files[0]);
-  const r = await fetch("/api/monitoria/anexo", { method: "POST", body: fd });
-  const j = await r.json();
-  if (!r.ok) return alert(j.error || "Falha ao anexar.");
-  DOCS[qual] = j.documento;
-  $("doc_" + qual).classList.add("ok");
-  $("doc_" + qual).querySelector("span").textContent = j.documento.nome + " (anexado — salve a inscrição)";
-}
-
 async function salvarInscricao(id) {
   const corpo = {
     nome: $("i_nome").value.trim(), matricula: $("i_matricula").value.trim(),
     cpf: $("i_cpf").value.replace(/\D/g, ""), telefone: $("i_telefone").value.trim(),
     curso: $("i_curso").value, periodo: $("i_periodo").value.trim(),
     declaracao: $("i_decl").checked || $("i_decl").disabled,
-    documentos: { ...(DOCS.matricula ? { matricula: DOCS.matricula } : {}),
-      ...(DOCS.historico ? { historico: DOCS.historico } : {}) },
   };
   const r = await fetch(`/api/monitoria/${id}/inscricao`, { method: "POST",
     headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) });
   const j = await r.json();
   if (!r.ok) return alert(j.error || "Falha ao gravar.");
-  DOCS = {};
   if (j.falta?.length) alert("Gravado. Ainda falta:\n\n• " + j.falta.join("\n• "));
   else alert("Inscrição completa. O projeto seguiu para a PROPPEX.");
   await carregar(); abrirMinha(id);

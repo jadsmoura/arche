@@ -4478,10 +4478,6 @@ app.post("/api/monitoria/:id/inscricao", async (req, res) => {
         curso: String(d.curso ?? eu.curso ?? "").trim(),
         periodo: String(d.periodo ?? eu.periodo ?? "").trim().slice(0, 20),
         chSemanal: Number(d.chSemanal) || eu.chSemanal || 0,
-        documentos: {
-          matricula: d.documentos?.matricula ?? eu.documentos?.matricula ?? null,
-          historico: d.documentos?.historico ?? eu.documentos?.historico ?? null,
-        },
       });
       if (d.declaracao) eu.declaracao = { aceita: true, em: new Date().toISOString() };
       if (d.cpf && !cpfValido(d.cpf))
