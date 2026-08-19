@@ -12,6 +12,35 @@
      pública (vitrines + entrada) só para o visitante. Até o /api/me responder,
      nenhuma das duas — evita o portal inteiro piscar para quem está sem sessão. */
   .so-logado{display:none!important}
+  /* --------------------- painel de demandas (gestão) ---------------------
+     Só aparece para quem gere setor: quem não decide nada não tem fila para
+     ver, e a rota /api/alertas já devolve vazio para ele. */
+  #painel-demandas{display:none}
+  body.arche-logado #painel-demandas.tem{display:block}
+  .pd-cx{background:#fff;border:1px solid var(--line,#dde4e8);border-radius:16px;padding:22px 24px 20px;
+    margin-bottom:34px;box-shadow:0 1px 2px rgba(18,38,50,.04)}
+  .pd-cab{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+  .pd-cab h2{font-family:'Archivo',sans-serif;font-weight:700;font-size:19px;margin:0;color:var(--ink,#182632)}
+  .pd-tot{font-size:12px;font-weight:700;color:#fff;background:var(--brand,#1c3742);
+    border-radius:20px;padding:3px 11px}
+  .pd-sub{font-size:13px;color:var(--muted,#657179);margin:0 0 16px}
+  .pd-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:14px}
+  .pd-setor{border:1px solid var(--line,#dde4e8);border-radius:12px;padding:14px 16px 12px;
+    display:flex;flex-direction:column;gap:8px;background:#fcfdfe}
+  .pd-setor .nm{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;color:var(--ink,#182632)}
+  .pd-setor .nm .q{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--brand-3,#40717e);
+    background:var(--wash,#e6f5fa);border-radius:20px;padding:2px 9px}
+  .pd-item{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:var(--ink-soft,#3a4650);
+    line-height:1.42}
+  .pd-item b{font-weight:700;color:var(--brand,#1c3742)}
+  .pd-item .pt{width:6px;height:6px;border-radius:50%;background:var(--accent,#71c8e2);
+    margin-top:6px;flex:none}
+  .pd-item .det{display:block;color:var(--muted,#657179);font-size:11.5px;margin-top:1px}
+  .pd-ir{margin-top:auto;align-self:flex-start;font-size:12.5px;font-weight:700;color:var(--brand-3,#40717e);
+    text-decoration:none;padding-top:4px}
+  .pd-ir:hover{color:var(--brand,#1c3742)}
+  .pd-limpo{font-size:13.5px;color:var(--ok,#3f8a5d);background:var(--ok-soft,#e5f3ea);
+    border:1px solid #cfeeda;border-radius:10px;padding:12px 14px}
   body.arche-logado p.so-logado{display:block!important}
   body.arche-logado div.so-logado{display:grid!important}
   #f-entrar input{width:100%;border:1.5px solid var(--line,#dde4e8);border-radius:10px;
@@ -125,6 +154,13 @@
       </div>
     </div>
   </div>
+
+  <!-- O que espera decisão, antes dos setores (pedido do dono, ago/2026): a
+       gestão abre o portal para saber ONDE precisa entrar, e não para
+       procurar. As contagens vêm de /api/alertas — a mesma fonte do sino do
+       topo, com o mesmo recorte por módulo: quem não gere setor nenhum não
+       recebe nada e o bloco não se desenha. -->
+  <div id="painel-demandas"></div>
 
   <p class="eyebrow section-label so-logado">SETORES · GESTÃO DA PROPPEX</p>
   <div class="grid3 so-logado">
@@ -386,6 +422,58 @@ fetch("/api/me").then((r) => (r.ok ? r.json() : {})).then((me) => {
       <a class="bt bt-pri" href="/" style="width:100%;margin-top:14px">Voltar ao portal completo</a>`;
   }
 }).catch(() => { document.body.classList.add("arche-logado"); });
+
+/* ---------------------- demandas abertas por setor ----------------------
+   Uma fila por setor, com o que espera decisão e o atalho para o lugar onde
+   a decisão acontece. Nada aqui é sigiloso: contagem, nome e link — é o que
+   a rota devolve. Em erro (ou sem nada pendente para a pessoa), o bloco
+   simplesmente não aparece: painel vazio na página inicial é ruído. */
+const ORDEM_SETOR = ["Acessos", "Extensão", "Eventos", "Pesquisa · IC", "Monitoria", "Espaços", "Atas"];
+const escP = (t) => String(t ?? "").replace(/[&<>"]/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+// o detalhe é uma AMOSTRA do que está pendente, não a lista: sem corte, um
+// setor com 63 pendências empurra os outros três para fora da tela
+const corta = (t, n = 96) => (String(t).length > n ? String(t).slice(0, n).trimEnd() + "…" : String(t));
+
+if (!VER_PUBLICO) {
+  fetch("/api/alertas").then((r) => (r.ok ? r.json() : { alertas: [] })).then((j) => {
+    const lista = j.alertas || [];
+    if (!lista.length) return;
+    const grupos = new Map();
+    for (const a of lista) {
+      if (!grupos.has(a.setor)) grupos.set(a.setor, { setor: a.setor, link: a.link, n: 0, itens: [] });
+      const g = grupos.get(a.setor);
+      g.n += Number(a.n) || 0;
+      g.itens.push(a);
+    }
+    const ordenados = [...grupos.values()].sort((a, b) => {
+      const ia = ORDEM_SETOR.indexOf(a.setor), ib = ORDEM_SETOR.indexOf(b.setor);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+    const total = ordenados.reduce((s, g) => s + g.n, 0);
+    const cx = document.getElementById("painel-demandas");
+    cx.innerHTML = `
+      <p class="eyebrow section-label">O QUE ESPERA VOCÊ</p>
+      <div class="pd-cx">
+        <div class="pd-cab">
+          <h2>Demandas abertas</h2>
+          <span class="pd-tot">${total}</span>
+        </div>
+        <p class="pd-sub">O que aguarda decisão ou atenção nos setores que você gere — com o
+          atalho para o lugar onde a decisão acontece.</p>
+        <div class="pd-grade">
+          ${ordenados.map((g) => `<div class="pd-setor">
+            <div class="nm">${escP(g.setor)}<span class="q">${g.n}</span></div>
+            ${g.itens.map((i) => `<div class="pd-item"><span class="pt"></span>
+              <span>${escP(i.texto)}${i.detalhe ? `<span class="det">${escP(corta(i.detalhe))}</span>` : ""}</span>
+            </div>`).join("")}
+            <a class="pd-ir" href="${escP(g.link)}">Abrir o setor →</a>
+          </div>`).join("")}
+        </div>
+      </div>`;
+    cx.classList.add("tem");
+  }).catch(() => { /* sem painel: a página inicial segue como sempre */ });
+}
 
 async function entrarComSenha(ev) {
   ev.preventDefault();

@@ -200,6 +200,13 @@ public/
   indicação de aluno, pedido de substituição, contestação e — no ICEM — escolha/troca de
   projeto e relatório final do bolsista. O aviso leva o essencial e o link do setor,
   nunca nota, parecer ou dado bancário.
+- **Demandas abertas na página inicial** (pedido do dono, ago/2026): antes dos cartões dos
+  setores, a gestão vê **o que espera decisão**, agrupado por setor, com o atalho para o lugar
+  onde a decisão acontece — a pró-reitoria abre o portal para saber ONDE entrar, não para
+  procurar. A fonte é a MESMA do sino (`GET /api/alertas`), com o mesmo recorte por
+  `modulosDe`: quem não gere setor nenhum recebe lista vazia e o bloco não se desenha (painel
+  vazio na página inicial é ruído). O detalhe de cada linha é uma AMOSTRA cortada em ~96
+  caracteres: sem isso um setor com 63 pendências empurra os outros para fora da tela.
 - **Sino de alertas no topo** (`GET /api/alertas` + `arche-nav.js`): mostra à gestão o que
   espera decisão ou atenção — acessos pendentes e cadastros novos (só gestor geral),
   projetos de IC aguardando avaliação, substituições de bolsista, relatórios em atraso,

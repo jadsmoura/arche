@@ -740,6 +740,20 @@ app.get("/api/alertas", async (req, res) => {
         detalhe: vencidos.slice(0, 3).map((e) => `${e.orgao}: ${e.acao}`.slice(0, 70)).join(" · ") });
     }
 
+    if (u.modulos.includes("eventos")) {
+      // o EV é setor de OPERAÇÃO: o que trava aqui é evento cadastrado que
+      // não foi aprovado (sem número não há página no ar) e evento aprovado
+      // com a página ainda fechada — os dois deixam gente sem se inscrever
+      const acoes = await lerAcoes();
+      const doEv = acoes.filter((a) => a.evento && !a.origemPapel);
+      const semAprovacao = doEv.filter((a) => !a.numeroAcao).length;
+      if (semAprovacao) alertas.push({ setor: "Eventos", n: semAprovacao, link: "/eventos/gestao/",
+        texto: `${semAprovacao} evento(s) cadastrado(s) aguardando aprovação da ação` });
+      const naoPublicados = doEv.filter((a) => a.numeroAcao && !a.evento?.ativo).length;
+      if (naoPublicados) alertas.push({ setor: "Eventos", n: naoPublicados, link: "/eventos/gestao/",
+        texto: `${naoPublicados} evento(s) aprovado(s) com a página ainda não publicada` });
+    }
+
     if (u.modulos.includes("monitoria")) {
       // a monitoria tem prazo curto e três filas diferentes; o sino separa a
       // que é da PROPPEX (analisar e homologar) do que ela precisa COBRAR
