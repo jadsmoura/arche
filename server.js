@@ -4578,6 +4578,9 @@ app.post("/api/monitoria/:id/inscricao", async (req, res) => {
         curso: String(d.curso ?? eu.curso ?? "").trim(),
         periodo: String(d.periodo ?? eu.periodo ?? "").trim().slice(0, 20),
         chSemanal: Number(d.chSemanal) || eu.chSemanal || 0,
+        // um anexo só: o histórico escolar. Campo ausente é "não mexi" —
+        // salvar de novo não pode apagar o que o aluno já anexou
+        documentos: { historico: d.documentos?.historico ?? eu.documentos?.historico ?? null },
       });
       if (d.declaracao) eu.declaracao = { aceita: true, em: new Date().toISOString() };
       if (d.cpf && !cpfValido(d.cpf))

@@ -886,9 +886,9 @@ function telaMinha(p, m) {
   return `
     <div class="card">
       <div class="card-t">Minha inscrição</div>
-      <div class="card-s">Tudo pelo formulário — não há documento a anexar (item 3.3 do edital):
-        a matrícula e o histórico a Coordenação confere nos sistemas acadêmicos. Enquanto a
-        inscrição não estiver completa, o projeto não segue para a PROPPEX.</div>
+      <div class="card-s">Preencha os campos e anexe o histórico escolar (item 3.2 do edital) —
+        é o único documento pedido. Enquanto a inscrição não estiver completa, o projeto não
+        segue para a PROPPEX.</div>
       ${completo ? `<div class="banner ba-ok">Inscrição completa, enviada em ${dataBR(m.cadastradoEm)}.
         Você ainda pode corrigir os dados abaixo.</div>` : ""}
       <div class="grid2">
@@ -900,6 +900,17 @@ function telaMinha(p, m) {
           ${(META().cursos || []).map((c) => `<option value="${esc(c.slug)}"${c.slug === m.curso ? " selected" : ""}>${esc(c.nome)}</option>`).join("")}</select></div>
         <div><label>Período *</label><input id="i_periodo" value="${esc(m.periodo || "")}" placeholder="Ex.: 6º"></div>
       </div>
+      <div class="sec-t">Histórico escolar</div>
+      <div class="card-s" style="margin-bottom:6px">Um documento só: o histórico já comprova a
+        matrícula e mostra o seu aproveitamento na disciplina. PDF ou foto legível.</div>
+      <div class="doc ${m.documentos?.historico ? "ok" : ""}" id="doc_historico">
+        <b>Histórico escolar *</b>
+        <span style="flex:1">${m.documentos?.historico ? esc(m.documentos.historico.nome || "anexado") : "ainda não anexado"}</span>
+        ${m.documentos?.historico ? `<a href="${esc(m.documentos.historico.url)}" target="_blank" style="font-weight:600">ver</a>` : ""}
+        <input type="file" id="up_historico" accept="application/pdf,image/*" style="width:auto"
+          onchange="subirHistorico()">
+      </div>
+
       <div class="sec-t">Declaração de disponibilidade</div>
       <label style="display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--ink-soft);font-weight:500">
         <input type="checkbox" id="i_decl" style="width:17px;height:17px;margin-top:2px;accent-color:var(--brand)"
@@ -986,17 +997,37 @@ function rmAnexo(i) {
   $("fotos").innerHTML = listaAnexos(ANEXOS, true);
 }
 
+/* O anexo sobe na hora em que é escolhido (o arquivo já vai ao Drive) e
+   fica guardado até o "Salvar minha inscrição" — que é quem o grava no
+   projeto. Sem o aviso na tela, o aluno acharia que anexar já bastava. */
+let HISTORICO = null;
+async function subirHistorico() {
+  const el = $("up_historico");
+  if (!el.files?.[0]) return;
+  const fd = new FormData();
+  fd.append("file", el.files[0]);
+  const r = await fetch("/api/monitoria/anexo", { method: "POST", body: fd });
+  const j = await r.json();
+  if (!r.ok) return alert(j.error || "Falha ao anexar.");
+  HISTORICO = j.anexo;
+  const cx = $("doc_historico");
+  cx.classList.add("ok");
+  cx.querySelector("span").textContent = j.anexo.nome + " — anexado; salve a inscrição para concluir";
+}
+
 async function salvarInscricao(id) {
   const corpo = {
     nome: $("i_nome").value.trim(), matricula: $("i_matricula").value.trim(),
     cpf: $("i_cpf").value.replace(/\D/g, ""), telefone: $("i_telefone").value.trim(),
     curso: $("i_curso").value, periodo: $("i_periodo").value.trim(),
     declaracao: $("i_decl").checked || $("i_decl").disabled,
+    ...(HISTORICO ? { documentos: { historico: HISTORICO } } : {}),
   };
   const r = await fetch(`/api/monitoria/${id}/inscricao`, { method: "POST",
     headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) });
   const j = await r.json();
   if (!r.ok) return alert(j.error || "Falha ao gravar.");
+  HISTORICO = null;
   if (j.falta?.length) alert("Gravado. Ainda falta:\n\n• " + j.falta.join("\n• "));
   else alert("Inscrição completa. O projeto seguiu para a PROPPEX.");
   await carregar(); abrirMinha(id);

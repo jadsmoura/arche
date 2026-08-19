@@ -81,6 +81,7 @@ test("o segundo salvamento preserva o que o monitor já gravou", () => {
   antes.monitores[0] = {
     ...antes.monitores[0], matricula: "20231234", cpf: CPF_A, telefone: "62999990000",
     curso: "enfermagem", periodo: "6º", declaracao: { aceita: true, em: "2026-09-05" },
+    documentos: { historico: { url: "https://drive/h", nome: "historico.pdf" } },
   };
   // o professor salva o projeto de novo, mandando só o que o formulário DELE tem
   const depois = normalizarProjeto(
@@ -90,6 +91,7 @@ test("o segundo salvamento preserva o que o monitor já gravou", () => {
   assert.equal(depois.monitores[0].cpf, CPF_A);
   assert.equal(depois.monitores[0].declaracao.aceita, true);
   assert.equal(depois.monitores[0].periodo, "6º");
+  assert.ok(depois.monitores[0].documentos.historico, "o anexo do aluno sobrevive ao salvamento do professor");
 });
 
 test("CPF inválido não entra no cadastro do monitor", () => {
@@ -150,20 +152,21 @@ test("o plano cobra o que se avalia depois, e texto antigo vira a primeira seç�
   assert.equal(m.monitores[0].plano.atividades, "Texto antigo do plano.");
 });
 
-test("a ficha do monitor é o FORMULÁRIO: cobra dados, não documento anexado", () => {
+test("a ficha do monitor cobra os dados e UM anexo: o histórico escolar", () => {
   const p = projetoBase();
   const m = p.monitores[0];
   const f = faltaNoCadastroDoMonitor(m);
   for (const campo of ["número de matrícula", "CPF", "telefone", "curso", "período",
-    "declaração de disponibilidade de carga horária"]) {
+    "declaração de disponibilidade de carga horária", "histórico escolar"]) {
     assert.ok(f.includes(campo), `deveria cobrar: ${campo}`);
   }
-  // a inscrição corre toda pelo formulário (decisão do dono, ago/2026):
-  // matrícula e histórico se conferem nos sistemas acadêmicos, que já os têm
-  assert.ok(!f.some((x) => /comprovante|histórico|anexo/i.test(x)));
+  // um anexo só (decisão do dono, ago/2026): o histórico já comprova a
+  // matrícula, e pedir o comprovante seria pedir duas vezes a mesma coisa
+  assert.ok(!f.some((x) => /comprovante de matrícula/i.test(x)));
   Object.assign(m, {
     matricula: "20231234", cpf: CPF_A, telefone: "62999990000", curso: "enfermagem",
     periodo: "6º", declaracao: { aceita: true, em: "2026-09-05" },
+    documentos: { historico: { url: "https://drive/h", nome: "historico.pdf" } },
   });
   assert.deepEqual(faltaNoCadastroDoMonitor(m), []);
   assert.ok(monitorCadastrado(m));

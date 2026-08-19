@@ -1264,7 +1264,9 @@ public/
   **O fluxo é o da IC, e cada passo é rota com dono definido**: o professor submete o projeto
   da SUA disciplina e **indica o monitor por nome e e-mail** → o indicado recebe o convite e
   preenche a **própria ficha de inscrição** (Anexo II: matrícula, CPF, telefone, curso,
-  período, declaração de disponibilidade e os documentos do item 3.2) → completa a ficha de
+  período, declaração de disponibilidade firmada no sistema e o **histórico escolar** anexado
+  — um documento só, decisão do dono: o histórico já comprova a matrícula e ainda mostra o
+  aproveitamento na disciplina) → completa a ficha de
   todos os indicados, o projeto **vai sozinho** à fila da PROPPEX → aprovado, entra em
   execução → o monitor entrega o **relatório** → o orientador **avalia a atuação** dele (as 4
   perguntas do Anexo III + parecer) e valida → a PROPPEX **homologa** e os certificados
