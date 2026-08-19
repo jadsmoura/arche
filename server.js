@@ -46,6 +46,7 @@ import {
   PRAZOS as MON_PRAZOS, CH_SEMANAL as MON_CH_SEMANAL, ROTULO_STATUS as MON_ROTULO_STATUS,
   CRITERIOS_MONITOR, RESPOSTAS_CRITERIO, PARECERES as PARECERES_MON,
   CAMPOS_PLANO as CAMPOS_PLANO_MON, faltaNoPlano as monFaltaPlano,
+  MIN_FOTOS_MONITORIA, fotosDoRelatorio as fotosRelatorioMon,
   TEXTO_EDITAL as TEXTO_EDITAL_MON, ACESSOS as ACESSOS_MON, editaisMonitoriaParaLista,
   normalizarProjeto as normalizarProjetoMon, normalizarRelatorio as normalizarRelatorioMon,
   papelNoProjeto as monPapel, podeVer as monPodeVer, podeEditar as monPodeEditar,
@@ -89,6 +90,11 @@ import {
 } from "./lib/edital.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
 import { dataCivil, diaSerial, hojeLocalISO } from "./lib/datas.js";
+import {
+  periodoDe, semestresDisponiveis, setorRelatorioDe, setoresDe as setoresDeRelatorio,
+  panoramaAtas, panoramaEspacos, panoramaEventos, panoramaExtensao, panoramaIC,
+  panoramaMonitoria,
+} from "./lib/relatorios.js";
 import { MIN_FOTOS_RELATORIO, faltamFotos, avisoFotos, fotosDoPortfolio } from "./lib/portfolio.js";
 import {
   PERIODOS as PERIODOS_MATRIZ, normalizarCurricularizacao, panoramaCurricularizacao,
@@ -194,7 +200,7 @@ app.use((req, res, next) => {
 // Setores de gestão exigem login (Avaliação Institucional continua aberta).
 // /eventos/* segue PÚBLICO (hotsite, inscrição, credenciamento, assistir) —
 // só a sala de gestão do ARCHÉ EV, em /eventos/gestao, pede sessão.
-const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios|espacos|monitoria|prototipos)(\/|$)|^\/eventos\/gestao(\/|$)/;
+const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios|espacos|monitoria|relatorios|prototipos)(\/|$)|^\/eventos\/gestao(\/|$)/;
 app.use(async (req, res, next) => {
   // HEAD também (achado de ago/2026): o express.static responde HEAD, e a
   // guarda só de GET deixava um HEAD sem sessão confirmar a existência
@@ -4249,7 +4255,7 @@ const monMeta = () => ({
   edital: MON_EDITAL, editais: editaisMonitoriaParaLista(), cronograma: MON_CRONOGRAMA,
   vigencia: MON_VIGENCIA, prazos: MON_PRAZOS, chSemanal: MON_CH_SEMANAL,
   cursos: CURSOS, criterios: CRITERIOS_MONITOR, respostas: RESPOSTAS_CRITERIO,
-  camposPlano: CAMPOS_PLANO_MON,
+  camposPlano: CAMPOS_PLANO_MON, minFotos: MIN_FOTOS_MONITORIA,
   pareceres: PARECERES_MON, rotuloStatus: MON_ROTULO_STATUS,
   submissaoAberta: monSubmissaoAberta(), cobranca: MON_COBRANCA,
   cobrancaAberta: cobrancaAbertaMon(), diasParaRelatorio: diasParaRelatorioMon(),
@@ -4847,23 +4853,24 @@ app.delete("/api/monitoria/:id", async (req, res) => {
   }
 });
 
-/** POST /api/monitoria/anexo — comprovante de matrícula e histórico escolar.
-    Sobe ANTES de a ficha ser gravada, como o ofício da reserva: o arquivo vai
-    ao Drive e o link volta para acompanhar o formulário. */
+/** POST /api/monitoria/anexo — as FOTOS de evidência do relatório (e o
+    documento que o monitor queira juntar). Sobe ANTES de o relatório ser
+    gravado, como o portfólio da Extensão: o arquivo vai ao Drive e o link
+    volta para acompanhar o formulário. */
 app.post("/api/monitoria/anexo", upload.single("file"), async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
     if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado." });
-    const ok = /^(application\/pdf|image\/(png|jpe?g|webp))$/.test(req.file.mimetype || "");
-    if (!ok) return res.status(400).json({ error: "Envie o documento em PDF ou imagem." });
+    const ok = /^(application\/pdf|image\/(png|jpe?g|webp|heic|heif))$/.test(req.file.mimetype || "");
+    if (!ok) return res.status(400).json({ error: "Envie uma foto (JPG, PNG) ou um PDF." });
     if (req.file.size > 8 * 1024 * 1024)
       return res.status(400).json({ error: "O arquivo passa de 8 MB." });
     const data = await files.save({
       buffer: req.file.buffer, originalName: req.file.originalname,
       prefix: `monitoria/${hojeLocalISO().slice(0, 4)}`,
     });
-    res.json({ ok: true, documento: { ...data, nome: req.file.originalname,
+    res.json({ ok: true, anexo: { ...data, nome: req.file.originalname,
       tipo: req.file.mimetype, tamanho: req.file.size, enviadoEm: new Date().toISOString() } });
   } catch (e) {
     console.error("Erro no anexo da monitoria:", e);
@@ -9457,6 +9464,88 @@ app.delete("/api/ic/:id", async (req, res) => {
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
   res.json({ ok: true });
+});
+
+
+/* ========================================================================
+   RELATÓRIO SEMESTRAL DE ATIVIDADES
+
+   Um relatório POR SETOR, por semestre (decisão do dono, ago/2026): o que a
+   coordenação leva ao conselho e o que o avaliador do MEC pede é o
+   panorama daquele setor naquele período — "as submissões e os projetos de
+   monitoria de 2026/2" —, não um documento único que mistura tudo.
+
+   Quem pode emitir é quem gere o setor: o gestor geral, todos; o
+   coordenador, o seu. As contas vivem em lib/relatorios.js, testáveis; aqui
+   ficam a leitura das bases e o transporte.
+   ======================================================================== */
+async function montarPanorama(chave, periodo) {
+  const cursos = CURSOS;
+  if (chave === "extensao") return panoramaExtensao(await lerAcoes(), periodo, { cursos });
+  if (chave === "eventos") return panoramaEventos(await lerAcoes(), periodo, { cursos });
+  if (chave === "ic") return panoramaIC(await lerProjetos(), periodo, { cursos });
+  if (chave === "monitoria") return panoramaMonitoria(await lerMonitorias(), periodo, { cursos });
+  if (chave === "atas") return panoramaAtas(await lerAtas(), periodo, { cursos, orgaos: ORGAOS });
+  if (chave === "espacos") return panoramaEspacos(await lerReservas(), periodo, { espacos: await lerEspacos() });
+  return null;
+}
+
+/** GET /api/relatorios — o que a tela precisa: setores que a pessoa pode
+    relatar e os semestres oferecidos. */
+app.get("/api/relatorios", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    const setores = setoresDeRelatorio(u);
+    if (!setores.length) return res.status(403).json({ error: "A emissão é da gestão dos setores." });
+    res.json({ eu: u.email, setores, semestres: semestresDisponiveis(hojeLocalISO(), 10) });
+  } catch (e) {
+    console.error("Erro ao abrir os relatórios:", e);
+    res.status(500).json({ error: "Não foi possível carregar." });
+  }
+});
+
+/** GET /api/relatorios/panorama?setor=&periodo= — os números, para a tela
+    mostrar ANTES de emitir: o documento não é uma surpresa. */
+app.get("/api/relatorios/panorama", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    const setor = setorRelatorioDe(req.query?.setor);
+    const periodo = periodoDe(req.query?.periodo);
+    if (!setor || !periodo) return res.status(400).json({ error: "Informe o setor e o semestre." });
+    if (!setoresDeRelatorio(u).some((s) => s.chave === setor.chave))
+      return res.status(403).json({ error: "Você não gere este setor." });
+    res.json({ setor, periodo, panorama: await montarPanorama(setor.chave, periodo) });
+  } catch (e) {
+    console.error("Erro no panorama semestral:", e);
+    res.status(500).json({ error: "Não foi possível montar o panorama." });
+  }
+});
+
+/** GET /api/relatorios/semestral.pdf?setor=&periodo= — o documento. */
+app.get("/api/relatorios/semestral.pdf", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).send("Faça login.");
+    const setor = setorRelatorioDe(req.query?.setor);
+    const periodo = periodoDe(req.query?.periodo);
+    if (!setor || !periodo) return res.status(400).send("Informe o setor e o semestre.");
+    if (!setoresDeRelatorio(u).some((s) => s.chave === setor.chave))
+      return res.status(403).send("Você não gere este setor.");
+    const panorama = await montarPanorama(setor.chave, periodo);
+    const { gerarRelatorioSemestralPdf } = await import("./lib/pdf.js");
+    const { marcaEm } = await import("./lib/marca.js");
+    const buf = await gerarRelatorioSemestralPdf({
+      setor, periodo, panorama, emitidoPor: u.email, marca: marcaEm(periodo.fim) });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition",
+      `inline; filename="relatorio-${setor.chave}-${periodo.chave.replace("/", "-")}.pdf"`);
+    res.send(buf);
+  } catch (e) {
+    console.error("Erro no relatório semestral:", e);
+    res.status(500).send("Não foi possível gerar o relatório.");
+  }
 });
 
 /* ===================== ASSISTENTE DE ESCRITA (IA) ======================= */

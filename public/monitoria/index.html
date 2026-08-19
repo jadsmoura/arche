@@ -873,6 +873,7 @@ async function abrirMinha(id) {
   const eu = (p.monitores || []).find((m) => m.eu) || p.monitores?.[0];
   $("titulo").textContent = "Minha monitoria";
   $("subtitulo").textContent = `${p.disciplina} · ${cursoNome(p.curso)}`;
+  ANEXOS = eu.relatorio?.anexos || [];
   $("tela").innerHTML = telaMinha(p, eu);
   window.scrollTo(0, 0);
 }
@@ -935,12 +936,54 @@ function telaMinha(p, m) {
       <textarea id="r_dificuldades" ${podeEnviar ? "" : "disabled"}>${esc(r.dificuldades || "")}</textarea>
       <label>O que a monitoria acrescentou à sua formação *</label>
       <textarea id="r_aprendizado" ${podeEnviar ? "" : "disabled"}>${esc(r.aprendizado || "")}</textarea>
+
+      <div class="sec-t">Fotos de evidência <span class="muted">· mínimo de ${META().minFotos || 3}</span></div>
+      <div class="card-s" style="margin-bottom:8px">O relatório diz o que você fez; a foto mostra que
+        aconteceu — é ela que a coordenação arquiva e que o avaliador pede para ver. Vale plantão de
+        dúvidas, aula prática, material preparado, mural, atendimento.</div>
+      <div id="fotos">${listaAnexos(r.anexos || [], podeEnviar)}</div>
+      ${podeEnviar ? `<div class="doc" style="margin-top:8px">
+        <b>Anexar foto ou documento</b>
+        <input type="file" id="up_foto" accept="image/*,application/pdf" style="width:auto"
+          onchange="subirAnexo('${p.id}')">
+      </div>` : ""}
       ${podeEnviar ? `<div class="exp">
         <button class="bt bt-ghost" onclick="salvarRelatorio('${p.id}',false)">Salvar rascunho</button>
         <button class="bt bt-ok" onclick="salvarRelatorio('${p.id}',true)">Enviar à orientação</button>
       </div>` : ""}
       ${r.enviadoEm ? `<a class="bt bt-ghost" style="margin-top:10px" href="/api/monitoria/${p.id}/relatorio.pdf" target="_blank">Meu relatório em PDF</a>` : ""}
     </div>`;
+}
+
+/* Os anexos ficam numa lista à parte do texto: subir foto é ato imediato
+   (o arquivo já vai ao Drive), e o texto do relatório continua sendo salvo
+   pelo botão. Sem isso o aluno subiria cinco fotos e as perderia ao sair
+   sem salvar. */
+let ANEXOS = null;
+const listaAnexos = (anexos, podeMexer) => anexos.length
+  ? `<div class="grid3" style="gap:10px">${anexos.map((a, i) => `<div class="doc ${/^image\//.test(a.tipo || "") ? "ok" : ""}">
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis">${esc(a.nome || "anexo")}</span>
+      <a href="${esc(a.url)}" target="_blank" style="font-weight:600">ver</a>
+      ${podeMexer ? `<button class="bt bt-ghost" style="padding:3px 8px" onclick="rmAnexo(${i})">✕</button>` : ""}
+    </div>`).join("")}</div>`
+  : `<div class="vazio">Nenhuma foto anexada ainda.</div>`;
+
+async function subirAnexo(id) {
+  const el = $("up_foto");
+  if (!el.files?.[0]) return;
+  const fd = new FormData();
+  fd.append("file", el.files[0]);
+  const r = await fetch("/api/monitoria/anexo", { method: "POST", body: fd });
+  const j = await r.json();
+  if (!r.ok) return alert(j.error || "Falha ao anexar.");
+  ANEXOS = [...(ANEXOS || []), j.anexo];
+  $("fotos").innerHTML = listaAnexos(ANEXOS, true);
+  el.value = "";
+  await salvarRelatorio(id, false, true);     // grava já: foto anexada não se perde
+}
+function rmAnexo(i) {
+  ANEXOS = (ANEXOS || []).filter((_, k) => k !== i);
+  $("fotos").innerHTML = listaAnexos(ANEXOS, true);
 }
 
 async function salvarInscricao(id) {
@@ -959,16 +1002,18 @@ async function salvarInscricao(id) {
   await carregar(); abrirMinha(id);
 }
 
-async function salvarRelatorio(id, enviar) {
+async function salvarRelatorio(id, enviar, silencioso) {
   const relatorio = {
     atividades: $("r_atividades").value.trim(),
     dificuldades: $("r_dificuldades").value.trim(),
     aprendizado: $("r_aprendizado").value.trim(),
+    anexos: ANEXOS || [],
   };
   const r = await fetch(`/api/monitoria/${id}/relatorio`, { method: "POST",
     headers: { "Content-Type": "application/json" }, body: JSON.stringify({ relatorio, enviar }) });
   const j = await r.json();
   if (!r.ok) return alert(j.error || "Falha.");
+  if (silencioso) return;
   alert(enviar ? "Relatório enviado à orientação." : "Rascunho salvo.");
   await carregar(); abrirMinha(id);
 }

@@ -11,6 +11,7 @@ import {
   normalizarProjeto, papelNoProjeto, pendenciasDoCiclo, pendenciasDoProjeto,
   podeDecidir, podeEditar, podeSubmeter, proximoCiclo, resumir, panorama,
   semanasDe, submissaoAberta, todosCadastrados, visaoDoProjeto,
+  MIN_FOTOS_MONITORIA, fotosDoRelatorio, faltamFotosMon,
 } from "../lib/monitoria.js";
 
 const CPF_A = "52998224725";   // válidos
@@ -177,10 +178,28 @@ test("não há limite de vagas: dez indicações no mesmo projeto passam", () =>
   assert.equal(normalizarProjeto(projetoBase({ monitores: dez })).monitores.length, 10);
 });
 
+const FOTOS = [
+  { url: "https://drive/1", nome: "plantao.jpg", tipo: "image/jpeg" },
+  { url: "https://drive/2", nome: "aula.jpg", tipo: "image/jpeg" },
+  { url: "https://drive/3", nome: "mural.png", tipo: "image/png" },
+];
+
+test("o relatório exige fotos de evidência — e documento não conta como foto", () => {
+  const base = { atividades: "x".repeat(200), aprendizado: "y".repeat(60) };
+  assert.ok(faltaNoRelatorio(base).some((x) => /fotos de evidência/.test(x)));
+  // PDF anexado é anexo, não é evidência fotográfica
+  assert.ok(faltaNoRelatorio({ ...base, anexos: [
+    { url: "u", nome: "lista.pdf", tipo: "application/pdf" }] }).some((x) => /fotos/.test(x)));
+  assert.deepEqual(faltaNoRelatorio({ ...base, anexos: FOTOS }), []);
+  assert.equal(fotosDoRelatorio({ anexos: [...FOTOS, { url: "u", nome: "x.pdf", tipo: "application/pdf" }] }).length, 3);
+  assert.equal(faltamFotosMon({ anexos: FOTOS.slice(0, 1) }), 2);
+  assert.equal(MIN_FOTOS_MONITORIA, 3);
+});
+
 test("relatório curto demais não sai, e a avaliação exige os quatro critérios e o parecer", () => {
   assert.ok(faltaNoRelatorio({ atividades: "fiz coisas" }).length);
   assert.deepEqual(faltaNoRelatorio({
-    atividades: "x".repeat(200), aprendizado: "y".repeat(60),
+    atividades: "x".repeat(200), aprendizado: "y".repeat(60), anexos: FOTOS,
   }), []);
   const f = faltaNaAvaliacao({ criterios: { assiduidade: "sim" } });
   assert.equal(f.length, CRITERIOS_MONITOR.length - 1 + 1); // 3 critérios + parecer

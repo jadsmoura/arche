@@ -20,6 +20,7 @@
     { href: "/eventos/gestao/", rot: "Eventos",        teste: function (p) { return p.indexOf("/eventos/gestao") === 0; } },
     { href: "/pesquisa/ic/", rot: "Pesquisa · IC",     teste: function (p) { return p.indexOf("/pesquisa") === 0; } },
     { href: "/monitoria/",   rot: "Monitoria",         teste: function (p) { return p.indexOf("/monitoria") === 0; } },
+    { href: "/relatorios/",  rot: "Relatórios",        teste: function (p) { return p.indexOf("/relatorios") === 0; } },
     { href: "/espacos/",     rot: "Espaços",           teste: function (p) { return p.indexOf("/espacos") === 0; } },
     { href: "/arche/",       rot: "Avaliação",         teste: function (p) { return p.indexOf("/arche") === 0; } },
     // a VISÃO PÚBLICA do portal (pedido do dono, ago/2026): a mesma página que
@@ -247,7 +248,7 @@
           // visitante (decisão do dono, ago/2026): a barra deixa de anunciar
           // os setores de gestão — os atalhos levariam à tela de login. As
           // páginas públicas (vitrines, hotsites) ficam só com "Portal".
-          ["/atas/", "/extensao/", "/eventos/gestao/", "/pesquisa/ic/", "/monitoria/", "/espacos/", "/arche/"].forEach(function (href) {
+          ["/atas/", "/extensao/", "/eventos/gestao/", "/pesquisa/ic/", "/monitoria/", "/relatorios/", "/espacos/", "/arche/"].forEach(function (href) {
             var alvos = document.querySelectorAll('.arche-topnav a[data-arche-nav="' + href + '"]');
             for (var i = 0; i < alvos.length; i++) alvos[i].style.display = "none";
           });
@@ -263,9 +264,11 @@
         var aluno = me.perfil && me.perfil.funcao === "aluno";
         // aluno não organiza evento (participa pela página pública) — o
         // setor EV é de quem propõe e opera
+        // Relatórios é da gestão: quem não coordena setor nenhum não tem o
+        // que emitir, e a rota o recusaria de todo modo
         var esconder = aluno
-          ? ["/atas/", "/inovacao/", "/arche/", "/eventos/gestao/"]
-          : ["/arche/"];
+          ? ["/atas/", "/inovacao/", "/arche/", "/eventos/gestao/", "/relatorios/"]
+          : ["/arche/", "/relatorios/"];
         esconder.forEach(function (href) {
           var alvos = document.querySelectorAll(
             '[data-setor="' + href + '"], .arche-topnav a[data-arche-nav="' + href + '"]');

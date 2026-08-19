@@ -33,6 +33,7 @@ dados/               Lotes de importação (ic-edital-01-2026.json: as 33 submis
 lib/espacos.js       ARCHÉ ES: espaços, conflito de horário, bloqueios e agenda
 lib/curricularizacao.js  Vínculo da ação de extensão com o componente curricular (MEC)
 lib/monitoria.js     ARCHÉ MO: editais, fluxo, réguas, carga horária e certificados
+lib/relatorios.js    Relatório Semestral de Atividades: o panorama de cada setor
 lib/pautas.js        Catálogo da Pauta Regulatória (indicadores INEP) e conformidade
 lib/redator.js       Redação da minuta da ata: modelo (padrão) | gemini | anthropic
 lib/assistente.js    Assistente de escrita dos campos da ata (só ARCHÉ AT)
@@ -57,6 +58,8 @@ public/
   espacos/           ARCHÉ ES — Reserva de Espaços (SPA vanilla, mesmo desenho do EX/AT)
   monitoria/         ARCHÉ MO — Monitoria Acadêmica (SPA vanilla; a mesma tela para os
                      três papéis — professor, monitor e PROPPEX)
+  relatorios/        Relatório Semestral por SETOR (só gestão): números, gráficos e a
+                     relação nominal — prestação de contas e comprovação ao MEC
   entrar/ perfil/ usuarios/   Login (código por e-mail + Google), perfil, gestão de acessos
 ```
 
@@ -1286,6 +1289,31 @@ public/
   convite é nominal, e sem isso ele bateria numa parede vinda do próprio e-mail. Ele vê o
   projeto e o **próprio** cadastro — nunca o CPF, o telefone ou o relatório do colega —, e
   **não lê a avaliação que levou** (nem na tela, nem no PDF do seu relatório).
+- **Relatório Semestral de Atividades** (`lib/relatorios.js` + `public/relatorios/` +
+  `GET /api/relatorios/semestral.pdf`, ago/2026): a pergunta que o avaliador do MEC faz é
+  sempre a mesma — *o que a instituição fez neste semestre, e onde está a prova?* —, e
+  respondê-la significava abrir seis telas e montar o documento à mão. Agora é **um relatório
+  POR SETOR, por semestre** (decisão do dono: "quero um relatório só das submissões e projetos
+  de monitoria de 2026/2", não um que mistura tudo), em três partes que são o argumento na
+  ordem: os **números** grandes, os **gráficos** de distribuição (por curso, por situação, por
+  órgão) e a **relação nominal** de tudo que foi contado — é ela que transforma o número em
+  comprovação, porque cada linha existe no sistema e pode ser conferida.
+  O **semestre é civil** (jan–jun, jul–dez): calendário letivo muda por curso e por ano, o
+  civil não muda e é o que se explica ao avaliador numa linha. Entra o que **ACONTECEU** no
+  período, não o que foi cadastrado nele — a ação que atravessa o semestre conta nos dois,
+  porque nos dois ela existiu (`dentroDoSemestre`, por sobreposição). A monitoria é a exceção
+  útil: o ciclo do edital tem a mesma forma do semestre ("2026/2") e, quando gravado, é ele
+  que manda. Quem emite é quem **gere** o setor (gestor geral, todos; coordenador, o seu), e a
+  tela mostra o panorama ANTES de emitir — documento que se assina não pode ser surpresa.
+- **"Ver como…" em todos os setores** (`public/assets/arche-vercomo.js` + `verComoUsuario` no
+  server, ago/2026): o recurso nasceu na IC e passou a valer para Extensão, Eventos, Atas,
+  Espaços e Monitoria. A sessão troca o usuário por um **sósia sem gestão** e as MESMAS
+  funções de permissão rodam — o recorte é do servidor, e por isso a simulação não mente. É
+  **somente leitura** (escrever gravaria em nome da gestão enquanto a tela finge ser outra
+  pessoa), e o componente instala o `?como=` dentro do próprio `fetch`: ligar o recurso num
+  setor não obriga a revisar as dezenas de chamadas dele, e uma chamada nova não escapa da
+  regra sem ninguém notar. Cada setor traz o seu vocabulário e a sua lista de pessoas, tirada
+  dos próprios registros. A IC mantém a versão dela, entrelaçada com o META daquele setor.
 - **Protótipos** (`/prototipos/`, atrás de login): telas navegáveis com dados fictícios, para
   decidir o desenho ANTES de escrever o módulo. Nada ali grava nada, e cada tela termina com
   as perguntas que levanta. O de **Monitoria cumpriu o papel** — o módulo existe desde
