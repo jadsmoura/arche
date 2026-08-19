@@ -2672,3 +2672,92 @@ window.addEventListener('pagehide', function(){
   try { pintar216(); corrigirRotulos(); pintarContagens(); pintarResumo(); enxugarParaAvaliador(); } catch (e) { /* antes do primeiro render */ }
 })();
 </script>
+
+<script>
+/* ========================================================================
+   GRAVAÇÃO SEM ATROPELO (achado de ago/2026)
+
+   O dossiê é UM documento por curso — os 21 docentes juntos —, e `doSave`
+   gravava a cópia que estava na memória DA ABA. Duas pessoas com a página
+   aberta ao mesmo tempo, cada uma no seu próprio dossiê, e a última a
+   gravar devolvia o curso ao estado em que ele estava quando a aba dela
+   carregou: o trabalho da primeira sumia sem aviso e sem rastro. Foi assim
+   que as três produções que a profa. Lessa incluiu à mão em 19/08
+   (18h04, 18h07 e 18h08) desapareceram — os comprovantes ficaram no Drive,
+   os itens não estavam mais em lugar nenhum.
+
+   A gravação passa a ser LER → MESCLAR → GRAVAR: relê o documento como ele
+   está no servidor e devolve apenas o registro do docente que está
+   editando, preservando o de todos os outros exatamente como estão lá.
+   Docente que a aba conhece e o servidor não (recém-incluído pela PROPPEX)
+   é ACRESCENTADO — mesclar nunca descarta ninguém. E as gravações entram
+   numa fila: duas seguidas leriam o mesmo documento, e a segunda desfaria
+   a primeira.
+
+   Se a releitura falhar, cai no comportamento antigo — perder a gravação
+   de quem está trabalhando seria pior que o risco que ela corrige.
+
+   Por append, como todo ajuste em /arche: o app é compilado.
+   ======================================================================== */
+(function () {
+  if (typeof doSave !== "function" || typeof serializeState !== "function") return;
+  if (typeof window.storage !== "object" || !window.storage) return;
+
+  var fila = Promise.resolve();
+
+  function chave(p) {
+    return p && p.lattesId
+      ? "lattes:" + p.lattesId
+      : "nome:" + String((p && p.nome) || "").trim().toLowerCase();
+  }
+
+  function mesclar(remoto, meu) {
+    // sem documento no servidor, ou de outra versão: grava o meu, como antes
+    if (!remoto || !Array.isArray(remoto.profs) || remoto.version !== meu.version) return meu;
+
+    var i = (typeof state === "object" && state.currentIdx != null) ? state.currentIdx : null;
+    var eu = (i != null && professors[i]) ? chave(professors[i]) : null;
+
+    var saida = JSON.parse(JSON.stringify(remoto));
+    var onde = {};
+    saida.profs.forEach(function (p, n) { onde[chave(p)] = n; });
+
+    (meu.profs || []).forEach(function (p) {
+      var k = chave(p);
+      if (onde[k] == null) { saida.profs.push(p); onde[k] = saida.profs.length - 1; return; }
+      if (eu && k === eu) saida.profs[onde[k]] = p;   // só o meu registro
+    });
+    saida.profs.forEach(function (p, n) { p.idx = n; });
+    saida.session = meu.session;
+
+    var aRem = (remoto.ajustesProducao && remoto.ajustesProducao.profs) || [];
+    var aMeu = (meu.ajustesProducao && meu.ajustesProducao.profs) || [];
+    if (aRem.length || aMeu.length) {
+      var mapa = {};
+      aRem.forEach(function (x) { mapa[x.chave] = x; });
+      aMeu.forEach(function (x) { if (mapa[x.chave] == null || (eu && x.chave === eu)) mapa[x.chave] = x; });
+      saida.ajustesProducao = { versao: 1, profs: Object.keys(mapa).map(function (k) { return mapa[k]; }) };
+    }
+    return saida;
+  }
+
+  var _doSave = doSave;
+  doSave = function () {
+    if (typeof state !== "object" || state.role !== "docente") return Promise.resolve();
+    if (!professors.some(function (p) { return p.data; })) return Promise.resolve();
+    fila = fila.then(function () {
+      var meu;
+      try { meu = JSON.parse(serializeState()); } catch (e) { return _doSave(); }
+      return Promise.resolve(window.storage.get(DOSSIE_KEY)).then(function (r) {
+        var remoto = null;
+        try { remoto = r && r.value ? JSON.parse(r.value) : null; } catch (e) { remoto = null; }
+        return window.storage.set(DOSSIE_KEY, JSON.stringify(mesclar(remoto, meu)));
+      }).catch(function (e) {
+        console.error("[Persist] releitura falhou, gravando sem mesclar:", e && e.message);
+        return _doSave();
+      });
+    }).catch(function () {});
+    return fila;
+  };
+})();
+</script>
