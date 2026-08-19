@@ -103,9 +103,12 @@ const SECOES = [
   { k: "painel", rot: "Painel", tit: "Ligas e grupos", sub: "O que existe na instituição, quem orienta e o que está em dia." },
   { k: "ligas", rot: "Ligas acadêmicas", tit: "Ligas acadêmicas", sub: "Entidade estudantil com orientação docente — registro renovado a cada ano." },
   { k: "liga", rot: "Ficha da liga", tit: "Liga Acadêmica Kuma", sub: "Psicologia · orientação: Prof. Rogério Alves" },
+  { k: "atividades", rot: "Atividades e presença", tit: "Atividades e presença", sub: "O motor do módulo: a atividade gera presença, a presença gera horas, as horas geram certificado." },
   { k: "grupos", rot: "Grupos de pesquisa", tit: "Grupos de pesquisa", sub: "Estrutura de pesquisa do DGP/CNPq — líder docente, linhas e produção." },
   { k: "grupo", rot: "Ficha do grupo", tit: "Solos, Microbiologia e Sustentabilidade Agrícola", sub: "Ciências Agrárias · líder: Prof. Dr. Jadson Belém de Moura" },
+  { k: "relatorio", rot: "Relatório do grupo", tit: "Relatório anual do grupo", sub: "Gerado do que já existe no ARCHÉ — ninguém digita produção duas vezes." },
   { k: "renovar", rot: "Registro e renovação", tit: "Registro e renovação anual", sub: "O que a liga entrega para continuar existindo no ano seguinte." },
+  { k: "vitrine", rot: "Vitrine pública", tit: "Vitrine pública", sub: "O que o calouro vê — e a razão de a liga manter o registro em dia." },
 ];
 let SECAO = "painel";
 const papel = () => $("papel").value;
@@ -122,7 +125,7 @@ function render() {
   $("crumb").textContent = meta.rot;
   $("papel-atual").textContent = { gestao: "PROPPEX", prof: "Orientação / liderança", aluno: "Acadêmico(a)" }[papel()];
   menu();
-  $("tela").innerHTML = ({ painel, ligas, liga, grupos, grupo, renovar })[SECAO]();
+  $("tela").innerHTML = ({ painel, ligas, liga, atividades, grupos, grupo, relatorio, renovar, vitrine })[SECAO]();
 }
 const duvidas = (itens) => `<div class="card" style="border-style:dashed;background:#fbfcfd">
   <div class="card-t">O que esta tela levanta</div>
@@ -179,6 +182,30 @@ function painel() {
     <div class="kv">• Os <b>grupos</b> já são digitados pelos professores nas propostas de Iniciação
       Científica (o campo “grupo de pesquisa DGP/CNPq”, que cresce com o uso). O módulo adota esses
       nomes e transforma cada um num registro — com líder, linhas e os projetos que já estão ligados a ele.</div>
+  </div>
+
+  <div class="card" style="border-color:#cfe6f2;background:var(--info-soft)">
+    <div class="card-t">O que faz este módulo ser usado</div>
+    <div class="card-s">A pergunta do dono: como não virar um cadastro que ninguém abre depois.
+      Três motores, e nenhum deles pede digitação nova.</div>
+    <div class="kv" style="margin-top:8px"><b>1. O registro agrega, não pergunta.</b>
+      A liga não digita atividades: elas chegam da reserva de espaço, da ação de extensão e do
+      evento. O grupo não digita projetos: eles já estão na IC. A ficha se preenche por
+      consequência do uso normal do portal.
+      <a href="#" onclick="ir('atividades');return false">ver →</a></div>
+    <div class="kv" style="margin-top:8px"><b>2. Presença gera horas, horas geram certificado.</b>
+      Cada atividade tem chamada por QR — o mesmo credenciamento do ARCHÉ EV, na escala de uma
+      reunião. O membro acompanha o próprio saldo e recebe o certificado de atividade complementar.
+      É o que traz o aluno de volta toda semana.
+      <a href="#" onclick="ir('atividades');return false">ver →</a></div>
+    <div class="kv" style="margin-top:8px"><b>3. O registro destrava direitos, e a vitrine dá público.</b>
+      Reservar espaço em nome da liga, propor evento, usar a marca, emitir certificado — e aparecer
+      para o calouro. Liga com registro vencido não some: perde essas coisas.
+      <a href="#" onclick="ir('vitrine');return false">ver →</a></div>
+    <div class="kv" style="margin-top:8px"><b>Para os grupos, o motor é a produção.</b>
+      O relatório anual é gerado da planilha do edital de IC e do Lattes que a Avaliação já lê —
+      o documento que hoje ninguém monta sem uma semana de garimpo.
+      <a href="#" onclick="ir('relatorio');return false">ver →</a></div>
   </div>
 
   ${duvidas([
@@ -303,6 +330,106 @@ function liga() {
   ])}`;
 }
 
+/* --------------------- ATIVIDADES E PRESENÇA (o motor) -------------------
+   A pergunta que este protótipo responde: por que alguém voltaria a este
+   módulo depois de cadastrar a liga? Porque é daqui que saem as HORAS, e é
+   das horas que sai o certificado de atividade complementar.
+
+   Nada disso é entidade nova: a atividade da liga é um evento pequeno, e o
+   ARCHÉ EV já sabe gerar QR, ler crachá e contar presença. O que muda é a
+   escala — em vez de um hotsite, uma reunião de quinta-feira. */
+function atividades() {
+  const chamada = [
+    { nome: "Marina Duarte", per: "6º", em: "19:04", horas: 96 },
+    { nome: "João Silveira", per: "5º", em: "19:06", horas: 84 },
+    { nome: "Camila Braga", per: "4º", em: "19:11", horas: 72 },
+    { nome: "Rafael Tavares", per: "2º", em: "19:23", horas: 28 },
+  ];
+  return `
+  <div class="card">
+    <div class="banner ba-ok">Este é o motor do módulo. Sem ele, o registro da liga é um cadastro
+      que ninguém volta a abrir; com ele, a liga usa o ARCHÉ toda semana — e a ficha se preenche
+      sozinha, por consequência do uso.</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div><div class="card-t" style="margin:0">Atividades da Liga Acadêmica Kuma — 2026</div>
+        <div class="card-s" style="margin:2px 0 0">Reunião, grupo de estudo, aula prática, ação externa.
+          Cada uma vale horas para quem esteve presente.</div></div>
+      <button class="bt bt-pri">+ Nova atividade</button>
+    </div>
+    <table class="pt">
+      <tr><th>Data</th><th>Atividade</th><th>Tipo</th><th>CH</th><th>Presentes</th><th>Origem</th><th></th></tr>
+      <tr><td>27/08/2026</td><td><b>Grupo de estudos — psicanálise</b></td><td>Interna</td><td>2h</td>
+        <td>18 de 24</td><td><span class="muted">criada aqui</span></td>
+        <td><span class="badge b-regular">encerrada</span></td></tr>
+      <tr><td>21/08/2026</td><td><b>Acolhida de novos membros</b></td><td>Interna</td><td>3h</td>
+        <td>32</td><td><a href="#">RES-2026-051 · Auditório</a></td>
+        <td><span class="badge b-regular">encerrada</span></td></tr>
+      <tr><td>18/05/2026</td><td><b>Jornada de Psicologia</b></td><td>Evento</td><td>20h</td>
+        <td>214</td><td><a href="#">ARCHÉ EV · página do evento</a></td>
+        <td><span class="badge b-regular">encerrada</span></td></tr>
+      <tr><td>12/05/2026</td><td><b>Cine Pipoca — cinema e clínica</b></td><td>Extensão</td><td>4h</td>
+        <td>68</td><td><a href="#">EXT-2026-042</a></td>
+        <td><span class="badge b-regular">encerrada</span></td></tr>
+    </table>
+    <div class="banner ba-ok" style="margin-top:12px">As três últimas <b>não foram digitadas aqui</b>:
+      vieram da reserva de espaço, do evento e da ação de extensão. O módulo só precisou saber que
+      a liga as promoveu.</div>
+  </div>
+
+  <div class="duplo">
+    <div class="card">
+      <div class="card-t">Chamada aberta — Grupo de estudos, 27/08</div>
+      <div class="card-s">O mesmo credenciamento por QR do ARCHÉ EV, na escala de uma reunião.</div>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:10px 0 14px">
+        <div style="width:120px;height:120px;border:1px solid var(--line);border-radius:12px;
+          display:grid;place-items:center;background:repeating-conic-gradient(#1c3742 0% 25%,#fff 0% 50%) 50%/14px 14px;
+          opacity:.85"></div>
+        <div>
+          <div class="kv"><b>Código da chamada:</b>
+            <span style="font-family:monospace;font-size:18px;letter-spacing:.14em">K7QM4B</span></div>
+          <div class="kv muted">Projete o QR ou dite o código. Quem chega escaneia com o próprio
+            celular — não é preciso app nem cadastro à parte.</div>
+          <div class="exp"><button class="bt bt-sec">Encerrar a chamada</button></div>
+        </div>
+      </div>
+      <div class="card-t" style="font-size:13px">Presentes — 18</div>
+      ${chamada.map((c) => `<div class="pess">
+        <div class="av">${esc(c.nome.split(" ").map((x) => x[0]).slice(0, 2).join(""))}</div>
+        <div><div class="nm">${esc(c.nome)}</div><div class="sb">${c.per} período · chegou às ${c.em}</div></div>
+        <div class="dir"><span style="font-size:12px;color:var(--muted)">${c.horas}h no ano</span></div></div>`).join("")}
+    </div>
+
+    <div class="card">
+      <div class="card-t">Extrato de horas — como o membro vê</div>
+      <div class="card-s">É a tela que traz o aluno de volta. E é o que vira certificado.</div>
+      <div class="stat" style="margin-bottom:14px">
+        <div class="s"><b>96h</b><span>acumuladas em 2026</span></div>
+        <div class="s"><b>14</b><span>atividades</span></div>
+        <div class="s"><b>✓</b><span>mínimo atingido</span></div>
+      </div>
+      <div class="linha"><div class="txt"><div class="p1">Jornada de Psicologia</div>
+        <div class="p2">18 a 20/05 · organização</div></div><span style="font-weight:700;font-size:13px">20h</span></div>
+      <div class="linha"><div class="txt"><div class="p1">Cine Pipoca — cinema e clínica</div>
+        <div class="p2">12/05 · ação de extensão</div></div><span style="font-weight:700;font-size:13px">4h</span></div>
+      <div class="linha"><div class="txt"><div class="p1">Grupos de estudo (11 encontros)</div>
+        <div class="p2">março a agosto</div></div><span style="font-weight:700;font-size:13px">22h</span></div>
+      <div class="linha"><div class="txt"><div class="p1">Acolhida de novos membros</div>
+        <div class="p2">21/08 · organização</div></div><span style="font-weight:700;font-size:13px">3h</span></div>
+      <div class="exp">
+        <button class="bt bt-pri">Emitir certificado de participação</button>
+        <button class="bt bt-ghost">Declaração de atividade complementar</button>
+      </div>
+    </div>
+  </div>
+
+  ${duvidas([
+    "Qual a <b>carga horária mínima</b> anual para o certificado — e ela muda por função (diretoria × membro)?",
+    "A hora da atividade é <b>a mesma para todos</b> os presentes, ou quem organizou conta mais?",
+    "Atividade <b>externa</b> (visita técnica, congresso) entra pelo mesmo caminho, com a liga anexando a lista?",
+    "O certificado é emitido pela <b>liga</b>, pela <b>coordenação do curso</b> ou pela <b>PROPPEX</b>? Quem assina responde por ele.",
+  ])}`;
+}
+
 /* -------------------------------- grupos -------------------------------- */
 function grupos() {
   return `
@@ -415,6 +542,111 @@ function grupo() {
     "O <b>relatório anual do grupo</b> deve ser exigido, como acontece com os projetos de IC?",
     "A produção conta por <b>membro</b> (somando tudo) ou só a produção <b>vinculada à linha</b> do grupo?",
     "Vale mostrar o grupo na <b>vitrine pública</b> da pesquisa, ao lado dos editais e resultados?",
+  ])}`;
+}
+
+/* ------------------ RELATÓRIO ANUAL DO GRUPO (gerado) --------------------
+   O grupo de pesquisa não digita produção. Ela já está no ARCHÉ em dois
+   lugares: a planilha de produção que os professores preenchem no edital de
+   IC (30 itens, 2022–2026) e o XML do Lattes que o módulo de Avaliação lê.
+   O relatório é a soma disso por grupo — e é o documento que hoje ninguém
+   consegue montar sem uma semana de garimpo. */
+function relatorio() {
+  return `
+  <div class="card">
+    <div class="banner ba-ok">Nada nesta página foi digitado por alguém. Tudo veio do que já
+      existe: os projetos da Iniciação Científica, a planilha de produção do edital e o currículo
+      Lattes que o módulo de Avaliação já importa.</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div><div class="card-t" style="margin:0">Solos, Microbiologia e Sustentabilidade Agrícola</div>
+        <div class="card-s" style="margin:2px 0 0">Relatório do grupo · exercício 2026 ·
+          líder: Prof. Dr. Jadson Belém de Moura</div></div>
+      <button class="bt bt-pri">Gerar o relatório em PDF</button>
+    </div>
+  </div>
+
+  <div class="duplo">
+    <div class="card">
+      <div class="card-t">De onde vem cada número</div>
+      <div class="card-s">A procedência importa: o avaliador pergunta.</div>
+      <div class="linha"><div class="txt"><div class="p1">9 projetos de Iniciação Científica</div>
+        <div class="p2">ARCHÉ IC · campo "grupo de pesquisa" da proposta</div></div></div>
+      <div class="linha"><div class="txt"><div class="p1">34 produções (2022–2026)</div>
+        <div class="p2">planilha do edital de IC + Lattes dos membros</div></div></div>
+      <div class="linha"><div class="txt"><div class="p1">6 bolsistas orientados</div>
+        <div class="p2">ARCHÉ IC · indicações de bolsista</div></div></div>
+      <div class="linha"><div class="txt"><div class="p1">4 ações de extensão vinculadas</div>
+        <div class="p2">ARCHÉ EX · ações propostas por membros do grupo</div></div></div>
+      <div class="linha"><div class="txt"><div class="p1">11 reuniões lavradas</div>
+        <div class="p2">ARCHÉ AT · o grupo como órgão que registra ata</div></div></div>
+    </div>
+    <div class="card">
+      <div class="card-t">O que o líder precisa escrever</div>
+      <div class="card-s">Só o que o sistema não sabe — e é pouco, de propósito.</div>
+      <label>Síntese do ano *</label>
+      <textarea style="min-height:70px" placeholder="O que o grupo consolidou, o que mudou de rumo"></textarea>
+      <label>Metas para o ano seguinte</label>
+      <textarea style="min-height:60px"></textarea>
+      <label>Parcerias e captação de recursos</label>
+      <textarea style="min-height:60px" placeholder="Editais submetidos, convênios, fomento externo"></textarea>
+      <div class="banner ba-warn" style="margin-top:12px">Se o relatório pedisse a lista de
+        publicações à mão, ninguém o entregaria — e é isso que acontece hoje.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-t">Produção do grupo — evolução</div>
+    <div class="card-s">A mesma janela do edital de IC (2022–2026), somada por ano.</div>
+    ${[["2022", 4], ["2023", 6], ["2024", 7], ["2025", 9], ["2026", 8]].map(([a, n]) =>
+      `<div class="barra"><div class="cab"><span>${a}</span><span>${n} produções</span></div>
+        <div class="tr"><i style="width:${n * 10}%;background:#8a6d3b"></i></div></div>`).join("")}
+  </div>
+
+  ${duvidas([
+    "O relatório do grupo deve ser <b>obrigatório e anual</b>, como o dos projetos de IC — com cobrança automática?",
+    "A produção conta a de <b>todos os membros</b>, ou só a que declara vínculo com a linha do grupo?",
+    "O grupo pode ser um <b>órgão no ARCHÉ AT</b>, lavrando ata das suas reuniões? Isso resolveria a comprovação de atividade regular.",
+  ])}`;
+}
+
+/* ---------------------------- VITRINE PÚBLICA ---------------------------
+   O terceiro motor: quem procura. O calouro escolhe liga no primeiro mês de
+   aula, e a liga quer aparecer — é o que faz o registro se manter em dia sem
+   ninguém cobrar. Sem dado pessoal: nomes de diretoria e contato institucional,
+   nada de telefone ou e-mail de estudante. */
+function vitrine() {
+  return `
+  <div class="card">
+    <div class="banner ba-ok">Página pública, sem login — no mesmo lugar das vitrines que já
+      existem (<b>/ic</b> para editais e resultados, <b>/eventos</b> para os eventos).</div>
+    <div class="card-t">arche.app.br/ligas</div>
+    <div class="card-s">O que o calouro vê ao procurar a liga do seu curso.</div>
+    <div class="grelha" style="margin-top:14px">
+      ${LIGAS.filter((l) => l.situacao !== "irregular").map((l) => `<div class="lg">
+        <div class="sig" style="background:${l.cor}">${esc(l.sigla)}</div>
+        <div class="nm">${esc(l.nome)}</div>
+        <div class="cs">${esc(l.curso)} · desde ${l.fundacao.slice(0, 4)}</div>
+        <div class="cs" style="margin-top:6px">${l.membros} membros · ${l.atividades} atividades em 2026</div>
+        <div class="rod"><span class="badge b-regular">inscrições abertas</span></div></div>`).join("")}
+    </div>
+    <div class="banner ba-warn" style="margin-top:14px">A Liga de Direito Animal <b>não aparece</b>:
+      o registro dela venceu. É esta ausência que faz a renovação acontecer sem ninguém cobrar.</div>
+  </div>
+
+  <div class="card">
+    <div class="card-t">O que a vitrine devolve à instituição</div>
+    <div class="card-s">Além de servir ao estudante.</div>
+    <div class="kv">• <b>Indicador de apoio ao discente</b>: o INEP pergunta pelas oportunidades
+      oferecidas fora da sala de aula, e a lista viva responde melhor que um texto no PPC.</div>
+    <div class="kv">• <b>Captação</b>: a página do curso ganha o que ele oferece de vida acadêmica.</div>
+    <div class="kv">• <b>Pressão saudável</b>: liga que quer aparecer mantém o cadastro em dia,
+      e o número de membros e de atividades é público.</div>
+  </div>
+
+  ${duvidas([
+    "A vitrine mostra <b>como entrar</b> na liga — formulário no ARCHÉ, ou só o contato da diretoria?",
+    "Os <b>grupos de pesquisa</b> também entram na vitrine, ou ficam só no ARCHÉ IC?",
+    "Que dado da liga é <b>público</b>: número de membros, sim; nomes, não. Confere?",
   ])}`;
 }
 

@@ -1255,7 +1255,13 @@ public/
   final, o discente depois da avaliação pela coordenação e pela pró-reitoria.
 - **Protótipos** (`/prototipos/`, atrás de login): telas navegáveis com dados fictícios, para
   decidir o desenho ANTES de escrever o módulo. Nada ali grava nada, e cada tela termina com
-  as perguntas que levanta. Hoje: Monitoria (MO) e Ligas e Grupos de Pesquisa (LG).
+  as perguntas que levanta. Hoje: Monitoria (MO) e Ligas e Grupos de Pesquisa (LG). O protótipo do
+  LG carrega a resposta a "como isso não vira um cadastro morto": **o registro agrega em vez
+  de perguntar** (a atividade da liga chega da reserva de espaço, da ação de extensão e do
+  evento; os projetos do grupo já estão na IC), **a presença por QR vira horas e as horas
+  viram certificado** de atividade complementar (é o que traz o aluno toda semana), **o
+  registro destrava direitos** e a vitrine pública dá público — e, nos grupos, o relatório
+  anual é GERADO da planilha de produção do edital de IC e do Lattes que a Avaliação já lê.
 
 ## Identidade visual
 
