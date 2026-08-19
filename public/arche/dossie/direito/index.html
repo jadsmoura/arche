@@ -2608,13 +2608,20 @@ window.addEventListener('pagehide', function(){
   function enxugarParaAvaliador() {
     var av = ehAvaliador();
 
-    // a barra de comprovação é a medida de quanto FALTA anexar: some para ele
-    var prog = document.querySelector(".dash-progress");
-    if (prog) prog.style.display = av ? "none" : "";
-    // sem a barra, a fila ficaria sozinha à esquerda com meia tela de vazio ao
-    // lado; encostada à direita ela guarda o lugar que sempre teve
-    var fila = document.getElementById("queueBox");
-    if (fila) fila.style.marginLeft = av ? "auto" : "";
+    /* A FAIXA INTEIRA sai para ele (pedido do dono, ago/2026): a barra é a
+       medida de quanto FALTA anexar, e a fila "0 aguardando sua validação"
+       é da PROPPEX — para o avaliador ela passa o tempo todo em zero, um
+       retângulo cinza ocupando meia tela para não dizer nada. Some a linha
+       toda; o que fica no cartão é a contagem por tipo, encostada no topo
+       (sem ela, o filete e o respiro de cima sobrariam soltos). */
+    var grid = document.querySelector(".dash-grid");
+    if (grid) grid.style.display = av ? "none" : "";
+    var agg0 = document.getElementById("catagg");
+    if (agg0) {
+      agg0.style.borderTop = av ? "none" : "";
+      agg0.style.marginTop = av ? "0" : "";
+      agg0.style.paddingTop = av ? "0" : "";
+    }
     if (!av) return;   // para a gestão, o que o app desenhou é o que vale
 
     var itens = professors.reduce(function (s, p) { return s.concat(profItems(p)); }, []);
