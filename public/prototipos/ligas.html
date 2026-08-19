@@ -108,7 +108,7 @@ const SECOES = [
   { k: "grupo", rot: "Ficha do grupo", tit: "Solos, Microbiologia e Sustentabilidade Agrícola", sub: "Ciências Agrárias · líder: Prof. Dr. Jadson Belém de Moura" },
   { k: "relatorio", rot: "Relatório do grupo", tit: "Relatório anual do grupo", sub: "Gerado do que já existe no ARCHÉ — ninguém digita produção duas vezes." },
   { k: "renovar", rot: "Registro e renovação", tit: "Registro e renovação anual", sub: "O que a liga entrega para continuar existindo no ano seguinte." },
-  { k: "vitrine", rot: "Vitrine pública", tit: "Vitrine pública", sub: "O que o calouro vê — e a razão de a liga manter o registro em dia." },
+  { k: "vitrine", rot: "Vitrines públicas", tit: "Vitrines públicas", sub: "Duas páginas separadas — /ligas para o calouro, /grupos para quem procura pesquisa. Nenhuma delas dentro do /ic." },
 ];
 let SECAO = "painel";
 const papel = () => $("papel").value;
@@ -541,7 +541,8 @@ function grupo() {
   ${duvidas([
     "O <b>relatório anual do grupo</b> deve ser exigido, como acontece com os projetos de IC?",
     "A produção conta por <b>membro</b> (somando tudo) ou só a produção <b>vinculada à linha</b> do grupo?",
-    "Vale mostrar o grupo na <b>vitrine pública</b> da pesquisa, ao lado dos editais e resultados?",
+    "O grupo tem <b>vitrine própria</b> (<b>/grupos</b>, decidido) — separada do /ic, que é dos editais. "
+      + "Que dado sai lá: linhas e produção, sim; e os projetos de IC, com ou sem o nome do bolsista?",
   ])}`;
 }
 
@@ -613,14 +614,23 @@ function relatorio() {
    O terceiro motor: quem procura. O calouro escolhe liga no primeiro mês de
    aula, e a liga quer aparecer — é o que faz o registro se manter em dia sem
    ninguém cobrar. Sem dado pessoal: nomes de diretoria e contato institucional,
-   nada de telefone ou e-mail de estudante. */
+   nada de telefone ou e-mail de estudante.
+
+   São DUAS páginas, e não uma (decisão do dono, ago/2026): as ligas e os
+   grupos de pesquisa têm público diferente — o calouro procura liga, o
+   pesquisador e o avaliador procuram grupo —, e nenhuma das duas entra na
+   vitrine da IC (/ic), que é dos EDITAIS e dos RESULTADOS. Misturar registro
+   permanente com processo seletivo daria "pauta para confusão": quem chega
+   para ver o resultado do edital acharia que grupo e liga também se
+   inscreveram em alguma coisa. */
 function vitrine() {
   return `
   <div class="card">
-    <div class="banner ba-ok">Página pública, sem login — no mesmo lugar das vitrines que já
-      existem (<b>/ic</b> para editais e resultados, <b>/eventos</b> para os eventos).</div>
+    <div class="banner ba-ok">Duas páginas públicas, sem login, <b>separadas da vitrine da IC</b>
+      (<b>/ic</b> continua sendo só editais e resultados). Elas convivem com as que já existem —
+      <b>/eventos</b> para os eventos —, cada uma com o seu público.</div>
     <div class="card-t">arche.app.br/ligas</div>
-    <div class="card-s">O que o calouro vê ao procurar a liga do seu curso.</div>
+    <div class="card-s">Para o ESTUDANTE: o calouro procurando a liga do seu curso.</div>
     <div class="grelha" style="margin-top:14px">
       ${LIGAS.filter((l) => l.situacao !== "irregular").map((l) => `<div class="lg">
         <div class="sig" style="background:${l.cor}">${esc(l.sigla)}</div>
@@ -634,19 +644,55 @@ function vitrine() {
   </div>
 
   <div class="card">
-    <div class="card-t">O que a vitrine devolve à instituição</div>
-    <div class="card-s">Além de servir ao estudante.</div>
+    <div class="card-t">arche.app.br/grupos</div>
+    <div class="card-s">Para o PESQUISADOR e para o AVALIADOR: quem pesquisa o quê no UNIEGO —
+      a página que hoje só existe no DGP/CNPq, sem dizer o que o grupo produziu aqui dentro.</div>
+    <div class="grelha" style="margin-top:14px">
+      ${GRUPOS.map((g) => `<div class="lg">
+        <div class="sig" style="background:${g.cor}">${esc(g.sigla)}</div>
+        <div class="nm">${esc(g.nome)}</div>
+        <div class="cs">${esc(g.area)} · desde ${esc(g.desde)}</div>
+        <div class="cs" style="margin-top:6px">${g.linhas} linhas de pesquisa ·
+          ${g.docentes + g.discentes} pesquisadores · ${g.producao} produções</div>
+        <div class="cs" style="margin-top:6px">Líder: ${esc(g.lider)}</div>
+        <div class="rod"><span class="badge ${g.dgp === "certificado" ? "b-regular" : "b-pendente"}">
+          DGP/CNPq · ${esc(g.dgp)}</span></div></div>`).join("")}
+    </div>
+    <div class="banner" style="margin-top:14px">O que a página do grupo abre: as
+      <b>linhas de pesquisa</b>, os <b>projetos de IC</b> vinculados (que já estão no ARCHÉ) e a
+      <b>produção do quinquênio</b> — sem e-mail, sem CPF, sem nota de avaliação. O interessado em
+      pesquisar chega ao líder pelo canal institucional, não pelo contato pessoal dele.</div>
+  </div>
+
+  <div class="card">
+    <div class="card-t">Por que duas páginas, e nenhuma delas dentro do /ic</div>
+    <div class="card-s">A pergunta que cada visitante traz é diferente — e é a pergunta que decide
+      onde a informação mora.</div>
+    <div class="kv">• <b>/ic</b> responde "o edital saiu? fui aprovado?" — é <b>processo</b>, com
+      começo, meio e fim a cada ciclo.</div>
+    <div class="kv">• <b>/ligas</b> responde "de que liga eu participo?" — é <b>convite</b>, e o
+      público é o estudante que ainda não entrou.</div>
+    <div class="kv">• <b>/grupos</b> responde "quem pesquisa o quê aqui?" — é <b>registro
+      permanente</b>, e o público é o pesquisador de fora, o avaliador do INEP e quem procura
+      orientação de mestrado.</div>
+  </div>
+
+  <div class="card">
+    <div class="card-t">O que as vitrines devolvem à instituição</div>
+    <div class="card-s">Além de servir a quem procura.</div>
     <div class="kv">• <b>Indicador de apoio ao discente</b>: o INEP pergunta pelas oportunidades
       oferecidas fora da sala de aula, e a lista viva responde melhor que um texto no PPC.</div>
+    <div class="kv">• <b>Política de pesquisa comprovada</b>: grupo certificado, com linhas,
+      pesquisadores e produção à vista, é o que o instrumento cobra da IES.</div>
     <div class="kv">• <b>Captação</b>: a página do curso ganha o que ele oferece de vida acadêmica.</div>
-    <div class="kv">• <b>Pressão saudável</b>: liga que quer aparecer mantém o cadastro em dia,
+    <div class="kv">• <b>Pressão saudável</b>: quem quer aparecer mantém o cadastro em dia,
       e o número de membros e de atividades é público.</div>
   </div>
 
   ${duvidas([
     "A vitrine mostra <b>como entrar</b> na liga — formulário no ARCHÉ, ou só o contato da diretoria?",
-    "Os <b>grupos de pesquisa</b> também entram na vitrine, ou ficam só no ARCHÉ IC?",
     "Que dado da liga é <b>público</b>: número de membros, sim; nomes, não. Confere?",
+    "Na página do grupo, os <b>projetos de IC</b> saem com o nome do bolsista, ou só título e orientação?",
   ])}`;
 }
 
