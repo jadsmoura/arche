@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protótipo · ARCHÉ MO — Monitoria Acadêmica</title>
+<link rel="icon" href="/arche/favicon.svg">
+<link rel="stylesheet" href="/prototipos/proto.css">
+</head>
+<body>
+<div class="app">
+  <nav class="side">
+    <a class="side-marca" href="/prototipos/" title="Voltar aos protótipos">
+      <svg width="24" height="24" viewBox="0 0 40 40" aria-hidden="true"><path d="M8 37 L8 20 A12 12 0 0 1 32 20 L32 37" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/><circle cx="20" cy="21" r="4" fill="#71c8e2"/></svg>
+      <span>ARCHÉ <b>MO</b></span>
+    </a>
+    <div class="side-nav">
+      <div class="side-lab">MONITORIA</div>
+      <div id="menu"></div>
+    </div>
+    <div class="side-pe">
+      <div class="av">JB</div>
+      <div><div class="nm">Jadson Belem</div><div class="pp" id="papel-atual">Coordenação de curso</div></div>
+    </div>
+  </nav>
+
+  <div class="conteudo">
+    <div class="topbar">
+      <div class="crumb">ARCHÉ MO <span style="color:var(--muted-2)">/</span> <b id="crumb">Painel</b></div>
+      <div class="dir">
+        <span style="font-size:12px">ver como:</span>
+        <select id="papel" onchange="render()" style="width:auto;padding:5px 8px;font-size:12.5px">
+          <option value="coord">Coordenação de curso</option>
+          <option value="prof">Professor orientador</option>
+          <option value="aluno">Monitor(a)</option>
+          <option value="diac">Diretoria Acadêmica</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="area"><div class="limite">
+      <h1 id="titulo">Painel</h1>
+      <div class="sub" id="subtitulo"></div>
+      <div class="aviso-proto">
+        <b>Protótipo para discussão — nada aqui é gravado.</b> Os dados são fictícios.
+        As regras seguem o <b>Edital 01/2025 · DIAC — Programa de Monitoria Acadêmica</b>:
+        o projeto é do professor, a análise é da coordenação de curso, a seleção só existe
+        havendo mais candidatos que vagas, e a certificação passa pela Diretoria Acadêmica.
+      </div>
+      <div id="tela"></div>
+    </div></div>
+  </div>
+</div>
+
+<script>
+/* =======================================================================
+   PROTÓTIPO ARCHÉ MO — Monitoria Acadêmica.
+   Tela estática, sem servidor: serve para discutir o DESENHO do módulo —
+   quais entidades existem, quem faz o quê e onde cada decisão acontece.
+   Cada tela tem, no rodapé, as perguntas que ela levanta.
+   ======================================================================= */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ---- dados fictícios, no shape que o módulo teria ---- */
+const CICLO = { codigo: "2026/2", rotulo: "Monitoria 2026/2",
+  etapas: [
+    { t: "Submissão dos projetos", quem: "Professor orientador", ate: "2026-08-01", feita: true },
+    { t: "Análise dos projetos", quem: "Coordenação de curso", ate: "2026-08-10", feita: true },
+    { t: "Publicação do resultado", quem: "Coordenação de curso", ate: "2026-08-11", agora: true },
+    { t: "Entrega do relatório final", quem: "Professor orientador", ate: "2026-12-15" },
+    { t: "Encaminhamento à certificação", quem: "Coordenação de curso", ate: "2026-12-20" },
+    { t: "Emissão dos certificados", quem: "Diretoria Acadêmica", ate: "2026-12-22" },
+  ] };
+
+const PROJETOS = [
+  { id: "p1", protocolo: "MON-2026-014", disciplina: "Anatomia Humana I", periodo: "1º período",
+    curso: "Enfermagem", professor: "Profa. Talita Ribeiro", status: "aprovado", vagas: 2,
+    ch: 8, candidatos: 3, monitores: [
+      { nome: "Ana Beatriz Costa", periodo: "4º", nota: 9.2, situacao: "ativo", freq: 92 },
+      { nome: "Lucas Meireles", periodo: "3º", nota: 8.7, situacao: "ativo", freq: 78 },
+    ],
+    justificativa: "A disciplina concentra o maior índice de reprovação do primeiro período; o monitor apoia os plantões de dúvidas e os roteiros de laboratório.",
+    plano: ["Plantão de dúvidas às terças, 18h–20h", "Apoio nas aulas práticas de laboratório",
+      "Organização de roteiros de estudo por sistema", "Registro de frequência dos atendimentos"] },
+  { id: "p2", protocolo: "MON-2026-015", disciplina: "Cálculo I", periodo: "1º período",
+    curso: "Engenharia Civil", professor: "Prof. Alessandro Nunes", status: "selecao", vagas: 1,
+    ch: 6, candidatos: 4, monitores: [],
+    justificativa: "Turma de 62 alunos com defasagem em pré-cálculo.",
+    plano: ["Lista semanal comentada", "Plantão às quintas, 17h–19h"] },
+  { id: "p3", protocolo: "MON-2026-016", disciplina: "Direito Civil III", periodo: "5º período",
+    curso: "Direito", professor: "Profa. Luana Prado", status: "submetido", vagas: 1,
+    ch: 8, candidatos: 1, monitores: [],
+    justificativa: "Apoio à prática de peças processuais.",
+    plano: ["Correção comentada de peças", "Apoio ao NPJ"] },
+  { id: "p4", protocolo: "MON-2026-017", disciplina: "Bioquímica", periodo: "2º período",
+    curso: "Odontologia", professor: "Profa. Alyne Ferreira", status: "devolvido", vagas: 2,
+    ch: 8, candidatos: 0, monitores: [],
+    motivo: "O plano de trabalho não distingue as atribuições dos dois monitores — o edital exige plano específico para cada um (item 2.4).",
+    justificativa: "Apoio às práticas laboratoriais.", plano: ["Apoio ao laboratório"] },
+  { id: "p5", protocolo: "MON-2026-018", disciplina: "Psicologia do Desenvolvimento", periodo: "3º período",
+    curso: "Psicologia", professor: "Prof. Rogério Alves", status: "aprovado", vagas: 1,
+    ch: 6, candidatos: 2, monitores: [{ nome: "Marina Duarte", periodo: "6º", nota: 9.8, situacao: "ativo", freq: 100 }],
+    justificativa: "Apoio aos seminários e à leitura dirigida.", plano: ["Grupos de estudo quinzenais"] },
+];
+
+const CANDIDATOS = [
+  { nome: "Ana Beatriz Costa", periodo: "4º", notaDisciplina: 9.2, cursando: false,
+    matricula: "2024013455", disponibilidade: "Ter e Qui, 18h–20h", situacao: "selecionado",
+    entrevista: 9.5, doc: true },
+  { nome: "Lucas Meireles", periodo: "3º", notaDisciplina: 8.7, cursando: false,
+    matricula: "2024011098", disponibilidade: "Seg e Qua, 18h–20h", situacao: "selecionado",
+    entrevista: 8.8, doc: true },
+  { nome: "Rafael Tavares", periodo: "2º", notaDisciplina: null, cursando: true,
+    matricula: "2026004411", disponibilidade: "Sex, 14h–18h", situacao: "inapto",
+    entrevista: null, doc: false },
+];
+
+const ROTULO = { rascunho: "Rascunho", submetido: "Aguardando análise", aprovado: "Aprovado",
+  devolvido: "Devolvido para ajustes", selecao: "Em seleção", concluido: "Concluído" };
+
+const SECOES = [
+  { k: "painel", rot: "Painel", tit: "Painel da monitoria", sub: "O ciclo, o que falta e o que espera decisão." },
+  { k: "projetos", rot: "Projetos", tit: "Projetos de monitoria", sub: "Um projeto por disciplina, proposto pelo professor e analisado pela coordenação." },
+  { k: "novo", rot: "Novo projeto", tit: "Novo projeto de monitoria", sub: "O que o edital pede do professor — e o plano de trabalho por monitor." },
+  { k: "selecao", rot: "Seleção", tit: "Seleção de monitores", sub: "Só existe havendo mais candidatos que vagas. A entrevista é do professor." },
+  { k: "monitores", rot: "Monitores", tit: "Monitores e frequência", sub: "Quem está ativo, a carga horária cumprida e o que o certificado vai dizer." },
+  { k: "relatorio", rot: "Relatório e certificação", tit: "Relatório final e certificação", sub: "O relatório é do professor; o certificado do aluno passa pela Diretoria Acadêmica." },
+];
+let SECAO = "painel";
+const papel = () => $("papel").value;
+
+function menu() {
+  $("menu").innerHTML = SECOES.map((s) => `<button class="side-item${s.k === SECAO ? " on" : ""}"
+    onclick="ir('${s.k}')"><span>${s.rot}</span></button>`).join("");
+}
+function ir(k) { SECAO = k; render(); window.scrollTo(0, 0); }
+
+function render() {
+  const meta = SECOES.find((s) => s.k === SECAO);
+  $("titulo").textContent = meta.tit;
+  $("subtitulo").textContent = meta.sub;
+  $("crumb").textContent = meta.rot;
+  $("papel-atual").textContent = { coord: "Coordenação de curso", prof: "Professor orientador",
+    aluno: "Monitor(a)", diac: "Diretoria Acadêmica" }[papel()];
+  menu();
+  $("tela").innerHTML = ({ painel, projetos, novo, selecao, monitores, relatorio })[SECAO]();
+}
+
+const duvidas = (itens) => `<div class="card" style="border-style:dashed;background:#fbfcfd">
+  <div class="card-t">O que esta tela levanta</div>
+  <div class="card-s">Pontos a decidir antes de implementar.</div>
+  ${itens.map((t) => `<div class="kv">• ${t}</div>`).join("")}</div>`;
+
+/* -------------------------------- painel -------------------------------- */
+function painel() {
+  const kpi = (l, v, d, cor) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div>
+    <div class="d" style="color:${cor || "var(--muted)"}">${d}</div></div>`;
+  const meu = papel() === "prof";
+  return `
+  <div class="kpis">
+    ${kpi("Projetos no ciclo", meu ? 2 : 5, meu ? "seus projetos" : "de 12 cursos")}
+    ${kpi("Aguardando análise", 1, "coordenação de curso", "var(--info)")}
+    ${kpi("Em seleção", 1, "mais candidatos que vagas", "var(--roxo)")}
+    ${kpi("Monitores ativos", 3, "com plano de trabalho", "var(--ok)")}
+    ${kpi("Relatórios pendentes", 3, "prazo: 15/12", "var(--warn)")}
+  </div>
+
+  <div class="duplo">
+    <div class="card">
+      <div class="card-t">Cronograma do ciclo ${CICLO.codigo}</div>
+      <div class="card-s">Cada etapa tem um responsável diferente — é o que o edital fixa.</div>
+      <div class="crono">
+        ${CICLO.etapas.map((e) => `<div class="etapa ${e.feita ? "feita" : e.agora ? "agora" : ""}">
+          <div class="t">${e.t}</div>
+          <div class="q">${e.quem} · até ${e.ate.split("-").reverse().join("/")}</div>
+        </div>`).join("")}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-t">Precisa de você</div>
+      <div class="card-s">${papel() === "coord" ? "Como coordenação de curso" : papel() === "prof" ? "Como professor orientador" : papel() === "diac" ? "Como Diretoria Acadêmica" : "Como monitor(a)"}</div>
+      ${papel() === "coord" ? `
+        <div class="linha"><div class="txt"><div class="p1">Direito Civil III — analisar projeto</div>
+          <div class="p2">Profa. Luana Prado · submetido há 3 dias</div></div>
+          <span class="badge b-submetido">análise</span></div>
+        <div class="linha"><div class="txt"><div class="p1">Publicar o resultado do ciclo</div>
+          <div class="p2">4 projetos aprovados · prazo 11/08</div></div>
+          <span class="badge b-pendente">hoje</span></div>` : ""}
+      ${papel() === "prof" ? `
+        <div class="linha"><div class="txt"><div class="p1">Cálculo I — 4 candidatos para 1 vaga</div>
+          <div class="p2">Entrevista presencial pendente</div></div>
+          <span class="badge b-selecao">seleção</span></div>
+        <div class="linha"><div class="txt"><div class="p1">Bioquímica — projeto devolvido</div>
+          <div class="p2">Plano de trabalho por monitor (item 2.4)</div></div>
+          <span class="badge b-devolvido">corrigir</span></div>` : ""}
+      ${papel() === "diac" ? `
+        <div class="linha"><div class="txt"><div class="p1">3 certificados aguardando emissão</div>
+          <div class="p2">Relatórios já avaliados pelas coordenações</div></div>
+          <span class="badge b-aprovado">emitir</span></div>` : ""}
+      ${papel() === "aluno" ? `
+        <div class="linha"><div class="txt"><div class="p1">Anatomia Humana I — frequência de agosto</div>
+          <div class="p2">Registre os atendimentos da semana</div></div>
+          <span class="badge b-pendente">pendente</span></div>` : ""}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-t">Monitoria por curso — ciclo ${CICLO.codigo}</div>
+    <div class="card-s">O número que a Diretoria Acadêmica leva ao conselho, e que o INEP pergunta como apoio ao discente.</div>
+    ${[["Enfermagem", 2, 3], ["Engenharia Civil", 1, 0], ["Direito", 1, 0], ["Odontologia", 1, 0], ["Psicologia", 1, 1]]
+      .map(([c, p, m]) => `<div class="barra"><div class="cab"><span>${c}</span>
+        <span>${p} projeto(s) · ${m} monitor(es)</span></div>
+        <div class="tr"><i style="width:${p * 20}%;background:var(--brand-3)"></i></div></div>`).join("")}
+  </div>
+
+  ${duvidas([
+    "O ciclo é <b>semestral</b> (2026/1, 2026/2), como o edital sugere, ou anual?",
+    "A monitoria vale <b>atividade complementar</b> (item 1.3) — o ARCHÉ deve calcular e declarar essas horas?",
+    "A PROPPEX enxerga este setor, ou ele é exclusivo da <b>DIAC e das coordenações</b>?",
+  ])}`;
+}
+
+/* ------------------------------- projetos ------------------------------- */
+function projetos() {
+  const lista = papel() === "prof" ? PROJETOS.filter((p) => p.professor.includes("Talita") || p.status === "devolvido") : PROJETOS;
+  return `
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div><div class="card-t" style="margin:0">${lista.length} projeto(s) · ciclo ${CICLO.codigo}</div>
+        <div class="card-s" style="margin:2px 0 0">Um projeto por disciplina. O professor propõe; a coordenação do curso analisa.</div></div>
+      <button class="bt bt-pri" onclick="ir('novo')">+ Novo projeto</button>
+    </div>
+    <table class="pt">
+      <tr><th>Protocolo</th><th>Disciplina</th><th>Curso</th><th>Professor</th>
+        <th>Vagas</th><th>CH/sem</th><th>Situação</th></tr>
+      ${lista.map((p) => `<tr style="cursor:pointer" onclick="ir('selecao')">
+        <td><b>${p.protocolo}</b></td>
+        <td>${esc(p.disciplina)}<div class="p2" style="font-size:11.5px;color:var(--muted)">${p.periodo}</div></td>
+        <td>${esc(p.curso)}</td><td>${esc(p.professor)}</td>
+        <td>${p.monitores.length}/${p.vagas}</td><td>${p.ch}h</td>
+        <td><span class="badge b-${p.status}">${ROTULO[p.status]}</span></td></tr>`).join("")}
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-t">Ficha do projeto — ${PROJETOS[0].protocolo}</div>
+    <div class="card-s">${PROJETOS[0].disciplina} · ${PROJETOS[0].curso} · ${PROJETOS[0].professor}</div>
+    <div class="kv"><b>Justificativa:</b> ${PROJETOS[0].justificativa}</div>
+    <div class="kv" style="margin-top:10px"><b>Plano de trabalho</b> — Ana Beatriz Costa</div>
+    ${PROJETOS[0].plano.map((x) => `<div class="kv" style="margin-left:12px">• ${x}</div>`).join("")}
+    <div class="kv" style="margin-top:10px"><b>Plano de trabalho</b> — Lucas Meireles
+      <span class="muted">(o edital exige um plano por monitor — item 2.4)</span></div>
+    <div class="kv" style="margin-left:12px">• Plantão de dúvidas às quintas, 18h–20h</div>
+    <div class="kv" style="margin-left:12px">• Apoio à correção dos roteiros</div>
+    <div class="exp">
+      <button class="bt bt-ok">✓ Aprovar projeto</button>
+      <button class="bt bt-warn">↩ Devolver para ajustes</button>
+      <button class="bt bt-ghost">Baixar o projeto em PDF</button>
+    </div>
+  </div>
+
+  ${duvidas([
+    "O projeto deve <b>reaproveitar o do semestre anterior</b> com um clique? A maioria se repete.",
+    "A <b>disciplina</b> vem de uma lista (a matriz do curso) ou é texto livre? Lista agrupa; texto livre não.",
+    "Devolver deve <b>avisar o professor por e-mail</b>, como na Extensão?",
+  ])}`;
+}
+
+/* -------------------------------- novo ---------------------------------- */
+function novo() {
+  return `
+  <div class="card">
+    <div class="card-t">1. A disciplina</div>
+    <div class="card-s">O edital limita o projeto às disciplinas sob responsabilidade do professor (item 2.1).</div>
+    <div class="grid3">
+      <div><label>Curso *</label><select><option>Enfermagem</option><option>Direito</option><option>Odontologia</option></select></div>
+      <div><label>Disciplina *</label><select><option>Anatomia Humana I</option><option>Fisiologia</option><option>Semiologia</option></select></div>
+      <div><label>Período da matriz *</label><select><option>1º período</option><option>2º período</option></select></div>
+    </div>
+    <div class="grid3">
+      <div><label>Vagas de monitoria *</label><input type="number" value="2" min="1"></div>
+      <div><label>Carga horária semanal *</label><input type="number" value="8" min="1"></div>
+      <div><label>Modalidade</label><input value="Presencial" disabled></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-t">2. O projeto de ensino</div>
+    <div class="card-s">É o que a coordenação analisa.</div>
+    <label>Justificativa *</label><textarea placeholder="Por que esta disciplina precisa de monitoria"></textarea>
+    <label>Objetivos *</label><textarea style="min-height:60px"></textarea>
+    <label>Metodologia *</label><textarea style="min-height:60px"></textarea>
+    <label>Como a monitoria será avaliada *</label><textarea style="min-height:60px"></textarea>
+  </div>
+
+  <div class="card">
+    <div class="card-t">3. Monitores indicados e plano de trabalho</div>
+    <div class="card-s">O professor indica o candidato ao entregar o projeto (item 2.3). Cada monitor
+      tem o seu plano — é o que o item 2.4 exige para o projeto ter mais de um.</div>
+    <div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px">
+      <div class="grid3">
+        <div><label>Aluno indicado *</label><input value="Ana Beatriz Costa" placeholder="nome ou matrícula"></div>
+        <div><label>Período</label><input value="4º"></div>
+        <div><label>Nota na disciplina</label><input value="9,2"></div>
+      </div>
+      <label>Plano de trabalho deste monitor *</label>
+      <textarea style="min-height:70px">Plantão de dúvidas às terças, 18h–20h; apoio nas aulas práticas de laboratório.</textarea>
+      <div class="banner ba-ok" style="margin:10px 0 0">✓ Requisitos conferidos: matriculado no curso,
+        aprovado na disciplina (9,2) e sem reprovação anterior em monitoria.</div>
+    </div>
+    <button class="bt bt-sec">+ Outro monitor</button>
+  </div>
+
+  <div class="card">
+    <div class="card-t">4. Documentos do candidato</div>
+    <div class="card-s">O edital pede na inscrição (item 3.2).</div>
+    <div class="pess"><div class="av">1</div>
+      <div><div class="nm">Comprovante de matrícula</div><div class="sb">do período letivo corrente</div></div>
+      <div class="dir"><span class="badge b-aprovado">anexado</span></div></div>
+    <div class="pess"><div class="av">2</div>
+      <div><div class="nm">Declaração de disponibilidade</div>
+        <div class="sb">assinada pelo acadêmico, com as horas semanais</div></div>
+      <div class="dir"><button class="bt bt-sec" style="padding:5px 10px;font-size:12px">gerar e assinar</button></div></div>
+  </div>
+
+  <div class="exp">
+    <button class="bt bt-pri">Enviar à coordenação do curso</button>
+    <button class="bt bt-ghost">Salvar rascunho</button>
+  </div>
+
+  ${duvidas([
+    "A <b>declaração de disponibilidade</b> pode ser gerada pelo ARCHÉ e assinada no próprio sistema, em vez de papel?",
+    "O <b>comprovante de matrícula</b> vem do sistema acadêmico ou o aluno anexa?",
+    "O sistema deve <b>bloquear</b> a indicação de quem não foi aprovado na disciplina, ou apenas avisar? O edital admite comprovar conhecimento por avaliação/entrevista (item 3.1.b).",
+  ])}`;
+}
+
+/* ------------------------------- seleção -------------------------------- */
+function selecao() {
+  return `
+  <div class="card">
+    <div class="banner ba-warn">⚠ <b>Cálculo I</b> tem 4 candidatos para 1 vaga — o edital exige
+      processo seletivo presencial, com entrevista feita pelo professor orientador (item 4).</div>
+    <div class="card-t">Candidatos — MON-2026-014 · Anatomia Humana I</div>
+    <div class="card-s">2 vagas · 3 candidatos. A conferência dos requisitos é automática; a entrevista é do professor.</div>
+    <table class="pt">
+      <tr><th>Candidato</th><th>Matrícula</th><th>Período</th><th>Nota na disciplina</th>
+        <th>Disponibilidade</th><th>Documentos</th><th>Entrevista</th><th>Resultado</th></tr>
+      ${CANDIDATOS.map((c) => `<tr>
+        <td><b>${esc(c.nome)}</b></td><td>${c.matricula}</td><td>${c.periodo}</td>
+        <td class="${c.notaDisciplina === null ? "bad" : ""}">${c.notaDisciplina === null ? "cursando agora" : c.notaDisciplina.toFixed(1)}</td>
+        <td>${esc(c.disponibilidade)}</td>
+        <td>${c.doc ? "completos" : '<span class="bad">faltam</span>'}</td>
+        <td>${c.entrevista !== null ? c.entrevista.toFixed(1) : "—"}</td>
+        <td>${c.situacao === "selecionado" ? '<span class="badge b-aprovado">selecionado</span>'
+          : '<span class="badge b-devolvido">inapto</span>'}</td></tr>`).join("")}
+    </table>
+    <div class="banner ba-err" style="margin-top:12px">Rafael Tavares está <b>cursando a disciplina</b>
+      e não a concluiu: o edital pede aprovação prévia ou comprovação de conhecimento por avaliação
+      escrita e/ou entrevista (item 3.1.b). O sistema aponta; quem decide é o professor.</div>
+    <div class="exp">
+      <button class="bt bt-pri">Registrar resultado da seleção</button>
+      <button class="bt bt-ghost">Ata da seleção em PDF</button>
+    </div>
+  </div>
+
+  ${duvidas([
+    "A <b>entrevista</b> deve ter critérios com peso (como na IC), ou basta a nota final e o parecer?",
+    "O resultado da seleção é <b>público</b> na vitrine do curso, ou só na conta de cada candidato?",
+    "Candidato não selecionado deve entrar numa <b>lista de espera</b>, para desistências no meio do semestre?",
+  ])}`;
+}
+
+/* ------------------------------ monitores ------------------------------- */
+function monitores() {
+  const dias = Array.from({ length: 20 }, (_, i) => ({ d: i + 1, ok: i % 7 !== 5 && i % 7 !== 6, falta: i === 9 }));
+  return `
+  <div class="card">
+    <div class="card-t">Monitores ativos — ciclo ${CICLO.codigo}</div>
+    <div class="card-s">A carga horária cumprida é o que o certificado vai declarar.</div>
+    ${PROJETOS.flatMap((p) => p.monitores.map((m) => `
+      <div class="pess"><div class="av">${esc(m.nome.split(" ").map((x) => x[0]).slice(0, 2).join(""))}</div>
+        <div><div class="nm">${esc(m.nome)}</div>
+          <div class="sb">${esc(p.disciplina)} · ${esc(p.curso)} · ${p.ch}h/semana · orientação: ${esc(p.professor)}</div></div>
+        <div class="dir">
+          <span style="font-size:12px;color:${m.freq >= 75 ? "var(--ok)" : "var(--warn)"};font-weight:700">${m.freq}% de frequência</span>
+          <span class="badge b-ativo">ativo</span></div></div>`)).join("")}
+  </div>
+
+  <div class="card">
+    <div class="card-t">Frequência — Ana Beatriz Costa · agosto/2026</div>
+    <div class="card-s">Quem registra: o monitor lança, o professor valida no fim do mês.
+      Sem isso, a carga horária do certificado é uma afirmação sem lastro.</div>
+    <div class="freq">
+      ${dias.map((x) => `<div class="d ${x.falta ? "falta" : x.ok ? "ok" : ""}">
+        <b>${String(x.d).padStart(2, "0")}</b>${x.falta ? "falta" : x.ok ? "2h" : "—"}</div>`).join("")}
+    </div>
+    <div class="kv" style="margin-top:12px"><b>Total no mês:</b> 28h de 32h previstas ·
+      <span style="color:var(--warn)">1 falta justificada</span></div>
+    <div class="exp">
+      <button class="bt bt-pri">Validar a frequência do mês</button>
+      <button class="bt bt-ghost">Declaração de horas (atividade complementar)</button>
+    </div>
+  </div>
+
+  ${duvidas([
+    "A frequência é <b>diária</b> (como aqui) ou basta o total mensal informado pelo professor?",
+    "Frequência mínima para certificar — o edital não fixa. Adotamos <b>75%</b>, como é usual?",
+    "O monitor deve registrar <b>o que fez</b> em cada atendimento (um diário), ou só as horas?",
+    "A <b>declaração de atividade complementar</b> sai daqui automaticamente (item 1.3)?",
+  ])}`;
+}
+
+/* ------------------------------ relatório ------------------------------- */
+function relatorio() {
+  return `
+  <div class="card">
+    <div class="card-t">Relatório final — MON-2026-014</div>
+    <div class="card-s">Do professor orientador, até 15/12. É ele que libera as duas certificações.</div>
+    <label>Atividades desenvolvidas *</label>
+    <textarea style="min-height:70px">Plantões semanais de dúvidas, apoio a 14 aulas práticas e produção de 6 roteiros de estudo.</textarea>
+    <label>Resultados alcançados *</label>
+    <textarea style="min-height:70px">A reprovação na disciplina caiu de 31% para 19% em relação a 2026/1; 84 atendimentos individuais registrados.</textarea>
+    <label>Avaliação do desempenho de cada monitor *</label>
+    <div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:6px">
+      <div class="pess" style="border:0;padding-top:0"><div class="av">AB</div>
+        <div><div class="nm">Ana Beatriz Costa</div><div class="sb">92% de frequência · 118h cumpridas</div></div></div>
+      <div class="grid3">
+        <div><label>Assiduidade</label><select><option>Excelente</option><option>Bom</option></select></div>
+        <div><label>Domínio do conteúdo</label><select><option>Excelente</option><option>Bom</option></select></div>
+        <div><label>Relação com os alunos</label><select><option>Excelente</option><option>Bom</option></select></div>
+      </div>
+      <label>Parecer conclusivo *</label>
+      <select><option>Aprovado(a) sem ressalvas</option><option>Aprovado(a) com ressalvas</option><option>Reprovado(a)</option></select>
+    </div>
+    <div class="exp"><button class="bt bt-pri">Entregar à coordenação do curso</button></div>
+  </div>
+
+  <div class="card">
+    <div class="card-t">Certificação</div>
+    <div class="card-s">O edital separa as duas: o docente certifica-se com a conclusão do relatório;
+      o discente, depois da avaliação pela coordenação <b>e</b> pela Diretoria Acadêmica (item 5).</div>
+    <div class="crono">
+      <div class="etapa feita"><div class="t">Relatório final entregue</div><div class="q">Profa. Talita Ribeiro · 12/12/2026</div></div>
+      <div class="etapa feita"><div class="t">Avaliado pela coordenação do curso</div><div class="q">Enfermagem · 16/12/2026</div></div>
+      <div class="etapa agora"><div class="t">Encaminhado à Diretoria Acadêmica</div><div class="q">aguardando emissão</div></div>
+      <div class="etapa"><div class="t">Certificados emitidos</div><div class="q">1 docente · 2 discentes</div></div>
+    </div>
+    <div class="exp">
+      <button class="bt bt-pri">Emitir os certificados do ciclo</button>
+      <button class="bt bt-ghost">Prévia do certificado</button>
+    </div>
+    <div class="banner ba-ok" style="margin-top:12px">O certificado sai no timbre da época, com carga
+      horária apurada da frequência e código de validação pública — como já acontece na Iniciação Científica.</div>
+  </div>
+
+  ${duvidas([
+    "O certificado do <b>docente</b> declara o quê: a orientação do projeto, com a CH do semestre?",
+    "A avaliação da coordenação é um <b>parecer</b> ou apenas um de acordo?",
+    "Vale reaproveitar o <b>gerador de certificados da IC</b> (lib/certificados.js), que já valida por CPF e código?",
+  ])}`;
+}
+
+render();
+</script>
+</body>
+</html>

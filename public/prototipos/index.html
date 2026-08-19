@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protótipos · ARCHÉ</title>
+<link rel="icon" href="/arche/favicon.svg">
+<link rel="stylesheet" href="/assets/arche-ui.css">
+<style>
+  main{max-width:1180px;margin:0 auto;padding:0 24px 60px}
+  .aviso{background:#fff7e6;border:1px solid #f0d9a8;border-radius:12px;padding:14px 18px;
+    margin:24px 0;font-size:13.5px;color:#8a6d1f;line-height:1.6}
+  .aviso b{color:#6b5310}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px;margin-top:20px}
+  .prot{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px;
+    text-decoration:none;display:block;transition:.15s}
+  .prot:hover{border-color:var(--accent);box-shadow:0 4px 18px -8px rgba(28,55,66,.3)}
+  .prot .sig{font-family:Sora,sans-serif;font-weight:800;font-size:12px;letter-spacing:.1em;
+    color:var(--accent)}
+  .prot h2{font-family:Sora,sans-serif;font-size:19px;color:var(--brand);margin:6px 0 8px}
+  .prot p{font-size:13.5px;color:var(--muted);line-height:1.6;margin:0}
+  .prot ul{margin:12px 0 0;padding-left:18px;font-size:12.5px;color:var(--muted);line-height:1.7}
+  .prot .cta{display:inline-block;margin-top:14px;font-size:13px;font-weight:700;color:var(--accent)}
+</style>
+</head>
+<body>
+<header class="topo">
+  <div class="topo-rule"></div>
+  <div class="topo-inner">
+    <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO">
+    <span class="vr"></span>
+    <div class="topo-txt">
+      <span class="topo-t"><span class="arche-wm"><span class="arche-tx">ARCHÉ</span></span></span>
+      <span class="topo-s">Protótipos em discussão — PROPPEX / UNIEGO</span>
+    </div>
+    <img class="p" src="/assets/logo-proppex.png" alt="PROPPEX">
+  </div>
+</header>
+
+<main>
+  <p class="eyebrow" style="margin-top:36px">MÓDULOS EM ESTUDO</p>
+  <h1 class="hero-h" style="font-size:32px">Protótipos para discussão</h1>
+  <p class="hero-p">Telas navegáveis, com dados fictícios, para decidir o desenho antes de escrever
+    o módulo — como fizemos com a Reserva de Espaços.</p>
+
+  <div class="aviso">
+    <b>Nada aqui é gravado, e nada aqui está no ar para a instituição.</b> São maquetes: os botões
+    não fazem nada, os números são inventados e as telas existem para você dizer o que falta, o que
+    sobra e o que está errado. Cada tela termina com <b>as perguntas que ela levanta</b> — é ali que
+    o desenho se decide.
+  </div>
+
+  <div class="grid2">
+    <a class="prot" href="/prototipos/monitoria.html">
+      <div class="sig">ARCHÉ MO</div>
+      <h2>Monitoria Acadêmica</h2>
+      <p>Desenhado sobre o <b>Edital 01/2025 · DIAC</b>: o projeto é do professor, a análise é da
+        coordenação de curso, a seleção só existe havendo mais candidatos que vagas, e a certificação
+        passa pela Diretoria Acadêmica.</p>
+      <ul>
+        <li>Painel com o cronograma do ciclo e seus seis marcos</li>
+        <li>Projeto de monitoria, com plano de trabalho por monitor</li>
+        <li>Seleção com conferência automática dos requisitos</li>
+        <li>Frequência mensal e carga horária apurada</li>
+        <li>Relatório final e as duas certificações</li>
+      </ul>
+      <span class="cta">Abrir o protótipo →</span>
+    </a>
+
+    <a class="prot" href="/prototipos/ligas.html">
+      <div class="sig">ARCHÉ LG</div>
+      <h2>Ligas Acadêmicas e Grupos de Pesquisa</h2>
+      <p>Duas entidades com ciclos diferentes: a <b>liga</b> é estudantil, tem diretoria que troca
+        todo ano e precisa renovar o registro; o <b>grupo</b> é estrutura de pesquisa do DGP/CNPq,
+        com líder docente, linhas e produção.</p>
+      <ul>
+        <li>Painel com o que está regular e o que venceu</li>
+        <li>Ficha da liga: diretoria, plano anual, membros e horas</li>
+        <li>Ficha do grupo: linhas, membros, projetos de IC e produção</li>
+        <li>Renovação anual — e o que ela destrava</li>
+        <li>Os vínculos com Extensão, Eventos, Espaços e IC</li>
+      </ul>
+      <span class="cta">Abrir o protótipo →</span>
+    </a>
+  </div>
+
+  <p style="margin-top:32px;font-size:13.5px;color:var(--muted)">
+    <a href="/">← Voltar ao portal</a>
+  </p>
+</main>
+
+<footer>
+  <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO">
+  <p>ARCHÉ · Sistema de gestão da PROPPEX / UNIEGO</p>
+  <span class="sep"></span>
+  <img class="p" src="/assets/logo-proppex.png" alt="PROPPEX">
+</footer>
+</body>
+</html>

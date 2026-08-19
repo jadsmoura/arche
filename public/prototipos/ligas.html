@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protótipo · ARCHÉ LG — Ligas Acadêmicas e Grupos de Pesquisa</title>
+<link rel="icon" href="/arche/favicon.svg">
+<link rel="stylesheet" href="/prototipos/proto.css">
+</head>
+<body>
+<div class="app">
+  <nav class="side">
+    <a class="side-marca" href="/prototipos/" title="Voltar aos protótipos">
+      <svg width="24" height="24" viewBox="0 0 40 40" aria-hidden="true"><path d="M8 37 L8 20 A12 12 0 0 1 32 20 L32 37" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/><circle cx="20" cy="21" r="4" fill="#71c8e2"/></svg>
+      <span>ARCHÉ <b>LG</b></span>
+    </a>
+    <div class="side-nav">
+      <div class="side-lab">LIGAS E GRUPOS</div>
+      <div id="menu"></div>
+    </div>
+    <div class="side-pe">
+      <div class="av">JB</div>
+      <div><div class="nm">Jadson Belem</div><div class="pp" id="papel-atual">PROPPEX</div></div>
+    </div>
+  </nav>
+
+  <div class="conteudo">
+    <div class="topbar">
+      <div class="crumb">ARCHÉ LG <span style="color:var(--muted-2)">/</span> <b id="crumb">Painel</b></div>
+      <div class="dir">
+        <span style="font-size:12px">ver como:</span>
+        <select id="papel" onchange="render()" style="width:auto;padding:5px 8px;font-size:12.5px">
+          <option value="gestao">PROPPEX</option>
+          <option value="prof">Professor orientador / líder</option>
+          <option value="aluno">Acadêmico(a)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="area"><div class="limite">
+      <h1 id="titulo">Painel</h1>
+      <div class="sub" id="subtitulo"></div>
+      <div class="aviso-proto">
+        <b>Protótipo para discussão — nada aqui é gravado.</b> Os dados são fictícios, mas as ligas
+        são as que já aparecem no sistema (elas reservaram o auditório em 2026) e os grupos são os
+        que os professores digitaram nas propostas de Iniciação Científica. Duas coisas diferentes
+        num setor só: a <b>liga</b> é entidade estudantil com orientação docente; o <b>grupo</b> é
+        estrutura de pesquisa certificada no DGP/CNPq.
+      </div>
+      <div id="tela"></div>
+    </div></div>
+  </div>
+</div>
+
+<script>
+/* =======================================================================
+   PROTÓTIPO ARCHÉ LG — Ligas Acadêmicas e Grupos de Pesquisa.
+   O ponto de desenho: são DUAS entidades com ciclos diferentes.
+   · Liga  — nasce de estudantes, tem diretoria que troca todo ano, plano
+             anual, e precisa RENOVAR o registro para continuar existindo.
+   · Grupo — nasce do DGP/CNPq, tem líder docente, linhas de pesquisa e
+             vive por anos; o que muda é a produção e os projetos ligados.
+   Juntá-las num setor só se justifica porque ambas respondem à mesma
+   pergunta institucional: "quem produz o quê, e sob a orientação de quem".
+   ======================================================================= */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+const LIGAS = [
+  { sigla: "LAK", nome: "Liga Acadêmica Kuma", curso: "Psicologia", cor: "#5e5091",
+    orientador: "Prof. Rogério Alves", presidente: "Marina Duarte (6º)", membros: 24,
+    fundacao: "2023-03-14", situacao: "regular", vigencia: "2026", atividades: 7 },
+  { sigla: "LPESE", nome: "Liga de Pesquisa e Estudos em Saúde Equina", curso: "Medicina Veterinária", cor: "#3f8a5d",
+    orientador: "Profa. Nailla Campos", presidente: "Pedro Henrique Lima (8º)", membros: 31,
+    fundacao: "2022-08-02", situacao: "regular", vigencia: "2026", atividades: 12 },
+  { sigla: "LPA", nome: "Liga de Pequenos Animais", curso: "Medicina Veterinária", cor: "#2f6fb5",
+    orientador: "Prof. Turricelli Souza", presidente: "Bianca Rezende (7º)", membros: 19,
+    fundacao: "2024-04-13", situacao: "pendente", vigencia: "2026", atividades: 4 },
+  { sigla: "LMG", nome: "Liga de Melhoramento Genético", curso: "Agronomia", cor: "#c98a2b",
+    orientador: "Prof. Alexandre Dias", presidente: "Caio Ferreira (9º)", membros: 15,
+    fundacao: "2025-08-22", situacao: "regular", vigencia: "2026", atividades: 5 },
+  { sigla: "LDA", nome: "Liga de Direito Animal", curso: "Direito", cor: "#c0453c",
+    orientador: "Profa. Camila Nogueira", presidente: "—", membros: 9,
+    fundacao: "2026-04-28", situacao: "irregular", vigencia: "2025", atividades: 1 },
+];
+
+const GRUPOS = [
+  { sigla: "SOLO", nome: "Solos, Microbiologia e Sustentabilidade Agrícola", area: "Ciências Agrárias",
+    cor: "#8a6d3b", lider: "Prof. Dr. Jadson Belém de Moura", vice: "Profa. Dra. Ana Lima",
+    dgp: "certificado", desde: "2019", linhas: 3, docentes: 7, discentes: 12, projetosIC: 9, producao: 34 },
+  { sigla: "SAUDE", nome: "Saúde Coletiva e Determinantes Sociais", area: "Ciências da Saúde",
+    cor: "#0f8f8f", lider: "Profa. Dra. Talita Ribeiro", vice: "Prof. Me. Samuel Rocha",
+    dgp: "certificado", desde: "2021", linhas: 2, docentes: 5, discentes: 8, projetosIC: 6, producao: 21 },
+  { sigla: "DIR", nome: "Direito, Sociedade e Novas Tecnologias", area: "Ciências Sociais Aplicadas",
+    cor: "#c0453c", lider: "Profa. Dra. Luana Prado", vice: "—",
+    dgp: "em análise", desde: "2025", linhas: 2, docentes: 4, discentes: 5, projetosIC: 3, producao: 7 },
+  { sigla: "EDU", nome: "Educação, Cultura e Formação Docente", area: "Ciências Humanas",
+    cor: "#5e5091", lider: "Prof. Dr. Rodrigo Fernandes", vice: "Profa. Ma. Cláudia Reis",
+    dgp: "certificado", desde: "2020", linhas: 4, docentes: 6, discentes: 4, projetosIC: 4, producao: 18 },
+];
+
+const SECOES = [
+  { k: "painel", rot: "Painel", tit: "Ligas e grupos", sub: "O que existe na instituição, quem orienta e o que está em dia." },
+  { k: "ligas", rot: "Ligas acadêmicas", tit: "Ligas acadêmicas", sub: "Entidade estudantil com orientação docente — registro renovado a cada ano." },
+  { k: "liga", rot: "Ficha da liga", tit: "Liga Acadêmica Kuma", sub: "Psicologia · orientação: Prof. Rogério Alves" },
+  { k: "grupos", rot: "Grupos de pesquisa", tit: "Grupos de pesquisa", sub: "Estrutura de pesquisa do DGP/CNPq — líder docente, linhas e produção." },
+  { k: "grupo", rot: "Ficha do grupo", tit: "Solos, Microbiologia e Sustentabilidade Agrícola", sub: "Ciências Agrárias · líder: Prof. Dr. Jadson Belém de Moura" },
+  { k: "renovar", rot: "Registro e renovação", tit: "Registro e renovação anual", sub: "O que a liga entrega para continuar existindo no ano seguinte." },
+];
+let SECAO = "painel";
+const papel = () => $("papel").value;
+
+function menu() {
+  $("menu").innerHTML = SECOES.map((s) => `<button class="side-item${s.k === SECAO ? " on" : ""}"
+    onclick="ir('${s.k}')"><span>${s.rot}</span></button>`).join("");
+}
+function ir(k) { SECAO = k; render(); window.scrollTo(0, 0); }
+function render() {
+  const meta = SECOES.find((s) => s.k === SECAO);
+  $("titulo").textContent = meta.tit;
+  $("subtitulo").textContent = meta.sub;
+  $("crumb").textContent = meta.rot;
+  $("papel-atual").textContent = { gestao: "PROPPEX", prof: "Orientação / liderança", aluno: "Acadêmico(a)" }[papel()];
+  menu();
+  $("tela").innerHTML = ({ painel, ligas, liga, grupos, grupo, renovar })[SECAO]();
+}
+const duvidas = (itens) => `<div class="card" style="border-style:dashed;background:#fbfcfd">
+  <div class="card-t">O que esta tela levanta</div>
+  <div class="card-s">Pontos a decidir antes de implementar.</div>
+  ${itens.map((t) => `<div class="kv">• ${t}</div>`).join("")}</div>`;
+
+const SELO = { regular: ["b-regular", "regular"], pendente: ["b-pendente", "renovação pendente"],
+  irregular: ["b-irregular", "irregular"] };
+
+/* -------------------------------- painel -------------------------------- */
+function painel() {
+  const kpi = (l, v, d, cor) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div>
+    <div class="d" style="color:${cor || "var(--muted)"}">${d}</div></div>`;
+  return `
+  <div class="kpis">
+    ${kpi("Ligas acadêmicas", LIGAS.length, `${LIGAS.filter((l) => l.situacao === "regular").length} em dia`, "var(--ok)")}
+    ${kpi("Grupos de pesquisa", GRUPOS.length, `${GRUPOS.filter((g) => g.dgp === "certificado").length} certificados no DGP`)}
+    ${kpi("Acadêmicos envolvidos", LIGAS.reduce((s, l) => s + l.membros, 0) + GRUPOS.reduce((s, g) => s + g.discentes, 0), "ligas + grupos", "var(--brand-3)")}
+    ${kpi("Docentes", 11, "orientando ou liderando")}
+    ${kpi("Pendências", 2, "1 renovação, 1 liga irregular", "var(--warn)")}
+  </div>
+
+  <div class="duplo">
+    <div class="card">
+      <div class="card-t">Ligas por situação</div>
+      <div class="card-s">A liga tem vigência anual: sem renovar o registro, ela deixa de poder usar o nome da instituição.</div>
+      ${LIGAS.map((l) => `<div class="linha">
+        <span class="ponto" style="background:${l.cor};margin-top:0"></span>
+        <div class="txt"><div class="p1">${esc(l.nome)}</div>
+          <div class="p2">${esc(l.curso)} · ${l.membros} membros · vigência ${l.vigencia}</div></div>
+        <span class="badge ${SELO[l.situacao][0]}">${SELO[l.situacao][1]}</span></div>`).join("")}
+    </div>
+    <div class="card">
+      <div class="card-t">Precisa de atenção</div>
+      <div class="card-s">Como PROPPEX</div>
+      <div class="linha"><div class="txt"><div class="p1">Liga de Direito Animal — vigência vencida</div>
+        <div class="p2">Registro de 2025, sem renovação e sem diretoria informada</div></div>
+        <span class="badge b-irregular">irregular</span></div>
+      <div class="linha"><div class="txt"><div class="p1">Liga de Pequenos Animais — renovação pendente</div>
+        <div class="p2">Plano anual entregue; falta a ata de eleição da diretoria</div></div>
+        <span class="badge b-pendente">pendente</span></div>
+      <div class="linha"><div class="txt"><div class="p1">Direito, Sociedade e Novas Tecnologias</div>
+        <div class="p2">Grupo aguardando certificação no DGP/CNPq desde 03/2025</div></div>
+        <span class="badge b-pendente">em análise</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-t">De onde vêm estes registros</div>
+    <div class="card-s">O setor não começa vazio — as duas fontes já existem no ARCHÉ.</div>
+    <div class="kv">• As <b>ligas</b> aparecem hoje como texto nas reservas de espaço e nas ações de
+      extensão (“Aula inaugural da Liga de Pequenos Animais”, “Reunião da Liga LPESE”). Ao registrá-las,
+      esses eventos passam a se ligar à entidade que os promoveu.</div>
+    <div class="kv">• Os <b>grupos</b> já são digitados pelos professores nas propostas de Iniciação
+      Científica (o campo “grupo de pesquisa DGP/CNPq”, que cresce com o uso). O módulo adota esses
+      nomes e transforma cada um num registro — com líder, linhas e os projetos que já estão ligados a ele.</div>
+  </div>
+
+  ${duvidas([
+    "Um setor só, ou <b>dois módulos</b>? Ligas e grupos têm público, ciclo e finalidade diferentes.",
+    "A liga fica <b>vinculada a um curso</b> ou pode ser interdisciplinar (o que é comum)?",
+    "Quem <b>aprova</b> o registro de uma liga: a coordenação do curso, a PROPPEX, ou as duas?",
+  ])}`;
+}
+
+/* -------------------------------- ligas --------------------------------- */
+function ligas() {
+  return `
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <div><div class="card-t" style="margin:0">${LIGAS.length} ligas registradas</div>
+        <div class="card-s" style="margin:2px 0 0">A cor é a da liga — a mesma nas atividades e no calendário.</div></div>
+      <button class="bt bt-pri" onclick="ir('renovar')">+ Registrar liga</button>
+    </div>
+    <div class="grelha">
+      ${LIGAS.map((l) => `<div class="lg" onclick="ir('liga')">
+        <div class="sig" style="background:${l.cor}">${esc(l.sigla)}</div>
+        <div class="nm">${esc(l.nome)}</div>
+        <div class="cs">${esc(l.curso)}</div>
+        <div class="cs" style="margin-top:6px">Orientação: ${esc(l.orientador)}<br>Presidência: ${esc(l.presidente)}</div>
+        <div class="rod">
+          <span class="badge ${SELO[l.situacao][0]}">${SELO[l.situacao][1]}</span>
+          <span>${l.membros} membros</span><span>·</span><span>${l.atividades} atividades</span>
+        </div></div>`).join("")}
+    </div>
+  </div>
+
+  ${duvidas([
+    "A <b>vitrine pública</b> das ligas vale a pena? Ajuda o calouro a encontrar a liga do seu interesse — e é indicador de apoio ao discente.",
+    "O membro se <b>inscreve pelo sistema</b> (com aprovação da diretoria), ou a liga sobe a lista?",
+    "Uma liga <b>inativa</b> some da lista ou fica no arquivo, como as ações de extensão registradas?",
+  ])}`;
+}
+
+/* ------------------------------ ficha da liga --------------------------- */
+function liga() {
+  return `
+  <div class="card">
+    <div style="display:flex;gap:14px;align-items:flex-start">
+      <div class="sig" style="background:#5e5091;width:52px;height:52px;font-size:16px">LAK</div>
+      <div style="flex:1">
+        <div class="card-t" style="margin:0">Liga Acadêmica Kuma</div>
+        <div class="card-s" style="margin:2px 0 0">Psicologia · fundada em 14/03/2023 ·
+          registro vigente até 31/12/2026</div>
+      </div>
+      <span class="badge b-regular">regular</span>
+    </div>
+    <div class="stat" style="margin-top:16px">
+      <div class="s"><b>24</b><span>membros</span></div>
+      <div class="s"><b>7</b><span>atividades em 2026</span></div>
+      <div class="s"><b>168</b><span>horas de atividade</span></div>
+      <div class="s"><b>3</b><span>ações de extensão</span></div>
+    </div>
+  </div>
+
+  <div class="duplo">
+    <div class="card">
+      <div class="card-t">Diretoria — gestão 2026</div>
+      <div class="card-s">Troca todo ano, e a ata de eleição é o documento que a comprova.</div>
+      <div class="pess"><div class="av">MD</div><div><div class="nm">Marina Duarte</div>
+        <div class="sb">Presidente · 6º período</div></div></div>
+      <div class="pess"><div class="av">JS</div><div><div class="nm">João Silveira</div>
+        <div class="sb">Vice-presidente · 5º período</div></div></div>
+      <div class="pess"><div class="av">CB</div><div><div class="nm">Camila Braga</div>
+        <div class="sb">Secretária · 4º período</div></div></div>
+      <div class="pess"><div class="av">RA</div><div><div class="nm">Prof. Rogério Alves</div>
+        <div class="sb">Orientador docente</div></div></div>
+      <div class="exp"><button class="bt bt-ghost">Ata de eleição (PDF)</button></div>
+    </div>
+    <div class="card">
+      <div class="card-t">Plano anual — 2026</div>
+      <div class="card-s">É o que a liga se compromete a fazer, e o que a renovação confere.</div>
+      <div class="kv">✓ Ciclo de estudos em avaliação psicológica <span class="muted">— concluído</span></div>
+      <div class="kv">✓ Acolhida dos calouros <span class="muted">— concluído</span></div>
+      <div class="kv">◷ Roda de conversa sobre saúde mental <span class="muted">— em andamento</span></div>
+      <div class="kv">◷ Semana da Psicologia <span class="muted">— outubro</span></div>
+      <div class="kv" style="color:var(--muted)">○ Visita técnica ao CAPS <span class="muted">— não realizada</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-t">Atividades realizadas</div>
+    <div class="card-s">Onde a liga encontra o resto do ARCHÉ: cada atividade pode ser uma
+      <b>ação de extensão</b> (ARCHÉ EX), um <b>evento</b> (EV) ou uma <b>reserva de espaço</b> (ES).</div>
+    <table class="pt">
+      <tr><th>Data</th><th>Atividade</th><th>Tipo</th><th>Participantes</th><th>Registro no ARCHÉ</th></tr>
+      <tr><td>21/08/2026</td><td>Acolhida de novos membros</td><td>Interna</td><td>32</td>
+        <td><a href="#">RES-2026-051 · Auditório</a></td></tr>
+      <tr><td>12/05/2026</td><td>Cine Pipoca — cinema e clínica</td><td>Extensão</td><td>68</td>
+        <td><a href="#">EXT-2026-042</a></td></tr>
+      <tr><td>18/05/2026</td><td>Jornada de Psicologia</td><td>Evento</td><td>214</td>
+        <td><a href="#">EXT-2026-039 · página do evento</a></td></tr>
+      <tr><td>03/04/2026</td><td>Grupo de estudos — psicanálise</td><td>Interna</td><td>18</td>
+        <td><span class="muted">sem registro</span></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-t">Membros</div>
+    <div class="card-s">A carga horária acumulada é o que o certificado de participação vai declarar.</div>
+    <table class="pt">
+      <tr><th>Acadêmico</th><th>Período</th><th>Entrada</th><th>Função</th><th>Horas em 2026</th><th></th></tr>
+      <tr><td>Marina Duarte</td><td>6º</td><td>03/2024</td><td>Presidente</td><td>96h</td>
+        <td><button class="lk">certificado</button></td></tr>
+      <tr><td>João Silveira</td><td>5º</td><td>08/2024</td><td>Vice-presidente</td><td>84h</td>
+        <td><button class="lk">certificado</button></td></tr>
+      <tr><td>Camila Braga</td><td>4º</td><td>03/2025</td><td>Secretária</td><td>72h</td>
+        <td><button class="lk">certificado</button></td></tr>
+      <tr><td>Rafael Tavares</td><td>2º</td><td>03/2026</td><td>Membro</td><td>28h</td>
+        <td><span class="muted" style="font-size:11.5px">mínimo não atingido</span></td></tr>
+    </table>
+  </div>
+
+  ${duvidas([
+    "Qual a <b>carga horária mínima</b> para o membro receber certificado — e ela conta como atividade complementar?",
+    "As atividades <b>internas</b> (grupos de estudo) entram no cômputo, ou só as que viram ação/evento?",
+    "A liga deve poder <b>solicitar espaço</b> direto daqui, já vinculando a reserva à liga?",
+  ])}`;
+}
+
+/* -------------------------------- grupos -------------------------------- */
+function grupos() {
+  return `
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <div><div class="card-t" style="margin:0">${GRUPOS.length} grupos de pesquisa</div>
+        <div class="card-s" style="margin:2px 0 0">O espelho do DGP/CNPq, com o que a instituição consegue comprovar.</div></div>
+      <button class="bt bt-pri">+ Registrar grupo</button>
+    </div>
+    <table class="pt">
+      <tr><th>Grupo</th><th>Área</th><th>Líder</th><th>Desde</th><th>Linhas</th>
+        <th>Membros</th><th>Projetos de IC</th><th>Produção</th><th>DGP</th></tr>
+      ${GRUPOS.map((g) => `<tr style="cursor:pointer" onclick="ir('grupo')">
+        <td><span class="ponto" style="background:${g.cor};display:inline-block;margin-right:6px"></span><b>${esc(g.nome)}</b></td>
+        <td>${esc(g.area)}</td><td>${esc(g.lider)}</td><td>${g.desde}</td><td>${g.linhas}</td>
+        <td>${g.docentes + g.discentes}</td><td>${g.projetosIC}</td><td>${g.producao}</td>
+        <td>${g.dgp === "certificado" ? '<span class="badge b-regular">certificado</span>'
+          : '<span class="badge b-pendente">em análise</span>'}</td></tr>`).join("")}
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-t">Por que isto importa no ARCHÉ</div>
+    <div class="card-s">O grupo é a unidade que o INEP e o CNPq usam para ler a pesquisa da instituição.</div>
+    <div class="kv">• O ARCHÉ IC já pede o grupo em toda proposta — hoje ele é só um <b>nome digitado</b>,
+      e a lista cresce com o uso. Registrado, ele passa a reunir os projetos, os professores e a produção.</div>
+    <div class="kv">• O quadro de <b>produção acadêmica</b> da IC (a planilha do edital, com os 30 itens)
+      já está por professor. Somado por grupo, vira o retrato que o avaliador pede.</div>
+    <div class="kv">• As <b>reuniões</b> do grupo podem ser lavradas no ARCHÉ AT, como qualquer órgão.</div>
+  </div>
+
+  ${duvidas([
+    "Importamos o <b>espelho do DGP</b> (o CNPq exporta XML), ou o líder preenche à mão?",
+    "A produção do grupo vem da <b>planilha da IC</b>, do <b>Lattes</b> (o módulo de Avaliação já lê o XML) — ou das duas?",
+    "Membro <b>externo</b> (de outra instituição) entra no cadastro? No DGP entra.",
+  ])}`;
+}
+
+/* ----------------------------- ficha do grupo --------------------------- */
+function grupo() {
+  return `
+  <div class="card">
+    <div style="display:flex;gap:14px;align-items:flex-start">
+      <div class="sig" style="background:#8a6d3b;width:52px;height:52px;font-size:13px">SOLO</div>
+      <div style="flex:1">
+        <div class="card-t" style="margin:0">Solos, Microbiologia e Sustentabilidade Agrícola</div>
+        <div class="card-s" style="margin:2px 0 0">Ciências Agrárias · certificado no DGP/CNPq desde 2019 ·
+          líder: Prof. Dr. Jadson Belém de Moura · vice: Profa. Dra. Ana Lima</div>
+      </div>
+      <span class="badge b-regular">certificado</span>
+    </div>
+    <div class="stat" style="margin-top:16px">
+      <div class="s"><b>3</b><span>linhas de pesquisa</span></div>
+      <div class="s"><b>7</b><span>docentes</span></div>
+      <div class="s"><b>12</b><span>discentes</span></div>
+      <div class="s"><b>9</b><span>projetos de IC</span></div>
+      <div class="s"><b>34</b><span>produções (2022–2026)</span></div>
+    </div>
+  </div>
+
+  <div class="duplo">
+    <div class="card">
+      <div class="card-t">Linhas de pesquisa</div>
+      <div class="card-s">É por linha que os projetos se organizam.</div>
+      <div class="linha"><div class="txt"><div class="p1">Microbiologia do solo e fungos micorrízicos</div>
+        <div class="p2">5 projetos · 4 docentes</div></div></div>
+      <div class="linha"><div class="txt"><div class="p1">Manejo e conservação do solo no Cerrado</div>
+        <div class="p2">3 projetos · 3 docentes</div></div></div>
+      <div class="linha"><div class="txt"><div class="p1">Bioinsumos e sustentabilidade agrícola</div>
+        <div class="p2">1 projeto · 2 docentes</div></div></div>
+    </div>
+    <div class="card">
+      <div class="card-t">Projetos de Iniciação Científica vinculados</div>
+      <div class="card-s">Vêm do ARCHÉ IC — o grupo já é campo da proposta.</div>
+      <div class="linha"><div class="txt"><div class="p1">IC-2026-007 · Fungos micorrízicos em soja</div>
+        <div class="p2">Edital 01/2026 · bolsista: Letícia Moraes</div></div>
+        <span class="badge b-regular">em execução</span></div>
+      <div class="linha"><div class="txt"><div class="p1">IC-2026-019 · Bioinsumos no manejo do solo</div>
+        <div class="p2">Edital 01/2026 · voluntário</div></div>
+        <span class="badge b-regular">em execução</span></div>
+      <div class="linha"><div class="txt"><div class="p1">IC-2025-011 · Cobertura vegetal e erosão</div>
+        <div class="p2">Edital 01/2025 · concluído</div></div>
+        <span class="badge b-concluido">concluído</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-t">Membros</div>
+    <div class="card-s">Docentes, discentes e colaboradores externos — como no DGP.</div>
+    <table class="pt">
+      <tr><th>Nome</th><th>Vínculo</th><th>Titulação</th><th>Linha</th><th>Desde</th></tr>
+      <tr><td>Prof. Dr. Jadson Belém de Moura</td><td>Docente · líder</td><td>Doutor</td><td>Microbiologia do solo</td><td>2019</td></tr>
+      <tr><td>Profa. Dra. Ana Lima</td><td>Docente · vice-líder</td><td>Doutora</td><td>Manejo e conservação</td><td>2020</td></tr>
+      <tr><td>Letícia Moraes</td><td>Discente · bolsista PIBIC</td><td>Graduanda</td><td>Microbiologia do solo</td><td>2026</td></tr>
+      <tr><td>Dr. Marcos Vinícius Pires</td><td>Colaborador externo · UFG</td><td>Doutor</td><td>Bioinsumos</td><td>2024</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-t">Produção do grupo — 2022 a 2026</div>
+    <div class="card-s">Somada das planilhas de produção dos membros (as mesmas do edital de IC).</div>
+    ${[["Artigos em periódico Qualis A", 9], ["Artigos em periódico Qualis B", 12],
+      ["Capítulos de livro", 5], ["Trabalhos em anais", 6], ["Orientações concluídas", 2]]
+      .map(([r, n]) => `<div class="barra"><div class="cab"><span>${r}</span><span>${n}</span></div>
+        <div class="tr"><i style="width:${n * 8}%;background:#8a6d3b"></i></div></div>`).join("")}
+    <div class="exp"><button class="bt bt-ghost">Relatório do grupo em PDF</button></div>
+  </div>
+
+  ${duvidas([
+    "O <b>relatório anual do grupo</b> deve ser exigido, como acontece com os projetos de IC?",
+    "A produção conta por <b>membro</b> (somando tudo) ou só a produção <b>vinculada à linha</b> do grupo?",
+    "Vale mostrar o grupo na <b>vitrine pública</b> da pesquisa, ao lado dos editais e resultados?",
+  ])}`;
+}
+
+/* ------------------------------- renovação ------------------------------ */
+function renovar() {
+  return `
+  <div class="card">
+    <div class="card-t">Registro de liga acadêmica — 2027</div>
+    <div class="card-s">A liga se renova todo ano. O que muda é a diretoria e o plano; o que permanece
+      é a identidade e o histórico.</div>
+    <div class="grid2">
+      <div><label>Nome da liga *</label><input value="Liga Acadêmica Kuma"></div>
+      <div><label>Sigla</label><input value="LAK"></div>
+      <div><label>Curso *</label><select><option>Psicologia</option><option>Interdisciplinar</option></select></div>
+      <div><label>Data de fundação</label><input type="date" value="2023-03-14" disabled></div>
+    </div>
+    <label>Objetivos da liga *</label><textarea style="min-height:60px">Aprofundar o estudo da avaliação psicológica e aproximar os acadêmicos da prática clínica.</textarea>
+  </div>
+
+  <div class="card">
+    <div class="card-t">Documentos da renovação</div>
+    <div class="card-s">É o conjunto que a PROPPEX confere para dizer que a liga está regular.</div>
+    <div class="pess"><div class="av">1</div>
+      <div><div class="nm">Estatuto da liga</div><div class="sb">só na primeira vez, ou quando alterado</div></div>
+      <div class="dir"><span class="badge b-aprovado">em arquivo</span></div></div>
+    <div class="pess"><div class="av">2</div>
+      <div><div class="nm">Ata de eleição da diretoria</div><div class="sb">gestão 2027</div></div>
+      <div class="dir"><button class="bt bt-sec" style="padding:5px 10px;font-size:12px">anexar</button>
+        <span class="muted" style="font-size:11.5px">ou lavrar no ARCHÉ AT</span></div></div>
+    <div class="pess"><div class="av">3</div>
+      <div><div class="nm">Plano anual de atividades</div><div class="sb">o que a liga fará em 2027</div></div>
+      <div class="dir"><button class="bt bt-sec" style="padding:5px 10px;font-size:12px">preencher</button></div></div>
+    <div class="pess"><div class="av">4</div>
+      <div><div class="nm">Relatório do ano anterior</div><div class="sb">o que foi feito em 2026</div></div>
+      <div class="dir"><span class="badge b-aprovado">entregue</span></div></div>
+    <div class="pess"><div class="av">5</div>
+      <div><div class="nm">Aceite do orientador docente</div><div class="sb">Prof. Rogério Alves</div></div>
+      <div class="dir"><span class="badge b-pendente">aguardando</span></div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-t">O que a renovação destrava</div>
+    <div class="card-s">É a resposta à pergunta "por que a liga se daria ao trabalho de renovar?".</div>
+    <div class="kv">• Usar o <b>nome e a marca da instituição</b> nas suas atividades e nas redes.</div>
+    <div class="kv">• <b>Reservar espaços</b> pelo ARCHÉ ES em nome da liga.</div>
+    <div class="kv">• Propor <b>ações de extensão</b> e <b>eventos</b> com o apoio da PROPPEX.</div>
+    <div class="kv">• Emitir <b>certificados</b> de participação aos membros, com carga horária apurada.</div>
+    <div class="exp">
+      <button class="bt bt-pri">Enviar renovação à PROPPEX</button>
+      <button class="bt bt-ghost">Salvar rascunho</button>
+    </div>
+  </div>
+
+  ${duvidas([
+    "A vigência é o <b>ano civil</b> ou o ano letivo? A diretoria costuma trocar em março.",
+    "Liga sem renovar deve ser <b>bloqueada</b> de reservar espaço e propor evento, ou só sinalizada?",
+    "O <b>estatuto</b> precisa de modelo institucional, para não virarem cinco estatutos diferentes?",
+  ])}`;
+}
+
+render();
+</script>
+</body>
+</html>
