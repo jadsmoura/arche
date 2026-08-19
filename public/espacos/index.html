@@ -263,6 +263,21 @@
   .legenda .lg.on{border-color:var(--brand);background:var(--accent-wash);font-weight:600}
   .legenda .lg i{width:10px;height:10px;border-radius:3px;flex:none}
   .legenda .limpar{color:var(--muted)}
+
+  /* guia Agendamentos: lista de controle, com a mesma cor do calendário */
+  .filtros{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0 6px}
+  .fchip{background:#fff;border:1px solid var(--line);border-radius:20px;padding:6px 12px;
+    font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;display:inline-flex;gap:6px}
+  .fchip:hover{border-color:var(--brand-3)}
+  .fchip.on{border-color:var(--brand);background:var(--accent-wash)}
+  table.agd td{vertical-align:top}
+  table.agd tr.passada{opacity:.6}
+  table.agd .p2{font-size:11.5px;color:var(--muted);margin-top:2px}
+  table.agd .tags{display:inline-flex;gap:3px;margin-right:6px;vertical-align:1px}
+  table.agd .tags i{width:9px;height:9px;border-radius:3px;display:inline-block}
+  .lk{background:none;border:0;padding:0;color:var(--brand-3);font-weight:600;
+    font-size:12px;cursor:pointer;font-family:inherit}
+  .lk:hover{text-decoration:underline}
   .cal .ev.bloqueio{border-left-color:var(--warn);background:#fbf3e4}
   .cal .ev .h{font-weight:700;color:var(--ink)}
   .cal .ev .l{color:var(--muted);display:block}
@@ -321,6 +336,7 @@
         <section id="v-nova" class="hide"></section>
         <section id="v-minhas" class="hide"></section>
         <section id="v-pedidos" class="hide"></section>
+        <section id="v-agendamentos" class="hide"></section>
         <section id="v-catalogo" class="hide"></section>
       </div>
     </div>
@@ -359,6 +375,7 @@ const IC = {
   nova: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>',
   minhas: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
   pedidos: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3 7-7"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>',
+  agendamentos: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
   catalogo: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg>',
 };
 const SECOES = [
@@ -370,6 +387,8 @@ const SECOES = [
     sub: "O andamento dos seus pedidos, do envio à confirmação." },
   { k: "pedidos", rot: "Pedidos", ic: IC.pedidos, tit: "Pedidos de reserva", gestao: true,
     sub: "Confirme, encaminhe à PROPPEX ou recuse — com o motivo registrado." },
+  { k: "agendamentos", rot: "Agendamentos", ic: IC.agendamentos, tit: "Agendamentos", gestao: true,
+    sub: "Todos os agendamentos, do que já passou ao que vem — com filtro por espaço, situação e período." },
   { k: "catalogo", rot: "Espaços e bloqueios", ic: IC.catalogo, tit: "Espaços e bloqueios", gestao: true,
     sub: "O catálogo dos espaços e os períodos em que eles não podem ser usados." },
 ];
@@ -393,6 +412,7 @@ function nav(secao) {
   if (SECAO === "nova") renderNova();
   if (SECAO === "minhas") renderMinhas();
   if (SECAO === "pedidos") renderPedidos();
+  if (SECAO === "agendamentos") renderAgendamentos();
   if (SECAO === "catalogo") renderCatalogo();
   window.scrollTo(0, 0);
 }
@@ -537,6 +557,17 @@ function legendaEspacos() {
 }
 
 const nomeEspaco = (id) => (DADOS?.espacos || []).find((e) => e.id === id)?.nome || id;
+
+/* O órgão é gravado como CÓDIGO; quem lê vê o nome. Registro antigo, que
+   guardava texto livre, continua aparecendo como está. */
+function nomeOrgao(codigo, outro) {
+  if (codigo === "outro") return outro || "Outro";
+  for (const g of DADOS?.orgaos || []) {
+    const achou = g.opcoes.find((o) => o.codigo === codigo);
+    if (achou) return achou.rotulo;
+  }
+  return outro || codigo || "";
+}
 
 function detalhe(id) {
   const r = (DADOS.reservas || []).find((x) => x.id === id);
@@ -829,7 +860,7 @@ async function decidir(id, acao) {
     headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao, motivo }) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { alert(j.error || "Não foi possível registrar a decisão."); return; }
-  await carregar(); AGENDA = null; renderPedidos();
+  await carregar(); AGENDA = null; nav(SECAO);
 }
 
 async function cancelar(id) {
@@ -843,6 +874,117 @@ async function cancelar(id) {
 }
 
 /* --------------------------- catálogo e bloqueios ----------------------- */
+/* ------------------------- AGENDAMENTOS (gestão) -------------------------
+   A agenda responde "o dia 20 está livre?"; esta guia responde "o que já foi
+   agendado, por quem e em que situação". São perguntas diferentes, e a
+   segunda é de controle: pede lista, filtro e contagem, não calendário.
+   A etiqueta de cor é a MESMA do calendário — o olho reconhece o espaço sem
+   ler o nome. */
+let AGD = { espaco: "", status: "", quando: "futuros", busca: "" };
+
+function renderAgendamentos() {
+  const todas = (DADOS.reservas || []);
+  const hoje = hojeISO();
+  const noPeriodo = (r) => AGD.quando === "todos" ? true
+    : AGD.quando === "futuros" ? (r.dataFim || r.dataInicio) >= hoje
+    : (r.dataFim || r.dataInicio) < hoje;
+  const bate = (r) => {
+    const t = (AGD.busca || "").toLowerCase().trim();
+    if (!t) return true;
+    return [r.atividade, r.protocolo, nomeOrgao(r.orgao, r.orgaoOutro), r.solicitante?.nome,
+      ...(r.itens || []).map((i) => nomeEspaco(i.espaco))]
+      .some((x) => String(x || "").toLowerCase().includes(t));
+  };
+  const lista = todas
+    .filter((r) => (!AGD.espaco || (r.itens || []).some((i) => i.espaco === AGD.espaco))
+      && (!AGD.status || r.status === AGD.status) && noPeriodo(r) && bate(r))
+    .sort((a, b) => AGD.quando === "passados"
+      ? String(b.dataInicio).localeCompare(String(a.dataInicio))
+      : String(a.dataInicio).localeCompare(String(b.dataInicio)));
+
+  // contagens do recorte de PERÍODO, não do filtro inteiro: senão o número
+  // ao lado do filtro mudaria conforme o próprio filtro, e não diria nada
+  const doPeriodo = todas.filter(noPeriodo);
+  const cont = (st) => doPeriodo.filter((r) => r.status === st).length;
+  const chip = (rot, valor, n, cor) => `<button class="fchip${AGD.status === valor ? " on" : ""}"
+    onclick="AGD.status='${valor}';renderAgendamentos()">${rot}
+    <b style="color:${cor || "var(--muted)"}">${n}</b></button>`;
+
+  const linhas = lista.map((r) => {
+    const cores = (r.itens || []).map((i) => corEspaco(i.espaco));
+    const locais = (r.itens || []).map((i) => {
+      const e = (DADOS.espacos || []).find((x) => x.id === i.espaco);
+      return [e ? e.nome : i.espaco, i.detalhe, i.quantidade > 1 ? `${i.quantidade} salas` : ""].filter(Boolean).join(" — ");
+    });
+    const quando = r.dataInicio === r.dataFim ? fmt(r.dataInicio) : `${fmt(r.dataInicio)}–${fmt(r.dataFim)}`;
+    const passou = (r.dataFim || r.dataInicio) < hoje;
+    return `<tr class="${passou ? "passada" : ""}">
+      <td><span class="tags">${cores.map((c) => `<i style="background:${c}"></i>`).join("")}</span>
+        ${esc(locais.join(" · "))}</td>
+      <td style="white-space:nowrap">${quando}<div class="p2">${diaTodo(r) ? "dia todo" : `${esc(r.horaInicio)}–${esc(r.horaFim)}`}</div></td>
+      <td>${esc(r.atividade || "—")}<div class="p2">${esc(nomeOrgao(r.orgao, r.orgaoOutro))}</div></td>
+      <td>${esc(r.solicitante?.nome || "—")}<div class="p2">${esc(r.protocolo || "")}</div></td>
+      <td><span class="badge b-${esc(r.status)}">${esc(ROT_STATUS[r.status] || r.status)}</span></td>
+      <td style="white-space:nowrap">
+        ${["solicitada", "encaminhada"].includes(r.status)
+          ? `<button class="lk" onclick="decidir('${r.id}','confirmar')">confirmar</button> ·
+             <button class="lk" onclick="decidir('${r.id}','recusar')">recusar</button>`
+          : r.status === "confirmada" && !passou
+            ? `<button class="lk" onclick="cancelar('${r.id}')">cancelar</button>`
+            : ""}
+      </td></tr>`;
+  }).join("");
+
+  $("v-agendamentos").innerHTML = `
+    <div class="card">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+        <div><div class="card-t" style="margin:0">${lista.length} agendamento(s)</div>
+          <div class="card-s" style="margin:2px 0 0">${
+            AGD.quando === "futuros" ? "De hoje em diante" : AGD.quando === "passados" ? "Já realizados" : "Todo o histórico"
+          }${AGD.espaco ? ` · ${esc(nomeEspaco(AGD.espaco))}` : ""}</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <select onchange="AGD.quando=this.value;renderAgendamentos()" style="width:auto;padding:7px 10px;font-size:13px">
+            <option value="futuros"${AGD.quando === "futuros" ? " selected" : ""}>de hoje em diante</option>
+            <option value="passados"${AGD.quando === "passados" ? " selected" : ""}>já realizados</option>
+            <option value="todos"${AGD.quando === "todos" ? " selected" : ""}>todo o histórico</option>
+          </select>
+          <select onchange="AGD.espaco=this.value;renderAgendamentos()" style="width:auto;padding:7px 10px;font-size:13px">
+            <option value="">todos os espaços</option>
+            ${(DADOS.espacos || []).map((e) => `<option value="${esc(e.id)}"${AGD.espaco === e.id ? " selected" : ""}>${esc(e.nome)}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+
+      <div class="filtros">
+        ${chip("todas", "", doPeriodo.length)}
+        ${chip("aguardando", "solicitada", cont("solicitada"), "var(--info)")}
+        ${chip("na PROPPEX", "encaminhada", cont("encaminhada"), "var(--roxo)")}
+        ${chip("confirmadas", "confirmada", cont("confirmada"), "var(--ok)")}
+        ${chip("recusadas", "recusada", cont("recusada"), "var(--err)")}
+        ${chip("canceladas", "cancelada", cont("cancelada"), "var(--muted)")}
+        <input id="agd-busca" placeholder="Buscar por atividade, órgão, protocolo ou solicitante"
+          value="${esc(AGD.busca)}" oninput="AGD.busca=this.value;renderAgendamentosLista()"
+          style="flex:1 1 240px;min-width:200px;padding:7px 10px;font-size:13px">
+      </div>
+
+      <div id="agd-lista">${lista.length ? `<table class="pt agd">
+        <tr><th>Espaço</th><th>Quando</th><th>Atividade</th><th>Solicitante</th><th>Situação</th><th></th></tr>
+        ${linhas}
+      </table>` : '<div class="vazio">Nenhum agendamento com esses filtros.</div>'}</div>
+    </div>`;
+}
+
+/* Redesenha SÓ a lista enquanto se digita: refazer o cartão inteiro tiraria o
+   cursor da caixa de busca a cada letra (o mesmo achado do arquivo de atas). */
+function renderAgendamentosLista() {
+  const foco = document.activeElement === $("agd-busca");
+  const pos = foco ? $("agd-busca").selectionStart : 0;
+  const busca = AGD.busca;
+  renderAgendamentos();
+  const el = $("agd-busca");
+  if (el && foco) { el.value = busca; el.focus(); el.setSelectionRange(pos, pos); }
+}
+
 function renderCatalogo() {
   const esp = DADOS.espacos || [];
   $("v-catalogo").innerHTML = `

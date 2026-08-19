@@ -1212,8 +1212,9 @@ public/
   Extensão, e o link acompanha os e-mails da responsável e da PROPPEX. **Bloqueios** (reforma, recesso) são da gestão, valem o DIA inteiro e
   travam como reserva confirmada. **A agenda é de todos**: `GET /api/espacos/agenda` (exige
   login) devolve `reservaPublica` — onde, quando, para quê e de que órgão, **nunca** o
-  telefone, o e-mail ou a justificativa de ninguém —, e o calendário dos próximos 14 dias
-  aparece na **página inicial** do portal, que é onde o pedido em cima do ocupado se evita.
+  telefone, o e-mail ou a justificativa de ninguém. A agenda vive **dentro do módulo**
+  (decisão do dono, ago/2026: a página inicial do portal é dos setores, e um calendário ali
+  competia com os cartões).
   Pedidos aguardando entram no **sino** da gestão. `GET /api/espacos/ocupacao` conta horas
   por espaço (só confirmadas) — o número que se leva ao conselho.
   Ao mexer no catálogo, **preserve os `id`**: são a chave do que já está reservado.
@@ -1222,7 +1223,11 @@ public/
   a janela corrida de quatro semanas escondia o resto. O seletor traz os meses que TÊM
   reserva (`mesesComReserva`) mais os doze à frente; cada espaço tem uma `cor` no catálogo, a
   legenda também FILTRA (clicar na cor mostra só aquele espaço) e a mesma cor aparece na
-  agenda da página inicial, que passou a cobrir 60 dias.
+  legenda também FILTRA (clicar na cor mostra só aquele espaço). A guia **Agendamentos**
+  (só gestão) é a outra pergunta: a agenda diz se o dia 20 está livre, e ela diz o que já foi
+  agendado, por quem e em que situação — lista com filtro de espaço, situação e período
+  (de hoje em diante · já realizados · todo o histórico), busca por atividade, órgão,
+  protocolo ou solicitante, e as mesmas etiquetas de cor do calendário.
   **Reservas migradas da planilha** (`subirReservasMigradas` + `dados/esp-auditorio-2026.json`,
   marca `sys-esp-lote-auditorio-2026`): as 75 linhas que a recepção anotava à mão no registro
   do auditório de 2026 entraram como **confirmadas do DIA INTEIRO** — a planilha não tinha
