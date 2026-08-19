@@ -63,13 +63,18 @@ import {
   diasParaRelatorio as diasParaRelatorioMon,
 } from "./lib/monitoria.js";
 import {
-  slugUnico, SLUG_VALIDO, slugReservado, SLUGS_RESERVADOS, gerarChaveQr, gerarCodigoMonitor, gerarToken, tokenValido,
+  slugDeNome, slugUnico, SLUG_VALIDO, slugReservado, SLUGS_RESERVADOS, gerarChaveQr, gerarCodigoMonitor, gerarToken, tokenValido,
   codigoDe, inscritoPorToken, normalizarProgramacao, vagasRestantes, prazoInscricao,
   podeInscrever as podeInscreverEvento, jaInscrito,
   TIPOS_ATIVIDADE, gerarIdCurto, vagasAtividade, podeEscolherAtividade,
   normalizarFormulario, validarRespostas, LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd,
   normalizarBlocos, TIPOS_BLOCO, CATEGORIAS_APOIO, REDES_SOCIAIS, FREQUENCIAS,
   minutosEntre, duracaoBR, eventoControlaFrequencia, temHotsiteEvento,
+} from "./lib/eventos.js";
+import {
+  ASSINANTES_DO_EVENTO, assinanteDoEventoValido, assinaturasDoCertificado,
+  certificadoDe, certificadosDePessoa, certificadosDoEvento, eventoCertificavel,
+  eventoEncerrado, podeEncerrar, programacaoDoCertificado, situacaoEncerramento,
   PAPEIS_COMISSAO, faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento,
   videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento,
 } from "./lib/eventos.js";
@@ -818,6 +823,12 @@ app.get("/api/alertas", async (req, res) => {
       const naoPublicados = doEv.filter((a) => a.numeroAcao && !a.evento?.ativo).length;
       if (naoPublicados) alertas.push({ setor: "Eventos", n: naoPublicados, link: "/eventos/gestao/",
         texto: `${naoPublicados} evento(s) aprovado(s) com a página ainda não publicada` });
+      // encerramento pedido pela coordenação: enquanto a PROPPEX não valida,
+      // NINGUÉM recebe certificado — é a fila mais sensível do setor
+      const aEncerrar = doEv.filter((a) => situacaoEncerramento(a) === "solicitado");
+      if (aEncerrar.length) alertas.push({ setor: "Eventos", n: aEncerrar.length, link: "/eventos/gestao/",
+        texto: `${aEncerrar.length} encerramento(s) de evento aguardando validação — os certificados dependem disso`,
+        detalhe: aEncerrar.slice(0, 3).map((a) => (a.proposta?.nomeAtividade || a.numeroAcao || "").slice(0, 70)).join(" · ") });
     }
 
     if (u.modulos.includes("monitoria")) {
@@ -1787,6 +1798,16 @@ function eventoSemSegredos(ev) {
     resto.blocos = resto.blocos.map((b) => Array.isArray(b.itens)
       ? { ...b, itens: b.itens.map(({ logo, ...i }) => ({ ...i, temLogo: !!logo })) }
       : b);
+  // a assinatura digitalizada é imagem como as demais: fica guardada, sai
+  // por rota própria e nos payloads vai só o sinal de que existe
+  if (resto.assinaturas && typeof resto.assinaturas === "object") {
+    const a = {};
+    for (const [quem, v] of Object.entries(resto.assinaturas)) {
+      if (!v) continue;
+      a[quem] = { nome: v.nome || "", cargo: v.cargo || "", temImagem: !!v.base64 };
+    }
+    resto.assinaturas = a;
+  }
   return { ...resto, temCapa: !!capa };
 }
 
@@ -3452,9 +3473,16 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
     const u = await sessaoEx(req, res);
     if (!u) return;
     const b = req.body || {};
+    // quem CRIA o evento é a coordenação dele, e entra na comissão
+    // organizadora nesse papel (pedido do dono, ago/2026): era a linha que
+    // todo mundo esquecia de preencher — e sem ela o próprio coordenador
+    // ficava fora do certificado do evento que organizou. Os dados vêm do
+    // perfil, que já exige nome, CPF, telefone e e-mail.
+    const meuPerfil = (await carregarPerfis())[u.email] || {};
     const r = await comAcoes((acoes) => {
       const a = acoes.find((x) => x.id === req.params.id);
       if (!a || !podeOperarEvento(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      const primeiraVez = !a.evento;
       const estavaAtivo = a.evento?.ativo === true;
       const ev = { ...(a.evento || {}) };
       if (b.ativo !== undefined) ev.ativo = !!b.ativo;
@@ -3577,6 +3605,20 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
       if (b.regenerarCodigoMonitor && ev.chaveQr) ev.codigoMonitor = gerarCodigoMonitor();
       a.evento = ev;
       a.atualizadoEm = new Date().toISOString();
+      if (primeiraVez) {
+        a.participantes = a.participantes || { inscritos: [], palestrantes: [], comissao: [] };
+        a.participantes.comissao = a.participantes.comissao || [];
+        const jaEsta = a.participantes.comissao.some((x) =>
+          String(x?.email || "").toLowerCase() === u.email.toLowerCase());
+        if (!jaEsta) {
+          a.participantes.comissao.unshift(normalizarPessoaEvento({
+            nome: meuPerfil.nome || u.nome || u.email,
+            cpf: meuPerfil.cpf || "", email: u.email,
+            telefone: meuPerfil.telefone || "",
+            papel: "coordenacao", funcao: "Coordenação do evento",
+          }));
+        }
+      }
       return { evento: ev, ativou: ev.ativo === true && !estavaAtivo, acao: a };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
@@ -9896,6 +9938,326 @@ for (const sinal of ["SIGTERM", "SIGINT"]) {
     }
   });
 }
+
+/* ========================================================================
+   CERTIFICADOS DO EVENTO — emitidos pelo próprio ARCHÉ (decisão do dono,
+   ago/2026).
+
+   O que muda em relação ao caminho antigo (a planilha para o sistema da
+   AEE): com credenciamento, presenças e comissão organizadora já dentro do
+   ARCHÉ, quem tem direito ao quê já está aqui — exportar para emitir fora
+   era o passo mais longo entre o dado e o documento. A planilha da AEE
+   continua existindo para quem precisar dela.
+
+   As ASSINATURAS institucionais são as MESMAS do ARCHÉ IC
+   (`sys-assinaturas-v1`): um lugar só para trocar quando trocar o
+   pró-reitor ou o reitor. As do evento — responsável e coordenação —
+   ficam na própria ação, e quem não enviar a sua simplesmente não aparece
+   no documento.
+   ======================================================================== */
+
+/** As duas institucionais, no formato que o gerador espera. */
+async function assinaturasInstitucionais() {
+  const guardadas = await lerAssinaturas();
+  const out = {};
+  const { ASSINA } = await import("./lib/pdf.js");
+  if (guardadas.proreitor?.base64) {
+    out.proreitor = { ...ASSINA.proReitor, img: Buffer.from(guardadas.proreitor.base64, "base64") };
+  }
+  if (guardadas.reitor?.base64) {
+    out.reitor = { ...ASSINA.reitor, img: Buffer.from(guardadas.reitor.base64, "base64") };
+  }
+  return out;
+}
+
+/** Monta o PDF de um certificado já apurado. */
+async function pdfDoCertificadoEvento(acao, cert) {
+  const { gerarCertificadoEventoPdf } = await import("./lib/pdf.js");
+  const institucionais = await assinaturasInstitucionais();
+  const assinaturas = assinaturasDoCertificado(acao, institucionais).map((a) => ({
+    nome: a.nome, cargo: a.cargo,
+    img: a.img || (a.base64 ? Buffer.from(a.base64, "base64") : null),
+  }));
+  return gerarCertificadoEventoPdf({
+    cert, programacao: programacaoDoCertificado(acao), assinaturas,
+  });
+}
+
+const nomeArquivoCert = (cert) =>
+  `certificado-${slugDeNome(cert.evento || "evento")}-${slugDeNome(cert.pessoa || "participante")}.pdf`;
+
+/* ---------------- assinatura do responsável e da coordenação ------------- */
+
+app.post("/api/extensao/:id/evento/assinatura", upload.single("file"), async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const quem = String(req.body?.quem || "").trim();
+    if (!assinanteDoEventoValido(quem))
+      return res.status(400).json({ error: "Informe de quem é a assinatura (responsável ou coordenação)." });
+    const nome = String(req.body?.nome || "").trim().slice(0, 120);
+    if (!nome) return res.status(400).json({ error: "Informe o nome de quem assina — é ele que sai impresso." });
+    if (!req.file) return res.status(400).json({ error: "Nenhuma imagem enviada." });
+    if (!/^image\/(png|jpeg)$/.test(req.file.mimetype || ""))
+      return res.status(400).json({ error: "Envie a assinatura em PNG (de preferência com fundo transparente)." });
+    if (req.file.size > 2 * 1024 * 1024)
+      return res.status(400).json({ error: "Imagem muito grande — até 2 MB." });
+
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((x) => x.id === req.params.id);
+      if (!a?.evento) return { erro: [404, "Evento não encontrado"], gravar: false };
+      if (!podeOperarEvento(u, a)) return { erro: [403, "Sem permissão para operar este evento"], gravar: false };
+      a.evento.assinaturas = a.evento.assinaturas || {};
+      a.evento.assinaturas[quem] = {
+        nome, cargo: String(req.body?.cargo || "").trim().slice(0, 140),
+        base64: req.file.buffer.toString("base64"),
+        em: new Date().toISOString(), por: u.email,
+      };
+      a.atualizadoEm = new Date().toISOString();
+      return { acao: a };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, evento: eventoSemSegredos(r.acao.evento) });
+  } catch (e) {
+    console.error("Erro ao gravar a assinatura do evento:", e);
+    res.status(500).json({ error: "Falha ao gravar a assinatura." });
+  }
+});
+
+app.delete("/api/extensao/:id/evento/assinatura", async (req, res) => {
+  const u = await sessaoEx(req, res);
+  if (!u) return;
+  const quem = String(req.query?.quem || "").trim();
+  if (!assinanteDoEventoValido(quem)) return res.status(400).json({ error: "Assinatura inválida." });
+  const r = await comAcoes((acoes) => {
+    const a = acoes.find((x) => x.id === req.params.id);
+    if (!a?.evento) return { erro: [404, "Evento não encontrado"], gravar: false };
+    if (!podeOperarEvento(u, a)) return { erro: [403, "Sem permissão para operar este evento"], gravar: false };
+    if (a.evento.assinaturas) delete a.evento.assinaturas[quem];
+    return { acao: a };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, evento: eventoSemSegredos(r.acao.evento) });
+});
+
+/** A imagem da assinatura, para a própria gestão conferir o que subiu. */
+app.get("/api/extensao/:id/evento/assinatura/:quem", async (req, res) => {
+  const u = await sessaoEx(req, res);
+  if (!u) return;
+  const a = (await lerAcoes()).find((x) => x.id === req.params.id);
+  if (!a?.evento || !podeOperarEvento(u, a)) return res.status(404).end();
+  const x = a.evento.assinaturas?.[req.params.quem];
+  if (!x?.base64) return res.status(404).end();
+  res.setHeader("Content-Type", "image/png");
+  res.setHeader("Cache-Control", "private, max-age=60");
+  res.end(Buffer.from(x.base64, "base64"));
+});
+
+/* --------------------------- a lista e a emissão ------------------------- */
+
+/** Quem tem direito a certificado neste evento — a tela da gestão. */
+app.get("/api/eventos/:id/certificados", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const a = (await lerAcoes()).find((x) => x.id === req.params.id);
+    if (!a?.evento || !podeOperarEvento(u, a)) return res.status(404).json({ error: "Evento não encontrado" });
+    const pode = eventoCertificavel(a);
+    const lista = certificadosDoEvento(a).map(({ email, cpf, ...c }) => ({
+      ...c, temEmail: !!email, temCpf: !!cpf,
+      // a chave de emissão não expõe o CPF de ninguém na tela
+      ref: cpf || email || c.pessoa,
+    }));
+    const institucionais = await lerAssinaturas();
+    res.json({
+      ok: true, pode: pode.ok, motivo: pode.motivo,
+      certificados: lista,
+      assinaturas: eventoSemSegredos(a.evento).assinaturas || {},
+      institucionais: {
+        proreitor: !!institucionais.proreitor?.base64,
+        reitor: !!institucionais.reitor?.base64,
+      },
+    });
+  } catch (e) {
+    console.error("Erro ao listar certificados do evento:", e);
+    res.status(500).json({ error: "Não foi possível carregar." });
+  }
+});
+
+/** A gestão emite o de uma pessoa (CPF, e-mail ou nome como referência). */
+app.get("/api/eventos/:id/certificado.pdf", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const a = (await lerAcoes()).find((x) => x.id === req.params.id);
+    if (!a?.evento || !podeOperarEvento(u, a)) return res.status(404).send("Evento não encontrado");
+    const ref = String(req.query?.ref || "").trim();
+    const cert = certificadoDe(a, {
+      cpf: ref, email: ref, nome: ref,
+    }, {});
+    if (!cert) return res.status(404).send("Esta pessoa não tem certificado neste evento.");
+    const buf = await pdfDoCertificadoEvento(a, cert);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${nomeArquivoCert(cert)}"`);
+    medir("pdf", buf.length);
+    res.end(buf);
+  } catch (e) {
+    console.error("Erro ao emitir certificado do evento:", e);
+    res.status(500).send("Não foi possível gerar o certificado.");
+  }
+});
+
+/** O PARTICIPANTE baixa o seu pela credencial — sem conta, como se inscreveu. */
+app.get("/api/publico/eventos/:slug/certificado/:token.pdf", async (req, res) => {
+  try {
+    const a = eventoPorSlug(await lerAcoes(), req.params.slug);
+    if (!a?.evento) return res.status(404).send("Evento não encontrado");
+    const t = String(req.params.token || "").toLowerCase();
+    if (!tokenValido(a.evento.chaveQr, t)) return res.status(404).send("Inscrição não encontrada");
+    const inscrito = (a.participantes?.inscritos || [])
+      .find((x) => String(x?.token || "").toLowerCase() === t);
+    if (!inscrito) return res.status(404).send("Inscrição não encontrada");
+    const pode = eventoCertificavel(a);
+    if (!pode.ok) return res.status(409).send(pode.motivo);
+    const cert = certificadoDe(a, { cpf: inscrito.cpf, email: inscrito.email, nome: inscrito.nome },
+      { hoje: hojeLocalISO() });
+    if (!cert) {
+      return res.status(409).send(eventoControlaFrequencia(a.evento)
+        ? "O certificado sai para quem teve presença registrada no evento. Fale com a coordenação."
+        : "Não foi possível emitir o certificado desta inscrição.");
+    }
+    const buf = await pdfDoCertificadoEvento(a, cert);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${nomeArquivoCert(cert)}"`);
+    medir("pdf", buf.length);
+    res.end(buf);
+  } catch (e) {
+    console.error("Erro no certificado do participante:", e);
+    res.status(500).send("Não foi possível gerar o certificado.");
+  }
+});
+
+/* ---------------------- o histórico, ligado ao USUÁRIO --------------------
+   O que faz o histórico ser da PESSOA e não de um evento: a mesma pessoa é
+   participante de um, comissão de outro e palestrante de um terceiro, e é
+   assim que ela quer ver. O vínculo é o CPF do perfil, com o e-mail da conta
+   como segunda chave — as mesmas de sempre.
+   ------------------------------------------------------------------------- */
+app.get("/api/meus-certificados", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    const perfil = (await carregarPerfis())[u.email] || null;
+    const eu = { cpf: perfil?.cpf || "", email: u.email, nome: perfil?.nome || "" };
+    const eventos = certificadosDePessoa(await lerAcoes(), eu).map(({ cpf, email, ...c }) => c);
+    res.json({ ok: true, eu: { nome: eu.nome, email: eu.email, temCpf: !!eu.cpf }, eventos });
+  } catch (e) {
+    console.error("Erro no histórico de certificados:", e);
+    res.status(500).json({ error: "Não foi possível carregar." });
+  }
+});
+
+/** E o usuário baixa o seu, de qualquer evento em que tenha direito. */
+app.get("/api/meus-certificados/evento.pdf", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).send("Faça login.");
+    const perfil = (await carregarPerfis())[u.email] || null;
+    const a = (await lerAcoes()).find((x) => x.id === String(req.query?.acao || ""));
+    if (!a?.evento) return res.status(404).send("Evento não encontrado");
+    const cert = certificadoDe(a,
+      { cpf: perfil?.cpf || "", email: u.email, nome: perfil?.nome || "" },
+      { hoje: hojeLocalISO() });
+    if (!cert) return res.status(404).send("Você não tem certificado neste evento.");
+    const buf = await pdfDoCertificadoEvento(a, cert);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${nomeArquivoCert(cert)}"`);
+    medir("pdf", buf.length);
+    res.end(buf);
+  } catch (e) {
+    console.error("Erro ao emitir certificado do usuário:", e);
+    res.status(500).send("Não foi possível gerar o certificado.");
+  }
+});
+
+/* ------------------------- encerrar o evento -----------------------------
+   O coordenador clica em "Encerrar evento" quando terminou de lançar tudo —
+   presenças, comissão, palestrantes — e o pedido vai à PROPPEX. Validado o
+   encerramento, os certificados existem; devolvido, volta a ser editável
+   com o que a pró-reitoria apontou. É o mesmo desenho do relatório da ação,
+   e existe pela mesma razão: certificado emitido não se recolhe.
+   ------------------------------------------------------------------------- */
+app.post("/api/extensao/:id/evento/encerrar", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const obs = String(req.body?.observacao || "").trim().slice(0, 2000);
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((x) => x.id === req.params.id);
+      if (!a?.evento) return { erro: [404, "Evento não encontrado"], gravar: false };
+      if (!podeOperarEvento(u, a)) return { erro: [403, "Sem permissão para operar este evento"], gravar: false };
+      const pode = podeEncerrar(a, hojeLocalISO());
+      if (!pode.ok) return { erro: [400, pode.motivo], gravar: false };
+      const n = numerosDoEvento(a);
+      a.evento.encerramento = {
+        status: "solicitado", pedidoEm: new Date().toISOString(), pedidoPor: u.email,
+        observacao: obs,
+        // o retrato do que se está encerrando: depois ninguém reconstrói
+        numeros: { inscritos: n.inscritos, presentes: n.presentes },
+        decididoEm: "", decididoPor: "", parecer: "",
+      };
+      a.atualizadoEm = new Date().toISOString();
+      return { acao: a };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    try {
+      const { enviarEmail, emailEncerramentoEvento } = await import("./lib/mailer.js");
+      enviarEmail(emailEncerramentoEvento(r.acao))
+        .catch((e) => console.error("[eventos] aviso de encerramento não enviado:", e.message));
+    } catch (e) { console.error("[eventos] aviso de encerramento:", e.message); }
+    res.json({ ok: true, evento: eventoSemSegredos(r.acao.evento) });
+  } catch (e) {
+    console.error("Erro ao encerrar o evento:", e);
+    res.status(500).json({ error: "Não foi possível encerrar o evento." });
+  }
+});
+
+/** A decisão é da gestão da Extensão: validar libera os certificados. */
+app.post("/api/extensao/:id/evento/encerramento", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    if (!gereEx(u)) return res.status(403).json({ error: "A validação do encerramento é da gestão da Extensão." });
+    const decisao = String(req.body?.decisao || "").trim();
+    if (!["validado", "devolvido"].includes(decisao))
+      return res.status(400).json({ error: "Diga se o encerramento foi validado ou devolvido." });
+    const parecer = String(req.body?.parecer || "").trim().slice(0, 3000);
+    if (decisao === "devolvido" && parecer.length < 10)
+      return res.status(400).json({ error: "Escreva o que precisa ser corrigido — é o que a coordenação vai ler." });
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((x) => x.id === req.params.id);
+      if (!a?.evento) return { erro: [404, "Evento não encontrado"], gravar: false };
+      if (situacaoEncerramento(a) !== "solicitado")
+        return { erro: [400, "Não há pedido de encerramento aguardando decisão neste evento."], gravar: false };
+      a.evento.encerramento = {
+        ...a.evento.encerramento, status: decisao,
+        decididoEm: new Date().toISOString(), decididoPor: u.email, parecer,
+      };
+      a.atualizadoEm = new Date().toISOString();
+      return { acao: a };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    try {
+      const { enviarEmail, emailDecisaoEncerramento } = await import("./lib/mailer.js");
+      enviarEmail(emailDecisaoEncerramento(r.acao, decisao, parecer))
+        .catch((e) => console.error("[eventos] decisão do encerramento não avisada:", e.message));
+    } catch (e) { console.error("[eventos] decisão do encerramento:", e.message); }
+    res.json({ ok: true, evento: eventoSemSegredos(r.acao.evento) });
+  } catch (e) {
+    console.error("Erro na decisão do encerramento:", e);
+    res.status(500).json({ error: "Não foi possível registrar a decisão." });
+  }
+});
 
 app.listen(port, () => {
   console.log(`ARCHÉ disponível em http://localhost:${port}/`);
