@@ -19,6 +19,7 @@
     // o EV fica colado à Extensão de propósito: o evento É uma ação dela
     { href: "/eventos/gestao/", rot: "Eventos",        teste: function (p) { return p.indexOf("/eventos/gestao") === 0; } },
     { href: "/pesquisa/ic/", rot: "Pesquisa · IC",     teste: function (p) { return p.indexOf("/pesquisa") === 0; } },
+    { href: "/monitoria/",   rot: "Monitoria",         teste: function (p) { return p.indexOf("/monitoria") === 0; } },
     { href: "/espacos/",     rot: "Espaços",           teste: function (p) { return p.indexOf("/espacos") === 0; } },
     { href: "/arche/",       rot: "Avaliação",         teste: function (p) { return p.indexOf("/arche") === 0; } },
     // a VISÃO PÚBLICA do portal (pedido do dono, ago/2026): a mesma página que
@@ -246,7 +247,7 @@
           // visitante (decisão do dono, ago/2026): a barra deixa de anunciar
           // os setores de gestão — os atalhos levariam à tela de login. As
           // páginas públicas (vitrines, hotsites) ficam só com "Portal".
-          ["/atas/", "/extensao/", "/eventos/gestao/", "/pesquisa/ic/", "/espacos/", "/arche/"].forEach(function (href) {
+          ["/atas/", "/extensao/", "/eventos/gestao/", "/pesquisa/ic/", "/monitoria/", "/espacos/", "/arche/"].forEach(function (href) {
             var alvos = document.querySelectorAll('.arche-topnav a[data-arche-nav="' + href + '"]');
             for (var i = 0; i < alvos.length; i++) alvos[i].style.display = "none";
           });
@@ -257,6 +258,8 @@
         // Espaços fica visível a TODO usuário logado (decisão do dono,
         // ago/2026): quem solicita reserva é professor, coordenação, setor,
         // acadêmico — e até a comunidade, pela conta de quem a recebe.
+        // Monitoria idem, e por um motivo mais forte: metade do setor é do
+        // ALUNO (é ele quem se inscreve como monitor e entrega o relatório).
         var aluno = me.perfil && me.perfil.funcao === "aluno";
         // aluno não organiza evento (participa pela página pública) — o
         // setor EV é de quem propõe e opera

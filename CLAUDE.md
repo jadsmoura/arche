@@ -32,6 +32,7 @@ lib/termos.js        Termos de Compromisso da IC: o texto institucional dos 4 mo
 dados/               Lotes de importação (ic-edital-01-2026.json: as 33 submissões)
 lib/espacos.js       ARCHÉ ES: espaços, conflito de horário, bloqueios e agenda
 lib/curricularizacao.js  Vínculo da ação de extensão com o componente curricular (MEC)
+lib/monitoria.js     ARCHÉ MO: editais, fluxo, réguas, carga horária e certificados
 lib/pautas.js        Catálogo da Pauta Regulatória (indicadores INEP) e conformidade
 lib/redator.js       Redação da minuta da ata: modelo (padrão) | gemini | anthropic
 lib/assistente.js    Assistente de escrita dos campos da ata (só ARCHÉ AT)
@@ -54,6 +55,8 @@ public/
                      e a lista simplificada dos projetos — arquivo para o MEC. Os PDFs dos
                      editais e dos resultados publicados vivem em public/ic/docs/
   espacos/           ARCHÉ ES — Reserva de Espaços (SPA vanilla, mesmo desenho do EX/AT)
+  monitoria/         ARCHÉ MO — Monitoria Acadêmica (SPA vanilla; a mesma tela para os
+                     três papéis — professor, monitor e PROPPEX)
   entrar/ perfil/ usuarios/   Login (código por e-mail + Google), perfil, gestão de acessos
 ```
 
@@ -77,7 +80,10 @@ public/
 ## Regras de negócio essenciais
 
 - **Setores protegidos** (exigem login): `/extensao`, `/pesquisa`, `/inovacao`, `/atas`,
-  `/espacos`, `/usuarios` e `/eventos/gestao` (o restante de `/eventos/*` é público de propósito).
+  `/espacos`, `/monitoria`, `/usuarios` e `/eventos/gestao` (o restante de `/eventos/*` é público
+  de propósito). Duas exceções nominais para conta ainda `pendente`: o aluno/avaliador convidado
+  na IC e o **monitor indicado** na monitoria — o convite chega por e-mail e não pode dar em
+  parede.
   **Avaliação (`/arche/`) continua SEM login** — não criar conta, papel nem sessão nela.
 - **Todo guarda compara `req.caminho`, nunca `req.path`**: o `req.path` chega CRU (sem
   decodificar `%2f`, sem colapsar `//`) e o `express.static` resolve o caminho já
@@ -128,8 +134,8 @@ public/
   (`identidadeInstitucionalDoProReitor` gravou o e-mail do UNIEGO nos projetos dele, o que
   também encerra o casamento por nome na conta pessoal).
 - **Coordenação por setor** (`/usuarios/`, ação `coordenar`): o gestor geral designa
-  coordenadores para qualquer um dos seis módulos — `extensao`, `pesquisa`, `inovacao`,
-  `atas`, `eventos` e `espacos`. Dentro do setor marcado a pessoa tem o alcance da PROPPEX (no ARCHÉ
+  coordenadores para qualquer um dos sete módulos — `extensao`, `pesquisa`, `inovacao`,
+  `atas`, `eventos`, `espacos` e `monitoria`. Dentro do setor marcado a pessoa tem o alcance da PROPPEX (no ARCHÉ
   AT, vê as atas de todos os órgãos, o Acompanhamento e os alertas); fora dele é
   submissora, e a gestão de acessos continua exclusiva dos gestores gerais. Cada setor
   decide isso lendo `modulos` da sessão (`gereAtas`, `gereIC`, `gereEv`) — nunca o papel
@@ -473,8 +479,8 @@ public/
 - Uploads e estado são organizados **por curso** no Google Drive — preservar os prefixos
   usados em server.js (`extensao/<curso>/…`, `dossie/<curso>/…`,
   `atas/<curso>/<órgão>/<ano>/` e `atas/institucional/<órgão>/<ano>/`).
-- Estado do app em chaves `/api/estado`; chaves `auth-*`, `sys-*`, `atas-*`, `ic-*` e
-  `ex-*` são internas e invisíveis pela API — quem guarda dado com recorte por pessoa
+- Estado do app em chaves `/api/estado`; chaves `auth-*`, `sys-*`, `atas-*`, `ic-*`,
+  `ex-*`, `esp-*` e `mon-*` são internas e invisíveis pela API — quem guarda dado com recorte por pessoa
   precisa ficar fora do `/api/estado`, senão a lista inteira sai por ali. Toda
   leitura/gravação passa por `/api/atas/*`, `/api/ic/*` e `/api/extensao`.
 - **As ações de extensão saíram do `/api/estado`** (ago/2026): elas guardam CPF, telefone
@@ -1241,21 +1247,50 @@ public/
   (`corrigido` no lote); o órgão foi inferido da atividade, e o que não deu ficou em
   "Não informado na planilha".
 
-- **ARCHÉ MO — Monitoria Acadêmica** (protótipo em `/prototipos/monitoria.html`; arquivo dos
-  editais em `lib/monitoria.js`): **a reitoria trouxe o programa para a PROPPEX** (decisão de
-  ago/2026). Até 2025 ele era da **Diretoria Acadêmica (DIAC)**, quando a instituição ainda
-  era a FACEG — o Edital 01/2025 traz esse órgão e esse nome, e fica no arquivo **como foi
-  publicado** (mesma regra das atas: documento não se reescreve). Os editais de monitoria
-  aparecem na vitrine pública `/ic/`, no quadro do ANO, ao lado do 01/AAAA (IC) e do 02/AAAA
-  (ICEM); a série da monitoria é **03/AAAA**, para os três conviverem. O desenho do módulo
-  sai do próprio edital: projeto do professor limitado às suas disciplinas, análise da
-  coordenação de curso, **um plano de trabalho por monitor** (item 2.4), seleção só quando há
-  mais candidatos que vagas (entrevista presencial do professor), CH aproveitável como
-  atividade complementar, e **duas certificações** — o docente com a entrega do relatório
-  final, o discente depois da avaliação pela coordenação e pela pró-reitoria.
+- **ARCHÉ MO — Monitoria Acadêmica** (`lib/monitoria.js` + `public/monitoria/` + rotas
+  `/api/monitoria/*`, ago/2026): **a reitoria trouxe o programa para a PROPPEX**. Até 2025 ele
+  era da **Diretoria Acadêmica (DIAC)**, quando a instituição ainda era a FACEG — os Editais
+  01/2025 e 02/2025 trazem esse órgão e esse nome, e ficam no arquivo **como foram publicados**
+  (mesma regra das atas: documento não se reescreve). A série da PROPPEX é **03/AAAA**, para
+  conviver com o 01/AAAA (IC) e o 02/AAAA (ICEM) no quadro por ano da vitrine `/ic/`; a
+  monitoria é semestral, e um segundo edital no mesmo ano toma o número seguinte livre.
+  O **Edital 03/2026 é gerado pelo próprio ARCHÉ** (`TEXTO_EDITAL` + `gerarEditalMonitoriaPdf`,
+  público em `/api/publico/monitoria/edital.pdf`): é o 02/2025 atualizado para a PROPPEX —
+  os objetivos, os requisitos do candidato e a certificação não mudaram; mudou o órgão que
+  conduz e o fato de o processo inteiro correr no portal.
+  **O fluxo é o da IC, e cada passo é rota com dono definido**: o professor submete o projeto
+  da SUA disciplina e **indica o monitor por nome e e-mail** → o indicado recebe o convite e
+  preenche a **própria ficha de inscrição** (Anexo II: matrícula, CPF, telefone, curso,
+  período, declaração de disponibilidade e os documentos do item 3.2) → completa a ficha de
+  todos os indicados, o projeto **vai sozinho** à fila da PROPPEX → aprovado, entra em
+  execução → o monitor entrega o **relatório** → o orientador **avalia a atuação** dele (as 4
+  perguntas do Anexo III + parecer) e valida → a PROPPEX **homologa** e os certificados
+  existem. Ninguém preenche a ficha pelo aluno (é declaração, e declaração tem dono), a
+  avaliação **nunca é da PROPPEX** (quem acompanhou o semestre foi a orientação) e o
+  protocolo `MON-AAAA-NNN` é emitido pelo SERVIDOR, na submissão.
+  **Certificados** (`certificadosDe` em lib/monitoria.js, mesmo gerador da IC): o monitor só
+  certifica com parecer **aprovado** (item 6.2) e leva a **carga horária cumprida**
+  (semanas × CH semanal, semana iniciada conta); o docente recebe **um por PROJETO**, não um
+  por monitor — o item 6.1 certifica o projeto. Saem sozinhos: não há emissão a pedir.
+  **Cobrança do relatório** (`COBRANCA` + `varrerCobrancaMon`, decisão do dono ago/2026):
+  começa **30 dias antes do prazo** e repete a cada 7 dias até o envio — o monitor descobre o
+  relatório no dia 13 de dezembro, e relatório de véspera não registra nada. A mesma varredura
+  cobra a orientação quando o relatório fica esperando validação, e a ficha de inscrição que
+  trava o projeto na porta. A gestão tem a chamada manual (`POST /api/monitoria/chamada-relatorio`).
+  **Prazos do 03/2026** (definidos pelo dono): submissão 04/09, cadastro do monitor 08/09,
+  análise 09/09, resultado 10/09, vigência 14/09 a 12/12, relatório **14/12**, validação
+  18/12, homologação 22/12. Trocar de edital é mexer em `CRONOGRAMA`/`PRAZOS`/`VIGENCIA`.
+  Os três anexos saem **preenchidos** em PDF timbrado (projeto, ficha e relatório) — o
+  processo corre no ARCHÉ e o PDF é o que se arquiva e se assina.
+  **O monitor entra com conta PENDENTE** (exceção na guarda e em `sessaoMon`, como na IC): o
+  convite é nominal, e sem isso ele bateria numa parede vinda do próprio e-mail. Ele vê o
+  projeto e o **próprio** cadastro — nunca o CPF, o telefone ou o relatório do colega —, e
+  **não lê a avaliação que levou** (nem na tela, nem no PDF do seu relatório).
 - **Protótipos** (`/prototipos/`, atrás de login): telas navegáveis com dados fictícios, para
   decidir o desenho ANTES de escrever o módulo. Nada ali grava nada, e cada tela termina com
-  as perguntas que levanta. Hoje: Monitoria (MO) e Ligas e Grupos de Pesquisa (LG). O protótipo do
+  as perguntas que levanta. O de **Monitoria cumpriu o papel** — o módulo existe desde
+  ago/2026 e é ele que vale; a tela fica como registro do desenho. Segue aberto o de Ligas e
+  Grupos de Pesquisa (LG). O protótipo do
   LG carrega a resposta a "como isso não vira um cadastro morto": **o registro agrega em vez
   de perguntar** (a atividade da liga chega da reserva de espaço, da ação de extensão e do
   evento; os projetos do grupo já estão na IC), **a presença por QR vira horas e as horas

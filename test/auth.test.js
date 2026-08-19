@@ -117,7 +117,7 @@ test("limite de tentativas de senha", () => {
 
 /* ------------------------- coordenação por setor ------------------------- */
 test("os seis setores podem ter coordenação designada", () => {
-  assert.deepEqual(MODULOS, ["extensao", "pesquisa", "inovacao", "atas", "eventos", "espacos"],
+  assert.deepEqual(MODULOS, ["extensao", "pesquisa", "inovacao", "atas", "eventos", "espacos", "monitoria"],
     "eventos (ARCHÉ EV) e espaços (ARCHÉ ES) entram na lista como qualquer outro setor");
 });
 

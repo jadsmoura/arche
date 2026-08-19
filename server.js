@@ -16,7 +16,7 @@ import { getStorage } from "./lib/storage.js";
 import { getFiles, slug } from "./lib/files.js";
 import { varrer, varrerSeVencido, dispensar, situacao } from "./lib/cobranca.js";
 import {
-  ATAS_KEY, ORGAOS, CURSOS, STATUS as ATA_STATUS, normalizarAta, validarAta,
+  ATAS_KEY, ORGAOS, CURSOS, cursoDe, STATUS as ATA_STATUS, normalizarAta, validarAta,
   numerar, tituloDe, anotar, encaminhamentos, orgaoDe, podeVerAta, podeEditarAta, statusVigente,
   buscarAtas,
 } from "./lib/atas.js";
@@ -41,7 +41,25 @@ import {
   janelaRelatorio, regularizacaoDe, pedidoEncerramentoPendente, encerramentoAceito,
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf, cpfValido } from "./lib/cpf.js";
-import { editaisMonitoriaParaLista } from "./lib/monitoria.js";
+import {
+  MON_KEY, EDITAL as MON_EDITAL, CRONOGRAMA as MON_CRONOGRAMA, VIGENCIA as MON_VIGENCIA,
+  PRAZOS as MON_PRAZOS, CH_SEMANAL as MON_CH_SEMANAL, ROTULO_STATUS as MON_ROTULO_STATUS,
+  CRITERIOS_MONITOR, RESPOSTAS_CRITERIO, PARECERES as PARECERES_MON,
+  TEXTO_EDITAL as TEXTO_EDITAL_MON, editaisMonitoriaParaLista,
+  normalizarProjeto as normalizarProjetoMon, normalizarRelatorio as normalizarRelatorioMon,
+  papelNoProjeto as monPapel, podeVer as monPodeVer, podeEditar as monPodeEditar,
+  podeSubmeter as monPodeSubmeter, podeDecidir as monPodeDecidir,
+  podeValidarRelatorio as monPodeValidar, podeHomologar as monPodeHomologar,
+  monitorDe as monMonitorDe, visaoDoProjeto as monVisao, resumir as monResumir,
+  panorama as monPanorama, pendenciasDoCiclo as monPendencias,
+  pendenciasDoProjeto as monPendenciasProjeto, faltaNoProjeto as monFaltaProjeto,
+  faltaNoCadastroDoMonitor as monFaltaCadastro, faltaNoRelatorio as monFaltaRelatorio,
+  faltaNaAvaliacao as monFaltaAvaliacao, todosCadastrados as monTodosCadastrados,
+  cargaHorariaTotal as monCargaTotal, anotar as monAnotar,
+  submissaoAberta as monSubmissaoAberta, certificadosDe as certificadosMonitoria,
+  COBRANCA as MON_COBRANCA, cobrancaAberta as cobrancaAbertaMon,
+  diasParaRelatorio as diasParaRelatorioMon,
+} from "./lib/monitoria.js";
 import {
   slugUnico, SLUG_VALIDO, slugReservado, SLUGS_RESERVADOS, gerarChaveQr, gerarCodigoMonitor, gerarToken, tokenValido,
   codigoDe, inscritoPorToken, normalizarProgramacao, vagasRestantes, prazoInscricao,
@@ -62,14 +80,14 @@ import {
 import {
   duplicidadesPorNome, podeFundir, fundirPerfil, fundirProjeto, fundirAcao, fundirAta, fundirPapeis,
 } from "./lib/fusao.js";
-import { certificadosDe, destinatariosDoCiclo, certificavel } from "./lib/certificados.js";
+import { certificadosDe, destinatariosDoCiclo, certificavel, codigo as codigoCert } from "./lib/certificados.js";
 import {
   EDITAL, LINHAS, GRUPOS_PESQUISA, FOMENTOS, TITULACOES, BLOCOS_PRODUCAO, normalizarTitulacao,
   pontuarProducao, normalizarProducao, notaClassificacao, modalidadePor, gruposConhecidos,
   DOCUMENTOS_EDITAIS, RESULTADOS_EDITAIS,
 } from "./lib/edital.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
-import { dataCivil, hojeLocalISO } from "./lib/datas.js";
+import { dataCivil, diaSerial, hojeLocalISO } from "./lib/datas.js";
 import { MIN_FOTOS_RELATORIO, faltamFotos, avisoFotos, fotosDoPortfolio } from "./lib/portfolio.js";
 import {
   PERIODOS as PERIODOS_MATRIZ, normalizarCurricularizacao, panoramaCurricularizacao,
@@ -175,7 +193,7 @@ app.use((req, res, next) => {
 // Setores de gestão exigem login (Avaliação Institucional continua aberta).
 // /eventos/* segue PÚBLICO (hotsite, inscrição, credenciamento, assistir) —
 // só a sala de gestão do ARCHÉ EV, em /eventos/gestao, pede sessão.
-const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios|espacos|prototipos)(\/|$)|^\/eventos\/gestao(\/|$)/;
+const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios|espacos|monitoria|prototipos)(\/|$)|^\/eventos\/gestao(\/|$)/;
 app.use(async (req, res, next) => {
   // HEAD também (achado de ago/2026): o express.static responde HEAD, e a
   // guarda só de GET deixava um HEAD sem sessão confirmar a existência
@@ -185,9 +203,17 @@ app.use(async (req, res, next) => {
   if (u.papel === "pendente") {
     // exceção da IC: aluno indicado, avaliador ad hoc designado e bolsista
     // do ICEM entram pelo convite, que já é nominal (ver sessaoIC).
-    const convidado = req.caminho.startsWith("/pesquisa")
-      && (participaDeAlgum(u.email, await lerProjetos(), (await carregarPerfis())[u.email]?.cpf || "")
-        || await souBolsistaEM(u.email));
+    const cpfDele = (await carregarPerfis())[u.email]?.cpf || "";
+    // exceção da MONITORIA, pelo mesmo motivo: o monitor é indicado pelo
+    // professor e recebe um convite por e-mail. Se a conta dele — recém-criada,
+    // ainda pendente — batesse na porta, o convite levaria a uma parede, e a
+    // ficha de inscrição (que é o que destrava o projeto) nunca seria
+    // preenchida. Vale só para quem ESTÁ num projeto, que é convite nominal.
+    const convidadoMon = req.caminho.startsWith("/monitoria")
+      && (await lerMonitorias()).some((p) => monPapel(p, { email: u.email, cpf: cpfDele }) === "monitor");
+    const convidado = convidadoMon || (req.caminho.startsWith("/pesquisa")
+      && (participaDeAlgum(u.email, await lerProjetos(), cpfDele)
+        || await souBolsistaEM(u.email)));
     if (!convidado) return res.redirect("/entrar?pendente=1");
   }
   if (req.caminho.startsWith("/usuarios") && u.papel !== "gestor") return res.redirect("/");
@@ -689,6 +715,23 @@ app.get("/api/alertas", async (req, res) => {
       if (vencidos.length) alertas.push({ setor: "Atas", n: vencidos.length, link: "/atas/",
         texto: `${vencidos.length} encaminhamento(s) com prazo vencido`,
         detalhe: vencidos.slice(0, 3).map((e) => `${e.orgao}: ${e.acao}`.slice(0, 70)).join(" · ") });
+    }
+
+    if (u.modulos.includes("monitoria")) {
+      // a monitoria tem prazo curto e três filas diferentes; o sino separa a
+      // que é da PROPPEX (analisar e homologar) do que ela precisa COBRAR
+      const projs = await lerMonitorias();
+      const emAnalise = projs.filter((p) => p.status === "submetido").length;
+      if (emAnalise) alertas.push({ setor: "Monitoria", n: emAnalise, link: "/monitoria/",
+        texto: `${emAnalise} projeto(s) de monitoria aguardando análise` });
+      const aHomologar = projs.reduce((n, p) => n
+        + (p.monitores || []).filter((m) => m.relatorio?.status === "validado").length, 0);
+      if (aHomologar) alertas.push({ setor: "Monitoria", n: aHomologar, link: "/monitoria/",
+        texto: `${aHomologar} relatório(s) validado(s) aguardando homologação` });
+      const atrasadas = monPendencias(projs).filter((x) => x.atraso > 0);
+      if (atrasadas.length) alertas.push({ setor: "Monitoria", n: atrasadas.length, link: "/monitoria/",
+        texto: `${atrasadas.length} pendência(s) de monitoria em atraso`,
+        detalhe: atrasadas.slice(0, 3).map((x) => `${x.quem || ""}: ${x.disciplina || ""}`).join(" · ") });
     }
 
     if (u.modulos.includes("espacos")) {
@@ -1298,7 +1341,7 @@ function cursoFrom(req) {
 // Chaves internas do servidor: invisíveis e não graváveis pela API pública.
 // "auth-*" guarda sessão/usuários; "sys-*", registros operacionais (ex.: quais
 // ações já receberam cobrança de relatório).
-const CHAVES_INTERNAS = /^(auth-|sys-|atas-|ic-|ex-|esp-)/;
+const CHAVES_INTERNAS = /^(auth-|sys-|atas-|ic-|ex-|esp-|mon-)/;
 
 app.get("/api/estado", async (req, res) => {
   try {
@@ -3976,6 +4019,845 @@ async function avisarReserva(reserva, espacos, momento) {
     console.error("[espacos] aviso por e-mail não enviado:", e.message);
   }
 }
+
+/* ========================================================================
+   ARCHÉ MO — MONITORIA ACADÊMICA
+
+   A reitoria trouxe o programa para a PROPPEX (ago/2026). O fluxo é o que o
+   dono descreveu, e cada passo é uma ROTA com dono definido:
+
+     professor submete (`/submeter`)  →  o monitor preenche a ficha
+     (`/inscricao`)  →  a PROPPEX decide (`/decidir`)  →  o monitor entrega o
+     relatório (`/relatorio`)  →  o orientador avalia e valida
+     (`/relatorio/validar`)  →  a PROPPEX homologa (`/homologar`)  →
+     certificados.
+
+   Duas coisas ficam com o SERVIDOR, e por bons motivos: o **protocolo**
+   (sequência no cliente é número repetido esperando acontecer, como já
+   aconteceu na Extensão) e a **transição de status** — o formulário grava
+   conteúdo, nunca situação.
+
+   As regras vivem em lib/monitoria.js, onde são testáveis; aqui ficam o
+   transporte, a gravação em série e os avisos.
+   ======================================================================== */
+const SITE_BASE = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
+const gereMon = (u) => !!u && (u.papel === "gestor" || u.modulos?.includes("monitoria"));
+const quemMon = (u) => ({ email: u?.email, cpf: u?.cpf || "", gestao: gereMon(u) });
+
+async function lerMonitorias() {
+  const raw = await storage.get(MON_KEY);
+  try {
+    const v = JSON.parse(raw || "[]");
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
+}
+
+/* Fila serializada, como em toda base do ARCHÉ: dois salvamentos no mesmo
+   segundo (o professor no projeto e o monitor na ficha) só se enxergam
+   dentro dela. */
+let filaMon = Promise.resolve();
+function comMonitorias(fn) {
+  const proxima = filaMon.then(async () => {
+    const lista = await lerMonitorias();
+    const r = await fn(lista);
+    if (r?.gravar !== false) {
+      await storage.set(MON_KEY, JSON.stringify(lista));
+      await storage.flush?.();
+    }
+    return r;
+  });
+  filaMon = proxima.catch(() => {});
+  return proxima;
+}
+
+/** Protocolo MON-AAAA-NNN, emitido na submissão e nunca repetido. */
+async function novoProtocoloMon() {
+  const ano = Number(hojeLocalISO().slice(0, 4));
+  const raw = await storage.get("mon-config-v1");
+  let cfg = raw ? JSON.parse(raw) : { ano, seq: 0 };
+  if (cfg.ano !== ano) cfg = { ano, seq: 0 };
+  cfg.seq++;
+  await storage.set("mon-config-v1", JSON.stringify(cfg));
+  return `MON-${ano}-${String(cfg.seq).padStart(3, "0")}`;
+}
+
+/** A sessão do setor. Conta PENDENTE entra se for monitor indicado — é o
+    mesmo convite da IC: indicar alguém dá acesso ao setor, e só aos projetos
+    em que a pessoa está. Quem submete projeto precisa de conta aprovada. */
+async function sessaoMon(req, res) {
+  const u = await usuarioDe(req, res);
+  if (!u) { res.status(401).json({ error: "Faça login para acessar a monitoria." }); return null; }
+  if (u.papel === "pendente") {
+    const lista = await lerMonitorias();
+    const convidado = lista.some((p) => monPapel(p, quemMon(u)) === "monitor");
+    if (!convidado) {
+      res.status(403).json({ error: "Seu acesso ainda não foi liberado." });
+      return null;
+    }
+  }
+  return u;
+}
+
+/** O e-mail do setor recebe as movimentações; a PROPPEX acompanha por lá. */
+async function avisarMonitoria(msg) {
+  try {
+    const { enviarEmail } = await import("./lib/mailer.js");
+    if (msg?.para) await enviarEmail(msg);
+  } catch (e) {
+    console.error("[monitoria] aviso por e-mail não enviado:", e.message);
+  }
+}
+
+/** O convite ao monitor indicado — é o que abre o processo para ele. */
+async function convidarMonitores(projeto, monitores) {
+  const { emailConviteMonitor } = await import("./lib/mailer.js");
+  for (const m of monitores) {
+    if (!m?.email) continue;
+    await avisarMonitoria(emailConviteMonitor(projeto, m, { baseUrl: SITE_BASE }));
+  }
+}
+
+const monMeta = () => ({
+  edital: MON_EDITAL, editais: editaisMonitoriaParaLista(), cronograma: MON_CRONOGRAMA,
+  vigencia: MON_VIGENCIA, prazos: MON_PRAZOS, chSemanal: MON_CH_SEMANAL,
+  cursos: CURSOS, criterios: CRITERIOS_MONITOR, respostas: RESPOSTAS_CRITERIO,
+  pareceres: PARECERES_MON, rotuloStatus: MON_ROTULO_STATUS,
+  submissaoAberta: monSubmissaoAberta(), cobranca: MON_COBRANCA,
+  cobrancaAberta: cobrancaAbertaMon(), diasParaRelatorio: diasParaRelatorioMon(),
+});
+
+/** GET /api/monitoria — a lista com o recorte de quem olha, e o que a tela
+    precisa para abrir. O professor vê os seus; o monitor, aqueles em que
+    foi indicado; a gestão, todos. */
+app.get("/api/monitoria", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const quem = quemMon(u);
+    const lista = await lerMonitorias();
+    const meus = lista.filter((p) => monPodeVer(p, quem));
+    const perfil = (await carregarPerfis())[u.email] || {};
+    res.json({
+      eu: u.email, gestao: quem.gestao, gestorGeral: u.papel === "gestor",
+      perfil: {
+        nome: perfil.nome || u.nome || "", cpf: perfil.cpf || "",
+        titulacao: perfil.titulacao || "", telefone: perfil.telefone || "",
+        curso: perfil.curso || "", funcao: perfil.funcao || "",
+      },
+      projetos: meus.map((p) => monResumir(p, quem)),
+      ...(quem.gestao
+        ? { panorama: monPanorama(lista), pendencias: monPendencias(lista) }
+        : {}),
+      meta: monMeta(),
+    });
+  } catch (e) {
+    console.error("Erro ao listar a monitoria:", e);
+    res.status(500).json({ error: "Não foi possível carregar a monitoria." });
+  }
+});
+
+/** GET /api/monitoria/certificados — os meus, calculados dos projetos. */
+app.get("/api/monitoria/certificados", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const perfil = (await carregarPerfis())[u.email] || {};
+    const lista = await lerMonitorias();
+    res.json({ certificados: certificadosMonitoria(lista, {
+      email: u.email, cpf: perfil.cpf || "", nome: perfil.nome || u.nome || "" }) });
+  } catch (e) {
+    console.error("Erro nos certificados da monitoria:", e);
+    res.status(500).json({ error: "Não foi possível listar os certificados." });
+  }
+});
+
+/** GET /api/monitoria/certificado.pdf — o documento em si. Quem baixa é quem
+    tem direito: a lista acima é a régua, e ela vem dos projetos. */
+app.get("/api/monitoria/certificado.pdf", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const perfil = (await carregarPerfis())[u.email] || {};
+    const lista = await lerMonitorias();
+    const quer = { projetoId: String(req.query.projeto || ""), tipo: String(req.query.tipo || "monitoria") };
+    // a gestão emite o de qualquer um (é ela quem certifica); os demais, o seu
+    const dono = gereMon(u) && req.query.de
+      ? { email: String(req.query.de), cpf: "", nome: "" }
+      : { email: u.email, cpf: perfil.cpf || "", nome: perfil.nome || u.nome || "" };
+    const cert = certificadosMonitoria(lista, dono)
+      .find((c) => c.projetoId === quer.projetoId && c.tipo === quer.tipo);
+    if (!cert) return res.status(404).send("Certificado não disponível.");
+    const { gerarCertificadoPdf } = await import("./lib/pdf.js");
+    const buf = await gerarCertificadoPdf({
+      ...cert, codigo: codigoCert({ tipo: cert.tipo, projetoId: cert.projetoId, pessoa: cert.pessoa }),
+      assinaturas: await assinaturasParaPdf(),
+    });
+    enviarPdfMon(res, buf, `certificado-monitoria-${cert.numero || cert.projetoId}.pdf`);
+  } catch (e) {
+    console.error("Erro no certificado de monitoria:", e);
+    res.status(500).send("Não foi possível gerar o certificado.");
+  }
+});
+
+/** GET /api/monitoria/:id — o projeto, com o recorte de sigilo aplicado. */
+app.get("/api/monitoria/:id", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const quem = quemMon(u);
+    const p = (await lerMonitorias()).find((x) => x.id === req.params.id);
+    if (!p || !monPodeVer(p, quem)) return res.status(404).json({ error: "Projeto não encontrado." });
+    const v = monVisao(p, quem);
+    res.json({
+      projeto: { ...v, cargaTotal: monCargaTotal(p) },
+      podeEditar: monPodeEditar(p, quem), podeSubmeter: monPodeSubmeter(p, quem),
+      podeDecidir: monPodeDecidir(p, quem), podeHomologar: monPodeHomologar(p, quem),
+      falta: monFaltaProjeto(p), pendencias: quem.gestao ? monPendenciasProjeto(p) : [],
+      meta: monMeta(),
+    });
+  } catch (e) {
+    console.error("Erro ao abrir o projeto de monitoria:", e);
+    res.status(500).json({ error: "Não foi possível abrir o projeto." });
+  }
+});
+
+/** POST /api/monitoria — cria ou salva o projeto. Quem salva é o orientador
+    (rascunho e devolvido) ou a gestão; o conteúdo do MONITOR nunca vem por
+    aqui — ele grava a própria ficha em /inscricao, e a normalização preserva
+    o que ele já tinha gravado. */
+app.post("/api/monitoria", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    if (u.papel === "pendente")
+      return res.status(403).json({ error: "Submeter projeto exige conta aprovada." });
+    const body = req.body?.projeto || req.body || {};
+    const quem = quemMon(u);
+    const perfil = (await carregarPerfis())[u.email] || {};
+
+    const r = await comMonitorias((lista) => {
+      const i = lista.findIndex((x) => x.id === String(body.id || ""));
+      if (i < 0) {
+        // projeto novo: a orientação sai do PERFIL de quem submete — pedir de
+        // novo o que já está cadastrado é convite a divergência
+        const novo = normalizarProjetoMon({
+          ...body,
+          orientador: {
+            nome: perfil.nome || u.nome || "", email: u.email,
+            cpf: perfil.cpf || "", titulacao: perfil.titulacao || "",
+            telefone: perfil.telefone || "",
+            ...(quem.gestao ? body.orientador || {} : {}),
+          },
+        });
+        novo.id = `mon${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+        novo.criadoPor = quem.gestao ? String(body.orientador?.email || u.email).toLowerCase() : u.email;
+        novo.criadoEm = new Date().toISOString();
+        monAnotar(novo, { acao: "Projeto criado", por: u.email });
+        lista.push(novo);
+        return { ok: true, projeto: novo };
+      }
+      if (!monPodeEditar(lista[i], quem))
+        return { erro: [403, "Este projeto não está mais aberto para edição."], gravar: false };
+      const atualizado = normalizarProjetoMon(body, { anterior: lista[i] });
+      lista[i] = atualizado;
+      return { ok: true, projeto: atualizado };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, projeto: monVisao(r.projeto, quem), falta: monFaltaProjeto(r.projeto) });
+  } catch (e) {
+    console.error("Erro ao gravar o projeto de monitoria:", e);
+    res.status(500).json({ error: "Não foi possível gravar o projeto." });
+  }
+});
+
+/** POST /api/monitoria/:id/submeter — emite o protocolo, fecha a proposta e
+    convida os monitores indicados. É aqui que o processo começa a existir. */
+app.post("/api/monitoria/:id/submeter", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const quem = quemMon(u);
+    let convites = [];
+    const r = await comMonitorias(async (lista) => {
+      const p = lista.find((x) => x.id === req.params.id);
+      if (!p || !monPodeVer(p, quem)) return { erro: [404, "Projeto não encontrado."], gravar: false };
+      if (!monPodeSubmeter(p, quem))
+        return { erro: [403, "Só o professor orientador submete, e só enquanto o projeto está aberto."], gravar: false };
+      const falta = monFaltaProjeto(p);
+      if (falta.length)
+        return { erro: [400, `Faltam dados no projeto: ${falta.join("; ")}.`], gravar: false };
+      if (!p.protocolo) p.protocolo = await novoProtocoloMon();
+      p.status = "aguardando-aluno";
+      p.submetidoEm = new Date().toISOString();
+      const agora = new Date().toISOString();
+      convites = (p.monitores || []).filter((m) => !m.convidadoEm && m.email);
+      for (const m of convites) m.convidadoEm = agora;
+      monAnotar(p, { acao: "Projeto submetido", por: u.email,
+        detalhe: `Protocolo ${p.protocolo} · ${(p.monitores || []).length} monitor(es) indicado(s)` });
+      return { ok: true, projeto: p };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    if (convites.length) convidarMonitores(r.projeto, convites).catch(() => {});
+    const { emailMovimentacaoMonitoria } = await import("./lib/mailer.js");
+    avisarMonitoria(emailMovimentacaoMonitoria({
+      assunto: `Projeto de monitoria submetido — ${r.projeto.disciplina}`,
+      titulo: "Novo projeto de monitoria",
+      linhas: [["Protocolo", r.projeto.protocolo], ["Disciplina", r.projeto.disciplina],
+        ["Curso", cursoDe(r.projeto.curso)?.nome || r.projeto.curso],
+        ["Orientador", r.projeto.orientador?.nome],
+        ["Monitores indicados", (r.projeto.monitores || []).map((m) => m.nome).join(", ")]],
+    })).catch(() => {});
+    res.json({ ok: true, projeto: monVisao(r.projeto, quem), convidados: convites.length });
+  } catch (e) {
+    console.error("Erro ao submeter o projeto de monitoria:", e);
+    res.status(500).json({ error: "Não foi possível submeter o projeto." });
+  }
+});
+
+/** POST /api/monitoria/:id/convidar — reenvia o convite a um monitor. */
+app.post("/api/monitoria/:id/convidar", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const quem = quemMon(u);
+    const lista = await lerMonitorias();
+    const p = lista.find((x) => x.id === req.params.id);
+    if (!p || !monPodeVer(p, quem)) return res.status(404).json({ error: "Projeto não encontrado." });
+    if (!["orientador", "gestao"].includes(monPapel(p, quem)))
+      return res.status(403).json({ error: "Só a orientação ou a PROPPEX reenvia o convite." });
+    const alvos = (p.monitores || []).filter(
+      (m) => m.email && (!req.body?.monitor || m.id === req.body.monitor));
+    if (!alvos.length) return res.status(400).json({ error: "Nenhum monitor com e-mail para convidar." });
+    await convidarMonitores(p, alvos);
+    res.json({ ok: true, enviados: alvos.length });
+  } catch (e) {
+    console.error("Erro ao convidar o monitor:", e);
+    res.status(500).json({ error: "Não foi possível enviar o convite." });
+  }
+});
+
+/** POST /api/monitoria/:id/inscricao — o MONITOR grava a própria ficha
+    (Anexo II). Ninguém preenche por ele: nem o orientador, nem a gestão —
+    é declaração de disponibilidade, e declaração tem dono. Completa a
+    ficha de todos os indicados, o projeto vai sozinho à fila da PROPPEX. */
+app.post("/api/monitoria/:id/inscricao", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const quem = quemMon(u);
+    let entrou = false;
+    const r = await comMonitorias((lista) => {
+      const p = lista.find((x) => x.id === req.params.id);
+      if (!p || !monPodeVer(p, quem)) return { erro: [404, "Projeto não encontrado."], gravar: false };
+      const eu = monMonitorDe(p, quem);
+      if (!eu) return { erro: [403, "Esta ficha é do acadêmico indicado."], gravar: false };
+      if (["reprovado", "cancelado"].includes(p.status))
+        return { erro: [400, "Este projeto foi encerrado."], gravar: false };
+      const d = req.body || {};
+      Object.assign(eu, {
+        nome: String(d.nome || eu.nome || "").trim().slice(0, 160) || eu.nome,
+        matricula: String(d.matricula ?? eu.matricula ?? "").trim().slice(0, 40),
+        cpf: soDigitos(d.cpf ?? eu.cpf).slice(0, 11),
+        telefone: String(d.telefone ?? eu.telefone ?? "").trim().slice(0, 40),
+        curso: String(d.curso ?? eu.curso ?? "").trim(),
+        periodo: String(d.periodo ?? eu.periodo ?? "").trim().slice(0, 20),
+        chSemanal: Number(d.chSemanal) || eu.chSemanal || 0,
+        documentos: {
+          matricula: d.documentos?.matricula ?? eu.documentos?.matricula ?? null,
+          historico: d.documentos?.historico ?? eu.documentos?.historico ?? null,
+        },
+      });
+      if (d.declaracao) eu.declaracao = { aceita: true, em: new Date().toISOString() };
+      if (d.cpf && !cpfValido(d.cpf))
+        return { erro: [400, "CPF inválido — confira os dígitos."], gravar: false };
+      const falta = monFaltaCadastro(eu);
+      if (!falta.length && !eu.cadastradoEm) {
+        eu.cadastradoEm = new Date().toISOString();
+        monAnotar(p, { acao: "Ficha de inscrição preenchida", por: u.email, detalhe: eu.nome });
+      }
+      // completa a ficha de TODOS os indicados, o projeto entra na fila
+      if (p.status === "aguardando-aluno" && monTodosCadastrados(p)) {
+        p.status = "submetido";
+        entrou = true;
+        monAnotar(p, { acao: "Projeto encaminhado à PROPPEX", por: u.email,
+          detalhe: "Todos os monitores indicados completaram a inscrição" });
+      }
+      return { ok: true, projeto: p, falta };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    if (entrou) {
+      const { emailMovimentacaoMonitoria } = await import("./lib/mailer.js");
+      avisarMonitoria(emailMovimentacaoMonitoria({
+        assunto: `Projeto pronto para análise — ${r.projeto.disciplina}`,
+        titulo: "Projeto de monitoria com inscrição completa",
+        linhas: [["Protocolo", r.projeto.protocolo], ["Disciplina", r.projeto.disciplina],
+          ["Orientador", r.projeto.orientador?.nome],
+          ["Monitores", (r.projeto.monitores || []).map((m) => m.nome).join(", ")]],
+      })).catch(() => {});
+    }
+    res.json({ ok: true, falta: r.falta, projeto: monVisao(r.projeto, quem) });
+  } catch (e) {
+    console.error("Erro ao gravar a inscrição do monitor:", e);
+    res.status(500).json({ error: "Não foi possível gravar a sua inscrição." });
+  }
+});
+
+/** POST /api/monitoria/:id/decidir — a PROPPEX aprova, devolve ou reprova. */
+app.post("/api/monitoria/:id/decidir", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const quem = quemMon(u);
+    const decisao = String(req.body?.decisao || "");
+    const parecer = String(req.body?.parecer || "").trim().slice(0, 4000);
+    if (!["aprovar", "devolver", "reprovar"].includes(decisao))
+      return res.status(400).json({ error: "Decisão inválida." });
+    if (decisao !== "aprovar" && !parecer)
+      return res.status(400).json({ error: "Devolver e reprovar exigem o motivo — é o que o professor lê." });
+
+    const r = await comMonitorias((lista) => {
+      const p = lista.find((x) => x.id === req.params.id);
+      if (!p || !monPodeVer(p, quem)) return { erro: [404, "Projeto não encontrado."], gravar: false };
+      if (!monPodeDecidir(p, quem))
+        return { erro: [403, "A decisão é da PROPPEX, e só sobre projeto que está na fila."], gravar: false };
+      p.status = { aprovar: "aprovado", devolver: "devolvido", reprovar: "reprovado" }[decisao];
+      p.apreciacao = { em: new Date().toISOString(), por: u.email, decisao, parecer };
+      monAnotar(p, { acao: `Projeto ${MON_ROTULO_STATUS[p.status].toLowerCase()}`, por: u.email, detalhe: parecer });
+      return { ok: true, projeto: p };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    const { emailMovimentacaoMonitoria } = await import("./lib/mailer.js");
+    const destino = r.projeto.orientador?.email || r.projeto.criadoPor;
+    if (destino) {
+      avisarMonitoria(emailMovimentacaoMonitoria({
+        para: destino,
+        assunto: `Seu projeto de monitoria foi ${MON_ROTULO_STATUS[r.projeto.status].toLowerCase()}`,
+        titulo: `Projeto ${r.projeto.protocolo} — ${MON_ROTULO_STATUS[r.projeto.status]}`,
+        linhas: [["Disciplina", r.projeto.disciplina], ["Situação", MON_ROTULO_STATUS[r.projeto.status]],
+          ...(parecer ? [["Parecer da PROPPEX", parecer]] : [])],
+      })).catch(() => {});
+    }
+    res.json({ ok: true, projeto: monVisao(r.projeto, quem) });
+  } catch (e) {
+    console.error("Erro ao decidir o projeto de monitoria:", e);
+    res.status(500).json({ error: "Não foi possível registrar a decisão." });
+  }
+});
+
+/** POST /api/monitoria/:id/relatorio — o MONITOR salva ou envia o relatório. */
+app.post("/api/monitoria/:id/relatorio", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const quem = quemMon(u);
+    const enviar = !!req.body?.enviar;
+    const r = await comMonitorias((lista) => {
+      const p = lista.find((x) => x.id === req.params.id);
+      if (!p || !monPodeVer(p, quem)) return { erro: [404, "Projeto não encontrado."], gravar: false };
+      const eu = monMonitorDe(p, quem);
+      if (!eu) return { erro: [403, "O relatório é de quem atuou como monitor."], gravar: false };
+      if (p.status !== "aprovado")
+        return { erro: [400, "O relatório é entregue durante a execução do projeto."], gravar: false };
+      const atual = eu.relatorio || {};
+      if (["validado", "homologado"].includes(atual.status))
+        return { erro: [400, "Este relatório já foi validado."], gravar: false };
+      const novo = normalizarRelatorioMon({
+        ...atual, ...(req.body?.relatorio || {}),
+        // a avaliação é do orientador: nada que venha do aluno a toca
+        avaliacao: atual.avaliacao, status: atual.status,
+      });
+      if (enviar) {
+        const falta = monFaltaRelatorio(novo);
+        if (falta.length) return { erro: [400, `Falta preencher: ${falta.join("; ")}.`], gravar: false };
+        novo.status = "enviado";
+        novo.enviadoEm = new Date().toISOString();
+        monAnotar(p, { acao: "Relatório entregue", por: u.email, detalhe: eu.nome });
+      }
+      eu.relatorio = novo;
+      return { ok: true, projeto: p, monitor: eu, enviado: enviar };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    if (r.enviado) {
+      const { emailMovimentacaoMonitoria } = await import("./lib/mailer.js");
+      const destino = r.projeto.orientador?.email || r.projeto.criadoPor;
+      if (destino) {
+        avisarMonitoria(emailMovimentacaoMonitoria({
+          para: destino,
+          assunto: `Relatório de monitoria entregue — ${r.monitor.nome}`,
+          titulo: "Relatório aguardando a sua validação",
+          linhas: [["Protocolo", r.projeto.protocolo], ["Disciplina", r.projeto.disciplina],
+            ["Monitor", r.monitor.nome],
+            ["O que fazer", "Abrir o projeto no ARCHÉ MO, avaliar a atuação do monitor e validar (ou devolver) o relatório"]],
+        })).catch(() => {});
+      }
+    }
+    res.json({ ok: true, projeto: monVisao(r.projeto, quem) });
+  } catch (e) {
+    console.error("Erro ao gravar o relatório de monitoria:", e);
+    res.status(500).json({ error: "Não foi possível gravar o relatório." });
+  }
+});
+
+/** POST /api/monitoria/:id/relatorio/validar — o ORIENTADOR avalia a atuação
+    do monitor e valida, ou devolve com o motivo. Validado, segue à PROPPEX. */
+app.post("/api/monitoria/:id/relatorio/validar", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const quem = quemMon(u);
+    const acao = String(req.body?.acao || "validar");
+    const monitorId = String(req.body?.monitor || "");
+    const r = await comMonitorias((lista) => {
+      const p = lista.find((x) => x.id === req.params.id);
+      if (!p || !monPodeVer(p, quem)) return { erro: [404, "Projeto não encontrado."], gravar: false };
+      if (!monPodeValidar(p, quem))
+        return { erro: [403, "A avaliação do monitor é da orientação."], gravar: false };
+      const m = (p.monitores || []).find((x) => x.id === monitorId);
+      if (!m || !m.relatorio) return { erro: [404, "Relatório não encontrado."], gravar: false };
+      if (m.relatorio.status !== "enviado")
+        return { erro: [400, "Só se valida relatório entregue."], gravar: false };
+
+      if (acao === "devolver") {
+        const motivo = String(req.body?.comentario || "").trim().slice(0, 4000);
+        if (!motivo) return { erro: [400, "Devolver exige o motivo — é o que o monitor lê."], gravar: false };
+        m.relatorio.status = "devolvido";
+        m.relatorio.devolvidoEm = new Date().toISOString();
+        m.relatorio.comentario = motivo;
+        monAnotar(p, { acao: "Relatório devolvido ao monitor", por: u.email, detalhe: m.nome });
+        return { ok: true, projeto: p, monitor: m, devolvido: true };
+      }
+
+      const av = { ...(req.body?.avaliacao || {}), em: new Date().toISOString(), por: u.email };
+      const falta = monFaltaAvaliacao(av);
+      if (falta.length) return { erro: [400, `Falta na avaliação: ${falta.join("; ")}.`], gravar: false };
+      m.relatorio = normalizarRelatorioMon({ ...m.relatorio, avaliacao: av, status: "validado" });
+      m.relatorio.validadoEm = new Date().toISOString();
+      m.relatorio.validadoPor = u.email;
+      monAnotar(p, { acao: "Relatório validado pela orientação", por: u.email,
+        detalhe: `${m.nome} — parecer ${av.parecer}`, sigilo: true });
+      return { ok: true, projeto: p, monitor: m };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    const { emailMovimentacaoMonitoria } = await import("./lib/mailer.js");
+    if (r.devolvido) {
+      if (r.monitor.email) {
+        avisarMonitoria(emailMovimentacaoMonitoria({
+          para: r.monitor.email,
+          assunto: "Seu relatório de monitoria voltou para ajuste",
+          titulo: "Relatório devolvido pela orientação",
+          linhas: [["Disciplina", r.projeto.disciplina], ["Motivo", r.monitor.relatorio.comentario]],
+        })).catch(() => {});
+      }
+    } else {
+      avisarMonitoria(emailMovimentacaoMonitoria({
+        assunto: `Relatório validado, aguardando homologação — ${r.monitor.nome}`,
+        titulo: "Relatório de monitoria para homologar",
+        linhas: [["Protocolo", r.projeto.protocolo], ["Disciplina", r.projeto.disciplina],
+          ["Monitor", r.monitor.nome], ["Orientador", r.projeto.orientador?.nome]],
+      })).catch(() => {});
+    }
+    res.json({ ok: true, projeto: monVisao(r.projeto, quem) });
+  } catch (e) {
+    console.error("Erro ao validar o relatório de monitoria:", e);
+    res.status(500).json({ error: "Não foi possível validar o relatório." });
+  }
+});
+
+/** POST /api/monitoria/:id/homologar — a PROPPEX fecha o processo. Homologados
+    todos os relatórios, o projeto passa a CONCLUÍDO e os certificados existem
+    (eles se calculam do projeto — não há emissão a fazer). */
+app.post("/api/monitoria/:id/homologar", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const quem = quemMon(u);
+    const r = await comMonitorias((lista) => {
+      const p = lista.find((x) => x.id === req.params.id);
+      if (!p || !monPodeVer(p, quem)) return { erro: [404, "Projeto não encontrado."], gravar: false };
+      if (!monPodeHomologar(p, quem))
+        return { erro: [403, "A homologação é da PROPPEX."], gravar: false };
+      const alvo = String(req.body?.monitor || "");
+      const alvos = (p.monitores || []).filter(
+        (m) => m.relatorio?.status === "validado" && (!alvo || m.id === alvo));
+      if (!alvos.length) return { erro: [400, "Nenhum relatório validado para homologar."], gravar: false };
+      const agora = new Date().toISOString();
+      for (const m of alvos) {
+        m.relatorio.status = "homologado";
+        m.relatorio.homologadoEm = agora;
+        m.relatorio.homologadoPor = u.email;
+        monAnotar(p, { acao: "Relatório homologado pela PROPPEX", por: u.email, detalhe: m.nome });
+      }
+      const todos = (p.monitores || []).every((m) => m.relatorio?.status === "homologado");
+      if (todos) {
+        p.status = "concluido";
+        p.concluidoEm = agora;
+        monAnotar(p, { acao: "Projeto concluído — certificados liberados", por: u.email });
+      }
+      return { ok: true, projeto: p, homologados: alvos.map((m) => m.nome), concluido: todos };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    if (r.concluido) {
+      const { emailMovimentacaoMonitoria } = await import("./lib/mailer.js");
+      for (const dest of [r.projeto.orientador?.email || r.projeto.criadoPor,
+        ...(r.projeto.monitores || []).map((m) => m.email)]) {
+        if (!dest) continue;
+        avisarMonitoria(emailMovimentacaoMonitoria({
+          para: dest,
+          assunto: "Monitoria concluída — certificado disponível",
+          titulo: "Seu certificado de monitoria já pode ser baixado",
+          linhas: [["Disciplina", r.projeto.disciplina], ["Protocolo", r.projeto.protocolo],
+            ["Onde", "Guia Certificados do ARCHÉ MO"]],
+        })).catch(() => {});
+      }
+    }
+    res.json({ ok: true, projeto: monVisao(r.projeto, quem), concluido: r.concluido });
+  } catch (e) {
+    console.error("Erro ao homologar a monitoria:", e);
+    res.status(500).json({ error: "Não foi possível homologar." });
+  }
+});
+
+/** DELETE /api/monitoria/:id — só rascunho. Projeto com protocolo emitido
+    não some do arquivo: o número saiu da sequência oficial. */
+app.delete("/api/monitoria/:id", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const quem = quemMon(u);
+    const r = await comMonitorias((lista) => {
+      const i = lista.findIndex((x) => x.id === req.params.id);
+      if (i < 0 || !monPodeVer(lista[i], quem)) return { erro: [404, "Projeto não encontrado."], gravar: false };
+      if (!monPodeEditar(lista[i], quem)) return { erro: [403, "Sem permissão."], gravar: false };
+      if (lista[i].protocolo)
+        return { erro: [400, "Projeto com protocolo emitido não é excluído — peça o cancelamento à PROPPEX."], gravar: false };
+      lista.splice(i, 1);
+      return { ok: true };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Erro ao excluir o projeto de monitoria:", e);
+    res.status(500).json({ error: "Não foi possível excluir." });
+  }
+});
+
+/** POST /api/monitoria/anexo — comprovante de matrícula e histórico escolar.
+    Sobe ANTES de a ficha ser gravada, como o ofício da reserva: o arquivo vai
+    ao Drive e o link volta para acompanhar o formulário. */
+app.post("/api/monitoria/anexo", upload.single("file"), async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado." });
+    const ok = /^(application\/pdf|image\/(png|jpe?g|webp))$/.test(req.file.mimetype || "");
+    if (!ok) return res.status(400).json({ error: "Envie o documento em PDF ou imagem." });
+    if (req.file.size > 8 * 1024 * 1024)
+      return res.status(400).json({ error: "O arquivo passa de 8 MB." });
+    const data = await files.save({
+      buffer: req.file.buffer, originalName: req.file.originalname,
+      prefix: `monitoria/${hojeLocalISO().slice(0, 4)}`,
+    });
+    res.json({ ok: true, documento: { ...data, nome: req.file.originalname,
+      tipo: req.file.mimetype, tamanho: req.file.size, enviadoEm: new Date().toISOString() } });
+  } catch (e) {
+    console.error("Erro no anexo da monitoria:", e);
+    res.status(500).json({ error: e.message || "Não foi possível anexar o documento." });
+  }
+});
+
+
+/* ------------------------ cobrança do relatório -------------------------
+   Decisão do dono (ago/2026): o sistema começa a cobrar o relatório do
+   monitor **30 dias antes** do prazo e repete a cada 7 dias até o envio. O
+   motivo é prosaico — o monitor descobre o relatório no dia 13 de dezembro,
+   e relatório escrito de véspera não registra nada; trinta dias antes ele
+   ainda lembra do que fez em setembro.
+
+   A mesma varredura cobra a ORIENTAÇÃO quando o relatório chega e fica
+   esperando validação: aí a pendência mudou de dono. E cobra a ficha de
+   inscrição do indicado, que é o que trava o projeto na porta de entrada.  */
+const COBRANCA_MON_KEY = "sys-mon-cobranca-v1";
+
+function pendenciasCobrancaMon(projetos, hoje = hojeLocalISO()) {
+  const porPessoa = new Map();
+  const junta = (alvoBruto, nome, papel, item) => {
+    const alvo = String(alvoBruto || "").trim().toLowerCase();
+    if (!alvo) return;
+    if (!porPessoa.has(alvo)) porPessoa.set(alvo, { nome, papel, itens: [] });
+    porPessoa.get(alvo).itens.push(item);
+  };
+  for (const p of projetos) {
+    // 1. ficha de inscrição pendente — o projeto não anda sem ela
+    if (p.status === "aguardando-aluno") {
+      for (const m of p.monitores || []) {
+        if (monFaltaCadastro(m).length) {
+          junta(m.email, m.nome, "aluno", {
+            disciplina: p.disciplina, protocolo: p.protocolo,
+            texto: "preencher a ficha de inscrição para o projeto seguir à PROPPEX",
+            atraso: Math.max(0, diaSerial(hoje) - diaSerial(MON_PRAZOS.cadastroMonitor)),
+          });
+        }
+      }
+    }
+    if (p.status !== "aprovado") continue;
+    for (const m of p.monitores || []) {
+      const st = m.relatorio?.status || "rascunho";
+      if (["rascunho", "devolvido"].includes(st)) {
+        // fora da janela dos 30 dias, ninguém é incomodado
+        if (!cobrancaAbertaMon(hoje)) continue;
+        const faltam = diasParaRelatorioMon(hoje);
+        junta(m.email, m.nome, "monitor", {
+          disciplina: p.disciplina, protocolo: p.protocolo,
+          texto: st === "devolvido"
+            ? `corrigir e reenviar o relatório (a orientação devolveu)`
+            : `enviar o relatório de atividades — ${faltam >= 0
+              ? `faltam ${faltam} dia(s) para o prazo (${MON_PRAZOS.relatorio.split("-").reverse().join("/")})`
+              : "o prazo já venceu"}`,
+          atraso: Math.max(0, -faltam),
+        });
+      } else if (st === "enviado") {
+        junta(p.orientador?.email || p.criadoPor, p.orientador?.nome, "orientador", {
+          disciplina: p.disciplina, protocolo: p.protocolo,
+          texto: `avaliar a atuação de ${m.nome || "seu monitor"} e validar o relatório`,
+          atraso: Math.max(0, diaSerial(hoje) - diaSerial(MON_PRAZOS.validacao)),
+        });
+      }
+    }
+  }
+  return porPessoa;
+}
+
+async function varrerCobrancaMon() {
+  const porPessoa = pendenciasCobrancaMon(await lerMonitorias());
+  if (!porPessoa.size) return { enviadas: 0 };
+  const registro = JSON.parse((await storage.get(COBRANCA_MON_KEY)) || "{}");
+  const INTERVALO = 7 * 24 * 3600 * 1000;
+  const { enviarEmail, emailCobrancaMonitoria } = await import("./lib/mailer.js");
+  let enviadas = 0;
+  for (const [alvo, dados] of porPessoa) {
+    const ultima = Date.parse(registro[alvo] || "") || 0;
+    if (Date.now() - ultima < INTERVALO) continue;
+    try {
+      await enviarEmail(emailCobrancaMonitoria({ para: alvo, ...dados }));
+      registro[alvo] = new Date().toISOString();
+      enviadas++;
+    } catch (e) { console.error(`Cobrança MO não enviada a ${alvo}:`, e.message); }
+  }
+  if (enviadas) await storage.set(COBRANCA_MON_KEY, JSON.stringify(registro));
+  return { enviadas };
+}
+
+/** A CHAMADA manual (gestão): o mesmo e-mail, enviado agora. `simular`
+    devolve quem seria chamado — é o que alimenta a confirmação da tela. */
+app.post("/api/monitoria/chamada-relatorio", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    if (!gereMon(u)) return res.status(403).json({ error: "A chamada é da PROPPEX." });
+    const porPessoa = pendenciasCobrancaMon(await lerMonitorias());
+    const lista = [...porPessoa.entries()].map(([email, d]) => ({
+      email, nome: d.nome, papel: d.papel, itens: d.itens.length }));
+    if (req.body?.simular) return res.json({ ok: true, simulado: true, destinatarios: lista });
+    const mensagem = String(req.body?.mensagem || "").slice(0, 4000);
+    const registro = JSON.parse((await storage.get(COBRANCA_MON_KEY)) || "{}");
+    const { enviarEmail, emailCobrancaMonitoria } = await import("./lib/mailer.js");
+    let enviadas = 0;
+    for (const [alvo, dados] of porPessoa) {
+      try {
+        await enviarEmail(emailCobrancaMonitoria({ para: alvo, ...dados, mensagem }));
+        registro[alvo] = new Date().toISOString();
+        enviadas++;
+      } catch (e) { console.error(`Chamada MO não enviada a ${alvo}:`, e.message); }
+    }
+    if (enviadas) await storage.set(COBRANCA_MON_KEY, JSON.stringify(registro));
+    res.json({ ok: true, enviadas, destinatarios: lista });
+  } catch (e) {
+    console.error("Erro na chamada dos relatórios de monitoria:", e);
+    res.status(500).json({ error: "Não foi possível enviar a chamada." });
+  }
+});
+
+/* ------------------------------ documentos ------------------------------ */
+
+const enviarPdfMon = (res, buf, nome) => {
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename="${nome}"`);
+  res.send(buf);
+};
+
+/** O edital vigente é PÚBLICO: é ele que convoca. */
+app.get("/api/publico/monitoria/edital.pdf", async (req, res) => {
+  try {
+    const { gerarEditalMonitoriaPdf } = await import("./lib/pdf.js");
+    const buf = await gerarEditalMonitoriaPdf({
+      edital: MON_EDITAL, texto: TEXTO_EDITAL_MON, cronograma: MON_CRONOGRAMA });
+    enviarPdfMon(res, buf, `edital-monitoria-${MON_EDITAL.numero.replace("/", "-")}.pdf`);
+  } catch (e) {
+    console.error("Erro no edital da monitoria:", e);
+    res.status(500).send("Não foi possível gerar o edital.");
+  }
+});
+
+app.get("/api/monitoria/:id/projeto.pdf", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const quem = quemMon(u);
+    const p = (await lerMonitorias()).find((x) => x.id === req.params.id);
+    if (!p || !monPodeVer(p, quem)) return res.status(404).send("Projeto não encontrado.");
+    const { gerarProjetoMonitoriaPdf } = await import("./lib/pdf.js");
+    const buf = await gerarProjetoMonitoriaPdf({ ...monVisao(p, quem), cargaTotal: monCargaTotal(p) });
+    enviarPdfMon(res, buf, `projeto-monitoria-${p.protocolo || p.id}.pdf`);
+  } catch (e) {
+    console.error("Erro no PDF do projeto de monitoria:", e);
+    res.status(500).send("Não foi possível gerar o documento.");
+  }
+});
+
+app.get("/api/monitoria/:id/ficha.pdf", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const quem = quemMon(u);
+    const p = (await lerMonitorias()).find((x) => x.id === req.params.id);
+    if (!p || !monPodeVer(p, quem)) return res.status(404).send("Projeto não encontrado.");
+    const papel = monPapel(p, quem);
+    const m = papel === "monitor"
+      ? monMonitorDe(p, quem)                       // o monitor só baixa a própria ficha
+      : (p.monitores || []).find((x) => x.id === String(req.query.monitor || "")) || p.monitores?.[0];
+    if (!m) return res.status(404).send("Monitor não encontrado.");
+    const { gerarFichaMonitoriaPdf } = await import("./lib/pdf.js");
+    enviarPdfMon(res, await gerarFichaMonitoriaPdf(p, m), `ficha-monitoria-${p.protocolo || p.id}.pdf`);
+  } catch (e) {
+    console.error("Erro no PDF da ficha de monitoria:", e);
+    res.status(500).send("Não foi possível gerar o documento.");
+  }
+});
+
+app.get("/api/monitoria/:id/relatorio.pdf", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const quem = quemMon(u);
+    const p = (await lerMonitorias()).find((x) => x.id === req.params.id);
+    if (!p || !monPodeVer(p, quem)) return res.status(404).send("Projeto não encontrado.");
+    const papel = monPapel(p, quem);
+    const m = papel === "monitor"
+      ? monMonitorDe(p, quem)
+      : (p.monitores || []).find((x) => x.id === String(req.query.monitor || "")) || p.monitores?.[0];
+    if (!m?.relatorio) return res.status(404).send("Relatório não encontrado.");
+    const { gerarRelatorioMonitoriaPdf } = await import("./lib/pdf.js");
+    // o monitor não lê a avaliação que levou — o documento dele sai sem ela
+    const visto = papel === "monitor"
+      ? { ...m, relatorio: { ...m.relatorio, avaliacao: null } } : m;
+    enviarPdfMon(res, await gerarRelatorioMonitoriaPdf(
+      { ...p, cargaTotal: monCargaTotal(p, m) }, visto, { criterios: papel === "monitor" ? [] : CRITERIOS_MONITOR }),
+    `relatorio-monitoria-${p.protocolo || p.id}.pdf`);
+  } catch (e) {
+    console.error("Erro no PDF do relatório de monitoria:", e);
+    res.status(500).send("Não foi possível gerar o documento.");
+  }
+});
 
 /* ======================== ARCHÉ AT — ATAS =============================== */
 // As atas ficam numa única chave interna (atas-reunioes-v1); toda leitura e
@@ -8541,4 +9423,8 @@ app.listen(port, () => {
   // é de hora em hora, e o espaçamento de 7 dias por pessoa é do registro
   setTimeout(() => varrerCobrancaIC().catch((e) => console.error("[cobranca-ic]", e.message)), 30_000).unref();
   setInterval(() => varrerCobrancaIC().catch((e) => console.error("[cobranca-ic]", e.message)), 60 * 60 * 1000).unref();
+  // a monitoria entra na mesma varredura: cobrança do relatório a partir
+  // de 30 dias antes do prazo, semanal, até o envio
+  setTimeout(() => varrerCobrancaMon().catch((e) => console.error("[cobranca-mon]", e.message)), 45_000).unref();
+  setInterval(() => varrerCobrancaMon().catch((e) => console.error("[cobranca-mon]", e.message)), 60 * 60 * 1000).unref();
 });

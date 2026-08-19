@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARCHÉ MO · Monitoria Acadêmica · PROPPEX / UNIEGO</title>
+<link rel="icon" href="/arche/favicon.svg">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Figtree:wght@400;500;600;700&display=swap');
+  :root{
+    --brand:#1c3742; --brand-2:#2d535c; --brand-3:#40717e; --accent:#71c8e2;
+    --bg:#ebeef3; --card:#fff; --line:#e3e7ee; --line-2:#f0f2f6; --trilho:#eef1f5;
+    --ink:#1c3742; --ink-soft:#3a4650; --muted:#7c8794; --muted-2:#a9b4c0;
+    --ok:#3f8a5d; --ok-soft:#e5f3ea; --warn:#c98a2b; --warn-soft:#fbf3e4;
+    --err:#a1524c; --err-soft:#f6e9e7; --info:#40717e; --info-soft:#e8f4fa;
+    --roxo:#5e5091; --roxo-soft:#ecebf6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);font-family:Figtree,system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+  a{color:var(--brand-3);text-decoration:none}
+  a:hover{color:var(--brand-2)}
+  ::selection{background:var(--accent);color:var(--brand)}
+  button{font-family:Figtree,system-ui,sans-serif}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#c3ccd6;border-radius:6px}
+  .f-disp{font-family:Sora,sans-serif}
+
+  /* ------------------------------- casca -------------------------------- */
+  .app{display:flex;min-height:100vh}
+  .side{width:250px;flex:none;background:var(--brand);color:#fff;display:flex;flex-direction:column;
+    position:sticky;top:0;height:100vh}
+  .side-marca{padding:20px 22px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .side-marca span{font-family:Sora,sans-serif;font-weight:800;font-size:16px;letter-spacing:.02em;color:#fff}
+  .side-marca b{color:var(--accent);font-weight:800}
+  .side-nav{padding:14px 12px;flex:1;overflow-y:auto}
+  .side-lab{font-size:10px;letter-spacing:.16em;color:rgba(255,255,255,.35);font-weight:600;padding:8px 12px 6px}
+  .side-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:8px;cursor:pointer;
+    margin-bottom:2px;font-size:13.5px;font-weight:500;background:transparent;color:rgba(255,255,255,.62);
+    border-left:3px solid transparent;border-right:0;border-top:0;border-bottom:0;width:100%;text-align:left;
+    transition:background .15s,color .15s}
+  .side-item:hover{color:#fff;background:rgba(255,255,255,.06)}
+  .side-item.on{background:rgba(113,200,226,.14);color:#fff;border-left-color:var(--accent)}
+  .side-item svg{flex:none}
+  .side-pe{padding:14px 16px;border-top:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:11px}
+  .side-pe .av{width:34px;height:34px;border-radius:50%;background:var(--brand-3);display:grid;place-items:center;
+    font-weight:700;font-size:13px;color:#fff;flex:none;overflow:hidden}
+  .side-pe .av img{width:100%;height:100%;object-fit:cover}
+  .side-pe .nm{font-size:13px;font-weight:600;color:#fff;line-height:1.3}
+  .side-pe .pp{font-size:11px;color:rgba(255,255,255,.5)}
+  .side-pe .sair{margin-left:auto;background:none;border:0;color:rgba(255,255,255,.5);cursor:pointer;font-size:11.5px;font-weight:600}
+  .side-pe .sair:hover{color:#fff}
+
+  .conteudo{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar{height:60px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;
+    justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:5}
+  .crumb{font-size:13px;color:var(--muted)}
+  .crumb b{color:var(--ink);font-weight:600}
+  .topbar .dir{display:flex;align-items:center;gap:14px;font-size:12.5px;color:var(--muted)}
+  .area{padding:28px 32px;flex:1}
+  .limite{max-width:1180px}
+  h1{font-family:Sora,sans-serif;font-weight:700;font-size:24px;color:var(--ink);margin:0 0 4px}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 24px}
+
+  /* ------------------------------- cartões ------------------------------ */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:20px}
+  .card-t{font-family:Sora,sans-serif;font-weight:700;font-size:15px;margin-bottom:2px}
+  .card-s{font-size:12px;color:var(--muted);margin-bottom:20px}
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:24px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 18px 16px}
+  .kpi .l{font-size:12px;color:var(--muted);font-weight:500;margin-bottom:10px}
+  .kpi .v{font-family:Sora,sans-serif;font-weight:700;font-size:30px;color:var(--ink);line-height:1}
+  .kpi .d{font-size:11.5px;font-weight:600;margin-top:7px;color:var(--muted)}
+  .duplo{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;margin-bottom:20px}
+  @media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.duplo{grid-template-columns:1fr}}
+  .barra{margin-bottom:15px}
+  .barra .cab{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:6px}
+  .barra .cab span:first-child{color:var(--ink-soft);font-weight:500}
+  .barra .cab span:last-child{color:var(--muted);font-weight:600}
+  .barra .tr{height:9px;background:var(--trilho);border-radius:5px;overflow:hidden}
+  .barra .tr i{display:block;height:100%;border-radius:5px}
+  .linha{display:flex;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line-2)}
+  .linha:last-child{border-bottom:0}
+  .linha .txt{flex:1;min-width:0}
+  .linha .p1{font-size:13px;color:var(--ink-soft);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .linha .p2{font-size:11.5px;color:var(--muted)}
+  .ponto{width:7px;height:7px;border-radius:50%;background:var(--accent);margin-top:6px;flex:none}
+  .vazio{font-size:13px;color:var(--muted);padding:10px 0}
+  .verTodas{font-size:12px;font-weight:600;color:var(--brand-3);background:none;border:0;cursor:pointer}
+
+  /* ------------------------------ formulários --------------------------- */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  @media(max-width:820px){.grid2,.grid3{grid-template-columns:1fr}}
+  label{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin:12px 0 5px}
+  input,select,textarea{width:100%;border:1px solid #cfd6de;border-radius:8px;padding:10px 12px;
+    font-family:Figtree,system-ui,sans-serif;font-size:14px;background:#fff;color:var(--ink);transition:border-color .15s,box-shadow .15s}
+  textarea{min-height:84px;resize:vertical;line-height:1.55}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand-3);box-shadow:0 0 0 3px rgba(64,113,126,.12)}
+  .sec-t{font-family:Sora,sans-serif;font-weight:700;font-size:15px;color:var(--ink);margin:22px 0 6px;
+    padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .muted{color:var(--muted);font-size:12.5px;font-weight:400}
+  .kv{margin:4px 0;font-size:13.5px;color:var(--ink-soft)}
+  .kv b{color:var(--ink);font-weight:600}
+  /* texto de relatório vem como a pessoa digitou: sem isto, uma linha longa
+     sem espaços (um link colado, por exemplo) alarga a página inteira */
+  .kv{overflow-wrap:anywhere}
+
+  /* -------------------------------- botões ------------------------------ */
+  .bt{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid transparent;
+    border-radius:8px;padding:10px 16px;font-size:13.5px;font-weight:600;cursor:pointer;transition:.15s}
+  .bt-pri{background:var(--brand);color:#fff}
+  .bt-pri:hover{background:var(--brand-2)}
+  .bt-sec{background:var(--info-soft);color:var(--brand);border-color:#cfe6f2}
+  .bt-sec:hover{background:#dbeef8}
+  .bt-ghost{background:#fff;color:var(--muted);border-color:#cfd6de}
+  .bt-ghost:hover{color:var(--ink);border-color:var(--brand-3)}
+  .bt-ok{background:var(--ok-soft);color:var(--ok);border-color:#cfeeda}
+  .bt-warn{background:var(--warn-soft);color:var(--warn);border-color:#f0e0bd}
+  .bt-err{background:var(--err-soft);color:var(--err);border-color:#eed6d3}
+  .bt:disabled{opacity:.5;cursor:not-allowed}
+  .exp{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+
+  /* ------------------------------- estados ------------------------------ */
+  .badge{display:inline-block;font-size:11px;font-weight:600;border-radius:20px;padding:3px 10px;white-space:nowrap}
+  .b-submetida{background:var(--info-soft);color:var(--info)}
+  .b-devolvida{background:var(--err-soft);color:var(--err)}
+  .b-aprovada{background:var(--ok-soft);color:var(--ok)}
+  .b-pendente{background:var(--warn-soft);color:var(--warn)}
+  .b-relatorio-entregue{background:var(--roxo-soft);color:var(--roxo)}
+  .b-registrada{background:#eceff3;color:var(--muted)}
+  .banner{border-radius:10px;padding:13px 15px;margin-bottom:14px;font-size:13.5px;font-weight:500}
+  .ba-warn{background:var(--warn-soft);color:var(--warn);border:1px solid #f0e0bd}
+  .ba-err{background:var(--err-soft);color:var(--err);border:1px solid #eed6d3}
+  .ba-ok{background:var(--ok-soft);color:var(--ok);border:1px solid #cfeeda}
+
+  /* -------------------------------- listas ------------------------------ */
+  .item{display:flex;align-items:center;gap:14px;padding:15px 18px;background:#fff;border:1px solid var(--line);
+    border-radius:12px;margin-bottom:10px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+  .item:hover{border-color:var(--brand-3);box-shadow:0 2px 10px -4px rgba(28,55,66,.18)}
+  .item .nm{font-weight:600;flex:1;min-width:0;font-size:14px;color:var(--ink)}
+  .item .cs{color:var(--muted);font-size:12.5px;font-weight:400;margin-top:2px}
+  /* PDF direto da lista: quem só quer o documento não precisa abrir a ata */
+  .item .pdf{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;
+    color:var(--brand-3);background:var(--wash);border:1px solid var(--line);border-radius:8px;
+    padding:6px 11px;transition:.15s;white-space:nowrap}
+  .item .pdf:hover{background:var(--accent-wash);border-color:var(--brand-3);color:var(--brand)}
+  /* arquivo agrupado por categoria — cursos e órgãos institucionais — para
+     as atas de origens diferentes não se misturarem numa lista só */
+  details.grupo{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
+  details.grupo>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;
+    padding:14px 18px;font-weight:600;font-size:14px;color:var(--ink);user-select:none;transition:background .15s}
+  details.grupo>summary::-webkit-details-marker{display:none}
+  details.grupo>summary:hover{background:var(--wash)}
+  details.grupo>summary .qt{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--brand-3);
+    background:var(--wash);border:1px solid var(--line);border-radius:20px;padding:3px 10px;white-space:nowrap}
+  details.grupo>summary .seta{font-size:10px;color:var(--muted);transition:transform .2s}
+  details.grupo[open]>summary .seta{transform:rotate(180deg)}
+  details.grupo .corpo{padding:4px 14px 12px;border-top:1px solid var(--line)}
+  details.grupo .corpo .item{border:0;border-bottom:1px solid var(--line);border-radius:0;margin:0;background:none;padding:13px 6px}
+  details.grupo .corpo .item:last-child{border-bottom:0}
+  details.grupo .corpo .item:hover{box-shadow:none;background:var(--wash)}
+  /* subgrupo por ÓRGÃO dentro do curso (recolhível), e as atas por ANO */
+  details.sub{border:1px solid var(--line);border-radius:10px;margin:10px 0;overflow:hidden}
+  details.sub>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
+    padding:9px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--brand-3);font-weight:700;background:var(--wash);user-select:none;transition:background .15s}
+  details.sub>summary::-webkit-details-marker{display:none}
+  details.sub>summary:hover{background:var(--accent-wash)}
+  details.sub>summary .qt2{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--muted);text-transform:none;letter-spacing:0}
+  details.sub>summary .seta{font-size:9px;color:var(--muted);transition:transform .2s}
+  details.sub[open]>summary .seta{transform:rotate(180deg)}
+  details.sub .corpo2{padding:0 10px 6px;border-top:1px solid var(--line)}
+  .subano{font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.05em;margin:12px 6px 2px;
+    display:flex;align-items:center;gap:10px}
+  .subano::after{content:"";flex:1;height:1px;background:var(--line)}
+  .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px}
+  .stat .s{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .stat .s b{font-family:Sora,sans-serif;font-size:22px;display:block;color:var(--ink);line-height:1.1}
+  .stat .s span{font-size:11.5px;color:var(--muted)}
+  table.pt{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+  table.pt th{background:#f7f9fb;color:var(--muted);padding:9px 10px;text-align:left;font-size:11.5px;
+    font-weight:600;border-bottom:1px solid var(--line)}
+  table.pt td{border-bottom:1px solid var(--line-2);padding:8px 10px;color:var(--ink-soft)}
+  table.pt td.bad{color:var(--err);font-weight:600}
+  table.pt .rm{color:var(--err);cursor:pointer;font-weight:700}
+  table.pt a{color:var(--brand-3);font-weight:600}
+  .cnt{font-size:12.5px;color:var(--muted);margin:8px 0}
+  .colmap{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .colmap select{width:auto;font-size:12.5px;padding:6px 8px}
+  .tut{background:var(--info-soft);border:1px solid #cfe6f2;border-radius:10px;padding:14px 16px;margin:12px 0;font-size:13px}
+  .tut summary{font-family:Sora,sans-serif;font-weight:700;color:var(--brand);cursor:pointer;font-size:13.5px}
+  .tut ol{margin:10px 0 4px 20px}
+  .tut li{margin-bottom:5px}
+  .tut .dica{background:#fff;border-radius:8px;padding:9px 12px;margin-top:8px;border:1px dashed #a9cfe0}
+  .hide{display:none!important}
+
+  /* ------------- janela de escolha (retomar encaminhamentos) ------------- */
+  .ov{position:fixed;inset:0;background:rgba(28,55,66,.42);z-index:40;display:flex;
+    align-items:flex-start;justify-content:center;padding:56px 18px 24px;overflow-y:auto}
+  .ov-cx{background:#fff;border-radius:14px;width:100%;max-width:560px;padding:22px 22px 18px;
+    box-shadow:0 24px 60px rgba(18,38,50,.28)}
+  .ov-cab{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
+  .ov-cab .t{font-family:Sora,sans-serif;font-weight:700;font-size:16px}
+  .ov-x{background:none;border:0;font-size:20px;line-height:1;color:var(--muted-2);cursor:pointer;padding:0 2px}
+  .ov-x:hover{color:var(--ink)}
+  .enc-lista{max-height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:10px}
+  .enc-item{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;cursor:pointer;
+    border-bottom:1px solid var(--line-2)}
+  .enc-item:last-child{border-bottom:0}
+  .enc-item:hover{background:var(--info-soft)}
+  .enc-item.atrasado{border-left:3px solid var(--err)}
+  .enc-item input{width:17px;height:17px;margin:2px 0 0;flex:none;accent-color:var(--brand)}
+  .enc-item .ac{display:block;font-size:13px;font-weight:600;line-height:1.35}
+  .enc-item .md{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+
+  @media(max-width:760px){
+    .app{flex-direction:column}
+    .side{width:100%;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center}
+    .side-nav{padding:8px 10px;flex:1 1 100%;order:3;overflow-x:auto}
+    .side-nav #menu{display:flex;gap:6px}
+    .side-lab{display:none}
+    .side-item{width:auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent;border-radius:8px}
+    .side-item.on{border-left:0;border-bottom-color:var(--accent)}
+    .side-pe{border-top:0;margin-left:auto}
+    .area{padding:20px 16px}
+    .kpis{grid-template-columns:repeat(2,1fr)}
+  }
+  /* ---------------------- específico do ARCHÉ MO ------------------------ */
+  .b-rascunho{background:#eceff3;color:var(--muted)}
+  .b-aguardando-aluno{background:var(--warn-soft);color:var(--warn)}
+  .b-submetido{background:var(--info-soft);color:var(--info)}
+  .b-devolvido{background:var(--err-soft);color:var(--err)}
+  .b-aprovado{background:var(--ok-soft);color:var(--ok)}
+  .b-reprovado{background:var(--err-soft);color:var(--err)}
+  .b-concluido{background:var(--roxo-soft);color:var(--roxo)}
+  .b-cancelado{background:#eceff3;color:var(--muted)}
+  .passos{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 4px}
+  .passo{flex:1;min-width:120px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 11px}
+  .passo.on{border-color:var(--brand-3);background:var(--info-soft)}
+  .passo.ok{border-color:#cfeeda;background:var(--ok-soft)}
+  .passo .n{font-size:10px;letter-spacing:.1em;font-weight:700;color:var(--muted)}
+  .passo .t{font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.3;margin-top:3px}
+  .mon{border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:12px;background:#fff}
+  .mon .cab{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .mon .cab .nm{font-weight:700;font-size:14px;flex:1}
+  .crit{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-2)}
+  .crit:last-of-type{border-bottom:0}
+  .crit .p{flex:1;font-size:13px;color:var(--ink-soft)}
+  .crit .r{display:flex;gap:6px;flex:none}
+  .crit .r label{margin:0;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-soft);
+    font-weight:500;border:1px solid var(--line);border-radius:20px;padding:4px 10px;cursor:pointer}
+  .crit .r input{width:auto;margin:0;accent-color:var(--brand)}
+  .doc{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink-soft);
+    border:1px dashed #cfd6de;border-radius:8px;padding:9px 11px;margin-top:6px}
+  .doc.ok{border-style:solid;border-color:#cfeeda;background:var(--ok-soft);color:var(--ok)}
+  .hist{font-size:12px;color:var(--muted);border-left:2px solid var(--line);padding:4px 0 4px 11px;margin:3px 0}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="side">
+    <a class="side-marca" href="/" title="Voltar ao portal">
+      <svg width="24" height="24" viewBox="0 0 40 40" aria-hidden="true"><path d="M8 37 L8 20 A12 12 0 0 1 32 20 L32 37" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/><circle cx="20" cy="21" r="4" fill="#71c8e2"/></svg>
+      <span>ARCHÉ <b>MO</b></span>
+    </a>
+    <div class="side-nav">
+      <div class="side-lab">MONITORIA ACADÊMICA</div>
+      <div id="menu"></div>
+    </div>
+    <div class="side-pe">
+      <div class="av" id="av">··</div>
+      <div><div class="nm" id="euNome">—</div><div class="pp" id="euPapel">—</div></div>
+      <button class="sair" onclick="location.href='/auth/sair'">sair</button>
+    </div>
+  </nav>
+
+  <div class="conteudo">
+    <div class="topbar">
+      <div class="crumb">ARCHÉ MO <span style="color:var(--muted-2)">/</span> <b id="crumb">Painel</b></div>
+      <div class="dir" id="topDir"></div>
+    </div>
+    <div class="area"><div class="limite">
+      <h1 id="titulo">Painel</h1>
+      <div class="sub" id="subtitulo"></div>
+      <div id="tela"><div class="vazio">Carregando…</div></div>
+    </div></div>
+  </div>
+</div>
+<script src="/assets/arche-nav.js"></script>
+<script>
+/* =======================================================================
+   ARCHÉ MO — Monitoria Acadêmica (SPA vanilla, mesmo desenho do IC/ES).
+
+   A tela é a MESMA para os três papéis; o que muda é o que cada um pode
+   fazer, e quem diz isso é o servidor (`papel` no projeto, `gestao` na
+   raiz). Nada de permissão calculada aqui: o cliente desenha o que o
+   servidor autorizou, e o servidor recusa o que não autorizou.
+   ======================================================================= */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const dataBR = (iso) => (/^\d{4}-\d{2}-\d{2}/.test(String(iso || ""))
+  ? String(iso).slice(0, 10).split("-").reverse().join("/") : "—");
+const nn = (v) => (String(v ?? "").trim() || "—");
+
+let DADOS = null;      // resposta de GET /api/monitoria
+let PROJ = null;       // projeto aberto (GET /api/monitoria/:id)
+let SECAO = "painel";
+let RASCUNHO = null;   // projeto em edição no formulário
+
+const META = () => DADOS?.meta || {};
+const cursoNome = (slug) => (META().cursos || []).find((c) => c.slug === slug)?.nome || slug || "—";
+const selo = (st) => `<span class="badge b-${esc(st)}">${esc((META().rotuloStatus || {})[st] || st)}</span>`;
+
+/* ------------------------------ carregamento ---------------------------- */
+async function carregar() {
+  const r = await fetch("/api/monitoria");
+  if (r.status === 401) { location.href = "/entrar/?next=" + encodeURIComponent("/monitoria/"); return; }
+  if (!r.ok) { $("tela").innerHTML = `<div class="banner ba-err">${esc((await r.json()).error || "Falha ao carregar.")}</div>`; return; }
+  DADOS = await r.json();
+  const nome = DADOS.perfil?.nome || DADOS.eu || "";
+  $("euNome").textContent = nome.split(" ").slice(0, 2).join(" ") || "—";
+  $("euPapel").textContent = DADOS.gestao ? "PROPPEX" : (DADOS.perfil?.funcao === "aluno" ? "Estudante" : "Docente");
+  $("av").textContent = nome.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "··";
+  render();
+}
+
+const SECOES = () => {
+  const s = [{ k: "painel", rot: "Painel" }, { k: "projetos", rot: "Projetos" }];
+  if (souMonitor()) s.push({ k: "minha", rot: "Minha monitoria" });
+  s.push({ k: "relatorios", rot: "Relatórios" });
+  s.push({ k: "certificados", rot: "Certificados" });
+  s.push({ k: "edital", rot: "Edital e documentos" });
+  return s;
+};
+const souMonitor = () => (DADOS?.projetos || []).some((p) => p.papel === "monitor");
+const meusProjetos = () => DADOS?.projetos || [];
+
+function menu() {
+  $("menu").innerHTML = SECOES().map((s) => `<button class="side-item${s.k === SECAO ? " on" : ""}"
+    onclick="ir('${s.k}')"><span>${s.rot}</span></button>`).join("");
+}
+function ir(k) { SECAO = k; PROJ = null; render(); window.scrollTo(0, 0); }
+
+const TITULOS = {
+  painel: ["Painel", "O ciclo da monitoria de relance."],
+  projetos: ["Projetos de monitoria", "A disciplina, o plano de trabalho e o monitor indicado."],
+  minha: ["Minha monitoria", "Sua inscrição, seu plano de trabalho e o seu relatório."],
+  relatorios: ["Relatórios", "O que foi entregue, o que espera avaliação e o que espera homologação."],
+  certificados: ["Certificados", "Emitidos automaticamente quando a PROPPEX homologa o relatório."],
+  edital: ["Edital e documentos", "O edital do ciclo e os documentos do processo."],
+  projeto: ["Projeto de monitoria", ""],
+  form: ["Projeto de monitoria", "Preencha e submeta — a indicação do monitor vai junto."],
+};
+
+function render() {
+  if (!DADOS) return;
+  const [t, s] = TITULOS[SECAO] || TITULOS.painel;
+  $("titulo").textContent = t; $("subtitulo").textContent = s;
+  $("crumb").textContent = (SECOES().find((x) => x.k === SECAO) || {}).rot || t;
+  menu();
+  $("topDir").innerHTML = META().submissaoAberta
+    ? `<span style="color:var(--ok);font-weight:600">Submissões abertas até ${dataBR(META().prazos?.submissao)}</span>`
+    : `<span>Submissões encerradas em ${dataBR(META().prazos?.submissao)}</span>`;
+  const telas = { painel, projetos, minha, relatorios, certificados, edital, projeto: telaProjeto, form: telaForm };
+  $("tela").innerHTML = (telas[SECAO] || painel)();
+}
+
+/* ================================= PAINEL =============================== */
+function painel() {
+  const p = DADOS.panorama;
+  const meus = meusProjetos();
+  if (!DADOS.gestao) {
+    const bloco = meus.length
+      ? meus.map(cartaoProjeto).join("")
+      : `<div class="vazio">Você ainda não tem projeto de monitoria neste ciclo.</div>`;
+    return `
+      ${avisoEtapa()}
+      <div class="card">
+        <div class="card-t">Seus projetos</div>
+        <div class="card-s">Edital ${esc(META().edital?.numero || "")} · ciclo ${esc(META().edital?.ciclo || "")}</div>
+        ${bloco}
+        ${DADOS.perfil?.funcao === "aluno" ? "" : `<div class="exp"><button class="bt bt-pri" onclick="novoProjeto()">+ Novo projeto de monitoria</button></div>`}
+      </div>
+      ${cardCronograma()}`;
+  }
+  const st = p?.porStatus || {};
+  return `
+    <div class="kpis">
+      <div class="kpi"><div class="l">Projetos no ciclo</div><div class="v">${p?.total || 0}</div>
+        <div class="d">Edital ${esc(p?.edital || "")}</div></div>
+      <div class="kpi"><div class="l">Aguardando análise</div><div class="v">${st.submetido || 0}</div>
+        <div class="d" style="color:var(--warn)">decisão da PROPPEX</div></div>
+      <div class="kpi"><div class="l">Em execução</div><div class="v">${st.aprovado || 0}</div>
+        <div class="d" style="color:var(--ok)">aprovados</div></div>
+      <div class="kpi"><div class="l">Monitores</div><div class="v">${p?.monitores || 0}</div>
+        <div class="d">${p?.monitoresCadastrados || 0} com inscrição completa</div></div>
+      <div class="kpi"><div class="l">Horas de monitoria</div><div class="v">${p?.horas || 0}</div>
+        <div class="d">previstas no ciclo</div></div>
+    </div>
+    <div class="duplo">
+      <div class="card">
+        <div class="card-t">O que espera alguém</div>
+        <div class="card-s">A fila do ciclo, do mais atrasado para o menos.</div>
+        ${(DADOS.pendencias || []).length
+          ? DADOS.pendencias.slice(0, 12).map((x) => `<div class="linha">
+              <span class="ponto" style="background:${x.atraso > 0 ? "var(--err)" : "var(--accent)"}"></span>
+              <div class="txt"><div class="p1">${esc(rotuloPendencia(x))}</div>
+                <div class="p2">${esc(x.disciplina || "")} · ${esc(x.protocolo || "")}${x.atraso > 0 ? ` · ${x.atraso} dia(s) de atraso` : ""}</div></div>
+              <button class="bt bt-ghost" onclick="abrirProjeto('${x.projeto}')">abrir</button></div>`).join("")
+          : `<div class="vazio">Nada pendente. O ciclo está em dia.</div>`}
+      </div>
+      <div class="card">
+        <div class="card-t">Situação dos projetos</div>
+        <div class="card-s">Contados no edital ${esc(p?.edital || "")}.</div>
+        ${Object.entries(st).filter(([, n]) => n).map(([k, n]) => `<div class="barra">
+          <div class="cab"><span>${esc((META().rotuloStatus || {})[k] || k)}</span><span>${n}</span></div>
+          <div class="tr"><i style="width:${Math.round((n / Math.max(1, p.total)) * 100)}%;background:var(--brand-3)"></i></div>
+        </div>`).join("") || `<div class="vazio">Nenhum projeto no ciclo ainda.</div>`}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-t">Projetos por curso</div>
+      <div class="card-s">Onde a monitoria está acontecendo.</div>
+      ${(p?.porCurso || []).length ? (p.porCurso).map((c) => `<div class="barra">
+        <div class="cab"><span>${esc(c.curso)}</span><span>${c.projetos}</span></div>
+        <div class="tr"><i style="width:${Math.round((c.projetos / Math.max(1, p.total)) * 100)}%;background:var(--accent)"></i></div>
+      </div>`).join("") : `<div class="vazio">Sem projetos ainda.</div>`}
+    </div>
+    ${cardCronograma()}`;
+}
+
+const rotuloPendencia = (x) => ({
+  "cadastro-monitor": `${x.quem || "Monitor"} ainda não preencheu a ficha de inscrição`,
+  analise: `Projeto de ${x.quem || ""} aguardando análise da PROPPEX`,
+  relatorio: `${x.quem || "Monitor"} ainda não entregou o relatório`,
+  validacao: `${x.quem || "Orientador"} precisa avaliar o relatório de ${x.monitor || ""}`,
+  homologacao: `Relatório de ${x.monitor || ""} aguardando homologação da PROPPEX`,
+}[x.tipo] || x.tipo);
+
+function avisoEtapa() {
+  const espera = meusProjetos().filter((p) => p.papel === "monitor"
+    && p.monitores?.some((m) => !m.cadastrado));
+  if (espera.length) {
+    return `<div class="banner ba-warn">Você foi indicado(a) como monitor(a) e a sua
+      <b>ficha de inscrição</b> ainda não está completa — o projeto só vai à PROPPEX depois dela.
+      <button class="bt bt-warn" style="margin-left:10px" onclick="ir('minha')">Preencher agora</button></div>`;
+  }
+  return "";
+}
+
+function cardCronograma() {
+  return `<div class="card">
+    <div class="card-t">Cronograma do edital ${esc(META().edital?.numero || "")}</div>
+    <div class="card-s">As datas que o sistema usa para abrir, cobrar e fechar cada etapa.</div>
+    <table class="pt"><tr><th>Etapa</th><th>Responsável</th><th>Até</th></tr>
+    ${(META().cronograma || []).map((c) => `<tr><td>${esc(c.etapa)}</td>
+      <td>${esc(c.responsavel)}</td><td>${dataBR(c.ate)}</td></tr>`).join("")}</table>
+  </div>`;
+}
+
+/* ================================ PROJETOS ============================== */
+function cartaoProjeto(p) {
+  return `<div class="item" onclick="abrirProjeto('${p.id}')">
+    <div class="nm">${esc(p.disciplina || "(sem disciplina)")}
+      <div class="cs">${esc(cursoNome(p.curso))} · ${esc(p.orientador || "")}
+        ${p.protocolo ? ` · ${esc(p.protocolo)}` : ""} · ${p.chSemanal}h/sem · ${p.cargaTotal}h no total</div>
+      <div class="cs">${(p.monitores || []).map((m) => `${esc(m.nome || "sem nome")}${m.cadastrado ? "" : " (inscrição pendente)"}`).join(" · ") || "sem monitor indicado"}</div>
+    </div>
+    ${selo(p.status)}
+  </div>`;
+}
+
+function projetos() {
+  const lista = meusProjetos();
+  const podeCriar = DADOS.perfil?.funcao !== "aluno";
+  const grupos = {};
+  for (const p of lista) (grupos[p.status] = grupos[p.status] || []).push(p);
+  const ordem = ["submetido", "aguardando-aluno", "devolvido", "aprovado", "rascunho", "concluido", "reprovado", "cancelado"];
+  return `
+    ${podeCriar ? `<div class="exp" style="margin-bottom:16px">
+      <button class="bt bt-pri" onclick="novoProjeto()">+ Novo projeto de monitoria</button>
+      ${!META().submissaoAberta ? `<span class="muted" style="align-self:center">O prazo de submissão do edital encerrou em ${dataBR(META().prazos?.submissao)} — a PROPPEX decide caso a caso.</span>` : ""}
+    </div>` : ""}
+    ${lista.length ? ordem.filter((s) => grupos[s]).map((s) => `
+      <div class="sec-t">${esc((META().rotuloStatus || {})[s] || s)} <span class="muted">· ${grupos[s].length}</span></div>
+      ${grupos[s].map(cartaoProjeto).join("")}`).join("")
+      : `<div class="card"><div class="vazio">Nenhum projeto ainda.</div></div>`}`;
+}
+
+async function abrirProjeto(id) {
+  const r = await fetch("/api/monitoria/" + id);
+  if (!r.ok) return alert((await r.json()).error || "Não foi possível abrir.");
+  PROJ = await r.json();
+  SECAO = "projeto";
+  render();
+  window.scrollTo(0, 0);
+}
+
+function novoProjeto() {
+  RASCUNHO = {
+    curso: DADOS.perfil?.curso || "", disciplina: "", ementa: "",
+    chSemanal: META().chSemanal?.padrao || 4,
+    inicio: META().vigencia?.inicio || "", fim: META().vigencia?.fim || "",
+    atividades: "", selecao: { candidatos: 0, realizadaEm: "", observacao: "" },
+    monitores: [{ id: "m" + Math.random().toString(36).slice(2, 8), nome: "", email: "", planoTrabalho: "" }],
+  };
+  SECAO = "form"; render(); window.scrollTo(0, 0);
+}
+
+/* -------------------------- formulário do projeto ----------------------- */
+function telaForm() {
+  const p = RASCUNHO || {};
+  const cursos = (META().cursos || []).map((c) =>
+    `<option value="${esc(c.slug)}"${c.slug === p.curso ? " selected" : ""}>${esc(c.nome)}</option>`).join("");
+  return `
+    <div class="card">
+      <div class="card-t">1 — Dados do projeto</div>
+      <div class="card-s">A monitoria é da disciplina que está sob a sua responsabilidade (item 2.1 do edital).</div>
+      <div class="grid2">
+        <div><label>Disciplina de vinculação *</label>
+          <input id="f_disciplina" value="${esc(p.disciplina)}" placeholder="Ex.: Semiologia e Semiotécnica"></div>
+        <div><label>Curso *</label><select id="f_curso"><option value="">Selecione…</option>${cursos}</select></div>
+      </div>
+      <label>Ementa ou conteúdo da disciplina <span class="muted">(opcional)</span></label>
+      <textarea id="f_ementa" style="min-height:60px">${esc(p.ementa)}</textarea>
+      <div class="grid3">
+        <div><label>Carga horária semanal *</label>
+          <input id="f_ch" type="number" min="${META().chSemanal?.min || 2}" max="${META().chSemanal?.max || 20}" value="${p.chSemanal || 4}"></div>
+        <div><label>Data de início *</label><input id="f_inicio" type="date" value="${esc(p.inicio)}"></div>
+        <div><label>Data de conclusão *</label><input id="f_fim" type="date" value="${esc(p.fim)}"></div>
+      </div>
+      <label>Atividades a serem desenvolvidas pelo aluno monitor *</label>
+      <textarea id="f_atividades" style="min-height:130px" placeholder="O que o monitor fará ao longo do semestre — apoio às aulas práticas, plantões de dúvida, organização de material…">${esc(p.atividades)}</textarea>
+    </div>
+
+    <div class="card">
+      <div class="card-t">2 — Monitor(es) indicado(s)</div>
+      <div class="card-s">Nome e e-mail bastam: o convite vai para o acadêmico, e é ele quem
+        preenche a própria ficha de inscrição. Com mais de um monitor, cada um precisa do
+        seu plano de trabalho (item 2.4 do edital).</div>
+      <div id="monitores">${(p.monitores || []).map(campoMonitor).join("")}</div>
+      <div class="exp"><button class="bt bt-ghost" onclick="addMonitor()">+ Indicar outro monitor</button></div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">3 — Processo seletivo <span class="muted">(só se houve mais candidatos que vagas)</span></div>
+      <div class="card-s">Item 4 do edital: havendo mais candidatos, a entrevista é presencial e do professor.</div>
+      <div class="grid3">
+        <div><label>Candidatos inscritos</label><input id="f_cand" type="number" min="0" value="${p.selecao?.candidatos || 0}"></div>
+        <div><label>Entrevista realizada em</label><input id="f_selData" type="date" value="${esc(p.selecao?.realizadaEm || "")}"></div>
+      </div>
+      <label>Observação sobre a seleção</label>
+      <textarea id="f_selObs" style="min-height:60px">${esc(p.selecao?.observacao || "")}</textarea>
+    </div>
+
+    <div class="exp">
+      <button class="bt bt-pri" onclick="salvarProjeto(false)">Salvar rascunho</button>
+      <button class="bt bt-ok" onclick="salvarProjeto(true)">Salvar e submeter</button>
+      <button class="bt bt-ghost" onclick="ir('projetos')">Cancelar</button>
+    </div>`;
+}
+
+const campoMonitor = (m, i) => `<div class="mon" data-mid="${esc(m.id)}">
+  <div class="cab"><span class="nm">Monitor ${i + 1}</span>
+    <button class="bt bt-ghost" onclick="rmMonitor('${esc(m.id)}')">remover</button></div>
+  <div class="grid2">
+    <div><label>Nome completo *</label><input class="m_nome" value="${esc(m.nome)}"></div>
+    <div><label>E-mail *</label><input class="m_email" type="email" value="${esc(m.email)}"
+      placeholder="o convite vai para este endereço"></div>
+  </div>
+  <label>Plano de trabalho deste monitor</label>
+  <textarea class="m_plano" style="min-height:70px">${esc(m.planoTrabalho || "")}</textarea>
+</div>`;
+
+function lerForm() {
+  const mons = [...document.querySelectorAll("#monitores .mon")].map((el) => ({
+    id: el.dataset.mid,
+    nome: el.querySelector(".m_nome").value.trim(),
+    email: el.querySelector(".m_email").value.trim(),
+    planoTrabalho: el.querySelector(".m_plano").value.trim(),
+  }));
+  return {
+    ...(RASCUNHO || {}), id: RASCUNHO?.id,
+    disciplina: $("f_disciplina").value.trim(), curso: $("f_curso").value,
+    ementa: $("f_ementa").value.trim(), chSemanal: Number($("f_ch").value),
+    inicio: $("f_inicio").value, fim: $("f_fim").value,
+    atividades: $("f_atividades").value.trim(),
+    selecao: { candidatos: Number($("f_cand").value) || 0,
+      realizadaEm: $("f_selData").value, observacao: $("f_selObs").value.trim() },
+    monitores: mons,
+  };
+}
+function addMonitor() {
+  RASCUNHO = lerForm();
+  RASCUNHO.monitores.push({ id: "m" + Math.random().toString(36).slice(2, 8), nome: "", email: "", planoTrabalho: "" });
+  render();
+}
+function rmMonitor(id) {
+  RASCUNHO = lerForm();
+  RASCUNHO.monitores = RASCUNHO.monitores.filter((m) => m.id !== id);
+  render();
+}
+
+async function salvarProjeto(submeter) {
+  const projeto = lerForm();
+  const r = await fetch("/api/monitoria", { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projeto }) });
+  const j = await r.json();
+  if (!r.ok) return alert(j.error || "Não foi possível gravar.");
+  RASCUNHO = { ...projeto, id: j.projeto.id };
+  if (!submeter) { await carregar(); return abrirProjeto(j.projeto.id); }
+  if (j.falta?.length) return alert("Faltam dados para submeter:\n\n• " + j.falta.join("\n• "));
+  const r2 = await fetch(`/api/monitoria/${j.projeto.id}/submeter`, { method: "POST" });
+  const j2 = await r2.json();
+  if (!r2.ok) return alert(j2.error || "Não foi possível submeter.");
+  alert(`Projeto submetido.\n\nProtocolo ${j2.projeto.protocolo}.\n`
+    + `${j2.convidados} convite(s) enviado(s) ao(s) monitor(es) — o projeto segue à PROPPEX assim que a ficha de inscrição estiver completa.`);
+  await carregar();
+  abrirProjeto(j.projeto.id);
+}
+
+/* --------------------------- ficha do projeto --------------------------- */
+function telaProjeto() {
+  if (!PROJ) return `<div class="vazio">Carregando…</div>`;
+  const p = PROJ.projeto, papel = p.papel;
+  const etapas = ["rascunho", "aguardando-aluno", "submetido", "aprovado", "concluido"];
+  const iAtual = Math.max(0, etapas.indexOf(p.status));
+  return `
+    <div class="card">
+      <div class="cab" style="display:flex;align-items:center;gap:12px">
+        <div style="flex:1">
+          <div class="card-t">${esc(p.disciplina || "(sem disciplina)")}</div>
+          <div class="card-s" style="margin:0">${esc(cursoNome(p.curso))} · ${esc(p.orientador?.nome || "")}
+            ${p.protocolo ? ` · protocolo <b>${esc(p.protocolo)}</b>` : ""}</div>
+        </div>
+        ${selo(p.status)}
+      </div>
+      <div class="passos">
+        ${[["01", "Projeto submetido"], ["02", "Inscrição do monitor"], ["03", "Análise da PROPPEX"],
+           ["04", "Execução e relatório"], ["05", "Homologação e certificado"]].map((e, i) => `
+          <div class="passo ${i < iAtual ? "ok" : i === iAtual ? "on" : ""}">
+            <div class="n">${e[0]}</div><div class="t">${e[1]}</div></div>`).join("")}
+      </div>
+      ${p.status === "devolvido" && p.apreciacao ? `<div class="banner ba-err" style="margin-top:14px">
+        <b>Devolvido para ajuste.</b> ${esc(p.apreciacao.parecer || "")}</div>` : ""}
+      ${p.status === "reprovado" && p.apreciacao ? `<div class="banner ba-err" style="margin-top:14px">
+        <b>Não aprovado.</b> ${esc(p.apreciacao.parecer || "")}</div>` : ""}
+      <div class="grid3" style="margin-top:16px">
+        <div class="kv"><b>Carga horária</b><br>${p.chSemanal}h/semana · ${p.cargaTotal || 0}h no total</div>
+        <div class="kv"><b>Período</b><br>${dataBR(p.inicio)} a ${dataBR(p.fim)}</div>
+        <div class="kv"><b>Edital</b><br>${esc(p.edital)} · ciclo ${esc(p.ciclo)}</div>
+      </div>
+      <div class="sec-t">Atividades do monitor</div>
+      <div class="kv" style="white-space:pre-wrap">${esc(p.atividades || "—")}</div>
+      ${p.ementa ? `<div class="sec-t">Ementa</div><div class="kv" style="white-space:pre-wrap">${esc(p.ementa)}</div>` : ""}
+      ${Number(p.selecao?.candidatos) ? `<div class="sec-t">Processo seletivo</div>
+        <div class="kv">${p.selecao.candidatos} candidato(s) · entrevista em ${dataBR(p.selecao.realizadaEm)}</div>
+        ${p.selecao.observacao ? `<div class="kv">${esc(p.selecao.observacao)}</div>` : ""}` : ""}
+      <div class="exp">
+        <a class="bt bt-ghost" href="/api/monitoria/${p.id}/projeto.pdf" target="_blank">Projeto em PDF</a>
+        ${PROJ.podeEditar ? `<button class="bt bt-sec" onclick="editarProjeto()">Editar projeto</button>` : ""}
+        ${PROJ.podeSubmeter ? `<button class="bt bt-pri" onclick="submeterAgora('${p.id}')">Submeter</button>` : ""}
+        ${["orientador", "gestao"].includes(papel) && p.protocolo ? `<button class="bt bt-ghost" onclick="reenviarConvite('${p.id}')">Reenviar convite ao monitor</button>` : ""}
+      </div>
+      ${PROJ.falta?.length && PROJ.podeSubmeter ? `<div class="banner ba-warn" style="margin-top:14px">
+        <b>Falta para submeter:</b> ${esc(PROJ.falta.join("; "))}.</div>` : ""}
+      ${(PROJ.pendencias || []).length ? `<div class="banner ba-warn" style="margin-top:12px">
+        <b>Atenção:</b> ${PROJ.pendencias.map(esc).join(" · ")}</div>` : ""}
+    </div>
+
+    ${PROJ.podeDecidir ? cardDecisao(p) : ""}
+    ${(p.monitores || []).map((m) => cardMonitor(p, m, papel)).join("")}
+    ${papel === "gestao" && (p.historico || []).length ? `<div class="card">
+      <div class="card-t">Histórico</div><div class="card-s">Quem fez o quê, e quando.</div>
+      ${p.historico.slice().reverse().map((h) => `<div class="hist"><b>${esc(h.acao)}</b> — ${esc(h.por)} ·
+        ${dataBR(h.em)}${h.detalhe ? ` · ${esc(h.detalhe)}` : ""}</div>`).join("")}
+    </div>` : ""}`;
+}
+
+function cardDecisao(p) {
+  return `<div class="card">
+    <div class="card-t">Decisão da PROPPEX</div>
+    <div class="card-s">Aprovar coloca o projeto em execução; devolver e reprovar exigem o motivo,
+      que é o que o professor lê.</div>
+    <label>Parecer / motivo</label>
+    <textarea id="d_parecer" style="min-height:70px"></textarea>
+    <div class="exp">
+      <button class="bt bt-ok" onclick="decidir('${p.id}','aprovar')">✓ Aprovar projeto</button>
+      <button class="bt bt-warn" onclick="decidir('${p.id}','devolver')">↩ Devolver para ajuste</button>
+      <button class="bt bt-err" onclick="decidir('${p.id}','reprovar')">✕ Não aprovar</button>
+    </div>
+  </div>`;
+}
+
+function cardMonitor(p, m, papel) {
+  const r = m.relatorio || null;
+  const souEu = !!m.eu;   // quem diz qual monitor sou eu é o servidor
+  const podeAvaliar = ["orientador", "gestao"].includes(papel) && r?.status === "enviado";
+  return `<div class="card">
+    <div class="cab" style="display:flex;align-items:center;gap:10px">
+      <div style="flex:1"><div class="card-t">${esc(m.nome || "Monitor indicado")}</div>
+        <div class="card-s" style="margin:0">${m.matricula ? `matrícula ${esc(m.matricula)} · ` : ""}${esc(m.curso ? cursoNome(m.curso) : "")} ${esc(m.periodo || "")}</div></div>
+      ${m.cadastradoEm ? `<span class="badge b-aprovado">inscrição completa</span>`
+        : `<span class="badge b-aguardando-aluno">inscrição pendente</span>`}
+    </div>
+    ${m.planoTrabalho ? `<div class="sec-t">Plano de trabalho</div>
+      <div class="kv" style="white-space:pre-wrap">${esc(m.planoTrabalho)}</div>` : ""}
+    ${papel !== "monitor" || souEu ? `<div class="exp">
+      ${m.cadastradoEm ? `<a class="bt bt-ghost" href="/api/monitoria/${p.id}/ficha.pdf?monitor=${esc(m.id)}" target="_blank">Ficha de inscrição em PDF</a>` : ""}
+      ${r?.enviadoEm ? `<a class="bt bt-ghost" href="/api/monitoria/${p.id}/relatorio.pdf?monitor=${esc(m.id)}" target="_blank">Relatório em PDF</a>` : ""}
+    </div>` : ""}
+    ${r ? `<div class="sec-t">Relatório</div>
+      <div class="kv"><b>Situação:</b> ${esc({ rascunho: "não enviado", enviado: "entregue, aguardando a orientação",
+        devolvido: "devolvido para ajuste", validado: "validado pela orientação, aguardando a PROPPEX",
+        homologado: "homologado — certificado liberado" }[r.status] || r.status)}</div>
+      ${r.comentario && r.status === "devolvido" ? `<div class="banner ba-warn">${esc(r.comentario)}</div>` : ""}
+      ${papel !== "monitor" && r.atividades ? `<div class="kv" style="white-space:pre-wrap;margin-top:8px">${esc(r.atividades)}</div>` : ""}
+      ${papel !== "monitor" && r.avaliacao?.parecer ? `<div class="kv" style="margin-top:8px"><b>Parecer da orientação:</b>
+        ${esc(r.avaliacao.parecer === "aprovado" ? "Aprovado" : "Reprovado")}</div>` : ""}` : ""}
+    ${podeAvaliar ? formAvaliacao(p, m) : ""}
+    ${papel === "gestao" && r?.status === "validado" ? `<div class="exp">
+      <button class="bt bt-ok" onclick="homologar('${p.id}','${esc(m.id)}')">✓ Homologar e liberar certificado</button></div>` : ""}
+  </div>`;
+}
+
+function formAvaliacao(p, m) {
+  return `<div class="sec-t">Avaliação da atuação do monitor</div>
+    <div class="card-s">As quatro perguntas do formulário institucional. Sem elas e sem o parecer,
+      o relatório não é validado.</div>
+    ${(META().criterios || []).map((c) => `<div class="crit">
+      <div class="p">${esc(c.pergunta)}</div>
+      <div class="r">${(META().respostas || []).map((rr) => `<label><input type="radio"
+        name="av_${esc(c.codigo)}" value="${esc(rr.codigo)}"> ${esc(rr.rotulo)}</label>`).join("")}</div>
+    </div>`).join("")}
+    <label>Informações adicionais sobre o desempenho do aluno monitor</label>
+    <textarea id="av_obs" style="min-height:70px"></textarea>
+    <label>Parecer final *</label>
+    <select id="av_parecer"><option value="">Selecione…</option>
+      ${(META().pareceres || []).map((x) => `<option value="${esc(x.codigo)}">${esc(x.rotulo)}</option>`).join("")}</select>
+    <div class="exp">
+      <button class="bt bt-ok" onclick="validarRelatorio('${p.id}','${esc(m.id)}','validar')">✓ Validar e encaminhar à PROPPEX</button>
+      <button class="bt bt-warn" onclick="validarRelatorio('${p.id}','${esc(m.id)}','devolver')">↩ Devolver ao monitor</button>
+    </div>`;
+}
+
+async function editarProjeto() {
+  RASCUNHO = JSON.parse(JSON.stringify(PROJ.projeto));
+  SECAO = "form"; render(); window.scrollTo(0, 0);
+}
+async function submeterAgora(id) {
+  const r = await fetch(`/api/monitoria/${id}/submeter`, { method: "POST" });
+  const j = await r.json();
+  if (!r.ok) return alert(j.error || "Não foi possível submeter.");
+  alert(`Projeto submetido. Protocolo ${j.projeto.protocolo}.`);
+  await carregar(); abrirProjeto(id);
+}
+async function reenviarConvite(id) {
+  const r = await fetch(`/api/monitoria/${id}/convidar`, { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+  const j = await r.json();
+  alert(r.ok ? `${j.enviados} convite(s) reenviado(s).` : (j.error || "Falha."));
+}
+async function decidir(id, decisao) {
+  const parecer = ($("d_parecer")?.value || "").trim();
+  if (decisao !== "aprovar" && !parecer) return alert("Escreva o motivo — é o que o professor lê.");
+  if (!confirm(`Confirmar: ${decisao} este projeto?`)) return;
+  const r = await fetch(`/api/monitoria/${id}/decidir`, { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decisao, parecer }) });
+  const j = await r.json();
+  if (!r.ok) return alert(j.error || "Falha.");
+  await carregar(); abrirProjeto(id);
+}
+async function validarRelatorio(id, monitor, acao) {
+  const corpo = { monitor, acao };
+  if (acao === "devolver") {
+    const motivo = prompt("Por que o relatório volta ao monitor?");
+    if (!motivo) return;
+    corpo.comentario = motivo;
+  } else {
+    const criterios = {};
+    for (const c of META().criterios || []) {
+      const el = document.querySelector(`input[name="av_${c.codigo}"]:checked`);
+      if (el) criterios[c.codigo] = el.value;
+    }
+    corpo.avaliacao = { criterios, parecer: $("av_parecer")?.value || "", observacao: $("av_obs")?.value || "" };
+  }
+  const r = await fetch(`/api/monitoria/${id}/relatorio/validar`, { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) });
+  const j = await r.json();
+  if (!r.ok) return alert(j.error || "Falha.");
+  await carregar(); abrirProjeto(id);
+}
+async function homologar(id, monitor) {
+  if (!confirm("Homologar este relatório? O certificado passa a valer.")) return;
+  const r = await fetch(`/api/monitoria/${id}/homologar`, { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ monitor }) });
+  const j = await r.json();
+  if (!r.ok) return alert(j.error || "Falha.");
+  alert(j.concluido ? "Projeto concluído — certificados liberados." : "Relatório homologado.");
+  await carregar(); abrirProjeto(id);
+}
+
+/* ============================ MINHA MONITORIA =========================== */
+function minha() {
+  const meus = meusProjetos().filter((p) => p.papel === "monitor");
+  if (!meus.length) return `<div class="card"><div class="vazio">Você não está indicado(a) como monitor(a) em nenhum projeto.</div></div>`;
+  return meus.map((p) => `<div class="card">
+    <div class="card-t">${esc(p.disciplina)}</div>
+    <div class="card-s">${esc(cursoNome(p.curso))} · ${esc(p.orientador)} · ${p.chSemanal}h/semana · ${selo(p.status)}</div>
+    <div class="exp"><button class="bt bt-pri" onclick="abrirMinha('${p.id}')">Abrir a minha inscrição e o meu relatório</button></div>
+  </div>`).join("");
+}
+
+async function abrirMinha(id) {
+  const r = await fetch("/api/monitoria/" + id);
+  if (!r.ok) return alert((await r.json()).error || "Falha.");
+  PROJ = await r.json();
+  const p = PROJ.projeto;
+  const eu = (p.monitores || []).find((m) => m.eu) || p.monitores?.[0];
+  $("titulo").textContent = "Minha monitoria";
+  $("subtitulo").textContent = `${p.disciplina} · ${cursoNome(p.curso)}`;
+  $("tela").innerHTML = telaMinha(p, eu);
+  window.scrollTo(0, 0);
+}
+
+function telaMinha(p, m) {
+  const r = m.relatorio || {};
+  const completo = !!m.cadastradoEm;
+  const emExecucao = p.status === "aprovado";
+  const podeEnviar = emExecucao && !["validado", "homologado"].includes(r.status);
+  return `
+    <div class="card">
+      <div class="card-t">Ficha de inscrição</div>
+      <div class="card-s">É ela que valida a sua indicação (item 3.2 do edital). Enquanto não estiver
+        completa, o projeto não segue para a PROPPEX.</div>
+      ${completo ? `<div class="banner ba-ok">Inscrição completa, enviada em ${dataBR(m.cadastradoEm)}.
+        Você ainda pode corrigir os dados abaixo.</div>` : ""}
+      <div class="grid2">
+        <div><label>Nome completo *</label><input id="i_nome" value="${esc(m.nome || "")}"></div>
+        <div><label>Número de matrícula *</label><input id="i_matricula" value="${esc(m.matricula || "")}"></div>
+        <div><label>CPF *</label><input id="i_cpf" value="${esc(m.cpf || "")}" placeholder="somente números"></div>
+        <div><label>Telefone (WhatsApp) *</label><input id="i_telefone" value="${esc(m.telefone || "")}"></div>
+        <div><label>Curso *</label><select id="i_curso"><option value="">Selecione…</option>
+          ${(META().cursos || []).map((c) => `<option value="${esc(c.slug)}"${c.slug === m.curso ? " selected" : ""}>${esc(c.nome)}</option>`).join("")}</select></div>
+        <div><label>Período *</label><input id="i_periodo" value="${esc(m.periodo || "")}" placeholder="Ex.: 6º"></div>
+      </div>
+      <div class="sec-t">Documentos</div>
+      <div class="doc ${m.documentos?.matricula ? "ok" : ""}" id="doc_matricula">
+        <b>Comprovante de matrícula *</b>
+        <span style="flex:1">${m.documentos?.matricula ? esc(m.documentos.matricula.nome || "anexado") : "obrigatório"}</span>
+        <input type="file" id="up_matricula" accept="application/pdf,image/*" style="width:auto"
+          onchange="subirDoc('${p.id}','matricula')">
+      </div>
+      <div class="doc ${m.documentos?.historico ? "ok" : ""}" id="doc_historico">
+        <b>Histórico escolar</b>
+        <span style="flex:1">${m.documentos?.historico ? esc(m.documentos.historico.nome || "anexado") : "o edital pede; a PROPPEX aceita depois se a secretaria atrasar"}</span>
+        <input type="file" id="up_historico" accept="application/pdf,image/*" style="width:auto"
+          onchange="subirDoc('${p.id}','historico')">
+      </div>
+      <div class="sec-t">Declaração de disponibilidade</div>
+      <label style="display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--ink-soft);font-weight:500">
+        <input type="checkbox" id="i_decl" style="width:17px;height:17px;margin-top:2px;accent-color:var(--brand)"
+          ${m.declaracao?.aceita ? "checked disabled" : ""}>
+        <span>Declaro que possuo disponibilidade de agenda semanal para cumprir a carga horária de
+          <b>${p.chSemanal}h</b> estabelecida no Projeto de Monitoria.</span></label>
+      <div class="exp"><button class="bt bt-pri" onclick="salvarInscricao('${p.id}')">Salvar minha inscrição</button></div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">Relatório de atividades</div>
+      <div class="card-s">${emExecucao ? `Entrega até ${dataBR(META().prazos?.relatorio)}. Depois de enviado,
+        a orientação avalia a sua atuação e valida.` : "Abre quando o projeto for aprovado pela PROPPEX."}</div>
+      ${emExecucao && podeEnviar && META().cobrancaAberta ? `<div class="banner ${META().diasParaRelatorio < 0 ? "ba-err" : "ba-warn"}">
+        ${META().diasParaRelatorio >= 0
+          ? `Faltam <b>${META().diasParaRelatorio} dia(s)</b> para o prazo do relatório. Enquanto ele não for enviado,
+             você recebe um lembrete por e-mail toda semana.`
+          : `O prazo venceu há <b>${-META().diasParaRelatorio} dia(s)</b>. A entrega continua aberta — o relatório
+             sai marcado como atrasado, e sem ele não há certificado.`}</div>` : ""}
+      ${r.status === "devolvido" ? `<div class="banner ba-warn"><b>Devolvido para ajuste:</b> ${esc(r.comentario || "")}</div>` : ""}
+      ${["validado", "homologado"].includes(r.status) ? `<div class="banner ba-ok">Relatório
+        ${r.status === "homologado" ? "homologado pela PROPPEX — o seu certificado já pode ser baixado na guia Certificados." : "validado pela orientação, aguardando a PROPPEX."}</div>` : ""}
+      <label>Atividades desenvolvidas *</label>
+      <textarea id="r_atividades" style="min-height:150px" ${podeEnviar ? "" : "disabled"}>${esc(r.atividades || "")}</textarea>
+      <label>Dificuldades encontradas</label>
+      <textarea id="r_dificuldades" ${podeEnviar ? "" : "disabled"}>${esc(r.dificuldades || "")}</textarea>
+      <label>O que a monitoria acrescentou à sua formação *</label>
+      <textarea id="r_aprendizado" ${podeEnviar ? "" : "disabled"}>${esc(r.aprendizado || "")}</textarea>
+      ${podeEnviar ? `<div class="exp">
+        <button class="bt bt-ghost" onclick="salvarRelatorio('${p.id}',false)">Salvar rascunho</button>
+        <button class="bt bt-ok" onclick="salvarRelatorio('${p.id}',true)">Enviar à orientação</button>
+      </div>` : ""}
+      ${r.enviadoEm ? `<a class="bt bt-ghost" style="margin-top:10px" href="/api/monitoria/${p.id}/relatorio.pdf" target="_blank">Meu relatório em PDF</a>` : ""}
+    </div>`;
+}
+
+let DOCS = {};
+async function subirDoc(id, qual) {
+  const el = $("up_" + qual);
+  if (!el.files?.[0]) return;
+  const fd = new FormData();
+  fd.append("file", el.files[0]);
+  const r = await fetch("/api/monitoria/anexo", { method: "POST", body: fd });
+  const j = await r.json();
+  if (!r.ok) return alert(j.error || "Falha ao anexar.");
+  DOCS[qual] = j.documento;
+  $("doc_" + qual).classList.add("ok");
+  $("doc_" + qual).querySelector("span").textContent = j.documento.nome + " (anexado — salve a inscrição)";
+}
+
+async function salvarInscricao(id) {
+  const corpo = {
+    nome: $("i_nome").value.trim(), matricula: $("i_matricula").value.trim(),
+    cpf: $("i_cpf").value.replace(/\D/g, ""), telefone: $("i_telefone").value.trim(),
+    curso: $("i_curso").value, periodo: $("i_periodo").value.trim(),
+    declaracao: $("i_decl").checked || $("i_decl").disabled,
+    documentos: { ...(DOCS.matricula ? { matricula: DOCS.matricula } : {}),
+      ...(DOCS.historico ? { historico: DOCS.historico } : {}) },
+  };
+  const r = await fetch(`/api/monitoria/${id}/inscricao`, { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) });
+  const j = await r.json();
+  if (!r.ok) return alert(j.error || "Falha ao gravar.");
+  DOCS = {};
+  if (j.falta?.length) alert("Gravado. Ainda falta:\n\n• " + j.falta.join("\n• "));
+  else alert("Inscrição completa. O projeto seguiu para a PROPPEX.");
+  await carregar(); abrirMinha(id);
+}
+
+async function salvarRelatorio(id, enviar) {
+  const relatorio = {
+    atividades: $("r_atividades").value.trim(),
+    dificuldades: $("r_dificuldades").value.trim(),
+    aprendizado: $("r_aprendizado").value.trim(),
+  };
+  const r = await fetch(`/api/monitoria/${id}/relatorio`, { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ relatorio, enviar }) });
+  const j = await r.json();
+  if (!r.ok) return alert(j.error || "Falha.");
+  alert(enviar ? "Relatório enviado à orientação." : "Rascunho salvo.");
+  await carregar(); abrirMinha(id);
+}
+
+/* ============================== RELATÓRIOS ============================== */
+function relatorios() {
+  const lista = meusProjetos().filter((p) => ["aprovado", "concluido"].includes(p.status));
+  if (!lista.length) return `<div class="card"><div class="vazio">Nenhum projeto em execução.</div></div>`;
+  const rot = { "": "não iniciado", rascunho: "não enviado", enviado: "aguardando a orientação",
+    devolvido: "devolvido ao monitor", validado: "aguardando a PROPPEX", homologado: "homologado" };
+  return `${DADOS.gestao ? `<div class="exp" style="margin-bottom:16px">
+      <button class="bt bt-sec" onclick="chamarRelatorios()">📣 Chamar quem está pendente</button>
+      <span class="muted" style="align-self:center">A cobrança automática já sai toda semana, a partir de
+        ${META().cobranca?.diasAntes || 30} dias antes do prazo (${dataBR(META().prazos?.relatorio)}) —
+        isto envia agora.</span></div>` : ""}
+    <div class="card">
+    <div class="card-t">Relatórios do ciclo</div>
+    <div class="card-s">Um por monitor. O selo diz de quem se está esperando.</div>
+    <table class="pt"><tr><th>Disciplina</th><th>Monitor</th><th>Situação do relatório</th><th></th></tr>
+    ${lista.flatMap((p) => (p.monitores || []).map((m) => `<tr>
+      <td>${esc(p.disciplina)}<div class="cs" style="color:var(--muted);font-size:11.5px">${esc(p.protocolo || "")}</div></td>
+      <td>${esc(m.nome || "—")}</td>
+      <td class="${["", "rascunho", "devolvido"].includes(m.relatorio || "") ? "bad" : ""}">${esc(rot[m.relatorio || ""] || m.relatorio)}</td>
+      <td><button class="bt bt-ghost" onclick="abrirProjeto('${p.id}')">abrir</button></td></tr>`)).join("")}
+    </table></div>`;
+}
+
+async function chamarRelatorios() {
+  const s = await fetch("/api/monitoria/chamada-relatorio", { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ simular: true }) });
+  const js = await s.json();
+  if (!s.ok) return alert(js.error || "Falha.");
+  const quem = js.destinatarios || [];
+  if (!quem.length) return alert("Ninguém pendente — nada a chamar.");
+  const lista = quem.map((d) => `• ${d.nome || d.email} (${d.papel}) — ${d.itens} item(ns)`).join("\n");
+  const msg = prompt(`Serão chamadas ${quem.length} pessoa(s):\n\n${lista}\n\n`
+    + "Mensagem da coordenação (opcional, entra em destaque no topo do e-mail):", "");
+  if (msg === null) return;
+  const r = await fetch("/api/monitoria/chamada-relatorio", { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mensagem: msg }) });
+  const j = await r.json();
+  alert(r.ok ? `${j.enviadas} e-mail(is) enviado(s).` : (j.error || "Falha."));
+}
+
+/* ============================= CERTIFICADOS ============================= */
+function certificados() { setTimeout(carregarCertificados, 0); return `<div class="vazio">Carregando…</div>`; }
+async function carregarCertificados() {
+  const r = await fetch("/api/monitoria/certificados");
+  const j = await r.json();
+  const lista = j.certificados || [];
+  $("tela").innerHTML = `<div class="card">
+    <div class="card-t">Seus certificados</div>
+    <div class="card-s">Saem sozinhos quando a PROPPEX homologa o relatório — não há emissão a pedir.
+      O do docente certifica o PROJETO (item 6.1); o do monitor, a atuação com a carga horária cumprida (item 6.2).</div>
+    ${lista.length ? lista.map((c) => `<div class="item">
+      <div class="nm">${esc(c.tipo === "orientacao-monitoria" ? "Orientação de monitoria" : "Monitoria Acadêmica")}
+        <div class="cs">${esc(c.disciplina)} · ${esc(c.curso)} · edital ${esc(c.edital)}
+          ${c.horas ? ` · ${c.horas}h` : ""}${c.monitores?.length ? ` · monitor(es): ${esc(c.monitores.join(", "))}` : ""}</div></div>
+      <a class="pdf" href="/api/monitoria/certificado.pdf?projeto=${encodeURIComponent(c.projetoId)}&tipo=${encodeURIComponent(c.tipo)}"
+        target="_blank">baixar PDF</a></div>`).join("")
+      : `<div class="vazio">Nenhum certificado ainda. Eles aparecem aqui quando o projeto é concluído.</div>`}
+  </div>`;
+}
+
+/* ================================ EDITAL ================================ */
+function edital() {
+  const e = META().edital || {};
+  return `
+    <div class="card">
+      <div class="card-t">Edital ${esc(e.numero || "")} — ${esc(e.titulo || "")}</div>
+      <div class="card-s">${esc(e.orgao || "")} · ${esc(e.instituicao || "")}</div>
+      <div class="kv">${esc(e.observacao || "")}</div>
+      <div class="exp"><a class="bt bt-pri" href="/api/publico/monitoria/edital.pdf" target="_blank">Baixar o edital em PDF</a></div>
+    </div>
+    <div class="card">
+      <div class="card-t">Editais anteriores</div>
+      <div class="card-s">O programa era da Diretoria Acadêmica da FACEG até 2025 — os documentos ficam
+        como foram publicados, com o órgão e a marca da época.</div>
+      ${(META().editais || []).filter((x) => !x.vigente).map((x) => `<div class="item">
+        <div class="nm">Edital ${esc(x.numero)} — ${esc(x.titulo)}
+          <div class="cs">${esc(x.orgao)} · ${esc(x.instituicao)}</div></div>
+        ${x.documento ? `<a class="pdf" href="${esc(x.documento)}" target="_blank">abrir PDF</a>` : ""}</div>`).join("")}
+    </div>
+    <div class="card">
+      <div class="card-t">Os documentos do processo</div>
+      <div class="card-s">Os três anexos do edital saem preenchidos, do que está gravado — o processo
+        corre no ARCHÉ e o PDF é o que se arquiva e se assina.</div>
+      <div class="kv">• <b>Projeto de Atividades de Monitoria</b> (Anexo I) — na ficha do projeto.</div>
+      <div class="kv">• <b>Ficha de Inscrição</b> (Anexo II) — no cartão de cada monitor, depois da inscrição.</div>
+      <div class="kv">• <b>Relatório de Atividades</b> (Anexo III) — com a avaliação da orientação, ao fim.</div>
+    </div>`;
+}
+
+carregar();
+</script>
+</body>
+</html>
