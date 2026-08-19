@@ -22,6 +22,11 @@
     { href: "/monitoria/",   rot: "Monitoria",         teste: function (p) { return p.indexOf("/monitoria") === 0; } },
     { href: "/relatorios/",  rot: "Relatórios",        teste: function (p) { return p.indexOf("/relatorios") === 0; } },
     { href: "/espacos/",     rot: "Espaços",           teste: function (p) { return p.indexOf("/espacos") === 0; } },
+    // "Meus certificados" é do USUÁRIO, não de um setor: quem participou de
+    // um evento, foi bolsista de IC e monitor de uma disciplina tinha de
+    // procurar o documento de cada um em três lugares. Visível a todo
+    // usuário logado — inclusive ao aluno, que é quem mais o procura.
+    { href: "/certificados/", rot: "Certificados",     teste: function (p) { return p.indexOf("/certificados") === 0; } },
     { href: "/arche/",       rot: "Avaliação",         teste: function (p) { return p.indexOf("/arche") === 0; } },
     // a VISÃO PÚBLICA do portal (pedido do dono, ago/2026): a mesma página que
     // o visitante sem login encontra — vitrine dos editais e resultados da IC e

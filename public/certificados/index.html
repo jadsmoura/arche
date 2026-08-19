@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARCHÉ · Meus certificados · PROPPEX / UNIEGO</title>
+<link rel="icon" href="/arche/favicon.svg">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Figtree:wght@400;500;600;700&display=swap');
+  :root{
+    --brand:#1c3742; --brand-2:#2d535c; --brand-3:#40717e; --accent:#71c8e2;
+    --bg:#eef1f4; --card:#fff; --line:#dde4e8; --wash:#e6f5fa;
+    --ink:#182632; --ink-soft:#3a4650; --muted:#657179;
+    --ok:#3f8a5d; --ok-soft:#e5f3ea; --warn:#c98a2b; --warn-soft:#fbf3e4;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);font-family:Figtree,system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+  a{color:var(--brand-3);text-decoration:none}
+  .limite{max-width:940px;margin:0 auto;padding:26px 20px 60px}
+  .topo{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+  h1{font-family:Sora,sans-serif;font-size:26px;font-weight:800;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:14px}
+  .grupo{font-family:Sora,sans-serif;font-weight:700;font-size:12px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--brand-3);margin:22px 0 10px}
+  .cert{display:flex;gap:14px;align-items:center;padding:13px 0;border-top:1px solid var(--line)}
+  .cert:first-child{border-top:0}
+  .cert .txt{flex:1 1 auto;min-width:0}
+  .cert .t{font-weight:700;font-size:14.5px;line-height:1.35}
+  .cert .m{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .selo{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;
+    background:var(--wash);color:var(--brand-3);margin-right:6px}
+  .bt{display:inline-block;border:1px solid var(--line);background:#fff;color:var(--brand);
+    border-radius:9px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+  .bt:hover{background:var(--wash)}
+  .bt-pri{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .vazio{color:var(--muted);font-size:14px;line-height:1.6}
+  .aviso{background:var(--warn-soft);border:1px solid #f0e0c0;border-radius:10px;padding:12px 14px;
+    font-size:13px;color:#7a5a1c;margin-bottom:14px}
+  @media(max-width:560px){.cert{flex-wrap:wrap}.bt{width:100%;text-align:center}}
+</style>
+</head>
+<body>
+<div class="limite">
+  <div class="topo"><h1>Meus certificados</h1></div>
+  <div class="sub">Tudo o que você tem direito no ARCHÉ, num lugar só — eventos, iniciação
+    científica e monitoria. Cada documento é gerado na hora, com o código de validação.</div>
+  <div id="conteudo"><div class="card vazio">Carregando…</div></div>
+</div>
+
+<script>
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (iso) => { const [y, m, d] = String(iso || "").split("-"); return d ? `${d}/${m}/${y}` : ""; };
+
+/* Um lugar só para TODOS os certificados da pessoa (pedido do dono,
+   ago/2026): quem participou de um evento, foi bolsista de IC e monitor de
+   uma disciplina tinha de procurar em três setores diferentes o documento
+   de cada um. O histórico é da PESSOA — o servidor reúne pelo CPF e pelo
+   e-mail da conta, que é o que atravessa as edições. */
+fetch("/api/meus-certificados").then(async (r) => {
+  if (r.status === 401) { location.href = "/entrar?next=" + encodeURIComponent("/certificados/"); return; }
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || "Não foi possível carregar.");
+  const lista = j.certificados || [];
+  const cx = document.getElementById("conteudo");
+  if (!lista.length) {
+    cx.innerHTML = `${j.aviso ? `<div class="aviso">${esc(j.aviso)}</div>` : ""}
+      <div class="card vazio"><b>Nenhum certificado ainda.</b><br>
+        Os certificados aparecem aqui quando o processo se encerra: no evento, depois que a
+        coordenação o encerra e a PROPPEX valida; na iniciação científica, com o projeto
+        concluído; na monitoria, com o relatório homologado.</div>`;
+    return;
+  }
+  const grupos = [["evento", "Eventos"], ["ic", "Iniciação Científica"], ["monitoria", "Monitoria"]];
+  cx.innerHTML = (j.aviso ? `<div class="aviso">${esc(j.aviso)}</div>` : "")
+    + grupos.map(([k, rot]) => {
+      const meus = lista.filter((c) => c.origem === k);
+      if (!meus.length) return "";
+      return `<div class="grupo">${rot} · ${meus.length}</div><div class="card" style="padding:6px 22px">
+        ${meus.map((c) => `<div class="cert">
+          <div class="txt">
+            <div class="t">${esc(c.titulo || "(sem título)")}</div>
+            <div class="m"><span class="selo">${esc(c.papel || "")}</span>
+              ${c.ch ? `${esc(String(c.ch))} h · ` : ""}${c.quando ? fmt(c.quando) : ""}
+              ${c.detalhe ? ` · ${esc(c.detalhe)}` : ""}</div>
+          </div>
+          <a class="bt bt-pri" href="${esc(c.link)}" target="_blank" rel="noopener">📄 Baixar</a>
+        </div>`).join("")}
+      </div>`;
+    }).join("");
+}).catch((e) => {
+  document.getElementById("conteudo").innerHTML =
+    `<div class="card vazio">${esc(e.message)}</div>`;
+});
+</script>
+<script src="/assets/arche-nav.js" defer></script>
+</body>
+</html>

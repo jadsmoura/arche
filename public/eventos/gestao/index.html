@@ -267,6 +267,7 @@
         <section id="v-credenciamento" class="hide"></section>
         <section id="v-transmissao" class="hide"></section>
         <section id="v-exportacoes" class="hide"></section>
+        <section id="v-certificados" class="hide"></section>
         <section id="v-acao" class="hide"></section>
       </div>
     </div>
@@ -381,6 +382,7 @@ function numerosEventoLocal(a){
    tudo; depois as guias do EVENTO SELECIONADO agrupadas em GESTÃO,
    PRÉ-EVENTO, EVENTO e GERAL. `evento:true` = exige evento selecionado. */
 const IC = {
+  certificados:'<circle cx="12" cy="9" r="5"></circle><path d="M8.5 13.5 7 21l5-2.2L17 21l-1.5-7.5"></path>',
   painel:'<rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect>',
   inicio:'<path d="M3 10.5 12 3l9 7.5"></path><path d="M5 9.5V21h5v-6h4v6h5V9.5"></path>',
   dados:'<path d="M9 3h6a1 1 0 0 1 1 1v2H8V4a1 1 0 0 1 1-1z"></path><path d="M16 4h3a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3"></path><path d="M8 11h8M8 15h6"></path>',
@@ -422,6 +424,8 @@ const SECOES = [
    sub:"A transmissão online (YouTube ao vivo ou sala de reunião) e a moderação do mural de comentários."},
   {k:"exportacoes", rot:"Exportações", grupo:"GERAL", ic:IC.exportacoes, evento:true, tit:"Exportações",
    sub:"As planilhas do evento — AEE (geral, por atividade, só presentes) e a lista completa do ARCHÉ."},
+  {k:"certificados", rot:"Certificados", grupo:"GERAL", ic:IC.certificados, evento:true, tit:"Certificados do evento",
+   sub:"Encerrar o evento, as assinaturas do documento e quem tem certificado — emitidos pelo próprio ARCHÉ."},
   {k:"acao", rot:"Ação de extensão", grupo:"GERAL", ic:IC.acao, evento:true, tit:"A ação de extensão",
    sub:"A ação-mãe deste evento — proposta, aprovação e relatório vivem no ARCHÉ EX."},
 ];
@@ -537,6 +541,7 @@ function nav(secao){
   else if(SECAO==="credenciamento") renderCredenciamento(a);
   else if(SECAO==="transmissao") renderTransmissao(a);
   else if(SECAO==="exportacoes") renderExportacoes(a);
+  else if(SECAO==="certificados") renderCertificados(a);
   else if(SECAO==="acao") renderAcao(a);
   alvo.classList.remove("hide");
   if(meta.evento) agendarEvento(a.id);
@@ -944,13 +949,30 @@ function atalhosCard(a){
   const btExcluir = podeExcluir(a)
     ? bt("🗑 Excluir","excluirEvento('"+esc(a.id)+"')","Apaga este evento — não há como desfazer","bt-err")
     : "";
+  /* ENCERRAR o evento no cartão (pedido do dono, ago/2026): é o ato que
+     libera os certificados, e o coordenador não tem por que caçá-lo dentro
+     de uma guia. Aparece depois do último dia e some quando já foi feito;
+     para a gestão, o cartão mostra o pedido que espera decisão. */
+  const st=(ev.encerramento||{}).status||"aberto";
+  const acabou = a.proposta?.periodoFim && hojeISO() >= a.proposta.periodoFim;
+  const btEncerrar = (a.numeroAcao && acabou && (st==="aberto"||st==="devolvido"))
+    ? bt("🏁 Encerrar evento",`encerrarEvento('${esc(a.id)}')`,
+        "Encerra o evento e envia à PROPPEX — validado, libera os certificados","bt-pri")
+    : st==="solicitado"
+      ? (GESTAO_EX
+          ? bt("✓ Validar encerramento",`selecionar('${esc(a.id)}','certificados')`,
+              "A coordenação encerrou; validar libera os certificados","bt-pri")
+          : `<span class="muted" style="font-size:12px">🏁 encerrado — aguardando a PROPPEX</span>`)
+      : st==="validado"
+        ? bt("🎓 Certificados",`selecionar('${esc(a.id)}','certificados')`,"Evento encerrado e validado — emitir certificados")
+        : "";
   if(ev.ativo){
     const link=ev.slug?location.origin+"/eventos/"+encodeURIComponent(ev.slug):"";
     return linha(
       bt("⏸ Despublicar evento",`publicarCard('${esc(a.id)}',false)`,"Recolhe a página pública; inscrições feitas continuam válidas")
       + (link?`<a class="bt bt-ghost" style="padding:6px 12px;font-size:12.5px" href="${esc(link)}"
           target="_blank" rel="noopener" onclick="event.stopPropagation()">↗ ver a página</a>`:"")
-      + btExcluir);
+      + btEncerrar + btExcluir);
   }
   if(!a.numeroAcao)
     return linha((GESTAO_EX
@@ -962,9 +984,9 @@ function atalhosCard(a){
   if(faltas.length)
     return linha(`<span class="muted" style="font-size:12px">📝 faltam ${faltas.length} campo(s) do projeto</span>`
       + bt("Completar dados",`selecionar('${esc(a.id)}','dados')`,"Abrir a guia Dados do evento: "+faltas.join(", "))
-      + btExcluir);
+      + btEncerrar + btExcluir);
   return linha(bt("✓ Publicar evento",`publicarCard('${esc(a.id)}',true)`,
-    "Coloca a página pública no ar e abre as inscrições","bt-pri") + btExcluir);
+    "Coloca a página pública no ar e abre as inscrições","bt-pri") + btEncerrar + btExcluir);
 }
 
 /* EXCLUIR o evento (pedido do dono, ago/2026): cadastro errado precisa de
@@ -2580,7 +2602,162 @@ function imprimirListaEvento(id){
   montarSeletor();
   nav(guia);
 })();
+
+/* ======================================================================
+   CERTIFICADOS DO EVENTO (decisão do dono, ago/2026)
+
+   Três coisas numa guia só, porque são a mesma conversa: ENCERRAR o evento
+   (é o que faz os certificados existirem), quem ASSINA o documento e QUEM
+   tem direito a ele. A ordem na tela é a ordem dos fatos.
+   ====================================================================== */
+async function renderCertificados(a){
+  const alvo=$("v-certificados");
+  alvo.innerHTML=`<div class="card"><div class="muted">Carregando…</div></div>`;
+  let j={};
+  try{
+    const r=await fetch(`/api/eventos/${encodeURIComponent(a.id)}/certificados`);
+    j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||"Não foi possível carregar.");
+  }catch(e){
+    alvo.innerHTML=`<div class="card"><div class="muted">${esc(e.message)}</div></div>`; return;
+  }
+  const enc=(a.evento||{}).encerramento||{};
+  const st=enc.status||"aberto";
+  const SEL={aberto:["#eceff3","var(--muted)","em andamento"],
+    solicitado:["#fff4e0","#a86b12","encerrado — aguardando a PROPPEX"],
+    validado:["var(--ok-soft)","var(--ok)","encerrado e validado"],
+    devolvido:["#fdeaea","#b3261e","devolvido para ajustes"]}[st];
+  const ass=j.assinaturas||{};
+  const cartaoAss=(chave,rot,dica)=>{
+    const x=ass[chave]||{};
+    return `<div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px">
+      <div style="font-weight:700;font-size:13px">${rot}</div>
+      <div class="muted" style="font-size:12px;margin:2px 0 8px">${dica}</div>
+      ${x.temImagem?`<img src="/api/extensao/${encodeURIComponent(a.id)}/evento/assinatura/${chave}?t=${Date.now()}"
+        alt="assinatura" style="max-height:52px;max-width:190px;display:block;margin-bottom:6px">`:""}
+      <input id="as-nome-${chave}" placeholder="Nome de quem assina" value="${esc(x.nome||"")}">
+      <input id="as-cargo-${chave}" placeholder="Cargo (ex.: Coordenação do evento)" value="${esc(x.cargo||"")}" style="margin-top:6px">
+      <input type="file" id="as-file-${chave}" accept="image/png,image/jpeg" style="margin-top:8px;font-size:12px">
+      <div class="exp" style="margin-top:8px">
+        <button class="bt bt-sec" onclick="enviarAssinatura('${esc(a.id)}','${chave}')">Salvar assinatura</button>
+        ${x.temImagem?`<button class="bt bt-sec" onclick="removerAssinatura('${esc(a.id)}','${chave}')">Remover</button>`:""}
+      </div></div>`;
+  };
+  const porTipo=(t)=>(j.certificados||[]).filter(c=>c.tipo===t);
+  const linha=(c)=>`<tr>
+    <td>${esc(c.pessoa)}</td>
+    <td class="muted">${esc(c.papel||(c.tipo==="participante"?"Participante":c.tipo==="palestrante"?"Palestrante":"Organização"))}</td>
+    <td class="muted">${c.ch?esc(String(c.ch))+" h":"—"}</td>
+    <td>${j.pode?`<a class="bt bt-sec" style="padding:3px 9px;font-size:12px"
+      href="/api/eventos/${encodeURIComponent(a.id)}/certificado.pdf?ref=${encodeURIComponent(c.ref)}"
+      target="_blank" rel="noopener">📄 Emitir</a>`:`<span class="muted" style="font-size:12px">—</span>`}</td></tr>`;
+  const tabela=(t,rot)=>{
+    const l=porTipo(t); if(!l.length) return "";
+    return `<div class="sec-t" style="margin-top:16px">${rot} <span class="muted">(${l.length})</span></div>
+      <div style="overflow-x:auto"><table><thead><tr><th>Nome</th><th>Papel</th><th>CH</th><th></th></tr></thead>
+      <tbody>${l.map(linha).join("")}</tbody></table></div>`;
+  };
+
+  alvo.innerHTML=`
+    <div class="card">
+      <div class="sec-t">Encerramento do evento
+        <span class="badge" style="background:${SEL[0]};color:${SEL[1]}">${SEL[2]}</span></div>
+      <div class="muted" style="margin:8px 0 12px">O certificado não sai porque a data passou: sai
+        quando a coordenação <b>encerra o evento</b> e a PROPPEX <b>valida o encerramento</b>. Antes
+        de encerrar, confira as presenças, a comissão organizadora e os palestrantes — é o retrato
+        que vai virar documento.</div>
+      ${enc.pedidoEm?`<div class="muted" style="font-size:12.5px">Encerrado por ${esc(enc.pedidoPor||"—")}
+        em ${fmtDataHora(enc.pedidoEm)}${enc.numeros?` · ${enc.numeros.inscritos||0} inscrito(s), ${enc.numeros.presentes||0} presente(s)`:""}.</div>`:""}
+      ${enc.observacao?`<div class="tut" style="font-size:12.5px;margin-top:8px"><b>Observação da coordenação:</b> ${esc(enc.observacao)}</div>`:""}
+      ${enc.parecer?`<div class="tut" style="font-size:12.5px;margin-top:8px"><b>Parecer da PROPPEX:</b> ${esc(enc.parecer)}</div>`:""}
+      <div class="exp" style="margin-top:12px">
+        ${(st==="aberto"||st==="devolvido")?`<button class="bt bt-pri" onclick="encerrarEvento('${esc(a.id)}')">🏁 Encerrar evento</button>`:""}
+        ${(st==="solicitado"&&GESTAO_EX)?`<button class="bt bt-pri" onclick="decidirEncerramento('${esc(a.id)}','validado')">✓ Validar e liberar certificados</button>
+          <button class="bt bt-sec" onclick="decidirEncerramento('${esc(a.id)}','devolvido')">↩ Devolver para ajustes</button>`:""}
+        ${(st==="solicitado"&&!GESTAO_EX)?`<span class="muted" style="font-size:12.5px;align-self:center">A PROPPEX foi avisada por e-mail — os certificados saem assim que ela validar.</span>`:""}
+      </div>
+      ${!j.pode&&j.motivo?`<div class="muted" style="font-size:12.5px;margin-top:10px">${esc(j.motivo)}</div>`:""}
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Assinaturas do certificado</div>
+      <div class="muted" style="margin:8px 0 12px">Envie a assinatura em <b>PNG com fundo
+        transparente</b> (até 2 MB) — é ela que aparece sobre a linha. <b>Quem não enviar não aparece
+        no documento</b>: não fica linha em branco com nome embaixo.</div>
+      <div class="duas">
+        ${cartaoAss("organizador","Responsável pela ação","Quem responde pela ação de extensão.")}
+        ${cartaoAss("coordenacao","Coordenação do evento","Quem coordenou este evento.")}
+      </div>
+      <div class="tut" style="font-size:12.5px;margin-top:12px">🏛 <b>Pró-Reitor e Reitor</b> assinam
+        todos os certificados do ARCHÉ e vêm do catálogo institucional (o mesmo do ARCHÉ IC):
+        ${j.institucionais?.proreitor?"✓ pró-reitor":"⚠ pró-reitor sem assinatura"} ·
+        ${j.institucionais?.reitor?"✓ reitor":"⚠ reitor sem assinatura"}. Trocar quem assina é na
+        guia Certificados do ARCHÉ IC, e vale para todos os setores.</div>
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Quem tem certificado <span class="muted">(${(j.certificados||[]).length})</span></div>
+      ${j.pode?`<div class="muted" style="margin:8px 0">A frente traz o texto do certificado; o verso,
+        a programação do evento. A carga horária do participante é a das atividades em que ele teve
+        presença registrada.</div>`
+        :`<div class="muted" style="margin:8px 0">${esc(j.motivo||"Os certificados ainda não estão disponíveis.")}</div>`}
+      ${(j.certificados||[]).length?`${tabela("participante","Participantes")}${tabela("palestrante","Palestrantes")}${tabela("comissao","Comissão organizadora")}`
+        :`<div class="muted">Ninguém com direito a certificado ainda — confira presenças, comissão e palestrantes.</div>`}
+    </div>`;
+}
+
+async function encerrarEvento(id){
+  const a=ACOES.find(x=>x.id===id); if(!a) return;
+  const nome=a.proposta?.nomeAtividade||"este evento";
+  if(!confirm(`Encerrar "${nome}"?\n\nO encerramento vai à PROPPEX e, validado, LIBERA os certificados `
+    +`de participantes, palestrantes e comissão organizadora.\n\nConfira antes: presenças lançadas, `
+    +`comissão e palestrantes completos.`)) return;
+  const obs=prompt("Quer deixar alguma observação para a PROPPEX? (opcional)","")||"";
+  const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/evento/encerrar`,{method:"POST",
+    headers:{"Content-Type":"application/json"},body:JSON.stringify({observacao:obs})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ alert(j.error||"Não foi possível encerrar."); return; }
+  await carregar(); nav("certificados");
+  alert("Evento encerrado. A PROPPEX foi avisada — os certificados saem depois da validação.");
+}
+
+async function decidirEncerramento(id,decisao){
+  const parecer = decisao==="devolvido"
+    ? (prompt("O que precisa ser corrigido? (a coordenação vai ler)","")||"").trim()
+    : (prompt("Observação da validação (opcional)","")||"").trim();
+  if(decisao==="devolvido"&&parecer.length<10){ alert("Escreva o que precisa ser corrigido."); return; }
+  if(decisao==="validado"&&!confirm("Validar o encerramento e LIBERAR os certificados deste evento?")) return;
+  const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/evento/encerramento`,{method:"POST",
+    headers:{"Content-Type":"application/json"},body:JSON.stringify({decisao,parecer})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ alert(j.error||"Não foi possível registrar a decisão."); return; }
+  await carregar(); nav("certificados");
+  alert(decisao==="validado"?"Encerramento validado — os certificados estão liberados."
+    :"Encerramento devolvido à coordenação.");
+}
+
+async function enviarAssinatura(id,quem){
+  const f=$("as-file-"+quem)?.files?.[0];
+  const nome=($("as-nome-"+quem)?.value||"").trim();
+  if(!nome){ alert("Informe o nome de quem assina — é ele que sai impresso."); return; }
+  if(!f){ alert("Escolha o arquivo PNG da assinatura."); return; }
+  const fd=new FormData();
+  fd.append("file",f); fd.append("quem",quem); fd.append("nome",nome);
+  fd.append("cargo",($("as-cargo-"+quem)?.value||"").trim());
+  const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/evento/assinatura`,{method:"POST",body:fd});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ alert(j.error||"Não foi possível salvar a assinatura."); return; }
+  await carregar(); nav("certificados");
+}
+
+async function removerAssinatura(id,quem){
+  if(!confirm("Remover esta assinatura do certificado?")) return;
+  const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/evento/assinatura?quem=${quem}`,{method:"DELETE"});
+  if(!r.ok){ alert("Não foi possível remover."); return; }
+  await carregar(); nav("certificados");
+}
 </script>
-<script src="/assets/arche-nav.js" defer></script>
+<script src="/assets/arche-nav.js" defer>
+</script>
 </body>
 </html>

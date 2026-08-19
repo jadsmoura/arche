@@ -72,12 +72,14 @@ import {
   minutosEntre, duracaoBR, eventoControlaFrequencia, temHotsiteEvento,
 } from "./lib/eventos.js";
 import {
+  PAPEIS_COMISSAO, faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento,
+  videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento, contaPresente,
+} from "./lib/eventos.js";
+import {
   ASSINANTES_DO_EVENTO, assinanteDoEventoValido, assinaturasDoCertificado,
   certificadoDe, certificadosDePessoa, certificadosDoEvento, eventoCertificavel,
   eventoEncerrado, podeEncerrar, programacaoDoCertificado, situacaoEncerramento,
-  PAPEIS_COMISSAO, faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento,
-  videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento,
-} from "./lib/eventos.js";
+} from "./lib/certificadosEv.js";
 import {
   TURMAS_EM, BOLSAS_EM, bolsaEmDe, turmaDe as turmaEmDe, turmaVigente as turmaEmVigente,
   ESCALA_AVALIACAO_EM, CRITERIOS_AVALIACAO_EM, RECOMENDACAO_EM, avaliacaoEMCompleta,
@@ -2691,6 +2693,13 @@ app.get("/api/publico/eventos/:slug/inscricao/:token", async (req, res) => {
       .map((id) => prog.find((x) => x?.id === id)).filter(Boolean)
       .map(({ id, titulo, dia, horaInicio, horaFim, local }) =>
         ({ id, titulo, dia: dia || "", horaInicio: horaInicio || "", horaFim: horaFim || "", local: local || "" }));
+    // o certificado é a razão de a pessoa voltar a esta página depois do
+    // evento: ou o botão existe, ou a linha diz o que ainda falta
+    const podeCert = eventoCertificavel(r.acao, hojeLocalISO());
+    const meuCert = podeCert.ok
+      ? certificadoDe(r.acao, { cpf: r.inscrito.cpf, email: r.inscrito.email, nome: r.inscrito.nome },
+        { hoje: hojeLocalISO() })
+      : null;
     res.json({
       evento: {
         slug: ev.slug, nome: p.nomeAtividade || "", curso: r.acao.curso || "",
@@ -2698,6 +2707,13 @@ app.get("/api/publico/eventos/:slug/inscricao/:token", async (req, res) => {
         local: p.local || "", municipio: p.municipio || "",
         transmissaoPublicada: ev.transmissao?.publicada === true,
       },
+      certificado: podeCert.ok
+        ? (meuCert
+          ? { pode: true, ch: meuCert.ch }
+          : { pode: false, motivo: eventoControlaFrequencia(ev)
+            ? "sai para quem teve presença registrada no evento — fale com a coordenação."
+            : "não foi possível apurar o seu certificado neste evento." })
+        : { pode: false, motivo: podeCert.motivo },
       inscricao: {
         nome: r.inscrito.nome || "", inscritoEm: r.inscrito.inscritoEm || "",
         codigo: codigoDe(r.inscrito.token),
@@ -10099,7 +10115,6 @@ app.get("/api/eventos/:id/certificado.pdf", async (req, res) => {
     const buf = await pdfDoCertificadoEvento(a, cert);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${nomeArquivoCert(cert)}"`);
-    medir("pdf", buf.length);
     res.end(buf);
   } catch (e) {
     console.error("Erro ao emitir certificado do evento:", e);
@@ -10108,7 +10123,7 @@ app.get("/api/eventos/:id/certificado.pdf", async (req, res) => {
 });
 
 /** O PARTICIPANTE baixa o seu pela credencial — sem conta, como se inscreveu. */
-app.get("/api/publico/eventos/:slug/certificado/:token.pdf", async (req, res) => {
+app.get("/api/publico/eventos/:slug/inscricao/:token/certificado.pdf", async (req, res) => {
   try {
     const a = eventoPorSlug(await lerAcoes(), req.params.slug);
     if (!a?.evento) return res.status(404).send("Evento não encontrado");
@@ -10129,7 +10144,6 @@ app.get("/api/publico/eventos/:slug/certificado/:token.pdf", async (req, res) =>
     const buf = await pdfDoCertificadoEvento(a, cert);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${nomeArquivoCert(cert)}"`);
-    medir("pdf", buf.length);
     res.end(buf);
   } catch (e) {
     console.error("Erro no certificado do participante:", e);
@@ -10147,17 +10161,62 @@ app.get("/api/meus-certificados", async (req, res) => {
   try {
     const u = await usuarioDe(req, res);
     if (!u) return res.status(401).json({ error: "Faça login." });
-    const perfil = (await carregarPerfis())[u.email] || null;
-    const eu = { cpf: perfil?.cpf || "", email: u.email, nome: perfil?.nome || "" };
-    const eventos = certificadosDePessoa(await lerAcoes(), eu).map(({ cpf, email, ...c }) => c);
-    res.json({ ok: true, eu: { nome: eu.nome, email: eu.email, temCpf: !!eu.cpf }, eventos });
+    const perfil = (await carregarPerfis())[u.email] || {};
+    const eu = { cpf: perfil.cpf || u.cpf || "", email: u.email, nome: perfil.nome || u.nome || "" };
+    const out = [];
+
+    // EVENTOS — participante, palestrante e comissão organizadora
+    for (const c of certificadosDePessoa(await lerAcoes(), eu)) {
+      out.push({
+        origem: "evento", setor: "Eventos",
+        titulo: c.evento,
+        papel: c.tipo === "participante" ? "Participante"
+          : c.tipo === "palestrante" ? "Palestrante" : (c.papel || "Comissão organizadora"),
+        detalhe: c.palestra || c.curso || "",
+        quando: c.fim || c.inicio || "", ch: c.ch || 0, codigo: c.codigo,
+        link: `/api/meus-certificados/evento.pdf?acao=${encodeURIComponent(c.acaoId)}`,
+      });
+    }
+
+    // INICIAÇÃO CIENTÍFICA — participação do aluno e orientação
+    for (const c of certificadosDe(await lerProjetos(), eu)) {
+      out.push({
+        origem: "ic", setor: "Iniciação Científica",
+        titulo: c.titulo,
+        papel: c.tipo === "orientacao" ? `Orientação de ${c.aluno || "acadêmico(a)"}` : "Bolsista/voluntário(a)",
+        detalhe: [c.numero, c.edital ? `edital ${c.edital}` : ""].filter(Boolean).join(" · "),
+        quando: c.vigencia?.fim || "", ch: 0, codigo: c.codigo,
+        link: `/api/ic/certificado.pdf?codigo=${encodeURIComponent(c.codigo)}`,
+      });
+    }
+
+    // MONITORIA — monitor e docente orientador
+    for (const c of certificadosMonitoria(await lerMonitorias(), eu)) {
+      out.push({
+        origem: "monitoria", setor: "Monitoria",
+        titulo: c.disciplina ? `Monitoria de ${c.disciplina}` : "Monitoria Acadêmica",
+        papel: c.tipo === "orientacao-monitoria" ? "Orientação" : "Monitor(a)",
+        detalhe: [c.numero, c.ciclo].filter(Boolean).join(" · "),
+        quando: c.vigencia?.fim || "", ch: Number(c.horas) || 0,
+        codigo: "", link: `/api/monitoria/certificado.pdf?projeto=${encodeURIComponent(c.projetoId)}&tipo=${encodeURIComponent(c.tipo)}`,
+      });
+    }
+
+    out.sort((a, b) => String(b.quando).localeCompare(String(a.quando)));
+    res.json({ ok: true,
+      eu: { nome: eu.nome, email: eu.email, temCpf: !!eu.cpf },
+      certificados: out,
+      // o CPF é o que reúne o que a pessoa fez com e-mails diferentes ao
+      // longo dos anos — sem ele, o histórico sai menor do que a verdade
+      aviso: eu.cpf ? "" : "Informe o seu CPF no perfil: é por ele que o ARCHÉ reúne certificados "
+        + "de edições antigas, quando o e-mail cadastrado era outro.",
+    });
   } catch (e) {
     console.error("Erro no histórico de certificados:", e);
     res.status(500).json({ error: "Não foi possível carregar." });
   }
 });
 
-/** E o usuário baixa o seu, de qualquer evento em que tenha direito. */
 app.get("/api/meus-certificados/evento.pdf", async (req, res) => {
   try {
     const u = await usuarioDe(req, res);
@@ -10172,7 +10231,6 @@ app.get("/api/meus-certificados/evento.pdf", async (req, res) => {
     const buf = await pdfDoCertificadoEvento(a, cert);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${nomeArquivoCert(cert)}"`);
-    medir("pdf", buf.length);
     res.end(buf);
   } catch (e) {
     console.error("Erro ao emitir certificado do usuário:", e);
