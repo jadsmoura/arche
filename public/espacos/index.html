@@ -275,6 +275,12 @@
   table.agd .p2{font-size:11.5px;color:var(--muted);margin-top:2px}
   table.agd .tags{display:inline-flex;gap:3px;margin-right:6px;vertical-align:1px}
   table.agd .tags i{width:9px;height:9px;border-radius:3px;display:inline-block}
+  table.agd tr.mes td{background:var(--wash);border-bottom:1px solid var(--line);
+    font-family:Sora,sans-serif;font-weight:700;font-size:13px;color:var(--ink);
+    padding:10px 10px 8px}
+  table.agd tr.mes td span{float:right;font-family:Figtree,sans-serif;font-weight:600;
+    font-size:11.5px;color:var(--muted)}
+  table.agd tr.mes:hover td{background:var(--wash)}
   .lk{background:none;border:0;padding:0;color:var(--brand-3);font-weight:600;
     font-size:12px;cursor:pointer;font-family:inherit}
   .lk:hover{text-decoration:underline}
@@ -910,7 +916,20 @@ function renderAgendamentos() {
     onclick="AGD.status='${valor}';renderAgendamentos()">${rot}
     <b style="color:${cor || "var(--muted)"}">${n}</b></button>`;
 
+  /* Agrupado por MÊS (pedido do dono, ago/2026): a lista corrida de sessenta
+     e uma reservas não deixa ver onde um mês acaba e o outro começa — e é por
+     mês que se pensa a ocupação do campus. O mês é o do início da reserva: o
+     CONINT, que atravessa de 19 a 30/10, é de outubro. */
+  let mesAtual = "";
   const linhas = lista.map((r) => {
+    const mes = String(r.dataInicio).slice(0, 7);
+    let cabecalho = "";
+    if (mes !== mesAtual) {
+      mesAtual = mes;
+      const n = lista.filter((x) => String(x.dataInicio).slice(0, 7) === mes).length;
+      cabecalho = `<tr class="mes"><td colspan="6">${esc(rotuloMesTitulo(mes))}
+        <span>${n} agendamento(s)</span></td></tr>`;
+    }
     const cores = (r.itens || []).map((i) => corEspaco(i.espaco));
     const locais = (r.itens || []).map((i) => {
       const e = (DADOS.espacos || []).find((x) => x.id === i.espaco);
@@ -918,7 +937,7 @@ function renderAgendamentos() {
     });
     const quando = r.dataInicio === r.dataFim ? fmt(r.dataInicio) : `${fmt(r.dataInicio)}–${fmt(r.dataFim)}`;
     const passou = (r.dataFim || r.dataInicio) < hoje;
-    return `<tr class="${passou ? "passada" : ""}">
+    return cabecalho + `<tr class="${passou ? "passada" : ""}">
       <td><span class="tags">${cores.map((c) => `<i style="background:${c}"></i>`).join("")}</span>
         ${esc(locais.join(" · "))}</td>
       <td style="white-space:nowrap">${quando}<div class="p2">${diaTodo(r) ? "dia todo" : `${esc(r.horaInicio)}–${esc(r.horaFim)}`}</div></td>
