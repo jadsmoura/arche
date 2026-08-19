@@ -3780,7 +3780,10 @@ function desenharAlunos() {
     return `
     <tr>
       <td><input ${roCampo} value="${esc(a.nome || "")}" oninput="ATUAL.alunos[${i}].nome=this.value"></td>
-      <td><input type="email" ${roFixo} ${fixo ? 'title="O e-mail de quem já foi indicado só muda pela PROPPEX — é a chave da conta do aluno"' : ""} value="${esc(a.email || "")}" oninput="ATUAL.alunos[${i}].email=this.value;desenharEtapas()"></td>
+      <td><div style="display:flex;gap:5px;align-items:center">
+        <input type="email" style="flex:1 1 auto;min-width:0" ${roFixo} ${fixo ? 'title="O e-mail de quem já foi indicado é a chave da conta — para corrigir um erro de digitação, use o ✎ ao lado"' : ""} value="${esc(a.email || "")}" oninput="ATUAL.alunos[${i}].email=this.value;desenharEtapas()">
+        ${ger && fixo ? `<button class="btn ghost" style="flex:none;padding:4px 8px;font-size:12px" title="Corrigir o e-mail digitado errado" onclick="corrigirEmailAluno(${i})">✎</button>` : ""}
+      </div></td>
       <td><input ${roCampo} value="${esc(a.telefone || "")}" oninput="ATUAL.alunos[${i}].telefone=this.value" placeholder="(62) 9…"></td>
       <td><input ${roCampo} value="${esc(a.curso || "")}" oninput="ATUAL.alunos[${i}].curso=this.value"></td>
       <td><input ${roCampo} value="${esc(a.periodo || "")}" oninput="ATUAL.alunos[${i}].periodo=this.value" placeholder="5º"></td>
@@ -3793,6 +3796,32 @@ function desenharAlunos() {
     || `<tr><td colspan="7" class="muted">Nenhum aluno indicado ainda.</td></tr>`;
 }
 function addAluno() { ATUAL.alunos = [...(ATUAL.alunos || []), { nome: "", email: "", telefone: "", curso: cursoNome(ATUAL.curso), periodo: "", bolsista: false, _novo: true }]; desenharAlunos(); }
+
+/* CORRIGIR o e-mail é diferente de TROCAR de aluno (pedido do dono,
+   ago/2026): o professor digita esse endereço, e digitar errado é banal —
+   quando erra, o convite não chega a ninguém e o aluno fica de fora do
+   próprio projeto. Enquanto ele não preencheu nada de seu, corrigir não
+   tira nada de ninguém: o servidor aceita da orientação e reenvia o
+   convite. Depois que ele entrou, o e-mail virou a conta dele e a correção
+   é da PROPPEX — a rota diz isso em vez de a tela adivinhar. Trocar de
+   bolsista continua sendo a Substituição. */
+async function corrigirEmailAluno(i) {
+  const a = (ATUAL.alunos || [])[i];
+  if (!a) return;
+  const novo = prompt(`Corrigir o e-mail de ${a.nome || "aluno indicado"}.\n\n`
+    + "Use isto só para consertar um endereço digitado errado — para trocar de "
+    + "bolsista, o caminho é a Substituição de bolsista.", a.email || "");
+  if (novo === null) return;
+  try {
+    const r = await api(`/api/ic/${ATUAL.id}/aluno-email`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ de: a.email || "", nome: a.nome || "", para: novo }),
+    });
+    ATUAL = r.projeto;
+    desenharAlunos(); desenharEtapas();
+    aviso("E-mail corrigido — o convite foi enviado para o endereço novo.");
+  } catch (e) { aviso(e.message, "erro"); }
+}
 
 /* ------------------------- meses da vigência ---------------------------
    O cronograma se preenche por MÊS (1 a 12), não por data: a vigência é a

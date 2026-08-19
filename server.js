@@ -7668,6 +7668,78 @@ app.post("/api/ic/:id/meus-dados", async (req, res) => {
 });
 
 /**
+ * CORRIGIR O E-MAIL DO ALUNO INDICADO (pedido do dono, ago/2026).
+ *
+ * O e-mail é a chave da conta do aluno, e por isso trocá-lo pelo formulário
+ * é vedado à orientação: seria trocar de pessoa sem passar pela Substituição
+ * de bolsista. Só que o professor DIGITA esse e-mail, e digitar errado é
+ * banal — a profa. Kênia errou o do Tiago e a indicação simplesmente não
+ * chegava a ninguém. Mandar todo erro de digitação à PROPPEX é transformar
+ * um engano de um caractere em pedido protocolado.
+ *
+ * A saída é separar CORRIGIR de TROCAR pelo único sinal que distingue os
+ * dois: se o aluno já entrou. Enquanto ele não preencheu nada de seu (CPF,
+ * RG, endereço, conta — os CAMPOS_DO_ALUNO_PROTEGIDOS), o endereço não
+ * abriu conta nenhuma e corrigi-lo não tira nada de ninguém: a orientação
+ * corrige e o convite sai de novo, agora para o endereço certo. Depois que
+ * ele entrou, o e-mail passa a ser a identidade de alguém que já está no
+ * projeto — aí só a PROPPEX, e trocar de bolsista continua sendo a
+ * Substituição. Em qualquer caso a correção fica no histórico: o que mudou
+ * a chave de uma conta precisa ser explicável depois.
+ */
+app.post("/api/ic/:id/aluno-email", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  const b = req.body || {};
+  const de = String(b.de || "").trim().toLowerCase();
+  const para = String(b.para || "").trim().toLowerCase().slice(0, 160);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(para))
+    return res.status(400).json({ error: "Informe um e-mail válido." });
+
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0 || !podeVerProjeto(meu, projetos[i])) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    const p = projetos[i];
+    const papel = papelNoProjeto(meu, p);
+    if (papel !== "orientador" && papel !== "gestao")
+      return { erro: [403, "A correção é da orientação ou da coordenação"], gravar: false };
+
+    const alunos = p.alunos || [];
+    const j = alunos.findIndex((a) => String(a.email || "").toLowerCase() === de
+      || (!de && !a.email && String(a.nome || "").trim().toLowerCase() === String(b.nome || "").trim().toLowerCase()));
+    if (j < 0) return { erro: [400, "Não encontrei esse aluno na indicação."], gravar: false };
+    if (String(alunos[j].email || "").toLowerCase() === para)
+      return { erro: [400, "Este já é o e-mail do aluno."], gravar: false };
+    if (alunos.some((a, k) => k !== j && String(a.email || "").toLowerCase() === para))
+      return { erro: [400, "Outro aluno deste projeto já está com esse e-mail."], gravar: false };
+
+    // já entrou? então o endereço é a identidade de uma conta em uso
+    const entrou = CAMPOS_DO_ALUNO_PROTEGIDOS.some((c) => String(alunos[j][c] || "").trim());
+    if (entrou && papel !== "gestao") {
+      return { erro: [403, `${alunos[j].nome || "O aluno"} já preencheu o próprio cadastro — o e-mail virou a conta dele. `
+        + "Para corrigir mesmo assim, fale com a PROPPEX; para trocar de bolsista, use a Substituição de bolsista."], gravar: false };
+    }
+
+    const antigo = alunos[j].email || "(sem e-mail)";
+    alunos[j] = { ...alunos[j], email: para };
+    projetos[i] = anotarProjeto({ ...p, alunos }, {
+      quem: u.email,
+      oQue: `corrigiu o e-mail de ${alunos[j].nome || "um aluno indicado"}: ${antigo} → ${para}`,
+    });
+    // o convite nunca chegou ao endereço errado; sai agora para o certo
+    return { projeto: projetos[i], convidar: ["aprovado", "concluido"].includes(p.status) ? [alunos[j]] : [] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  if (r.convidar?.length) convidarAlunosIC(r.projeto, r.convidar);
+  avisarPesquisa(`E-mail de aluno corrigido — ${r.projeto.numero || ""}`, [
+    ["Projeto", `${r.projeto.numero || ""} ${r.projeto.titulo || ""}`.trim()],
+    ["Novo e-mail", para],
+  ], "Correção de e-mail na indicação de aluno");
+  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
+});
+
+/**
  * Substituição de bolsista: a orientação SOLICITA a troca — diz quem sai,
  * apresenta o novo aluno (nome, curso, período, e-mail, telefone) e o
  * motivo — e a decisão é da coordenação. Aprovada, o sistema faz a troca:
@@ -8206,6 +8278,55 @@ async function zerarAlunosIniciais() {
       if ((projetos[i].alunos || []).length) { n += 1; projetos[i] = { ...projetos[i], alunos: [] }; }
     }
     console.log(`[ic] fluxo novo de indicação: alunos zerados em ${n} projeto(s)`);
+    return {};
+  });
+  await storage.set(marca, new Date().toISOString());
+  await storage.flush?.();
+}
+
+/**
+ * Correções pontuais de e-mail na indicação de aluno.
+ *
+ * Enquanto a orientação não tinha como corrigir sozinha (ver
+ * POST /api/ic/:id/aluno-email), o endereço digitado errado só se
+ * consertava pela PROPPEX — e o convite ficava sem chegar a ninguém. As
+ * correções já pedidas entram aqui, uma vez cada (marca sys-*).
+ *
+ * O aluno é encontrado pelo TELEFONE, não pelo e-mail errado: é o dado que
+ * a orientação digitou certo e o único que não está em disputa. A correção
+ * não cria aluno nem mexe em nada além do endereço, e passa pela mesma fila
+ * de escrita dos projetos.
+ */
+const EMAILS_A_CORRIGIR = [
+  // profa. Kênia Rodrigues (Direito) — o endereço saiu com um caractere
+  // trocado e a indicação não chegava ao aluno (WhatsApp de 19/08/2026)
+  { telefone: "62986447489", email: "tiagoribeito54@gmail.com" },
+];
+
+async function corrigirEmailsIndicacao() {
+  const marca = "sys-ic-correcao-email-v1";
+  if (await storage.get(marca)) return;
+  const so = (v) => String(v || "").replace(/\D+/g, "");
+  await comProjetos((projetos) => {
+    let n = 0;
+    for (let i = 0; i < projetos.length; i++) {
+      const alunos = projetos[i].alunos || [];
+      let mexeu = false;
+      const novos = alunos.map((a) => {
+        const alvo = EMAILS_A_CORRIGIR.find((c) => so(c.telefone) && so(a.telefone) === so(c.telefone));
+        if (!alvo || String(a.email || "").toLowerCase() === alvo.email) return a;
+        mexeu = true;
+        console.log(`[ic] e-mail corrigido: ${a.email || "(vazio)"} → ${alvo.email}`);
+        return { ...a, email: alvo.email };
+      });
+      if (mexeu) {
+        n += 1;
+        projetos[i] = anotarProjeto({ ...projetos[i], alunos: novos }, {
+          quem: "sistema", oQue: "corrigiu o e-mail digitado errado na indicação do aluno",
+        });
+      }
+    }
+    console.log(`[ic] correção de e-mail na indicação: ${n} projeto(s)`);
     return {};
   });
   await storage.set(marca, new Date().toISOString());
@@ -9794,6 +9915,7 @@ app.listen(port, () => {
       subirEspacosIniciais,      // catálogo do ARCHÉ ES, uma única vez
       aplicarCoresDosEspacos,    // as etiquetas de cor, no catálogo já gravado
       subirReservasMigradas,     // e as reservas que a recepção anotava à mão
+      corrigirEmailsIndicacao,   // e-mail de aluno digitado errado na indicação
       // SEMPRE por último, e a cada arranque (achado de ago/2026 — o caso
       // Marlana): as migrações acima podem carimbar CPF em projeto que ainda
       // não tem e-mail, e uma vinculação que rodasse só uma vez, antes delas,
