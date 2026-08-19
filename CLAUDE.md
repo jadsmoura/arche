@@ -254,6 +254,33 @@ public/
   a própria senha a marca `provisoria` some sozinha. Conta de gestor não recebe senha
   provisória — um gestor não redefine a senha do outro. Rota separada da de papéis de
   propósito: a de papéis reconstrói as listas, e resetar senha não pode rebaixar ninguém.
+- **Certificados dos EVENTOS são emitidos pelo ARCHÉ** (`lib/certificadosEv.js` +
+  `gerarCertificadoEventoPdf` + guia Certificados do ARCHÉ EV, decisão do dono ago/2026):
+  com credenciamento, presenças e comissão organizadora já dentro do sistema, quem tem
+  direito ao quê já está aqui — exportar para emitir fora era o passo mais longo entre o
+  dado e o documento (a planilha da AEE continua existindo para quem precisar dela). O
+  certificado **não sai porque a data passou**: sai porque o coordenador **encerrou o
+  evento** (botão no cartão e na guia, a partir do último dia) e a **PROPPEX validou o
+  encerramento** (`evento.encerramento.status`: aberto → solicitado → validado|devolvido;
+  o pedido entra no sino). Mesma razão do relatório da ação: presença lançada errada
+  viraria certificado antes de alguém olhar, e certificado emitido não se recolhe. Três
+  documentos: **participante** (CH das ATIVIDADES em que teve presença, não a do evento
+  inteiro), **palestrante** (com o título da apresentação) e **comissão** (com a função).
+  Frente com o texto padrão na moldura do UNIEGO, **verso com a programação** — é ela que
+  dá lastro às horas da frente. Assinam até quatro, e **quem não tem imagem não aparece**
+  (nada de linha em branco com nome embaixo): responsável e coordenação enviam o PNG na
+  guia (`evento.assinaturas`, imagem fora dos payloads como a capa), e pró-reitor e reitor
+  vêm do MESMO `sys-assinaturas-v1` do ARCHÉ IC. **Quem cria o evento entra na comissão
+  como coordenação**, com os dados do perfil — era a linha que todo mundo esquecia, e sem
+  ela o coordenador ficava fora do certificado do evento que organizou.
+- **O histórico de certificados é do USUÁRIO** (`/certificados/` + `GET /api/meus-certificados`,
+  pedido do dono ago/2026): quem participou de um evento, foi bolsista de IC e monitor de uma
+  disciplina procurava o documento de cada um em três setores. A guia (cartão 08 e atalho na
+  barra, todo usuário logado) reúne **Eventos, Iniciação Científica e Monitoria**, casando por
+  **CPF e e-mail** — e avisa quem não tem CPF no perfil que o histórico pode estar vindo menor
+  que a verdade. As guias de certificado DENTRO de cada setor continuam onde estão (decisão do
+  dono): lá é a operação de quem emite; aqui, o histórico de quem recebe. O participante sem
+  conta baixa o dele pela própria credencial, que é onde ele volta depois do evento.
 - **Certificados da Extensão são de OUTRO sistema** (eventos da AEE,
   `https://eventoscae.aee.edu.br/portal/login`): a guia Certificados do ARCHÉ EX **não
   embute** a página — o login de lá pede a janela própria (cookies de terceiro), e uma
