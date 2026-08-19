@@ -331,6 +331,15 @@ public/
   (env EVENTOS_NOTIFY_EMAIL) — contato do hotsite, do texto LGPD padrão e da confirmação
   de inscrição, e destinatário do aviso automático quando uma página de evento entra no
   ar (`emailEventoAtivado`, fire-and-forget).
+- **Nem todo evento quer um site** (`temHotsiteEvento` em lib/eventos.js + a escolha no
+  assistente e na guia Página do evento, pedido do dono ago/2026): o professor que dá uma
+  palestra e quer só a lista de presença por QR não tem por que montar hotsite — capa,
+  programação, palestrantes, blocos, mapa. Com `hotsite: false` o endereço do evento abre
+  **só a folha de inscrição** (nome, quando, onde e o formulário com a LGPD), o evento fica
+  **fora da vitrine** `/eventos/` — quem não montou página não está divulgando — e o QR
+  projetado no fim da palestra leva direto a esse formulário. Credenciamento, presenças,
+  exportações e certificados são idênticos nos dois casos: o que muda é só o que o público
+  vê. O padrão continua sendo o hotsite, e evento antigo (sem o campo) segue com página.
 - **A página do evento tem BLOCOS** (`TIPOS_BLOCO`/`normalizarBlocos` em lib/eventos.js +
   guia "Blocos da página" no ARCHÉ EV, decisão do dono ago/2026): além da espinha fixa (capa,
   sobre, programação, inscrição), cada evento monta as suas seções — **submissão de

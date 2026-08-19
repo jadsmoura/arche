@@ -705,7 +705,7 @@ const faltasProjetoEv=(a)=>{
 let NE=null;
 function novoEvento(){
   NE={passo:1, nome:"", curso:CURSOS_EV[0], publico:"", tema:"",
-      inicio:"", fim:"", ch:"", municipio:"Goianésia/GO", controle:true};
+      inicio:"", fim:"", ch:"", municipio:"Goianésia/GO", controle:true, hotsite:true};
   const cx=document.createElement("div");
   cx.className="ov"; cx.id="ov-novo";
   // clicar fora NÃO descarta o cadastro (achado do dono, ago/2026): são 4
@@ -799,6 +799,18 @@ function renderPassoNE(){
           <b>Não — a inscrição já vale como presença</b>
           <span>Ninguém para na porta e todos os inscritos contam 100% de frequência. Para evento
             grande e aberto, em que credenciar é inviável.</span></label>
+      </div>
+      <label style="margin-top:14px">Este evento terá página pública (hotsite)? *</label>
+      <div class="wiz-op">
+        <label class="op ${NE.hotsite?"on":""}" onclick="NE.hotsite=true;renderPassoNE()">
+          <b>Sim — quero a página do evento</b>
+          <span>Capa, programação por dia, palestrantes, local no mapa e os blocos que você montar.
+            O evento aparece na vitrine pública de eventos.</span></label>
+        <label class="op ${NE.hotsite?"":"on"}" onclick="NE.hotsite=false;renderPassoNE()">
+          <b>Não — só a folha de inscrição</b>
+          <span>Sem site: o endereço do evento abre apenas o formulário de inscrição, para o QR que
+            você projeta na palestra. Fica fora da vitrine. Credenciamento, presenças e exportações
+            funcionam igual.</span></label>
       </div>`
     : `
       <div class="wiz-rev">
@@ -806,7 +818,8 @@ function renderPassoNE(){
            ["Tema central",NE.tema],
            ["Período",NE.inicio?`${fmt(NE.inicio)} – ${fmt(NE.fim)}`:""],
            ["Carga horária",NE.ch?NE.ch+" h":""],["Município",NE.municipio],
-           ["Frequência",NE.controle?"com credenciamento (por atividade)":"sem controle — inscrito conta presente"]]
+           ["Frequência",NE.controle?"com credenciamento (por atividade)":"sem controle — inscrito conta presente"],
+           ["Página pública",NE.hotsite?"hotsite completo":"só a folha de inscrição (sem site)"]]
           .map(([r,v])=>`<div class="li"><b>${r}</b><span>${esc(v)||'<span class="muted">—</span>'}</span></div>`).join("")}
       </div>
       <div class="tut" style="font-size:12.5px">
@@ -869,7 +882,8 @@ async function criarNovoEvento(){
     // semeia a configuração do evento (rascunho) — é o que o traz para o EV
     const r2=await fetch(`/api/extensao/${encodeURIComponent(registro.id)}/evento`,{method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({descricao:NE.tema.trim(), controleFrequencia:NE.controle!==false})});
+      body:JSON.stringify({descricao:NE.tema.trim(), controleFrequencia:NE.controle!==false,
+        hotsite:NE.hotsite!==false})});
     if(!r2.ok) throw new Error((await r2.json().catch(()=>({}))).error||"A ação foi criada, mas a configuração do evento falhou — abra-a na lista.");
     fecharNovo();
     await carregar();
@@ -1374,6 +1388,19 @@ function renderPagina(a){
           <input type="radio" name="ev-freq" value="0" ${ev.controleFrequencia===false?"checked":""}>
           sem controle — todo inscrito conta presente (100%)</label>
       </div>
+      <label>Página pública do evento</label>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:6px">
+        <label class="chk" style="margin:0;font-size:13px">
+          <input type="radio" name="ev-hotsite" value="1" ${ev.hotsite===false?"":"checked"}>
+          hotsite completo — capa, programação, blocos e vitrine</label>
+        <label class="chk" style="margin:0;font-size:13px">
+          <input type="radio" name="ev-hotsite" value="0" ${ev.hotsite===false?"checked":""}>
+          só a folha de inscrição — sem site, fora da vitrine</label>
+      </div>
+      <div class="tut" style="font-size:12.5px;margin:0 0 12px">📄 <b>Sem hotsite</b>, o endereço do
+        evento abre apenas o formulário de inscrição — é o caminho de quem quer só a lista de
+        presença por QR e não vai montar site. Credenciamento, presenças, exportações e
+        certificados funcionam igual nos dois casos.</div>
       <label>Capa da página — arte de <b style="color:var(--brand-2)">1600 × 640 px</b>
         <span class="muted">(JPEG, PNG ou WebP, até 10 MB — aparece no topo do hotsite e na vitrine)</span></label>
       <div class="tut" style="font-size:12.5px;margin:6px 0 10px">
@@ -2400,6 +2427,8 @@ function salvarPagina(id){
     local:$("ev-local")?.value||"",
   };
   if(freq) body.controleFrequencia = freq.value === "1";
+  const hs=document.querySelector('input[name="ev-hotsite"]:checked');
+  if(hs) body.hotsite = hs.value === "1";
   if(EV_CAPA!==undefined) body.capa=EV_CAPA;
   const slugEl=$("ev-slug");
   if(slugEl&&slugEl.value.trim()) body.slug=slugEl.value.trim();

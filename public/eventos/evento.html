@@ -364,6 +364,48 @@ function render() {
       </div>
     </div>`;
 
+  /* ------ EVENTO SEM HOTSITE (pedido do dono, ago/2026) ------
+     O professor que dá uma palestra e quer só a lista de presença por QR não
+     tem por que montar um site. Aqui a página é a FOLHA DE INSCRIÇÃO: o nome
+     do evento, quando e onde, e o formulário. Sem capa, sem hero, sem
+     programação, sem blocos, sem a barra de seções — não há seções. A
+     inscrição, a credencial e o QR são exatamente os mesmos. */
+  if (e.hotsite === false) {
+    $("main").innerHTML = `
+      <div class="card" style="margin-top:20px;padding:22px 24px">
+        <div class="eyebrow">Inscrição · evento de extensão · gratuita</div>
+        <h1 style="font-family:'Archivo',sans-serif;font-size:26px;font-weight:800;
+          letter-spacing:-.02em;margin:6px 0 0">${esc(e.nome)}</h1>
+        <div style="font-size:14px;color:var(--ink-soft);margin-top:8px;line-height:1.6">
+          <b>${esc(periodoCompacto(e.periodoInicio, e.periodoFim)) || "datas a divulgar"}</b><br>
+          ${esc(e.local) || "local a divulgar"}${e.municipio ? " — " + esc(e.municipio) : ""} · ${esc(e.curso)}
+          ${e.cargaHoraria ? ` · ${esc(e.cargaHoraria)}h` : ""}
+        </div>
+        ${e.descricao ? `<p style="font-size:14px;line-height:1.65;margin-top:12px;
+          white-space:pre-line;color:var(--ink-soft)">${esc(e.descricao)}</p>` : ""}
+      </div>
+      ${encerrado ? `<div class="msg-ok" style="background:var(--wash);color:var(--ink-soft)">
+        Este evento já foi realizado.</div>` : ""}
+      <div class="card" id="card-inscricao" style="margin-top:14px">
+        ${jaTem ? `<div class="msg-ok" style="margin-top:0;margin-bottom:12px">Você já se inscreveu neste evento por este aparelho.
+          <a href="/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(jaTem)}" style="text-decoration:underline">Abrir minha inscrição →</a></div>` : ""}
+        ${abertas ? formInscricao(e) : `<p style="font-size:13.5px;color:var(--muted)">As inscrições deste evento
+          não estão abertas${e.vagasRestantes === 0 ? " — as vagas se esgotaram" : ""}.
+          Quem já se inscreveu segue com a inscrição válida.</p>`}
+        <details class="reenvio">
+          <summary>Já me inscrevi e perdi o link</summary>
+          <p style="font-size:12.5px;color:var(--muted);margin-top:6px">Informe o CPF e o e-mail
+            usados na inscrição — os dois precisam bater — e o link reaparece.</p>
+          <label for="r-cpf">CPF</label><input id="r-cpf" inputmode="numeric">
+          <label for="r-email">E-mail</label><input id="r-email" type="email">
+          <div id="r-msg"></div>
+          <button class="bt bt-sec" style="margin-top:12px" onclick="recuperar()" type="button">Reaver o meu link</button>
+        </details>
+      </div>`;
+    $("cta-flutua").style.display = "none";
+    return;
+  }
+
   $("main").innerHTML = hero + subnav(e) + sobre + palestrantes + progHtml + blocosAntes + insc + blocosApoio;
   girarPalestrantes();
   $("cta-flutua").style.display = abertas && !document.querySelector("#pos-inscricao") ? "" : "none";

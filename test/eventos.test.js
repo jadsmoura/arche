@@ -14,6 +14,7 @@ import {
   normalizarBlocos, TIPOS_BLOCO, urlSegura, imagemPequena,
   FREQUENCIAS, minutosEntre, duracaoBR, REDES_SOCIAIS,
   faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento, PAPEIS_COMISSAO,
+  temHotsiteEvento, eventoControlaFrequencia, contaPresente,
 } from "../lib/eventos.js";
 
 /* --------------------------------- slug --------------------------------- */
@@ -642,4 +643,16 @@ test("equipe: a pessoa entra normalizada, com o papel do catálogo", () => {
   assert.equal(p.papel, undefined, "palestrante não tem papel de comissão");
   assert.deepEqual(PAPEIS_COMISSAO.map((x) => x.codigo),
     ["coordenacao", "professor", "monitor", "aluno", "colaborador", "apoio"]);
+});
+
+/* ---------------------- evento sem hotsite (ago/2026) --------------------- */
+
+test("sem hotsite é só a folha de inscrição — e o padrão continua sendo o site", () => {
+  assert.equal(temHotsiteEvento(undefined), true, "evento antigo, sem o campo, tem hotsite");
+  assert.equal(temHotsiteEvento({}), true);
+  assert.equal(temHotsiteEvento({ hotsite: true }), true);
+  assert.equal(temHotsiteEvento({ hotsite: false }), false);
+  // o campo é do QUE O PÚBLICO VÊ: não mexe em frequência nem em presença
+  assert.equal(eventoControlaFrequencia({ hotsite: false }), true);
+  assert.equal(contaPresente({ hotsite: false, controleFrequencia: false }, { presente: false }), true);
 });

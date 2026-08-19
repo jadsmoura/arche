@@ -69,7 +69,7 @@ import {
   TIPOS_ATIVIDADE, gerarIdCurto, vagasAtividade, podeEscolherAtividade,
   normalizarFormulario, validarRespostas, LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd,
   normalizarBlocos, TIPOS_BLOCO, CATEGORIAS_APOIO, REDES_SOCIAIS, FREQUENCIAS,
-  minutosEntre, duracaoBR, eventoControlaFrequencia,
+  minutosEntre, duracaoBR, eventoControlaFrequencia, temHotsiteEvento,
   PAPEIS_COMISSAO, faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento,
   videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento,
 } from "./lib/eventos.js";
@@ -2385,6 +2385,7 @@ function eventoPublico(a, { detalhe = false } = {}) {
     inscricoesAbertas: podeInscreverEvento(a, hojeLocalISO()).ok,
     temCapa: !!ev.capa,
     controleFrequencia: eventoControlaFrequencia(ev),
+    hotsite: temHotsiteEvento(ev),
   };
   if (!detalhe) return base;
   // as atividades passam pela normalização na saída: o dado antigo (sem id,
@@ -2488,7 +2489,11 @@ function codigoMonitorConfere(ev, dado) {
 app.get("/api/publico/eventos", async (_req, res) => {
   try {
     const acoes = await lerAcoes();
-    res.json({ eventos: acoes.filter((a) => a?.evento?.ativo).map((a) => eventoPublico(a)) });
+    // evento sem hotsite fica FORA da vitrine: quem não montou página não
+    // está divulgando — a inscrição dele chega pelo QR que a coordenação
+    // projeta, não por quem passeia pela lista
+    res.json({ eventos: acoes.filter((a) => a?.evento?.ativo && temHotsiteEvento(a.evento))
+      .map((a) => eventoPublico(a)) });
   } catch (e) {
     console.error("Erro na lista pública de eventos:", e);
     res.status(500).json({ error: "Não foi possível carregar os eventos agora." });
@@ -3504,6 +3509,10 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
       // o interruptor do EVENTO: sem controle de frequência, ninguém
       // credencia e todo inscrito conta como presente
       if (b.controleFrequencia !== undefined) ev.controleFrequencia = b.controleFrequencia !== false;
+      // hotsite completo × só a folha de inscrição (pedido do dono, ago/2026)
+      if (b.hotsite !== undefined) ev.hotsite = b.hotsite !== false;
+      // hotsite completo × só a folha de inscrição (pedido do dono, ago/2026)
+      if (b.hotsite !== undefined) ev.hotsite = b.hotsite !== false;
       // vazio volta ao texto institucional padrão (LGPD_TEXTO_PADRAO)
       if (b.lgpdTexto !== undefined) ev.lgpdTexto = String(b.lgpdTexto || "").trim().slice(0, 2000);
       if (b.capa !== undefined) {
