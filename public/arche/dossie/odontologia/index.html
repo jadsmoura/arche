@@ -2388,11 +2388,16 @@ window.addEventListener('pagehide', function(){
 (function(){
   if (typeof validProds3y !== "function" || typeof renderRoster !== "function") return;
 
-  /* A janela do indicador: o ano corrente e os dois anteriores. Um lugar só —
-     é o que impede o texto de dizer 3 e a conta fazer 4. */
-  var ANOS = 3;
+  /* A JANELA (decisão do dono, ago/2026): o ano corrente e os TRÊS
+     anteriores — hoje, 2023 a 2026. O instrumento fala em "últimos 3 anos",
+     mas o ano em curso está pela metade: incluir o quarto ano civil é o que
+     faz a conta corresponder a três anos de produção de verdade. A decisão é
+     institucional e vale para o indicador inteiro; o que não pode voltar a
+     acontecer é o texto dizer um período e a conta fazer outro — por isso a
+     janela é declarada UMA vez, aqui, e escrita por extenso em todo rótulo. */
+  var ANOS_ATRAS = 3;
   var anoAtual = new Date().getFullYear();
-  var anoMin = anoAtual - (ANOS - 1);
+  var anoMin = anoAtual - ANOS_ATRAS;
   var FAIXA = anoMin + "–" + anoAtual;
   var MINIMO = 9;                     // produções exigidas pelo instrumento
   /* O conceito sai da PROPORÇÃO de docentes que alcança o mínimo. */
@@ -2450,9 +2455,11 @@ window.addEventListener('pagehide', function(){
     var cap = document.getElementById("ncCap");
     if (cap) {
       cap.textContent = "Regra do instrumento: conta-se quantos docentes do curso têm "
-        + MINIMO + " ou mais produções válidas em " + FAIXA + " (" + ANOS + " anos). O conceito sai da "
-        + "PROPORÇÃO desses docentes — 10% conceito 2, 20% conceito 3, 30% conceito 4, 50% conceito 5; "
-        + "abaixo de 10%, conceito 1. O denominador são os " + total + " docentes do curso"
+        + MINIMO + " ou mais produções válidas em " + FAIXA + " — os últimos três anos de produção, "
+        + "contados do ano corrente aos três anteriores, porque o ano em curso ainda está pela "
+        + "metade. O conceito sai da PROPORÇÃO desses docentes: 10% conceito 2, 20% conceito 3, "
+        + "30% conceito 4, 50% conceito 5; abaixo de 10%, conceito 1. O denominador são os "
+        + total + " docentes do curso"
         + (semLattes ? ", inclusive os " + semLattes + " que ainda não importaram o Lattes (contam como 0 produções)" : "")
         + ".";
     }
@@ -2461,16 +2468,37 @@ window.addEventListener('pagehide', function(){
     if (meta && !meta.classList.contains("hidden")) {
       var com10 = professors.filter(function (p) { return validProds3y(p) >= 10; }).length;
       var pct10 = total ? Math.round(com10 / total * 100) : 0;
-      meta.innerHTML = "<b>Diretriz interna da PROPPEX.</b> Meta de 10 produções por docente — o "
-        + "instrumento exige 9 para o Conceito 5; a PROPPEX adota 10 por margem de segurança. "
-        + com10 + " de " + total + " docentes (" + pct10 + "%) já atingem 10 ou mais em " + FAIXA + "."
-        + (pct10 >= 50 ? " ✓ Meta atingida por mais da metade do corpo docente." : "");
+      meta.innerHTML = "<b>Diretriz interna da PROPPEX — não afeta o conceito.</b> O instrumento "
+        + "exige " + MINIMO + " produções para o Conceito 5, e é esse o número que conta aqui e que "
+        + "pinta o contador de verde. A PROPPEX acompanha, à parte, uma meta de 10 por margem de "
+        + "segurança: " + com10 + " de " + total + " docentes (" + pct10 + "%) já a atingem em " + FAIXA + "."
+        + (pct10 >= 50 ? " ✓ Meta interna alcançada por mais da metade do corpo docente." : "");
     }
 
     var badge = document.getElementById("ncBadge");
     if (badge) {
       badge.textContent = "Conceito " + conceito;
       badge.className = "nc-badge " + (conceito >= 5 ? "ok" : "no");
+    }
+  }
+
+  /* O VERDE segue o instrumento, não a meta interna (correção do dono,
+     ago/2026). O app pintava de verde só a partir de 10 produções — a meta
+     que a PROPPEX adotou por margem de segurança —, e com isso um docente
+     com 9, que é o que o Conceito 5 exige, aparecia como se não tivesse
+     alcançado nada. A meta interna continua existindo como informação; ela
+     não decide cor nem conceito. */
+  function pintarContagens() {
+    document.querySelectorAll(".score3y").forEach(function (el) {
+      var n = parseInt((el.querySelector(".s3-num") || {}).textContent || "0", 10) || 0;
+      el.classList.toggle("good", n >= MINIMO);
+      el.title = "Produções que o MEC considera na contagem (tipos do glossário) em " + FAIXA
+        + ". Verde = " + MINIMO + " ou mais, que é o que o instrumento exige para o Conceito 5.";
+    });
+    var pc = document.getElementById("pcount"), pn = document.getElementById("pcNum");
+    if (pc && pn) {
+      var v = parseInt(pn.textContent || "0", 10) || 0;
+      pc.classList.toggle("good", v >= MINIMO);
     }
   }
 
@@ -2486,9 +2514,19 @@ window.addEventListener('pagehide', function(){
   var _render = renderRoster;
   renderRoster = function () {
     var r = _render.apply(this, arguments);
-    try { pintar216(); corrigirRotulos(); } catch (e) { console.error("[2.16]", e); }
+    try { pintar216(); corrigirRotulos(); pintarContagens(); } catch (e) { console.error("[2.16]", e); }
     return r;
   };
-  try { pintar216(); corrigirRotulos(); } catch (e) { /* antes do primeiro render */ }
+  // o cartão do docente é desenhado por outra função: sem envolvê-la, o
+  // contador dele continuaria pintado pela régua antiga
+  if (typeof renderProf === "function") {
+    var _prof = renderProf;
+    renderProf = function () {
+      var r = _prof.apply(this, arguments);
+      try { corrigirRotulos(); pintarContagens(); } catch (e) { console.error("[2.16]", e); }
+      return r;
+    };
+  }
+  try { pintar216(); corrigirRotulos(); pintarContagens(); } catch (e) { /* antes do primeiro render */ }
 })();
 </script>

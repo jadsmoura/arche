@@ -111,9 +111,14 @@ public/
   o número de produções é FIXO (**9 nos últimos 3 anos**) e o que varia é a **proporção de
   docentes** que o alcança — 10% conceito 2, 20% o 3, 30% o 4, 50% o 5; abaixo de 10%, conceito
   1. Daí a leitura confusa: quatro linhas com percentuais diferentes e a legenda descrevendo
-  outra regra. Havia ainda DUAS JANELAS de anos brigando (o texto dizia "3 anos", um ajuste
-  anterior contava 4 e a legenda saía "2023–2026"): agora a janela é uma, declarada num lugar
-  só e escrita por extenso em todos os rótulos. O painel passa a dizer o DENOMINADOR — todos os
+  outra regra. A **janela é 2023–2026** — o ano corrente e os três anteriores (decisão do dono:
+  o instrumento fala em "últimos 3 anos", mas o ano em curso está pela metade, e o quarto ano
+  civil é o que faz a conta corresponder a três anos de produção de verdade). Ela é declarada
+  UMA vez e escrita por extenso em todo rótulo — o que não pode voltar a acontecer é o texto
+  dizer um período e a conta fazer outro —, e é a MESMA que já filtra o que aparece na lista de
+  cada docente. O **verde do contador segue o instrumento (9)**, não a meta interna de 10 que a
+  PROPPEX acompanha à parte: com a régua antiga, quem tinha exatamente as 9 do Conceito 5
+  aparecia como se não tivesse alcançado nada. O painel passa a dizer o DENOMINADOR — todos os
   docentes do curso, inclusive os que ainda não importaram o Lattes, que é o que o instrumento
   manda e o que faltava para o número ser interpretável.
 - **O docente ajusta a produção importada** (append em `public/arche/dossie/*`, decisão do
