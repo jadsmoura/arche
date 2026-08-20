@@ -1142,6 +1142,56 @@ async function blocoArquivo() {
   } catch { return ""; }
 }
 
+/* Os editais e os RESULTADOS, num quadro por ANO — o mesmo desenho da
+   vitrine pública e da guia da IC (pedido do dono, ago/2026): a numeração
+   da monitoria é a da sequência geral da instituição e mudou de série ao
+   longo dos anos (002/2020, 001/2022, 01/2026, 03/2026), então ordenar por
+   número jogaria o ciclo mais novo para o fim do arquivo. O ano é o que tem
+   ordem, e é por ele que se procura.
+
+   O resultado do ciclo é o documento que faltava: o certificado é o que a
+   pessoa leva, e sem o resultado um semestre inteiro fica provado só nos
+   certificados de quem os baixou. */
+function editaisPorAno() {
+  const eds = META().editais || [];
+  const anos = [...new Set(eds.map((e) => e.ano).filter(Boolean))].sort((a, b) => b - a);
+  if (!anos.length) return "";
+  return `<div class="card">
+    <div class="card-t">Editais e resultados</div>
+    <div class="card-s">Um quadro por ano. O programa era da Diretoria Acadêmica da FACEG até 2025 —
+      os documentos ficam como foram publicados, com o órgão e a marca da época.</div>
+    ${anos.map((ano) => `
+      <div class="sec-t" style="margin-top:14px">${ano}</div>
+      ${eds.filter((e) => e.ano === ano).map((e) => `<div class="item">
+        <div class="nm">Edital ${esc(e.numero)} — ciclo ${esc(e.ciclo)}
+          ${e.vigente ? '<span class="cs" style="display:inline;color:var(--ok);font-weight:700"> · vigente</span>' : ""}
+          <div class="cs">${esc(e.orgao)}${e.instituicao ? ` · ${esc(e.instituicao)}` : ""}</div></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          ${e.documento ? `<a class="pdf" href="${esc(e.documento)}" target="_blank">edital (PDF)</a>` : ""}
+          ${e.resultadoPublicado
+            ? `<a class="pdf" href="/api/publico/monitoria/resultado.pdf?edital=${encodeURIComponent(e.numero)}" target="_blank">resultado (PDF)</a>`
+            : ""}
+          ${DADOS.gestao ? `<a class="pdf" href="/api/monitoria/resultado.pdf?edital=${encodeURIComponent(e.numero)}" target="_blank">prévia</a>
+            <button class="bt bt-sec" style="padding:5px 10px;font-size:12px" onclick="publicarResultado('${esc(e.numero)}',${e.resultadoPublicado ? "false" : "true"})">${e.resultadoPublicado ? "recolher" : "publicar"}</button>` : ""}
+        </div></div>`).join("")}`).join("")}
+  </div>`;
+}
+
+/* Publicar é o ato da gestão — e o ciclo do ARQUIVO já nasce público (é
+   semestre encerrado, transcrito do que a coordenação certificou). */
+async function publicarResultado(edital, publicar) {
+  if (!confirm(publicar
+    ? `Publicar o resultado do edital ${edital}? Ele passa a aparecer na página pública de Editais e Resultados.`
+    : `Recolher o resultado do edital ${edital} da página pública?`)) return;
+  try {
+    const r = await fetch("/api/monitoria/resultado/publicar", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ edital, publicar }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "não foi possível");
+    await carregar();
+  } catch (e) { alert("Não deu para publicar: " + e.message); }
+}
+
 /* ================================ EDITAL ================================ */
 function edital() {
   const e = META().edital || {};
@@ -1152,15 +1202,7 @@ function edital() {
       <div class="kv">${esc(e.observacao || "")}</div>
       <div class="exp"><a class="bt bt-pri" href="/api/publico/monitoria/edital.pdf" target="_blank">Baixar o edital em PDF</a></div>
     </div>
-    <div class="card">
-      <div class="card-t">Editais anteriores</div>
-      <div class="card-s">O programa era da Diretoria Acadêmica da FACEG até 2025 — os documentos ficam
-        como foram publicados, com o órgão e a marca da época.</div>
-      ${(META().editais || []).filter((x) => !x.vigente).map((x) => `<div class="item">
-        <div class="nm">Edital ${esc(x.numero)} — ${esc(x.titulo)}
-          <div class="cs">${esc(x.orgao)} · ${esc(x.instituicao)}</div></div>
-        ${x.documento ? `<a class="pdf" href="${esc(x.documento)}" target="_blank">abrir PDF</a>` : ""}</div>`).join("")}
-    </div>
+    ${editaisPorAno()}
     <div class="card">
       <div class="card-t">Os documentos do processo</div>
       <div class="card-s">Os três anexos do edital saem preenchidos, do que está gravado — o processo

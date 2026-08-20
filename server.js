@@ -49,6 +49,7 @@ import {
   CAMPOS_PLANO as CAMPOS_PLANO_MON, faltaNoPlano as monFaltaPlano,
   MIN_FOTOS_MONITORIA, fotosDoRelatorio as fotosRelatorioMon,
   TEXTO_EDITAL as TEXTO_EDITAL_MON, ACESSOS as ACESSOS_MON, editaisMonitoriaParaLista,
+  editalMonitoriaDe,
   normalizarProjeto as normalizarProjetoMon, normalizarRelatorio as normalizarRelatorioMon,
   papelNoProjeto as monPapel, podeVer as monPodeVer, podeEditar as monPodeEditar,
   podeSubmeter as monPodeSubmeter, podeDecidir as monPodeDecidir,
@@ -944,7 +945,8 @@ app.get("/api/publico/ic", async (req, res) => {
       editaisEM: editaisEMParaLista(await resultadosPublicadosEM()),
       // arquivo dos editais de MONITORIA (o programa passou à PROPPEX em
       // 2026; os anteriores são da DIAC/FACEG e ficam como foram publicados)
-      editaisMonitoria: editaisMonitoriaParaLista(),
+      editaisMonitoria: editaisMonitoriaParaLista({
+        publicados: await resultadosMonitoriaPublicados(), ciclosDoArquivo: ciclosDoArquivoMon() }),
       projetos: projetos
         .filter((p) => p.status !== "rascunho")
         .map((p) => {
@@ -4765,6 +4767,49 @@ async function subirHistoricoMonitoria() {
   if (total) console.log(`[monitoria] arquivo histórico: ${total} registros em ${lidos.length} lote(s).`);
 }
 
+/* ------------------- RESULTADO DO CICLO DE MONITORIA ----------------------
+   O certificado é o que a PESSOA leva; o resultado é o que a INSTITUIÇÃO
+   publica. Sem ele, um semestre inteiro de monitoria fica provado só nos
+   certificados de quem os baixou, e quem pergunta "quais foram os monitores
+   de 2026/1?" — a coordenação, o avaliador do MEC — não tem onde ler.
+
+   Duas origens, um documento: os projetos concluídos no ARCHÉ e os do
+   ARQUIVO (planilhas dos ciclos anteriores ao módulo).
+
+   Quando o resultado é público? Ciclo do ARQUIVO é público na hora: é
+   semestre encerrado, transcrito do que a coordenação do curso já
+   certificou, e pedir um ato de publicação a cada planilha nova só
+   atrasaria o que já é fato consumado. Ciclo que corre AQUI precisa do ato
+   da gestão, como na IC — enquanto a homologação não terminou, publicar
+   seria divulgar meio processo. */
+const MON_RESULTADO_KEY = "mon-resultado-publicado-v1";
+
+async function resultadosMonitoriaPublicados() {
+  try { return JSON.parse((await storage.get(MON_RESULTADO_KEY)) || "{}"); }
+  catch { return {}; }
+}
+
+/** Os ciclos que o arquivo cobre — os que dispensam o ato de publicar. */
+const ciclosDoArquivoMon = () => [...new Set(historicoMon.map((l) => l.ciclo).filter(Boolean))];
+
+/** Os projetos de um edital, das duas origens, prontos para o documento. */
+async function projetosDoResultadoMon(numero) {
+  const ed = editalMonitoriaDe(numero);
+  const ciclo = ed?.ciclo || "";
+  const doArche = (await lerMonitorias()).filter((p) =>
+    String(p.edital || "") === String(numero) && p.status === "concluido");
+  const doArquivo = projetosDoArquivoMon(historicoMon)
+    .filter((p) => String(p.edital || "") === String(numero) || (ciclo && p.ciclo === ciclo));
+  return [...doArche, ...doArquivo];
+}
+
+/** Este edital já pode ser lido pelo público? */
+async function resultadoMonPublico(numero) {
+  const ed = editalMonitoriaDe(numero);
+  if (ed && ciclosDoArquivoMon().includes(ed.ciclo)) return true;
+  return !!(await resultadosMonitoriaPublicados())[String(numero)];
+}
+
 /** Quem é a pessoa para o arquivo: matrícula primeiro, nome como segunda chave. */
 const quemHistorico = (u, perfil) => ({
   cpf: perfil?.cpf || u?.cpf || "", email: u?.email || "",
@@ -4836,8 +4881,10 @@ async function convidarMonitores(projeto, monitores) {
   }
 }
 
-const monMeta = () => ({
-  edital: MON_EDITAL, editais: editaisMonitoriaParaLista(), cronograma: MON_CRONOGRAMA,
+const monMeta = async () => ({
+  edital: MON_EDITAL, cronograma: MON_CRONOGRAMA,
+  editais: editaisMonitoriaParaLista({
+    publicados: await resultadosMonitoriaPublicados(), ciclosDoArquivo: ciclosDoArquivoMon() }),
   vigencia: MON_VIGENCIA, prazos: MON_PRAZOS, chSemanal: MON_CH_SEMANAL,
   cursos: CURSOS, criterios: CRITERIOS_MONITOR, respostas: RESPOSTAS_CRITERIO,
   camposPlano: CAMPOS_PLANO_MON, minFotos: MIN_FOTOS_MONITORIA,
@@ -4879,7 +4926,7 @@ app.get("/api/monitoria", async (req, res) => {
       ...(quem.gestao
         ? { panorama: monPanorama(lista), pendencias: monPendencias(lista) }
         : {}),
-      meta: monMeta(),
+      meta: await monMeta(),
     });
   } catch (e) {
     console.error("Erro ao listar a monitoria:", e);
@@ -4981,6 +5028,73 @@ app.get("/api/monitoria/certificado.pdf", async (req, res) => {
   }
 });
 
+/* O RESULTADO DO CICLO — prévia da gestão, publicação e documento público.
+   A prévia existe pelo mesmo motivo da IC: documento que se assina não pode
+   ser surpresa. */
+app.get("/api/monitoria/resultado.pdf", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    if (!gereMon(u)) return res.status(403).send("Restrito à gestão da monitoria.");
+    const numero = String(req.query?.edital || MON_EDITAL.numero).trim();
+    const ed = editalMonitoriaDe(numero);
+    if (!ed) return res.status(404).send("Edital não encontrado.");
+    const { gerarResultadoMonitoriaPdf } = await import("./lib/pdf.js");
+    const buf = await gerarResultadoMonitoriaPdf({
+      edital: ed, projetos: await projetosDoResultadoMon(numero), emitidoPor: u.email });
+    enviarPdfMon(res, buf, `resultado-monitoria-${slug(numero)}.pdf`);
+  } catch (e) {
+    console.error("Erro no resultado da monitoria:", e);
+    res.status(500).send("Não foi possível gerar o resultado.");
+  }
+});
+
+app.post("/api/monitoria/resultado/publicar", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    if (!gereMon(u)) return res.status(403).json({ error: "Restrito à gestão da monitoria." });
+    const numero = String(req.body?.edital || "").trim();
+    const ed = editalMonitoriaDe(numero);
+    if (!ed) return res.status(400).json({ error: "Edital não encontrado." });
+    const publicar = req.body?.publicar !== false;
+    const reg = await resultadosMonitoriaPublicados();
+    if (publicar) {
+      const projetos = await projetosDoResultadoMon(numero);
+      // publicar ciclo vazio poria no ar um documento que diz "nenhum
+      // projeto" — não é resultado, é ruído
+      if (!projetos.length)
+        return res.status(400).json({ error: "Este ciclo ainda não tem projeto concluído para publicar." });
+      reg[numero] = { em: new Date().toISOString(), por: u.email, projetos: projetos.length };
+    } else { delete reg[numero]; }
+    await storage.set(MON_RESULTADO_KEY, JSON.stringify(reg));
+    await storage.flush?.();
+    res.json({ ok: true, publicado: !!reg[numero] });
+  } catch (e) {
+    console.error("Erro ao publicar o resultado da monitoria:", e);
+    res.status(500).json({ error: "Não foi possível publicar agora." });
+  }
+});
+
+/* O público baixa o mesmo documento — sem login, como os demais resultados.
+   Turma com PDF arquivado da época não se republica: redireciona ao original. */
+app.get("/api/publico/monitoria/resultado.pdf", async (req, res) => {
+  try {
+    const numero = String(req.query?.edital || MON_EDITAL.numero).trim();
+    const ed = editalMonitoriaDe(numero);
+    if (!ed) return res.status(404).send("Edital não encontrado.");
+    if (!(await resultadoMonPublico(numero)))
+      return res.status(404).send("O resultado deste ciclo ainda não foi publicado.");
+    const { gerarResultadoMonitoriaPdf } = await import("./lib/pdf.js");
+    const buf = await gerarResultadoMonitoriaPdf({
+      edital: ed, projetos: await projetosDoResultadoMon(numero), emitidoPor: "" });
+    enviarPdfMon(res, buf, `resultado-monitoria-${slug(numero)}.pdf`);
+  } catch (e) {
+    console.error("Erro no resultado público da monitoria:", e);
+    res.status(500).send("Não foi possível gerar o resultado.");
+  }
+});
+
 /** GET /api/monitoria/:id — o projeto, com o recorte de sigilo aplicado. */
 app.get("/api/monitoria/:id", async (req, res) => {
   try {
@@ -4995,7 +5109,7 @@ app.get("/api/monitoria/:id", async (req, res) => {
       podeEditar: monPodeEditar(p, quem), podeSubmeter: monPodeSubmeter(p, quem),
       podeDecidir: monPodeDecidir(p, quem), podeHomologar: monPodeHomologar(p, quem),
       falta: monFaltaProjeto(p), pendencias: quem.gestao ? monPendenciasProjeto(p) : [],
-      meta: monMeta(),
+      meta: await monMeta(),
     });
   } catch (e) {
     console.error("Erro ao abrir o projeto de monitoria:", e);
@@ -6560,7 +6674,8 @@ app.get("/api/ic/meta", async (req, res) => {
     // pessoas para o "ver como" segue só com a coordenação
     editais: editaisConhecidos(projetos, await resultadosPublicados(), await termosPublicados()),
     editaisEM: editaisEMParaLista(await resultadosPublicadosEM()),
-    editaisMonitoria: editaisMonitoriaParaLista(),
+    editaisMonitoria: editaisMonitoriaParaLista({
+      publicados: await resultadosMonitoriaPublicados(), ciclosDoArquivo: ciclosDoArquivoMon() }),
     ...(gereIC(u) ? { pessoas: pessoasDoSetor(projetos) } : {}),
     ...(como ? { simulando: como.email } : {}),
   });

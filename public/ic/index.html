@@ -148,6 +148,9 @@ fetch("/api/publico/ic").then(async (r) => {
       ${e.documento
         ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📜 Edital (PDF)</a>`
         : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default">Documento não disponível</button>`}
+      ${e.resultadoPublicado
+        ? `<a class="bt bt-sec" href="/api/publico/monitoria/resultado.pdf?edital=${encodeURIComponent(e.numero)}" target="_blank" rel="noopener">📄 Resultado do ciclo (PDF)</a>`
+        : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default" title="O resultado é divulgado ao fim do ciclo, com a homologação dos relatórios">⏳ Resultado em breve</button>`}
       ${e.vigente ? `<a class="bt bt-sec" href="/monitoria/">📝 Inscrever projeto no ARCHÉ</a>` : ""}
     </div>
   </div>`;

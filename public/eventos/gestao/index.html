@@ -474,8 +474,15 @@ const SECOES = [
    sub:"A transmissão online (YouTube ao vivo ou sala de reunião) e a moderação do mural de comentários."},
   {k:"exportacoes", rot:"Exportações", grupo:"GERAL", ic:IC.exportacoes, evento:true, tit:"Exportações",
    sub:"As planilhas do evento — AEE (geral, por atividade, só presentes) e a lista completa do ARCHÉ."},
-  {k:"certificados", rot:"Certificados", grupo:"GERAL", ic:IC.certificados, evento:true, tit:"Certificados do evento",
-   sub:"Encerrar o evento, as assinaturas do documento e quem tem certificado — emitidos pelo próprio ARCHÉ."},
+  /* A guia se chama pelo ATO que a abre (pedido do dono, ago/2026): é aqui
+     que o coordenador encerra o evento — e o certificado não sai antes disso,
+     nem antes de a PROPPEX validar o encerramento. "Certificados" convidava a
+     entrar procurando um documento que ainda não existia; "Encerrar evento"
+     diz o que a coordenação vem fazer. Os certificados continuam aqui, e a
+     chave da guia (`certificados`) não muda — é ela que os atalhos usam. */
+  {k:"certificados", rot:"Encerrar evento", grupo:"GERAL", ic:IC.certificados, evento:true,
+   tit:"Encerrar o evento e emitir os certificados",
+   sub:"O encerramento entrega o relatório final da ação; validado pela PROPPEX, os certificados passam a existir — com as assinaturas configuradas aqui."},
   {k:"acao", rot:"Ação de extensão", grupo:"GERAL", ic:IC.acao, evento:true, tit:"A ação de extensão",
    sub:"A ação-mãe deste evento — proposta, aprovação e relatório vivem no ARCHÉ EX."},
 ];

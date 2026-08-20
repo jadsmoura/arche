@@ -1643,6 +1643,29 @@ public/
   que correu aqui**, porque o arquivo não tem relatório nem homologação no sistema; e cada
   linha dele sai com **"arquivo" no lugar do protocolo**, mais uma NOTA no alto do documento
   dizendo de onde vieram — número que ninguém sabe explicar é pior que número menor.
+- **Resultado do ciclo de monitoria** (`gerarResultadoMonitoriaPdf` + `mon-resultado-publicado-v1`
+  + `POST /api/monitoria/resultado/publicar`, pedido do dono ago/2026): o certificado é o que a
+  PESSOA leva; o resultado é o que a INSTITUIÇÃO publica. Sem ele, um semestre inteiro de
+  monitoria fica provado só nos certificados de quem os baixou, e quem pergunta "quais foram os
+  monitores de 2026/1?" — a coordenação, o avaliador do MEC — não tem onde ler. O documento sai
+  no **timbre da PROAC**, assinado pela pró-reitora acadêmica e pelo reitor (a mesma dupla do
+  edital e do certificado), com um **quadro por curso**: disciplina, monitor, orientação e a CH
+  cumprida. **Sem CPF, matrícula ou contato** — é documento público. A fonte são as DUAS
+  origens juntas: os projetos concluídos no ARCHÉ e os do ARQUIVO, e o que veio do arquivo sai
+  DITO no resumo. **Quando é público**: ciclo coberto pelo arquivo é público na hora (é semestre
+  encerrado, transcrito do que a coordenação já certificou, e pedir um ato de publicação a cada
+  planilha nova só atrasaria fato consumado); ciclo que corre AQUI espera o ato da gestão, como
+  na IC — enquanto a homologação não terminou, publicar seria divulgar meio processo. Publicar
+  ciclo sem projeto concluído é recusado. Na vitrine `/ic/` e na guia do setor, os editais e os
+  resultados aparecem em **um quadro por ANO**, como os da IC: a numeração da monitoria é a da
+  sequência geral da instituição e mudou de série (002/2020, 001/2022, 01/2026, 03/2026) —
+  ordenar por número jogaria o ciclo mais novo para o fim do arquivo.
+- **A guia do EV se chama pelo ATO que a abre** (decisão do dono, ago/2026): "Certificados"
+  virou **"Encerrar evento"** — é ali que o coordenador encerra, e o certificado não sai antes
+  disso nem antes de a PROPPEX validar o encerramento; o nome antigo convidava a entrar
+  procurando um documento que ainda não existia. A chave da guia (`certificados`) não muda: é
+  ela que os atalhos usam. No cartão do evento já encerrado e validado, o botão continua
+  "🎓 Certificados" — ali eles existem.
 - **A MATRÍCULA é obrigatória para o ESTUDANTE** (`faltaNoPerfil` em lib/auth.js, decisão do
   dono ago/2026): não é burocracia nova — é a única chave que os históricos de monitoria têm,
   e sem ela o certificado do aluno existe e ele não o encontra. Vale para quem tem função
