@@ -1594,6 +1594,22 @@ public/
   setor não obriga a revisar as dezenas de chamadas dele, e uma chamada nova não escapa da
   regra sem ninguém notar. Cada setor traz o seu vocabulário e a sua lista de pessoas, tirada
   dos próprios registros. A IC mantém a versão dela, entrelaçada com o META daquele setor.
+- **Economia de banda sem trocar de arquitetura** (varredura de ago/2026): o Render tem
+  franquia e o estado é UM arquivo reescrito inteiro a cada flush, então o gasto tem DOIS
+  lados — o que sai para o navegador e o que sai para o Drive. Quatro cortes, nenhum deles
+  mudando fluxo ou tela: **compressão HTTP** (`compression`, antes de tudo no server: as
+  páginas dos setores saem 3,3× a 3,7× menores e a resposta do `GET /api/extensao` ~11×; o
+  filtro padrão pula PDF, xlsx e imagem, que já vêm comprimidos); **presença manual da gestão**
+  com `flushJa: false` e a tela atualizando A LINHA pela resposta em vez de recarregar a base
+  (é tarefa em série — 300 cliques numa lista de papel); **o poll de 30 s** só nas guias que
+  têm algo ao vivo (`GUIAS_AO_VIVO`) e só com a **aba à vista**, voltando a atualizar em
+  `visibilitychange` (aba esquecida à noite somava GB para pintar contador que ninguém via);
+  e o `GET /api/extensao` lendo o estado **uma vez** por chamada e mandando o inscrito
+  **leve** (`inscritoLeve`: respostas dos campos extras, consentimento e comunicações saem —
+  nenhuma tela os lê, os exports os leem no servidor; vai `temRespostas` no lugar). Gravar de
+  volta não perde nada: `mesclarEventoEInscritos` traz da BASE todo inscrito online.
+  O que NÃO se resolve assim, e fica registrado: as artes em base64 dentro de `ex-acoes-v1`
+  (~92% do arquivo) e o PDF do relatório embutindo a foto em resolução original.
 - **Diagnóstico de banda** (`lib/banda.js` + `lib/medidor.js` + `/diagnostico/`, só gestor
   geral, ago/2026): a franquia de 5 GB do Render acabou sem que ninguém soubesse o que a
   consumira. "Banda" é tudo que SAI do servidor — cada página, cada PDF, cada resposta de API

@@ -7,6 +7,7 @@
    ======================================================================== */
 import "dotenv/config";
 import express from "express";
+import compression from "compression";
 import multer from "multer";
 import crypto from "node:crypto";
 import path from "node:path";
@@ -155,6 +156,16 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 },
 });
+
+/* COMPRESSÃO — a economia mais barata do sistema (varredura de ago/2026).
+   O Express não comprime nada por padrão, e o Render tem franquia de banda:
+   as páginas dos setores saem 3,3× a 3,7× menores e a resposta do
+   `GET /api/extensao` cerca de 11× (743 KB → ~67 KB). Vale mesmo com CDN na
+   frente, porque resposta de API é por usuário e nenhum CDN a guarda.
+   Fica ANTES de tudo: só assim ela alcança o `express.static` e as rotas.
+   O que já vem comprimido (PDF, xlsx, docx, PNG, JPEG) o próprio módulo
+   pula pelo filtro padrão — recomprimir gastaria CPU sem ganhar byte. */
+app.use(compression());
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -1825,6 +1836,22 @@ const podeCertificarAcao = (u, a) => (a?.evento ? podeOperarEvento(u, a) : podeV
 const linhaSegura = (obj) => Object.fromEntries(Object.entries(obj)
   .map(([k, v]) => [k, typeof v === "string" ? seguroXlsx(v) : v]));
 
+/* Campos do INSCRITO que nenhuma tela lê (varredura de ago/2026): as
+   respostas dos campos extras, o registro de consentimento LGPD e a opção de
+   comunicações existem para os EXPORTS, que os leem no servidor, direto do
+   estado. No payload eles eram só peso — cerca de um quinto da lista de
+   inscritos de um evento grande —, e o `GET /api/extensao` é o que a tela
+   recarrega a cada 30 s no dia do evento.
+
+   Trocados por um SINAL (`temRespostas`), como já se faz com a capa e as
+   fotos. Gravar de volta não os perde: o `mesclarEventoEInscritos` traz da
+   BASE todo inscrito online, com o registro completo. */
+const inscritoLeve = (i) => {
+  if (!i || typeof i !== "object") return i;
+  const { respostas, consentimento, comunicacoes, ...resto } = i;
+  return respostas && Object.keys(respostas).length ? { ...resto, temRespostas: true } : resto;
+};
+
 const acaoSemSegredos = (a) => {
   if (!a) return a;
   // a assinatura da ação SEM evento mora na raiz (caixaCertificado): a
@@ -1832,6 +1859,8 @@ const acaoSemSegredos = (a) => {
   const { assinaturas, ...resto } = a;
   const out = a.evento ? { ...resto, evento: eventoSemSegredos(a.evento) } : { ...resto };
   if (assinaturas) out.assinaturas = assinaturasVisiveis({ assinaturas });
+  if (Array.isArray(out.participantes?.inscritos))
+    out.participantes = { ...out.participantes, inscritos: out.participantes.inscritos.map(inscritoLeve) };
   return out;
 };
 const assinaturasVisiveis = (acao) => resumoAssinaturas(caixaCertificado(acao).assinaturas);
@@ -1914,7 +1943,12 @@ app.get("/api/extensao", async (req, res) => {
     // recorte: as próprias ações e, para a gestão da Extensão, todas; a
     // coordenação do ARCHÉ EV vê também toda ação COM evento (é o setor
     // dela), sem enxergar o restante da Extensão alheia
-    const acoes = (await lerAcoes())
+    // UMA leitura só: o estado é uma string grande e cada `lerAcoes()` a
+    // reparseia inteira — a rota fazia isso duas vezes por chamada, e a
+    // segunda servia só para montar a lista de nomes do "ver como"
+    // (varredura de ago/2026).
+    const base = await lerAcoes();
+    const acoes = base
       .filter((a) => podeVerAcao(u, a) || (gereEv(u) && a.evento))
       .map(acaoSemSegredos);
     // os catálogos que o editor do evento usa (tipos de atividade e o texto
@@ -1923,7 +1957,7 @@ app.get("/api/extensao", async (req, res) => {
     // quem organiza evento). Sai das próprias ações, com a base INTEIRA:
     // a lista acima já veio recortada pelo papel de quem olha.
     const real = euReal(req, u);
-    const todas = gereEx(real) || gereEv(real) ? await lerAcoes() : [];
+    const todas = gereEx(real) || gereEv(real) ? base : [];
     const pessoas = todas.length ? pessoasDeGrupos({
       responsavel: todas.map((a) => ({
         email: a.proposta?.respEmail || a.criadoPor, nome: a.proposta?.responsavel || "" })),
@@ -3950,7 +3984,12 @@ app.post("/api/extensao/:id/presenca", async (req, res) => {
       }
       a.atualizadoEm = agora;
       return { nome: i.nome || "", presente: i.presente, presenteEm: i.presenteEm };
-    });
+    // a gestão marca presença em SÉRIE — a lista de papel de um evento de 300
+    // pessoas são 300 cliques —, e com o flush dentro da fila cada um
+    // reescrevia o `_estado.json` INTEIRO no Drive. Mesma correção do
+    // credenciamento: o dado entra na memória e a subida vai para a janela de
+    // 1,2 s do storage, que agrupa a rajada num upload só.
+    }, { flushJa: false });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
     res.json({ ok: true, ...r });
   } catch (e) {

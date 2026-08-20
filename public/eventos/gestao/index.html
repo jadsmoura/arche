@@ -2499,17 +2499,42 @@ function atualizarContadoresEvento(a){
   renderMuralEv(a);
 }
 
+// as únicas guias com elemento que muda sozinho: contadores do Início,
+// tabela de inscritos, contadores por atividade e o mural da transmissão
+const GUIAS_AO_VIVO = ["inicio","inscritos","programacao","transmissao"];
+let AO_VIVO_ID=null;
+async function aoVoltarAba(){
+  if(document.visibilityState!=="visible"||!AO_VIVO_ID) return;
+  if(!GUIAS_AO_VIVO.includes(SECAO)||ABERTO!==AO_VIVO_ID) return;
+  try{
+    await carregar();
+    const a=ACOES.find(x=>x.id===AO_VIVO_ID); if(!a) return;
+    atualizarContadoresEvento(a);
+  }catch{ /* sem rede agora — o intervalo tenta de novo */ }
+}
+
 /* Contadores "ao vivo" no dia do evento: enquanto uma guia de evento está
    aberta e a página do evento ativa, recarrega a cada 30 s — só números, a
    tabela de inscritos e o mural, sem tocar nos formulários (senão o
    refresco apagaria o que se digita). */
 function agendarEvento(id){
   clearInterval(EV_TIMER);
+  document.removeEventListener("visibilitychange", aoVoltarAba);
   const a0=ACOES.find(x=>x.id===id);
   if(!a0?.evento?.ativo) return;
+  // voltar para a aba atualiza na hora: sem isto, quem volta olha um número
+  // de até 30 s atrás achando que é o de agora
+  AO_VIVO_ID=id;
+  document.addEventListener("visibilitychange", aoVoltarAba);
   EV_TIMER=setInterval(async()=>{
     const meta=SECOES.find(s=>s.k===SECAO);
     if(!meta?.evento||ABERTO!==id){ clearInterval(EV_TIMER); return; }
+    // Só as guias que TÊM algo ao vivo, e só com a aba à vista (varredura de
+    // ago/2026): `carregar()` é o GET /api/extensao inteiro, e o gatilho era
+    // qualquer guia de evento — nas outras nove o poll baixava tudo para não
+    // pintar nada. Uma aba esquecida aberta à noite somava alguns GB sozinha.
+    if(!GUIAS_AO_VIVO.includes(SECAO)) return;
+    if(document.visibilityState!=="visible") return;
     try{
       await carregar();
       const a=ACOES.find(x=>x.id===id); if(!a) return;
@@ -2528,6 +2553,23 @@ async function atualizarEvento(id){
    ou assinou o papel — o credenciamento por QR é dos inscritos online.
    SEMPRE pela rota autenticada da gestão: o registro sai assinado
    "gestão (email)", nunca "monitor". */
+/* Acha o inscrito na cópia que a tela já tem, pela mesma chave que foi
+   enviada ao servidor. Serve para atualizar a LINHA em vez de recarregar a
+   base inteira a cada clique. */
+function acharInscritoLocal(a, token, cpf, email){
+  const ins=a?.participantes?.inscritos||[];
+  const dig=(v)=>String(v||"").replace(/\D/g,"");
+  return ins.find(x=>token&&String(x.token||"").toLowerCase()===String(token).toLowerCase())
+    || ins.find(x=>dig(cpf)&&dig(x.cpf)===dig(cpf))
+    || ins.find(x=>email&&String(x.email||"").toLowerCase()===String(email).toLowerCase())
+    || null;
+}
+
+/* Marcar presença NÃO recarrega mais a base inteira (varredura de ago/2026):
+   `carregar()` é o GET /api/extensao completo, com todos os inscritos de
+   todas as ações — centenas de KB por clique, numa tarefa que a gestão faz
+   em série, 300 vezes seguidas. A resposta da rota já traz o que mudou; a
+   tela aplica na própria cópia e redesenha a lista. */
 async function marcarPresencaEv(id, token, cpf, email, presente){
   try{
     const r=await fetch("/api/extensao/"+id+"/presenca",{method:"POST",
@@ -2535,8 +2577,15 @@ async function marcarPresencaEv(id, token, cpf, email, presente){
       body:JSON.stringify({token,cpf,email,presente})});
     const j=await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||r.status);
-    await carregar();
     const a=ACOES.find(x=>x.id===id);
+    const i=acharInscritoLocal(a, token, cpf, email);
+    if(i){
+      i.presente=j.presente===true; i.presenteEm=j.presenteEm||"";
+      // desfazer tira o registro GERAL de presencas, como o servidor faz —
+      // as presenças por atividade ficam
+      if(!i.presente && Array.isArray(i.presencas))
+        i.presencas=i.presencas.filter(p=>String(p?.atividade||"")!=="");
+    }
     if(a){ atualizarContadoresEvento(a); renderInscritosEv(a); }
   }catch(e){ alert("Não foi possível marcar a presença: "+e.message); }
 }
@@ -2550,8 +2599,15 @@ async function presencaAtividadeEv(id, token, cpf, email){
       body:JSON.stringify({token, cpf, email, atividade:atv, presente:true})});
     const j=await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||r.status);
-    await carregar();
     const a2=ACOES.find(x=>x.id===id);
+    const i=acharInscritoLocal(a2, token, cpf, email);
+    if(i && atv){
+      i.presencas=Array.isArray(i.presencas)?i.presencas:[];
+      const tem=i.presencas.some(p=>String(p?.atividade||"")===atv);
+      if(j.naAtividade && !tem) i.presencas.push({atividade:atv, em:new Date().toISOString(), por:"gestão"});
+      if(!j.naAtividade && tem) i.presencas=i.presencas.filter(p=>String(p?.atividade||"")!==atv);
+      i.presente=j.presente===true; i.presenteEm=j.presenteEm||i.presenteEm||"";
+    }
     if(a2){ atualizarContadoresEvento(a2); renderInscritosEv(a2); }
   }catch(e){ alert("Não foi possível registrar na atividade: "+e.message); }
 }

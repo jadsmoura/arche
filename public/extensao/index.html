@@ -2616,6 +2616,10 @@ function agendarEvento(id){
   if(!a0?.evento?.ativo) return;
   EV_TIMER=setInterval(async()=>{
     if($("v-detalhe").classList.contains("hide")||!$("card-evento")){ clearInterval(EV_TIMER); return; }
+    // aba oculta não atualiza nada (varredura de ago/2026): `carregar()` é o
+    // GET /api/extensao inteiro, e a aba esquecida aberta à noite somava
+    // alguns GB de banda para pintar contadores que ninguém está vendo
+    if(document.visibilityState!=="visible") return;
     try{
       await carregar();
       const a=ACOES.find(x=>x.id===id); if(!a) return;
