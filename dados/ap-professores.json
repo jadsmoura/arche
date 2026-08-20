@@ -1,0 +1,89 @@
+{
+  "lote": "ap-professores-2026-2",
+  "fonte": "Planilhas de professores e disciplinas, enviadas pelas coordenações de curso (ago/2026)",
+  "observacao": "Um bloco por CURSO, e cada um sobe UMA vez (marca sys-ap-prof-<semestre>-<curso>). É assim que as listas podem chegar aos poucos, conforme cada coordenação envia: acrescentar um curso aqui o semeia no próximo deploy, sem tocar nos que já entraram. A semeadura NUNCA sobrescreve quem a coordenação já cadastrou pela tela — o arquivo é o ponto de partida, e quem manda depois é a guia Professores e Disciplinas. Titulação, telefone e matrícula vão para o PERFIL de quem ainda não tem, porque a planilha os traz e sem eles a pessoa é barrada na etapa de completar cadastro. O CPF não vem na planilha e continua sendo pedido a cada um: ele é único por conta e ninguém o informa por outro.",
+  "semestre": "2026/2",
+  "cursos": {
+    "medicina-veterinaria": {
+      "professores": [
+        {
+          "nome": "Naílla Crystine de Carvalho Dias",
+          "email": "professorandias@gmail.com",
+          "titulacao": "Mestre",
+          "telefone": "(61) 996874992",
+          "matricula": "12362",
+          "disciplinas": [
+            "Anatomia Veterinária",
+            "Equideocultura",
+            "Clinica Medica de Grandes Animais"
+          ]
+        },
+        {
+          "nome": "Fablynny Jhiordany de Moura Souza",
+          "email": "fablynnymouravet@gmail.com",
+          "titulacao": "Especialista",
+          "telefone": "(62) 9220-9091",
+          "matricula": "12682",
+          "disciplinas": [
+            "Embriologia",
+            "Histologia Veterinária",
+            "Melhoramento Genético"
+          ]
+        },
+        {
+          "nome": "Márcia Leopoldina Cardoso Segantini",
+          "email": "marcialeopoldina@gmail.com",
+          "titulacao": "Especialista",
+          "telefone": "(62) 8556-4475",
+          "matricula": "13416",
+          "disciplinas": [
+            "Manejo e Nutrição de Animais Silvestres e Aquáticos",
+            "Tecnologia de Alimentos de Origem Animal",
+            "Fisiologia Animal",
+            "Diagnostico por Imagem"
+          ]
+        },
+        {
+          "nome": "Sarah Maria Oliveira Souza",
+          "email": "sarahmaria.uniego@gmail.com",
+          "titulacao": "Especialista",
+          "telefone": "(64) 9250-9844",
+          "matricula": "13418",
+          "disciplinas": [
+            "Nutrição e Alimentação Animal",
+            "Agressão e Defesa",
+            "Produção e Sanidade de Suínos",
+            "Bioética e Bem-Estar Animal",
+            "Medicina Veterinária Legal"
+          ]
+        },
+        {
+          "nome": "Laura Lopes de Oliveira",
+          "email": "prof.lauralopes1@gmail.com",
+          "titulacao": "Especialista",
+          "telefone": "(62) 98157-7150",
+          "matricula": "13820",
+          "disciplinas": [
+            "Fisiopatologia da Reprodução",
+            "Reprodução Animal Inseminação Artificial e Biotécnicas da Reprodução",
+            "Semiologia Veterinária e Laboratório Clinico Veterinário II",
+            "Fisiologia Veterinária"
+          ]
+        },
+        {
+          "nome": "Clara de Freitas Reis",
+          "email": "clarareisvet@gmail.com",
+          "titulacao": "Especialista",
+          "telefone": "(62) 99449-6126",
+          "matricula": "",
+          "disciplinas": [
+            "Clinica Médica de Pequenos",
+            "Técnica Cirurgica e Anestesiologia",
+            "Semiologia Veterinária e Laboratório Clinico Veterinário II",
+            "Parasitologia Animal"
+          ]
+        }
+      ]
+    }
+  }
+}

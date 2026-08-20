@@ -1709,6 +1709,15 @@ public/
   validam** — foi assim que o fluxo foi descrito ("coordenador do curso e/ou pedagógico") —, e por
   isso a lista `pedagogico` institucional nasce VAZIA: aqui o pedagógico é por curso. A marca faz a
   semeadura acontecer uma vez só; sem ela, todo deploy desfaria o que a gestão mudasse na tela.
+  **As listas de professores chegam AOS POUCOS** (`subirProfessoresAP`, `dados/ap-professores.json`):
+  a marca é **por CURSO** (`sys-ap-prof-<semestre>-<curso>`), não por lote — acrescentar um curso ao
+  arquivo o semeia no próximo deploy sem tocar nos que já entraram, que é como as coordenações
+  mandam. A semeadura **nunca sobrescreve** o que a coordenação já cadastrou pela tela: o arquivo é
+  o ponto de partida, e quem manda depois é a guia. **Titulação, telefone e matrícula vão ao
+  PERFIL** de quem ainda não tem — a planilha os traz, e sem eles a pessoa bate na etapa de
+  completar cadastro justamente no dia da primeira aula; o **CPF não vem na planilha** e segue
+  sendo pedido a cada um (é único por conta, e ninguém o informa por outro). Disciplina que dois
+  professores lecionam conta **uma vez** no painel, com os dois nomes: é uma disciplina, não duas.
   **A coordenação é POR CURSO, e isso não existia no ARCHÉ**: `modulosDe` dá coordenação por
   MÓDULO, e o coordenador de Enfermagem não pode ver as aulas de Direito. Por isso são DUAS
   figuras e dois registros: coordenar o módulo `praticas` (em `/usuarios/`) é ser a **coordenação

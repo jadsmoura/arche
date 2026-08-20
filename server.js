@@ -10759,6 +10759,89 @@ async function subirEquipeAP() {
   }
 }
 
+/* PROFESSORES E DISCIPLINAS do arquivo — as listas que as coordenações
+   enviam, uma por curso. A marca é POR CURSO (`sys-ap-prof-<sem>-<curso>`) e
+   não por lote: é assim que elas podem chegar aos poucos, conforme cada
+   coordenação manda. Acrescentar um curso ao arquivo o semeia no próximo
+   deploy, sem tocar nos que já entraram — e sem NUNCA sobrescrever o que a
+   coordenação já cadastrou pela tela: o arquivo é o ponto de partida, e quem
+   manda depois é a guia Professores e Disciplinas.
+
+   Titulação, telefone e matrícula vão para o PERFIL de quem ainda não tem: a
+   planilha os traz, e sem eles a pessoa é barrada na etapa de completar o
+   cadastro justamente no dia em que vai registrar a primeira aula. O CPF não
+   vem na planilha e continua sendo pedido a cada um — é único por conta, e
+   ninguém o informa por outro. */
+async function subirProfessoresAP() {
+  try {
+    const caminho = path.join(__dirname, "dados", "ap-professores.json");
+    if (!existsSync(caminho)) return;
+    const lote = JSON.parse(readFileSync(caminho, "utf8"));
+    const semestre = String(lote.semestre || "");
+    if (!/^\d{4}\/[12]$/.test(semestre)) return;
+
+    const cadastro = await lerCadastroAP();
+    const perfis = await carregarPerfis();
+    const usuarios = await carregarUsuarios(storage);
+    const removidos = new Set(usuarios.removidos || []);
+    let mexeuCadastro = false, novosPerfis = 0;
+    const aprovar = [];
+
+    for (const [curso, dados] of Object.entries(lote.cursos || {})) {
+      const marca = `sys-ap-prof-${semestre.replace("/", "-")}-${curso}`;
+      if (await storage.get(marca)) continue;
+      if (!cursoDe(curso)) { console.warn(`[praticas] curso desconhecido no lote: ${curso}`); continue; }
+      const lista = (dados.professores || []).filter((p) => p?.email && p?.nome);
+      if (!lista.length) continue;
+
+      cadastro[semestre] = cadastro[semestre] || {};
+      const jaTem = new Set((cadastro[semestre][curso]?.professores || [])
+        .map((p) => String(p.email || "").toLowerCase()));
+      cadastro[semestre][curso] = { professores: [
+        ...(cadastro[semestre][curso]?.professores || []),
+        ...lista.filter((p) => !jaTem.has(String(p.email).toLowerCase()))
+          .map((p) => ({ email: String(p.email).toLowerCase(), nome: p.nome,
+            disciplinas: p.disciplinas || [] })),
+      ] };
+      mexeuCadastro = true;
+
+      for (const p of lista) {
+        const e = String(p.email).toLowerCase();
+        if (!removidos.has(e)) aprovar.push(e);
+        const atual = perfis[e] || {};
+        // completa o que falta, e só isso: o que a pessoa preencheu manda
+        const antes = JSON.stringify(atual);
+        perfis[e] = {
+          ...atual,
+          nome: atual.nome || p.nome,
+          funcao: atual.funcao || "professor",
+          curso: atual.curso || cursoDe(curso)?.nome || "",
+          titulacao: atual.titulacao || p.titulacao || "",
+          telefone: atual.telefone || p.telefone || "",
+          matricula: atual.matricula || p.matricula || "",
+          preCadastro: atual.nome ? atual.preCadastro : true,
+          criadoEm: atual.criadoEm || new Date().toISOString(),
+        };
+        if (JSON.stringify(perfis[e]) !== antes) novosPerfis++;
+      }
+      await storage.set(marca, JSON.stringify({ em: new Date().toISOString(),
+        lote: lote.lote, quantos: lista.length }));
+      console.log(`[praticas] ${lista.length} professor(es) de ${curso} em ${semestre}.`);
+    }
+
+    if (!mexeuCadastro) return;
+    await storage.set(AP_CADASTRO_KEY, JSON.stringify(normalizarCadastroAP(cadastro)));
+    if (novosPerfis) await storage.set(PERFIS_KEY, JSON.stringify(perfis));
+    if (aprovar.length) {
+      usuarios.aprovados = [...new Set([...usuarios.aprovados, ...aprovar])];
+      await salvarUsuarios(storage, usuarios);
+    }
+    await storage.flush?.();
+  } catch (e) {
+    console.error("[praticas] não foi possível semear os professores:", e.message);
+  }
+}
+
 /** GET /api/praticas — tudo o que a tela precisa para abrir. */
 app.get("/api/praticas", async (req, res) => {
   try {
@@ -12262,6 +12345,7 @@ app.listen(port, () => {
       subirReservasMigradas,     // e as reservas que a recepção anotava à mão
       corrigirEmailsIndicacao,   // e-mail de aluno digitado errado na indicação
       subirEquipeAP,             // a coordenação do ARCHÉ AP, do arquivo em dados/
+      subirProfessoresAP,        // e as listas de professores, curso a curso
       // SEMPRE por último, e a cada arranque (achado de ago/2026 — o caso
       // Marlana): as migrações acima podem carimbar CPF em projeto que ainda
       // não tem e-mail, e uma vinculação que rodasse só uma vez, antes delas,
