@@ -1465,7 +1465,12 @@ function cursoFrom(req) {
 // Chaves internas do servidor: invisíveis e não graváveis pela API pública.
 // "auth-*" guarda sessão/usuários; "sys-*", registros operacionais (ex.: quais
 // ações já receberam cobrança de relatório).
-const CHAVES_INTERNAS = /^(auth-|sys-|atas-|ic-|ex-|esp-|mon-)/;
+// `extensao-config-` guarda a SEQUÊNCIA OFICIAL do Número da Ação: ela só é
+// lida e gravada pelo servidor (a emissão saiu do formulário em ago/2026), e
+// o prefixo `extensao-` a deixava gravável por qualquer conta aprovada —
+// zerar a sequência faria a próxima aprovação emitir um número já em uso, e
+// número emitido não se desfaz (achado da varredura de ago/2026).
+const CHAVES_INTERNAS = /^(auth-|sys-|atas-|ic-|ex-|esp-|mon-|extensao-config-)/;
 
 app.get("/api/estado", async (req, res) => {
   try {
@@ -1941,11 +1946,20 @@ app.post("/api/extensao", async (req, res) => {
         const base = i >= 0 ? acoes[i] : null;
         // ação nova: quem submete é o dono. Ação existente: só o dono ou a gestão
         if (base ? !podeVerAcao(u, base) : !minhaAcao(u, nova)) { recusadas++; continue; }
-        // o número da ação e a situação são decisão da gestão, não do formulário
-        const controlado = base && !gereEx(u)
+        // O número da ação e a situação são decisão da GESTÃO, nunca do
+        // formulário — e isso vale também na CRIAÇÃO (achado da varredura de
+        // ago/2026): o recorte só existia quando havia `base`, então uma ação
+        // NOVA entrava com o que o cliente mandasse. Dava para nascer já
+        // `registrada`, com um número forjado da sequência oficial, e —
+        // porque a ação registrada SEM evento é o que libera os certificados
+        // — baixar um documento no timbre do UNIEGO com as assinaturas
+        // digitalizadas do pró-reitor e do reitor. Sem `base`, os valores são
+        // os do começo do fluxo.
+        const controlado = gereEx(u) ? {} : (base
           ? { numeroAcao: base.numeroAcao, status: base.status, apreciacao: base.apreciacao,
               criadoPor: base.criadoPor, criadoEm: base.criadoEm }
-          : {};
+          : { numeroAcao: null, status: "submetida", apreciacao: "",
+              criadoPor: u.email, criadoEm: new Date().toISOString() });
         // A CONFIG do evento e as INSCRIÇÕES ONLINE/PRESENÇAS têm escrita
         // própria (rota /:id/evento e o credenciamento público) e escritores
         // CONCORRENTES: o salvar comum do formulário carrega um snapshot que
@@ -3727,8 +3741,6 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
       // o interruptor do EVENTO: sem controle de frequência, ninguém
       // credencia e todo inscrito conta como presente
       if (b.controleFrequencia !== undefined) ev.controleFrequencia = b.controleFrequencia !== false;
-      // hotsite completo × só a folha de inscrição (pedido do dono, ago/2026)
-      if (b.hotsite !== undefined) ev.hotsite = b.hotsite !== false;
       // hotsite completo × só a folha de inscrição (pedido do dono, ago/2026)
       if (b.hotsite !== undefined) ev.hotsite = b.hotsite !== false;
       // vazio volta ao texto institucional padrão (LGPD_TEXTO_PADRAO)
@@ -10418,7 +10430,8 @@ app.get("/api/meus-certificados", async (req, res) => {
           : c.tipo === "palestrante" ? "Palestrante" : (c.papel || "Comissão organizadora"),
         detalhe: c.palestra || c.curso || "",
         quando: c.fim || c.inicio || "", ch: c.ch || 0, codigo: c.codigo,
-        link: `/api/meus-certificados/evento.pdf?acao=${encodeURIComponent(c.acaoId)}`,
+        link: `/api/meus-certificados/evento.pdf?acao=${encodeURIComponent(c.acaoId)}`
+          + `&tipo=${encodeURIComponent(c.tipo)}`,
       });
     }
 
@@ -10467,11 +10480,18 @@ app.get("/api/meus-certificados/evento.pdf", async (req, res) => {
     if (!u) return res.status(401).send("Faça login.");
     const perfil = (await carregarPerfis())[u.email] || null;
     const a = (await lerAcoes()).find((x) => x.id === String(req.query?.acao || ""));
-    if (!a?.evento) return res.status(404).send("Evento não encontrado");
+    // a guarda pedia EVENTO, mas o motor passou a ser da AÇÃO: quem
+    // participou de uma ação sem evento (as migradas do papel) via a linha no
+    // próprio histórico e recebia "Evento não encontrado" ao clicar
+    if (!a) return res.status(404).send("Ação não encontrada");
+    // o `tipo` vem do link porque a mesma pessoa pode ser participante E
+    // comissão da mesma ação: sem ele, as duas linhas baixavam o primeiro
+    // documento, e o código impresso não batia com o da tela
     const cert = certificadoDe(a,
-      { cpf: perfil?.cpf || "", email: u.email, nome: perfil?.nome || "" },
+      { cpf: perfil?.cpf || "", email: u.email, nome: perfil?.nome || "",
+        tipo: String(req.query?.tipo || "") },
       { hoje: hojeLocalISO() });
-    if (!cert) return res.status(404).send("Você não tem certificado neste evento.");
+    if (!cert) return res.status(404).send("Você não tem certificado nesta ação.");
     const buf = await pdfDoCertificadoEvento(a, cert);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${nomeArquivoCert(cert)}"`);
