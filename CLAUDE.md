@@ -1608,8 +1608,28 @@ public/
   **leve** (`inscritoLeve`: respostas dos campos extras, consentimento e comunicações saem —
   nenhuma tela os lê, os exports os leem no servidor; vai `temRespostas` no lugar). Gravar de
   volta não perde nada: `mesclarEventoEInscritos` traz da BASE todo inscrito online.
-  O que NÃO se resolve assim, e fica registrado: as artes em base64 dentro de `ex-acoes-v1`
-  (~92% do arquivo) e o PDF do relatório embutindo a foto em resolução original.
+- **As ARTES saem do arquivo de estado** (`lib/artes.js` + `guardarArte`/`lerArte` e
+  `migrarArtesParaODrive` no server, decisão do dono ago/2026): capa, foto de palestrante e
+  logotipo de apoiador nasceram como base64 DENTRO do registro da ação. Elas já não viajavam
+  nos payloads, mas o estado é UM arquivo reescrito INTEIRO a cada gravação — e a varredura
+  mediu que eram **~92% dele** (8,7 MB → 0,7 MB sem elas). Cada presença marcada subia
+  megabytes de imagem que não mudaram. Agora a arte é **arquivo no Drive**, como o portfólio,
+  e no registro fica só a referência (`{ fileId, tipo, bytes, em }`). O campo mantém o NOME
+  (`capa`, `foto`, `logo`): muda o que ele guarda, e **todo leitor aceita as duas formas** —
+  migração que não terminou, arte que falhou e registro que ninguém regravou continuam sendo
+  servidos (`lerArte`; `temArte` alimenta `temCapa`/`temFoto`/`temLogo`). A subida acontece
+  **fora da fila** (é lenta, e dentro dela seguraria inscrição e check-in), e
+  `imagemPequena` deixa a referência passar — sem isso a normalização apagaria a arte migrada
+  na primeira gravação. A migração de arranque (`sys-ex-artes-drive-v1`) grava a marca mesmo
+  com pendências: o que falhar converte quando alguém salvar o evento.
+- **A foto do portfólio é reduzida ANTES de subir** (`reduzirFotoPortfolio` nas duas telas,
+  decisão do dono ago/2026): ela entra no PDF do relatório, e o PDFKit embute o arquivo COMO
+  ELE É — a moldura tem ~8 cm, mas a foto de celular ia inteira, a ~1200 DPI (24 fotos =
+  61 MB, medido). O navegador reduz a 1600 px (JPEG 0,85), que é bem mais do que a moldura
+  pede; documento não-imagem sobe intacto, e se o navegador não souber ler a imagem o
+  ORIGINAL vai do mesmo jeito — perder o anexo seria pior que subi-lo grande. E o PDF do
+  relatório **não se arquiva no Drive enquanto é rascunho**: o fluxo prevê conferi-lo antes
+  de entregar, e cada conferência arquivava outra versão.
 - **Diagnóstico de banda** (`lib/banda.js` + `lib/medidor.js` + `/diagnostico/`, só gestor
   geral, ago/2026): a franquia de 5 GB do Render acabou sem que ninguém soubesse o que a
   consumira. "Banda" é tudo que SAI do servidor — cada página, cada PDF, cada resposta de API

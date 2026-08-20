@@ -114,6 +114,10 @@ import {
 import { MIN_FOTOS_RELATORIO, faltamFotos, avisoFotos, fotosDoPortfolio } from "./lib/portfolio.js";
 import { seguro as seguroXlsx } from "./lib/exports.js";
 import {
+  artesEmbutidas, aplicarReferencia, bytesDataUrl, ehDataUrl, ehReferencia,
+  extensaoDe, partesDataUrl, temArte,
+} from "./lib/artes.js";
+import {
   CAMPOS_RELATORIO_FINAL, normalizarRelatorioFinal, faltaParaEntregar, aplicarSugestao,
 } from "./lib/relatorioEx.js";
 import {
@@ -1891,16 +1895,16 @@ function eventoSemSegredos(ev) {
   // pesam centenas de KB e têm rota própria — na lista viaja só o sinal de
   // que existem (a tela busca a imagem pela rota, com o id do item)
   if (Array.isArray(resto.programacao))
-    resto.programacao = resto.programacao.map(({ foto, ...atv }) => ({ ...atv, temFoto: !!foto }));
+    resto.programacao = resto.programacao.map(({ foto, ...atv }) => ({ ...atv, temFoto: temArte(foto) }));
   if (Array.isArray(resto.blocos))
     resto.blocos = resto.blocos.map((b) => Array.isArray(b.itens)
-      ? { ...b, itens: b.itens.map(({ logo, ...i }) => ({ ...i, temLogo: !!logo })) }
+      ? { ...b, itens: b.itens.map(({ logo, ...i }) => ({ ...i, temLogo: temArte(logo) })) }
       : b);
   // a assinatura digitalizada é imagem como as demais: fica guardada, sai
   // por rota própria e nos payloads vai só o sinal de que existe
   if (resto.assinaturas && typeof resto.assinaturas === "object")
     resto.assinaturas = resumoAssinaturas(resto.assinaturas);
-  return { ...resto, temCapa: !!capa };
+  return { ...resto, temCapa: temArte(capa) };
 }
 
 /**
@@ -2531,8 +2535,14 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
       return res.status(400).send("Tipo inválido");
     }
 
-    // Arquiva uma cópia versionada no Drive (extensao/<curso>/<nº da ação>/)
-    try {
+    /* Arquiva uma cópia versionada no Drive (extensao/<curso>/<nº da ação>/).
+       Só do que É documento: o relatório em PDF pode ser gerado muitas vezes
+       ANTES da entrega — o fluxo prevê justamente conferi-lo antes de
+       assinar embaixo —, e cada conferência arquivava outra versão de um
+       arquivo pesado (varredura de ago/2026). Rascunho não se arquiva; o
+       relatório entregue, sim, e a proposta e o registro também. */
+    const ehRascunho = tipo === "pdf" && !acao.relatorio?.entregueEm;
+    if (!ehRascunho) try {
       const ts = new Date().toISOString().slice(0, 16).replace("T", "_").replace(":", "h");
       const nomeArq = nome.replace(/(\.[a-z]+)$/i, `_${ts}$1`);
       await files.save({
@@ -2585,7 +2595,7 @@ function eventoPublico(a, { detalhe = false } = {}) {
     inscricoesAte: prazoInscricao(ev, a),
     inscricoesAteHora: horaLimiteInscricao(ev),
     inscricoesAbertas: podeInscreverEvento(a, hojeLocalISO(), horaLocalHHMM()).ok,
-    temCapa: !!ev.capa,
+    temCapa: temArte(ev.capa),
     controleFrequencia: eventoControlaFrequencia(ev),
     hotsite: temHotsiteEvento(ev),
   };
@@ -2602,7 +2612,7 @@ function eventoPublico(a, { detalhe = false } = {}) {
   // os invisíveis não saem, e o logotipo vira `temLogo` — a imagem tem rota
   const blocos = normalizarBlocos(ev.blocos).filter((b) => b.visivel !== false)
     .map((b) => Array.isArray(b.itens)
-      ? { ...b, itens: b.itens.map(({ logo, ...i }) => ({ ...i, temLogo: !!logo })) }
+      ? { ...b, itens: b.itens.map(({ logo, ...i }) => ({ ...i, temLogo: temArte(logo) })) }
       : b);
   // modalidade derivada, para o selo do topo: das atividades e da transmissão
   const temOnline = programacao.some((x) => x.modalidade === "online") || !!ev.transmissao?.tipo;
@@ -3045,12 +3055,43 @@ app.get("/api/publico/eventos/:slug/inscricao/:token/qr.svg", async (req, res) =
    logotipo de apoiador. Mesma regra da capa: os bytes moram na configuração
    e saem por rota própria, porque base64 dentro do payload deixaria a lista
    de eventos pesada. Só com a página ATIVA (é conteúdo público dela). */
-function serviuImagem(res, dataUrl) {
-  const m = String(dataUrl || "").match(/^data:image\/(jpeg|png|webp);base64,(.+)$/);
-  if (!m) return false;
-  res.setHeader("Content-Type", `image/${m[1]}`);
+/* Serve a arte nas DUAS formas: a antiga (embutida no registro) e a nova
+   (arquivo no Drive, só a referência na ação). Enquanto houver evento que a
+   migração não alcançou, as duas convivem — e a rota é a mesma. */
+async function lerArte(v) {
+  const dataUrl = partesDataUrl(v);
+  if (dataUrl) return dataUrl;
+  if (!ehReferencia(v)) return null;
+  try {
+    const buffer = await files.read?.(v.fileId);
+    return buffer?.length ? { tipo: v.tipo || "image/jpeg", buffer } : null;
+  } catch (e) {
+    console.error("[artes] não foi possível ler a imagem:", e.message);
+    return null;
+  }
+}
+/* Sobe UMA arte ao Drive e devolve a referência. Vive fora da fila de
+   escrita, de propósito: subir arquivo é lento, e fazê-lo dentro da fila
+   seguraria a inscrição e o check-in de quem estivesse atrás (é a mesma
+   razão pela qual o anexo do portfólio sobe antes do `comAcoes`). */
+async function guardarArte(valor, { acao, nome }) {
+  const arte = partesDataUrl(valor);
+  if (!arte) return null;
+  const data = await files.save({
+    buffer: arte.buffer,
+    originalName: `${nome}.${extensaoDe(arte.tipo)}`,
+    prefix: `extensao/${slug(acao.curso || "geral")}/${slug(acao.numeroAcao || acao.id)}/evento`,
+  });
+  return { fileId: data.fileId, tipo: arte.tipo, bytes: arte.buffer.length,
+    em: new Date().toISOString() };
+}
+
+async function serviuImagem(res, valor) {
+  const arte = await lerArte(valor);
+  if (!arte) return false;
+  res.setHeader("Content-Type", arte.tipo);
   res.setHeader("Cache-Control", "public, max-age=300");
-  res.send(Buffer.from(m[2], "base64"));
+  res.send(arte.buffer);
   return true;
 }
 app.get("/api/publico/eventos/:slug/atividade/:aid/foto", async (req, res) => {
@@ -3058,7 +3099,7 @@ app.get("/api/publico/eventos/:slug/atividade/:aid/foto", async (req, res) => {
     const a = eventoPorSlug(await lerAcoes(), req.params.slug);
     if (!a?.evento?.ativo) return res.status(404).send("Evento não encontrado");
     const atv = (a.evento.programacao || []).find((x) => x?.id === req.params.aid);
-    if (!serviuImagem(res, atv?.foto)) res.status(404).send("Sem foto");
+    if (!(await serviuImagem(res, atv?.foto))) res.status(404).send("Sem foto");
   } catch (e) {
     console.error("Erro na foto da atividade:", e);
     res.status(500).send("Erro ao carregar a imagem");
@@ -3070,7 +3111,7 @@ app.get("/api/publico/eventos/:slug/apoiador/:iid/logo", async (req, res) => {
     if (!a?.evento?.ativo) return res.status(404).send("Evento não encontrado");
     const item = (a.evento.blocos || [])
       .flatMap((b) => b?.itens || []).find((i) => i?.id === req.params.iid);
-    if (!serviuImagem(res, item?.logo)) res.status(404).send("Sem logotipo");
+    if (!(await serviuImagem(res, item?.logo))) res.status(404).send("Sem logotipo");
   } catch (e) {
     console.error("Erro no logotipo do apoiador:", e);
     res.status(500).send("Erro ao carregar a imagem");
@@ -3509,12 +3550,8 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
 app.get("/api/publico/eventos/:slug/capa", async (req, res) => {
   try {
     const a = eventoPorSlug(await lerAcoes(), req.params.slug);
-    const capa = a?.evento?.ativo ? String(a.evento.capa || "") : "";
-    const m = capa.match(/^data:image\/(jpeg|png|webp);base64,(.+)$/);
-    if (!m) return res.status(404).send("Evento sem capa");
-    res.setHeader("Content-Type", `image/${m[1]}`);
-    res.setHeader("Cache-Control", "public, max-age=300");
-    res.send(Buffer.from(m[2], "base64"));
+    if (!a?.evento?.ativo) return res.status(404).send("Evento sem capa");
+    if (!(await serviuImagem(res, a.evento.capa))) res.status(404).send("Evento sem capa");
   } catch (e) {
     console.error("Erro na capa do evento:", e);
     res.status(500).send("Erro ao carregar a capa");
@@ -3759,6 +3796,36 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
     // ficava fora do certificado do evento que organizou. Os dados vêm do
     // perfil, que já exige nome, CPF, telefone e e-mail.
     const meuPerfil = (await carregarPerfis())[u.email] || {};
+    /* As ARTES (capa, foto de palestrante, logotipo) sobem ao Drive AQUI,
+       antes da fila, e o que entra no registro da ação é só a referência.
+       Antes elas ficavam embutidas, e como o estado é um arquivo reescrito
+       inteiro a cada gravação, cada presença marcada subia megabytes de
+       imagem que não mudaram (varredura de ago/2026: ~92% do arquivo).
+       O que já está gravado na forma antiga continua sendo servido — quem o
+       converte é a migração de arranque. */
+    {
+      const pre = (await lerAcoes()).find((x) => x.id === req.params.id);
+      if (pre) {
+        try {
+          if (ehDataUrl(b.capa)) {
+            if (bytesDataUrl(b.capa) > 1024 * 1024)
+              return res.status(400).json({ error: "A capa passa de 1 MB depois do ajuste — envie uma arte mais leve." });
+            b.capa = await guardarArte(b.capa, { acao: pre, nome: "capa" });
+          }
+          for (const atv of Array.isArray(b.programacao) ? b.programacao : []) {
+            if (ehDataUrl(atv?.foto)) atv.foto = await guardarArte(atv.foto, { acao: pre, nome: `foto-${slug(atv.titulo || atv.id || "atividade")}` });
+          }
+          for (const bloco of Array.isArray(b.blocos) ? b.blocos : []) {
+            for (const item of bloco?.itens || []) {
+              if (ehDataUrl(item?.logo)) item.logo = await guardarArte(item.logo, { acao: pre, nome: `logo-${slug(item.nome || item.id || "apoiador")}` });
+            }
+          }
+        } catch (e) {
+          console.error("[artes] falha ao guardar a imagem:", e.message);
+          return res.status(502).json({ error: "Não foi possível guardar a imagem agora. Tente de novo em instantes." });
+        }
+      }
+    }
     const r = await comAcoes((acoes) => {
       const a = acoes.find((x) => x.id === req.params.id);
       if (!a || !podeOperarEvento(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
@@ -3828,19 +3895,11 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
       // vazio volta ao texto institucional padrão (LGPD_TEXTO_PADRAO)
       if (b.lgpdTexto !== undefined) ev.lgpdTexto = String(b.lgpdTexto || "").trim().slice(0, 2000);
       if (b.capa !== undefined) {
-        const c = String(b.capa || "");
-        if (!c) delete ev.capa;   // "" remove a capa
-        else {
-          const m = c.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
-          if (!m) return { erro: [400, "A capa deve ser uma imagem JPEG, PNG ou WebP."], gravar: false };
-          // tamanho DECODIFICADO (3/4 do base64): o teto protege o estado,
-          // que viaja inteiro a cada gravação. A tela aceita a arte em alta
-          // (até 10 MB) e a reduz para 1600 px antes de mandar — o que chega
-          // aqui já vem pequeno; este teto é a rede de segurança.
-          if (m[2].length * 3 / 4 > 1024 * 1024)
-            return { erro: [400, "A capa passa de 1 MB depois do ajuste — envie uma arte mais leve."], gravar: false };
-          ev.capa = c;
-        }
+        // aqui a capa já chega como REFERÊNCIA (a subida ao Drive aconteceu
+        // antes da fila); "" continua removendo, e o formato foi conferido lá
+        if (!b.capa) delete ev.capa;
+        else if (ehReferencia(b.capa)) ev.capa = b.capa;
+        else return { erro: [400, "A capa deve ser uma imagem JPEG, PNG ou WebP."], gravar: false };
       }
       if (b.transmissao !== undefined) {
         const t = b.transmissao || {};
@@ -8697,6 +8756,65 @@ const LOTES_EXTENSAO = [
   { arquivo: "ex-lote-eventos-2026.json", marca: "sys-ex-lote-eventos-2026", rotulo: "Ações de 2026 (Abril Laranja, Encontro Família, Ciências Agrárias)" },
 ];
 
+/* AS ARTES SAEM DO ARQUIVO DE ESTADO (decisão do dono, ago/2026).
+   Capa, foto de palestrante e logotipo de apoiador nasceram embutidas no
+   registro da ação. Como o estado é UM arquivo reescrito INTEIRO a cada
+   gravação, a varredura mediu que elas eram ~92% dele: cada presença
+   marcada, cada inscrição, cada aprovação subia megabytes de imagem que não
+   mudaram. Aqui elas viram arquivo no Drive e o registro fica com a
+   referência — o mesmo que o portfólio sempre fez.
+
+   Cuidados: sobe FORA da fila (é lento) e grava DEPOIS, num ato só; falha
+   de uma arte não impede as outras nem apaga o que estava lá — o que não
+   converter continua sendo servido na forma antiga, porque `lerArte` aceita
+   as duas. E a marca é gravada mesmo com pendências, para o arranque não
+   tentar de novo a cada deploy; o que falhar converte quando alguém salvar
+   o evento. */
+async function migrarArtesParaODrive() {
+  const marca = "sys-ex-artes-drive-v1";
+  try {
+    if (await storage.get(marca)) return;
+    const acoes = await lerAcoes();
+    const pendentes = acoes
+      .map((a) => ({ acao: a, artes: artesEmbutidas(a.evento) }))
+      .filter((x) => x.artes.length);
+    if (!pendentes.length) {
+      await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), convertidas: 0 }));
+      return;
+    }
+    let convertidas = 0, falhas = 0, bytes = 0;
+    const refs = [];   // { acaoId, onde, id, ref }
+    for (const { acao, artes } of pendentes) {
+      for (const arte of artes) {
+        try {
+          const nome = arte.onde === "capa" ? "capa" : `${arte.onde}-${arte.id}`;
+          const ref = await guardarArte(arte.valor, { acao, nome });
+          if (ref) { refs.push({ acaoId: acao.id, onde: arte.onde, id: arte.id, ref });
+            convertidas += 1; bytes += ref.bytes || 0; }
+        } catch (e) {
+          falhas += 1;
+          console.error(`[artes] ${acao.id}/${arte.onde}: ${e.message}`);
+        }
+      }
+    }
+    if (refs.length) {
+      await comAcoes((lista) => {
+        for (const { acaoId, onde, id, ref } of refs) {
+          const a = lista.find((x) => x.id === acaoId);
+          if (a?.evento) aplicarReferencia(a.evento, { onde, id }, ref);
+        }
+        return {};
+      });
+    }
+    await storage.set(marca, JSON.stringify({
+      em: new Date().toISOString(), convertidas, falhas, bytesTirados: bytes }));
+    console.log(`[artes] ${convertidas} imagem(ns) movida(s) para o Drive`
+      + ` (${Math.round(bytes / 1024)} KB fora do estado)${falhas ? `, ${falhas} falha(s)` : ""}`);
+  } catch (e) {
+    console.error("[artes] migração não concluída:", e.message);
+  }
+}
+
 /* Ação que veio do papel não é candidata a evento (decisão do dono, ago/2026):
    marca as que já estavam gravadas antes de o campo existir — a da Semana de
    Enfermagem, entre elas —, para o ARCHÉ EV deixar de oferecê-las. */
@@ -10790,7 +10908,9 @@ app.listen(port, () => {
   // produção — são ligados a cada projeto.
   migrarAcoesExtensao()
     .then(() => subirAcoesMigradasExtensao())
-    .then(() => marcarAcoesDePapel());
+    .then(() => marcarAcoesDePapel())
+    // depois das ações existirem: as artes saem do arquivo de estado
+    .then(() => migrarArtesParaODrive());
   // A ORDEM importa (num arranque limpo os projetos precisam existir antes de
   // qualquer coisa que os altere), mas uma etapa que falhe não pode levar as
   // seguintes junto: encadeadas por .then, um erro no meio fazia as de baixo

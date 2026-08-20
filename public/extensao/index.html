@@ -1679,13 +1679,47 @@ function renderAnexos(a){
     + `</tbody></table>`
     : '<div class="cnt">— nenhum arquivo anexado ainda.</div>';
 }
+/* A FOTO DO PORTFÓLIO É REDUZIDA ANTES DE SUBIR (decisão do dono, ago/2026).
+   Ela entra no PDF do relatório, e o PDFKit embute o arquivo COMO ELE É: a
+   moldura tem ~8 cm, mas uma foto de celular de 4000 px ia inteira, a ~1200
+   DPI. A varredura mediu 24 fotos = 61 MB, e esse PDF é gerado e arquivado
+   no Drive a cada clique — várias vezes por ação, porque o próprio fluxo
+   prevê conferir o documento antes de entregar.
+
+   1600 px é bem mais do que a moldura precisa (a 300 DPI ela pede ~950) e
+   continua servindo para ampliar na tela. Documento não-imagem sobe como
+   está — comprovante, folder e lista de presença não se recomprimem. Se o
+   navegador não souber ler a imagem, o original vai do mesmo jeito: perder
+   o anexo seria pior que subi-lo grande. */
+const FOTO_PORTFOLIO_LARGURA = 1600;
+
+async function reduzirFotoPortfolio(f){
+  if(!/^image\/(jpeg|png|webp)$/.test(f.type||"")) return f;
+  try{
+    const bmp = await createImageBitmap(f);
+    if(bmp.width<=FOTO_PORTFOLIO_LARGURA && f.size<=900*1024){ bmp.close&&bmp.close(); return f; }
+    const escala = Math.min(1, FOTO_PORTFOLIO_LARGURA/bmp.width);
+    const w=Math.max(1,Math.round(bmp.width*escala)), h=Math.max(1,Math.round(bmp.height*escala));
+    const c=document.createElement("canvas"); c.width=w; c.height=h;
+    const ctx=c.getContext("2d");
+    ctx.fillStyle="#fff"; ctx.fillRect(0,0,w,h);
+    ctx.drawImage(bmp,0,0,w,h);
+    bmp.close&&bmp.close();
+    const blob=await new Promise(ok=>c.toBlob(ok,"image/jpeg",0.85));
+    if(!blob||blob.size>=f.size) return f;      // não piorou nada: manda o original
+    const nome=String(f.name||"foto").replace(/\.[^.]+$/,"")+".jpg";
+    return new File([blob],nome,{type:"image/jpeg"});
+  }catch{ return f; }
+}
+
 async function anexarArquivos(id){
   const a=ACOES.find(x=>x.id===id); const inp=$("ax-file");
   if(!a||!inp||!inp.files.length){ alert("Escolha um ou mais arquivos primeiro."); return; }
   const msg=$("ax-msg"); const arquivos=[...inp.files];
   for(let i=0;i<arquivos.length;i++){
     if(msg) msg.textContent=`Enviando ${i+1}/${arquivos.length}…`;
-    const fd=new FormData(); fd.append("id",id); fd.append("file",arquivos[i]);
+    const arq=await reduzirFotoPortfolio(arquivos[i]);
+    const fd=new FormData(); fd.append("id",id); fd.append("file",arq);
     let r,j;
     try{ r=await fetch("/api/extensao/anexo",{method:"POST",body:fd}); j=await r.json().catch(()=>({})); }
     catch{ r=null; j={}; }
