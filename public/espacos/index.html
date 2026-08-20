@@ -815,12 +815,26 @@ function cartaoReserva(r, { comAcoes = false } = {}) {
     : `${fmt(r.dataInicio)} a ${fmt(r.dataFim)}, ${hora}`;
   const meu = r.solicitante?.email === DADOS.eu;
   const podeCancelar = (meu || DADOS.gestao) && ["solicitada", "encaminhada", "confirmada"].includes(r.status);
-  const acoes = comAcoes && DADOS.gestao && ["solicitada", "encaminhada"].includes(r.status)
+  /* Quem decide o quê (pedido do dono, ago/2026). As duas gestões CONFIRMAM —
+     a responsável pela reserva resolve o dia a dia, e a PROPPEX também. O que
+     as separa são os outros dois botões:
+       · ENCAMINHAR é dela para a PROPPEX. Não aparece para o gestor geral:
+         encaminhar para si mesmo não é passo nenhum.
+       · o pedido JÁ ENCAMINHADO é da PROPPEX. Some da mão da responsável,
+         senão ela confirmaria o que acabou de escalar — e a escalada, que
+         existe justamente para o caso que foge da autonomia dela, não valeria
+         nada. */
+  const meuDegrau = r.status === "solicitada" || (r.status === "encaminhada" && DADOS.gestorGeral);
+  const acoes = comAcoes && DADOS.gestao && meuDegrau
     ? `<div class="exp">
         <button class="bt bt-ok" onclick="decidir('${r.id}','confirmar')">✓ Confirmar</button>
-        ${r.status === "solicitada" ? `<button class="bt bt-sec" onclick="decidir('${r.id}','encaminhar')">↗ Encaminhar à PROPPEX</button>` : ""}
+        ${r.status === "solicitada" && !DADOS.gestorGeral
+          ? `<button class="bt bt-sec" onclick="decidir('${r.id}','encaminhar')">↗ Encaminhar à PROPPEX</button>` : ""}
         <button class="bt bt-err" onclick="decidir('${r.id}','recusar')">✕ Recusar</button>
-      </div>` : "";
+      </div>`
+    : comAcoes && DADOS.gestao && r.status === "encaminhada"
+      ? `<div class="mt" style="margin-top:10px">↗ Encaminhado à PROPPEX — aguardando a decisão dela.</div>`
+      : "";
   return `<div class="res">
     <div style="display:flex;gap:10px;align-items:flex-start;justify-content:space-between">
       <div><div class="tt">${esc(r.atividade || "(sem atividade)")}</div>
@@ -859,10 +873,27 @@ function renderPedidos() {
     .sort((a, b) => String(a.dataInicio).localeCompare(String(b.dataInicio)));
   const decididas = (DADOS.reservas || []).filter((r) => !["solicitada", "encaminhada"].includes(r.status))
     .sort((a, b) => String(b.atualizadoEm).localeCompare(String(a.atualizadoEm))).slice(0, 30);
+  /* Sem ninguém designado no módulo, todo pedido cai na PROPPEX e a recepção
+     não confirma nada — o fluxo inteiro do setor pressupõe a responsável. É
+     um aviso ao gestor geral, com o caminho de resolver: designar é em
+     /usuarios/, ação "coordenar". */
+  const semResponsavel = DADOS.gestorGeral && Array.isArray(DADOS.responsaveis)
+    && DADOS.responsaveis.length === 0;
+  const quemResponde = DADOS.gestorGeral && DADOS.responsaveis?.length
+    ? `<div class="card-s">Responsável pela reserva:
+        ${DADOS.responsaveis.map((p) => esc(p.nome || p.email)).join(", ")} — ela confirma o que
+        está na autonomia dela e encaminha o resto para cá.</div>` : "";
   $("v-pedidos").innerHTML = `
+    ${semResponsavel ? `<div class="banner ba-warn">Nenhuma pessoa está designada como
+      <b>responsável pela reserva</b>, então todo pedido cai aqui na PROPPEX e ninguém mais
+      consegue confirmar. Designe em <a href="/usuarios/">Gestão de acessos</a>, com a ação
+      “coordenar” no módulo <b>Espaços</b>.</div>` : ""}
     <div class="card">
       <div class="card-t">Aguardando decisão — ${fila.length}</div>
-      <div class="card-s">Confirmar bloqueia o espaço na agenda de todos. Encaminhar leva o caso à PROPPEX.</div>
+      ${quemResponde}
+      <div class="card-s">${DADOS.gestorGeral
+        ? "Confirmar bloqueia o espaço na agenda de todos. Aqui chega o que a responsável pela reserva encaminhou, mais o que ainda espera a primeira decisão."
+        : "Confirmar bloqueia o espaço na agenda de todos — é o que está na sua autonomia. Encaminhe à PROPPEX o que foge dela."}</div>
       ${fila.length ? fila.map((r) => cartaoReserva(r, { comAcoes: true })).join("")
         : '<div class="vazio">Nenhum pedido na fila. 🎉</div>'}
     </div>
@@ -964,7 +995,7 @@ function renderAgendamentos() {
       <td>${esc(r.solicitante?.nome || "—")}<div class="p2">${esc(r.protocolo || "")}</div></td>
       <td><span class="badge b-${esc(r.status)}">${esc(ROT_STATUS[r.status] || r.status)}</span></td>
       <td style="white-space:nowrap">
-        ${["solicitada", "encaminhada"].includes(r.status)
+        ${r.status === "solicitada" || (r.status === "encaminhada" && DADOS.gestorGeral)
           ? `<button class="lk" onclick="decidir('${r.id}','confirmar')">confirmar</button> ·
              <button class="lk" onclick="decidir('${r.id}','recusar')">recusar</button>`
           : r.status === "confirmada" && !passou

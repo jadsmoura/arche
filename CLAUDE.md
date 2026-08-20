@@ -1462,6 +1462,18 @@ public/
   o exige (bloco A–E, curso, nome do laboratório).
   **Um pedido leva VÁRIOS espaços e um PERÍODO de datas**: evento grande toma o campus
   inteiro por uma semana, e abrir doze pedidos seria transformar um ato em doze.
+  **Dois degraus, e cada botão tem dono** (pedido do dono, ago/2026): confirmar e recusar são
+  das DUAS gestões — a responsável resolve o que está na autonomia dela, e a PROPPEX também
+  decide. O que os separa: **encaminhar** é dela PARA a PROPPEX e **não aparece para o gestor
+  geral** (encaminhar para si mesmo não é passo nenhum), e o pedido **já encaminhado sai da mão
+  dela** — senão ela confirmaria o que acabou de escalar, e a escalada, que existe para o caso
+  que foge da autonomia dela, não valeria nada. As duas regras são do SERVIDOR (a guarda antiga
+  do `encaminhar` só pegava o gestor que NÃO gerisse o módulo, e como gestor geral recebe todos
+  os módulos em `modulosDe`, ela nunca chegava a valer). A tela espelha: no encaminhado, a
+  responsável lê "aguardando a decisão dela" no lugar dos botões. E **quem decide o primeiro
+  degrau precisa estar designado**: sem ninguém coordenando o módulo `espacos`, TODO pedido cai
+  na PROPPEX e a recepção não confirma nada — por isso o painel avisa o gestor geral disso, com
+  o caminho (`/usuarios/`, ação "coordenar"), e diz quem é a responsável quando há uma.
   **Fluxo** (como o dono o descreveu): solicitação → cai na caixa da **responsável pela
   reserva** (`ESPACOS_NOTIFY_EMAIL`, padrão `raiane.naves@uniego.edu.br`, com cópia a
   `eventos@uniego.edu.br`), que **confirma** o que está pré-autorizada a decidir ou

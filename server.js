@@ -4353,6 +4353,18 @@ async function sessaoEsp(req, res) {
 
 const podeVerReserva = (u, r) => gereEsp(u) || minhaReserva(u.email, r);
 
+/** Quem coordena o módulo `espacos` — a responsável pela reserva, no
+    vocabulário do setor. Devolve nome e e-mail, nada além: é uma lista de
+    quem decide, não uma porta para o cadastro de ninguém. */
+async function responsaveisDosEspacos() {
+  const usuarios = await carregarUsuarios(storage);
+  const perfis = await carregarPerfis();
+  return Object.entries(usuarios.coordenadores || {})
+    .filter(([, mods]) => (mods || []).includes("espacos"))
+    .map(([email]) => ({ email, nome: perfis[email]?.nome || "" }))
+    .sort((a, b) => (a.nome || a.email).localeCompare(b.nome || b.email, "pt-BR"));
+}
+
 /** GET /api/espacos — o que a tela precisa para abrir: catálogo, catálogos
     de apoio e as reservas que a pessoa pode ver. */
 app.get("/api/espacos", async (req, res) => {
@@ -4374,6 +4386,13 @@ app.get("/api/espacos", async (req, res) => {
         .filter((m) => /^\d{4}-\d{2}$/.test(m)))].sort(),
       bloqueios,
       reservas: reservas.filter((r) => podeVerReserva(u, r)),
+      /* Quem é a RESPONSÁVEL pela reserva, para o gestor geral. Não é
+         curiosidade: o fluxo do setor pressupõe alguém confirmando o dia a
+         dia e encaminhando à PROPPEX só o que foge da autonomia dela — e sem
+         ninguém designado no módulo `espacos`, TODO pedido cai na PROPPEX e a
+         recepção não consegue confirmar nada. O sistema tem de dizer isso, em
+         vez de deixar a pró-reitoria descobrir pelo silêncio. */
+      ...(u.papel === "gestor" ? { responsaveis: await responsaveisDosEspacos() } : {}),
       // quem já pediu espaço alguma vez — é por esses olhos que a
       // responsável confere o que o solicitante enxerga da agenda
       ...(gereEsp(euReal(req, u))
@@ -4481,8 +4500,15 @@ app.post("/api/espacos/reservas/:id/decidir", async (req, res) => {
       return res.status(400).json({ error: "Ação inválida." });
     if (!gereEsp(u) && u.papel !== "gestor")
       return res.status(403).json({ error: "Só a responsável pela reserva e a PROPPEX decidem." });
-    if (acao === "encaminhar" && u.papel === "gestor" && !gereEsp(u))
-      return res.status(400).json({ error: "A PROPPEX é o destino do encaminhamento." });
+    /* Os DOIS degraus, e o que separa um do outro (pedido do dono, ago/2026).
+       Confirmar e recusar são das duas gestões — a responsável resolve o que
+       está na autonomia dela, e a PROPPEX também decide. O que não se mistura:
+       ENCAMINHAR é dela PARA a PROPPEX, e o gestor geral É a PROPPEX —
+       encaminhar para si mesmo não é passo nenhum. A guarda antiga só pegava
+       o gestor que NÃO gerisse o módulo, e como gestor geral recebe todos os
+       módulos (modulosDe), ela nunca chegava a valer. */
+    if (acao === "encaminhar" && u.papel === "gestor")
+      return res.status(400).json({ error: "A PROPPEX é o destino do encaminhamento, não a origem." });
     const motivo = String(req.body?.motivo || "").trim().slice(0, 500);
     if (acao === "recusar" && !motivo)
       return res.status(400).json({ error: "Escreva o motivo da recusa." });
@@ -4493,6 +4519,12 @@ app.post("/api/espacos/reservas/:id/decidir", async (req, res) => {
       if (i < 0) return { erro: [404, "Reserva não encontrada."], gravar: false };
       const atual = reservas[i];
       if (!VIVA(atual)) return { erro: [400, `Esta reserva está ${ROTULO_STATUS[atual.status].toLowerCase()}.`], gravar: false };
+      /* Pedido já encaminhado é da PROPPEX. Se a responsável pudesse decidi-lo,
+         ela confirmaria o que acabou de escalar — e a escalada, que existe
+         para o caso que foge da autonomia dela, não valeria nada. */
+      if (atual.status === "encaminhada" && u.papel !== "gestor") {
+        return { erro: [403, "Este pedido está com a PROPPEX — a decisão é dela."], gravar: false };
+      }
       if (acao === "confirmar") {
         const imp = impedimentos(atual, { reservas, bloqueios, espacos });
         if (!imp.livre) return { erro: [409, `Não dá para confirmar: ${imp.motivos.join(" ")}`], gravar: false };
