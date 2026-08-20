@@ -1,7 +1,7 @@
 {
   "lote": "ap-professores-2026-2",
   "fonte": "Planilhas de professores e disciplinas, enviadas pelas coordenações de curso (ago/2026)",
-  "observacao": "Um bloco por CURSO, e cada um sobe UMA vez (marca sys-ap-prof-<semestre>-<curso>). É assim que as listas podem chegar aos poucos, conforme cada coordenação envia: acrescentar um curso aqui o semeia no próximo deploy, sem tocar nos que já entraram. A semeadura NUNCA sobrescreve quem a coordenação já cadastrou pela tela — o arquivo é o ponto de partida, e quem manda depois é a guia Professores e Disciplinas. Titulação, telefone e matrícula vão para o PERFIL de quem ainda não tem, porque a planilha os traz e sem eles a pessoa é barrada na etapa de completar cadastro. O CPF não vem na planilha e continua sendo pedido a cada um: ele é único por conta e ninguém o informa por outro.",
+  "observacao": "Um bloco por CURSO, e cada um sobe UMA vez (marca sys-ap-prof-<semestre>-<curso>). É assim que as listas podem chegar aos poucos, conforme cada coordenação envia: acrescentar um curso aqui o semeia no próximo deploy, sem tocar nos que já entraram. A semeadura NUNCA sobrescreve quem a coordenação já cadastrou pela tela — o arquivo é o ponto de partida, e quem manda depois é a guia Professores e Disciplinas. Titulação, telefone e matrícula vão para o PERFIL de quem ainda não tem, porque a planilha os traz e sem eles a pessoa é barrada na etapa de completar cadastro. O CPF não vem em planilha nenhuma e continua sendo pedido a cada um: ele é único por conta e ninguém o informa por outro. As planilhas chegam em formatos diferentes — a de Medicina Veterinária traz uma linha por PROFESSOR (disciplinas separadas por ponto e vírgula) e a de Agronomia, uma linha por DISCIPLINA, com o professor repetido. O que se guarda aqui é sempre a mesma forma: uma entrada por pessoa, com a lista de disciplinas dela. A de Agronomia traz ainda o CÓDIGO da disciplina no PPC (G1208…), que o cadastro ainda não guarda.",
   "semestre": "2026/2",
   "cursos": {
     "medicina-veterinaria": {
@@ -81,6 +81,91 @@
             "Técnica Cirurgica e Anestesiologia",
             "Semiologia Veterinária e Laboratório Clinico Veterinário II",
             "Parasitologia Animal"
+          ]
+        }
+      ]
+    },
+    "agronomia": {
+      "professores": [
+        {
+          "nome": "Wagner Gonçalves Vieira Júnior",
+          "email": "wagner.junior@uniego.edu.br",
+          "titulacao": "",
+          "telefone": "",
+          "matricula": "",
+          "disciplinas": [
+            "Mineralogia e Gênese",
+            "Estatística Experimental",
+            "Fertilidade do Solo e Nutrição de Plantas"
+          ]
+        },
+        {
+          "nome": "Jammerson Spindula",
+          "email": "jammerson_spindula@hotmail.com",
+          "titulacao": "",
+          "telefone": "",
+          "matricula": "",
+          "disciplinas": [
+            "Desenho Técnico"
+          ]
+        },
+        {
+          "nome": "Dyb Youssef Bittar",
+          "email": "dybittar@gmail.com",
+          "titulacao": "",
+          "telefone": "",
+          "matricula": "",
+          "disciplinas": [
+            "Anatomia e Fisiologia Animal"
+          ]
+        },
+        {
+          "nome": "Leidiane dos Santos Lucas",
+          "email": "leidiane.lucas@uniego.edu.br",
+          "titulacao": "",
+          "telefone": "",
+          "matricula": "",
+          "disciplinas": [
+            "Microbiologia Agrícola",
+            "Taxonomia e Anatomia Vegetal",
+            "Fitopatologia Geral",
+            "Pós-colheita e Tecnologia de Produtos Agropecuários"
+          ]
+        },
+        {
+          "nome": "Erivelton Gonçalves Cunha",
+          "email": "eriveltoncunha.ufv@gmail.com",
+          "titulacao": "",
+          "telefone": "",
+          "matricula": "",
+          "disciplinas": [
+            "Entomologia Geral",
+            "Produção e Tecnologia de Sementes",
+            "Jardinocultura e Paisagismo",
+            "Oleaginosas e Fibras"
+          ]
+        },
+        {
+          "nome": "Washington Nunes",
+          "email": "washington.silva@docente.uniego.edu.br",
+          "titulacao": "",
+          "telefone": "",
+          "matricula": "",
+          "disciplinas": [
+            "Geotecnologias"
+          ]
+        },
+        {
+          "nome": "Manoel Henrique Reis de Oliveira",
+          "email": "manoel.oliveiragro@gmail.com",
+          "titulacao": "",
+          "telefone": "",
+          "matricula": "",
+          "disciplinas": [
+            "Hidráulica, Hidrologia e Gestão dos Recursos Hídricos",
+            "Vistória, Avaliação e Perícias Agronômicas",
+            "Gestão do Agronegócio",
+            "Fruticultura"
           ]
         }
       ]
