@@ -465,6 +465,14 @@ public/
   quando não houve (num evento com 57 inscritos e nenhum crachá lido, "0 discentes" seria
   trocar campo vazio por número errado). Quem monta é o SERVIDOR: a mesma sugestão vale no
   formulário do EX e no encerramento pelo EV.
+- **As duas portas do mesmo relatório** (`atalhoEncerrarEv`, ago/2026): quem organiza um
+  evento termina o trabalho no ARCHÉ EV, e lá "Encerrar evento" pede os mesmos campos, as
+  fotos, entrega o relatório e manda o encerramento à PROPPEX num clique. Quem chega pelo
+  ARCHÉ EX precisa saber que a outra porta existe — senão preenche duas vezes ou não acha
+  nenhuma —, e por isso o card do relatório traz o atalho enquanto o evento não foi
+  encerrado. A **lista de participantes** só é cobrada quando está mesmo vazia, e a frase
+  muda conforme a origem: com evento, ela vem das inscrições e do credenciamento (e vazia
+  significa que algo não foi lançado no EV); sem evento, cola-se no bloco da própria ação.
 - **O que falta se diz DE UMA VEZ, e a tela leva até lá** (achado do dono, ago/2026): a
   entrega avisava um problema por vez — a pessoa clicava, corrigia, clicava de novo e
   descobria o seguinte —, e num relatório de três telas de altura um "preencha o campo X"

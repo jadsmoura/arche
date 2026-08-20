@@ -1445,7 +1445,7 @@ function renderDetalhe(id){
   /* ---- relatório final ---- */
   if(podeRelatorio){
     const lock = s==="registrada";
-    html += `<div class="card"><div class="sec-t">Relatório final</div><div id="r-sugestao"></div>`;
+    html += `<div class="card"><div class="sec-t">Relatório final</div>${atalhoEncerrarEv(a)}<div id="r-sugestao"></div>`;
     if(PROPPEX && s!=="relatorio-entregue" && s!=="registrada")
       html += `<div class="muted">O responsável ainda não enviou o relatório.</div>`;
     html += `
@@ -1604,6 +1604,23 @@ async function sugerirRelatorio(a, manual){
 const CAMPOS_REL_ROT = { conteudoProgramatico:"Conteúdo programático",
   docentesEnvolvidos:"Docentes envolvidos", qtdDiscentes:"Nº de discentes",
   qtdDocentes:"Nº de docentes", qtdTecnicos:"Nº de técnicos adm." };
+
+/* AS DUAS PORTAS DO MESMO RELATÓRIO (pedido do dono, ago/2026): quem
+   organiza um evento termina o trabalho no ARCHÉ EV, e lá "Encerrar evento"
+   já pede estes mesmos campos e entrega o relatório num passo só. Quem
+   chegou por aqui precisa saber que a outra porta existe — senão preenche
+   duas vezes ou não encontra nenhuma. O atalho some quando o evento já foi
+   encerrado: aí não há mais o que fazer lá. */
+function atalhoEncerrarEv(a){
+  const st=String(a.evento?.encerramento?.status||"");
+  if(!a.evento || a.relatorio?.entregueEm || ["solicitado","validado"].includes(st)) return "";
+  return `<div class="banner ba-info" style="margin:8px 0">
+    🎪 <b>Este evento é gerido no ARCHÉ EV.</b> Lá, o botão <b>“Encerrar evento”</b> pede estes
+    mesmos campos e as fotos, entrega o relatório e manda o encerramento à PROPPEX — tudo num
+    passo só. Aqui funciona igual; escolha a porta que preferir.
+    <div style="margin-top:8px"><a class="bt bt-sec" href="/eventos/gestao/#inicio/${esc(a.id)}"
+      target="_blank" rel="noopener">Encerrar no ARCHÉ EV ↗</a></div></div>`;
+}
 
 /* Um COMEÇO para a avaliação — não a avaliação (decisão de ago/2026, depois
    de o dono bater duas vezes no campo obrigatório). O sistema escreve o que
@@ -1904,7 +1921,15 @@ async function enviarRelatorio(id){
     }
     return;
   }
-  if(!(a.participantes.inscritos||[]).length && !confirm("A lista de participantes está vazia. Enviar mesmo assim?")) return;
+  // a lista de participantes é o que dá lastro ao relatório — e, quando a
+  // ação tem evento, ela JÁ EXISTE: são os inscritos e credenciados. Só
+  // avisa quando está mesmo vazia, dizendo onde ela se preenche.
+  if(!(a.participantes.inscritos||[]).length){
+    const onde = a.evento
+      ? "Este evento não tem nenhum inscrito registrado — confira no ARCHÉ EV se as inscrições e o credenciamento foram lançados."
+      : "A lista de participantes está vazia — cole a lista no bloco “Lista de participantes”, logo abaixo.";
+    if(!confirm(onde+"\n\nEntregar o relatório mesmo assim?")) return;
+  }
   // a gestão entrega EM NOME do responsável quando a ação não é dela — o
   // ato fica marcado, que é o que o torna explicável depois
   const pelaGestao = PROPPEX && !minhaAcao(a);

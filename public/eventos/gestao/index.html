@@ -2766,7 +2766,9 @@ async function renderCertificados(a){
       <div class="muted" style="margin:8px 0 12px">O certificado não sai porque a data passou: sai
         quando a coordenação <b>encerra o evento</b> e a PROPPEX <b>valida o encerramento</b>. Antes
         de encerrar, confira as presenças, a comissão organizadora e os palestrantes — é o retrato
-        que vai virar documento.</div>
+        que vai virar documento.<br><b>Encerrar é também entregar o relatório final da ação</b> no
+        ARCHÉ EX: o formulário pede os campos e as fotos, já vem pré-preenchido com a programação,
+        os palestrantes e as contagens do evento, e a entrega acontece no mesmo clique.</div>
       ${enc.pedidoEm?`<div class="muted" style="font-size:12.5px">Encerrado por ${esc(enc.pedidoPor||"—")}
         em ${fmtDataHora(enc.pedidoEm)}${enc.numeros?` · ${enc.numeros.inscritos||0} inscrito(s), ${enc.numeros.presentes||0} presente(s)`:""}.</div>`:""}
       ${enc.observacao?`<div class="tut" style="font-size:12.5px;margin-top:8px"><b>Observação da coordenação:</b> ${esc(enc.observacao)}</div>`:""}
