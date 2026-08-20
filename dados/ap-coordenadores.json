@@ -1,7 +1,7 @@
 {
   "lote": "ap-coordenadores-2026",
   "fonte": "Planilha de coordenadores e coordenadores pedagógicos, entregue pelo dono (ago/2026)",
-  "observacao": "No ARCHÉ AP quem valida o relatório de aula prática é a coordenação DO CURSO. A planilha traz duas pessoas por curso — o coordenador e o coordenador pedagógico —, e as DUAS validam: foi assim que o dono descreveu o fluxo (\"validação do coordenador do curso e/ou coordenador pedagógico\"). Por isso as duas entram em `coordenadores` do mesmo curso, e a lista `pedagogico` — que é a coordenação institucional, com alcance sobre TODOS os cursos — fica vazia: aqui o pedagógico é por curso, não da instituição. Engenharia de Software não tem pedagógico designado. Educação Física não veio na planilha e fica sem coordenação até que a PROAC a informe.",
+  "observacao": "No ARCHÉ AP quem valida o relatório de aula prática é a coordenação DO CURSO. A planilha traz duas pessoas por curso — o coordenador e o coordenador pedagógico —, e as DUAS validam: foi assim que o dono descreveu o fluxo (\"validação do coordenador do curso e/ou coordenador pedagógico\"). Por isso as duas entram em `coordenadores` do mesmo curso, e a lista `pedagogico` — que é a coordenação institucional, com alcance sobre TODOS os cursos — fica vazia: aqui o pedagógico é por curso, não da instituição. Engenharia de Software não tem pedagógico designado. Educação Física fica de fora por ora: o curso ainda não tem turmas (informação do dono, ago/2026). Ele continua no catálogo e aparece na guia Coordenação, vazio — quando houver turma, basta designar por lá.",
   "cursos": {
     "administracao": {
       "coordenadores": [
