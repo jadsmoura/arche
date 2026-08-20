@@ -2713,12 +2713,34 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       parts.inscritos.push(inscrito);
       a.atualizadoEm = new Date().toISOString();
       return { acao: a, inscrito };
-    });
+    // a subida do estado NÃO trava a fila (o QR projetado no telão faz
+    // cinquenta pessoas se inscreverem ao mesmo tempo, e cada `flush`
+    // reescreve o arquivo inteiro no Drive). O que garante a inscrição é o
+    // que vem depois da resposta — ver abaixo.
+    }, { flushJa: false });
     if (r.erro) return res.status(r.erro[0])
       .json({ error: r.erro[1], ...(r.jaInscrito ? { jaInscrito: r.jaInscrito } : {}) });
 
-    // o e-mail é cortesia: a inscrição já está gravada, e falha de envio
-    // (ou endereço que o Gmail recuse) não pode desfazê-la
+    // A pessoa não espera o Drive: a resposta sai agora, com o token que já
+    // vale na tela.
+    const base = `${req.protocol}://${req.get("host")}`;
+    res.json({ ok: true, token: r.inscrito.token, codigo: codigoDe(r.inscrito.token) });
+
+    /* O E-MAIL É O RECIBO, e por isso ele sai DEPOIS de a inscrição estar
+       gravada de verdade (raciocínio do dono, ago/2026): se algo falhar no
+       meio, a pessoa não recebe nada e simplesmente se inscreve de novo —
+       falha que se corrige sozinha. O que NÃO pode acontecer é o contrário:
+       e-mail entregue, com QR, de uma inscrição que se perdeu — aí ela chega
+       na porta com um crachá que o sistema não reconhece e jura que se
+       inscreveu. Daí a ordem: responder, garantir a gravação, só então
+       avisar. A espera do flush corre FORA da fila, então não segura a
+       inscrição de quem vem atrás. */
+    try {
+      await storage.flush?.();
+    } catch (e) {
+      console.error("[eventos] inscrição não gravou no Drive — e-mail NÃO enviado:", e.message);
+      return;                       // sem recibo: a pessoa refaz e nada fica pela metade
+    }
     try {
       const { enviarEmail, emailInscricaoEvento } = await import("./lib/mailer.js");
       // o QR vai EMBUTIDO no e-mail (decisão do dono, ago/2026): é onde a
@@ -2732,14 +2754,17 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
         });
       } catch (e) { console.error("[eventos] QR do e-mail não gerado:", e.message); }
       await enviarAviso("ev-inscricao", emailInscricaoEvento(r.acao, r.inscrito,
-        { baseUrl: `${req.protocol}://${req.get("host")}`, qrPng, wallet: walletConfigurada() }));
+        { baseUrl: base, qrPng, wallet: walletConfigurada() }));
     } catch (e) {
       console.error("[eventos] confirmação de inscrição não enviada:", e.message);
     }
-    res.json({ ok: true, token: r.inscrito.token, codigo: codigoDe(r.inscrito.token) });
+    return;
   } catch (e) {
     console.error("Erro na inscrição do evento:", e);
-    res.status(500).json({ error: "Não foi possível concluir a inscrição agora. Tente de novo em instantes." });
+    // a resposta pode já ter saído (o e-mail corre depois dela): responder de
+    // novo derrubaria a requisição com "headers already sent"
+    if (!res.headersSent)
+      res.status(500).json({ error: "Não foi possível concluir a inscrição agora. Tente de novo em instantes." });
   }
 });
 

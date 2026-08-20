@@ -371,6 +371,14 @@ public/
   comum, que não é o endereço errado — é o spam. O reenvio vai SEMPRE ao endereço já
   gravado, nunca a um que venha no pedido: senão a recuperação viraria um jeito de mandar a
   credencial de alguém para outro lugar.
+  **O e-mail de confirmação é o RECIBO, e sai depois da gravação** (raciocínio do dono,
+  ago/2026): a inscrição também deixou de esperar o Drive dentro da fila (`flushJa: false`)
+  — o QR projetado no telão faz cinquenta pessoas se inscreverem juntas —, mas a ORDEM
+  passou a ser **responder → garantir a gravação (`storage.flush`, fora da fila) → só então
+  avisar**. Falha no meio significa que ninguém recebeu nada e a pessoa se inscreve de novo:
+  erro que se corrige sozinho. O que não pode acontecer é o contrário — e-mail entregue, com
+  QR, de uma inscrição que se perdeu: aí ela chega na porta com um crachá que o sistema não
+  reconhece. O `catch` da rota confere `res.headersSent`, porque a resposta já saiu.
   **A porta não espera o Drive** (incidente do credenciamento, ago/2026): `comAcoes` fazia
   `flush` DENTRO da fila, e em produção cada `flush` reescreve o `_estado.json` INTEIRO — dez
   crachás na porta viravam dez uploads em série, e a fila parecia um sistema travado. O
