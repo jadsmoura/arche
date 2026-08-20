@@ -465,6 +465,15 @@ public/
   quando não houve (num evento com 57 inscritos e nenhum crachá lido, "0 discentes" seria
   trocar campo vazio por número errado). Quem monta é o SERVIDOR: a mesma sugestão vale no
   formulário do EX e no encerramento pelo EV.
+- **O que falta se diz DE UMA VEZ, e a tela leva até lá** (achado do dono, ago/2026): a
+  entrega avisava um problema por vez — a pessoa clicava, corrigia, clicava de novo e
+  descobria o seguinte —, e num relatório de três telas de altura um "preencha o campo X"
+  sem levar ao campo X parece o sistema recusando por nada. Agora o alerta lista tudo o que
+  falta e rola/foca/destaca o primeiro item. A **avaliação/resultados** ganhou o asterisco e
+  a nota de que é o único campo que o sistema não preenche, mais o botão **"✍ Inserir um
+  começo"**, que escreve o que é FATO (quando, onde, carga horária, quantos participantes) e
+  para no ponto em que a pessoa continua — o juízo sobre o que a ação alcançou é dela, e é
+  isso que a PROPPEX lê.
 - **A barra de ações fica no ALTO da ação** (`barraAcoes`, pedido do dono ago/2026): os dois
   PDFs — **Projeto** e **Relatório final** — e o ato do momento (encerrar e entregar, validar
   e registrar, ou reabrir). Eles existiam só no último card, depois do relatório, do portfólio

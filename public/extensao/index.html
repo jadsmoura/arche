@@ -1457,7 +1457,11 @@ function renderDetalhe(id){
         <div><label>Docentes envolvidos <span class="muted">(um por linha no campo maior abaixo)</span></label><input disabled value="use o campo abaixo"></div>
       </div>
       <label>Docentes envolvidos (um por linha)</label><textarea id="r-docentes" ${lock?"disabled":""}>${esc(r.docentesEnvolvidos||"")}</textarea>
-      <label>Avaliação / resultados alcançados</label><textarea id="r-avaliacao" ${lock?"disabled":""} style="min-height:110px">${esc(r.avaliacaoResultados||"")}</textarea>
+      <label>Avaliação / resultados alcançados <span style="color:var(--err)">*</span>
+        <span class="muted">— obrigatório, e o único campo que o sistema não preenche por você</span></label>
+      <textarea id="r-avaliacao" ${lock?"disabled":""} style="min-height:110px">${esc(r.avaliacaoResultados||"")}</textarea>
+      ${lock?"":`<button class="bt bt-ghost" style="margin-top:6px;padding:5px 10px;font-size:11.5px"
+        onclick="comecoAvaliacao('${a.id}')" title="Insere a frase de contexto (datas, local, carga horária e público) para você continuar daí">✍ Inserir um começo</button>`}
       <div class="grid3">
         <div><label>Nº de discentes</label><input type="number" id="r-qtd-disc" ${lock?"disabled":""} value="${esc(r.qtdDiscentes??"")}"></div>
         <div><label>Nº de docentes</label><input type="number" id="r-qtd-doc" ${lock?"disabled":""} value="${esc(r.qtdDocentes??"")}"></div>
@@ -1600,6 +1604,33 @@ async function sugerirRelatorio(a, manual){
 const CAMPOS_REL_ROT = { conteudoProgramatico:"Conteúdo programático",
   docentesEnvolvidos:"Docentes envolvidos", qtdDiscentes:"Nº de discentes",
   qtdDocentes:"Nº de docentes", qtdTecnicos:"Nº de técnicos adm." };
+
+/* Um COMEÇO para a avaliação — não a avaliação (decisão de ago/2026, depois
+   de o dono bater duas vezes no campo obrigatório). O sistema escreve o que
+   é FATO: quando, onde, com que carga horária e para quantos. O que a ação
+   alcançou é o juízo de quem a conduziu, e é justamente isso que a PROPPEX
+   lê — por isso a frase termina no ponto em que a pessoa precisa continuar,
+   e não se insere sozinha: é um clique deliberado, em campo vazio. */
+function comecoAvaliacao(id){
+  const a=ACOES.find(x=>x.id===id), el=$("r-avaliacao"); if(!a||!el) return;
+  if(String(el.value||"").trim()
+     && !confirm("Já há texto escrito aqui. Inserir o começo ANTES do que você escreveu?")) return;
+  const p=a.proposta||{};
+  const inscritos=(a.participantes?.inscritos||[]).length;
+  const presentes=(a.participantes?.inscritos||[]).filter(i=>i?.presente||(i?.presencas||[]).length).length;
+  const gente=presentes||inscritos;
+  const periodo = p.periodoInicio===p.periodoFim ? `em ${fmt(p.periodoInicio)}`
+    : `de ${fmt(p.periodoInicio)} a ${fmt(p.periodoFim)}`;
+  const frase = `A ação foi realizada ${periodo}`
+    + (p.local?`, ${esc0(p.local)}${p.municipio?` (${esc0(p.municipio)})`:""}`:"")
+    + (p.cargaHoraria?`, com carga horária de ${esc0(p.cargaHoraria)} hora(s)`:"")
+    + (gente?`, alcançando ${gente} participante(s)`:"")
+    + ".\n\nResultados alcançados: ";
+  el.value = frase + String(el.value||"").trim();
+  el.focus();
+  el.setSelectionRange(frase.length, frase.length);
+}
+const esc0 = (v)=>String(v??"").trim();
 
 /* O contador das fotos, no alto do portfólio: a pessoa vê quantas faltam
    ANTES de tentar entregar, e não descobre a exigência no erro. */
@@ -1849,13 +1880,28 @@ const minhaAcao = (a) => {
 async function enviarRelatorio(id){
   const a=ACOES.find(x=>x.id===id); if(!a)return;
   const r=lerRelatorio();
-  if(!r.avaliacaoResultados){ alert("Preencha a Avaliação / resultados alcançados."); return; }
+  // O que falta é dito DE UMA VEZ e a tela LEVA até lá (achado do dono,
+  // ago/2026): avisar um problema por vez faz a pessoa clicar, corrigir,
+  // clicar de novo e descobrir o seguinte — e, num relatório de três telas
+  // de altura, um "preencha o campo X" sem levar ao campo X parece o sistema
+  // recusando por nada.
   const fotos=fotosDaAcao(a).length;
-  if(fotos<MIN_FOTOS){
-    alert(`O relatório precisa de pelo menos ${MIN_FOTOS} fotos do evento.\n\n`
-      + `Há ${fotos} no portfólio — anexe mais ${MIN_FOTOS-fotos} no bloco "Portfólio de comprovação" `
-      + "(logo abaixo do relatório) e entregue em seguida. Fotos a mais são bem-vindas.");
-    document.getElementById("ax-file")?.scrollIntoView({behavior:"smooth",block:"center"});
+  const falta=[];
+  if(!r.avaliacaoResultados) falta.push({ id:"r-avaliacao",
+    txt:"a Avaliação / resultados alcançados — é o que a PROPPEX lê, e é o único campo que o sistema não preenche por você" });
+  if(fotos<MIN_FOTOS) falta.push({ id:"ax-file",
+    txt:`${MIN_FOTOS-fotos} foto(s) no portfólio — há ${fotos} de ${MIN_FOTOS}` });
+  if(falta.length){
+    alert("Para entregar o relatório ainda falta:\n\n"
+      + falta.map(f=>"• "+f.txt).join("\n\n")
+      + "\n\nVamos até o primeiro item.");
+    const el=$(falta[0].id);
+    if(el){
+      el.scrollIntoView({behavior:"smooth",block:"center"});
+      el.focus({preventScroll:true});
+      el.style.transition="box-shadow .4s"; el.style.boxShadow="0 0 0 3px rgba(201,138,43,.45)";
+      setTimeout(()=>{ if(el) el.style.boxShadow=""; },2600);
+    }
     return;
   }
   if(!(a.participantes.inscritos||[]).length && !confirm("A lista de participantes está vazia. Enviar mesmo assim?")) return;
