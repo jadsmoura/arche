@@ -1478,6 +1478,22 @@ public/
   o exige (bloco A–E, curso, nome do laboratório).
   **Um pedido leva VÁRIOS espaços e um PERÍODO de datas**: evento grande toma o campus
   inteiro por uma semana, e abrir doze pedidos seria transformar um ato em doze.
+  **Um pedido de vários dias quer dizer DUAS coisas** (`atravessaMeiaNoite`/`janelasDaReserva`
+  em lib/espacos.js, achado de uma professora ago/2026): a **janela que se repete a cada dia** —
+  o congresso de 19 a 30/10, das 8h às 18h, com as noites livres para outro — e a **ocupação
+  contínua que atravessa a noite**, das 18h de um dia às 9h do dia seguinte. Só a primeira
+  existia, e a validação comparava as HORAS sem olhar o dia: quem precisava do espaço noite
+  adentro era recusado com "o término tem de ser depois do início". O que separa uma da outra é o
+  próprio pedido — com mais de um dia, término em hora que não vem depois do início **só pode**
+  ser a travessia (como janela diária ela seria vazia) —, e por isso não há caixa a mais no
+  formulário. Reconhecida, a ocupação é UM bloco contínuo, **inclusive os dias inteiros do meio**:
+  bloquear demais devolve espaço que se libera, bloquear de menos põe duas atividades na mesma
+  sala. O conflito deixou de comparar hora-do-dia e passa a comparar **minutos absolutos**
+  (`janelasDaReserva`), que é o que torna os dois modelos comparáveis entre si; a ocupação em
+  horas sai do mesmo lugar. Dentro do MESMO dia, terminar antes de começar continua sendo erro. A
+  tela **diz qual leitura vai valer** antes de enviar (`lerQuando`) e escreve o período por
+  extenso — "das 18:00 de 10/09 às 09:00 de 11/09", nunca "10/09 a 11/09, das 18:00 às 09:00",
+  que pareceria um erro.
   **Dois degraus, e cada botão tem dono** (pedido do dono, ago/2026): confirmar e recusar são
   das DUAS gestões — a responsável resolve o que está na autonomia dela, e a PROPPEX também
   decide. O que os separa: **encaminhar** é dela PARA a PROPPEX e **não aparece para o gestor

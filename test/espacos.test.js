@@ -7,6 +7,7 @@ import {
   normalizarBloqueio, validarReserva, sobrepoe, conflitos, impedimentos, agenda,
   reservaPublica, ocupacaoPorEspaco, diasDaReserva, rotuloItem, itensEmDisputa, minhaReserva,
   ORGAOS_INSTITUCIONAIS, gruposDeOrgao, rotuloOrgao, exigeOficio, normalizarOficio,
+  atravessaMeiaNoite, janelasDaReserva, horasDaReserva,
 } from "../lib/espacos.js";
 
 const ESP = normalizarEspacos(ESPACOS_PADRAO);
@@ -256,4 +257,83 @@ test("ofício sem link não é ofício, e o gravado não some ao reeditar", () =
   assert.equal(reeditada.oficio.link, "https://x/y", "editar o pedido não descarta o documento");
   const removida = normalizarReserva({ id: "r9", oficio: null }, { espacos: ESP, base });
   assert.equal(removida.oficio, null, "mas dá para tirá-lo de propósito");
+});
+
+/* ======================================================================
+   A RESERVA QUE ATRAVESSA A NOITE (achado de uma professora, ago/2026).
+
+   Ela precisava do espaço das 18h de um dia às 9h do dia seguinte, e o
+   sistema recusou: "o término tem de ser depois do início". A regra
+   comparava só as horas e não reparava que o término era no outro dia.
+
+   O que estes testes protegem é que a correção NÃO desfez o modelo
+   antigo: um pedido de vários dias com faixa normal continua sendo a
+   mesma janela repetida a cada dia — senão o congresso de doze dias
+   passaria a ocupar o auditório vinte e quatro horas por dia.
+   ====================================================================== */
+const noite = (x = {}) => pedido({
+  id: "noite", dataInicio: "2026-09-10", dataFim: "2026-09-11",
+  horaInicio: "18:00", horaFim: "09:00", ...x,
+});
+
+test("das 18h de um dia às 9h do outro é reserva válida", () => {
+  assert.deepEqual(validarReserva(noite(), { espacos: ESP, hoje: HOJE }), []);
+  assert.equal(atravessaMeiaNoite(noite()), true);
+  // 18:00 → 09:00 do dia seguinte = 15 horas, num bloco só
+  assert.equal(janelasDaReserva(noite()).length, 1);
+  assert.equal(horasDaReserva(noite()), 15);
+});
+
+test("dentro do MESMO dia, terminar antes de começar continua sendo erro", () => {
+  const mesmoDia = pedido({ dataFim: "2026-09-10", horaInicio: "22:00", horaFim: "19:00" });
+  assert.equal(atravessaMeiaNoite(mesmoDia), false);
+  assert.ok(validarReserva(mesmoDia, { espacos: ESP, hoje: HOJE })
+    .some((e) => /término tem de ser depois/.test(e)));
+});
+
+test("vários dias com faixa normal seguem sendo a MESMA janela a cada dia", () => {
+  // o congresso: 10 a 14/09, das 8h às 18h — cinco janelas, não um bloco
+  const congresso = pedido({ id: "cong", dataFim: "2026-09-14", horaInicio: "08:00", horaFim: "18:00" });
+  assert.equal(atravessaMeiaNoite(congresso), false);
+  assert.equal(janelasDaReserva(congresso).length, 5);
+  assert.equal(horasDaReserva(congresso), 50, "10h por dia, cinco dias");
+  // e a NOITE do dia 12 continua livre para outro
+  const aNoite = pedido({ id: "outro", dataInicio: "2026-09-12", dataFim: "2026-09-12",
+    horaInicio: "19:00", horaFim: "22:00" });
+  assert.equal(sobrepoe(ESP, congresso, aNoite), false);
+});
+
+test("a travessia ocupa a noite — e só ela", () => {
+  // quem quer o auditório às 20h do dia 10 se choca com a travessia
+  const naNoite = pedido({ id: "x", dataInicio: "2026-09-10", dataFim: "2026-09-10",
+    horaInicio: "20:00", horaFim: "22:00" });
+  assert.equal(sobrepoe(ESP, noite(), naNoite), true);
+  // quem quer às 7h do dia 11 também: a travessia só termina às 9h
+  const cedo = pedido({ id: "y", dataInicio: "2026-09-11", dataFim: "2026-09-11",
+    horaInicio: "07:00", horaFim: "08:00" });
+  assert.equal(sobrepoe(ESP, noite(), cedo), true);
+  // mas às 10h do dia 11 o espaço já está livre — encostar não é sobrepor
+  const depois = pedido({ id: "z", dataInicio: "2026-09-11", dataFim: "2026-09-11",
+    horaInicio: "09:00", horaFim: "11:00" });
+  assert.equal(sobrepoe(ESP, noite(), depois), false);
+  // e a tarde do dia 10, ANTES das 18h, também está livre
+  const antes = pedido({ id: "w", dataInicio: "2026-09-10", dataFim: "2026-09-10",
+    horaInicio: "14:00", horaFim: "17:00" });
+  assert.equal(sobrepoe(ESP, noite(), antes), false);
+});
+
+test("travessia de mais de uma noite ocupa os dias do meio", () => {
+  // 10/09 18h → 13/09 09h: o dia 11 inteiro está dentro do bloco
+  const tresNoites = noite({ id: "t3", dataFim: "2026-09-13" });
+  assert.equal(janelasDaReserva(tresNoites).length, 1);
+  const meioDia11 = pedido({ id: "m", dataInicio: "2026-09-11", dataFim: "2026-09-11",
+    horaInicio: "12:00", horaFim: "14:00" });
+  assert.equal(sobrepoe(ESP, tresNoites, meioDia11), true,
+    "bloquear demais devolve espaço que se libera; de menos, põe dois eventos na mesma sala");
+});
+
+test("a ocupação conta as horas da travessia sem multiplicar pelos dias", () => {
+  const conf = { ...noite(), status: "confirmada" };
+  const [aud] = ocupacaoPorEspaco([conf], ESP, {}).filter((q) => q.id === "auditorio-bloco-a");
+  assert.equal(aud.horas, 15, "não é 15h × 2 dias");
 });

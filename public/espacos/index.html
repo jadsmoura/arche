@@ -129,6 +129,7 @@
   .ba-warn{background:var(--warn-soft);color:var(--warn);border:1px solid #f0e0bd}
   .ba-err{background:var(--err-soft);color:var(--err);border:1px solid #eed6d3}
   .ba-ok{background:var(--ok-soft);color:var(--ok);border:1px solid #cfeeda}
+  .ba-info{background:var(--info-soft);color:var(--info);border:1px solid #cfe6f2}
 
   /* -------------------------------- listas ------------------------------ */
   .item{display:flex;align-items:center;gap:14px;padding:15px 18px;background:#fff;border:1px solid var(--line);
@@ -565,6 +566,13 @@ async function renderAgenda() {
 
 const diaTodo = (r) => r?.horaInicio === "00:00" && r?.horaFim === "23:59";
 const faixaHora = (r) => (diaTodo(r) ? "dia todo" : `${r.horaInicio}–${r.horaFim}`);
+/* Reserva que ATRAVESSA A NOITE: das 18h de um dia às 9h do outro. Reconhece-se
+   pelo próprio pedido — mais de um dia com término em hora que não vem depois
+   do início —, e é a MESMA regra do servidor (atravessaMeiaNoite em
+   lib/espacos.js). Escrever "10/09 a 11/09, das 18:00 às 09:00" faria a linha
+   parecer um erro: a leitura certa é "das 18:00 de 10/09 às 09:00 de 11/09". */
+const noiteAdentro = (r) => !!r && !diaTodo(r) && r.dataFim > r.dataInicio
+  && String(r.horaFim || "") <= String(r.horaInicio || "");
 
 /* A etiqueta de cor por espaço (pedido do dono, ago/2026): num calendário
    cheio, a cor é o que transforma "o auditório está livre nesse dia?" numa
@@ -600,6 +608,25 @@ function detalhe(id) {
   nav("minhas");
 }
 
+/* Reserva de mais de um dia quer dizer DUAS coisas diferentes, e quem
+   preenche o formulário não tem como saber qual delas o sistema entendeu.
+   Por isso a tela devolve, em português, a leitura que vai valer — antes de
+   enviar, não depois da recusa. É a mesma regra do servidor. */
+function lerQuando() {
+  const cx = $("f-quando");
+  if (!cx) return;
+  const di = $("f-ini")?.value, df = $("f-fim")?.value;
+  const hi = $("f-hi")?.value, hf = $("f-hf")?.value;
+  if (!di || !df || !hi || !hf || df <= di) { cx.style.display = "none"; return; }
+  cx.style.display = "block";
+  cx.innerHTML = hf <= hi
+    ? `<b>Ocupação contínua:</b> das ${esc(hi)} de ${fmt(di)} às ${esc(hf)} de ${fmt(df)} —
+       o espaço fica reservado a noite inteira, sem interrupção.`
+    : `<b>Todos os dias, no mesmo horário:</b> de ${fmt(di)} a ${fmt(df)}, das ${esc(hi)} às ${esc(hf)}
+       em cada dia. Fora dessa faixa o espaço segue livre para outras reservas — se precisar dele
+       sem interrupção, ponha um término anterior ao início (ex.: 18:00 às 09:00).`;
+}
+
 /* --------------------------- nova solicitação --------------------------- */
 function renderNova() {
   const espacos = (DADOS.espacos || []).filter((e) => e.ativo !== false);
@@ -616,11 +643,12 @@ function renderNova() {
       <div class="card-t">2. Quando?</div>
       <div class="card-s">Para um dia só, deixe o último dia igual ao primeiro.</div>
       <div class="grid2">
-        <div><label>Primeiro dia *</label><input type="date" id="f-ini" min="${hojeISO()}" onchange="sincronizarFim()"></div>
-        <div><label>Último dia *</label><input type="date" id="f-fim" min="${hojeISO()}"></div>
-        <div><label>Início *</label><input type="time" id="f-hi" value="19:00"></div>
-        <div><label>Término *</label><input type="time" id="f-hf" value="22:00"></div>
+        <div><label>Primeiro dia *</label><input type="date" id="f-ini" min="${hojeISO()}" onchange="sincronizarFim();lerQuando()"></div>
+        <div><label>Último dia *</label><input type="date" id="f-fim" min="${hojeISO()}" onchange="lerQuando()"></div>
+        <div><label>Início *</label><input type="time" id="f-hi" value="19:00" onchange="lerQuando()"></div>
+        <div><label>Término *</label><input type="time" id="f-hf" value="22:00" onchange="lerQuando()"></div>
       </div>
+      <div id="f-quando" class="banner ba-info" style="margin:12px 0 0;display:none"></div>
     </div>
 
     <div class="card">
@@ -810,9 +838,11 @@ function cartaoReserva(r, { comAcoes = false } = {}) {
     return [e ? e.nome : i.espaco, i.detalhe, i.quantidade > 1 ? `${i.quantidade} salas` : ""].filter(Boolean).join(" — ");
   }).join(" · ");
   const hora = diaTodo(r) ? "o dia todo" : `das ${esc(r.horaInicio)} às ${esc(r.horaFim)}`;
-  const quando = r.dataInicio === r.dataFim
-    ? `${fmt(r.dataInicio)}, ${hora}`
-    : `${fmt(r.dataInicio)} a ${fmt(r.dataFim)}, ${hora}`;
+  const quando = noiteAdentro(r)
+    ? `das ${esc(r.horaInicio)} de ${fmt(r.dataInicio)} às ${esc(r.horaFim)} de ${fmt(r.dataFim)}`
+    : r.dataInicio === r.dataFim
+      ? `${fmt(r.dataInicio)}, ${hora}`
+      : `${fmt(r.dataInicio)} a ${fmt(r.dataFim)}, ${hora}`;
   const meu = r.solicitante?.email === DADOS.eu;
   const podeCancelar = (meu || DADOS.gestao) && ["solicitada", "encaminhada", "confirmada"].includes(r.status);
   /* Quem decide o quê (pedido do dono, ago/2026). As duas gestões CONFIRMAM —
@@ -990,7 +1020,9 @@ function renderAgendamentos() {
     return cabecalho + `<tr class="${passou ? "passada" : ""}">
       <td><span class="tags">${cores.map((c) => `<i style="background:${c}"></i>`).join("")}</span>
         ${esc(locais.join(" · "))}</td>
-      <td style="white-space:nowrap">${quando}<div class="p2">${diaTodo(r) ? "dia todo" : `${esc(r.horaInicio)}–${esc(r.horaFim)}`}</div></td>
+      <td style="white-space:nowrap">${quando}<div class="p2">${diaTodo(r) ? "dia todo"
+        : noiteAdentro(r) ? `${esc(r.horaInicio)} → ${esc(r.horaFim)} do dia seguinte`
+        : `${esc(r.horaInicio)}–${esc(r.horaFim)}`}</div></td>
       <td>${esc(r.atividade || "—")}<div class="p2">${esc(nomeOrgao(r.orgao, r.orgaoOutro))}</div></td>
       <td>${esc(r.solicitante?.nome || "—")}<div class="p2">${esc(r.protocolo || "")}</div></td>
       <td><span class="badge b-${esc(r.status)}">${esc(ROT_STATUS[r.status] || r.status)}</span></td>
