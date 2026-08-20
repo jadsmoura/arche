@@ -2726,14 +2726,19 @@ async function decidirEncerramento(id,decisao){
     ? (prompt("O que precisa ser corrigido? (a coordenação vai ler)","")||"").trim()
     : (prompt("Observação da validação (opcional)","")||"").trim();
   if(decisao==="devolvido"&&parecer.length<10){ alert("Escreva o que precisa ser corrigido."); return; }
-  if(decisao==="validado"&&!confirm("Validar o encerramento e LIBERAR os certificados deste evento?")) return;
+  if(decisao==="validado"&&!confirm("Validar o encerramento e LIBERAR os certificados deste evento?\n\n"
+    +"Todos com direito a certificado — participantes, palestrantes e comissão — recebem um "
+    +"e-mail avisando que o documento está pronto, com o link para baixá-lo.")) return;
   const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/evento/encerramento`,{method:"POST",
     headers:{"Content-Type":"application/json"},body:JSON.stringify({decisao,parecer})});
   const j=await r.json().catch(()=>({}));
   if(!r.ok){ alert(j.error||"Não foi possível registrar a decisão."); return; }
   await carregar(); nav("certificados");
-  alert(decisao==="validado"?"Encerramento validado — os certificados estão liberados."
-    :"Encerramento devolvido à coordenação.");
+  if(decisao!=="validado"){ alert("Encerramento devolvido à coordenação."); return; }
+  const av=j.avisos||{};
+  alert("Encerramento validado — os certificados estão liberados.\n\n"
+    +`Avisos enviados: ${av.enviados||0} de ${av.previstos||0}`
+    +(av.semEmail?`\n${av.semEmail} pessoa(s) sem e-mail no cadastro — essas não foram avisadas.`:""));
 }
 
 async function enviarAssinatura(id,quem){

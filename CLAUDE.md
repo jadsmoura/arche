@@ -273,6 +273,15 @@ public/
   vêm do MESMO `sys-assinaturas-v1` do ARCHÉ IC. **Quem cria o evento entra na comissão
   como coordenação**, com os dados do perfil — era a linha que todo mundo esquecia, e sem
   ela o coordenador ficava fora do certificado do evento que organizou.
+- **O aviso de que o certificado saiu** (`emailCertificadoDisponivel` + `avisarCertificadosDisponiveis`,
+  pedido do dono ago/2026): validado o encerramento, o documento existe — e quem participou não
+  volta ao portal para conferir se saiu. Sai **um e-mail por pessoa** na hora da validação, com
+  o link que serve a ELA: o inscrito baixa pela própria **credencial** (o mesmo endereço do QR,
+  que já está na caixa de entrada dele e dispensa conta); palestrante e comissão vão à guia
+  **Certificados**. O envio é sequencial e fire-and-forget — e-mail que falha não desfaz a
+  validação —, a marca `sys-ev-avisos-certificado-v1` impede que revalidar reenvie tudo, e a
+  tela devolve **quantos foram avisados e quantos ficaram sem e-mail no cadastro**, que é o
+  tamanho do buraco que a coordenação precisa conhecer.
 - **O histórico de certificados é do USUÁRIO** (`/certificados/` + `GET /api/meus-certificados`,
   pedido do dono ago/2026): quem participou de um evento, foi bolsista de IC e monitor de uma
   disciplina procurava o documento de cada um em três setores. A guia (cartão 08 e atalho na

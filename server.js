@@ -10238,6 +10238,61 @@ app.get("/api/meus-certificados/evento.pdf", async (req, res) => {
   }
 });
 
+
+/* AVISAR QUEM TEM CERTIFICADO (pedido do dono, ago/2026).
+   Validado o encerramento, o documento existe — e quem participou não volta
+   ao portal para conferir se saiu. Sai um e-mail por pessoa, com o link que
+   serve a ELA: o inscrito baixa pela própria CREDENCIAL (o mesmo endereço do
+   QR, que ele já tem na caixa de entrada e que dispensa conta); palestrante e
+   comissão vão à guia Certificados, onde encontram também os da IC e da
+   monitoria. Sem e-mail no registro não há aviso possível — e é isso que a
+   resposta devolve à tela, para a coordenação saber o tamanho do buraco.
+   O envio é sequencial e fire-and-forget: e-mail que falha não desfaz a
+   validação. A marca por evento impede que revalidar reenvie tudo. */
+const AVISOS_CERT_KEY = "sys-ev-avisos-certificado-v1";
+
+async function avisarCertificadosDisponiveis(acao) {
+  const base = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
+  const certs = certificadosDoEvento(acao);
+  const porToken = new Map((acao.participantes?.inscritos || [])
+    .filter((i) => i?.email && i?.token).map((i) => [String(i.email).toLowerCase(), i.token]));
+  const vistos = new Set();
+  const fila = [];
+  for (const c of certs) {
+    const email = String(c.email || "").trim().toLowerCase();
+    if (!email || vistos.has(email)) continue;
+    vistos.add(email);
+    const token = c.tipo === "participante" ? porToken.get(email) : null;
+    fila.push({ cert: { ...c, email },
+      link: token
+        ? `${base}/eventos/${encodeURIComponent(acao.evento?.slug || "")}/inscricao/${encodeURIComponent(token)}`
+        : `${base}/certificados/` });
+  }
+  const semEmail = certs.length - vistos.size;
+
+  let enviados = 0;
+  try {
+    const { enviarEmail, emailCertificadoDisponivel } = await import("./lib/mailer.js");
+    for (const item of fila) {
+      try {
+        await enviarEmail(emailCertificadoDisponivel({ acao, cert: item.cert, base, link: item.link }));
+        enviados += 1;
+      } catch (e) {
+        console.error(`[eventos] aviso de certificado não enviado a ${item.cert.email}:`, e.message);
+      }
+    }
+  } catch (e) { console.error("[eventos] avisos de certificado:", e.message); }
+
+  try {
+    const reg = JSON.parse((await storage.get(AVISOS_CERT_KEY)) || "{}");
+    reg[acao.id] = { em: new Date().toISOString(), enviados, previstos: fila.length, semEmail };
+    await storage.set(AVISOS_CERT_KEY, JSON.stringify(reg));
+  } catch { /* o registro é conveniência: falhar aqui não desfaz os envios */ }
+  console.log(`[eventos] certificados de "${acao.proposta?.nomeAtividade || acao.id}": `
+    + `${enviados}/${fila.length} avisados${semEmail ? `, ${semEmail} sem e-mail` : ""}`);
+  return { enviados, previstos: fila.length, semEmail };
+}
+
 /* ------------------------- encerrar o evento -----------------------------
    O coordenador clica em "Encerrar evento" quando terminou de lançar tudo —
    presenças, comissão, palestrantes — e o pedido vai à PROPPEX. Validado o
@@ -10310,7 +10365,11 @@ app.post("/api/extensao/:id/evento/encerramento", async (req, res) => {
       enviarEmail(emailDecisaoEncerramento(r.acao, decisao, parecer))
         .catch((e) => console.error("[eventos] decisão do encerramento não avisada:", e.message));
     } catch (e) { console.error("[eventos] decisão do encerramento:", e.message); }
-    res.json({ ok: true, evento: eventoSemSegredos(r.acao.evento) });
+    // validado = o certificado passa a existir: quem tem direito é avisado
+    // agora, sem depender de voltar ao portal para conferir
+    let avisos = null;
+    if (decisao === "validado") avisos = await avisarCertificadosDisponiveis(r.acao);
+    res.json({ ok: true, evento: eventoSemSegredos(r.acao.evento), avisos });
   } catch (e) {
     console.error("Erro na decisão do encerramento:", e);
     res.status(500).json({ error: "Não foi possível registrar a decisão." });
