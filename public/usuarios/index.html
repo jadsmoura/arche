@@ -75,6 +75,24 @@
   .pag button:disabled{opacity:.4;cursor:default}
   .pag button.on{background:var(--brand);border-color:var(--brand);color:#fff}
   .pag select{width:auto;font-size:13px;padding:5px 8px;margin:0}
+  /* guia dos envios automáticos */
+  .av-linha{display:flex;gap:16px;align-items:flex-start;padding:13px 0;border-bottom:1px solid var(--line)}
+  .av-linha:last-child{border-bottom:0}
+  .av-off{opacity:.62}
+  .av-txt{flex:1 1 auto;min-width:0}
+  .av-t{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .av-d{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.5}
+  .av-se{color:var(--muted)}
+  .av-ok{color:var(--brand-3);font-weight:600}
+  .av-tag{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+    border-radius:999px;padding:2px 8px}
+  .av-tag.g{background:var(--accent-wash);color:var(--brand-3)}
+  .av-tag.p{background:var(--ok-soft);color:var(--ok)}
+  .av-tag.c{background:var(--warn-soft,#fbf3e4);color:var(--warn,#c98a2b)}
+  .av-ctl{flex:0 0 auto;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+  .av-ctl select,.av-ctl input{font-size:12.5px;padding:6px 8px;border:1px solid var(--line);
+    border-radius:8px;background:#fff;font-family:inherit;color:var(--ink)}
+  @media(max-width:640px){.av-linha{flex-direction:column}.av-ctl{align-items:stretch;width:100%}}
 </style>
 </head>
 <body>
@@ -104,9 +122,11 @@
   <div class="abas">
     <button id="ab-usuarios" class="on" onclick="aba('usuarios')">👥 Usuários cadastrados</button>
     <button id="ab-acessos" onclick="aba('acessos')">🔐 Papéis e acessos</button>
+    <button id="ab-avisos" onclick="aba('avisos')">📣 Envios automáticos</button>
   </div>
   <div id="v-usuarios" class="muted">Carregando…</div>
   <div id="v-acessos" class="muted hide">Carregando…</div>
+  <div id="v-avisos" class="muted hide">Carregando…</div>
   <div id="ficha"></div>
 </main>
 <script>
@@ -309,10 +329,98 @@ const mesmoCurso=(a,b)=>{
 };
 
 function aba(qual){
-  $("ab-usuarios").classList.toggle("on",qual==="usuarios");
-  $("ab-acessos").classList.toggle("on",qual==="acessos");
-  $("v-usuarios").classList.toggle("hide",qual!=="usuarios");
-  $("v-acessos").classList.toggle("hide",qual!=="acessos");
+  ["usuarios","acessos","avisos"].forEach(k=>{
+    $("ab-"+k).classList.toggle("on",qual===k);
+    $("v-"+k).classList.toggle("hide",qual!==k);
+  });
+  if(qual==="avisos") carregarAvisos();
+}
+
+/* ======================================================================
+   ENVIOS AUTOMÁTICOS (pedido do dono, ago/2026)
+
+   O mesmo aviso é informação ou ruído conforme a época: no pico da
+   indicação de bolsistas, um e-mail a cada movimento da IC cansa; fora do
+   ciclo, é ele que faz a pró-reitoria saber que um aluno foi indicado. Por
+   isso o interruptor tem TRÊS posições — ligado, silenciado ATÉ uma data
+   (a pausa que se desfaz sozinha, para o pico não virar um desligamento
+   esquecido) e desligado.
+
+   A tela separa o que é AVISO À GESTÃO do que é MENSAGEM A UMA PESSOA:
+   calar o primeiro não quebra processo nenhum (o sino continua lá); calar
+   o segundo deixa alguém sem convite, sem credencial ou sem saber que tem
+   entrega a fazer — e a linha diz exatamente o que se perde.
+   ====================================================================== */
+let AVISOS=null;
+
+async function carregarAvisos(){
+  if(AVISOS) return renderAvisos();
+  const r=await fetch("/api/avisos");
+  if(!r.ok){ $("v-avisos").innerHTML="Acesso restrito à PROPPEX."; return; }
+  AVISOS=await r.json();
+  renderAvisos();
+}
+
+function renderAvisos(){
+  const hoje=new Date(Date.now()-3*3600*1000).toISOString().slice(0,10);
+  const calados=(AVISOS.avisos||[]).filter(a=>!a.ligado).length;
+  const linha=(a)=>{
+    const sel=(v,r)=>`<option value="${v}"${a.estado===v?" selected":""}>${r}</option>`;
+    return `<div class="av-linha${a.ligado?"":" av-off"}">
+      <div class="av-txt">
+        <div class="av-t">${esc(a.rotulo)}
+          <span class="av-tag ${a.destino==="gestao"?"g":"p"}">${a.destino==="gestao"?"aviso à gestão":"mensagem a uma pessoa"}</span>
+          ${a.critico?'<span class="av-tag c">calar tem consequência</span>':""}</div>
+        <div class="av-d">${esc(a.texto)}</div>
+        <div class="av-d av-se"><b>Se desligar:</b> ${esc(a.seDesligar)}</div>
+        ${a.vencido?`<div class="av-d av-ok">O silêncio venceu em ${(a.ate||'').split('-').reverse().join('/')} — voltou a enviar.</div>`
+          :a.estado==="silenciado"&&a.ate?`<div class="av-d av-ok">Silenciado até ${(a.ate||'').split('-').reverse().join('/')}; volta sozinho no dia seguinte.</div>`:""}
+      </div>
+      <div class="av-ctl">
+        <select onchange="mudarAviso('${a.codigo}',this.value)">
+          ${sel("ligado","Enviando")}${sel("silenciado","Silenciar até…")}${sel("desligado","Desligado")}
+        </select>
+        ${a.estado==="silenciado"?`<input type="date" min="${hoje}" value="${esc(a.ate||"")}"
+          onchange="mudarAviso('${a.codigo}','silenciado',this.value)">`:""}
+      </div>
+    </div>`;
+  };
+  $("v-avisos").innerHTML=`
+    <div class="card">
+      <div class="sec">Envios automáticos de e-mail</div>
+      <p class="muted" style="margin:8px 0 0">Tudo o que o ARCHÉ manda sozinho está aqui, por setor.
+        Use <b>Silenciar até</b> quando for questão de época — a pausa se desfaz na data, sem depender
+        de alguém lembrar de religar. ${calados?`<b>${calados}</b> aviso(s) fora do ar agora.`:"Todos ativos."}</p>
+      <p class="muted" style="margin:8px 0 0;font-size:12.5px">O código de acesso do login não entra
+        aqui de propósito: desligá-lo trancaria todo mundo do lado de fora.</p>
+    </div>
+    ${(AVISOS.setores||[]).map(s=>{
+      const meus=(AVISOS.avisos||[]).filter(a=>a.setor===s.chave);
+      if(!meus.length) return "";
+      return `<div class="card">
+        <div class="sec">${esc(s.rotulo)} <span class="muted" style="font-weight:400;font-size:12.5px">· caixa do setor: ${esc(s.caixa)}</span></div>
+        ${meus.map(linha).join("")}
+      </div>`;
+    }).join("")}`;
+}
+
+async function mudarAviso(codigo,estado,ate){
+  if(estado==="silenciado"&&!ate){
+    const a=(AVISOS.avisos||[]).find(x=>x.codigo===codigo);
+    ate=a&&a.ate?a.ate:"";
+    if(!ate){
+      const d=new Date(Date.now()+30*864e5-3*3600*1000).toISOString().slice(0,10);
+      ate=prompt("Silenciar este aviso até que dia? (AAAA-MM-DD)\n\nDepois dessa data ele volta a "
+        +"enviar sozinho — é o que evita esquecer religado.",d)||"";
+      if(!ate) return renderAvisos();
+    }
+  }
+  const r=await fetch("/api/avisos",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({codigo,estado,ate:ate||""})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ alert(j.error||"Não foi possível salvar."); return renderAvisos(); }
+  AVISOS.avisos=j.avisos;
+  renderAvisos();
 }
 
 async function carregarPainel(){

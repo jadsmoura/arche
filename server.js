@@ -76,6 +76,10 @@ import {
   videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento, contaPresente,
 } from "./lib/eventos.js";
 import {
+  AVISOS, AVISOS_KEY, SETORES_AVISO, aplicarMudanca as aplicarMudancaAviso,
+  avisoLigado, normalizarConfig as normalizarAvisos, situacaoDosAvisos,
+} from "./lib/avisos.js";
+import {
   ASSINANTES_DO_EVENTO, assinanteDoEventoValido, assinaturasDoCertificado,
   certificadoDe, certificadosDePessoa, certificadosDoEvento, eventoCertificavel,
   eventoEncerrado, podeEncerrar, programacaoDoCertificado, situacaoEncerramento,
@@ -698,7 +702,7 @@ app.get("/auth/sair", (req, res) => {
 
 async function notificarPendente(email, nome) {
   const { enviarEmail } = await import("./lib/mailer.js");
-  await enviarEmail({
+  await enviarAviso("auth-cadastro-novo", {
     assunto: `[ARCHÉ] Novo cadastro aprovado automaticamente: ${email}`,
     corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif">
       <p><b>${nome}</b> (${email}) entrou no ARCHÉ e foi <b>aprovado automaticamente</b> como submissor
@@ -1091,7 +1095,7 @@ app.post("/api/ic/convidar-professores", async (req, res) => {
   const enviados = [], falhas = [];
   for (const d of alvo) {
     try {
-      await enviarEmail({
+      await enviarAviso("ic-convite-professores", {
         para: d.email,
         assunto: "[ARCHÉ] Edital 01/2026 — crie o seu acesso para acompanhar seus projetos",
         corpoHtml: corpoConvite(d),
@@ -2090,7 +2094,7 @@ app.post("/api/extensao/devolver", async (req, res) => {
     try {
       const { enviarEmail, emailPropostaDevolvida } = await import("./lib/mailer.js");
       const msg = emailPropostaDevolvida(r.acao, { baseUrl: `${req.protocol}://${req.get("host")}` });
-      if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(msg.para)) avisado = await enviarEmail(msg);
+      if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(msg.para)) avisado = await enviarAviso("ex-proposta-devolvida", msg);
     } catch (e) {
       console.error("[extensao] aviso de devolução falhou:", e.message);
     }
@@ -2206,7 +2210,7 @@ app.post("/api/extensao/notificar", async (req, res) => {
     }
 
     const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const destino = await enviarEmail({ ...emailNovaProposta(acao, baseUrl), anexos });
+    const destino = await enviarAviso("ex-nova-proposta", { ...emailNovaProposta(acao, baseUrl), anexos });
 
     // confirmação ao responsável, com a mesma cópia em PDF
     let paraResponsavel = null;
@@ -2216,7 +2220,7 @@ app.post("/api/extensao/notificar", async (req, res) => {
     const paraValido = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(confirmacao.para || "").trim());
     if (paraValido && confirmacao.para.toLowerCase() !== destino.toLowerCase()) {
       try {
-        paraResponsavel = await enviarEmail({ ...confirmacao, anexos });
+        paraResponsavel = await enviarAviso("ex-confirmacao-proposta", { ...confirmacao, anexos });
       } catch (e) {
         console.error("Falha ao enviar confirmação ao responsável:", e.message);
       }
@@ -2618,7 +2622,7 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
           type: "png", errorCorrectionLevel: "M", margin: 1, width: 440,
         });
       } catch (e) { console.error("[eventos] QR do e-mail não gerado:", e.message); }
-      await enviarEmail(emailInscricaoEvento(r.acao, r.inscrito,
+      await enviarAviso("ev-inscricao", emailInscricaoEvento(r.acao, r.inscrito,
         { baseUrl: `${req.protocol}://${req.get("host")}`, qrPng, wallet: walletConfigurada() }));
     } catch (e) {
       console.error("[eventos] confirmação de inscrição não enviada:", e.message);
@@ -3643,7 +3647,7 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
     if (r.ativou) {
       try {
         const { enviarEmail, emailEventoAtivado } = await import("./lib/mailer.js");
-        enviarEmail(emailEventoAtivado(r.acao))
+        enviarAviso("ev-pagina-ativada", emailEventoAtivado(r.acao))
           .catch((e) => console.error("[eventos] aviso de ativação não enviado:", e.message));
       } catch (e) { console.error("[eventos] aviso de ativação:", e.message); }
     }
@@ -4294,7 +4298,7 @@ async function avisarReserva(reserva, espacos, momento) {
     // o e-mail lê gente, não código: o órgão vai pelo nome
     const legivel = { ...reserva, orgao: rotuloOrgao(reserva.orgao, CURSOS, reserva.orgaoOutro) };
     for (const msg of emailReservaEspaco(legivel, espacos, momento)) {
-      if (msg?.para) await enviarEmail(msg);
+      if (msg?.para) await enviarAviso("esp-reserva", msg);
     }
   } catch (e) {
     console.error("[espacos] aviso por e-mail não enviado:", e.message);
@@ -4380,10 +4384,10 @@ async function sessaoMon(req, res) {
 }
 
 /** O e-mail do setor recebe as movimentações; a PROPPEX acompanha por lá. */
-async function avisarMonitoria(msg) {
+async function avisarMonitoria(msg, codigo = "mon-movimentacao") {
   try {
     const { enviarEmail } = await import("./lib/mailer.js");
-    if (msg?.para) await enviarEmail(msg);
+    if (msg?.para) await enviarAviso(codigo, msg);
   } catch (e) {
     console.error("[monitoria] aviso por e-mail não enviado:", e.message);
   }
@@ -4394,7 +4398,7 @@ async function convidarMonitores(projeto, monitores) {
   const { emailConviteMonitor } = await import("./lib/mailer.js");
   for (const m of monitores) {
     if (!m?.email) continue;
-    await avisarMonitoria(emailConviteMonitor(projeto, m, { baseUrl: SITE_BASE }));
+    await avisarMonitoria(emailConviteMonitor(projeto, m, { baseUrl: SITE_BASE }), "mon-convite-monitor");
   }
 }
 
@@ -5101,7 +5105,7 @@ async function varrerCobrancaMon() {
     const ultima = Date.parse(registro[alvo] || "") || 0;
     if (Date.now() - ultima < INTERVALO) continue;
     try {
-      await enviarEmail(emailCobrancaMonitoria({ para: alvo, ...dados }));
+      await enviarAviso("mon-cobranca", emailCobrancaMonitoria({ para: alvo, ...dados }));
       registro[alvo] = new Date().toISOString();
       enviadas++;
     } catch (e) { console.error(`Cobrança MO não enviada a ${alvo}:`, e.message); }
@@ -5127,7 +5131,7 @@ app.post("/api/monitoria/chamada-relatorio", async (req, res) => {
     let enviadas = 0;
     for (const [alvo, dados] of porPessoa) {
       try {
-        await enviarEmail(emailCobrancaMonitoria({ para: alvo, ...dados, mensagem }));
+        await enviarAviso("mon-cobranca", emailCobrancaMonitoria({ para: alvo, ...dados, mensagem }));
         registro[alvo] = new Date().toISOString();
         enviadas++;
       } catch (e) { console.error(`Chamada MO não enviada a ${alvo}:`, e.message); }
@@ -6506,7 +6510,7 @@ app.post("/api/ic/certificados/avisar", async (req, res) => {
   const enviados = [], falhas = [];
   for (const d of destinatarios) {
     try {
-      await enviarEmail({
+      await enviarAviso("ic-aviso-certificados", {
         para: d.email,
         assunto: `[ARCHÉ] Seu certificado de Iniciação Científica (${edital}) está disponível`,
         corpoHtml: corpoAviso(d),
@@ -6766,7 +6770,7 @@ const registrosEMDe = (lista, email) => {
 function avisarPesquisa(assunto, linhas, titulo) {
   (async () => {
     const { enviarEmail, emailMovimentacaoIC } = await import("./lib/mailer.js");
-    await enviarEmail(emailMovimentacaoIC({ assunto, titulo, linhas }));
+    await enviarAviso("ic-movimentacao", emailMovimentacaoIC({ assunto, titulo, linhas }));
   })().catch((e) => console.error("Aviso IC não enviado:", e.message));
 }
 
@@ -6832,7 +6836,7 @@ async function varrerCobrancaIC() {
     const ultima = Date.parse(registro[emailAlvo] || "") || 0;
     if (Date.now() - ultima < SETE_DIAS) continue;
     try {
-      await enviarEmail(emailCobrancaRelatorioIC({ para: emailAlvo, ...dados }));
+      await enviarAviso("ic-cobranca-relatorio", emailCobrancaRelatorioIC({ para: emailAlvo, ...dados }));
       registro[emailAlvo] = new Date().toISOString();
       enviadas++;
     } catch (e) { console.error(`Cobrança IC não enviada a ${emailAlvo}:`, e.message); }
@@ -6871,7 +6875,7 @@ app.post("/api/ic/chamada-relatorio", async (req, res) => {
   let enviados = 0;
   for (const [emailAlvo, dados] of porPessoa) {
     try {
-      await enviarEmail(emailCobrancaRelatorioIC({ para: emailAlvo, ...dados, mensagem }));
+      await enviarAviso("ic-cobranca-relatorio", emailCobrancaRelatorioIC({ para: emailAlvo, ...dados, mensagem }));
       registro[emailAlvo] = new Date().toISOString();
       enviados++;
     } catch (e) { falhas.push(`${dados.nome || emailAlvo}: ${e.message}`); }
@@ -7108,7 +7112,7 @@ app.post("/api/ic/em/chamada-relatorio", async (req, res) => {
   const falhas = [];
   for (const b of comEmail) {
     const meusTipos = tipos.filter((t) => b.relatorios?.[t]?.situacao !== "validado");
-    try { await enviarEmail(emailChamadaRelatorioEM(b, turma, { baseUrl, tipos: meusTipos, mensagem })); }
+    try { await enviarAviso("em-chamada-relatorio", emailChamadaRelatorioEM(b, turma, { baseUrl, tipos: meusTipos, mensagem })); }
     catch (e) { falhas.push(`${b.nome}: ${e.message}`); }
   }
   res.json({ ok: true, turma: turma.ciclo, enviados: comEmail.length - falhas.length, falhas, semEmail });
@@ -7210,7 +7214,7 @@ app.post("/api/ic/em/convidar", async (req, res) => {
   const falhas = [];
   for (const b of alvos) {
     try {
-      await enviarEmail(emailConviteEM(b, turma, { baseUrl, mensagem }));
+      await enviarAviso("em-convite", emailConviteEM(b, turma, { baseUrl, mensagem }));
       enviados[b.email] = { em: new Date().toISOString(), turma: turma.ciclo };
     } catch (e) { falhas.push(`${b.nome}: ${e.message}`); }
   }
@@ -7620,8 +7624,7 @@ async function convidarAlunosIC(projeto, alunos) {
   const link = `${base}/entrar?next=${encodeURIComponent("/pesquisa/ic/")}`;
   for (const a of alunos) {
     try {
-      const { enviarEmail } = await import("./lib/mailer.js");
-      await enviarEmail({
+      await enviarAviso("ic-convite-aluno", {
         para: a.email,
         assunto: `[ARCHÉ] Você foi indicado(a) para a Iniciação Científica — ${projeto.numero || "UNIEGO"}`,
         corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:560px">
@@ -8807,7 +8810,7 @@ async function chamadaRegularizacao012025() {
     const falhas = [];
     for (const [emailAlvo, dados] of porPessoa) {
       try {
-        await enviarEmail(emailCobrancaRelatorioIC({ para: emailAlvo, ...dados }));
+        await enviarAviso("ic-cobranca-relatorio", emailCobrancaRelatorioIC({ para: emailAlvo, ...dados }));
         registro[emailAlvo] = new Date().toISOString();
         ok++;
       } catch (e) { falhas.push(`${dados.nome || emailAlvo}: ${e.message}`); }
@@ -8838,7 +8841,7 @@ async function convidarTurmaEM2025() {
     const falhas = [];
     for (const b of bolsistas) {
       try {
-        await enviarEmail(emailConviteEM(b, turma, {}));
+        await enviarAviso("em-convite", emailConviteEM(b, turma, {}));
         enviados[b.email] = { em: new Date().toISOString(), turma: turma.ciclo };
         ok++;
       } catch (e) { falhas.push(`${b.nome}: ${e.message}`); }
@@ -9955,6 +9958,54 @@ for (const sinal of ["SIGTERM", "SIGINT"]) {
   });
 }
 
+
+/* ========================================================================
+   AVISOS AUTOMÁTICOS — o interruptor (pedido do dono, ago/2026).
+
+   Todo e-mail que o ARCHÉ manda SOZINHO passa por aqui com o seu código. O
+   catálogo (lib/avisos.js) diz o que cada um é e o que se perde ao calá-lo;
+   a configuração guarda só o que foge do padrão, e aviso ausente é aviso
+   LIGADO — assim um aviso novo já nasce funcionando, em vez de ficar mudo
+   porque ninguém o pôs numa lista.
+
+   O código de acesso do login NÃO entra aqui de propósito: desligá-lo
+   trancaria todo mundo do lado de fora.
+   ======================================================================== */
+async function lerAvisos() {
+  try { return normalizarAvisos(JSON.parse((await storage.get(AVISOS_KEY)) || "{}")); }
+  catch { return {}; }
+}
+
+/** Manda o e-mail SE o aviso estiver ligado. Devolve `{silenciado:true}` quando não. */
+async function enviarAviso(codigo, mensagem) {
+  const cfg = await lerAvisos();
+  if (!avisoLigado(cfg, codigo, hojeLocalISO())) {
+    console.log(`[avisos] ${codigo} está silenciado — e-mail não enviado`);
+    return { silenciado: true };
+  }
+  const { enviarEmail } = await import("./lib/mailer.js");
+  return enviarEmail(mensagem);
+}
+
+/** GET /api/avisos — o painel. Só gestor geral: é configuração do portal. */
+app.get("/api/avisos", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  const cfg = await lerAvisos();
+  res.json({ ok: true, setores: SETORES_AVISO,
+    avisos: situacaoDosAvisos(cfg, hojeLocalISO()) });
+});
+
+/** POST /api/avisos — liga, desliga ou silencia até uma data. */
+app.post("/api/avisos", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  const b = req.body || {};
+  const r = aplicarMudancaAviso(await lerAvisos(),
+    { codigo: b.codigo, estado: b.estado, ate: b.ate, por: g.email }, hojeLocalISO());
+  if (r.erro) return res.status(400).json({ error: r.erro });
+  await storage.set(AVISOS_KEY, JSON.stringify(r.config));
+  res.json({ ok: true, avisos: situacaoDosAvisos(r.config, hojeLocalISO()) });
+});
+
 /* ========================================================================
    CERTIFICADOS DO EVENTO — emitidos pelo próprio ARCHÉ (decisão do dono,
    ago/2026).
@@ -10275,7 +10326,7 @@ async function avisarCertificadosDisponiveis(acao) {
     const { enviarEmail, emailCertificadoDisponivel } = await import("./lib/mailer.js");
     for (const item of fila) {
       try {
-        await enviarEmail(emailCertificadoDisponivel({ acao, cert: item.cert, base, link: item.link }));
+        await enviarAviso("ev-certificado", emailCertificadoDisponivel({ acao, cert: item.cert, base, link: item.link }));
         enviados += 1;
       } catch (e) {
         console.error(`[eventos] aviso de certificado não enviado a ${item.cert.email}:`, e.message);
@@ -10325,7 +10376,7 @@ app.post("/api/extensao/:id/evento/encerrar", async (req, res) => {
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
     try {
       const { enviarEmail, emailEncerramentoEvento } = await import("./lib/mailer.js");
-      enviarEmail(emailEncerramentoEvento(r.acao))
+      enviarAviso("ev-encerramento", emailEncerramentoEvento(r.acao))
         .catch((e) => console.error("[eventos] aviso de encerramento não enviado:", e.message));
     } catch (e) { console.error("[eventos] aviso de encerramento:", e.message); }
     res.json({ ok: true, evento: eventoSemSegredos(r.acao.evento) });
@@ -10362,7 +10413,7 @@ app.post("/api/extensao/:id/evento/encerramento", async (req, res) => {
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
     try {
       const { enviarEmail, emailDecisaoEncerramento } = await import("./lib/mailer.js");
-      enviarEmail(emailDecisaoEncerramento(r.acao, decisao, parecer))
+      enviarAviso("ev-decisao-encerramento", emailDecisaoEncerramento(r.acao, decisao, parecer))
         .catch((e) => console.error("[eventos] decisão do encerramento não avisada:", e.message));
     } catch (e) { console.error("[eventos] decisão do encerramento:", e.message); }
     // validado = o certificado passa a existir: quem tem direito é avisado

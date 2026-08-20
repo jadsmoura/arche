@@ -248,6 +248,18 @@ public/
   propostas/relatórios da Extensão e órgãos fora de dia nas Atas. O recorte é por
   `modulosDe`: o gestor geral vê tudo; o coordenador, só os módulos que coordena; quem
   não gere nada não vê o sino. A rota só devolve contagens, nomes e links — nada sigiloso.
+- **Envios automáticos de e-mail** (`lib/avisos.js` + guia "Envios automáticos" em `/usuarios/`,
+  `GET/POST /api/avisos`, só gestor geral — pedido do dono ago/2026): o mesmo aviso é informação
+  ou ruído conforme a época — no pico da indicação de bolsistas, um e-mail a cada movimento da IC
+  cansa; fora do ciclo, é ele que faz a pró-reitoria saber que um aluno foi indicado. O
+  interruptor tem **três** posições: **ligado**, **silenciado até uma data** (a pausa que se
+  desfaz sozinha, para o pico não virar um desligamento esquecido) e **desligado**. O catálogo
+  tem 22 avisos em 7 setores e cada linha diz **para quem vai** (aviso à gestão × mensagem a uma
+  pessoa, com `critico: true` nesta) e **o que se perde ao calá-lo**. Regras: aviso ausente da
+  configuração é aviso LIGADO — guarda-se só o que foge do padrão, e assim um aviso novo já nasce
+  funcionando; "silenciado" sem data é recusado (seria um desligado disfarçado); e todo disparo
+  automático passa por `enviarAviso(codigo, msg)`. **O código de acesso do login fica de fora de
+  propósito**: desligá-lo trancaria todo mundo do lado de fora.
 - **Senha provisória** (`POST /api/usuarios/senha`, só gestores gerais): para quem perdeu o
   acesso ao e-mail. Vale **7 dias** e obriga a troca no primeiro login (`/auth/senha`
   devolve `trocarSenha: true`; o `/entrar` esconde o "agora não"). Quando a pessoa define
