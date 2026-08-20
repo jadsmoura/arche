@@ -427,6 +427,15 @@ public/
   guia Credenciamento): nem toda reunião dá para inscrever antes — o QR da página do evento
   vai ao telão no encerramento e quem estava ali se inscreve na hora. Tem versão em tela
   cheia (nome do evento + QR + endereço escrito) e download do PNG para cartaz e slide.
+- **Hora-limite da inscrição** (`inscricoesAteHora` + `horaLimiteInscricao`/`prazoInscricaoVencido`
+  em lib/eventos.js, pedido dos coordenadores ago/2026): o QR projetado no telão é fotografado,
+  e quem NÃO foi à palestra se inscreve à noite — a presença sai certa e a lista de inscritos,
+  não. A guia Inscrições ganha a hora ao lado da data, e ela fecha a inscrição **no último
+  dia**: o configurado ou, se a data estiver vazia, o fim do evento (é o caso da palestra de um
+  dia, que não precisa repetir a data). Evento **sem hora continua valendo o dia inteiro** — o
+  padrão não pode fechar mais cedo para quem não pediu. O relógio é o de Brasília
+  (`horaLocalHHMM` em lib/datas.js), nunca o do navegador de quem se inscreve, e quem confere é
+  o SERVIDOR, dentro da fila (a rota de trocar atividades também).
 - **O relatório final exige FOTOS** (`lib/portfolio.js`, decisão do dono ago/2026): a entrega
   pede **no mínimo 5 fotos** no portfólio da ação, sem teto — o registro fotográfico é o que
   comprova a realização, e proposta e relatório sozinhos não se conferem depois. A régua é

@@ -1422,8 +1422,12 @@ function renderInscricoes(a){
           <input type="number" id="ev-vagas" min="0" value="${esc(ev.vagas??0)}"></div>
         <div><label style="margin-top:0">Inscrições até <span class="muted">(vazio = fim do evento)</span></label>
           <input type="date" id="ev-prazo" value="${esc(ev.inscricoesAte||"")}"></div>
-        <div></div>
+        <div><label style="margin-top:0">Hora-limite <span class="muted">(vazio = o dia todo)</span></label>
+          <input type="time" id="ev-prazo-hora" value="${esc(ev.inscricoesAteHora||"")}"></div>
       </div>
+      <div class="muted" style="margin-top:10px">A hora fecha a inscrição <b>no último dia</b> —
+        o configurado acima ou, se estiver vazio, o fim do evento. É o que impede que o QR
+        projetado no telão siga aceitando inscrição depois da palestra, de quem não esteve lá.</div>
     </div>
 
     <div class="card">
@@ -2548,6 +2552,7 @@ function salvarInscricoes(id){
   return salvarParteEvento(id, {
     vagas:$("ev-vagas")?.value||0,
     inscricoesAte:$("ev-prazo")?.value||"",
+    inscricoesAteHora:$("ev-prazo-hora")?.value||"",
     formulario:EV_FORM.map(c=>({ id:c.id||"", rotulo:c.rotulo||"", tipo:c.tipo||"texto",
       opcoes:String(c.opcoesTxt||"").split(",").map(s=>s.trim()).filter(Boolean),
       obrigatorio:!!c.obrigatorio, instrucoes:c.instrucoes||"" })),

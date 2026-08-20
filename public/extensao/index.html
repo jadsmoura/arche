@@ -1911,7 +1911,9 @@ function cardEvento(a){
       <div><label style="margin-top:0">Vagas <span class="muted">(0 = ilimitado)</span></label>
         <input type="number" id="ev-vagas" min="0" value="${esc(ev.vagas??0)}"></div>
       <div><label style="margin-top:0">Inscrições até <span class="muted">(vazio = fim do evento)</span></label>
-        <input type="date" id="ev-prazo" value="${esc(ev.inscricoesAte||"")}"></div>
+        <input type="date" id="ev-prazo" value="${esc(ev.inscricoesAte||"")}">
+        <label style="margin-top:8px">Hora-limite no último dia <span class="muted">(vazio = o dia todo)</span></label>
+        <input type="time" id="ev-prazo-hora" value="${esc(ev.inscricoesAteHora||"")}"></div>
     </div>
     ${ev.slug ? `<label>Endereço da página <span class="muted">(mudar não quebra inscrições já feitas)</span></label>
       <div style="display:flex;gap:6px;align-items:center"><span class="muted" style="white-space:nowrap">/eventos/</span>
@@ -2287,6 +2289,7 @@ async function salvarEvento(id, {publicada}={}){
     descricao:$("ev-desc")?.value||"",
     vagas:$("ev-vagas")?.value||0,
     inscricoesAte:$("ev-prazo")?.value||"",
+    inscricoesAteHora:$("ev-prazo-hora")?.value||"",
     programacao:EV_PROG,
     formulario:EV_FORM.map(c=>({ id:c.id||"", rotulo:c.rotulo||"", tipo:c.tipo||"texto",
       opcoes:String(c.opcoesTxt||"").split(",").map(s=>s.trim()).filter(Boolean),

@@ -4,7 +4,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   hojeLocalISO, diaSerial, somaDias, dataCivil, dentroDaJanela, relogioPlausivel, agoraLocal,
+  horaLocalHHMM,
 } from "../lib/datas.js";
+
+test("horaLocalHHMM é o relógio de Brasília, com dois dígitos", () => {
+  assert.equal(horaLocalHHMM(new Date("2026-08-14T00:05:00Z")), "21:05", "UTC-3, e ainda é dia 13");
+  assert.equal(horaLocalHHMM(new Date("2026-08-14T12:00:00Z")), "09:00", "hora com zero à frente");
+  assert.equal(horaLocalHHMM(new Date("2026-08-14T03:00:00Z")), "00:00");
+  assert.equal(horaLocalHHMM(new Date("nada")), "", "data inválida não vira hora");
+});
 
 test("hojeLocalISO vira o dia às 00:00 de Brasília (03:00Z), não à meia-noite UTC", () => {
   assert.equal(hojeLocalISO(new Date("2026-08-14T02:59:59Z")), "2026-08-13");

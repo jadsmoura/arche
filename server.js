@@ -66,6 +66,7 @@ import {
   slugDeNome, slugUnico, SLUG_VALIDO, slugReservado, SLUGS_RESERVADOS, gerarChaveQr, gerarCodigoMonitor, gerarToken, tokenValido,
   codigoDe, inscritoPorToken, normalizarProgramacao, vagasRestantes, prazoInscricao,
   podeInscrever as podeInscreverEvento, jaInscrito,
+  horaLimiteInscricao, prazoInscricaoVencido, RE_HORA_LIMITE,
   TIPOS_ATIVIDADE, gerarIdCurto, vagasAtividade, podeEscolherAtividade,
   normalizarFormulario, validarRespostas, LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd,
   normalizarBlocos, TIPOS_BLOCO, CATEGORIAS_APOIO, REDES_SOCIAIS, FREQUENCIAS,
@@ -100,7 +101,7 @@ import {
   DOCUMENTOS_EDITAIS, RESULTADOS_EDITAIS,
 } from "./lib/edital.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
-import { dataCivil, diaSerial, hojeLocalISO } from "./lib/datas.js";
+import { dataCivil, diaSerial, hojeLocalISO, horaLocalHHMM } from "./lib/datas.js";
 import { classificar as classificarBanda } from "./lib/banda.js";
 import { medir as medirBanda, diagnostico as diagnosticoBanda, zerar as zerarBanda,
   fecharMedicao } from "./lib/medidor.js";
@@ -2409,7 +2410,8 @@ function eventoPublico(a, { detalhe = false } = {}) {
     resumo: String(ev.descricao || p.temaCentral || "").slice(0, 240),
     vagasRestantes: vagasRestantes(ev, inscritos),
     inscricoesAte: prazoInscricao(ev, a),
-    inscricoesAbertas: podeInscreverEvento(a, hojeLocalISO()).ok,
+    inscricoesAteHora: horaLimiteInscricao(ev),
+    inscricoesAbertas: podeInscreverEvento(a, hojeLocalISO(), horaLocalHHMM()).ok,
     temCapa: !!ev.capa,
     controleFrequencia: eventoControlaFrequencia(ev),
     hotsite: temHotsiteEvento(ev),
@@ -2576,7 +2578,7 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     const r = await comAcoes((acoes) => {
       const a = eventoPorSlug(acoes, req.params.slug);
       if (!a) return { erro: [404, "Evento não encontrado — a página pode ter sido encerrada."], gravar: false };
-      const aberta = podeInscreverEvento(a, hojeLocalISO());
+      const aberta = podeInscreverEvento(a, hojeLocalISO(), horaLocalHHMM());
       if (!aberta.ok) return { erro: [409, aberta.motivo], gravar: false };
       const parts = a.participantes || (a.participantes = { inscritos: [], palestrantes: [], comissao: [] });
       parts.inscritos = parts.inscritos || [];
@@ -2756,8 +2758,7 @@ app.post("/api/publico/eventos/:slug/inscricao/:token/atividades", async (req, r
         return { erro: [404, "Inscrição não encontrada — confira o link recebido por e-mail."], falha: true, gravar: false };
       if (!a.evento.ativo)
         return { erro: [409, "As inscrições deste evento não estão abertas."], gravar: false };
-      const ate = prazoInscricao(a.evento, a);
-      if (ate && hojeLocalISO() > ate)
+      if (prazoInscricaoVencido(a, hojeLocalISO(), horaLocalHHMM()))
         return { erro: [409, "O prazo de inscrição deste evento já se encerrou."], gravar: false };
       const atuais = Array.isArray(inscrito.atividades) ? inscrito.atividades : [];
       for (const idAtv of pedidas) {
@@ -3531,6 +3532,12 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
         if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d))
           return { erro: [400, "Prazo de inscrição inválido."], gravar: false };
         ev.inscricoesAte = d;
+      }
+      if (b.inscricoesAteHora !== undefined) {
+        const h = String(b.inscricoesAteHora || "").trim();
+        if (h && !RE_HORA_LIMITE.test(h))
+          return { erro: [400, "Hora-limite de inscrição inválida — use o formato 21:00."], gravar: false };
+        ev.inscricoesAteHora = h;
       }
       // tipo errado é 400, nunca 200: normalizar uma string devolveria []
       // e ZERARIA atividades/campos com resposta de sucesso (achado da

@@ -295,7 +295,8 @@ function render() {
   /* ------ 1. hero ------ */
   const selos = [
     e.modalidade ? `<span class="selo on">${MODAL_ROTULO[e.modalidade] || esc(e.modalidade)}</span>` : "",
-    abertas ? `<span class="selo">Inscrições abertas${e.inscricoesAte ? " até " + fmt(e.inscricoesAte) : ""}</span>`
+    abertas ? `<span class="selo">Inscrições abertas${e.inscricoesAte ? " até " + fmt(e.inscricoesAte)
+      + (e.inscricoesAteHora ? ", às " + e.inscricoesAteHora : "") : ""}</span>`
       : `<span class="selo">Inscrições encerradas</span>`,
     e.vagasRestantes === null ? "" : e.vagasRestantes > 0
       ? `<span class="selo">${e.vagasRestantes} vaga(s) restante(s)</span>`

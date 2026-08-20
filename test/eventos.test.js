@@ -7,6 +7,7 @@ import {
   slugDeNome, slugUnico, SLUG_VALIDO, gerarChaveQr, gerarCodigoMonitor,
   gerarToken, tokenValido, codigoDe, inscritoPorToken, normalizarProgramacao,
   vagasRestantes, prazoInscricao, podeInscrever, jaInscrito,
+  horaLimiteInscricao, prazoInscricaoVencido,
   TIPOS_ATIVIDADE, atividadesInscriviveis, vagasAtividade, conflitoHorario,
   podeEscolherAtividade, normalizarFormulario, validarRespostas,
   LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd, videoIdDe, numerosDoEvento,
@@ -337,6 +338,34 @@ test("podeInscrever: ativo, dentro do prazo e com vaga", () => {
   assert.match(lotado.motivo, /vagas/i);
   assert.equal(podeInscrever(acaoEv({ ativo: true, vagas: 0 }, [{}, {}, {}]), "2026-05-10").ok, true,
     "vagas 0 = ilimitado");
+});
+
+/* A hora-limite (pedido dos coordenadores, ago/2026): o QR fica no telão,
+   alguém o fotografa, e quem não foi à palestra se inscreve à noite. O que
+   se protege: a hora só vale NO DIA do prazo, e evento sem hora continua
+   valendo o dia inteiro — não se pode fechar mais cedo quem não pediu. */
+test("hora-limite: a inscrição fecha na hora, e só no último dia", () => {
+  const ev = { ativo: true, inscricoesAte: "2026-05-10", inscricoesAteHora: "21:00" };
+  assert.equal(horaLimiteInscricao(ev), "21:00");
+  assert.equal(horaLimiteInscricao({ inscricoesAteHora: "25:00" }), "", "hora torta não vale");
+  assert.equal(horaLimiteInscricao({ inscricoesAteHora: "9:5" }), "");
+
+  assert.equal(podeInscrever(acaoEv(ev), "2026-05-10", "20:59").ok, true, "antes da hora, aberta");
+  assert.equal(podeInscrever(acaoEv(ev), "2026-05-10", "21:00").ok, true, "na hora cheia ainda vale");
+  const fora = podeInscrever(acaoEv(ev), "2026-05-10", "21:01");
+  assert.equal(fora.ok, false);
+  assert.match(fora.motivo, /21:00/, "a frase diz a hora — senão parece um erro do sistema");
+  assert.equal(podeInscrever(acaoEv(ev), "2026-05-09", "23:59").ok, true, "véspera não fecha às 21h");
+
+  // sem hora configurada, o dia inteiro continua valendo
+  const semHora = acaoEv({ ativo: true, inscricoesAte: "2026-05-10" });
+  assert.equal(podeInscrever(semHora, "2026-05-10", "23:59").ok, true);
+  // a hora sozinha vale para o FIM DO EVENTO — é o caso da palestra de um dia
+  const soHora = acaoEv({ ativo: true, inscricoesAteHora: "21:00" });   // fim = 2026-05-15
+  assert.equal(podeInscrever(soHora, "2026-05-15", "20:00").ok, true);
+  assert.equal(podeInscrever(soHora, "2026-05-15", "22:00").ok, false);
+  assert.equal(prazoInscricaoVencido(soHora, "2026-05-15", "22:00"), true);
+  assert.equal(prazoInscricaoVencido(soHora, "2026-05-14", "22:00"), false);
 });
 
 test("dedupe: CPF OU e-mail já inscrito barra a segunda inscrição", () => {
