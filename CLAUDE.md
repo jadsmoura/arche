@@ -451,6 +451,20 @@ public/
   padrão não pode fechar mais cedo para quem não pediu. O relógio é o de Brasília
   (`horaLocalHHMM` em lib/datas.js), nunca o do navegador de quem se inscreve, e quem confere é
   o SERVIDOR, dentro da fila (a rota de trocar atividades também).
+- **O relatório nasce PRÉ-PREENCHIDO com o que o sistema já sabe** (`sugestaoDoEvento`/
+  `aplicarSugestao` em lib/relatorioEx.js + `GET /api/extensao/:id/relatorio-sugestao`, pedido
+  do dono ago/2026): o evento correu DENTRO do ARCHÉ — programação lançada, palestrantes e
+  comissão nomeados, inscritos contados — e o relatório abria em branco pedindo que alguém
+  copiasse à mão o que já está gravado. Entram o **conteúdo programático** (a programação do
+  evento; sem ela, a declarada na proposta), os **docentes envolvidos** (palestrantes +
+  comissão docente; aluno e apoio ficam fora) e as **contagens**. Duas regras mantêm o
+  rascunho honesto: **não sobrescreve** campo preenchido, e a **avaliação/resultados NUNCA vem
+  pronta** — é o juízo de quem conduziu a ação e o único campo obrigatório. O aviso diz **de
+  onde veio** cada coisa, porque número sugerido que ninguém sabe explicar é pior que campo
+  vazio; e o de discentes usa os **presentes** quando houve credenciamento e os **inscritos**
+  quando não houve (num evento com 57 inscritos e nenhum crachá lido, "0 discentes" seria
+  trocar campo vazio por número errado). Quem monta é o SERVIDOR: a mesma sugestão vale no
+  formulário do EX e no encerramento pelo EV.
 - **A barra de ações fica no ALTO da ação** (`barraAcoes`, pedido do dono ago/2026): os dois
   PDFs — **Projeto** e **Relatório final** — e o ato do momento (encerrar e entregar, validar
   e registrar, ou reabrir). Eles existiam só no último card, depois do relatório, do portfólio

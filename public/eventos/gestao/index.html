@@ -2846,6 +2846,7 @@ function encerrarEvento(id){
     <div class="banner ba-info" style="margin:12px 0">
       <b>Números do sistema</b> — ${n.inscritos} inscrito(s), ${n.presentes} presente(s).
       Eles entram no relatório como estão agora: confira as presenças antes de encerrar.</div>
+    <div id="enc-sugestao"></div>
     <div class="ov-2col">${curtos}</div>
     ${CAMPOS_REL.filter(c=>c.tipo==="longo").map(campo).join("")}
     <div class="sec-t" style="margin-top:16px">Registro fotográfico</div>
@@ -2864,8 +2865,32 @@ function encerrarEvento(id){
   </div>`;
   document.body.appendChild(cx);
   pintarFotosEncerramento(id);
+  preencherDoEvento(id);
   document.addEventListener("keydown",encTecla);
 }
+/* O rascunho que o sistema já sabe escrever: programação, palestrantes,
+   comissão e contagens estão lançados aqui mesmo — pedir que o coordenador
+   os copie à mão no encerramento seria trabalho perdido. Quem monta é o
+   SERVIDOR (lib/relatorioEx.js), a mesma sugestão que o ARCHÉ EX aplica; só
+   entra em campo vazio, e a avaliação/resultados nunca vem pronta. */
+async function preencherDoEvento(id){
+  let j;
+  try{
+    const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/relatorio-sugestao`);
+    j=await r.json(); if(!r.ok) throw new Error("");
+  }catch{ return; }
+  const postos=[];
+  for(const [k,v] of Object.entries(j.campos||{})){
+    const el=$("enc-"+k); if(!el || String(el.value||"").trim()) continue;
+    el.value=v; postos.push(k);
+  }
+  const cx=$("enc-sugestao");
+  if(cx && postos.length) cx.innerHTML=`<div class="banner ba-ok" style="margin:0 0 12px">
+    ✨ <b>${postos.length} campo(s) preenchidos com os dados do evento.</b> Confira antes de
+    encerrar. A <b>avaliação / resultados</b> é a única que não se preenche sozinha — é o
+    juízo de quem conduziu a ação.</div>`;
+}
+
 function encTecla(e){ if(e.key==="Escape") fecharEncerrar(); }
 function fecharEncerrar(){
   document.getElementById("ov-encerrar")?.remove();

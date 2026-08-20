@@ -1368,6 +1368,8 @@ function barraAcoes(a,s,podeRelatorio){
   }
   if(podeRelatorio && s!=="registrada"){
     const falta=faltaParaEntregar(a);
+    out.push(bt("✨ Preencher com os dados do evento",`sugerirRelatorio(ACOES.find(x=>x.id==='${a.id}'),true)`,
+      "bt-sec","Programação, palestrantes, comissão e contagens — só nos campos ainda vazios"));
     if(temRel && PROPPEX) out.push(bt("✓ Validar e registrar",`registrarAcao('${a.id}')`,"bt-ok",
       "Finaliza a ação e libera os certificados"));
     else if(temRel) out.push(bt("📨 Reenviar relatório atualizado",`enviarRelatorio('${a.id}')`,"bt-pri"));
@@ -1443,7 +1445,7 @@ function renderDetalhe(id){
   /* ---- relatório final ---- */
   if(podeRelatorio){
     const lock = s==="registrada";
-    html += `<div class="card"><div class="sec-t">Relatório final</div>`;
+    html += `<div class="card"><div class="sec-t">Relatório final</div><div id="r-sugestao"></div>`;
     if(PROPPEX && s!=="relatorio-entregue" && s!=="registrada")
       html += `<div class="muted">O responsável ainda não enviou o relatório.</div>`;
     html += `
@@ -1544,10 +1546,60 @@ function renderDetalhe(id){
 
   html += `<button class="bt bt-ghost" onclick="nav('acoes')" style="margin-bottom:24px">← voltar à lista</button>`;
   $("v-detalhe").innerHTML = html;
-  if(podeRelatorio){ montarCola(a); renderTabelasPart(a); renderAnexos(a); }
+  if(podeRelatorio){ montarCola(a); renderTabelasPart(a); renderAnexos(a); sugerirRelatorio(a); }
   renderProgEv(); renderFormEv(); renderDicaTransmissao();
   renderInscritosEv(a); renderMuralEv(a); agendarEvento(a.id);
 }
+
+/* ===================== O RASCUNHO QUE O SISTEMA ESCREVE ==================
+   O evento correu DENTRO do ARCHÉ: a programação está lançada, palestrantes
+   e comissão estão nomeados, os inscritos estão contados. Abrir o relatório
+   em branco pedindo que alguém copiasse à mão o que o sistema tem gravado é
+   trabalho perdido (pedido do dono, ago/2026).
+
+   Quem monta o rascunho é o SERVIDOR (lib/relatorioEx.js), porque a mesma
+   sugestão precisa valer aqui e no encerramento pelo ARCHÉ EV. Duas regras
+   o mantêm honesto: não sobrescreve campo preenchido, e NUNCA sugere a
+   avaliação/resultados — essa é o juízo de quem conduziu a ação. O aviso diz
+   DE ONDE veio cada coisa: número sugerido que ninguém sabe explicar é pior
+   que campo vazio. */
+const CAMPO_ID = { conteudoProgramatico:"r-conteudo", bolsistas:"r-bolsistas",
+  alunosCurricular:"r-alunoscur", alunosNaoCurricular:"r-alunosnao",
+  docentesEnvolvidos:"r-docentes", avaliacaoResultados:"r-avaliacao",
+  qtdDiscentes:"r-qtd-disc", qtdDocentes:"r-qtd-doc", qtdTecnicos:"r-qtd-tec",
+  despesa:"r-despesa", receita:"r-receita", linksPortfolio:"r-links" };
+
+async function sugerirRelatorio(a, manual){
+  const cx=$("r-sugestao"); if(!cx) return;
+  if(!manual && a.relatorio?.entregueEm) return;      // entregue não se mexe sozinho
+  let j;
+  try{
+    const r=await fetch(`/api/extensao/${encodeURIComponent(a.id)}/relatorio-sugestao`);
+    j=await r.json(); if(!r.ok) throw new Error(j.error||"");
+  }catch{ return; }                                   // rascunho é conveniência: falhar não atrapalha
+  const campos=j.campos||{}, de=j.de||{};
+  const postos=[];
+  for(const [k,v] of Object.entries(campos)){
+    const el=$(CAMPO_ID[k]); if(!el || String(el.value||"").trim()) continue;
+    el.value=v; postos.push([k,de[k]||""]);
+  }
+  if(!postos.length){
+    if(manual) cx.innerHTML=`<div class="banner ba-info" style="margin:8px 0">Não há mais nada que
+      o sistema possa preencher — o que falta é o que só você sabe escrever.</div>`;
+    return;
+  }
+  const rot=(k)=>(CAMPOS_REL_ROT[k]||k);
+  cx.innerHTML=`<div class="banner ba-ok" style="margin:8px 0">
+    ✨ <b>Preenchemos ${postos.length} campo(s) com os dados do evento</b> —
+    ${postos.map(([k,d])=>`${esc(rot(k))} <span class="muted">(${esc(d)})</span>`).join(", ")}.
+    Confira antes de entregar; nada foi gravado ainda.
+    <div class="muted" style="margin-top:6px">A <b>avaliação / resultados alcançados</b> não se
+    preenche sozinha: é o juízo de quem conduziu a ação, e é o que a PROPPEX lê.</div></div>`;
+}
+
+const CAMPOS_REL_ROT = { conteudoProgramatico:"Conteúdo programático",
+  docentesEnvolvidos:"Docentes envolvidos", qtdDiscentes:"Nº de discentes",
+  qtdDocentes:"Nº de docentes", qtdTecnicos:"Nº de técnicos adm." };
 
 /* O contador das fotos, no alto do portfólio: a pessoa vê quantas faltam
    ANTES de tentar entregar, e não descobre a exigência no erro. */

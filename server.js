@@ -112,7 +112,7 @@ import {
 } from "./lib/relatorios.js";
 import { MIN_FOTOS_RELATORIO, faltamFotos, avisoFotos, fotosDoPortfolio } from "./lib/portfolio.js";
 import {
-  CAMPOS_RELATORIO_FINAL, normalizarRelatorioFinal, faltaParaEntregar,
+  CAMPOS_RELATORIO_FINAL, normalizarRelatorioFinal, faltaParaEntregar, aplicarSugestao,
 } from "./lib/relatorioEx.js";
 import {
   PERIODOS as PERIODOS_MATRIZ, normalizarCurricularizacao, panoramaCurricularizacao,
@@ -10175,6 +10175,25 @@ app.get("/api/extensao/:id/assinatura/:quem", async (req, res) => {
 });
 
 /* --------------------------- a lista e a emissão ------------------------- */
+
+/* O RASCUNHO do relatório a partir do que a ação já guarda (pedido do dono,
+   ago/2026): programação, palestrantes, comissão e contagens já estão no
+   sistema — redigitá-los à mão não é prestação de contas. A régua é do
+   servidor porque as duas telas (ARCHÉ EX e o encerramento no EV) precisam
+   sugerir a MESMA coisa. Nunca sobrescreve o que a pessoa escreveu, e nunca
+   sugere a avaliação/resultados: essa é o juízo de quem conduziu a ação. */
+app.get("/api/extensao/:id/relatorio-sugestao", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const a = (await lerAcoes()).find((x) => x.id === req.params.id);
+    if (!a || !podeVerAcao(u, a)) return res.status(404).json({ error: "Ação não encontrada" });
+    res.json({ ok: true, ...aplicarSugestao(a) });
+  } catch (e) {
+    console.error("Erro ao sugerir o relatório:", e);
+    res.status(500).json({ error: "Não foi possível montar o rascunho." });
+  }
+});
 
 /** Quem tem direito a certificado neste evento — a tela da gestão. */
 app.get("/api/extensao/:id/certificados", async (req, res) => {
