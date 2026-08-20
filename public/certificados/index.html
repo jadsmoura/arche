@@ -64,8 +64,14 @@ fetch("/api/meus-certificados").then(async (r) => {
   if (!r.ok) throw new Error(j.error || "Não foi possível carregar.");
   const lista = j.certificados || [];
   const cx = document.getElementById("conteudo");
+  /* Dois avisos, dois buracos diferentes: sem CPF a pessoa não reúne o que fez
+     com e-mails antigos; sem MATRÍCULA ela não alcança os históricos de
+     monitoria, que as coordenações entregaram em planilha — sem CPF e sem
+     e-mail, com a matrícula como única chave. */
+  const avisos = [j.aviso, j.avisoMatricula].filter(Boolean)
+    .map((a) => `<div class="aviso">${esc(a)}</div>`).join("");
   if (!lista.length) {
-    cx.innerHTML = `${j.aviso ? `<div class="aviso">${esc(j.aviso)}</div>` : ""}
+    cx.innerHTML = `${avisos}
       <div class="card vazio"><b>Nenhum certificado ainda.</b><br>
         Os certificados aparecem aqui quando o processo se encerra: no evento, depois que a
         coordenação o encerra e a PROPPEX valida; na iniciação científica, com o projeto
@@ -73,7 +79,7 @@ fetch("/api/meus-certificados").then(async (r) => {
     return;
   }
   const grupos = [["evento", "Eventos"], ["ic", "Iniciação Científica"], ["monitoria", "Monitoria"]];
-  cx.innerHTML = (j.aviso ? `<div class="aviso">${esc(j.aviso)}</div>` : "")
+  cx.innerHTML = avisos
     + grupos.map(([k, rot]) => {
       const meus = lista.filter((c) => c.origem === k);
       if (!meus.length) return "";

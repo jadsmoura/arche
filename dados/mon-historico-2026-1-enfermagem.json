@@ -1,0 +1,262 @@
+{
+  "lote": "mon-historico-2026-1-enfermagem",
+  "fonte": "Planilha_Monitoria_Academica_26_1.docx, entregue pela coordenação do curso (ago/2026)",
+  "curso": "enfermagem",
+  "ciclo": "2026/1",
+  "edital": "01/2026",
+  "vigencia": {
+    "inicio": "2026-03-18",
+    "fim": "2026-06-12"
+  },
+  "observacao": "Ciclo conduzido pela Pró-Reitoria Acadêmica, fora do ARCHÉ. A planilha não traz CPF nem e-mail: a âncora é a MATRÍCULA, com o nome completo como segunda chave. A vigência vem do cronograma do próprio Edital 01/2026 — publicação dos resultados em 18/03/2026 e entrega do relatório final em 12/06/2026.",
+  "registros": [
+    {
+      "periodo": "1º e 2º",
+      "aluno": "José Alejandro Souza",
+      "matricula": "G2510300",
+      "orientador": "Elias Alves",
+      "disciplina": "Concepções de Enfermagem",
+      "horas": 20
+    },
+    {
+      "periodo": "1º e 2º",
+      "aluno": "Lauane Ferreira da Luz",
+      "matricula": "G2510229",
+      "orientador": "Elias Alves",
+      "disciplina": "Concepções de Enfermagem",
+      "horas": 20
+    },
+    {
+      "periodo": "1º e 2º",
+      "aluno": "Maria Eduarda Teixeira",
+      "matricula": "G2510295",
+      "orientador": "Tamires Rocha",
+      "disciplina": "Funções Vitais",
+      "horas": 20
+    },
+    {
+      "periodo": "1º e 2º",
+      "aluno": "Karyne Ferraz da Costa Souza",
+      "matricula": "G2510138",
+      "orientador": "Tamires Rocha",
+      "disciplina": "Funções Vitais",
+      "horas": 20
+    },
+    {
+      "periodo": "1º e 2º",
+      "aluno": "Thauany Dutra Silva",
+      "matricula": "G2510228",
+      "orientador": "Tamires Rocha",
+      "disciplina": "Morfofisiologia",
+      "horas": 20
+    },
+    {
+      "periodo": "1º e 2º",
+      "aluno": "Sara Ferreira dos Santos",
+      "matricula": "G2510251",
+      "orientador": "Tamires Rocha",
+      "disciplina": "Morfofisiologia",
+      "horas": 20
+    },
+    {
+      "periodo": "3º",
+      "aluno": "Thauany Vitoria de Oliveira Silva",
+      "matricula": "G2420016",
+      "orientador": "Isabela Cristina Evangelista Vaz",
+      "disciplina": "Clínica Médica",
+      "horas": 20
+    },
+    {
+      "periodo": "3º",
+      "aluno": "Lara Barbosa Ferreira",
+      "matricula": "G2420120",
+      "orientador": "Isabela Cristina Evangelista Vaz",
+      "disciplina": "Clínica Médica",
+      "horas": 20
+    },
+    {
+      "periodo": "3º",
+      "aluno": "Isabella Munique Cipriano Gomes",
+      "matricula": "G2420036",
+      "orientador": "Isabela Cristina Evangelista Vaz",
+      "disciplina": "Farmacologia",
+      "horas": 20
+    },
+    {
+      "periodo": "3º",
+      "aluno": "Gabriel Pereira Souza",
+      "matricula": "G2520049",
+      "orientador": "Isabela Cristina Evangelista Vaz",
+      "disciplina": "Farmacologia",
+      "horas": 20
+    },
+    {
+      "periodo": "3º",
+      "aluno": "Thauany Vitoria de Oliveira Silva",
+      "matricula": "G2420016",
+      "orientador": "Geoeselita Borges Teixeira",
+      "disciplina": "Saúde da Mulher",
+      "horas": 20
+    },
+    {
+      "periodo": "4º",
+      "aluno": "Brenda Rayssa Vidal Silva",
+      "matricula": "G2410440",
+      "orientador": "Bruna Póvoa Ribeiro",
+      "disciplina": "SAE: Fundamentação do Cuidar",
+      "horas": 20
+    },
+    {
+      "periodo": "4º",
+      "aluno": "Higor Gustavo Vieira Sampaio",
+      "matricula": "G2410218",
+      "orientador": "Bruna Póvoa Ribeiro",
+      "disciplina": "SAE: Fundamentação do Cuidar",
+      "horas": 20
+    },
+    {
+      "periodo": "",
+      "aluno": "Isadora Rezende Lacerda Farias",
+      "matricula": "G2410026",
+      "orientador": "Bruna Póvoa Ribeiro",
+      "disciplina": "SAE: Fundamentação do Cuidar",
+      "horas": 20
+    },
+    {
+      "periodo": "4º",
+      "aluno": "Maria Eduarda Santos Silva",
+      "matricula": "G2410087",
+      "orientador": "Isabela Cristina Evangelista Vaz",
+      "disciplina": "SAE: Processos de Segurança do Cuidado",
+      "horas": 20
+    },
+    {
+      "periodo": "4º",
+      "aluno": "Maria Eduarda Cornélia Silva",
+      "matricula": "G2410315",
+      "orientador": "Isabela Cristina Evangelista Vaz",
+      "disciplina": "SAE: Processos de Segurança do Cuidado",
+      "horas": 20
+    },
+    {
+      "periodo": "4º",
+      "aluno": "Isadora Rezende Lacerda Farias",
+      "matricula": "G2410026",
+      "orientador": "Isabela Cristina Evangelista Vaz",
+      "disciplina": "SAE: Exame Físico",
+      "horas": 20
+    },
+    {
+      "periodo": "4º",
+      "aluno": "Beatriz Gonçalves da Silva",
+      "matricula": "G2410164",
+      "orientador": "Isabela Cristina Evangelista Vaz",
+      "disciplina": "SAE: Exame Físico",
+      "horas": 20
+    },
+    {
+      "periodo": "5º",
+      "aluno": "Ana Luiza Viegas de Lima",
+      "matricula": "G2320164",
+      "orientador": "Isabela Cristina Evangelista Vaz",
+      "disciplina": "SAE: Intervenções",
+      "horas": 20
+    },
+    {
+      "periodo": "5º",
+      "aluno": "Maralice Machado Daris",
+      "matricula": "G2320146",
+      "orientador": "Bruna Póvoa Ribeiro",
+      "disciplina": "Saúde Mental e Psiquiatria",
+      "horas": 20
+    },
+    {
+      "periodo": "6º",
+      "aluno": "Fernanda Beatriz F. Silva",
+      "matricula": "G2310196",
+      "orientador": "Bruna Póvoa Ribeiro",
+      "disciplina": "SAE: Julgamento Clínico e Planejamento do Cuidado",
+      "horas": 20
+    },
+    {
+      "periodo": "",
+      "aluno": "Jhon Marlysson de Souza da Silva",
+      "matricula": "G2310174",
+      "orientador": "Bruna Póvoa Ribeiro",
+      "disciplina": "SAE: Julgamento Clínico e Planejamento do Cuidado",
+      "horas": 20
+    },
+    {
+      "periodo": "6º",
+      "aluno": "Nayane Soares da Silva",
+      "matricula": "G2310554",
+      "orientador": "Bruna Póvoa Ribeiro",
+      "disciplina": "SAE: Julgamento Clínico e Planejamento do Cuidado",
+      "horas": 20
+    },
+    {
+      "periodo": "6º",
+      "aluno": "Jhon Marlysson de Souza da Silva",
+      "matricula": "G2310174",
+      "orientador": "Bruna Póvoa Ribeiro",
+      "disciplina": "Clínica Cirúrgica",
+      "horas": 20
+    },
+    {
+      "periodo": "6º",
+      "aluno": "Dalila Ariane Vieira",
+      "matricula": "G2320288",
+      "orientador": "Bruna Póvoa Ribeiro",
+      "disciplina": "Clínica Cirúrgica",
+      "horas": 20
+    },
+    {
+      "periodo": "6º",
+      "aluno": "Nathalia Marques Ferreira",
+      "matricula": "G2310076",
+      "orientador": "Bruna Póvoa Ribeiro",
+      "disciplina": "Clínica Cirúrgica",
+      "horas": 20
+    },
+    {
+      "periodo": "7º",
+      "aluno": "Cassia Nara Ribeiro Barros",
+      "matricula": "G2220202",
+      "orientador": "Elias Alves",
+      "disciplina": "Administração dos Serviços de Saúde",
+      "horas": 20
+    },
+    {
+      "periodo": "8º",
+      "aluno": "Gabriela Alves Aragão",
+      "matricula": "G2220079",
+      "orientador": "Geoeselita Borges Teixeira",
+      "disciplina": "Enfermagem em Obstetrícia e Neonatologia",
+      "horas": 20
+    },
+    {
+      "periodo": "8º",
+      "aluno": "Brenda Rodrigues de Souza Rosa",
+      "matricula": "G2310567",
+      "orientador": "Geoeselita Borges Teixeira",
+      "disciplina": "Enfermagem em Obstetrícia e Neonatologia",
+      "horas": 20
+    },
+    {
+      "periodo": "8º",
+      "aluno": "Mathias Candido Pessoa",
+      "matricula": "G2210198",
+      "orientador": "Talita Rodrigues Corredeira Mendes",
+      "disciplina": "Cuidados de Enf a Pacientes Críticos",
+      "horas": 20
+    },
+    {
+      "periodo": "5º",
+      "aluno": "Higor Gustavo Vieira Sampaio",
+      "matricula": "G2410218",
+      "orientador": "Osmar Nascimento",
+      "disciplina": "Clinica Médica",
+      "horas": 20
+    }
+  ]
+}

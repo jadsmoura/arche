@@ -85,6 +85,9 @@
   .linha .p2{font-size:11.5px;color:var(--muted)}
   .ponto{width:7px;height:7px;border-radius:50%;background:var(--accent);margin-top:6px;flex:none}
   .vazio{font-size:13px;color:var(--muted);padding:10px 0}
+  .aviso{background:var(--warn-soft);border:1px solid #f0e0bd;border-radius:10px;
+    padding:11px 13px;font-size:12.5px;color:#6b4c15;margin:10px 0}
+  .aviso a{color:#6b4c15}
   .verTodas{font-size:12px;font-weight:600;color:var(--brand-3);background:none;border:0;cursor:pointer}
 
   /* ------------------------------ formulários --------------------------- */
@@ -1099,14 +1102,44 @@ async function carregarCertificados() {
     <div class="card-t">Seus certificados</div>
     <div class="card-s">Saem sozinhos quando a PROPPEX homologa o relatório — não há emissão a pedir.
       O do docente certifica o PROJETO (item 6.1); o do monitor, a atuação com a carga horária cumprida (item 6.2).</div>
+    ${j.avisoMatricula ? `<div class="aviso">Informe a sua <b>matrícula</b> no
+      <a href="/perfil/">perfil</a>: os históricos de monitoria dos semestres anteriores foram entregues
+      pelas coordenações em planilha, sem CPF e sem e-mail — é pela matrícula que o ARCHÉ encontra o que
+      é seu.</div>` : ""}
     ${lista.length ? lista.map((c) => `<div class="item">
       <div class="nm">${esc(c.tipo === "orientacao-monitoria" ? "Orientação de monitoria" : "Monitoria Acadêmica")}
         <div class="cs">${esc(c.disciplina)} · ${esc(c.curso)} · edital ${esc(c.edital)}
-          ${c.horas ? ` · ${c.horas}h` : ""}${c.monitores?.length ? ` · monitor(es): ${esc(c.monitores.join(", "))}` : ""}</div></div>
-      <a class="pdf" href="/api/monitoria/certificado.pdf?projeto=${encodeURIComponent(c.projetoId)}&tipo=${encodeURIComponent(c.tipo)}"
+          ${c.horas ? ` · ${c.horas}h` : ""}${c.monitores?.length ? ` · monitor(es): ${esc(c.monitores.join(", "))}` : ""}
+          ${c.origem === "historico" ? ` · <b>arquivo ${esc(c.ciclo)}</b>` : ""}</div></div>
+      <a class="pdf" href="${esc(c.link || `/api/monitoria/certificado.pdf?projeto=${encodeURIComponent(c.projetoId)}&tipo=${encodeURIComponent(c.tipo)}`)}"
         target="_blank">baixar PDF</a></div>`).join("")
       : `<div class="vazio">Nenhum certificado ainda. Eles aparecem aqui quando o projeto é concluído.</div>`}
-  </div>`;
+  </div>${DADOS.gestao ? await blocoArquivo() : ""}`;
+}
+
+/* O ARQUIVO — os semestres que correram FORA do ARCHÉ (a planilha que a
+   coordenação do curso guardou). O que a gestão precisa ver aqui não é quem
+   TEM certificado: é quem ainda não foi encontrado no portal. Sem matrícula
+   no perfil o documento existe e o aluno não sabe — e ninguém sabe que ele
+   não sabe. */
+async function blocoArquivo() {
+  try {
+    const r = await fetch("/api/monitoria/historico");
+    if (!r.ok) return "";
+    const lotes = (await r.json()).lotes || [];
+    if (!lotes.length) return "";
+    return lotes.map((l) => `<div class="card">
+      <div class="card-t">Arquivo · ${esc(l.curso)} · ${esc(l.ciclo)}</div>
+      <div class="card-s">${l.registros} certificado(s) de ${l.alunos.length} acadêmico(s), do edital
+        ${esc(l.edital)}. Fonte: ${esc(l.fonte)}. <b>${l.comConta} de ${l.alunos.length}</b> já têm conta
+        no portal que o ARCHÉ conseguiu casar — os demais só encontrarão o certificado depois de
+        informarem a matrícula no perfil.</div>
+      ${l.alunos.map((a) => `<div class="item">
+        <div class="nm">${esc(a.nome)}
+          <div class="cs">${esc(a.matricula || "sem matrícula na planilha")} · ${a.certificados} certificado(s)</div></div>
+        <div class="cs">${a.conta ? `✓ ${esc(a.conta)}` : "— ainda sem conta casada"}</div></div>`).join("")}
+    </div>`).join("");
+  } catch { return ""; }
 }
 
 /* ================================ EDITAL ================================ */

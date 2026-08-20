@@ -135,9 +135,13 @@
       <label for="funcaoOutro">Especifique a função</label>
       <input id="funcaoOutro" placeholder="Ex.: Assessoria de Comunicação"></div>
     <div class="grid2">
-      <div><label for="matricula">Matrícula / SIAPE</label><input id="matricula" placeholder="Opcional"></div>
+      <div><label for="matricula" id="matricula-rot">Matrícula / SIAPE</label><input id="matricula" placeholder="Opcional"></div>
       <div><label for="cpf">CPF</label><input id="cpf" inputmode="numeric" placeholder="000.000.000-00" autocomplete="off"></div>
     </div>
+    <div class="dica oculto" id="matricula-dica">A matrícula é o que liga a você os certificados de
+      <b>monitoria</b> dos semestres anteriores: as coordenações entregaram esses históricos em planilha,
+      sem CPF e sem e-mail, e é por ela que o ARCHÉ os encontra. Se você é bolsista do ICEM (ensino médio),
+      deixe em branco — a matrícula do UNIEGO você ainda não tem.</div>
     <div class="dica" id="cpf-dica">O CPF liga a você os projetos já cadastrados pela PROPPEX — os de
       Iniciação Científica submetidos em editais anteriores aparecem na sua conta assim que você o informar.
       Ele não aparece para outros usuários.</div>
@@ -242,7 +246,18 @@ let ME=null, TEM_SENHA=false;
 $("curso").innerHTML='<option value="">Selecione…</option>'+CURSOS.map(c=>`<option>${c}</option>`).join("");
 $("funcao").innerHTML='<option value="">Selecione…</option>'+FUNCOES.map(([v,l])=>`<option value="${v}">${l}</option>`).join("");
 const verOutro=()=>$("funcao-outro-w").classList.toggle("oculto",$("funcao").value!=="outro");
-$("funcao").addEventListener("change",verOutro);
+/* A matrícula é obrigatória para ESTUDANTE (decisão do dono, ago/2026): é a
+   âncora dos históricos de monitoria que vieram em planilha, sem CPF nem
+   e-mail. Para os demais ela segue opcional — professor tem SIAPE, e nem
+   todo setor usa um. Quem diz a última palavra é o servidor; aqui a tela só
+   deixa de mentir dizendo "Opcional" a quem ela vai cobrar. */
+const verMatricula=()=>{
+  const aluno=$("funcao").value==="aluno";
+  $("matricula-rot").textContent=aluno?"Matrícula *":"Matrícula / SIAPE";
+  $("matricula").placeholder=aluno?"Ex.: G2410026":"Opcional";
+  $("matricula-dica").classList.toggle("oculto",!aluno);
+};
+$("funcao").addEventListener("change",()=>{ verOutro(); verMatricula(); });
 $("resumo").addEventListener("input",()=>{ $("resumo-cont").textContent=$("resumo").value.length; });
 $("cpf").addEventListener("input",function(){
   this.value=fmtCPF(this.value);
@@ -298,7 +313,7 @@ fetch("/api/me").then(async r=>{
     else if(porTexto){ $("funcao").value=porTexto; }
     else { $("funcao").value="outro"; if(!$("funcaoOutro").value) $("funcaoOutro").value=p.funcao; }
   }
-  verOutro();
+  verOutro(); verMatricula();
   if($("cpf").value) $("cpf").value=fmtCPF($("cpf").value);   // guardado só em dígitos
   $("resumo-cont").textContent=$("resumo").value.length;
   marcarEtapa(ME.perfilFalta || []);

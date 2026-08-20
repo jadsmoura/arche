@@ -233,6 +233,22 @@ test("o CPF não se cobra do gestor geral — seria exigência impossível", asy
   assert.deepEqual(faltaNoPerfil(base).map((f) => f.campo), ["cpf"]);
 });
 
+test("a matrícula é do ESTUDANTE — e o bolsista do ICEM não tem uma", async () => {
+  const { faltaNoPerfil, perfilCompleto } = await import("../lib/auth.js");
+  const aluno = { nome: "Isadora Rezende Lacerda Farias", funcao: "aluno", curso: "Enfermagem",
+    cpf: "12345678909", telefone: "(62) 99999-0000" };
+  // sem matrícula o certificado de monitoria dos semestres antigos existe e
+  // ele não o encontra: a planilha da coordenação não tem CPF nem e-mail
+  assert.deepEqual(faltaNoPerfil(aluno).map((f) => f.campo), ["matricula"]);
+  assert.equal(perfilCompleto({ ...aluno, matricula: "G2410026" }), true);
+  // o bolsista do ICEM é do ensino médio: matrícula no UNIEGO ele não tem, e
+  // cobrá-la seria exigência impossível de cumprir — como o CPF do gestor
+  assert.deepEqual(faltaNoPerfil(aluno, { semMatricula: true }), []);
+  // e a matrícula não se cobra de quem não é estudante
+  assert.equal(perfilCompleto({ ...aluno, funcao: "professor", titulacao: "mestre" }), true);
+  assert.equal(perfilCompleto({ ...aluno, funcao: "secretaria" }), true);
+});
+
 test("campo em branco ou só espaços conta como faltando", async () => {
   const { faltaNoPerfil } = await import("../lib/auth.js");
   const p = { nome: "  ", funcao: "professor", curso: "Direito", cpf: " ", telefone: "x", titulacao: "mestre" };

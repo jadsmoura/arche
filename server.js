@@ -64,6 +64,10 @@ import {
   diasParaRelatorio as diasParaRelatorioMon,
 } from "./lib/monitoria.js";
 import {
+  normalizarLote as normalizarLoteMon, certificadosHistoricos as certificadosHistoricosMon,
+  certificadoHistorico as certificadoHistoricoMon, panoramaDoLote as panoramaLoteMon,
+} from "./lib/monitoriaHistorico.js";
+import {
   slugDeNome, slugUnico, SLUG_VALIDO, slugReservado, SLUGS_RESERVADOS, gerarChaveQr, gerarCodigoMonitor, gerarToken, tokenValido,
   codigoDe, inscritoPorToken, normalizarProgramacao, vagasRestantes, prazoInscricao,
   podeInscrever as podeInscreverEvento, jaInscrito, emailMascarado,
@@ -292,6 +296,24 @@ app.post("/api/banda/zerar", async (req, res) => {
   }
 });
 
+/**
+ * A régua do perfil completo, com as duas exceções que só o servidor conhece:
+ * o gestor geral não informa CPF (a conta pessoal da pró-reitoria é só de
+ * gestão) e o bolsista do ICEM não informa matrícula — ele é estudante do
+ * ensino médio e não tem matrícula no UNIEGO.
+ *
+ * A consulta ao ICEM é preguiçosa de propósito: ela lê o estado, e esta
+ * função roda em TODA página de setor. Só quando a matrícula é o que falta é
+ * que vale a pena perguntar se a exceção se aplica.
+ */
+async function faltaNoPerfilDe(u, perfil) {
+  const opcoes = { gestorGeral: u?.papel === "gestor" };
+  const falta = faltaNoPerfil(perfil, opcoes);
+  if (!falta.some((f) => f.campo === "matricula")) return falta;
+  if (!(await souBolsistaEM(u?.email))) return falta;
+  return faltaNoPerfil(perfil, { ...opcoes, semMatricula: true });
+}
+
 // Setores de gestão exigem login (Avaliação Institucional continua aberta).
 // /eventos/* segue PÚBLICO (hotsite, inscrição, credenciamento, assistir) —
 // só a sala de gestão do ARCHÉ EV, em /eventos/gestao, pede sessão.
@@ -326,7 +348,7 @@ app.use(async (req, res, next) => {
   // não encontra os próprios projetos, sem titulação a proposta não se
   // enquadra na modalidade. Só barra quem realmente tem algo faltando, e a
   // própria tela de perfil fica de fora (senão o caminho não teria saída).
-  const falta = faltaNoPerfil((await carregarPerfis())[u.email], { gestorGeral: u.papel === "gestor" });
+  const falta = await faltaNoPerfilDe(u, (await carregarPerfis())[u.email]);
   if (falta.length) {
     return res.redirect("/perfil/?completar=1&next=" + encodeURIComponent(req.originalUrl));
   }
@@ -416,7 +438,7 @@ app.get("/api/me", async (req, res) => {
     ...u, perfil: perfis[u.email] || null, temSenha: await temSenha(storage, u.email),
     // o que falta para o perfil ficar completo — é o que a tela usa para
     // pedir só o que falta, em vez de mandar a pessoa reler o formulário
-    perfilFalta: faltaNoPerfil(perfis[u.email], { gestorGeral: u.papel === "gestor" }),
+    perfilFalta: await faltaNoPerfilDe(u, perfis[u.email]),
   });
 });
 
@@ -432,10 +454,8 @@ app.post("/api/perfil", async (req, res) => {
   // A mesma régua que barra a entrada nos setores vale para gravar: se o
   // formulário aceitasse um perfil incompleto, a pessoa salvaria, seria
   // mandada de volta para cá e não sairia mais do lugar.
-  const falta = faltaNoPerfil(
-    { ...b, funcao: normalizarFuncao(b.funcao), cpf: soDigitos(b.cpf) },
-    { gestorGeral: u.papel === "gestor" },
-  );
+  const falta = await faltaNoPerfilDe(u,
+    { ...b, funcao: normalizarFuncao(b.funcao), cpf: soDigitos(b.cpf) });
   if (falta.length) {
     return res.status(400).json({
       error: `Falta preencher: ${falta.map((f) => f.rotulo).join(", ")}.`,
@@ -4665,6 +4685,43 @@ async function lerMonitorias() {
   } catch { return []; }
 }
 
+/* ---------------- O ARQUIVO: os ciclos que correram FORA do ARCHÉ ---------
+   A monitoria chegou ao sistema em 2026/2. Dos semestres anteriores existe a
+   planilha que a coordenação do curso guardou — monitor, disciplina,
+   orientação e horas, sem CPF e sem e-mail. É pouco para abrir um projeto no
+   módulo (projeto tem prazo, relatório e cobrança, que não existem para um
+   semestre encerrado) e é o bastante para emitir o certificado devido.
+
+   Por isso ele NÃO entra no estado: sobe do disco na partida e fica em
+   memória. O estado é um arquivo único reescrito inteiro a cada gravação, e
+   um histórico que nunca muda seria peso morto em todas elas — a mesma razão
+   que tirou de lá as artes dos eventos.
+   ------------------------------------------------------------------------- */
+const LOTES_HISTORICO_MON = ["mon-historico-2026-1-enfermagem.json"];
+let historicoMon = [];
+
+async function subirHistoricoMonitoria() {
+  const lidos = [];
+  for (const arquivo of LOTES_HISTORICO_MON) {
+    try {
+      const bruto = JSON.parse(await readFile(path.join(__dirname, "dados", arquivo), "utf8"));
+      const lote = normalizarLoteMon(bruto);
+      if (lote?.registros?.length) lidos.push(lote);
+    } catch (e) {
+      console.error(`[monitoria] arquivo histórico ${arquivo} não carregado:`, e.message);
+    }
+  }
+  historicoMon = lidos;
+  const total = lidos.reduce((s, l) => s + l.registros.length, 0);
+  if (total) console.log(`[monitoria] arquivo histórico: ${total} registros em ${lidos.length} lote(s).`);
+}
+
+/** Quem é a pessoa para o arquivo: matrícula primeiro, nome como segunda chave. */
+const quemHistorico = (u, perfil) => ({
+  cpf: perfil?.cpf || u?.cpf || "", email: u?.email || "",
+  nome: perfil?.nome || u?.nome || "", matricula: perfil?.matricula || "",
+});
+
 /* Fila serializada, como em toda base do ARCHÉ: dois salvamentos no mesmo
    segundo (o professor no projeto e o monitor na ficha) só se enxergam
    dentro dela. */
@@ -4811,11 +4868,39 @@ app.get("/api/monitoria/certificados", async (req, res) => {
     if (!u) return;
     const perfil = (await carregarPerfis())[u.email] || {};
     const lista = await lerMonitorias();
-    res.json({ certificados: certificadosMonitoria(lista, {
-      email: u.email, cpf: perfil.cpf || "", nome: perfil.nome || u.nome || "" }) });
+    const eu = quemHistorico(u, perfil);
+    // os dois arquivos na mesma lista: o que o ARCHÉ conduziu e o que a
+    // coordenação do curso guardou dos semestres anteriores. O link difere
+    // porque a origem difere — o histórico não tem projeto no módulo.
+    const doArquivo = certificadosHistoricosMon(historicoMon, eu)
+      .map((c) => ({ ...c, link: `/api/meus-certificados/monitoria-historico.pdf?id=${encodeURIComponent(c.id)}` }));
+    res.json({
+      certificados: [...certificadosMonitoria(lista, eu), ...doArquivo],
+      // sem matrícula no perfil, o arquivo só encontra quem tem o nome
+      // escrito exatamente como a coordenação digitou na planilha
+      avisoMatricula: !perfil.matricula && normalizarFuncao(perfil.funcao) === "aluno",
+    });
   } catch (e) {
     console.error("Erro nos certificados da monitoria:", e);
     res.status(500).json({ error: "Não foi possível listar os certificados." });
+  }
+});
+
+/* GET /api/monitoria/historico — o ARQUIVO, para a gestão.
+   Não é a lista de quem tem certificado: é a lista de quem ainda NÃO foi
+   encontrado no portal. Sem matrícula no perfil, o certificado existe e o
+   aluno não sabe — e ninguém sabe que ele não sabe. É essa a pergunta que a
+   coordenação precisa poder fazer. */
+app.get("/api/monitoria/historico", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    if (!gereMon(u)) return res.status(403).json({ error: "Só a gestão da monitoria." });
+    const perfis = await carregarPerfis();
+    res.json({ lotes: historicoMon.map((l) => panoramaLoteMon(l, perfis)) });
+  } catch (e) {
+    console.error("Erro no arquivo histórico da monitoria:", e);
+    res.status(500).json({ error: "Não foi possível carregar o arquivo." });
   }
 });
 
@@ -10689,6 +10774,21 @@ app.get("/api/meus-certificados", async (req, res) => {
       });
     }
 
+    // MONITORIA, O ARQUIVO — os semestres que correram fora do ARCHÉ, casados
+    // pela MATRÍCULA do perfil (a âncora que a planilha do curso tem) e pelo
+    // nome completo. Entram na mesma lista: para quem recebe, o certificado é
+    // o mesmo documento — o que muda é onde o semestre foi conduzido.
+    for (const c of certificadosHistoricosMon(historicoMon, { ...eu, matricula: perfil.matricula || "" })) {
+      out.push({
+        origem: "monitoria", setor: "Monitoria",
+        titulo: c.disciplina ? `Monitoria de ${c.disciplina}` : "Monitoria Acadêmica",
+        papel: c.tipo === "orientacao-monitoria" ? "Orientação" : "Monitor(a)",
+        detalhe: [c.ciclo, c.edital ? `edital ${c.edital}` : ""].filter(Boolean).join(" · "),
+        quando: c.vigencia?.fim || "", ch: Number(c.horas) || 0,
+        codigo: "", link: `/api/meus-certificados/monitoria-historico.pdf?id=${encodeURIComponent(c.id)}`,
+      });
+    }
+
     out.sort((a, b) => String(b.quando).localeCompare(String(a.quando)));
     res.json({ ok: true,
       eu: { nome: eu.nome, email: eu.email, temCpf: !!eu.cpf },
@@ -10697,6 +10797,13 @@ app.get("/api/meus-certificados", async (req, res) => {
       // longo dos anos — sem ele, o histórico sai menor do que a verdade
       aviso: eu.cpf ? "" : "Informe o seu CPF no perfil: é por ele que o ARCHÉ reúne certificados "
         + "de edições antigas, quando o e-mail cadastrado era outro.",
+      // a monitoria dos semestres anteriores foi entregue em planilha, sem
+      // CPF: lá a chave é a MATRÍCULA, e sem ela o histórico do estudante
+      // depende do nome estar escrito exatamente como a coordenação digitou
+      avisoMatricula: (!perfil.matricula && normalizarFuncao(perfil.funcao) === "aluno")
+        ? "Informe a sua matrícula no perfil: é por ela que o ARCHÉ encontra os certificados de "
+          + "monitoria dos semestres anteriores, entregues pelas coordenações em planilha."
+        : "",
     });
   } catch (e) {
     console.error("Erro no histórico de certificados:", e);
@@ -10728,6 +10835,31 @@ app.get("/api/meus-certificados/evento.pdf", async (req, res) => {
     res.end(buf);
   } catch (e) {
     console.error("Erro ao emitir certificado do usuário:", e);
+    res.status(500).send("Não foi possível gerar o certificado.");
+  }
+});
+
+/* O certificado do ARQUIVO da monitoria. Rota à parte da do módulo por um
+   motivo prático: quem foi monitor em 2026/1 não tem projeto no ARCHÉ, e a
+   sessão do setor exige participação. Aqui basta estar logado — e a régua
+   continua sendo a mesma lista que a pessoa vê, recalculada a cada pedido:
+   o id sozinho não abre nada. */
+app.get("/api/meus-certificados/monitoria-historico.pdf", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).send("Faça login.");
+    const perfil = (await carregarPerfis())[u.email] || {};
+    const cert = certificadoHistoricoMon(historicoMon, quemHistorico(u, perfil),
+      String(req.query?.id || ""));
+    if (!cert) return res.status(404).send("Você não tem este certificado.");
+    const { gerarCertificadoPdf } = await import("./lib/pdf.js");
+    const buf = await gerarCertificadoPdf({
+      ...cert, codigo: codigoCert({ tipo: cert.tipo, projetoId: cert.id, pessoa: cert.pessoa }),
+      assinaturas: await assinaturasParaPdf(),
+    });
+    enviarPdfMon(res, buf, `certificado-monitoria-${cert.ciclo.replace("/", "-")}.pdf`);
+  } catch (e) {
+    console.error("Erro no certificado histórico da monitoria:", e);
     res.status(500).send("Não foi possível gerar o certificado.");
   }
 });
@@ -10918,6 +11050,7 @@ app.listen(port, () => {
   // uma corre na sua vez, e o que quebrar fica dito no log.
   (async () => {
     for (const etapa of [
+      subirHistoricoMonitoria,   // o arquivo da monitoria: só leitura de disco
       subirLotesIniciais, aplicarAnexosIniciais, zerarAlunosIniciais,
       enquadrarCronogramasIniciais, subirArquivoHistorico, subirAlunosHistoricos,
       removerAlunosEnsinoMedio, subirTurmasEM,

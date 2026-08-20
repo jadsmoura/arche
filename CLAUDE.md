@@ -33,6 +33,7 @@ dados/               Lotes de importação (ic-edital-01-2026.json: as 33 submis
 lib/espacos.js       ARCHÉ ES: espaços, conflito de horário, bloqueios e agenda
 lib/curricularizacao.js  Vínculo da ação de extensão com o componente curricular (MEC)
 lib/monitoria.js     ARCHÉ MO: editais, fluxo, réguas, carga horária e certificados
+lib/monitoriaHistorico.js  O arquivo da monitoria: os ciclos que correram fora do ARCHÉ
 lib/relatorios.js    Relatório Semestral de Atividades: o panorama de cada setor
 lib/banda.js         Diagnóstico de banda: classificação, contagem e projeção (puro)
 lib/medidor.js       O medidor que roda: acumula em memória e grava no disco LOCAL
@@ -1569,6 +1570,39 @@ public/
   convite é nominal, e sem isso ele bateria numa parede vinda do próprio e-mail. Ele vê o
   projeto e o **próprio** cadastro — nunca o CPF, o telefone ou o relatório do colega —, e
   **não lê a avaliação que levou** (nem na tela, nem no PDF do seu relatório).
+- **O ARQUIVO da monitoria — os semestres que correram FORA do ARCHÉ**
+  (`lib/monitoriaHistorico.js` + `dados/mon-historico-*.json`, pedido do dono ago/2026): o
+  módulo começou em 2026/2, e dos ciclos anteriores o que existe é a planilha que a
+  coordenação do curso guardou — monitor, disciplina, orientação e horas, **sem CPF e sem
+  e-mail**. É pouco para abrir projeto no módulo (projeto tem prazo, relatório e cobrança,
+  que não existem para semestre encerrado — e apareceria como pendência no painel da
+  PROPPEX) e é o bastante para emitir o certificado devido. Por isso o arquivo **não vira
+  projeto** e **não entra no estado**: sobe do disco na partida (`subirHistoricoMonitoria`,
+  `LOTES_HISTORICO_MON`) e fica em memória — o estado é um arquivo reescrito inteiro a cada
+  gravação, e um histórico que nunca muda seria peso morto em todas elas. A **âncora é a
+  MATRÍCULA**, com o **nome completo** como segunda chave (nome de uma palavra só não é
+  chave), e há uma regra que o nome sozinho não daria: **matrícula que existe dos dois lados
+  e não bate DERRUBA o casamento por nome** — é o que separa dois homônimos. O id sai do
+  CONTEÚDO (lote + matrícula + disciplina + orientação), para reordenar a planilha não trocar
+  o endereço de um certificado já baixado; a orientação recebe **um por projeto** (a dupla
+  orientação + disciplina, item 6.1) com os monitores nomeados. Os certificados aparecem em
+  `/certificados/` e na guia Certificados do módulo, pelo mesmo gerador e no mesmo desenho —
+  o que muda é a rota (`GET /api/meus-certificados/monitoria-historico.pdf?id=`, só login,
+  porque quem foi monitor em 2026/1 não tem projeto no ARCHÉ e a sessão do setor exigiria
+  um). **O id sozinho não abre nada**: a lista se recalcula contra quem pede. A vigência do
+  lote sai do CRONOGRAMA do próprio edital (no 01/2026: resultado em 18/03, relatório final
+  em 12/06) — é ela que escolhe o timbre da época. Primeiro lote: **Enfermagem 2026/1**, 31
+  certificados de 27 acadêmicos. A gestão vê em `GET /api/monitoria/historico` não quem TEM
+  certificado, mas **quem ainda não foi encontrado no portal**: sem matrícula no perfil o
+  documento existe e o aluno não sabe — e ninguém sabe que ele não sabe.
+- **A MATRÍCULA é obrigatória para o ESTUDANTE** (`faltaNoPerfil` em lib/auth.js, decisão do
+  dono ago/2026): não é burocracia nova — é a única chave que os históricos de monitoria têm,
+  e sem ela o certificado do aluno existe e ele não o encontra. Vale para quem tem função
+  `aluno`, na mesma régua que barra a entrada nos setores e no `POST /api/perfil`. A exceção
+  é o **bolsista do ICEM**: ele é do ensino médio e não tem matrícula no UNIEGO — cobrá-la
+  seria exigência impossível de cumprir, como o CPF do gestor geral. Quem decide é
+  `faltaNoPerfilDe` no server, e a consulta ao ICEM é **preguiçosa** (só quando a matrícula é
+  o que falta): ela lê o estado e a régua roda em toda página de setor.
 - **Relatório Semestral de Atividades** (`lib/relatorios.js` + `public/relatorios/` +
   `GET /api/relatorios/semestral.pdf`, ago/2026): a pergunta que o avaliador do MEC faz é
   sempre a mesma — *o que a instituição fez neste semestre, e onde está a prova?* —, e
