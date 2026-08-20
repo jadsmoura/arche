@@ -521,6 +521,16 @@ public/
   (`faltaParaEntregar`): dois catálogos iguais em dois lugares acabam diferentes, e aí um
   caminho aceita o que o outro recusa. Os anexos usam a MESMA rota do portfólio
   (`/api/extensao/anexo`) — é o mesmo portfólio da mesma ação.
+- **As fotos entram NO PDF do relatório** (`paginasDeFotos` em lib/pdf.js + `fotosDoRelatorio`
+  no server + `files.read` nos três backends, pedido do dono ago/2026): o relatório final é o
+  documento que a PROPPEX apresenta ao avaliador do MEC, e uma lista de nomes de arquivo não
+  comprova a realização — a foto, sim. O servidor LÊ os anexos de imagem do portfólio (Drive,
+  S3 ou disco) e os entrega ao gerador já como bytes; o PDF ganha páginas de **Registro
+  fotográfico** ao FINAL, depois das assinaturas (o corpo é o que se assina; a foto é o anexo
+  que o comprova), **2 por linha, 6 por página**, com o nome do arquivo na legenda. Três
+  freios, porque isto sai da franquia de banda: só imagem, **24 fotos** e **8 MB** por arquivo.
+  Formato que o PDFKit não lê (HEIC, WEBP) sai como moldura com a legenda dizendo isso — um
+  arquivo exótico não derruba o relatório inteiro.
 - **O relatório final exige FOTOS** (`lib/portfolio.js`, decisão do dono ago/2026): a entrega
   pede **no mínimo 5 fotos** no portfólio da ação, sem teto — o registro fotográfico é o que
   comprova a realização, e proposta e relatório sozinhos não se conferem depois. A régua é

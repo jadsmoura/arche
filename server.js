@@ -2279,6 +2279,38 @@ app.post("/api/extensao/notificar", async (req, res) => {
   }
 });
 
+/* AS FOTOS DENTRO DO PDF (pedido do dono, ago/2026): o relatório final é o
+   documento que a PROPPEX apresenta ao avaliador do MEC, e uma lista de nomes
+   de arquivo não comprova a realização — a foto, sim. Aqui o servidor LÊ os
+   anexos de imagem do portfólio (do Drive, do S3 ou do disco local) e os
+   entrega ao gerador do PDF já como bytes.
+
+   Três freios, porque isto sai da franquia de banda e entra num documento
+   que alguém vai abrir no celular: só imagem, teto de fotos e teto por
+   arquivo. Anexo que não abre é PULADO — um arquivo corrompido não pode
+   derrubar a geração do relatório inteiro. */
+const MAX_FOTOS_PDF = 24;
+const MAX_BYTES_FOTO_PDF = 8 * 1024 * 1024;
+
+async function fotosDoRelatorio(acao) {
+  const candidatas = fotosDoPortfolio(acao)
+    .filter((f) => f?.fileId && (!f.size || f.size <= MAX_BYTES_FOTO_PDF))
+    .slice(0, MAX_FOTOS_PDF);
+  const out = [];
+  for (const f of candidatas) {
+    try {
+      const buffer = await files.read?.(f.fileId);
+      if (buffer?.length) out.push({ nome: f.name || "foto", buffer });
+    } catch (e) {
+      console.warn(`[extensao] foto não lida para o PDF (${f.name || f.fileId}):`, e.message);
+    }
+  }
+  const total = fotosDoPortfolio(acao).length;
+  if (total > out.length)
+    console.log(`[extensao] PDF de ${acao.numeroAcao || acao.id}: ${out.length} de ${total} foto(s) embutidas`);
+  return out;
+}
+
 /* -------------------- EXTENSÃO: PORTFÓLIO DO RELATÓRIO ------------------- */
 // Anexos do relatório final (fotos, cartazes, materiais de divulgação…):
 // o arquivo vai para o Drive (extensao/<curso>/<nº da ação>/portfolio) e a
@@ -2388,7 +2420,7 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
       mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     } else if (tipo === "pdf") {
       const { gerarRelatorioPdf } = await import("./lib/pdf.js");
-      buffer = await gerarRelatorioPdf(acao);
+      buffer = await gerarRelatorioPdf(acao, { fotos: await fotosDoRelatorio(acao) });
       nome = `Relatorio-Final-${num}.pdf`;
       mime = "application/pdf";
     } else if (tipo === "proposta") {
