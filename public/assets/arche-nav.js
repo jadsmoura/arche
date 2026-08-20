@@ -11,32 +11,58 @@
   if (window.__archeNav) return;
   window.__archeNav = true;
 
-  var MODULOS = [
-    { href: "/",             rot: "Portal",            teste: function (p) { return p === "/" || p === "/index.html"; } },
-    // mesma ordem dos cartões do portal
-    { href: "/atas/",        rot: "Atas",              teste: function (p) { return p.indexOf("/atas") === 0; } },
-    { href: "/extensao/",    rot: "Extensão",          teste: function (p) { return p.indexOf("/extensao") === 0; } },
-    // o EV fica colado à Extensão de propósito: o evento É uma ação dela
-    { href: "/eventos/gestao/", rot: "Eventos",        teste: function (p) { return p.indexOf("/eventos/gestao") === 0; } },
-    { href: "/pesquisa/ic/", rot: "Pesquisa · IC",     teste: function (p) { return p.indexOf("/pesquisa") === 0; } },
-    { href: "/monitoria/",   rot: "Monitoria",         teste: function (p) { return p.indexOf("/monitoria") === 0; } },
-    { href: "/relatorios/",  rot: "Relatórios",        teste: function (p) { return p.indexOf("/relatorios") === 0; } },
-    { href: "/espacos/",     rot: "Espaços",           teste: function (p) { return p.indexOf("/espacos") === 0; } },
-    // "Meus certificados" é do USUÁRIO, não de um setor: quem participou de
-    // um evento, foi bolsista de IC e monitor de uma disciplina tinha de
-    // procurar o documento de cada um em três lugares. Concentra TUDO; as
-    // guias de certificado dentro de cada setor continuam como estão
-    // (decisão do dono, ago/2026) — lá é a operação de quem emite, aqui é o
-    // histórico de quem recebe. Visível a todo usuário logado, e é o aluno
-    // quem mais o procura.
-    { href: "/certificados/", rot: "Certificados",     teste: function (p) { return p.indexOf("/certificados") === 0; } },
-    { href: "/arche/",       rot: "Avaliação",         teste: function (p) { return p.indexOf("/arche") === 0; } },
+  /* ---------------------------- os atalhos -----------------------------
+     A barra foi de 11 atalhos soltos a SEIS entradas, agrupadas pelo que a
+     pessoa vem fazer (ideia do dono, ago/2026): Portal, Ensino, Pesquisa,
+     Extensão, Serviços e a visão pública. Onze rótulos lado a lado não são
+     um menu — são uma lista que se lê inteira toda vez, e no celular
+     viravam uma faixa rolante em que ninguém achava nada.
+
+     CERTIFICADOS aparece em TRÊS grupos, apontando sempre para a mesma
+     página (decisão do dono): o histórico é UM só, do usuário, e quem foi
+     monitor procura o certificado em "Ensino", quem foi bolsista em
+     "Pesquisa" e quem organizou um evento em "Extensão". Repetir o link é
+     mais barato do que obrigar a adivinhar em qual gaveta ele mora.
+
+     `principal: false` diz que o item não acende o grupo: sem isso, estando
+     em /certificados/ os três grupos ficariam marcados como o lugar onde
+     você está, o que não ajuda ninguém a se localizar. */
+  function em(prefixo) {
+    return function (p) { return p.indexOf(prefixo) === 0; };
+  }
+  var CERTIFICADOS = { href: "/certificados/", rot: "Certificados",
+    sub: "Todos os seus, num lugar só", teste: em("/certificados"), principal: false };
+
+  var NAV = [
+    { href: "/", rot: "Portal", teste: function (p) { return p === "/" || p === "/index.html"; } },
+    { grupo: "Ensino", itens: [
+      { href: "/monitoria/", rot: "Monitoria", sub: "Projetos, monitores e relatórios", teste: em("/monitoria") },
+      CERTIFICADOS,
+    ] },
+    { grupo: "Pesquisa", itens: [
+      { href: "/pesquisa/ic/", rot: "Pesquisa · IC", sub: "Iniciação Científica e ICEM", teste: em("/pesquisa") },
+      CERTIFICADOS,
+    ] },
+    { grupo: "Extensão", itens: [
+      // o EV vem antes do EX na ordem do dono: quem organiza um evento entra
+      // por ele todo dia; a proposta da ação, uma vez
+      { href: "/eventos/gestao/", rot: "Eventos", sub: "Inscrições, credenciamento e transmissão", teste: em("/eventos/gestao") },
+      { href: "/extensao/", rot: "Extensão", sub: "Ações, aprovação e relatório final", teste: em("/extensao") },
+      CERTIFICADOS,
+    ] },
+    { grupo: "Serviços", itens: [
+      { href: "/atas/", rot: "Atas", sub: "Reuniões dos órgãos colegiados", teste: em("/atas") },
+      { href: "/espacos/", rot: "Espaços", sub: "Reserva de auditório, salas e laboratórios", teste: em("/espacos") },
+      { href: "/relatorios/", rot: "Relatórios", sub: "Relatório semestral por setor", teste: em("/relatorios") },
+      { href: "/arche/", rot: "Avaliação", sub: "Avaliação Institucional · SINAES", teste: em("/arche") },
+    ] },
     // a VISÃO PÚBLICA do portal (pedido do dono, ago/2026): a mesma página que
     // o visitante sem login encontra — vitrine dos editais e resultados da IC e
     // dos eventos abertos. Quem está logado chega nela por aqui, sem sair da
     // conta, para conferir o que o público está vendo
-    { href: "/?publico=1",   rot: "Página inicial",    teste: function () { return false; } },
+    { href: "/?publico=1", rot: "Página inicial", teste: function () { return false; } },
   ];
+
   var caminho = location.pathname;
 
   function estilo() {
@@ -54,6 +80,26 @@
       ".arche-topnav .nav-brand{font-weight:800;letter-spacing:.08em;font-size:14px;opacity:1;display:flex;align-items:center;gap:7px}" +
       ".arche-topnav .nav-sep{width:1px;height:20px;background:rgba(255,255,255,.18);margin:0 4px}" +
       ".arche-topnav .nav-dir{margin-left:auto;display:flex;align-items:center;gap:6px}" +
+      /* GRUPO que expande ao clicar. O painel é `fixed` e posicionado a
+         partir do botão, não `absolute` dentro da barra: no celular a barra
+         é um contêiner com rolagem horizontal, e um painel absoluto seria
+         recortado por ela — abriria pela metade, ou não abriria. */
+      ".arche-topnav .nav-gr{background:none;border:0;font-family:inherit;color:#fff;font-size:13px;" +
+      "font-weight:500;padding:6px 12px;border-radius:6px;opacity:.82;cursor:pointer;white-space:nowrap;" +
+      "display:inline-flex;align-items:center;gap:6px;transition:.15s}" +
+      ".arche-topnav .nav-gr:hover{opacity:1;background:rgba(255,255,255,.12)}" +
+      ".arche-topnav .nav-gr.active{opacity:1;background:rgba(113,200,226,.18)}" +
+      '.arche-topnav .nav-gr[aria-expanded="true"]{opacity:1;background:rgba(255,255,255,.16)}' +
+      ".arche-topnav .nav-gr .seta{font-size:8px;opacity:.75;transition:transform .15s}" +
+      '.arche-topnav .nav-gr[aria-expanded="true"] .seta{transform:rotate(180deg)}' +
+      ".arche-menu{position:fixed;z-index:10001;min-width:236px;max-width:min(320px,calc(100vw - 16px));" +
+      "background:#fff;border:1px solid #dde4e8;border-radius:12px;padding:6px;" +
+      "box-shadow:0 14px 40px -12px rgba(24,38,50,.35);font-family:inherit}" +
+      ".arche-menu a{display:block;padding:9px 11px;border-radius:8px;text-decoration:none;transition:.12s}" +
+      ".arche-menu a:hover,.arche-menu a:focus-visible{background:#e6f5fa;outline:none}" +
+      ".arche-menu a.aqui{background:#e6f5fa;box-shadow:inset 3px 0 0 #40717e}" +
+      ".arche-menu b{display:block;font-size:13px;font-weight:700;color:#1c3742}" +
+      ".arche-menu span{display:block;font-size:11.5px;color:#657179;margin-top:1px;line-height:1.35}" +
       ".arche-topnav .nav-portal{border:1px solid rgba(113,200,226,.5);color:#71c8e2;font-weight:600}" +
       ".arche-topnav .nav-portal:hover{background:rgba(113,200,226,.15);color:#fff}" +
       /* conta do usuário, à direita de tudo */
@@ -123,6 +169,94 @@
     if (m.teste(caminho)) a.className = "active";
     return a;
   }
+
+  /* ---------------------- grupos que expandem ao clicar -----------------
+     Um painel por vez, aberto no clique (não no passar do mouse: metade do
+     portal é usada no celular, onde não existe "passar o mouse", e menu que
+     abre sozinho no desktop atrapalha quem só estava a caminho de outro
+     botão). Fecha ao clicar fora, com Esc, ao rolar e ao redimensionar —
+     um painel `fixed` que não seguisse o botão ficaria solto na tela. */
+  var ABERTO = null;
+
+  function fecharMenu() {
+    if (!ABERTO) return;
+    ABERTO.painel.remove();
+    ABERTO.botao.setAttribute("aria-expanded", "false");
+    ABERTO = null;
+  }
+
+  function abrirMenu(g, botao) {
+    fecharMenu();
+    var painel = document.createElement("div");
+    painel.className = "arche-menu";
+    painel.setAttribute("role", "menu");
+    g.itens.filter(visivel).forEach(function (m) {
+      var a = document.createElement("a");
+      a.href = m.href;
+      a.dataset.archeNav = m.href;
+      a.setAttribute("role", "menuitem");
+      if (m.teste(caminho)) a.className = "aqui";
+      a.innerHTML = "<b>" + esc(m.rot) + "</b>" + (m.sub ? "<span>" + esc(m.sub) + "</span>" : "");
+      painel.appendChild(a);
+    });
+    document.body.appendChild(painel);
+    botao.setAttribute("aria-expanded", "true");
+    ABERTO = { painel: painel, botao: botao };
+    posicionar();
+    setTimeout(function () {
+      document.addEventListener("click", function fora(ev) {
+        if (ABERTO && !ABERTO.painel.contains(ev.target) && ev.target !== ABERTO.botao
+          && !ABERTO.botao.contains(ev.target)) {
+          fecharMenu(); document.removeEventListener("click", fora);
+        }
+      });
+    }, 0);
+  }
+
+  /** Cola o painel embaixo do botão, sem deixá-lo sair da tela. */
+  function posicionar() {
+    if (!ABERTO) return;
+    var r = ABERTO.botao.getBoundingClientRect();
+    // botão que saiu inteiro da vista (barra rolada) leva o painel junto
+    if (r.bottom < 0 || r.top > window.innerHeight) { fecharMenu(); return; }
+    var larg = ABERTO.painel.offsetWidth;
+    ABERTO.painel.style.top = (r.bottom + 6) + "px";
+    ABERTO.painel.style.left = Math.max(8, Math.min(r.left, window.innerWidth - larg - 8)) + "px";
+  }
+
+  function grupo(g) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "nav-gr";
+    b.dataset.archeGrupo = g.grupo;
+    b.setAttribute("aria-haspopup", "true");
+    b.setAttribute("aria-expanded", "false");
+    b.innerHTML = esc(g.grupo) + '<span class="seta" aria-hidden="true">▼</span>';
+    // o grupo acende quando você está DENTRO dele — menos os itens marcados
+    // com principal:false (Certificados mora em três grupos)
+    if (g.itens.some(function (m) { return m.principal !== false && m.teste(caminho); })) {
+      b.classList.add("active");
+    }
+    b.onclick = function (ev) {
+      ev.stopPropagation();
+      if (ABERTO && ABERTO.botao === b) fecharMenu(); else abrirMenu(g, b);
+    };
+    return b;
+  }
+
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && ABERTO) { var b = ABERTO.botao; fecharMenu(); b.focus(); }
+  });
+  /* O painel SEGUE o botão em vez de fechar (achado do teste no celular,
+     ago/2026): fechar ao rolar parecia certo, mas ali a própria barra é um
+     contêiner com rolagem horizontal — tocar num botão que está meio fora
+     da tela faz o navegador rolá-la para trazê-lo à vista, e esse rolar
+     fechava o menu que o toque acabara de abrir. O painel abria e sumia. */
+  window.addEventListener("resize", posicionar);
+  window.addEventListener("scroll", posicionar, true);
+
+  /** Uma entrada da barra: link solto ou grupo. */
+  function entrada(n) { return n.grupo ? grupo(n) : link(n); }
 
   /* ------------------------------- conta -------------------------------- */
   // A Avaliação é setor aberto (não pede login) e a tela de entrada já é o
@@ -260,37 +394,56 @@
      sem login vê o portal como sempre. Quem BARRA acesso continua sendo o
      servidor (login nos setores, portaria na Avaliação) — esconder cartão
      não é porta. Os cartões do portal carregam data-setor com o href. */
+  var OCULTOS = {};
+  function visivel(m) { return !OCULTOS[m.href]; }
+
+  /** Aplica o estado à barra: link oculto some, e GRUPO sem nenhum item
+      visível some junto — quatro menus vazios seriam pior que nenhum. */
+  function atualizarBarra() {
+    var links = document.querySelectorAll(".arche-topnav a[data-arche-nav]");
+    for (var i = 0; i < links.length; i++) {
+      var href = links[i].dataset.archeNav;
+      if (href && href !== "portal") links[i].style.display = OCULTOS[href] ? "none" : "";
+    }
+    NAV.forEach(function (n) {
+      if (!n.grupo) return;
+      var b = document.querySelector('.arche-topnav [data-arche-grupo="' + n.grupo + '"]');
+      if (b) b.style.display = n.itens.some(visivel) ? "" : "none";
+    });
+  }
+
   function aplicarVisibilidade() {
     quemSou()
       .then(function (me) {
+        var esconder;
         if (!me || !me.email) {
           // visitante (decisão do dono, ago/2026): a barra deixa de anunciar
           // os setores de gestão — os atalhos levariam à tela de login. As
-          // páginas públicas (vitrines, hotsites) ficam só com "Portal".
-          ["/atas/", "/extensao/", "/eventos/gestao/", "/pesquisa/ic/", "/monitoria/", "/relatorios/", "/espacos/", "/arche/"].forEach(function (href) {
-            var alvos = document.querySelectorAll('.arche-topnav a[data-arche-nav="' + href + '"]');
-            for (var i = 0; i < alvos.length; i++) alvos[i].style.display = "none";
-          });
-          return;
+          // páginas públicas (vitrines, hotsites) ficam só com "Portal" e a
+          // visão pública; os quatro grupos somem inteiros, por ficarem vazios.
+          esconder = ["/atas/", "/extensao/", "/eventos/gestao/", "/pesquisa/ic/", "/monitoria/",
+            "/relatorios/", "/espacos/", "/arche/", "/certificados/"];
+        } else if (me.papel === "gestor" || (me.modulos || []).length > 0) {
+          esconder = [];                                   // gestão e coordenações veem tudo
+        } else {
+          // Espaços fica visível a TODO usuário logado (decisão do dono,
+          // ago/2026): quem solicita reserva é professor, coordenação, setor,
+          // acadêmico — e até a comunidade, pela conta de quem a recebe.
+          // Monitoria idem, e por um motivo mais forte: metade do setor é do
+          // ALUNO (é ele quem se inscreve como monitor e entrega o relatório).
+          // Aluno não organiza evento (participa pela página pública) — o setor
+          // EV é de quem propõe e opera. Relatórios é da gestão: quem não
+          // coordena setor nenhum não tem o que emitir, e a rota o recusaria.
+          esconder = (me.perfil && me.perfil.funcao === "aluno")
+            ? ["/atas/", "/inovacao/", "/arche/", "/eventos/gestao/", "/relatorios/"]
+            : ["/arche/", "/relatorios/"];
         }
-        var gestao = me.papel === "gestor" || (me.modulos || []).length > 0;
-        if (gestao) return;                                // gestão e coordenações veem tudo
-        // Espaços fica visível a TODO usuário logado (decisão do dono,
-        // ago/2026): quem solicita reserva é professor, coordenação, setor,
-        // acadêmico — e até a comunidade, pela conta de quem a recebe.
-        // Monitoria idem, e por um motivo mais forte: metade do setor é do
-        // ALUNO (é ele quem se inscreve como monitor e entrega o relatório).
-        var aluno = me.perfil && me.perfil.funcao === "aluno";
-        // aluno não organiza evento (participa pela página pública) — o
-        // setor EV é de quem propõe e opera
-        // Relatórios é da gestão: quem não coordena setor nenhum não tem o
-        // que emitir, e a rota o recusaria de todo modo
-        var esconder = aluno
-          ? ["/atas/", "/inovacao/", "/arche/", "/eventos/gestao/", "/relatorios/"]
-          : ["/arche/", "/relatorios/"];
+        OCULTOS = {};
+        esconder.forEach(function (href) { OCULTOS[href] = true; });
+        atualizarBarra();
+        // os cartões do portal carregam data-setor com o mesmo href
         esconder.forEach(function (href) {
-          var alvos = document.querySelectorAll(
-            '[data-setor="' + href + '"], .arche-topnav a[data-arche-nav="' + href + '"]');
+          var alvos = document.querySelectorAll('[data-setor="' + href + '"]');
           for (var i = 0; i < alvos.length; i++) alvos[i].style.display = "none";
         });
       })
@@ -306,11 +459,7 @@
       // globais que faltarem, preservando os links internos do módulo
       var dir = document.createElement("span");
       dir.className = "nav-dir";
-      MODULOS.forEach(function (m) {
-        if (m.teste(caminho)) return;                       // o módulo atual já está na barra
-        if (existente.querySelector('[data-arche-nav="' + m.href + '"]')) return;
-        dir.appendChild(link(m));
-      });
+      NAV.forEach(function (n) { dir.appendChild(entrada(n)); });
       dir.appendChild(voltarPortal());
       if (TEM_CONTA) dir.appendChild(conta());
       existente.appendChild(dir);
@@ -326,7 +475,7 @@
       '<circle cx="20" cy="20" r="3.6" fill="#71c8e2"></circle></svg>ARCHÉ';
     nav.appendChild(marca);
     var sep = document.createElement("span"); sep.className = "nav-sep"; nav.appendChild(sep);
-    MODULOS.forEach(function (m) { nav.appendChild(link(m)); });
+    NAV.forEach(function (n) { nav.appendChild(entrada(n)); });
 
     var dir2 = document.createElement("span");
     dir2.className = "nav-dir";
