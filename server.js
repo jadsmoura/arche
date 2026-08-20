@@ -1965,12 +1965,21 @@ app.post("/api/extensao", async (req, res) => {
           if (snapshot) final.relatorio = { ...final.relatorio, numerosEvento: snapshot };
           else if (final.relatorio.numerosEvento) delete final.relatorio.numerosEvento;
         }
+        // REGISTRAR pressupõe o relatório entregue (achado do dono,
+        // ago/2026): sem esta régua dava para finalizar uma ação que nunca
+        // teve relatório — ela sumia da guia Relatórios sem nunca ter
+        // aparecido lá —, e o registro é justamente o que libera os
+        // certificados nas ações sem evento. Vale só na TRANSIÇÃO: ação já
+        // registrada (as migradas do papel, por exemplo) continua gravável.
+        const registrouAgora = final.status === "registrada" && base?.status !== "registrada";
+        if (registrouAgora && !final.relatorio?.entregueEm)
+          return { erro: [400, "Esta ação ainda não tem relatório final entregue — registrar encerra o "
+            + "ciclo e libera os certificados. Entregue o relatório antes de finalizar."], gravar: false };
         // Ação SEM evento: quem libera o certificado é o REGISTRO da ação
         // (é o ato em que a PROPPEX confere relatório e listas). Quem tem
         // direito é avisado agora, do mesmo jeito que no evento — sem isso,
         // o documento existiria e ninguém saberia.
-        if (!final.evento && final.status === "registrada" && base?.status !== "registrada")
-          registradas.push(final);
+        if (!final.evento && registrouAgora) registradas.push(final);
         if (i >= 0) acoes[i] = final; else acoes.push(final);
         gravadas++;
       }

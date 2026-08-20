@@ -451,6 +451,16 @@ public/
   padrão não pode fechar mais cedo para quem não pediu. O relógio é o de Brasília
   (`horaLocalHHMM` em lib/datas.js), nunca o do navegador de quem se inscreve, e quem confere é
   o SERVIDOR, dentro da fila (a rota de trocar atividades também).
+- **Entregar e registrar são dois atos, e os dois têm dono** (achado do dono, ago/2026): o
+  botão de ENTREGAR o relatório só era desenhado para quem NÃO é gestão — o pró-reitor, que
+  organiza as próprias ações e ainda cobre a ausência do responsável, preenchia o relatório,
+  anexava as fotos e não tinha como entregá-lo; a ação ficava fora da guia Relatórios, que é
+  onde ela se conclui. Agora a gestão entrega também, e o ato fica marcado
+  (`relatorio.entreguePelaGestao`, "em nome do responsável"). Do outro lado, **registrar
+  passou a exigir o relatório entregue**: dava para "Finalizar (Registrada)" uma ação que
+  nunca teve relatório — ela sumia da guia Relatórios sem nunca ter aparecido lá, e o
+  registro é justamente o que libera os certificados nas ações sem evento. A régua é do
+  SERVIDOR e vale só na TRANSIÇÃO: ação já registrada (as migradas do papel) segue gravável.
 - **Encerrar o evento É entregar o relatório final** (`lib/relatorioEx.js` + o formulário do
   botão "Encerrar evento" no ARCHÉ EV, achado do dono ago/2026): o primeiro evento gerido de
   ponta a ponta encerrou, os certificados saíram — e a ação continuou **sem relatório** no

@@ -1460,8 +1460,16 @@ function renderDetalhe(id){
 
     /* botões de envio/apreciação/export */
     html += `<div class="card"><div class="exp">`;
-    if(!PROPPEX && !lock)
-      html += `<button class="bt bt-pri" onclick="enviarRelatorio('${a.id}')">📨 ${s==="relatorio-entregue"?"Reenviar relatório atualizado":"Enviar relatório final à PROPPEX"}</button>`;
+    // A ENTREGA do relatório também é da gestão (achado do dono, ago/2026):
+    // o botão só existia para quem NÃO é gestão, e o pró-reitor — que
+    // organiza as próprias ações e ainda cobre a ausência do responsável —
+    // preenchia o relatório, anexava as fotos e não tinha como entregá-lo.
+    // A ação ficava fora da guia Relatórios, que é onde ela se conclui.
+    if(!lock)
+      html += `<button class="bt bt-pri" onclick="enviarRelatorio('${a.id}')">📨 ${
+        s==="relatorio-entregue" ? "Reenviar relatório atualizado"
+        : PROPPEX && !minhaAcao(a) ? "Entregar o relatório final (em nome do responsável)"
+        : "Enviar relatório final à PROPPEX"}</button>`;
     if(PROPPEX){
       html += `<button class="bt bt-sec" onclick="exportar('${a.id}','registro')">📄 Registro de Atividade (.docx)</button>
         <button class="bt bt-sec" onclick="exportar('${a.id}','certificados')">📊 Planilha de Certificados (.xlsx)</button>
@@ -1725,6 +1733,15 @@ const ehFotoAnexo = (x) => {
 };
 const fotosDaAcao = (a) => (a?.portfolio?.anexos || []).filter(ehFotoAnexo);
 
+/* A ação é minha? (o mesmo casamento do servidor: quem registrou ou quem
+   responde pela ação). Serve só para o RÓTULO do botão de entrega — quem
+   diz quem pode é o servidor. */
+const minhaAcao = (a) => {
+  const meu = String(ME?.email||"").toLowerCase();
+  return !!meu && [a?.criadoPor, a?.proposta?.respEmail]
+    .some(e => String(e||"").toLowerCase() === meu);
+};
+
 async function enviarRelatorio(id){
   const a=ACOES.find(x=>x.id===id); if(!a)return;
   const r=lerRelatorio();
@@ -1738,17 +1755,25 @@ async function enviarRelatorio(id){
     return;
   }
   if(!(a.participantes.inscritos||[]).length && !confirm("A lista de participantes está vazia. Enviar mesmo assim?")) return;
-  a.relatorio={...r, entregueEm:new Date().toISOString()};
+  // a gestão entrega EM NOME do responsável quando a ação não é dela — o
+  // ato fica marcado, que é o que o torna explicável depois
+  const pelaGestao = PROPPEX && !minhaAcao(a);
+  const antes = a.status, antesRel = a.relatorio;
+  a.relatorio={...r, entregueEm:new Date().toISOString(),
+    ...(pelaGestao ? { entreguePelaGestao:true, entreguePor: ME?.email||"" } : {})};
   a.status="relatorio-entregue"; a.atualizadoEm=new Date().toISOString();
   try{
     await salvar();
   }catch(e){
     // o servidor recusa a entrega sem as fotos: mostra o motivo dele
     alert("Não foi possível enviar: "+(e.message||e));
-    delete a.relatorio.entregueEm; a.status="aprovada";
+    a.relatorio=antesRel; a.status=antes;
     return;
   }
-  alert("✅ Relatório enviado à PROPPEX!"); renderLista(); renderDetalhe(id);
+  alert(`✅ Relatório final entregue${pelaGestao?" em nome do responsável":""}.\n\n`
+    + "A ação aparece agora na guia Relatórios, e o PDF timbrado sai pelo botão "
+    + "“Relatório Final em PDF” aqui mesmo.");
+  renderLista(); renderDetalhe(id);
 }
 /* Aprovar é ato da gestão, e quem emite o Número da Ação é o SERVIDOR
    (rota /api/extensao/:id/aprovar): a sequência oficial é lida e gravada
@@ -1878,9 +1903,24 @@ async function salvarApreciacao(id){
   a.atualizadoEm=new Date().toISOString();
   await salvar(); alert("💾 Salvo.");
 }
+/* REGISTRAR é o último ato, e ele PRESSUPÕE o relatório (achado do dono,
+   ago/2026): sem essa conferência dava para finalizar uma ação que nunca
+   teve relatório — ela saía da guia Relatórios sem nunca ter aparecido lá,
+   e, com os certificados emitidos pelo ARCHÉ, o registro passou a ser
+   justamente o que os libera nas ações sem evento. Registrar sem relatório
+   emitiria certificado de uma ação sem prestação de contas. */
 async function registrarAcao(id){
   const a=ACOES.find(x=>x.id===id); if(!a)return;
-  if(!confirm("Confirmar que os certificados foram emitidos no sistema institucional e FINALIZAR esta ação como REGISTRADA?\n\n(encerra o ciclo; os campos ficam travados)")) return;
+  if(!a.relatorio?.entregueEm){
+    alert("Esta ação ainda não tem relatório final entregue.\n\n"
+      + "Registrar encerra o ciclo e trava os campos — e é o que libera os certificados. "
+      + "Preencha o relatório e clique em “Entregar o relatório final”, logo acima, antes de finalizar.");
+    return;
+  }
+  const semEvento=!a.evento;
+  if(!confirm(`FINALIZAR "${a.proposta?.nomeAtividade||"esta ação"}" como REGISTRADA?\n\n`
+    + "Encerra o ciclo e trava os campos."
+    + (semEvento ? "\n\nOs certificados desta ação passam a existir e quem tem direito é avisado por e-mail." : ""))) return;
   a.apreciacao=$("d-apreciacao")?.value.trim()||a.apreciacao;
   a.status="registrada"; a.atualizadoEm=new Date().toISOString();
   await salvar(); renderLista(); renderDetalhe(id);
