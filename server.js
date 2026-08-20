@@ -2017,8 +2017,7 @@ app.post("/api/extensao", async (req, res) => {
       avisarCertificadosDisponiveis(acao)
         .catch((e) => console.error("[extensao] avisos de certificado:", e.message));
     }
-    const acoes = (await lerAcoes()).filter((a) => podeVerAcao(u, a)).map((a) =>
-      acaoSemSegredos);
+    const acoes = (await lerAcoes()).filter((a) => podeVerAcao(u, a)).map(acaoSemSegredos);
     res.json({ ok: true, ...r, acoes });
   } catch (e) {
     console.error("Erro ao gravar ação de extensão:", e);
