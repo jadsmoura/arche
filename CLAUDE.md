@@ -1676,6 +1676,18 @@ public/
   resultados aparecem em **um quadro por ANO**, como os da IC: a numeração da monitoria é a da
   sequência geral da instituição e mudou de série (002/2020, 001/2022, 01/2026, 03/2026) —
   ordenar por número jogaria o ciclo mais novo para o fim do arquivo.
+- **A barra do EV conta o CICLO do evento** (pedido do dono, ago/2026): **pré-evento**
+  (inscrições, página, programação, blocos), **evento** (credenciamento, transmissão) e
+  **pós-evento** (exportações, encerrar evento) — o grupo antes se chamava "GERAL", que não era
+  uma fase: era o nome do que não coubera nas outras duas. E a **"Ação de extensão" deixou de ser
+  guia**: era uma tela inteira para dizer uma frase e oferecer um link, e ficava numa fase do
+  evento, quando a ação-mãe não é fase nenhuma — nasce antes da proposta e sobrevive ao
+  encerramento. O link continua, porque o encerramento não cobre tudo o que mora lá (PDF do
+  projeto e do relatório, Número da Ação, curricularização, cursos corealizadores, portfólio e o
+  registro pela PROPPEX), mas agora é o que sempre foi: uma **saída** no pé da barra, separada das
+  guias, que some quando não há evento escolhido e abre **a ação DESTE evento** —
+  `/extensao/#acao/<id>`, o deep-link que o ARCHÉ EX passou a entender. Antes largava a pessoa na
+  lista inteira para procurar a ação de que tinha acabado de sair, e o EV já sabia qual era.
 - **A guia do EV se chama pelo ATO que a abre** (decisão do dono, ago/2026): "Certificados"
   virou **"Encerrar evento"** — é ali que o coordenador encerra, e o certificado não sai antes
   disso nem antes de a PROPPEX validar o encerramento; o nome antigo convidava a entrar

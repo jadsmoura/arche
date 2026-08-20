@@ -47,6 +47,12 @@
   .side-sel .todos:hover{color:#fff}
   .side-nav{padding:10px 12px;flex:1;overflow-y:auto}
   .side-lab{font-size:10px;letter-spacing:.16em;color:rgba(255,255,255,.35);font-weight:600;padding:12px 12px 6px}
+  /* SAÍDA do módulo — não é guia: separada por uma linha, e com o ↗ dizendo
+     que o clique leva para fora do ARCHÉ EV */
+  .side-saida{display:flex;align-items:center;gap:11px;margin:14px 0 0;padding:12px 12px 0;
+    border-top:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.62);text-decoration:none;
+    font-size:13px;font-weight:500;transition:.15s}
+  .side-saida:hover{color:#fff}
   .side-item{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:8px;cursor:pointer;
     margin-bottom:2px;font-size:13.5px;font-weight:500;background:transparent;color:rgba(255,255,255,.62);
     border-left:3px solid transparent;border-right:0;border-top:0;border-bottom:0;width:100%;text-align:left;
@@ -309,7 +315,6 @@
         <section id="v-transmissao" class="hide"></section>
         <section id="v-exportacoes" class="hide"></section>
         <section id="v-certificados" class="hide"></section>
-        <section id="v-acao" class="hide"></section>
       </div>
     </div>
   </div>
@@ -472,7 +477,10 @@ const SECOES = [
    sub:"O código do monitor, o link do credenciamento por QR e a lista em papel de contingência."},
   {k:"transmissao", rot:"Transmissão e mural", grupo:"EVENTO", ic:IC.transmissao, evento:true, tit:"Transmissão e mural",
    sub:"A transmissão online (YouTube ao vivo ou sala de reunião) e a moderação do mural de comentários."},
-  {k:"exportacoes", rot:"Exportações", grupo:"GERAL", ic:IC.exportacoes, evento:true, tit:"Exportações",
+  /* PÓS-EVENTO fecha o ciclo que a barra lateral conta — pré-evento, evento,
+     pós-evento (pedido do dono, ago/2026). "GERAL" não era uma fase: era o
+     nome que sobrou para o que não coubera nas outras duas. */
+  {k:"exportacoes", rot:"Exportações", grupo:"PÓS-EVENTO", ic:IC.exportacoes, evento:true, tit:"Exportações",
    sub:"As planilhas do evento — AEE (geral, por atividade, só presentes) e a lista completa do ARCHÉ."},
   /* A guia se chama pelo ATO que a abre (pedido do dono, ago/2026): é aqui
      que o coordenador encerra o evento — e o certificado não sai antes disso,
@@ -480,12 +488,18 @@ const SECOES = [
      entrar procurando um documento que ainda não existia; "Encerrar evento"
      diz o que a coordenação vem fazer. Os certificados continuam aqui, e a
      chave da guia (`certificados`) não muda — é ela que os atalhos usam. */
-  {k:"certificados", rot:"Encerrar evento", grupo:"GERAL", ic:IC.certificados, evento:true,
+  {k:"certificados", rot:"Encerrar evento", grupo:"PÓS-EVENTO", ic:IC.certificados, evento:true,
    tit:"Encerrar o evento e emitir os certificados",
    sub:"O encerramento entrega o relatório final da ação; validado pela PROPPEX, os certificados passam a existir — com as assinaturas configuradas aqui."},
-  {k:"acao", rot:"Ação de extensão", grupo:"GERAL", ic:IC.acao, evento:true, tit:"A ação de extensão",
-   sub:"A ação-mãe deste evento — proposta, aprovação e relatório vivem no ARCHÉ EX."},
 ];
+/* A AÇÃO DE EXTENSÃO NÃO É UMA GUIA (pergunta do dono, ago/2026). Ela era uma
+   tela inteira para dizer uma frase e oferecer um link — e ficava numa fase do
+   evento, quando a ação-mãe não é fase nenhuma: ela nasce antes da proposta e
+   sobrevive ao encerramento. O link continua, porque o encerramento não cobre
+   tudo o que mora lá (o PDF do projeto e o do relatório, o Número da Ação, a
+   curricularização, os cursos corealizadores, o portfólio e o registro pela
+   PROPPEX), mas agora é o que sempre foi: uma SAÍDA do módulo, no pé da barra,
+   separada das guias — e que abre a ação DESTE evento, não a lista inteira. */
 
 function montarSidebar(){
   let grupo=null;
@@ -494,6 +508,10 @@ function montarSidebar(){
     grupo=s.grupo;
     return cab+`<button class="side-item" data-k="${s.k}" onclick="nav('${s.k}')">${icone(s.ic)}${s.rot}</button>`;
   }).join("");
+
+  $("menu").insertAdjacentHTML("beforeend",
+    `<a class="side-saida" id="side-acao" href="/extensao/" style="display:none">${icone(IC.acao)}Ação de extensão ↗</a>`);
+  atualizarSaidaAcao();
 
   const p = ME?.perfil||{};
   const nome = p.tratamento || p.nome || (ME?.nome && ME.nome!==ME?.email ? ME.nome : (ME?.email||"—"));
@@ -624,6 +642,20 @@ const selecionar = (id, guia)=>trocarEvento(id, guia);
 /* Deep-link: a URL guarda "#<guia>" ou "#<guia>/<id da ação>" — recarregar
    a página volta à mesma guia com o mesmo evento selecionado. O formato da
    tela anterior ("#e/<id>") segue aceito e vira "#inicio/<id>". */
+/** A saída para a ação-mãe: aponta para ESTE evento, e some quando não há
+    evento escolhido — um link para "a ação de qual evento?" não leva a lugar
+    nenhum. Fica no pé da barra porque é saída, não guia. */
+function atualizarSaidaAcao(){
+  const el=$("side-acao"); if(!el) return;
+  const a = ABERTO ? ACOES.find(x=>x.id===ABERTO) : null;
+  el.style.display = a ? "flex" : "none";
+  if(a){
+    el.href = "/extensao/#acao/"+encodeURIComponent(a.id);
+    el.title = "Abrir no ARCHÉ EX: "+(a.proposta?.nomeAtividade||"a ação deste evento")
+      + (a.numeroAcao?" · "+a.numeroAcao:" · ainda sem número");
+  }
+}
+
 function nav(secao){
   const meta = SECOES.find(s=>s.k===secao) || SECOES[0];
   SECAO = meta.k;
@@ -635,6 +667,7 @@ function nav(secao){
   $("crumb").textContent = meta.rot;
   const a = ABERTO ? ACOES.find(x=>x.id===ABERTO) : null;
   if(a===null && ABERTO){ ABERTO=null; montarSeletor(); }
+  atualizarSaidaAcao();
   try{ history.replaceState(null,"","#"+SECAO+(meta.evento&&a?"/"+encodeURIComponent(a.id):"")); }catch{}
   const alvo=$("v-"+SECAO);
 
@@ -663,7 +696,6 @@ function nav(secao){
   else if(SECAO==="transmissao") renderTransmissao(a);
   else if(SECAO==="exportacoes") renderExportacoes(a);
   else if(SECAO==="certificados") renderCertificados(a);
-  else if(SECAO==="acao") renderAcao(a);
   alvo.classList.remove("hide");
   if(meta.evento) agendarEvento(a.id);
   window.scrollTo(0,0);
@@ -1946,20 +1978,6 @@ function renderExportacoes(a){
 }
 
 /* ==================== GERAL · AÇÃO DE EXTENSÃO ========================== */
-function renderAcao(a){
-  $("v-acao").innerHTML=`
-    <div class="card">
-      <div class="sec-t">A ação de extensão desta página</div>
-      <div class="muted" style="margin-top:8px;line-height:1.6">O ARCHÉ EV é a sala de operação do
-        evento; a <b>ação de extensão é a mãe dele</b> — a proposta, a aprovação (que emite o Número
-        da Ação), o relatório final e os participantes para certificação vivem no ARCHÉ EX.</div>
-      <div class="kv" style="margin-top:12px;font-size:13.5px;color:var(--ink-soft)">
-        <b>${esc(a.proposta?.nomeAtividade||"(sem nome)")}</b> · ${esc(a.curso||"")}
-        ${a.numeroAcao?` · ${esc(a.numeroAcao)}`:" · ação ainda sem número (aguardando aprovação)"}</div>
-      <div class="exp"><a class="bt bt-sec" href="/extensao/">Abrir a ação no ARCHÉ EX →</a></div>
-    </div>`;
-}
-
 const contadoresAtividadeHtml=(a)=>{
   const por=numerosEventoLocal(a).porAtividade;
   return por.length?`<div class="scrollx" style="margin:-4px 0 14px"><table class="pt">

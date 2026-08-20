@@ -2856,7 +2856,17 @@ async function dispensarCobranca(id){
     if(!GESTAO && !ME.perfil){ location.href="/perfil/?next="+encodeURIComponent(location.pathname); return; }
   }catch{ /* segue sem sessão (modo dev) */ }
   montarSidebar(); montarForm(); montarFiltros();
-  await carregar(); renderLista(); nav("painel");
+  await carregar(); renderLista();
+  /* Deep-link "#acao/<id>", que é por onde o ARCHÉ EV manda quem clica em
+     "Ação de extensão ↗" (ago/2026). Antes o atalho largava a pessoa na
+     lista inteira, para ela procurar ali a ação de que tinha acabado de
+     sair — e o EV já sabia qual era. Ação que não existe (ou que não é
+     desta pessoa) cai no painel, sem erro: o recorte de quem vê o quê
+     continua sendo o do servidor, e este atalho não fura nada. */
+  const alvo = (location.hash.match(/^#acao\/(.+)$/) || [])[1];
+  const id = alvo ? decodeURIComponent(alvo) : "";
+  if (id && ACOES.some(a => a.id === id)) nav("detalhe", id);
+  else nav("painel");
 })();
 
 </script>
