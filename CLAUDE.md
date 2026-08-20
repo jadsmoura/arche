@@ -86,7 +86,8 @@ public/
 ## Regras de negócio essenciais
 
 - **Setores protegidos** (exigem login): `/extensao`, `/pesquisa`, `/inovacao`, `/atas`,
-  `/espacos`, `/monitoria`, `/usuarios` e `/eventos/gestao` (o restante de `/eventos/*` é público
+  `/espacos`, `/monitoria`, `/usuarios`, `/relatorios`, `/diagnostico`, `/prototipos` e
+  `/eventos/gestao` (`/usuarios` e `/diagnostico` só para gestor geral; o restante de `/eventos/*` é público
   de propósito). Duas exceções nominais para conta ainda `pendente`: o aluno/avaliador convidado
   na IC e o **monitor indicado** na monitoria — o convite chega por e-mail e não pode dar em
   parede.
@@ -244,8 +245,10 @@ public/
   caracteres: sem isso um setor com 63 pendências empurra os outros para fora da tela.
 - **Sino de alertas no topo** (`GET /api/alertas` + `arche-nav.js`): mostra à gestão o que
   espera decisão ou atenção — acessos pendentes e cadastros novos (só gestor geral),
-  projetos de IC aguardando avaliação, substituições de bolsista, relatórios em atraso,
-  propostas/relatórios da Extensão e órgãos fora de dia nas Atas. O recorte é por
+  projetos de IC aguardando avaliação, substituições de bolsista, contestações, pedidos de
+  encerramento, relatórios em atraso, propostas/relatórios da Extensão, órgãos fora de dia nas
+  Atas, eventos sem aprovação/não publicados e encerramentos a validar, projetos de monitoria
+  em análise/a homologar e reservas de espaço aguardando decisão. O recorte é por
   `modulosDe`: o gestor geral vê tudo; o coordenador, só os módulos que coordena; quem
   não gere nada não vê o sino. A rota só devolve contagens, nomes e links — nada sigiloso.
 - **Envios automáticos de e-mail** (`lib/avisos.js` + guia "Envios automáticos" em `/usuarios/`,
@@ -687,7 +690,9 @@ public/
   comprova** — aprovada, com relatório entregue ou registrada; proposta em análise não é
   comprovação. Os `codigo` de `PERIODOS` são a chave do que já está gravado.
 - Fluxo da Extensão: proposta → aprovação (nº `EXT-AAAA-NNN`) → relatório final →
-  participantes (3/3 completa) → certificados → registrada. Não alterar o formato do nº.
+  participantes (3/3 completa) → **registrada → certificados**. Não alterar o formato do nº.
+  A ordem é essa desde ago/2026 e é o que `acaoCertificavel` cobra: nas ações SEM evento é o
+  REGISTRO que libera o certificado, porque é nele que a PROPPEX confere relatório e listas.
 - **Ações migradas do processo em papel** (`subirAcoesMigradasExtensao` + `LOTES_EXTENSAO`,
   um arquivo em `dados/` e uma marca `sys-ex-lote-*` por lote): entraram transcritas dos
   documentos das coordenações a Semana de Enfermagem 2026 (168 participantes) e, em
@@ -716,7 +721,7 @@ public/
   usados em server.js (`extensao/<curso>/…`, `dossie/<curso>/…`,
   `atas/<curso>/<órgão>/<ano>/` e `atas/institucional/<órgão>/<ano>/`).
 - Estado do app em chaves `/api/estado`; chaves `auth-*`, `sys-*`, `atas-*`, `ic-*`,
-  `ex-*`, `esp-*` e `mon-*` são internas e invisíveis pela API — quem guarda dado com recorte por pessoa
+  `ex-*`, `esp-*`, `mon-*` e `extensao-config-*` (a sequência oficial do nº da ação) são internas e invisíveis pela API — quem guarda dado com recorte por pessoa
   precisa ficar fora do `/api/estado`, senão a lista inteira sai por ali. Toda
   leitura/gravação passa por `/api/atas/*`, `/api/ic/*` e `/api/extensao`.
 - **As ações de extensão saíram do `/api/estado`** (ago/2026): elas guardam CPF, telefone
@@ -1501,11 +1506,16 @@ public/
   conviver com o 01/AAAA (IC) e o 02/AAAA (ICEM) no quadro por ano da vitrine `/ic/`; a
   monitoria é semestral, e um segundo edital no mesmo ano toma o número seguinte livre.
   O **Edital 03/2026 é gerado pelo próprio ARCHÉ** (`TEXTO_EDITAL` + `gerarEditalMonitoriaPdf`,
-  público em `/api/publico/monitoria/edital.pdf`): é o 02/2025 atualizado para a PROPPEX —
-  os objetivos, os requisitos do candidato e a certificação não mudaram; mudou o órgão que
-  conduz e o fato de o processo inteiro correr no portal.
+  público em `/api/publico/monitoria/edital.pdf`): é o 02/2025 atualizado — os objetivos, os
+  requisitos do candidato e a certificação não mudaram; mudou o órgão e o fato de o processo
+  inteiro correr no portal. **Quem CONCEBE e EXPEDE é a PROAC** (as diretrizes pedagógicas são
+  dela); **a PROPPEX OPERA** o processo. Por isso o edital sai com o timbre da PROAC
+  (`TIMBRE_PROAC` em lib/pdf.js) e três assinaturas — pró-reitora acadêmica, pró-reitor e
+  reitor —, enquanto os anexos do processo seguem no timbre da PROPPEX.
   **O fluxo é o da IC, e cada passo é rota com dono definido**: o professor submete o projeto
-  da SUA disciplina e **indica o monitor por nome e e-mail** → o indicado recebe o convite e
+  da SUA disciplina e **indica o monitor por nome, e-mail e CPF** — informado o CPF, `GET /api/monitoria/pessoa`
+   diz se ele já tem conta, e `casarMonitoresPorCpf` faz o convite ir para ELA, descartando o
+   endereço digitado: a conta existente manda, senão o mesmo aluno viraria dois cadastros → o indicado recebe o convite e
   preenche a **própria ficha de inscrição** (Anexo II: matrícula, CPF, telefone, curso,
   período, declaração de disponibilidade firmada no sistema e o **histórico escolar** anexado
   — um documento só, decisão do dono: o histórico já comprova a matrícula e ainda mostra o
@@ -1516,6 +1526,10 @@ public/
   existem. Ninguém preenche a ficha pelo aluno (é declaração, e declaração tem dono), a
   avaliação **nunca é da PROPPEX** (quem acompanhou o semestre foi a orientação) e o
   protocolo `MON-AAAA-NNN` é emitido pelo SERVIDOR, na submissão.
+  **O relatório do monitor exige 3 fotos** (`MIN_FOTOS_MONITORIA`/`faltaNoRelatorio` em
+  lib/monitoria.js): é a mesma razão do mínimo da Extensão — o registro fotográfico é o que
+  comprova a atividade —, em escala menor, porque a monitoria é semanal e não um evento. A
+  régua TRAVA o envio, como na Extensão.
   **Certificados** (`certificadosDe` em lib/monitoria.js, mesmo gerador da IC): o monitor só
   certifica com parecer **aprovado** (item 6.2) e leva a **carga horária cumprida**
   (semanas × CH semanal, semana iniciada conta); o docente recebe **um por PROJETO**, não um
