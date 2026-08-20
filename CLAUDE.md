@@ -361,6 +361,18 @@ public/
   **Exports**: AEE geral e POR ATIVIDADE (`?atividade=`, CH da atividade, presentes por
   `presencas[]`) com o template intocável (4 abas + CONFIG), e a lista completa do ARCHÉ
   (`inscritos-completo.xlsx`, campos extras em colunas, tudo por `seguro()`).
+  **A porta não espera o Drive** (incidente do credenciamento, ago/2026): `comAcoes` fazia
+  `flush` DENTRO da fila, e em produção cada `flush` reescreve o `_estado.json` INTEIRO — dez
+  crachás na porta viravam dez uploads em série, e a fila parecia um sistema travado. O
+  check-in passou a gravar com `flushJa: false`: o dado entra na memória (de onde a leitura
+  seguinte parte) e a subida ao Drive fica para a janela de 1,2 s do storage, que agrupa a
+  rajada num upload só. O padrão continua `true` — para o que é raro e caro de perder
+  (aprovar, registrar, encerrar), a certeza de que subiu vale a espera. O risco aceito é
+  perder até 1,2 s de leituras se a instância morrer no meio; relê-se o crachá.
+  **Leitura ruim de monitor autenticado não é ataque** (mesmo incidente): quem passou pelo
+  código do monitor já provou quem é, e crachá de outro evento ou print do colega é ruído de
+  porta — só o CÓDIGO ERRADO conta no `freioCheckin`. Sem isso, vinte leituras ruins de um
+  plantão derrubavam o credenciamento do campus inteiro, que é UM IP atrás do NAT.
   **Freios em DOIS contadores** (revisão de ago/2026): `freioCheckin` é da porta física
   (portão por IP, 20 falhas/5min, sucesso não conta) e `freioOnline` é das rotas da
   transmissão/mural/atividades — nelas o token é validado PRIMEIRO e **o válido passa

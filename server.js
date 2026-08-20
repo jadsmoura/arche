@@ -1727,13 +1727,29 @@ async function lerAcoes() {
 }
 // fila serializada: duas gravações simultâneas se perderiam uma à outra
 let filaEx = Promise.resolve();
-function comAcoes(fn) {
+/**
+ * A fila de escrita das ações. `flushJa: false` grava na memória e deixa o
+ * arquivo subir na próxima janela do storage (1,2 s, agrupando o que chegar
+ * junto) em vez de esperar a subida DENTRO da fila.
+ *
+ * Por que isso existe (incidente do credenciamento, ago/2026): em produção
+ * o estado é UM arquivo no Drive, e cada `flush` reescreve o arquivo
+ * INTEIRO. Com o flush dentro da fila, cada leitura de QR subia todo o
+ * estado antes de a próxima começar — dez pessoas na porta viravam dez
+ * uploads em série, e a fila parecia um sistema travado. O dado já está na
+ * memória quando a resposta sai (é dela que a próxima leitura parte); o que
+ * se adia é só a ida ao Drive, que o `set` já agenda sozinho.
+ *
+ * Continua `true` por padrão: para o que é raro e caro de perder — aprovar,
+ * registrar, encerrar —, a certeza de que subiu vale a espera.
+ */
+function comAcoes(fn, { flushJa = true } = {}) {
   const proxima = filaEx.then(async () => {
     const acoes = await lerAcoes();
     const r = await fn(acoes);
     if (r?.gravar !== false) {
       await storage.set(EX_KEY, JSON.stringify(acoes));
-      await storage.flush?.();
+      if (flushJa) await storage.flush?.();
     }
     return r;
   });
@@ -3187,6 +3203,9 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
     if (freioCheckin.excedeu(req.ip))
       return res.status(429).json({ error: "Muitas tentativas sem sucesso. Aguarde alguns minutos e confira o código com a coordenação." });
     const b = req.body || {};
+    const t0 = Date.now();
+    // a porta é o caminho de MAIOR frequência do sistema: a subida do estado
+    // fica para a janela do storage, senão cada leitura espera a anterior
     const r = await comAcoes((acoes) => {
       const a = eventoPorSlug(acoes, req.params.slug);
       if (!a) return { erro: [404, "Evento não encontrado."], gravar: false };
@@ -3201,7 +3220,12 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
       }
       const inscrito = inscritoPorToken(a.evento, a.participantes?.inscritos,
         { token: b.token, codigo: b.codigo });
-      if (!inscrito) return { erro: [404, "Inscrição não encontrada."], falha: true, gravar: false };
+      // NÃO conta no freio: quem chegou aqui já provou o código do monitor.
+      // Crachá de outro evento, print da inscrição de um colega, QR sujo — é
+      // ruído de porta, não ataque. E o campus inteiro é UM IP atrás do NAT:
+      // vinte leituras ruins de um plantão derrubariam o credenciamento de
+      // todos os outros (a mesma lição do freio das rotas online).
+      if (!inscrito) return { erro: [404, "Inscrição não encontrada."], gravar: false };
       const idAtv = atv ? atv.id : "";
       // Evento SEM controle de frequência não tem porta: a inscrição já é a
       // presença, e todo inscrito conta 100% (decisão do dono, ago/2026)
@@ -3299,11 +3323,14 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
       }
       a.atualizadoEm = agora;
       return { nome: inscrito.nome || "", presenteEm: agora, ...extras };
-    });
+    }, { flushJa: false });
     if (r.erro) {
-      if (r.falha) freioCheckin.falhou(req.ip);   // código errado / inscrição não achada contam ao freio
+      if (r.falha) freioCheckin.falhou(req.ip);   // só o CÓDIGO DO MONITOR errado conta ao freio
       return res.status(r.erro[0]).json({ error: r.erro[1] });
     }
+    // evidência para a próxima porta: se uma leitura demorar, fica dito no log
+    const ms = Date.now() - t0;
+    if (ms > 1500) console.warn(`[eventos] check-in lento: ${ms} ms (${req.params.slug})`);
     // só o nome de QUEM apresentou o token — nada da lista sai por aqui
     res.json({ ok: true, ja: r.ja === true, nome: r.nome, presenteEm: r.presenteEm,
       ...(r.saida ? { saida: true } : {}),
