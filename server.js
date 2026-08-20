@@ -2003,11 +2003,25 @@ app.post("/api/extensao", async (req, res) => {
         // fabrica nem o reescreve.
         if (final.relatorio) {
           const entregouAgora = final.relatorio.entregueEm && !base?.relatorio?.entregueEm;
-          // O relatório se prova com IMAGEM: sem o registro fotográfico, a
-          // PROPPEX recebe um texto que ninguém consegue conferir depois
-          // (decisão do dono, ago/2026). A régua é a MESMA da tela.
-          if (entregouAgora && faltamFotos(final))
-            return { erro: [400, avisoFotos(final)], gravar: false };
+          // A RÉGUA DA ENTREGA É UMA SÓ (achado da varredura de ago/2026):
+          // este caminho conferia apenas as fotos, enquanto o encerramento
+          // pelo ARCHÉ EV cobra também a avaliação/resultados — o único campo
+          // obrigatório, e o que a PROPPEX lê. Uma aba velha, ou uma gravação
+          // que não passe pelo formulário, entregava o relatório sem ele e a
+          // ação seguia para registro, liberando certificados. `faltaParaEntregar`
+          // é a MESMA função que o encerramento usa, e já inclui as fotos.
+          if (entregouAgora) {
+            const faltas = faltaParaEntregar(final, final.relatorio);
+            if (faltas.length)
+              return { erro: [400, "Para entregar o relatório falta " + faltas.join("; ") + "."], gravar: false };
+            // e os campos passam pelo catálogo: fora dele nada entra, e a
+            // DATA da entrega é do servidor — o teste do lib afirma isso, e
+            // por este caminho ela vinha do cliente
+            final.relatorio = {
+              ...final.relatorio, ...normalizarRelatorioFinal(final.relatorio),
+              entregueEm: new Date().toISOString(),
+            };
+          }
           const snapshot = entregouAgora && final.evento?.chaveQr
             ? numerosDoEvento(final)
             : base?.relatorio?.numerosEvento;
@@ -10089,9 +10103,26 @@ app.post("/api/ia/assistente", async (req, res) => {
   }
 });
 
+/* Os anexos do sistema — histórico escolar do monitor, ofício da reserva,
+   comprovante do dossiê, fotos do portfólio. Duas defesas acrescentadas na
+   varredura de ago/2026, sem mexer nos links, que continuam os mesmos:
+
+   1. O backend do Drive confere que o arquivo está DENTRO da pasta ARCHÉ
+      (lib/files.js, `dentroDaPasta`) — antes, o id ia direto ao Google com
+      a conta do dono, e qualquer arquivo que ela lesse sairia por aqui.
+   2. O que sai é ANEXO, não página: `attachment` + `nosniff`. Nenhum desses
+      arquivos precisa renderizar no domínio da instituição, e o tipo era
+      escolhido pela extensão que quem subiu escolheu (um .xml ou .svg
+      abriria como documento ativo no nosso próprio endereço).
+
+   A rota segue sem login, de propósito: a credencial do evento, o ofício
+   que a coordenação encaminha e o comprovante do dossiê circulam por
+   e-mail, para gente que não tem conta. Trocar isso é decisão do dono. */
 app.get("/api/files/*", async (req, res) => {
   try {
     const fileId = decodeURIComponent(req.params[0]);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Disposition", "attachment");
     await files.serve(fileId, res);
   } catch {
     res.status(404).send("Arquivo não encontrado");

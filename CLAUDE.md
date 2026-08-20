@@ -431,6 +431,17 @@ public/
   (env EVENTOS_NOTIFY_EMAIL) — contato do hotsite, do texto LGPD padrão e da confirmação
   de inscrição, e destinatário do aviso automático quando uma página de evento entra no
   ar (`emailEventoAtivado`, fire-and-forget).
+- **Programação única e a conferência da carga horária** (`programacaoUnica`/`somaChHtml` na
+  guia Programação do ARCHÉ EV, pedido do dono ago/2026): a CH do CERTIFICADO sai das
+  atividades em que a pessoa teve presença; sem atividade nenhuma ela cai na CH da ação
+  inteira, e é daí que vinham as horas erradas. Nem todo evento tem grade — a reunião de
+  práticas docentes, a palestra de uma tarde —, e por isso um clique cria a atividade que
+  **espelha o próprio evento** (nome, datas, local e CH da proposta), nascendo `geral`: ninguém
+  precisa marcá-la no formulário e a etapa de escolha do credenciamento segue pulada. Ao lado,
+  a **soma das atividades** aparece junto da CH declarada, apontando o que está sem CH e a
+  divergência entre as duas. A CH da AÇÃO continua mandando — é a que a PROPPEX aprovou; isto
+  é conferência, não substituição, e por isso **não se exige programação** para cadastrar
+  evento (seria justamente derrubar o caso do QR no fim da palestra).
 - **Nem todo evento quer um site** (`temHotsiteEvento` em lib/eventos.js + a escolha no
   assistente e na guia Página do evento, pedido do dono ago/2026): o professor que dá uma
   palestra e quer só a lista de presença por QR não tem por que montar hotsite — capa,
@@ -502,6 +513,12 @@ public/
   quando não houve (num evento com 57 inscritos e nenhum crachá lido, "0 discentes" seria
   trocar campo vazio por número errado). Quem monta é o SERVIDOR: a mesma sugestão vale no
   formulário do EX e no encerramento pelo EV.
+- **A régua da entrega é UMA só, nos dois caminhos** (`faltaParaEntregar` no POST
+  `/api/extensao` e no `/evento/encerrar`, achado da varredura ago/2026): o formulário do
+  ARCHÉ EX conferia só as fotos e deixava passar a **avaliação/resultados** — o único campo
+  obrigatório, e o que a PROPPEX lê. Uma aba velha ou uma gravação fora do formulário
+  entregava o relatório sem ele, e a ação seguia para registro liberando certificados. Na
+  entrega, os campos passam por `normalizarRelatorioFinal` e a **data é do servidor**.
 - **As duas portas do mesmo relatório** (`atalhoEncerrarEv`, ago/2026): quem organiza um
   evento termina o trabalho no ARCHÉ EV, e lá "Encerrar evento" pede os mesmos campos, as
   fotos, entrega o relatório e manda o encerramento à PROPPEX num clique. Quem chega pelo

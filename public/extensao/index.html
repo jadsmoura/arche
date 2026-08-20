@@ -2247,6 +2247,11 @@ function cardEvento(a){
     local:p.local||"", responsavel:p.responsavel||"", vagas:Number(p.vagas)||0, ch:p.ch||"",
     inscricao:p.inscricao==="propria"?"propria":"geral",
     modalidade:p.modalidade==="online"?"online":"presencial",
+    // estes três NÃO são editados aqui, mas viajam de volta no salvar: sem
+    // eles, salvar o evento pela Extensão zerava o modo de frequência
+    // (entrada e saída virava só entrada), a instituição e a mini-bio do
+    // palestrante configurados no ARCHÉ EV (achado da varredura ago/2026)
+    frequencia:p.frequencia||"entrada", instituicao:p.instituicao||"", miniBio:p.miniBio||"",
   }));
   EV_FORM = (ev.formulario||[]).map(c=>({...c, opcoesTxt:(c.opcoes||[]).join(", ")}));
   EV_CAPA = undefined;

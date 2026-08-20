@@ -1580,7 +1580,13 @@ function renderProgramacao(a){
         própria — "exige inscrição própria" faz o participante marcá-la no formulário (minicurso,
         oficina); sem a marca, quem está inscrito no evento já participa (abertura, palestra magna).</div>
       <div id="ev-prog"></div>
-      <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="novaAtividadeEv()">＋ Adicionar atividade</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+        <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="novaAtividadeEv()">＋ Adicionar atividade</button>
+        <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px"
+          onclick="programacaoUnica('${esc(a.id)}')"
+          title="Cria uma atividade única com o nome, as datas, o local e a carga horária do próprio evento">⧉ Programação única (o próprio evento)</button>
+      </div>
+      <div class="muted" style="font-size:12px;margin-top:8px">${somaChHtml(a)}</div>
     </div>
 
     <div class="exp" style="margin:0 0 18px">
@@ -1595,6 +1601,48 @@ function renderProgramacao(a){
         a cada 30 segundos — sem tocar no que você estiver editando acima.</div>
     </div>`;
   renderProgEv();
+}
+
+/* PROGRAMAÇÃO ÚNICA (pedido do dono, ago/2026): nem todo evento tem uma
+   grade — a reunião de práticas docentes, a palestra de uma tarde. Só que a
+   carga horária do CERTIFICADO sai das atividades em que a pessoa teve
+   presença; sem nenhuma atividade, ela cai na CH da ação inteira, e é daí
+   que vinham as horas erradas. Um clique cria a atividade que espelha o
+   próprio evento — mesmo nome, mesmas datas, mesmo local, mesma CH — e o
+   evento passa a ter programação sem que ninguém precise montar uma.
+   Ela nasce "geral": ninguém tem de marcá-la no formulário, e a etapa de
+   escolha do credenciamento continua sendo pulada. */
+function programacaoUnica(id){
+  const a=ACOES.find(x=>x.id===id); if(!a) return;
+  const p=a.proposta||{};
+  if(EV_PROG.length && !confirm(`Já há ${EV_PROG.length} atividade(s) na programação.\n\n`
+    +"Acrescentar mesmo assim uma atividade única com os dados do evento?")) return;
+  EV_PROG.push({ id:"", tipo:"palestra", titulo:p.nomeAtividade||"Atividade do evento",
+    descricao:"", dia:p.periodoInicio||"", horaInicio:"", horaFim:"",
+    local:p.local||"", responsavel:p.respNome||"", vagas:0, ch:String(p.cargaHoraria||""),
+    inscricao:"geral", modalidade:"presencial", temFoto:false,
+    instituicao:"", miniBio:"", frequencia:"entrada" });
+  renderProgEv();
+  const cx=$("ev-prog"); cx?.lastElementChild?.scrollIntoView({behavior:"smooth",block:"center"});
+}
+
+/* A soma das atividades ao lado da CH declarada: quem esquecer de preencher
+   a CH de uma atividade vê na hora, em vez de descobrir no certificado. A CH
+   da AÇÃO continua mandando (é a que a PROPPEX aprovou) — isto é conferência,
+   não substituição. */
+function somaChHtml(a){
+  const num=(v)=>{ const m=String(v??"").replace(",",".").match(/\d+(?:\.\d+)?/); 
+    const n=m?Number(m[0]):NaN; return Number.isFinite(n)&&n>0?n:0; };
+  const decl=num(a.proposta?.cargaHoraria);
+  if(!EV_PROG.length) return decl
+    ? `Sem programação: o certificado usa a carga horária da ação (<b>${decl}h</b>). `
+      +"Com atividades, ele soma as horas daquelas em que a pessoa teve presença."
+    : "";
+  const semCh=EV_PROG.filter(p=>!num(p.ch)).length;
+  const soma=EV_PROG.reduce((s,p)=>s+num(p.ch),0);
+  return `Soma das atividades: <b>${soma}h</b>${decl?` · carga horária da ação: <b>${decl}h</b>`:""}`
+    +(semCh?` · <span style="color:var(--warn)">${semCh} atividade(s) sem carga horária</span>`:"")
+    +(decl&&soma&&soma!==decl?` · <span style="color:var(--warn)">os dois números divergem</span>`:"");
 }
 
 /* ===================== EVENTO · CREDENCIAMENTO ========================== */
