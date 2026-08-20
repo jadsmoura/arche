@@ -7,7 +7,7 @@ import {
   slugDeNome, slugUnico, SLUG_VALIDO, gerarChaveQr, gerarCodigoMonitor,
   gerarToken, tokenValido, codigoDe, inscritoPorToken, normalizarProgramacao,
   vagasRestantes, prazoInscricao, podeInscrever, jaInscrito,
-  horaLimiteInscricao, prazoInscricaoVencido,
+  horaLimiteInscricao, prazoInscricaoVencido, emailMascarado,
   TIPOS_ATIVIDADE, atividadesInscriviveis, vagasAtividade, conflitoHorario,
   podeEscolherAtividade, normalizarFormulario, validarRespostas,
   LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd, videoIdDe, numerosDoEvento,
@@ -684,4 +684,18 @@ test("sem hotsite é só a folha de inscrição — e o padrão continua sendo o
   // o campo é do QUE O PÚBLICO VÊ: não mexe em frequência nem em presença
   assert.equal(eventoControlaFrequencia({ hotsite: false }), true);
   assert.equal(contaPresente({ hotsite: false, controleFrequencia: false }, { presente: false }), true);
+});
+
+/* O e-mail mascarado (pergunta do dono, ago/2026): quem digitou o endereço
+   errado na inscrição não recebe o e-mail, não consegue reaver o link (a
+   recuperação exige o MESMO endereço) e não tem como descobrir o engano. A
+   pista faz a pessoa reconhecer o próprio erro sem entregar o endereço de
+   ninguém. */
+test("e-mail mascarado mostra a pista, não o endereço", () => {
+  assert.equal(emailMascarado("joao.silva@gmail.com"), "j••••••@gmail.com");
+  assert.equal(emailMascarado("ab@x.com"), "a•••@x.com", "nome curto ainda esconde o tamanho");
+  assert.equal(emailMascarado(""), "", "sem e-mail não há pista");
+  assert.equal(emailMascarado("@só-dominio.com"), "", "sem nome não há o que mascarar");
+  // o domínio fica à vista de propósito: é ele que denuncia o "gmial.com"
+  assert.match(emailMascarado("maria@gmial.com"), /@gmial\.com$/);
 });

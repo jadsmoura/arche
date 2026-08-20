@@ -65,7 +65,7 @@ import {
 import {
   slugDeNome, slugUnico, SLUG_VALIDO, slugReservado, SLUGS_RESERVADOS, gerarChaveQr, gerarCodigoMonitor, gerarToken, tokenValido,
   codigoDe, inscritoPorToken, normalizarProgramacao, vagasRestantes, prazoInscricao,
-  podeInscrever as podeInscreverEvento, jaInscrito,
+  podeInscrever as podeInscreverEvento, jaInscrito, emailMascarado,
   horaLimiteInscricao, prazoInscricaoVencido, RE_HORA_LIMITE,
   TIPOS_ATIVIDADE, gerarIdCurto, vagasAtividade, podeEscolherAtividade,
   normalizarFormulario, validarRespostas, LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd,
@@ -2675,8 +2675,21 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       if (!aberta.ok) return { erro: [409, aberta.motivo], gravar: false };
       const parts = a.participantes || (a.participantes = { inscritos: [], palestrantes: [], comissao: [] });
       parts.inscritos = parts.inscritos || [];
-      if (jaInscrito(parts.inscritos, { cpf, email }))
-        return { erro: [409, "Este CPF ou e-mail já está inscrito neste evento. Use a opção “já me inscrevi” para reaver o seu link."], gravar: false };
+      {
+        const ja = jaInscrito(parts.inscritos, { cpf, email });
+        if (ja) {
+          // O erro precisa ser uma SAÍDA, não uma parede (pergunta do dono,
+          // ago/2026): quem não recebeu o e-mail tenta de novo, bate aqui e
+          // fica sem caminho. A resposta diz que a inscrição existe, com que
+          // e-mail (mascarado — é como a pessoa reconhece o próprio engano de
+          // digitação) e a tela abre a recuperação já preenchida.
+          const mesmoEmail = String(ja.email || "").trim().toLowerCase() === email;
+          return { erro: [409, mesmoEmail
+            ? "Você já está inscrito neste evento — o link da sua credencial continua valendo."
+            : `Este CPF já está inscrito neste evento, com o e-mail ${emailMascarado(ja.email) || "informado na inscrição"}.`],
+            jaInscrito: { emailPista: emailMascarado(ja.email), mesmoEmail }, gravar: false };
+        }
+      }
       // campos extras validados contra o catálogo DA BASE (o cliente pode
       // estar com um formulário desatualizado — o catálogo gravado decide)
       const respostas = validarRespostas(a.evento.formulario || [], b.respostas);
@@ -2701,7 +2714,8 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       a.atualizadoEm = new Date().toISOString();
       return { acao: a, inscrito };
     });
-    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    if (r.erro) return res.status(r.erro[0])
+      .json({ error: r.erro[1], ...(r.jaInscrito ? { jaInscrito: r.jaInscrito } : {}) });
 
     // o e-mail é cortesia: a inscrição já está gravada, e falha de envio
     // (ou endereço que o Gmail recuse) não pode desfazê-la
@@ -2750,11 +2764,32 @@ app.post("/api/publico/eventos/:slug/recuperar", async (req, res) => {
       const i = (a.participantes?.inscritos || []).find((x) =>
         soDigitos(x?.cpf) === cpf && String(x?.email || "").trim().toLowerCase() === email);
       if (!i) return { erro: [404, "Não encontramos inscrição com este CPF e este e-mail juntos. Confira os dados ou inscreva-se."], gravar: false };
-      if (!i.token) { i.token = gerarToken(a.evento.chaveQr); return { inscrito: i, slug: a.evento.slug }; }
-      return { inscrito: i, slug: a.evento.slug, gravar: false };
+      if (!i.token) { i.token = gerarToken(a.evento.chaveQr); return { inscrito: i, slug: a.evento.slug, acao: a }; }
+      return { inscrito: i, slug: a.evento.slug, acao: a, gravar: false };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-    res.json({ ok: true, token: r.inscrito.token, codigo: codigoDe(r.inscrito.token) });
+    // REENVIAR a confirmação: o caso comum não é o e-mail errado, é o e-mail
+    // que caiu no spam ou demorou. Sai o mesmo documento da inscrição, com o
+    // QR embutido — e sempre para o endereço JÁ GRAVADO, nunca para um que
+    // venha no pedido: senão a recuperação viraria um jeito de mandar a
+    // credencial de alguém para outro lugar.
+    let reenviado = false;
+    if (req.body?.reenviar === true) {
+      try {
+        const { enviarEmail, emailInscricaoEvento } = await import("./lib/mailer.js");
+        let qrPng = null;
+        try {
+          const { default: QRCode } = await import("qrcode");
+          qrPng = await QRCode.toBuffer(String(r.inscrito.token), {
+            type: "png", errorCorrectionLevel: "M", margin: 1, width: 440,
+          });
+        } catch (e) { console.error("[eventos] QR do reenvio não gerado:", e.message); }
+        await enviarAviso("ev-inscricao", emailInscricaoEvento(r.acao, r.inscrito,
+          { baseUrl: `${req.protocol}://${req.get("host")}`, qrPng, wallet: walletConfigurada() }));
+        reenviado = true;
+      } catch (e) { console.error("[eventos] reenvio da confirmação falhou:", e.message); }
+    }
+    res.json({ ok: true, token: r.inscrito.token, codigo: codigoDe(r.inscrito.token), reenviado });
   } catch (e) {
     console.error("Erro ao recuperar inscrição:", e);
     res.status(500).json({ error: "Não foi possível localizar agora. Tente de novo em instantes." });

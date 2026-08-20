@@ -356,7 +356,11 @@ function render() {
           <label for="r-cpf">CPF</label><input id="r-cpf" inputmode="numeric">
           <label for="r-email">E-mail</label><input id="r-email" type="email">
           <div id="r-msg"></div>
-          <button class="bt bt-sec" style="margin-top:12px" onclick="recuperar()" type="button">Reaver o meu link</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+            <button class="bt bt-sec" onclick="recuperar()" type="button">Reaver o meu link</button>
+            <button class="bt bt-sec" onclick="recuperar(true)" type="button"
+              title="Manda de novo o e-mail de confirmação, com o QR, para o endereço da inscrição">✉ Reenviar o e-mail</button>
+          </div>
         </details>
       </div>
       <div>
@@ -400,7 +404,11 @@ function render() {
           <label for="r-cpf">CPF</label><input id="r-cpf" inputmode="numeric">
           <label for="r-email">E-mail</label><input id="r-email" type="email">
           <div id="r-msg"></div>
-          <button class="bt bt-sec" style="margin-top:12px" onclick="recuperar()" type="button">Reaver o meu link</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+            <button class="bt bt-sec" onclick="recuperar()" type="button">Reaver o meu link</button>
+            <button class="bt bt-sec" onclick="recuperar(true)" type="button"
+              title="Manda de novo o e-mail de confirmação, com o QR, para o endereço da inscrição">✉ Reenviar o e-mail</button>
+          </div>
         </details>
       </div>`;
     $("cta-flutua").style.display = "none";
@@ -893,11 +901,20 @@ async function inscrever(ev) {
       }),
     });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || "Não foi possível concluir a inscrição.");
+    if (!r.ok) { const err = new Error(j.error || "Não foi possível concluir a inscrição."); err.ja = j.jaInscrito; throw err; }
     localStorage.setItem("arche-ev-" + SLUG, j.token);
     pos(j.token);
   } catch (e2) {
-    $("f-msg").innerHTML = `<div class="msg-erro">${esc(e2.message)}</div>`;
+    // JÁ INSCRITO não é uma parede: quem não recebeu o e-mail volta aqui e
+    // precisa de um caminho, não de um erro (pergunta do dono, ago/2026). A
+    // recuperação abre já preenchida com o que a pessoa acabou de digitar.
+    $("f-msg").innerHTML = `<div class="msg-erro">${esc(e2.message)}${e2.ja ? `
+      <div style="margin-top:8px;font-weight:400">${e2.ja.mesmoEmail
+        ? "Não recebeu o e-mail? Ele pode ter caído no spam. Reaver a credencial abaixo — e dá para reenviá-lo."
+        : "Se esse não é o seu endereço, foi um erro de digitação na inscrição: use-o abaixo para reaver a credencial, ou fale com a coordenação."}</div>
+      <button class="bt bt-sec" style="margin-top:10px" type="button" onclick="abrirRecuperacao()">Reaver a minha credencial</button>
+      </div>` : "</div>"}`;
+    if (e2.ja) preencherRecuperacao();
     bt.disabled = false;
     // vaga que acabou no meio do caminho: recarrega as vagas para a lista
     // de atividades refletir a lotação de agora
@@ -919,16 +936,40 @@ async function recarregarVagas() {
   } catch { /* sem rede agora — a próxima tentativa recarrega */ }
 }
 
-async function recuperar() {
+/* Copia para a recuperação o que a pessoa acabou de digitar na inscrição e
+   abre o bloco: com o erro de "já inscrito" na tela, pedir que ela digite
+   CPF e e-mail outra vez, num <details> fechado, é o passo em que se
+   desiste. */
+function preencherRecuperacao() {
+  if ($("r-cpf") && !$("r-cpf").value) $("r-cpf").value = $("i-cpf")?.value || "";
+  if ($("r-email") && !$("r-email").value) $("r-email").value = $("i-email")?.value || "";
+}
+function abrirRecuperacao() {
+  const d = $("r-cpf")?.closest("details");
+  if (d) { d.open = true; d.scrollIntoView({ behavior: "smooth", block: "center" }); }
+  preencherRecuperacao();
+  $("r-cpf")?.focus();
+}
+
+async function recuperar(reenviar) {
   $("r-msg").innerHTML = "";
   try {
     const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/recuperar`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cpf: $("r-cpf").value, email: $("r-email").value }),
+      body: JSON.stringify({ cpf: $("r-cpf").value, email: $("r-email").value,
+        ...(reenviar ? { reenviar: true } : {}) }),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || "Não foi possível localizar.");
     localStorage.setItem("arche-ev-" + SLUG, j.token);
+    // com reenvio, a pessoa precisa LER que o e-mail saiu antes de a página trocar
+    if (reenviar) {
+      $("r-msg").innerHTML = `<div class="msg-ok">${j.reenviado
+        ? "E-mail reenviado — confira a caixa de entrada e o spam. Abrindo a sua credencial…"
+        : "Encontramos a sua inscrição. O e-mail não pôde ser reenviado agora, mas a credencial abre a seguir."}</div>`;
+      setTimeout(() => { location.href = `/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(j.token)}`; }, 2200);
+      return;
+    }
     location.href = `/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(j.token)}`;
   } catch (e) {
     $("r-msg").innerHTML = `<div class="msg-erro">${esc(e.message)}</div>`;

@@ -361,6 +361,16 @@ public/
   **Exports**: AEE geral e POR ATIVIDADE (`?atividade=`, CH da atividade, presentes por
   `presencas[]`) com o template intocável (4 abas + CONFIG), e a lista completa do ARCHÉ
   (`inscritos-completo.xlsx`, campos extras em colunas, tudo por `seguro()`).
+  **"Já inscrito" é uma SAÍDA, não uma parede** (pergunta do dono, ago/2026): o e-mail de
+  confirmação É a credencial, e quem não o recebe tenta se inscrever de novo. A duplicidade
+  já era barrada (`jaInscrito`), mas o erro não dava caminho. Agora ele diz que a inscrição
+  existe e **com que e-mail** — `emailMascarado` (`j••••@gmail.com`: o domínio à vista é o
+  que denuncia o "gmial.com") —, e a tela abre a recuperação **já preenchida** com o que a
+  pessoa acabou de digitar. A recuperação (CPF + e-mail, os dois) nunca dependeu de e-mail:
+  leva direto à credencial. E ganhou **✉ Reenviar o e-mail** (`reenviar: true`), para o caso
+  comum, que não é o endereço errado — é o spam. O reenvio vai SEMPRE ao endereço já
+  gravado, nunca a um que venha no pedido: senão a recuperação viraria um jeito de mandar a
+  credencial de alguém para outro lugar.
   **A porta não espera o Drive** (incidente do credenciamento, ago/2026): `comAcoes` fazia
   `flush` DENTRO da fila, e em produção cada `flush` reescreve o `_estado.json` INTEIRO — dez
   crachás na porta viravam dez uploads em série, e a fila parecia um sistema travado. O
