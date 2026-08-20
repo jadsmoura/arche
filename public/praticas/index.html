@@ -735,35 +735,92 @@ async function copiarCadastro(slug) {
   await carregar(); nav("cadastro");
 }
 
-/* ========================= COORDENAÇÃO DO MÓDULO ======================= */
+/* ========================= COORDENAÇÃO DO MÓDULO =======================
+   No mesmo molde da guia de professores: uma LINHA por pessoa, com nome,
+   e-mail e papel — incluir, editar e apagar. Uma caixa de texto com e-mails
+   soltos não é cadastro: não guarda o nome (que é o que sai impresso no
+   documento) e transforma "tirar uma pessoa" em edição de texto. */
 function renderEquipe() {
   const eq = D.equipe || { cursos: {}, pedagogico: [] };
-  return `<div class="card">
-    <div class="card-t">Coordenação pedagógica</div>
-    <div class="card-s">Vê e valida os relatórios de <b>todos</b> os cursos. Um e-mail por linha.</div>
-    <textarea id="eq-ped" style="min-height:80px">${esc((eq.pedagogico || []).join("\n"))}</textarea>
-    <div class="sec-t">Coordenação por curso</div>
-    <div class="muted" style="margin-bottom:10px">Cada um vê e valida só o curso que coordena. Um e-mail por linha.</div>
-    ${(D.catalogoCursos || []).map((c) => `<div style="margin-bottom:10px">
-      <label>${esc(c.nome)}</label>
-      <textarea data-curso="${esc(c.slug)}" style="min-height:56px">${
-        esc((eq.cursos?.[c.slug]?.coordenadores || []).join("\n"))}</textarea></div>`).join("")}
-    <div class="exp"><button class="bt bt-pri" onclick="salvarEquipe()">💾 Salvar coordenação</button></div>
-    <div class="muted" style="margin-top:12px">Designar a coordenação do <b>módulo</b> (que equivale à
-      pedagógica) também se faz em <a href="/usuarios/">Gestão de acessos</a>, ação “coordenar”.</div>
-  </div>`;
+  const papeis = D.papeisCoordenacao || [
+    { codigo: "coordenador", nome: "Coordenador(a) do curso" },
+    { codigo: "pedagogico", nome: "Coordenador(a) pedagógico(a)" }];
+  const linha = (p = {}) => `<tr data-linha>
+    <td><input value="${esc(p.nome || "")}" data-c="nome" placeholder="Nome completo"></td>
+    <td><input value="${esc(p.email || "")}" data-c="email" type="email" placeholder="email@uniego.edu.br"></td>
+    <td><select data-c="papel">${papeis.map((x) => `<option value="${esc(x.codigo)}"
+      ${(p.papel || "coordenador") === x.codigo ? "selected" : ""}>${esc(x.nome)}</option>`).join("")}</select></td>
+    <td><button class="bt bt-ghost bt-xs" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
+  const tabela = (id, lista) => `<div class="rolo"><table id="${id}">
+    <thead><tr><th style="width:32%">Nome</th><th style="width:36%">E-mail</th>
+      <th>Papel</th><th style="width:60px"></th></tr></thead>
+    <tbody>${(lista || []).map(linha).join("")
+      || '<tr><td colspan="4" class="muted">Ninguém designado.</td></tr>'}</tbody></table></div>`;
+
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div><div class="card-t">Coordenação pedagógica institucional</div>
+          <div class="card-s">Vê e valida os relatórios de <b>todos</b> os cursos. Deixe vazio se a
+            coordenação pedagógica for por curso — nesse caso ela entra no quadro do curso, abaixo.</div></div>
+        <button class="bt bt-sec bt-xs" onclick="linhaCoord('tb-ped')">＋ Incluir</button>
+      </div>
+      ${tabela("tb-ped", eq.pedagogico)}
+    </div>
+    ${(D.catalogoCursos || []).map((c) => {
+      const lista = eq.cursos?.[c.slug]?.coordenadores || [];
+      return `<div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div><div class="card-t">${esc(c.nome)}</div>
+            <div class="card-s">${lista.length
+              ? `${lista.length} pessoa(s) validam os relatórios deste curso.`
+              : "<b>Sem coordenação designada</b> — os relatórios deste curso ficam só com a PROPPEX."}</div></div>
+          <button class="bt bt-sec bt-xs" onclick="linhaCoord('tb-${esc(c.slug)}')">＋ Incluir</button>
+        </div>
+        ${tabela(`tb-${esc(c.slug)}`, lista)}
+      </div>`;
+    }).join("")}
+    <div class="card">
+      <div class="exp" style="margin:0">
+        <button class="bt bt-pri" onclick="salvarEquipe()">💾 Salvar a coordenação</button>
+      </div>
+      <div class="muted" style="margin-top:12px">Quem coordena o <b>módulo inteiro</b> (equivalente à
+        coordenação pedagógica institucional) também se designa em
+        <a href="/usuarios/">Gestão de acessos</a>, ação “coordenar”. Aqui é a coordenação
+        <b>por curso</b>, que só existe neste módulo.</div>
+    </div>`;
+}
+
+function linhaCoord(idTabela) {
+  const tb = document.querySelector(`#${CSS.escape(idTabela)} tbody`);
+  if (tb.querySelector("td.muted")) tb.innerHTML = "";
+  const papeis = D.papeisCoordenacao || [{ codigo: "coordenador", nome: "Coordenador(a) do curso" },
+    { codigo: "pedagogico", nome: "Coordenador(a) pedagógico(a)" }];
+  tb.insertAdjacentHTML("beforeend", `<tr data-linha>
+    <td><input data-c="nome" placeholder="Nome completo"></td>
+    <td><input data-c="email" type="email" placeholder="email@uniego.edu.br"></td>
+    <td><select data-c="papel">${papeis.map((x) =>
+      `<option value="${esc(x.codigo)}">${esc(x.nome)}</option>`).join("")}</select></td>
+    <td><button class="bt bt-ghost bt-xs" onclick="this.closest('tr').remove()">✕</button></td></tr>`);
+}
+
+function lerTabelaCoord(id) {
+  return [...document.querySelectorAll(`#${CSS.escape(id)} tr[data-linha]`)].map((tr) => ({
+    nome: tr.querySelector('[data-c="nome"]').value.trim(),
+    email: tr.querySelector('[data-c="email"]').value.trim().toLowerCase(),
+    papel: tr.querySelector('[data-c="papel"]').value,
+  })).filter((p) => p.email);
 }
 
 async function salvarEquipe() {
-  const linhas = (t) => String(t || "").split(/\r?\n/).map((s) => s.trim().toLowerCase()).filter(Boolean);
   const cursos = {};
-  for (const ta of document.querySelectorAll("[data-curso]")) {
-    const e = linhas(ta.value);
-    if (e.length) cursos[ta.dataset.curso] = { coordenadores: e };
+  for (const c of D.catalogoCursos || []) {
+    const l = lerTabelaCoord(`tb-${c.slug}`);
+    if (l.length) cursos[c.slug] = { coordenadores: l };
   }
   const r = await fetch("/api/praticas/equipe", { method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ equipe: { pedagogico: linhas($("eq-ped").value), cursos } }) });
+    body: JSON.stringify({ equipe: { pedagogico: lerTabelaCoord("tb-ped"), cursos } }) });
   if (!r.ok) { alert((await r.json().catch(() => ({}))).error || "Não foi possível gravar."); return; }
   await carregar(); nav("equipe");
 }

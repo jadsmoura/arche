@@ -12,6 +12,7 @@ import multer from "multer";
 import crypto from "node:crypto";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { getStorage } from "./lib/storage.js";
 import { getFiles, slug } from "./lib/files.js";
@@ -165,6 +166,7 @@ import {
   professoresDoSemestre as apProfessoresDoSemestre, minhasDisciplinas as apMinhasDisciplinas,
   cursoDoProfessor as apCursoDoProfessor, filtrar as apFiltrar, panorama as apPanorama,
   pendenciasCobranca as apPendenciasCobranca, ehSegunda as apEhSegunda,
+  PAPEIS_COORDENACAO as AP_PAPEIS_COORD,
 } from "./lib/praticas.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -10657,6 +10659,76 @@ async function sessaoAP(req, res) {
   return (await verComoUsuario(req, u, gerePraticas(u))) || u;
 }
 
+/* A COORDENAÇÃO DO AP sobe do disco no arranque (a planilha entregue pelo
+   dono, ago/2026). A marca `sys-ap-equipe-lote-*` faz a semeadura acontecer
+   UMA vez: sem ela, todo deploy desfaria o que a gestão tivesse mudado na
+   guia Coordenação — o arquivo é o ponto de partida, não a verdade
+   permanente.
+
+   A planilha traz DUAS pessoas por curso, o coordenador e o coordenador
+   pedagógico, e as duas validam: foi assim que o fluxo foi descrito. Por
+   isso ambas entram em `coordenadores` daquele curso, e a lista
+   `pedagogico` — que é a coordenação INSTITUCIONAL, com alcance sobre todos
+   os cursos — fica vazia. Aqui o pedagógico é por curso.
+
+   Os nomes vão junto para os PERFIS que ainda não existem: sem nome, o
+   documento sairia com o e-mail no lugar de quem assina. Perfil já
+   preenchido nunca se sobrescreve. */
+const AP_EQUIPE_LOTE = "sys-ap-equipe-lote-v1";
+
+async function subirEquipeAP() {
+  try {
+    if (await storage.get(AP_EQUIPE_LOTE)) return;
+    const caminho = path.join(__dirname, "dados", "ap-coordenadores.json");
+    if (!existsSync(caminho)) return;
+    const lote = JSON.parse(readFileSync(caminho, "utf8"));
+    const cursos = {};
+    const pessoas = [];
+    for (const [slug, dados] of Object.entries(lote.cursos || {})) {
+      const lista = [];
+      for (const p of dados.coordenadores || []) {
+        const e = String(p.email || "").trim().toLowerCase();
+        if (!e) continue;
+        const nome = String(p.nome || "").trim();
+        lista.push({ email: e, nome, papel: p.papel === "pedagogico" ? "pedagogico" : "coordenador" });
+        pessoas.push({ email: e, nome, curso: slug });
+      }
+      if (lista.length) cursos[slug] = { coordenadores: lista };
+    }
+    const equipe = normalizarEquipeAP({ pedagogico: [], cursos });
+    await storage.set(AP_EQUIPE_KEY, JSON.stringify(equipe));
+
+    // o perfil de quem ainda não tem: nome e curso, sem tocar no que existe
+    const perfis = await carregarPerfis();
+    let novos = 0;
+    for (const p of pessoas) {
+      const atual = perfis[p.email] || {};
+      if (String(atual.nome || "").trim()) continue;
+      perfis[p.email] = { ...atual, nome: p.nome,
+        curso: atual.curso || cursoDe(p.curso)?.nome || "",
+        funcao: atual.funcao || "coord-curso",
+        preCadastro: true, criadoEm: atual.criadoEm || new Date().toISOString() };
+      novos++;
+    }
+    if (novos) await storage.set(PERFIS_KEY, JSON.stringify(perfis));
+
+    // conta nova entra aprovada no primeiro login, mas a coordenação não pode
+    // depender disso: quem valida relatório precisa entrar sem esperar nada
+    const usuarios = await carregarUsuarios(storage);
+    const remover = new Set(usuarios.removidos || []);
+    usuarios.aprovados = [...new Set([...usuarios.aprovados,
+      ...pessoas.map((p) => p.email).filter((e) => !remover.has(e))])];
+    await salvarUsuarios(storage, usuarios);
+
+    await storage.set(AP_EQUIPE_LOTE, JSON.stringify({ em: new Date().toISOString(), lote: lote.lote }));
+    await storage.flush?.();
+    console.log(`[praticas] coordenação semeada: ${Object.keys(cursos).length} curso(s), `
+      + `${new Set(pessoas.map((p) => p.email)).size} pessoa(s), ${novos} perfil(is) criado(s).`);
+  } catch (e) {
+    console.error("[praticas] não foi possível semear a coordenação:", e.message);
+  }
+}
+
 /** GET /api/praticas — tudo o que a tela precisa para abrir. */
 app.get("/api/praticas", async (req, res) => {
   try {
@@ -10677,7 +10749,7 @@ app.get("/api/praticas", async (req, res) => {
       gestao: quem.gestao, pedagogico: quem.pedagogico, cursos: quem.cursos,
       semestre, semestres, semestreCorrente: semestreCorrente(),
       catalogoCursos: CURSOS.map((c) => ({ slug: c.slug, nome: c.nome })),
-      campos: AP_CAMPOS, minFotos: AP_MIN_FOTOS,
+      campos: AP_CAMPOS, minFotos: AP_MIN_FOTOS, papeisCoordenacao: AP_PAPEIS_COORD,
       relatorios: meus,
       // o professor recebe as SUAS disciplinas do semestre — é a lista que o
       // formulário oferece; a coordenação recebe o cadastro do que gere
@@ -12159,6 +12231,7 @@ app.listen(port, () => {
       aplicarCoresDosEspacos,    // as etiquetas de cor, no catálogo já gravado
       subirReservasMigradas,     // e as reservas que a recepção anotava à mão
       corrigirEmailsIndicacao,   // e-mail de aluno digitado errado na indicação
+      subirEquipeAP,             // a coordenação do ARCHÉ AP, do arquivo em dados/
       // SEMPRE por último, e a cada arranque (achado de ago/2026 — o caso
       // Marlana): as migrações acima podem carimbar CPF em projeto que ainda
       // não tem e-mail, e uma vinculação que rodasse só uma vez, antes delas,

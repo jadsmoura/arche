@@ -72,6 +72,14 @@ public/
 
 - **Gestão de acessos** é da conta, não de um setor: o atalho mora no **perfil** do
   gestor (`/perfil/`), não na barra lateral da Extensão.
+- **Os cartões do portal vêm AGRUPADOS** (ideia do dono, ago/2026), na mesma divisão da barra do
+  topo: **Ensino** (Aulas Práticas, Monitoria), **Pesquisa** (IC, Inovação), **Extensão** (Extensão,
+  Eventos) e **Serviços** (Atas, Espaços, Relatórios, Certificados, Avaliação) — dez cartões numa
+  lista só se leem inteiros toda vez. O grupo **some quando nenhum cartão dele é visível**
+  (`aplicarVisibilidade`), senão o aluno veria um título "SERVIÇOS" sobre o vazio. Na BARRA o
+  Certificados se repete nos três grupos (só um menu está aberto por vez, e é o que o dono pediu);
+  no PORTAL ele aparece **uma vez**, em Serviços — a página inteira se vê de uma olhada, e três
+  cartões idênticos leriam como defeito.
 - **O portal mostra a cada um os seus setores** (`aplicarVisibilidade` em
   `assets/arche-nav.js` + `data-setor` nos cartões de `public/index.html`, decisão do
   dono ago/2026): **aluno** (função `aluno` no perfil) vê só Extensão e Pesquisa·IC;
@@ -1691,6 +1699,16 @@ public/
   PROPPEX é suporte, com alcance total para destravar, mas não é um degrau do processo. Em todos os
   outros setores a pró-reitoria homologa; aqui não, e é de propósito — o módulo é da **PROAC**, e
   quem acompanha a aula prática é a coordenação do curso.
+  **A coordenação se cadastra na guia Coordenação**, no mesmo molde da de professores: uma LINHA
+  por pessoa, com **nome, e-mail e papel** (`PAPEIS_COORDENACAO`: coordenador do curso ou
+  coordenador pedagógico), incluir e apagar. Caixa de texto com e-mails soltos não é cadastro — não
+  guarda o NOME, que é o que sai impresso no documento, e transforma "tirar uma pessoa" em edição
+  de texto (achado do dono, ago/2026). A forma antiga (lista de strings) continua sendo lida.
+  Os 11 cursos vieram da planilha do dono e sobem no arranque (`subirEquipeAP`,
+  `dados/ap-coordenadores.json`, marca `sys-ap-equipe-lote-v1`): **as DUAS pessoas de cada curso
+  validam** — foi assim que o fluxo foi descrito ("coordenador do curso e/ou pedagógico") —, e por
+  isso a lista `pedagogico` institucional nasce VAZIA: aqui o pedagógico é por curso. A marca faz a
+  semeadura acontecer uma vez só; sem ela, todo deploy desfaria o que a gestão mudasse na tela.
   **A coordenação é POR CURSO, e isso não existia no ARCHÉ**: `modulosDe` dá coordenação por
   MÓDULO, e o coordenador de Enfermagem não pode ver as aulas de Direito. Por isso são DUAS
   figuras e dois registros: coordenar o módulo `praticas` (em `/usuarios/`) é ser a **coordenação

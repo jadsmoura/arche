@@ -15,6 +15,7 @@ import {
   visaoDoRelatorio, quemNoModulo, coordenaCurso, cursosQueCoordena,
   professoresDoSemestre, disciplinasDoSemestre, minhasDisciplinas, cursoDoProfessor,
   filtrar, panorama, ehSegunda, semanaAnterior, pendenciasCobranca,
+  PAPEIS_COORDENACAO, coordenacaoDoCurso,
 } from "../lib/praticas.js";
 
 const CADASTRO = {
@@ -193,12 +194,37 @@ test("o professor vê só as disciplinas DELE, e o curso vem do cadastro", () =>
   assert.deepEqual(professoresDoSemestre(CADASTRO, "2027/1"), []);
 });
 
-test("a equipe só guarda curso do catálogo e e-mail em minúsculas", () => {
-  const eq = normalizarEquipe({ pedagogico: ["PED@Uniego.edu.br", ""],
-    cursos: { enfermagem: { coordenadores: ["Carla@UNIEGO.edu.br"] }, xxx: { coordenadores: ["z@x.br"] } } });
-  assert.deepEqual(eq.pedagogico, ["ped@uniego.edu.br"]);
-  assert.deepEqual(Object.keys(eq.cursos), ["enfermagem"]);
-  assert.deepEqual(eq.cursos.enfermagem.coordenadores, ["carla@uniego.edu.br"]);
+test("a equipe guarda NOME e PAPEL — é o nome que sai no documento", () => {
+  const eq = normalizarEquipe({
+    pedagogico: [{ email: "PED@Uniego.edu.br", nome: "Paula Pedagógica" }, { email: "" }],
+    cursos: {
+      enfermagem: { coordenadores: [
+        { email: "Carla@UNIEGO.edu.br", nome: "Carla Coordenadora", papel: "coordenador" },
+        { email: "geo@uniego.edu.br", nome: "Geoselita", papel: "pedagogico" },
+        { email: "CARLA@uniego.edu.br", nome: "Repetida" },      // a mesma pessoa não entra duas vezes
+        { email: "sem@x.br", papel: "inventado" },               // papel fora do catálogo vira coordenador
+      ] },
+      xxx: { coordenadores: [{ email: "z@x.br", nome: "Fora do catálogo" }] },
+    },
+  });
+  assert.deepEqual(eq.pedagogico, [{ email: "ped@uniego.edu.br", nome: "Paula Pedagógica", papel: "coordenador" }]);
+  assert.deepEqual(Object.keys(eq.cursos), ["enfermagem"], "curso fora do catálogo não entra");
+  const enf = eq.cursos.enfermagem.coordenadores;
+  assert.equal(enf.length, 3);
+  assert.deepEqual(enf.map((p) => p.email), ["carla@uniego.edu.br", "geo@uniego.edu.br", "sem@x.br"]);
+  assert.equal(enf[1].papel, "pedagogico");
+  assert.equal(enf[2].papel, "coordenador");
+  assert.deepEqual(PAPEIS_COORDENACAO.map((p) => p.codigo), ["coordenador", "pedagogico"]);
+  assert.deepEqual(coordenacaoDoCurso(eq, "enfermagem").map((p) => p.nome),
+    ["Carla Coordenadora", "Geoselita", ""]);
+});
+
+test("a forma ANTIGA (só o e-mail em texto) continua sendo lida", () => {
+  // o que já estiver gravado como lista de strings não pode virar lixo
+  const eq = normalizarEquipe({ cursos: { enfermagem: { coordenadores: ["Carla@UNIEGO.edu.br"] } } });
+  assert.deepEqual(eq.cursos.enfermagem.coordenadores,
+    [{ email: "carla@uniego.edu.br", nome: "", papel: "coordenador" }]);
+  assert.deepEqual(cursosQueCoordena(eq, "carla@uniego.edu.br"), ["enfermagem"]);
 });
 
 /* ------------------------------ o painel -------------------------------- */

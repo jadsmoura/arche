@@ -8,6 +8,13 @@
 <link rel="stylesheet" href="/assets/arche-ui.css">
 <style>
   .section-label{margin:44px 0 4px}
+  /* Os cartões passam a vir AGRUPADOS pelo que a pessoa vem fazer — a mesma
+     divisão da barra do topo (ideia do dono, ago/2026): dez cartões numa
+     lista só se leem inteiros toda vez. O grupo some quando nenhum cartão
+     dele é visível, senão o aluno veria um título "SERVIÇOS" sobre o vazio. */
+  .setor-grupo{margin-bottom:8px}
+  .setor-grupo .section-label{margin:34px 0 2px}
+  .grupo-sub{font-size:13px;color:var(--muted);margin:0 0 14px;max-width:70ch}
   /* as duas visões da página inicial: os setores só aparecem LOGADO; a visão
      pública (vitrines + entrada) só para o visitante. Até o /api/me responder,
      nenhuma das duas — evita o portal inteiro piscar para quem está sem sessão. */
@@ -43,6 +50,8 @@
     border:1px solid #cfeeda;border-radius:10px;padding:12px 14px}
   body.arche-logado p.so-logado{display:block!important}
   body.arche-logado div.so-logado{display:grid!important}
+  /* o GRUPO é um bloco (título + subtítulo + a grade dentro), não uma grade */
+  body.arche-logado div.setor-grupo.so-logado{display:block!important}
   #f-entrar input{width:100%;border:1.5px solid var(--line,#dde4e8);border-radius:10px;
     padding:11px 13px;font-size:14.5px;margin-top:8px;font-family:inherit;background:#fff}
   #f-entrar input:focus{outline:none;border-color:#2d535c;box-shadow:0 0 0 3px rgba(64,113,126,.14)}
@@ -163,144 +172,16 @@
   <div id="painel-demandas"></div>
 
   <p class="eyebrow section-label so-logado">SETORES · GESTÃO DA PROPPEX</p>
-  <div class="grid3 so-logado">
+  <p class="grupo-sub so-logado" style="margin-top:-2px">Os setores na mesma ordem da barra do topo:
+    ensino, pesquisa, extensão e os serviços que atravessam todos eles.</p>
 
-    <a class="card" href="/atas/" data-setor="/atas/">
-      <span class="card-num f-code">01</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 13h8M8 17h5"/></svg>
-        </span>
-        <span class="card-mod">ARCHÉ <b>AT</b></span>
-      </span>
-      <h2 class="card-t">Atas e Colegiados</h2>
-      <p class="card-sub">NDE · Colegiado · CONSU · CPA</p>
-      <p class="card-d">Registro das reuniões dos órgãos colegiados: presenças,
-        pauta e deliberações viram ata em PDF, enviada e arquivada.</p>
-      <div class="card-meta">
-        <span class="chip">presenças</span>
-        <span class="chip">deliberações</span>
-        <span class="chip">encaminhamentos</span>
-      </div>
-      <span class="card-cta">Acessar o setor
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
-
-    <a class="card b" href="/extensao/" data-setor="/extensao/">
-      <span class="card-num f-code">02</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.5 9h17M3.5 15h17M12 3a14 14 0 0 0 0 18M12 3a14 14 0 0 1 0 18"/></svg>
-        </span>
-        <span class="card-mod">ARCHÉ <b>EX</b></span>
-      </span>
-      <h2 class="card-t">Extensão</h2>
-      <p class="card-sub">Ações · Projetos · Certificação</p>
-      <p class="card-d">Submissão de ações de extensão, aprovação e número da ação,
-        relatório final, lista de participantes e exportação para registro.</p>
-      <div class="card-meta">
-        <span class="chip">propostas</span>
-        <span class="chip">relatório final</span>
-        <span class="chip">certificados</span>
-      </div>
-      <span class="card-cta">Acessar o setor
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
-
-    <a class="card" href="/eventos/gestao/" data-setor="/eventos/gestao/">
-      <span class="card-num f-code">03</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 9h18M8.5 14.5l2.3 2.3 4.7-4.6"/></svg>
-        </span>
-        <span class="card-mod">ARCHÉ <b>EV</b></span>
-      </span>
-      <h2 class="card-t">Eventos</h2>
-      <p class="card-sub">Inscrições · Credenciamento · Transmissão</p>
-      <p class="card-d">A operação dos eventos das ações de extensão: página pública
-        com programação, inscrições online, credenciamento por QR e transmissão
-        com presença.</p>
-      <div class="card-meta">
-        <span class="chip">hotsite</span>
-        <span class="chip">inscrições</span>
-        <span class="chip">credenciamento</span>
-      </div>
-      <span class="card-cta">Acessar o setor
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
-
-    <a class="card" href="/pesquisa/ic/" data-setor="/pesquisa/ic/">
-      <span class="card-num f-code">04</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v6.5L4.5 18a2 2 0 0 0 1.8 3h11.4a2 2 0 0 0 1.8-3L14 8.5V2"/><path d="M8.5 2h7M7 15h10"/></svg>
-        </span>
-        <span class="card-mod">ARCHÉ <b>IC</b></span>
-      </span>
-      <h2 class="card-t">Pesquisa</h2>
-      <p class="card-sub">Iniciação Científica · Grupos · Projetos</p>
-      <p class="card-d">Submissão e homologação de projetos, avaliação de mérito,
-        cronograma, relatórios e bolsas de IC (PIBIC/PIBITI).</p>
-      <div class="card-meta">
-        <span class="chip">PIBIC / PIBITI</span>
-        <span class="chip">projetos</span>
-        <span class="chip">relatórios</span>
-      </div>
-      <span class="card-cta">Acessar o setor
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
-
-    <a class="card" href="/espacos/" data-setor="/espacos/">
-      <span class="card-num f-code">05</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
-        </span>
-        <span class="card-mod">ARCHÉ <b>ES</b></span>
-      </span>
-      <h2 class="card-t">Espaços</h2>
-      <p class="card-sub">Auditórios · Quadra · Salas · Laboratórios</p>
-      <p class="card-d">Agendamento dos espaços acadêmicos e solicitação de reserva —
-        com o calendário à vista, para ninguém pedir em cima do que já está ocupado.</p>
-      <div class="card-meta">
-        <span class="chip">agenda</span>
-        <span class="chip">reserva</span>
-        <span class="chip">bloqueios</span>
-      </div>
-      <span class="card-cta">Acessar o setor
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
-
-    <a class="card" href="/monitoria/" data-setor="/monitoria/">
-      <span class="card-num f-code">06</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5z"/><path d="M6 10.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5M20 9v5"/></svg>
-        </span>
-        <span class="card-mod">ARCHÉ <b>MO</b></span>
-      </span>
-      <h2 class="card-t">Monitoria</h2>
-      <p class="card-sub">Projetos · Monitores · Relatórios</p>
-      <p class="card-d">Programa de Monitoria Acadêmica: o professor submete o projeto
-        da disciplina e indica o monitor, que se inscreve; a PROPPEX homologa e o
-        certificado sai ao fim do semestre.</p>
-      <div class="card-meta">
-        <span class="chip">inscrição</span>
-        <span class="chip">relatório</span>
-        <span class="chip">certificado</span>
-      </div>
-      <span class="card-cta">Acessar o setor
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
+  <div class="setor-grupo so-logado" data-grupo="ensino">
+    <p class="eyebrow section-label">ENSINO</p>
+    <p class="grupo-sub">Aulas práticas, monitoria e os documentos de quem participou.</p>
+    <div class="grid3">
 
     <a class="card" href="/praticas/" data-setor="/praticas/">
-      <span class="card-num f-code">07</span>
+      <span class="card-num f-code">01</span>
       <span class="card-topo">
         <span class="card-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6a2 2 0 0 1 2 2v2H7V5a2 2 0 0 1 2-2z"/><path d="M7 7v11a3 3 0 0 0 3 3h4a3 3 0 0 0 3-3V7"/><path d="M7 13h10"/></svg>
@@ -322,8 +203,178 @@
       </span>
     </a>
 
-    <a class="card" href="/relatorios/" data-setor="/relatorios/">
+    <a class="card" href="/monitoria/" data-setor="/monitoria/">
+      <span class="card-num f-code">02</span>
+      <span class="card-topo">
+        <span class="card-ic" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5z"/><path d="M6 10.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5M20 9v5"/></svg>
+        </span>
+        <span class="card-mod">ARCHÉ <b>MO</b></span>
+      </span>
+      <h2 class="card-t">Monitoria</h2>
+      <p class="card-sub">Projetos · Monitores · Relatórios</p>
+      <p class="card-d">Programa de Monitoria Acadêmica: o professor submete o projeto
+        da disciplina e indica o monitor, que se inscreve; a PROPPEX homologa e o
+        certificado sai ao fim do semestre.</p>
+      <div class="card-meta">
+        <span class="chip">inscrição</span>
+        <span class="chip">relatório</span>
+        <span class="chip">certificado</span>
+      </div>
+      <span class="card-cta">Acessar o setor
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </span>
+    </a>
+    </div>
+  </div>
+
+  <div class="setor-grupo so-logado" data-grupo="pesquisa">
+    <p class="eyebrow section-label">PESQUISA</p>
+    <p class="grupo-sub">Iniciação Científica, ICEM e a inovação tecnológica.</p>
+    <div class="grid3">
+
+    <a class="card" href="/pesquisa/ic/" data-setor="/pesquisa/ic/">
+      <span class="card-num f-code">03</span>
+      <span class="card-topo">
+        <span class="card-ic" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v6.5L4.5 18a2 2 0 0 0 1.8 3h11.4a2 2 0 0 0 1.8-3L14 8.5V2"/><path d="M8.5 2h7M7 15h10"/></svg>
+        </span>
+        <span class="card-mod">ARCHÉ <b>IC</b></span>
+      </span>
+      <h2 class="card-t">Pesquisa</h2>
+      <p class="card-sub">Iniciação Científica · Grupos · Projetos</p>
+      <p class="card-d">Submissão e homologação de projetos, avaliação de mérito,
+        cronograma, relatórios e bolsas de IC (PIBIC/PIBITI).</p>
+      <div class="card-meta">
+        <span class="chip">PIBIC / PIBITI</span>
+        <span class="chip">projetos</span>
+        <span class="chip">relatórios</span>
+      </div>
+      <span class="card-cta">Acessar o setor
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </span>
+    </a>
+
+    <div class="card soon" data-setor="/inovacao/">
+      <span class="card-num f-code">04</span>
+      <span class="card-topo">
+        <span class="card-ic" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1M12 2a7 7 0 0 1 4 12.7c-.6.5-1 1.3-1 2.1"/></svg>
+        </span>
+        <span class="card-mod">ARCHÉ <b>IN</b></span>
+      </span>
+      <h2 class="card-t">Inovação</h2>
+      <p class="card-sub">Propriedade Intelectual · Patentes</p>
+      <p class="card-d">Registro de propriedade intelectual, patentes, transferência
+        de tecnologia e empreendedorismo acadêmico.</p>
+      <span class="badge-soon">Em breve</span>
+    </div>
+    </div>
+  </div>
+
+  <div class="setor-grupo so-logado" data-grupo="extensao">
+    <p class="eyebrow section-label">EXTENSÃO</p>
+    <p class="grupo-sub">As ações de extensão e a operação dos eventos.</p>
+    <div class="grid3">
+
+    <a class="card b" href="/extensao/" data-setor="/extensao/">
+      <span class="card-num f-code">05</span>
+      <span class="card-topo">
+        <span class="card-ic" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.5 9h17M3.5 15h17M12 3a14 14 0 0 0 0 18M12 3a14 14 0 0 1 0 18"/></svg>
+        </span>
+        <span class="card-mod">ARCHÉ <b>EX</b></span>
+      </span>
+      <h2 class="card-t">Extensão</h2>
+      <p class="card-sub">Ações · Projetos · Certificação</p>
+      <p class="card-d">Submissão de ações de extensão, aprovação e número da ação,
+        relatório final, lista de participantes e exportação para registro.</p>
+      <div class="card-meta">
+        <span class="chip">propostas</span>
+        <span class="chip">relatório final</span>
+        <span class="chip">certificados</span>
+      </div>
+      <span class="card-cta">Acessar o setor
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </span>
+    </a>
+
+    <a class="card" href="/eventos/gestao/" data-setor="/eventos/gestao/">
+      <span class="card-num f-code">06</span>
+      <span class="card-topo">
+        <span class="card-ic" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 9h18M8.5 14.5l2.3 2.3 4.7-4.6"/></svg>
+        </span>
+        <span class="card-mod">ARCHÉ <b>EV</b></span>
+      </span>
+      <h2 class="card-t">Eventos</h2>
+      <p class="card-sub">Inscrições · Credenciamento · Transmissão</p>
+      <p class="card-d">A operação dos eventos das ações de extensão: página pública
+        com programação, inscrições online, credenciamento por QR e transmissão
+        com presença.</p>
+      <div class="card-meta">
+        <span class="chip">hotsite</span>
+        <span class="chip">inscrições</span>
+        <span class="chip">credenciamento</span>
+      </div>
+      <span class="card-cta">Acessar o setor
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </span>
+    </a>
+    </div>
+  </div>
+
+  <div class="setor-grupo so-logado" data-grupo="servicos">
+    <p class="eyebrow section-label">SERVIÇOS</p>
+    <p class="grupo-sub">O que atravessa todos os setores: reuniões, espaços, relatórios, avaliação — e os seus certificados.</p>
+    <div class="grid3">
+
+    <a class="card" href="/atas/" data-setor="/atas/">
+      <span class="card-num f-code">07</span>
+      <span class="card-topo">
+        <span class="card-ic" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 13h8M8 17h5"/></svg>
+        </span>
+        <span class="card-mod">ARCHÉ <b>AT</b></span>
+      </span>
+      <h2 class="card-t">Atas e Colegiados</h2>
+      <p class="card-sub">NDE · Colegiado · CONSU · CPA</p>
+      <p class="card-d">Registro das reuniões dos órgãos colegiados: presenças,
+        pauta e deliberações viram ata em PDF, enviada e arquivada.</p>
+      <div class="card-meta">
+        <span class="chip">presenças</span>
+        <span class="chip">deliberações</span>
+        <span class="chip">encaminhamentos</span>
+      </div>
+      <span class="card-cta">Acessar o setor
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </span>
+    </a>
+
+    <a class="card" href="/espacos/" data-setor="/espacos/">
       <span class="card-num f-code">08</span>
+      <span class="card-topo">
+        <span class="card-ic" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+        </span>
+        <span class="card-mod">ARCHÉ <b>ES</b></span>
+      </span>
+      <h2 class="card-t">Espaços</h2>
+      <p class="card-sub">Auditórios · Quadra · Salas · Laboratórios</p>
+      <p class="card-d">Agendamento dos espaços acadêmicos e solicitação de reserva —
+        com o calendário à vista, para ninguém pedir em cima do que já está ocupado.</p>
+      <div class="card-meta">
+        <span class="chip">agenda</span>
+        <span class="chip">reserva</span>
+        <span class="chip">bloqueios</span>
+      </div>
+      <span class="card-cta">Acessar o setor
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </span>
+    </a>
+
+    <a class="card" href="/relatorios/" data-setor="/relatorios/">
+      <span class="card-num f-code">09</span>
       <span class="card-topo">
         <span class="card-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 17v-4M12 17v-7M16 17v-2"/></svg>
@@ -344,13 +395,8 @@
       </span>
     </a>
 
-    <!-- Certificados é do USUÁRIO, não um setor: concentra num lugar só o que
-         ele tem direito em eventos, iniciação científica e monitoria (decisão
-         do dono, ago/2026). As guias de certificado DENTRO de cada setor
-         continuam onde estão — lá é a operação de quem emite; aqui, o
-         histórico de quem recebe. -->
     <a class="card" href="/certificados/" data-setor="/certificados/">
-      <span class="card-num f-code">09</span>
+      <span class="card-num f-code">10</span>
       <span class="card-topo">
         <span class="card-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5"/><path d="M8.5 13.5 7 21l5-2.2L17 21l-1.5-7.5"/></svg>
@@ -370,27 +416,7 @@
       </span>
     </a>
 
-    <div class="card soon" data-setor="/inovacao/">
-      <span class="card-num f-code">10</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1M12 2a7 7 0 0 1 4 12.7c-.6.5-1 1.3-1 2.1"/></svg>
-        </span>
-        <span class="card-mod">ARCHÉ <b>IN</b></span>
-      </span>
-      <h2 class="card-t">Inovação</h2>
-      <p class="card-sub">Propriedade Intelectual · Patentes</p>
-      <p class="card-d">Registro de propriedade intelectual, patentes, transferência
-        de tecnologia e empreendedorismo acadêmico.</p>
-      <span class="badge-soon">Em breve</span>
-    </div>
-
-  </div>
-
-  <p class="eyebrow section-label so-logado" data-setor="/arche/">AVALIAÇÃO INSTITUCIONAL · SINAES / INEP</p>
-  <div class="grid3 so-logado" data-setor="/arche/">
-
-    <a class="card b" href="/arche/">
+    <a class="card b" href="/arche/" data-setor="/arche/">
       <span class="card-num f-code">AV</span>
       <span class="card-topo">
         <span class="card-ic" aria-hidden="true">
@@ -411,7 +437,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </span>
     </a>
-
+    </div>
   </div>
 
   <!-- A Avaliação pede uma senha institucional na entrada; este link dispensa

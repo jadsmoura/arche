@@ -1,0 +1,72 @@
+{
+  "lote": "ap-coordenadores-2026",
+  "fonte": "Planilha de coordenadores e coordenadores pedagógicos, entregue pelo dono (ago/2026)",
+  "observacao": "No ARCHÉ AP quem valida o relatório de aula prática é a coordenação DO CURSO. A planilha traz duas pessoas por curso — o coordenador e o coordenador pedagógico —, e as DUAS validam: foi assim que o dono descreveu o fluxo (\"validação do coordenador do curso e/ou coordenador pedagógico\"). Por isso as duas entram em `coordenadores` do mesmo curso, e a lista `pedagogico` — que é a coordenação institucional, com alcance sobre TODOS os cursos — fica vazia: aqui o pedagógico é por curso, não da instituição. Engenharia de Software não tem pedagógico designado. Educação Física não veio na planilha e fica sem coordenação até que a PROAC a informe.",
+  "cursos": {
+    "administracao": {
+      "coordenadores": [
+        { "nome": "Matildes José de Oliveira", "email": "matildes.oliveira@uniego.edu.br", "papel": "coordenador" },
+        { "nome": "Flávia Santos da Silva", "email": "adv.flaviasantos@hotmail.com", "papel": "pedagogico" }
+      ]
+    },
+    "agronomia": {
+      "coordenadores": [
+        { "nome": "Ayure Gomes da Silva", "email": "ayure.silva@uniego.edu.br", "papel": "coordenador" },
+        { "nome": "Leidiane dos Santos Lucas", "email": "leidiane.lucas@uniego.edu.br", "papel": "pedagogico" }
+      ]
+    },
+    "contabeis": {
+      "coordenadores": [
+        { "nome": "Matildes José de Oliveira", "email": "matildes.oliveira@uniego.edu.br", "papel": "coordenador" },
+        { "nome": "Flávia Santos da Silva", "email": "adv.flaviasantos@hotmail.com", "papel": "pedagogico" }
+      ]
+    },
+    "direito": {
+      "coordenadores": [
+        { "nome": "Gleidson Henrique Antunes de Andrade", "email": "gleidson.andrade@uniego.edu.br", "papel": "coordenador" },
+        { "nome": "Luana de Miranda Santos", "email": "luanna_miranda01@hotmail.com", "papel": "pedagogico" }
+      ]
+    },
+    "enfermagem": {
+      "coordenadores": [
+        { "nome": "Talita Rodrigues Corredeira Mendes", "email": "talita.mendes@uniego.edu.br", "papel": "coordenador" },
+        { "nome": "Geoselita Borges Teixeira", "email": "geoselita.teixeira@uniego.edu.br", "papel": "pedagogico" }
+      ]
+    },
+    "engenharia-civil": {
+      "coordenadores": [
+        { "nome": "Alessandro Morais Martins", "email": "alessandro.martins@uniego.edu.br", "papel": "coordenador" },
+        { "nome": "Igor Cezar Silva Braga", "email": "igor.braga@uniego.edu.br", "papel": "pedagogico" }
+      ]
+    },
+    "engenharia-mecanica": {
+      "coordenadores": [
+        { "nome": "Alessandro Morais Martins", "email": "alessandro.martins@uniego.edu.br", "papel": "coordenador" },
+        { "nome": "Igor Cezar Silva Braga", "email": "igor.braga@uniego.edu.br", "papel": "pedagogico" }
+      ]
+    },
+    "engenharia-software": {
+      "coordenadores": [
+        { "nome": "Ivandro José de Freitas Rocha", "email": "ivandro.rocha@uniego.edu.br", "papel": "coordenador" }
+      ]
+    },
+    "medicina-veterinaria": {
+      "coordenadores": [
+        { "nome": "Alexandre Lopes Gomes", "email": "alexandre.gomes@uniego.edu.br", "papel": "coordenador" },
+        { "nome": "Naílla Crystine de Carvalho Dias", "email": "professorandias@gmail.com", "papel": "pedagogico" }
+      ]
+    },
+    "odontologia": {
+      "coordenadores": [
+        { "nome": "Alyne Moreira Brasil", "email": "alyne.brasil@uniego.edu.br", "papel": "coordenador" },
+        { "nome": "Luciano Barbosa da Silva", "email": "luciano.barbosa@docente.evangelicagoianesia.edu.br", "papel": "pedagogico" }
+      ]
+    },
+    "psicologia": {
+      "coordenadores": [
+        { "nome": "Samuel Pinheiro Almeida", "email": "samuel.almeira@uniego.edu.br", "papel": "coordenador" },
+        { "nome": "Rogerio Rodrigues da Silva", "email": "rogerio.silva@uniego.edu.br", "papel": "pedagogico" }
+      ]
+    }
+  }
+}

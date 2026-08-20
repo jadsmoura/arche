@@ -447,6 +447,17 @@
           var alvos = document.querySelectorAll('[data-setor="' + href + '"]');
           for (var i = 0; i < alvos.length; i++) alvos[i].style.display = "none";
         });
+        /* E o GRUPO some quando nenhum cartão dele sobrou: o aluno veria um
+           título "SERVIÇOS" sobre o vazio, que é pior do que não ter grupo. */
+        var grupos = document.querySelectorAll(".setor-grupo[data-grupo]");
+        for (var g = 0; g < grupos.length; g++) {
+          var cartoes = grupos[g].querySelectorAll("[data-setor]");
+          var algum = false;
+          for (var c = 0; c < cartoes.length; c++) {
+            if (cartoes[c].style.display !== "none") { algum = true; break; }
+          }
+          if (!algum) grupos[g].style.display = "none";
+        }
       })
       .catch(function () {});
   }
