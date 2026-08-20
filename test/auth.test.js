@@ -116,9 +116,14 @@ test("limite de tentativas de senha", () => {
 });
 
 /* ------------------------- coordenação por setor ------------------------- */
-test("os seis setores podem ter coordenação designada", () => {
-  assert.deepEqual(MODULOS, ["extensao", "pesquisa", "inovacao", "atas", "eventos", "espacos", "monitoria"],
-    "eventos (ARCHÉ EV) e espaços (ARCHÉ ES) entram na lista como qualquer outro setor");
+test("os setores que podem ter coordenação designada", () => {
+  assert.deepEqual(MODULOS, ["extensao", "pesquisa", "inovacao", "atas", "eventos", "espacos",
+    "monitoria", "praticas"],
+    "eventos (EV), espaços (ES) e aulas práticas (AP) entram como qualquer outro setor");
+  // no AP, coordenar o MÓDULO é ser a coordenação pedagógica (vê todos os
+  // cursos). O coordenador DE CURSO não cabe aqui — este catálogo é por
+  // módulo, não por curso — e vive no cadastro do próprio módulo.
+  assert.ok(MODULOS.includes("praticas"));
 });
 
 test("coordenador de um setor gere aquele setor, e só aquele", async () => {

@@ -2972,6 +2972,8 @@ async function renderCertificados(a){
       <input type="file" id="as-file-${chave}" accept="image/png,image/jpeg" style="margin-top:8px;font-size:12px">
       <div class="exp" style="margin-top:8px">
         <button class="bt bt-sec" onclick="enviarAssinatura('${esc(a.id)}','${chave}')">Salvar assinatura</button>
+        <button class="bt bt-ghost" title="Usa o PNG que você enviou no seu perfil — sem precisar reenviá-lo a cada evento"
+          onclick="usarMinhaAssinatura('${esc(a.id)}','${chave}')">✍ Usar a minha</button>
         ${x.temImagem?`<button class="bt bt-sec" onclick="removerAssinatura('${esc(a.id)}','${chave}')">Remover</button>`:""}
       </div></div>`;
   };
@@ -3242,6 +3244,20 @@ async function decidirEncerramento(id,decisao){
   alert("Encerramento validado — os certificados estão liberados.\n\n"
     +`Avisos enviados: ${av.enviados||0} de ${av.previstos||0}`
     +(av.semEmail?`\n${av.semEmail} pessoa(s) sem e-mail no cadastro — essas não foram avisadas.`:""));
+}
+
+/* "Usar a minha" (pedido do dono, ago/2026): quem já enviou o PNG uma vez —
+   no perfil ou noutro módulo — não o reenvia a cada evento. Só a PRÓPRIA
+   assinatura se aproveita num clique; a de outra pessoa continua entrando
+   pelo arquivo, por quem responde por ela. */
+async function usarMinhaAssinatura(id, quem) {
+  const nome = ($(`as-nome-${quem}`)||{}).value || "";
+  const cargo = ($(`as-cargo-${quem}`)||{}).value || "";
+  const r = await fetch(`/api/extensao/${encodeURIComponent(id)}/assinatura/minha`, { method:"POST",
+    headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ quem, nome, cargo }) });
+  const j = await r.json().catch(()=>({}));
+  if (!r.ok) { alert(j.error || "Não foi possível usar a sua assinatura."); return; }
+  await carregar(); nav("certificados");
 }
 
 async function enviarAssinatura(id,quem){

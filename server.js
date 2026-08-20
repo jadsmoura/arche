@@ -110,14 +110,15 @@ import {
   DOCUMENTOS_EDITAIS, RESULTADOS_EDITAIS,
 } from "./lib/edital.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
-import { dataCivil, diaSerial, hojeLocalISO, horaLocalHHMM } from "./lib/datas.js";
+import { dataCivil, diaSerial, hojeLocalISO, horaLocalHHMM, semestreAnterior,
+  semestreCorrente, semestreDe } from "./lib/datas.js";
 import { classificar as classificarBanda } from "./lib/banda.js";
 import { medir as medirBanda, diagnostico as diagnosticoBanda, zerar as zerarBanda,
   fecharMedicao } from "./lib/medidor.js";
 import {
   periodoDe, semestresDisponiveis, setorRelatorioDe, setoresDe as setoresDeRelatorio,
   panoramaAtas, panoramaEspacos, panoramaEventos, panoramaExtensao, panoramaIC,
-  panoramaMonitoria,
+  panoramaMonitoria, panoramaPraticas,
 } from "./lib/relatorios.js";
 import { MIN_FOTOS_RELATORIO, faltamFotos, avisoFotos, fotosDoPortfolio } from "./lib/portfolio.js";
 import { seguro as seguroXlsx } from "./lib/exports.js";
@@ -149,6 +150,22 @@ import {
   AREA_AV, chaveAcesso, destinoSeguro, emitirSelo, lerSelo, linkAcesso,
   paginaPortaria, senhaConfere,
 } from "./lib/portaria.js";
+
+/* ARCHÉ AP — Aulas Práticas (da PROAC). Os nomes chegam com o prefixo `ap`
+   porque quase todos têm homônimo noutro setor (falta, visao, panorama). */
+import {
+  AP_KEY, AP_CADASTRO_KEY, AP_EQUIPE_KEY,
+  CAMPOS_RELATORIO as AP_CAMPOS, MIN_FOTOS as AP_MIN_FOTOS, MAX_FOTOS as AP_MAX_FOTOS,
+  ENTREGUE as AP_ENTREGUE,
+  normalizarRelatorio as normalizarRelatorioAP, normalizarFoto as normalizarFotoAP,
+  normalizarCadastro as normalizarCadastroAP, normalizarEquipe as normalizarEquipeAP,
+  faltaNoRelatorio as apFalta, podeVer as apPodeVer, podeEditar as apPodeEditar,
+  podeValidar as apPodeValidar, visaoDoRelatorio as apVisao, anotar as apAnotar,
+  quemNoModulo as quemNoModuloAP, coordenaCurso as apCoordenaCurso,
+  professoresDoSemestre as apProfessoresDoSemestre, minhasDisciplinas as apMinhasDisciplinas,
+  cursoDoProfessor as apCursoDoProfessor, filtrar as apFiltrar, panorama as apPanorama,
+  pendenciasCobranca as apPendenciasCobranca, ehSegunda as apEhSegunda,
+} from "./lib/praticas.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, "public");
@@ -321,7 +338,7 @@ async function faltaNoPerfilDe(u, perfil) {
 // Setores de gestão exigem login (Avaliação Institucional continua aberta).
 // /eventos/* segue PÚBLICO (hotsite, inscrição, credenciamento, assistir) —
 // só a sala de gestão do ARCHÉ EV, em /eventos/gestao, pede sessão.
-const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios|espacos|monitoria|relatorios|diagnostico|prototipos)(\/|$)|^\/eventos\/gestao(\/|$)/;
+const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios|espacos|monitoria|praticas|relatorios|diagnostico|prototipos)(\/|$)|^\/eventos\/gestao(\/|$)/;
 app.use(async (req, res, next) => {
   // HEAD também (achado de ago/2026): o express.static responde HEAD, e a
   // guarda só de GET deixava um HEAD sem sessão confirmar a existência
@@ -809,7 +826,12 @@ app.get("/api/alertas", async (req, res) => {
   try {
     const u = await usuarioDe(req, res);
     if (!u) return res.status(401).json({ error: "não autenticado" });
-    if (!u.modulos.length) return res.json({ alertas: [], total: 0 });
+    /* O coordenador DE CURSO das aulas práticas não tem módulo nenhum em
+       `modulosDe` — a coordenação dele vive no cadastro do ARCHÉ AP —, e o
+       corte por `modulos` o deixava sem sino: a fila de validação dele não
+       chegava a ser montada. Por isso a saída rápida consulta os dois. */
+    const quemAP1 = quemNoModuloAP({ email: u.email, gestao: gerePraticas(u) }, await lerEquipeAP());
+    if (!u.modulos.length && !quemAP1.cursos.length) return res.json({ alertas: [], total: 0 });
     const geral = u.papel === "gestor";
     const alertas = [];
     const corte14 = Date.now() - 14 * 24 * 3600 * 1000;
@@ -899,6 +921,24 @@ app.get("/api/alertas", async (req, res) => {
         detalhe: aEncerrar.slice(0, 3).map((a) => (a.proposta?.nomeAtividade || a.numeroAcao || "").slice(0, 70)).join(" · ") });
     }
 
+    /* AULAS PRÁTICAS: o que espera validação. O alcance aqui é por CURSO,
+       não por módulo — o coordenador de Enfermagem não vê a fila de Direito
+       —, e por isso a lista se monta do cadastro do próprio módulo. */
+    {
+      const quemAP2 = quemAP1;
+      if (quemAP2.gestao || quemAP2.cursos.length) {
+        const esperando = (await lerPraticas()).filter((r) =>
+          r.status === "enviado" && apPodeVer(r, quemAP2));
+        if (esperando.length) {
+          alertas.push({ setor: "Aulas Práticas", link: "/praticas/",
+            texto: `${esperando.length} relatório(s) de aula prática aguardando validação`,
+            detalhe: esperando.slice(0, 6)
+              .map((r) => `${r.disciplina} · ${r.professor?.nome || r.professor?.email}`)
+              .join(" · ").slice(0, 96),
+            acao: "Validar ou devolver, na guia Relatórios." });
+        }
+      }
+    }
     if (u.modulos.includes("monitoria")) {
       /* O calendário passou o edital publicado (decisão do dono, ago/2026):
          o ciclo vira sozinho em 01/01 e 01/07, o edital não. Sem este aviso,
@@ -1565,7 +1605,7 @@ function cursoFrom(req) {
 // o prefixo `extensao-` a deixava gravável por qualquer conta aprovada —
 // zerar a sequência faria a próxima aprovação emitir um número já em uso, e
 // número emitido não se desfaz (achado da varredura de ago/2026).
-const CHAVES_INTERNAS = /^(auth-|sys-|atas-|ic-|ex-|esp-|mon-|extensao-config-)/;
+const CHAVES_INTERNAS = /^(auth-|sys-|atas-|ic-|ex-|esp-|mon-|ap-|extensao-config-)/;
 
 app.get("/api/estado", async (req, res) => {
   try {
@@ -1785,7 +1825,8 @@ function travarEscritaVerComo(prefixo) {
     next();
   });
 }
-["/api/extensao", "/api/atas", "/api/espacos", "/api/monitoria"].forEach(travarEscritaVerComo);
+["/api/extensao", "/api/atas", "/api/espacos", "/api/monitoria", "/api/praticas"]
+  .forEach(travarEscritaVerComo);
 
 /**
  * Quem é quem no setor, para a gestão escolher por quais olhos olhar. Sai
@@ -7063,6 +7104,94 @@ async function assinaturasParaPdf() {
   return out;
 }
 
+/* ======================================================================
+   A ASSINATURA DO USUÁRIO (pedido do dono, ago/2026).
+
+   Até aqui havia assinaturas digitalizadas em dois lugares, e nenhum deles
+   era da PESSOA: `sys-assinaturas-v1` guarda as três institucionais (o
+   pró-reitor, o reitor e a pró-reitora acadêmica), que só o gestor geral
+   troca; e cada EVENTO guarda a do responsável e a da coordenação daquele
+   evento. O resultado é que a mesma pessoa reenviava o mesmo PNG a cada
+   evento novo — e num módulo novo teria de enviá-lo outra vez.
+
+   Agora a assinatura é do USUÁRIO: envia-se uma vez e ela serve onde a
+   pessoa assinar. O registro é por e-mail, fora do /api/estado (é imagem
+   de assinatura: não pode sair numa chave que qualquer conta aprovada lê),
+   e ninguém envia nem apaga a de outro — nem o gestor geral, porque uma
+   assinatura que um terceiro pode trocar não vale como assinatura.
+   ====================================================================== */
+const ASSINATURA_USUARIO_KEY = "sys-assinaturas-usuario-v1";
+
+async function lerAssinaturasDeUsuarios() {
+  const raw = await storage.get(ASSINATURA_USUARIO_KEY);
+  return raw ? JSON.parse(raw) : {};
+}
+
+/** A assinatura de uma pessoa como Buffer, para o gerador de PDF. null se não houver. */
+async function assinaturaDoUsuario(email) {
+  const e = String(email || "").trim().toLowerCase();
+  if (!e) return null;
+  const a = (await lerAssinaturasDeUsuarios())[e];
+  if (!a?.base64) return null;
+  try { return Buffer.from(a.base64, "base64"); } catch { return null; }
+}
+
+/** Só o dono envia a própria assinatura. */
+app.post("/api/perfil/assinatura", upload.single("file"), async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    if (!req.file) return res.status(400).json({ error: "Nenhuma imagem enviada." });
+    // PNG com fundo transparente é o que fica bom sobre a linha; JPG passa,
+    // mas o retângulo branco aparece — por isso o aviso na tela
+    if (!/^image\/(png|jpeg)$/.test(req.file.mimetype || ""))
+      return res.status(400).json({ error: "Envie a assinatura em PNG (de preferência com fundo transparente)." });
+    if (req.file.size > 2 * 1024 * 1024)
+      return res.status(400).json({ error: "Imagem muito grande — até 2 MB." });
+    const todas = await lerAssinaturasDeUsuarios();
+    todas[u.email] = {
+      base64: req.file.buffer.toString("base64"), tipo: req.file.mimetype,
+      arquivo: String(req.file.originalname || "").slice(0, 120),
+      bytes: req.file.size, em: new Date().toISOString(),
+    };
+    await storage.set(ASSINATURA_USUARIO_KEY, JSON.stringify(todas));
+    await storage.flush?.();
+    res.json({ ok: true, tem: true, bytes: req.file.size, em: todas[u.email].em });
+  } catch (e) {
+    console.error("Erro ao guardar a assinatura do usuário:", e);
+    res.status(500).json({ error: "Não foi possível guardar a assinatura." });
+  }
+});
+
+app.delete("/api/perfil/assinatura", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    const todas = await lerAssinaturasDeUsuarios();
+    delete todas[u.email];
+    await storage.set(ASSINATURA_USUARIO_KEY, JSON.stringify(todas));
+    await storage.flush?.();
+    res.json({ ok: true, tem: false });
+  } catch (e) {
+    console.error("Erro ao remover a assinatura do usuário:", e);
+    res.status(500).json({ error: "Não foi possível remover." });
+  }
+});
+
+/** A própria assinatura, para a tela mostrar o que está guardado. */
+app.get("/api/perfil/assinatura.png", async (req, res) => {
+  const u = await usuarioDe(req, res);
+  if (!u) return res.status(401).send("Faça login.");
+  const a = (await lerAssinaturasDeUsuarios())[u.email];
+  if (!a?.base64) return res.status(404).send("Sem assinatura enviada.");
+  res.setHeader("Content-Type", a.tipo || "image/png");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Cache-Control", "private, no-store");
+  res.end(Buffer.from(a.base64, "base64"));
+});
+
 app.post("/api/ic/assinatura", upload.single("file"), async (req, res) => {
   const g = await exigirGestor(req, res); if (!g) return;
   const quem = String(req.body?.quem || "").trim();
@@ -10456,6 +10585,682 @@ app.delete("/api/ic/:id", async (req, res) => {
 });
 
 
+
+/* ========================================================================
+   ARCHÉ AP — AULAS PRÁTICAS (da PROAC)
+
+   Pedido de coordenadores de curso, ago/2026. O professor registra a aula
+   prática que deu; a coordenação do curso — ou a pedagógica — valida; e o
+   processo TERMINA AÍ. A PROPPEX é suporte: tem alcance total para
+   destravar o que emperrar, mas não é um degrau do fluxo. Em todos os
+   outros setores a pró-reitoria homologa; aqui não, e é de propósito.
+
+   Quem é quem (ver lib/praticas.js): gestor geral e coordenação do módulo
+   `praticas` (a pedagógica) veem tudo; o coordenador DE CURSO vê o seu
+   curso — e essa figura não existia no ARCHÉ, porque `modulosDe` é por
+   módulo, não por curso: ela vive no cadastro do próprio módulo.
+   ======================================================================== */
+const gerePraticas = (u) => !!u && (u.papel === "gestor" || u.modulos?.includes("praticas"));
+
+async function lerPraticas() {
+  const raw = await storage.get(AP_KEY);
+  return raw ? JSON.parse(raw) : [];
+}
+async function lerCadastroAP() {
+  const raw = await storage.get(AP_CADASTRO_KEY);
+  return normalizarCadastroAP(raw ? JSON.parse(raw) : {});
+}
+async function lerEquipeAP() {
+  const raw = await storage.get(AP_EQUIPE_KEY);
+  return normalizarEquipeAP(raw ? JSON.parse(raw) : {});
+}
+
+/* Fila serializada, como em toda base do ARCHÉ: dois professores gravando
+   no mesmo segundo só se enxergam dentro dela. */
+let filaAP = Promise.resolve();
+function comPraticas(fn) {
+  const proxima = filaAP.then(async () => {
+    const lista = await lerPraticas();
+    const r = await fn(lista);
+    if (r?.gravar !== false) {
+      await storage.set(AP_KEY, JSON.stringify(lista));
+      await storage.flush?.();
+    }
+    return r;
+  });
+  filaAP = proxima.catch(() => {});
+  return proxima;
+}
+
+/** Protocolo AP-AAAA-NNN, emitido no envio e nunca repetido. */
+async function novoProtocoloAP() {
+  const ano = Number(hojeLocalISO().slice(0, 4));
+  const raw = await storage.get("ap-config-v1");
+  let cfg = raw ? JSON.parse(raw) : { ano, seq: 0 };
+  if (cfg.ano !== ano) cfg = { ano, seq: 0 };
+  cfg.seq++;
+  await storage.set("ap-config-v1", JSON.stringify(cfg));
+  return `AP-${ano}-${String(cfg.seq).padStart(3, "0")}`;
+}
+
+/** Quem é a pessoa DENTRO do módulo: junta a sessão com o cadastro dele. */
+async function quemAP(u) {
+  return quemNoModuloAP({ email: u.email, gestao: gerePraticas(u) }, await lerEquipeAP());
+}
+
+/** A sessão do setor. Conta pendente não entra: aqui não há convite nominal
+    (o professor é cadastrado pela coordenação, com conta já aprovada). */
+async function sessaoAP(req, res) {
+  const u = await usuarioDe(req, res);
+  if (!u) { res.status(401).json({ error: "Faça login para acessar as aulas práticas." }); return null; }
+  if (u.papel === "pendente") { res.status(403).json({ error: "Seu acesso ainda não foi liberado." }); return null; }
+  return (await verComoUsuario(req, u, gerePraticas(u))) || u;
+}
+
+/** GET /api/praticas — tudo o que a tela precisa para abrir. */
+app.get("/api/praticas", async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    const quem = await quemAP(u);
+    const [todos, cadastro, equipe] = await Promise.all([lerPraticas(), lerCadastroAP(), lerEquipeAP()]);
+    const perfil = (await carregarPerfis())[u.email] || {};
+    const semestre = String(req.query?.semestre || "") || semestreCorrente();
+    const meus = todos.filter((r) => apPodeVer(r, quem)).map((r) => apVisao(r, quem));
+    // os semestres que EXISTEM: os do cadastro, os dos relatórios e o corrente
+    const semestres = [...new Set([
+      semestreCorrente(), ...Object.keys(cadastro), ...todos.map((r) => r.semestre),
+    ].filter(Boolean))].sort().reverse();
+    res.json({
+      eu: u.email, nome: perfil.nome || u.nome || "",
+      papel: quem.gestao ? "gestao" : (quem.cursos.length ? "coordenador" : "professor"),
+      gestao: quem.gestao, pedagogico: quem.pedagogico, cursos: quem.cursos,
+      semestre, semestres, semestreCorrente: semestreCorrente(),
+      catalogoCursos: CURSOS.map((c) => ({ slug: c.slug, nome: c.nome })),
+      campos: AP_CAMPOS, minFotos: AP_MIN_FOTOS,
+      relatorios: meus,
+      // o professor recebe as SUAS disciplinas do semestre — é a lista que o
+      // formulário oferece; a coordenação recebe o cadastro do que gere
+      minhasDisciplinas: apMinhasDisciplinas(cadastro, semestre, u.email),
+      meuCurso: apCursoDoProfessor(cadastro, semestre, u.email),
+      ...(quem.gestao || quem.cursos.length
+        ? {
+          cadastro: recorteDoCadastroAP(cadastro, quem),
+          equipe: quem.gestao ? equipe : { cursos: {}, pedagogico: [] },
+          panorama: apPanorama(meus, cadastro, { semestre, curso: quem.gestao ? "" : quem.cursos[0] || "" }),
+        }
+        : {}),
+      ...(gerePraticas(euReal(req, u))
+        ? { pessoas: pessoasDoAP(cadastro, equipe), verComo: String(req.query?.como || "") }
+        : {}),
+    });
+  } catch (e) {
+    console.error("Erro ao abrir as aulas práticas:", e);
+    res.status(500).json({ error: "Não foi possível carregar o setor agora." });
+  }
+});
+
+/** O cadastro que ESTA pessoa pode ver: a gestão vê tudo, o coordenador o
+    curso dele. Não é sigilo de dado sensível — é recorte de trabalho. */
+function recorteDoCadastroAP(cadastro, quem) {
+  if (quem.gestao) return cadastro;
+  const out = {};
+  for (const [sem, cursos] of Object.entries(cadastro)) {
+    for (const slug of quem.cursos) {
+      if (cursos[slug]) { out[sem] = out[sem] || {}; out[sem][slug] = cursos[slug]; }
+    }
+  }
+  return out;
+}
+
+/** As pessoas do setor, para o "Ver como" da gestão. */
+function pessoasDoAP(cadastro, equipe) {
+  const prof = [], coord = [];
+  for (const sem of Object.keys(cadastro)) {
+    for (const p of apProfessoresDoSemestre(cadastro, sem)) prof.push({ email: p.email, nome: p.nome });
+  }
+  for (const [slug, v] of Object.entries(equipe.cursos || {})) {
+    for (const e of v.coordenadores) coord.push({ email: e, nome: "", detalhe: slug });
+  }
+  for (const e of equipe.pedagogico || []) coord.push({ email: e, nome: "", detalhe: "pedagógico" });
+  return pessoasDeGrupos({ professor: prof, coordenador: coord });
+}
+
+/** POST /api/praticas — cria ou atualiza o relatório (rascunho/devolvido). */
+app.post("/api/praticas", async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    const quem = await quemAP(u);
+    const cadastro = await lerCadastroAP();
+    const perfil = (await carregarPerfis())[u.email] || {};
+    const b = req.body || {};
+    const id = String(b.id || "");
+    const r = await comPraticas((lista) => {
+      const i = lista.findIndex((x) => x.id === id);
+      if (i < 0) {
+        /* Relatório NOVO. Só quem está no cadastro do semestre registra: sem
+           isso, o "disciplinas sem relatório" do painel não teria denominador
+           — e um relatório de alguém que não leciona não tem coordenação a
+           quem ir. A gestão inclui em nome de quem for preciso. */
+        const semestre = semestreDe(String(b.data || "")) || semestreCorrente();
+        const minhas = apMinhasDisciplinas(cadastro, semestre, u.email);
+        const curso = apCursoDoProfessor(cadastro, semestre, u.email);
+        if (!minhas.length && !quem.gestao) {
+          return { erro: [403, `Você ainda não está no cadastro de ${semestre}. `
+            + "A coordenação do curso inclui professores e disciplinas na guia "
+            + "“Professores e Disciplinas”."], gravar: false };
+        }
+        const novo = normalizarRelatorioAP(b, { base: {
+          id: `ap-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+          curso: curso || String(b.curso || ""),
+          professor: { email: u.email, nome: perfil.nome || u.nome || "" },
+          criadoPor: u.email,
+        } });
+        lista.push(novo);
+        apAnotar(novo, { acao: "Relatório criado", por: u.email });
+        return { relatorio: novo };
+      }
+      const atual = lista[i];
+      if (!apPodeEditar(atual, quem)) {
+        return { erro: [403, atual.status === "validado"
+          ? "Relatório validado — não se edita o que a coordenação já validou."
+          : "Só o professor que registrou edita este relatório."], gravar: false };
+      }
+      /* O CURSO é de quem grava, não do formulário: é ele que decide a qual
+         coordenação o relatório vai. Deixá-lo vir no payload permitiria ao
+         professor mudar de fila — mandar o relatório a um coordenador que
+         não o conhece, ou tirá-lo do que deveria validá-lo. Mesma doutrina
+         do número da ação e da situação na Extensão: campo de fluxo vem do
+         que está gravado. A gestão, que é o suporte, muda. */
+      const corpo = quem.gestao ? b : { ...b, curso: atual.curso };
+      lista[i] = normalizarRelatorioAP(corpo, { base: atual });
+      return { relatorio: lista[i] };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, relatorio: apVisao(r.relatorio, quem),
+      falta: apFalta(r.relatorio, { hoje: hojeLocalISO() }) });
+  } catch (e) {
+    console.error("Erro ao gravar o relatório de aula prática:", e);
+    res.status(500).json({ error: "Não foi possível gravar agora." });
+  }
+});
+
+/** POST /api/praticas/:id/enviar — emite o protocolo e manda à coordenação. */
+app.post("/api/praticas/:id/enviar", async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    const quem = await quemAP(u);
+    const r = await comPraticas(async (lista) => {
+      const p = lista.find((x) => x.id === req.params.id);
+      if (!p || !apPodeVer(p, quem)) return { erro: [404, "Relatório não encontrado."], gravar: false };
+      if (!apPodeEditar(p, quem))
+        return { erro: [403, "Este relatório não está aberto para envio."], gravar: false };
+      // a régua é UMA só, e é a mesma da tela: diz TUDO o que falta de uma vez
+      const falta = apFalta(p, { hoje: hojeLocalISO() });
+      if (falta.length) return { erro: [400, falta.join(" · ")], gravar: false, falta };
+      if (!p.protocolo) p.protocolo = await novoProtocoloAP();
+      p.status = "enviado";
+      p.enviadoEm = new Date().toISOString();
+      p.parecer = null;                       // reenvio limpa o parecer anterior
+      apAnotar(p, { acao: "Relatório enviado à coordenação", por: u.email,
+        detalhe: `${p.protocolo} · ${p.disciplina} · aula de ${p.data}` });
+      return { relatorio: p };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1], falta: r.falta || [] });
+    avisarPraticas(r.relatorio, "enviado").catch(() => {});
+    res.json({ ok: true, relatorio: apVisao(r.relatorio, quem) });
+  } catch (e) {
+    console.error("Erro ao enviar o relatório de aula prática:", e);
+    res.status(500).json({ error: "Não foi possível enviar agora." });
+  }
+});
+
+/** POST /api/praticas/:id/validar — o ato da coordenação, e o fim do fluxo. */
+app.post("/api/praticas/:id/validar", async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    const quem = await quemAP(u);
+    const decisao = String(req.body?.decisao || "");
+    if (!["validado", "devolvido"].includes(decisao))
+      return res.status(400).json({ error: "Decisão inválida." });
+    const comentario = String(req.body?.comentario || "").trim().slice(0, 2000);
+    // devolver sem dizer o que corrigir devolve o problema, não a solução
+    if (decisao === "devolvido" && !comentario)
+      return res.status(400).json({ error: "Escreva o que precisa ser corrigido — é o que o professor vai ler." });
+    const perfil = (await carregarPerfis())[u.email] || {};
+    const r = await comPraticas((lista) => {
+      const p = lista.find((x) => x.id === req.params.id);
+      if (!p || !apPodeVer(p, quem)) return { erro: [404, "Relatório não encontrado."], gravar: false };
+      if (!apPodeValidar(p, quem)) {
+        return { erro: [403, p.status !== "enviado"
+          ? "Só se valida relatório enviado."
+          : "A validação é da coordenação do curso — e ninguém valida o próprio relatório."], gravar: false };
+      }
+      p.status = decisao;
+      p.parecer = { decisao, comentario, por: u.email,
+        nome: perfil.nome || u.nome || "", em: new Date().toISOString() };
+      apAnotar(p, { acao: decisao === "validado" ? "Relatório validado" : "Relatório devolvido",
+        por: u.email, detalhe: comentario.slice(0, 200) });
+      return { relatorio: p };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    avisarPraticas(r.relatorio, decisao).catch(() => {});
+    res.json({ ok: true, relatorio: apVisao(r.relatorio, quem) });
+  } catch (e) {
+    console.error("Erro ao validar o relatório de aula prática:", e);
+    res.status(500).json({ error: "Não foi possível registrar a decisão." });
+  }
+});
+
+/** POST /api/praticas/:id/foto — o registro fotográfico, pela rota própria.
+    A imagem NUNCA viaja no corpo do formulário: vai ao Drive e no registro
+    fica só a referência (a mesma regra do portfólio e das artes do evento). */
+app.post("/api/praticas/:id/foto", upload.single("file"), async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    if (!req.file) return res.status(400).json({ error: "Nenhuma imagem enviada." });
+    if (!/^image\//.test(req.file.mimetype || ""))
+      return res.status(400).json({ error: "O registro é fotográfico — envie uma imagem." });
+    if (req.file.size > 8 * 1024 * 1024)
+      return res.status(400).json({ error: "Imagem muito grande — até 8 MB." });
+    const quem = await quemAP(u);
+    const pre = (await lerPraticas()).find((x) => x.id === req.params.id);
+    if (!pre || !apPodeVer(pre, quem)) return res.status(404).json({ error: "Relatório não encontrado." });
+    if (!apPodeEditar(pre, quem)) return res.status(403).json({ error: "Este relatório não está aberto." });
+    if ((pre.fotos || []).length >= AP_MAX_FOTOS)
+      return res.status(400).json({ error: `Até ${AP_MAX_FOTOS} fotos por relatório.` });
+    // sobe ao Drive FORA da fila (é lento e não altera o estado)
+    const data = await files.save({
+      buffer: req.file.buffer, originalName: req.file.originalname,
+      prefix: `praticas/${slug(pre.curso || "geral")}/${pre.semestre.replace("/", "-")}/${slug(pre.protocolo || pre.id)}`,
+    });
+    const foto = normalizarFotoAP({ ...data, tipo: req.file.mimetype, tamanho: req.file.size });
+    const r = await comPraticas((lista) => {
+      const p = lista.find((x) => x.id === req.params.id);
+      if (!p) return { erro: [404, "Relatório não encontrado."], gravar: false };
+      if (!apPodeEditar(p, quem)) return { erro: [403, "Este relatório não está aberto."], gravar: false };
+      p.fotos = [...(p.fotos || []), foto].slice(0, AP_MAX_FOTOS);
+      p.atualizadoEm = new Date().toISOString();
+      return { fotos: p.fotos, relatorio: p };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, fotos: r.fotos, falta: apFalta(r.relatorio, { hoje: hojeLocalISO() }) });
+  } catch (e) {
+    console.error("Erro ao anexar a foto da aula prática:", e);
+    res.status(500).json({ error: "Não foi possível anexar a foto." });
+  }
+});
+
+/** DELETE /api/praticas/:id/foto/:fileId — tirar a que entrou errada. */
+app.delete("/api/praticas/:id/foto/:fileId", async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    const quem = await quemAP(u);
+    const r = await comPraticas((lista) => {
+      const p = lista.find((x) => x.id === req.params.id);
+      if (!p || !apPodeVer(p, quem)) return { erro: [404, "Relatório não encontrado."], gravar: false };
+      if (!apPodeEditar(p, quem)) return { erro: [403, "Este relatório não está aberto."], gravar: false };
+      p.fotos = (p.fotos || []).filter((f) => f.fileId !== req.params.fileId);
+      p.atualizadoEm = new Date().toISOString();
+      return { fotos: p.fotos, relatorio: p };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, fotos: r.fotos, falta: apFalta(r.relatorio, { hoje: hojeLocalISO() }) });
+  } catch (e) {
+    console.error("Erro ao remover a foto:", e);
+    res.status(500).json({ error: "Não foi possível remover." });
+  }
+});
+
+/** DELETE /api/praticas/:id — apagar o rascunho que nasceu errado. */
+app.delete("/api/praticas/:id", async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    const quem = await quemAP(u);
+    const r = await comPraticas((lista) => {
+      const i = lista.findIndex((x) => x.id === req.params.id);
+      if (i < 0 || !apPodeVer(lista[i], quem)) return { erro: [404, "Relatório não encontrado."], gravar: false };
+      // só rascunho se apaga: o que foi enviado tem protocolo, e protocolo
+      // emitido não se apaga — devolve-se
+      if (lista[i].status !== "rascunho" && !quem.gestao)
+        return { erro: [400, "Só rascunho se apaga. O que já foi enviado, a coordenação devolve."], gravar: false };
+      lista.splice(i, 1);
+      return { ok: true };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Erro ao apagar o relatório:", e);
+    res.status(500).json({ error: "Não foi possível apagar." });
+  }
+});
+
+/* --------------------- o cadastro de professores e disciplinas ----------
+   Refeito a cada semestre, à mão, pela coordenação. É ele que dá o
+   DENOMINADOR do painel: sem a lista, "disciplina sem relatório" não
+   existe, e o dashboard vira uma contagem sem régua.
+   ---------------------------------------------------------------------- */
+app.post("/api/praticas/cadastro", async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    const quem = await quemAP(u);
+    const semestre = String(req.body?.semestre || "");
+    const curso = String(req.body?.curso || "");
+    if (!/^\d{4}\/[12]$/.test(semestre)) return res.status(400).json({ error: "Informe o semestre." });
+    if (!apCoordenaCurso(quem, curso))
+      return res.status(403).json({ error: "Você não coordena este curso." });
+    const cadastro = await lerCadastroAP();
+    cadastro[semestre] = cadastro[semestre] || {};
+    cadastro[semestre][curso] = { professores: Array.isArray(req.body?.professores) ? req.body.professores : [] };
+    const limpo = normalizarCadastroAP(cadastro);
+    await storage.set(AP_CADASTRO_KEY, JSON.stringify(limpo));
+    await storage.flush?.();
+    res.json({ ok: true, cadastro: recorteDoCadastroAP(limpo, quem) });
+  } catch (e) {
+    console.error("Erro ao gravar o cadastro de aulas práticas:", e);
+    res.status(500).json({ error: "Não foi possível gravar o cadastro." });
+  }
+});
+
+/** Copiar o cadastro do semestre anterior — o semestre novo raramente
+    recomeça do zero, e redigitar quarenta professores é o que faz a
+    coordenação desistir de manter a lista em dia. */
+app.post("/api/praticas/cadastro/copiar", async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    const quem = await quemAP(u);
+    const destino = String(req.body?.semestre || "");
+    const curso = String(req.body?.curso || "");
+    if (!/^\d{4}\/[12]$/.test(destino)) return res.status(400).json({ error: "Informe o semestre." });
+    if (!apCoordenaCurso(quem, curso)) return res.status(403).json({ error: "Você não coordena este curso." });
+    const origem = String(req.body?.de || "") || semestreAnterior(destino);
+    const cadastro = await lerCadastroAP();
+    const antes = cadastro[origem]?.[curso]?.professores || [];
+    if (!antes.length)
+      return res.status(404).json({ error: `Não há cadastro de ${origem} neste curso para copiar.` });
+    cadastro[destino] = cadastro[destino] || {};
+    // não sobrescreve quem já foi incluído no semestre novo
+    const jaTem = new Set((cadastro[destino][curso]?.professores || []).map((p) => String(p.email || "").toLowerCase()));
+    cadastro[destino][curso] = { professores: [
+      ...(cadastro[destino][curso]?.professores || []),
+      ...antes.filter((p) => !jaTem.has(String(p.email || "").toLowerCase())),
+    ] };
+    const limpo = normalizarCadastroAP(cadastro);
+    await storage.set(AP_CADASTRO_KEY, JSON.stringify(limpo));
+    await storage.flush?.();
+    res.json({ ok: true, copiados: antes.length, de: origem,
+      cadastro: recorteDoCadastroAP(limpo, quem) });
+  } catch (e) {
+    console.error("Erro ao copiar o cadastro:", e);
+    res.status(500).json({ error: "Não foi possível copiar." });
+  }
+});
+
+/** Quem coordena o quê — só o gestor geral e a coordenação do módulo. */
+app.post("/api/praticas/equipe", async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    if (!gerePraticas(u))
+      return res.status(403).json({ error: "Designar coordenação é da PROAC e da PROPPEX." });
+    const equipe = normalizarEquipeAP(req.body?.equipe || {});
+    await storage.set(AP_EQUIPE_KEY, JSON.stringify(equipe));
+    await storage.flush?.();
+    res.json({ ok: true, equipe });
+  } catch (e) {
+    console.error("Erro ao gravar a equipe das aulas práticas:", e);
+    res.status(500).json({ error: "Não foi possível gravar." });
+  }
+});
+
+/** GET /api/praticas/panorama — o dashboard do semestre. */
+app.get("/api/praticas/panorama", async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    const quem = await quemAP(u);
+    if (!quem.gestao && !quem.cursos.length)
+      return res.status(403).json({ error: "O painel é da coordenação." });
+    const [todos, cadastro] = await Promise.all([lerPraticas(), lerCadastroAP()]);
+    const semestre = String(req.query?.semestre || "") || semestreCorrente();
+    const curso = String(req.query?.curso || "") || (quem.gestao ? "" : quem.cursos[0] || "");
+    if (curso && !apCoordenaCurso(quem, curso))
+      return res.status(403).json({ error: "Você não coordena este curso." });
+    const meus = todos.filter((r) => apPodeVer(r, quem));
+    res.json({ ok: true, panorama: apPanorama(meus, cadastro, { semestre, curso }) });
+  } catch (e) {
+    console.error("Erro no painel das aulas práticas:", e);
+    res.status(500).json({ error: "Não foi possível carregar o painel." });
+  }
+});
+
+/** GET /api/praticas/semestral.pdf — o documento do semestre, da coordenação. */
+app.get("/api/praticas/semestral.pdf", async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    const quem = await quemAP(u);
+    if (!quem.gestao && !quem.cursos.length)
+      return res.status(403).send("O relatório semestral é da coordenação.");
+    const [todos, cadastro] = await Promise.all([lerPraticas(), lerCadastroAP()]);
+    const semestre = String(req.query?.semestre || "") || semestreCorrente();
+    const curso = String(req.query?.curso || "") || (quem.gestao ? "" : quem.cursos[0] || "");
+    if (curso && !apCoordenaCurso(quem, curso)) return res.status(403).send("Você não coordena este curso.");
+    const meus = todos.filter((r) => apPodeVer(r, quem));
+    const perfil = (await carregarPerfis())[u.email] || {};
+    const institucionais = await assinaturasParaPdf();
+    const { gerarRelatorioSemestralPraticasPdf } = await import("./lib/pdf.js");
+    const buf = await gerarRelatorioSemestralPraticasPdf({
+      semestre, curso: cursoDe(curso)?.nome || "",
+      panorama: apPanorama(meus, cadastro, { semestre, curso }),
+      relatorios: apFiltrar(meus, { semestre, curso }).filter(AP_ENTREGUE),
+      coordenador: { nome: perfil.nome || u.nome || "",
+        cargo: quem.pedagogico ? "Coordenação Pedagógica" : `Coordenação do curso${curso ? ` de ${cursoDe(curso)?.nome}` : ""}` },
+      assinaturas: {
+        coordenador: await assinaturaDoUsuario(u.email),
+        proacademica: institucionais.proacademica, reitor: institucionais.reitor,
+      },
+      emitidoPor: u.email,
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition",
+      `inline; filename="aulas-praticas-${semestre.replace("/", "-")}${curso ? `-${slug(curso)}` : ""}.pdf"`);
+    res.end(buf);
+  } catch (e) {
+    console.error("Erro no relatório semestral de aulas práticas:", e);
+    res.status(500).send("Não foi possível gerar o documento.");
+  }
+});
+
+/** GET /api/praticas/:id/pdf — o relatório de UMA aula, com as fotos. */
+app.get("/api/praticas/:id/pdf", async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    const quem = await quemAP(u);
+    const p = (await lerPraticas()).find((x) => x.id === req.params.id);
+    if (!p || !apPodeVer(p, quem)) return res.status(404).send("Relatório não encontrado.");
+    const perfis = await carregarPerfis();
+    // as fotos são LIDAS pelo servidor e entregues ao gerador já como bytes
+    const fotos = [];
+    for (const f of (p.fotos || []).slice(0, AP_MAX_FOTOS)) {
+      try {
+        const buffer = await files.read?.(f.fileId);
+        if (buffer) fotos.push({ nome: f.nome, buffer });
+      } catch { /* foto que não abre não derruba o documento */ }
+    }
+    const coordEmail = p.parecer?.por || "";
+    const { gerarRelatorioAulaPraticaPdf } = await import("./lib/pdf.js");
+    const buf = await gerarRelatorioAulaPraticaPdf({
+      relatorio: p, curso: cursoDe(p.curso)?.nome || p.curso,
+      professor: { nome: p.professor?.nome || perfis[p.professor?.email]?.nome || "" },
+      coordenador: coordEmail
+        ? { nome: p.parecer?.nome || perfis[coordEmail]?.nome || "", cargo: "Coordenação do curso" }
+        : null,
+      fotos,
+      assinaturas: {
+        professor: await assinaturaDoUsuario(p.professor?.email),
+        // a assinatura do coordenador só entra se ele VALIDOU: assinar o que
+        // ainda não se validou seria o documento afirmar um ato que não houve
+        ...(p.status === "validado" && coordEmail
+          ? { coordenador: await assinaturaDoUsuario(coordEmail) } : {}),
+      },
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="aula-pratica-${slug(p.protocolo || p.id)}.pdf"`);
+    res.end(buf);
+  } catch (e) {
+    console.error("Erro no PDF da aula prática:", e);
+    res.status(500).send("Não foi possível gerar o documento.");
+  }
+});
+
+/* ------------------------------- avisos --------------------------------
+   O relatório que chega vai à COORDENAÇÃO DO CURSO (é ela quem valida — o
+   fluxo encerra nela, e não numa caixa institucional); o desfecho vai ao
+   PROFESSOR. Sem coordenador designado para o curso, o aviso sobe à
+   coordenação pedagógica, que é quem cobre a ausência.
+   ---------------------------------------------------------------------- */
+async function destinatariosDaCoordenacaoAP(curso) {
+  const equipe = await lerEquipeAP();
+  const doCurso = equipe.cursos?.[curso]?.coordenadores || [];
+  return doCurso.length ? doCurso : (equipe.pedagogico || []);
+}
+
+async function avisarPraticas(r, evento) {
+  try {
+    const { emailMovimentacaoPratica } = await import("./lib/mailer.js");
+    const linhas = [
+      ["Professor(a)", r.professor?.nome || r.professor?.email],
+      ["Curso", cursoDe(r.curso)?.nome || r.curso],
+      ["Disciplina", r.disciplina],
+      ["Data da aula", r.data],
+      ["Local", r.local],
+      ["Protocolo", r.protocolo],
+    ];
+    if (evento === "enviado") {
+      for (const para of await destinatariosDaCoordenacaoAP(r.curso)) {
+        await enviarAviso("ap-relatorio-enviado", emailMovimentacaoPratica({
+          para, assunto: `Relatório de aula prática para validar — ${r.disciplina}`,
+          titulo: "Um relatório aguarda a sua validação", linhas }));
+      }
+      return;
+    }
+    const para = r.professor?.email;
+    if (!para) return;
+    const validado = evento === "validado";
+    await enviarAviso("ap-relatorio-decidido", emailMovimentacaoPratica({
+      para,
+      assunto: validado ? `Relatório validado — ${r.disciplina}` : `Relatório devolvido — ${r.disciplina}`,
+      titulo: validado ? "A coordenação validou o seu relatório" : "A coordenação devolveu o seu relatório",
+      linhas: [...linhas, ["Coordenação", r.parecer?.nome || r.parecer?.por || ""],
+        [validado ? "Observação" : "O que corrigir", r.parecer?.comentario || ""]],
+    }));
+  } catch (e) {
+    console.error("[praticas] aviso por e-mail não enviado:", e.message);
+  }
+}
+
+const COBRANCA_AP_KEY = "sys-ap-cobranca-v1";
+
+/** Um lembrete por professor. Devolve true quando o e-mail saiu. */
+async function enviarCobrancaAP(p, mensagem = "") {
+  try {
+    const { emailLembretePratica } = await import("./lib/mailer.js");
+    await enviarAviso("ap-lembrete-semanal", emailLembretePratica({ para: p.email, ...p, mensagem }));
+    return true;
+  } catch (e) {
+    console.error("[praticas] lembrete não enviado a", p.email, e.message);
+    return false;
+  }
+}
+
+/* A COBRANÇA DE SEGUNDA-FEIRA (pedido do dono, ago/2026). A varredura roda
+   de hora em hora como as outras, mas o lembrete só sai NA SEGUNDA — e uma
+   vez por semana por pessoa, pelo registro. O relógio é o de Brasília, e a
+   janela cobre o dia inteiro: numa instância que dorme (plano free), o
+   primeiro acesso da segunda é que dispara. */
+async function varrerCobrancaAP() {
+  const hoje = hojeLocalISO();
+  if (!apEhSegunda(hoje)) return { enviadas: 0 };
+  const [todos, cadastro] = await Promise.all([lerPraticas(), lerCadastroAP()]);
+  const pendentes = apPendenciasCobranca(todos, cadastro, { hoje });
+  if (!pendentes.length) return { enviadas: 0 };
+  const registro = JSON.parse((await storage.get(COBRANCA_AP_KEY)) || "{}");
+  let enviadas = 0;
+  for (const p of pendentes) {
+    // uma vez por semana por pessoa: reiniciar a instância não reenvia
+    if (registro[p.email] === hoje) continue;
+    if (await enviarCobrancaAP(p)) { registro[p.email] = hoje; enviadas++; }
+  }
+  await storage.set(COBRANCA_AP_KEY, JSON.stringify(registro));
+  await storage.flush?.();
+  if (enviadas) console.log(`[praticas] lembrete de segunda enviado a ${enviadas} professor(es).`);
+  return { enviadas };
+}
+
+/** GET /api/praticas/:id — a ficha completa. Vem DEPOIS de /panorama e de
+    /semestral.pdf: registrada antes, `:id` engoliria as duas. */
+app.get("/api/praticas/:id", async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    const quem = await quemAP(u);
+    const p = (await lerPraticas()).find((x) => x.id === req.params.id);
+    if (!p || !apPodeVer(p, quem)) return res.status(404).json({ error: "Relatório não encontrado." });
+    res.json({
+      relatorio: apVisao(p, quem),
+      podeEditar: apPodeEditar(p, quem), podeValidar: apPodeValidar(p, quem),
+      falta: apFalta(p, { hoje: hojeLocalISO() }),
+    });
+  } catch (e) {
+    console.error("Erro ao abrir o relatório de aula prática:", e);
+    res.status(500).json({ error: "Não foi possível carregar." });
+  }
+});
+
+/** POST /api/praticas/chamada — a cobrança AGORA, além da de segunda-feira. */
+app.post("/api/praticas/chamada", async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    const quem = await quemAP(u);
+    if (!quem.gestao && !quem.cursos.length)
+      return res.status(403).json({ error: "A chamada é da coordenação." });
+    const [todos, cadastro] = await Promise.all([lerPraticas(), lerCadastroAP()]);
+    const pendentes = apPendenciasCobranca(todos, cadastro, { hoje: hojeLocalISO() })
+      .filter((p) => quem.gestao || quem.cursos.includes(p.curso));
+    if (req.body?.simular) return res.json({ ok: true, simulacao: true, destinatarios: pendentes });
+    let enviados = 0;
+    for (const p of pendentes) {
+      const ok = await enviarCobrancaAP(p, String(req.body?.mensagem || ""));
+      if (ok) enviados++;
+    }
+    res.json({ ok: true, enviados, total: pendentes.length });
+  } catch (e) {
+    console.error("Erro na chamada das aulas práticas:", e);
+    res.status(500).json({ error: "Não foi possível enviar." });
+  }
+});
+
 /* ========================================================================
    RELATÓRIO SEMESTRAL DE ATIVIDADES
 
@@ -10481,6 +11286,11 @@ async function montarPanorama(chave, periodo) {
   }
   if (chave === "atas") return panoramaAtas(await lerAtas(), periodo, { cursos, orgaos: ORGAOS });
   if (chave === "espacos") return panoramaEspacos(await lerReservas(), periodo, { espacos: await lerEspacos() });
+  // o cadastro do semestre vai junto: é ele que dá o denominador ("12 de 40
+  // disciplinas"), e sem ele o número não se interpreta
+  if (chave === "praticas") {
+    return panoramaPraticas(await lerPraticas(), periodo, { cursos, cadastro: await lerCadastroAP() });
+  }
   return null;
 }
 
@@ -10791,6 +11601,45 @@ const nomeArquivoCert = (cert) =>
   `certificado-${slugDeNome(cert.evento || "evento")}-${slugDeNome(cert.pessoa || "participante")}.pdf`;
 
 /* ---------------- assinatura do responsável e da coordenação ------------- */
+
+/* "Usar a minha assinatura" (pedido do dono, ago/2026): quem já enviou o
+   PNG uma vez, no perfil ou noutro módulo, não o reenvia a cada evento. A
+   cópia é EXPLÍCITA e só da PRÓPRIA assinatura — o coordenador pode enviar
+   a imagem de outra pessoa pela rota normal (é ele quem responde por isso),
+   mas ninguém "aproveita" a assinatura alheia num clique. */
+app.post("/api/extensao/:id/assinatura/minha", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const quem = String(req.body?.quem || "").trim();
+    if (!assinanteDoEventoValido(quem))
+      return res.status(400).json({ error: "Informe de quem é a assinatura (responsável ou coordenação)." });
+    const minha = (await lerAssinaturasDeUsuarios())[u.email];
+    if (!minha?.base64)
+      return res.status(404).json({ error: "Você ainda não enviou a sua assinatura. Envie-a no perfil ou aqui, pelo arquivo." });
+    const perfil = (await carregarPerfis())[u.email] || {};
+    const nome = String(req.body?.nome || perfil.nome || u.nome || "").trim().slice(0, 120);
+    if (!nome) return res.status(400).json({ error: "Informe o nome de quem assina — é ele que sai impresso." });
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((x) => x.id === req.params.id);
+      if (!a) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (!podeCertificarAcao(u, a)) return { erro: [403, "Sem permissão para esta ação"], gravar: false };
+      const cx = caixaCertificado(a);
+      cx.assinaturas = cx.assinaturas || {};
+      cx.assinaturas[quem] = {
+        nome, cargo: String(req.body?.cargo || "").trim().slice(0, 140),
+        base64: minha.base64, em: new Date().toISOString(), por: u.email,
+      };
+      a.atualizadoEm = new Date().toISOString();
+      return { acao: a };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, assinaturas: assinaturasVisiveis(r.acao) });
+  } catch (e) {
+    console.error("Erro ao aproveitar a assinatura do usuário:", e);
+    res.status(500).json({ error: "Não foi possível usar a sua assinatura." });
+  }
+});
 
 app.post("/api/extensao/:id/assinatura", upload.single("file"), async (req, res) => {
   try {
@@ -11335,4 +12184,8 @@ app.listen(port, () => {
   // de 30 dias antes do prazo, semanal, até o envio
   setTimeout(() => varrerCobrancaMon().catch((e) => console.error("[cobranca-mon]", e.message)), 45_000).unref();
   setInterval(() => varrerCobrancaMon().catch((e) => console.error("[cobranca-mon]", e.message)), 60 * 60 * 1000).unref();
+  // as aulas práticas entram na mesma varredura, mas o lembrete só sai na
+  // SEGUNDA-FEIRA — é a própria função que confere o dia
+  setTimeout(() => varrerCobrancaAP().catch((e) => console.error("[cobranca-ap]", e.message)), 60_000).unref();
+  setInterval(() => varrerCobrancaAP().catch((e) => console.error("[cobranca-ap]", e.message)), 60 * 60 * 1000).unref();
 });

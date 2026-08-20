@@ -299,8 +299,31 @@
       </span>
     </a>
 
-    <a class="card" href="/relatorios/" data-setor="/relatorios/">
+    <a class="card" href="/praticas/" data-setor="/praticas/">
       <span class="card-num f-code">07</span>
+      <span class="card-topo">
+        <span class="card-ic" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6a2 2 0 0 1 2 2v2H7V5a2 2 0 0 1 2-2z"/><path d="M7 7v11a3 3 0 0 0 3 3h4a3 3 0 0 0 3-3V7"/><path d="M7 13h10"/></svg>
+        </span>
+        <span class="card-mod">ARCHÉ <b>AP</b></span>
+      </span>
+      <h2 class="card-t">Aulas Práticas</h2>
+      <p class="card-sub">Registro · Fotos · Validação</p>
+      <p class="card-d">Da Pró-Reitoria Acadêmica: depois da aula prática o professor
+        registra o objetivo, o local, as atividades e as fotos; a coordenação do curso
+        valida, e o semestre inteiro sai num relatório.</p>
+      <div class="card-meta">
+        <span class="chip">PROAC</span>
+        <span class="chip">registro fotográfico</span>
+        <span class="chip">relatório semestral</span>
+      </div>
+      <span class="card-cta">Acessar o setor
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </span>
+    </a>
+
+    <a class="card" href="/relatorios/" data-setor="/relatorios/">
+      <span class="card-num f-code">08</span>
       <span class="card-topo">
         <span class="card-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 17v-4M12 17v-7M16 17v-2"/></svg>
@@ -327,7 +350,7 @@
          continuam onde estão — lá é a operação de quem emite; aqui, o
          histórico de quem recebe. -->
     <a class="card" href="/certificados/" data-setor="/certificados/">
-      <span class="card-num f-code">08</span>
+      <span class="card-num f-code">09</span>
       <span class="card-topo">
         <span class="card-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5"/><path d="M8.5 13.5 7 21l5-2.2L17 21l-1.5-7.5"/></svg>
@@ -348,7 +371,7 @@
     </a>
 
     <div class="card soon" data-setor="/inovacao/">
-      <span class="card-num f-code">09</span>
+      <span class="card-num f-code">10</span>
       <span class="card-topo">
         <span class="card-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1M12 2a7 7 0 0 1 4 12.7c-.6.5-1 1.3-1 2.1"/></svg>
@@ -454,7 +477,8 @@ fetch("/api/me").then((r) => (r.ok ? r.json() : {})).then((me) => {
    a decisão acontece. Nada aqui é sigiloso: contagem, nome e link — é o que
    a rota devolve. Em erro (ou sem nada pendente para a pessoa), o bloco
    simplesmente não aparece: painel vazio na página inicial é ruído. */
-const ORDEM_SETOR = ["Acessos", "Extensão", "Eventos", "Pesquisa · IC", "Monitoria", "Espaços", "Atas"];
+const ORDEM_SETOR = ["Acessos", "Extensão", "Eventos", "Pesquisa · IC", "Monitoria",
+  "Aulas Práticas", "Espaços", "Atas"];
 const escP = (t) => String(t ?? "").replace(/[&<>"]/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 // o detalhe é uma AMOSTRA do que está pendente, não a lista: sem corte, um

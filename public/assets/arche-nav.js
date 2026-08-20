@@ -36,6 +36,7 @@
   var NAV = [
     { href: "/", rot: "Portal", teste: function (p) { return p === "/" || p === "/index.html"; } },
     { grupo: "Ensino", itens: [
+      { href: "/praticas/", rot: "Aulas Práticas", sub: "Relatórios das aulas práticas · PROAC", teste: em("/praticas") },
       { href: "/monitoria/", rot: "Monitoria", sub: "Projetos, monitores e relatórios", teste: em("/monitoria") },
       CERTIFICADOS,
     ] },
@@ -422,7 +423,7 @@
           // páginas públicas (vitrines, hotsites) ficam só com "Portal" e a
           // visão pública; os quatro grupos somem inteiros, por ficarem vazios.
           esconder = ["/atas/", "/extensao/", "/eventos/gestao/", "/pesquisa/ic/", "/monitoria/",
-            "/relatorios/", "/espacos/", "/arche/", "/certificados/"];
+            "/praticas/", "/relatorios/", "/espacos/", "/arche/", "/certificados/"];
         } else if (me.papel === "gestor" || (me.modulos || []).length > 0) {
           esconder = [];                                   // gestão e coordenações veem tudo
         } else {
@@ -435,7 +436,7 @@
           // EV é de quem propõe e opera. Relatórios é da gestão: quem não
           // coordena setor nenhum não tem o que emitir, e a rota o recusaria.
           esconder = (me.perfil && me.perfil.funcao === "aluno")
-            ? ["/atas/", "/inovacao/", "/arche/", "/eventos/gestao/", "/relatorios/"]
+            ? ["/atas/", "/inovacao/", "/arche/", "/eventos/gestao/", "/relatorios/", "/praticas/"]
             : ["/arche/", "/relatorios/"];
         }
         OCULTOS = {};

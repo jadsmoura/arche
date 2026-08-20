@@ -171,6 +171,27 @@
     <div class="dica"><span id="resumo-cont">0</span>/600 caracteres</div>
   </div>
 
+  <!-- assinatura digitalizada: é da PESSOA, e serve onde ela assinar -->
+  <div class="card">
+    <div class="sec">Assinatura digitalizada</div>
+    <p class="dica" style="margin-bottom:10px">Envie uma vez e ela vale em todo o ARCHÉ — no
+      relatório de aula prática que você validar, no relatório semestral que emitir e nos
+      certificados dos eventos que organizar. <b>Só você a envia ou remove</b>: nem a gestão pode
+      trocá-la, porque assinatura que um terceiro troca não vale como assinatura.</p>
+    <div style="border:1px dashed var(--line);border-radius:10px;padding:14px;background:#fbfcfd;text-align:center">
+      <img id="as-img" src="/api/perfil/assinatura.png" alt="" style="max-height:70px;max-width:280px"
+        onerror="this.style.display='none';document.getElementById('as-vazio').style.display='block'">
+      <div id="as-vazio" class="dica" style="display:none">Nenhuma assinatura enviada ainda.</div>
+    </div>
+    <label for="as-file">Arquivo PNG, de preferência com fundo transparente (até 2 MB)</label>
+    <input type="file" id="as-file" accept="image/png,image/jpeg">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+      <button class="bt bt-sec" type="button" onclick="enviarAssinatura()">Salvar assinatura</button>
+      <button class="bt bt-ghost" type="button" onclick="removerAssinatura()">Remover</button>
+    </div>
+    <div id="as-msg" class="dica"></div>
+  </div>
+
   <!-- senha -->
   <div class="card">
     <div class="sec">Senha de acesso</div>
@@ -459,6 +480,45 @@ async function sair(){
   location.href="/";
 }
 </script>
-<script src="/assets/arche-nav.js" defer></script>
+<script src="/assets/arche-nav.js" defer>
+/* A ASSINATURA DIGITALIZADA (pedido do dono, ago/2026). Reduz-se em PNG, sem
+   fundo: a redução das FOTOS pinta branco e sai em JPEG, o que destruiria a
+   transparência — e é ela que faz a assinatura ficar bem sobre a linha. */
+async function reduzirAssinatura(f, max = 700) {
+  try {
+    if (f.type !== "image/png") return f;
+    const bmp = await createImageBitmap(f);
+    if (Math.max(bmp.width, bmp.height) <= max && f.size < 400 * 1024) return f;
+    const e = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * e); c.height = Math.round(bmp.height * e);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+    return blob ? new File([blob], f.name, { type: "image/png" }) : f;
+  } catch { return f; }
+}
+async function enviarAssinatura() {
+  const f = (document.getElementById("as-file").files || [])[0];
+  if (!f) { alert("Escolha o arquivo PNG da assinatura."); return; }
+  const fd = new FormData(); fd.append("file", await reduzirAssinatura(f));
+  const r = await fetch("/api/perfil/assinatura", { method: "POST", body: fd });
+  const j = await r.json().catch(() => ({}));
+  document.getElementById("as-msg").textContent = r.ok
+    ? "Assinatura guardada." : (j.error || "Não foi possível guardar.");
+  if (r.ok) {
+    const img = document.getElementById("as-img");
+    img.style.display = ""; img.src = "/api/perfil/assinatura.png?t=" + Date.now();
+    document.getElementById("as-vazio").style.display = "none";
+  }
+}
+async function removerAssinatura() {
+  if (!confirm("Remover a sua assinatura digitalizada?")) return;
+  const r = await fetch("/api/perfil/assinatura", { method: "DELETE" });
+  if (!r.ok) { alert("Não foi possível remover."); return; }
+  document.getElementById("as-img").style.display = "none";
+  document.getElementById("as-vazio").style.display = "block";
+  document.getElementById("as-msg").textContent = "Assinatura removida.";
+}
+</script>
 </body>
 </html>

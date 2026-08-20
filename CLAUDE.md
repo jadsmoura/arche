@@ -34,6 +34,7 @@ lib/espacos.js       ARCHÉ ES: espaços, conflito de horário, bloqueios e agen
 lib/curricularizacao.js  Vínculo da ação de extensão com o componente curricular (MEC)
 lib/monitoria.js     ARCHÉ MO: editais, fluxo, réguas, carga horária e certificados
 lib/monitoriaHistorico.js  O arquivo da monitoria: os ciclos que correram fora do ARCHÉ
+lib/praticas.js      ARCHÉ AP: relatório de aula prática, cadastro por semestre e o painel
 lib/relatorios.js    Relatório Semestral de Atividades: o panorama de cada setor
 lib/banda.js         Diagnóstico de banda: classificação, contagem e projeção (puro)
 lib/medidor.js       O medidor que roda: acumula em memória e grava no disco LOCAL
@@ -61,6 +62,8 @@ public/
   espacos/           ARCHÉ ES — Reserva de Espaços (SPA vanilla, mesmo desenho do EX/AT)
   monitoria/         ARCHÉ MO — Monitoria Acadêmica (SPA vanilla; a mesma tela para os
                      três papéis — professor, monitor e PROPPEX)
+  praticas/          ARCHÉ AP — Aulas Práticas (SPA vanilla; da PROAC: o professor registra,
+                     a coordenação do curso valida, e o fluxo encerra nela)
   relatorios/        Relatório Semestral por SETOR (só gestão): números, gráficos e a
                      relação nominal — prestação de contas e comprovação ao MEC
   diagnostico/       Para onde vão os bytes (só gestor geral): banda de saída por origem
@@ -87,7 +90,7 @@ public/
 ## Regras de negócio essenciais
 
 - **Setores protegidos** (exigem login): `/extensao`, `/pesquisa`, `/inovacao`, `/atas`,
-  `/espacos`, `/monitoria`, `/usuarios`, `/relatorios`, `/diagnostico`, `/prototipos` e
+  `/espacos`, `/monitoria`, `/praticas`, `/usuarios`, `/relatorios`, `/diagnostico`, `/prototipos` e
   `/eventos/gestao` (`/usuarios` e `/diagnostico` só para gestor geral; o restante de `/eventos/*` é público
   de propósito). Duas exceções nominais para conta ainda `pendente`: o aluno/avaliador convidado
   na IC e o **monitor indicado** na monitoria — o convite chega por e-mail e não pode dar em
@@ -1680,6 +1683,58 @@ public/
   que correu aqui**, porque o arquivo não tem relatório nem homologação no sistema; e cada
   linha dele sai com **"arquivo" no lugar do protocolo**, mais uma NOTA no alto do documento
   dizendo de onde vieram — número que ninguém sabe explicar é pior que número menor.
+- **ARCHÉ AP — Aulas Práticas** (`lib/praticas.js` + `public/praticas/` + rotas
+  `/api/praticas/*`, pedido de coordenadores de curso ago/2026): o professor dá a aula prática e,
+  depois dela, registra o que aconteceu — **disciplina, objetivo, local, data, atividades e as
+  fotos** (mínimo de **3**, `MIN_FOTOS`: é o registro fotográfico que comprova a aula, a mesma razão
+  do mínimo da Extensão, em escala menor). A coordenação valida, e **o fluxo ENCERRA NELA**: a
+  PROPPEX é suporte, com alcance total para destravar, mas não é um degrau do processo. Em todos os
+  outros setores a pró-reitoria homologa; aqui não, e é de propósito — o módulo é da **PROAC**, e
+  quem acompanha a aula prática é a coordenação do curso.
+  **A coordenação é POR CURSO, e isso não existia no ARCHÉ**: `modulosDe` dá coordenação por
+  MÓDULO, e o coordenador de Enfermagem não pode ver as aulas de Direito. Por isso são DUAS
+  figuras e dois registros: coordenar o módulo `praticas` (em `/usuarios/`) é ser a **coordenação
+  pedagógica**, que vê todos os cursos; o **coordenador de curso** vive no cadastro do próprio
+  módulo (`ap-equipe-v1`), designado na guia Coordenação. `papelNoRelatorio` testa **professor
+  ANTES de gestão**, e é só isso que impede alguém de validar o próprio relatório — nem o gestor
+  geral valida o que é dele.
+  **Professores e disciplinas mudam a cada semestre; a coordenação, não.** O cadastro
+  (`ap-cadastro-v1`) é **por semestre**, refeito à mão pela coordenação, com **"copiar do semestre
+  anterior"** (sem sobrescrever quem já foi incluído); quem coordena é o quadro de AGORA
+  (`ap-equipe-v1`), senão o coordenador recém-empossado não validaria o relatório atrasado do
+  semestre passado. O cadastro **não é burocracia: é o DENOMINADOR** — sem a lista, "disciplina sem
+  relatório" não existe e "12 relatórios" não diz se são muitos ou poucos.
+  **O semestre sai da DATA DA AULA**, não do dia em que se registra: quem lança em 02/07 a aula de
+  28/06 está relatando o semestre que acabou, e é nele que ela conta. O ciclo vira sozinho
+  (`semestreCorrente` de lib/datas.js) — e por isso, em 01/01 e 01/07, o cadastro do semestre novo
+  nasce vazio: o **alerta no sino** e o botão de copiar são o que impede o módulo de parar na virada.
+  **A cobrança é de SEGUNDA-FEIRA** (`varrerCobrancaAP` + `ap-lembrete-semanal`): a varredura é
+  horária como as outras, mas o lembrete só sai na segunda e uma vez por pessoa. O sistema **não
+  conhece o horário das aulas** — conhece as disciplinas de cada um —, então o e-mail não afirma que
+  houve aula: pergunta pelos relatórios da semana e diz quantos vieram. Cobra quem não enviou nada
+  da semana **ou deixou rascunho aberto**, que é o esquecimento mais comum.
+  **Dois documentos, no timbre da PROAC**: o relatório de UMA aula (com as fotos ao final, depois
+  das assinaturas — o corpo é o que se assina, a foto é o anexo que comprova), assinado pelo
+  **professor** e pelo **coordenador que validou** (a assinatura dele só entra se ele VALIDOU:
+  assinar o que não se validou seria o documento afirmar um ato que não houve); e o **relatório
+  semestral** do curso — números, quem não registrou, que disciplina ficou sem registro e a relação
+  nominal —, assinado por **coordenador + pró-reitora acadêmica + reitor**. O setor entra no
+  **ARCHÉ RE** (`panoramaPraticas`) pela mesma razão da monitoria: aula prática é ensino, e um
+  semestre inteiro delas fora do documento some da prestação de contas ao MEC.
+  O **curso do relatório não se muda pelo formulário** (é ele que decide a qual coordenação o
+  relatório vai; trocá-lo seria mudar de fila), e o **coordenador de curso não tem módulo em
+  `modulosDe`** — por isso a saída rápida do `/api/alertas` consulta também o cadastro do AP, senão
+  ele ficaria sem sino.
+- **Assinatura digitalizada VINCULADA AO USUÁRIO** (`sys-assinaturas-usuario-v1` +
+  `/api/perfil/assinatura`, pedido do dono ago/2026): havia assinatura em dois lugares e nenhum
+  deles era da PESSOA — as três institucionais (`sys-assinaturas-v1`, só o gestor geral troca) e a
+  de cada evento. A mesma pessoa reenviava o mesmo PNG a cada evento novo. Agora envia-se **uma
+  vez** (no `/perfil/` ou na guia Relatórios do AP) e ela serve onde a pessoa assinar: no relatório
+  de aula prática, no semestral e nos certificados dos eventos, pelo botão **"✍ Usar a minha"**
+  (`POST /api/extensao/:id/assinatura/minha`). **Ninguém envia nem apaga a de outro** — nem o
+  gestor geral: assinatura que um terceiro troca não vale como assinatura. A redução no navegador é
+  em **PNG sem fundo** (a das fotos pinta branco e sai em JPEG, o que destruiria a transparência —
+  e é ela que faz a assinatura ficar bem sobre a linha).
 - **Resultado do ciclo de monitoria** (`gerarResultadoMonitoriaPdf` + `mon-resultado-publicado-v1`
   + `POST /api/monitoria/resultado/publicar`, pedido do dono ago/2026): o certificado é o que a
   PESSOA leva; o resultado é o que a INSTITUIÇÃO publica. Sem ele, um semestre inteiro de

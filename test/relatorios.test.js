@@ -185,11 +185,12 @@ test("os espaços contam só a reserva CONFIRMADA, e os dias que ela ocupa", () 
 /* ------------------------------- catálogo ------------------------------ */
 
 test("cada setor do relatório aponta para o módulo que o autoriza", () => {
-  assert.equal(SETORES_RELATORIO.length, 6);
+  assert.equal(SETORES_RELATORIO.length, 7);
   assert.equal(setorRelatorioDe("monitoria").modulo, "monitoria");
+  assert.equal(setorRelatorioDe("praticas").modulo, "praticas");
   assert.equal(setorRelatorioDe("inexistente"), null);
   // o gestor geral relata tudo; o coordenador, só o que coordena
-  assert.equal(setoresDe({ papel: "gestor", modulos: [] }).length, 6);
+  assert.equal(setoresDe({ papel: "gestor", modulos: [] }).length, 7);
   assert.deepEqual(setoresDe({ papel: "aprovado", modulos: ["atas"] }).map((s) => s.chave), ["atas"]);
   assert.deepEqual(setoresDe({ papel: "aprovado", modulos: [] }), []);
 });
