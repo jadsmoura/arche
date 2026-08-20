@@ -2750,7 +2750,7 @@ async function renderCertificados(a){
     <td class="muted">${esc(c.papel||(c.tipo==="participante"?"Participante":c.tipo==="palestrante"?"Palestrante":"Organização"))}</td>
     <td class="muted">${c.ch?esc(String(c.ch))+" h":"—"}</td>
     <td>${j.pode?`<a class="bt bt-sec" style="padding:3px 9px;font-size:12px"
-      href="/api/extensao/${encodeURIComponent(a.id)}/certificado.pdf?ref=${encodeURIComponent(c.ref)}"
+      href="/api/extensao/${encodeURIComponent(a.id)}/certificado.pdf?ref=${encodeURIComponent(c.ref)}&tipo=${encodeURIComponent(c.tipo||"")}"
       target="_blank" rel="noopener">📄 Emitir</a>`:`<span class="muted" style="font-size:12px">—</span>`}</td></tr>`;
   const tabela=(t,rot)=>{
     const l=porTipo(t); if(!l.length) return "";

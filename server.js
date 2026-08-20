@@ -111,6 +111,7 @@ import {
   panoramaMonitoria,
 } from "./lib/relatorios.js";
 import { MIN_FOTOS_RELATORIO, faltamFotos, avisoFotos, fotosDoPortfolio } from "./lib/portfolio.js";
+import { seguro as seguroXlsx } from "./lib/exports.js";
 import {
   CAMPOS_RELATORIO_FINAL, normalizarRelatorioFinal, faltaParaEntregar, aplicarSugestao,
 } from "./lib/relatorioEx.js";
@@ -1776,7 +1777,15 @@ const gereEv = (u) => !!u?.modulos?.includes("eventos");
  *    formulário mandou, só entram as manuais que não colidem com elas.
  */
 function mesclarEventoEInscritos(base, nova) {
+  // A ASSINATURA digitalizada é imagem com escrita própria (POST/DELETE
+  // /:id/assinatura) e o cliente só conhece o RESUMO dela (sem o base64,
+  // que nunca viaja em payload). Na ação COM evento ela estava protegida de
+  // carona, porque mora no `evento`; na ação SEM evento mora na raiz, e o
+  // primeiro salvar do formulário gravava o resumo por cima — a imagem
+  // sumia e o certificado passava a sair sem a assinatura da coordenação,
+  // em silêncio (achado da varredura de ago/2026). Vem sempre da base.
   const out = { evento: base.evento };
+  if (base.assinaturas) out.assinaturas = base.assinaturas;
   const baseIns = base.participantes?.inscritos || [];
   const doServidor = baseIns.filter((x) => x?.origem === "online" || x?.presente || x?.token);
   if (!doServidor.length) return out;   // ação sem inscrição online: nada a mesclar
@@ -1806,6 +1815,16 @@ const podeOperarEvento = (u, a) => podeVerAcao(u, a) || gereEv(u);
 const podeCertificarAcao = (u, a) => (a?.evento ? podeOperarEvento(u, a) : podeVerAcao(u, a));
 /* As assinaturas que a TELA vê: nome, cargo e a data — nunca a imagem, que
    pesa e tem rota própria (a mesma regra da capa e das fotos). */
+/* Toda célula de TEXTO das planilhas passa por aqui: o que a pessoa digitou
+   (nome, endereço, título, Pix) começando com =, + ou @ é FÓRMULA para o
+   Excel, e a planilha de bolsistas carrega CPF, RG, endereço e conta de
+   todos eles. A blindagem existia só em lib/exports.js (eventos); as três
+   planilhas da IC, que vivem aqui, ficaram de fora (achado da varredura
+   ago/2026). Envolve a LINHA inteira para não depender de lembrar campo a
+   campo — número e data não são string e passam intactos. */
+const linhaSegura = (obj) => Object.fromEntries(Object.entries(obj)
+  .map(([k, v]) => [k, typeof v === "string" ? seguroXlsx(v) : v]));
+
 const acaoSemSegredos = (a) => {
   if (!a) return a;
   // a assinatura da ação SEM evento mora na raiz (caixaCertificado): a
@@ -3293,12 +3312,17 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
       }
       const inscrito = inscritoPorToken(a.evento, a.participantes?.inscritos,
         { token: b.token, codigo: b.codigo });
-      // NÃO conta no freio: quem chegou aqui já provou o código do monitor.
       // Crachá de outro evento, print da inscrição de um colega, QR sujo — é
-      // ruído de porta, não ataque. E o campus inteiro é UM IP atrás do NAT:
-      // vinte leituras ruins de um plantão derrubariam o credenciamento de
-      // todos os outros (a mesma lição do freio das rotas online).
-      if (!inscrito) return { erro: [404, "Inscrição não encontrada."], gravar: false };
+      // ruído de porta, não ataque: quem chegou aqui já provou o código do
+      // monitor, e o campus inteiro é UM IP atrás do NAT, então punir a
+      // leitura ruim derrubaria o credenciamento de todos os plantões.
+      // MAS o caminho MANUAL é outra coisa: `codigo` são 6 caracteres SEM
+      // assinatura, e varrer de 000000 a ffffff devolveria a lista nominal
+      // do evento (e marcaria presença em quem não veio). Digitar seis
+      // caracteres errados vinte vezes num plantão não é rotina — por
+      // token não conta, por código conta (achado da varredura ago/2026).
+      if (!inscrito)
+        return { erro: [404, "Inscrição não encontrada."], falha: !b.token, gravar: false };
       const idAtv = atv ? atv.id : "";
       // Evento SEM controle de frequência não tem porta: a inscrição já é a
       // presença, e todo inscrito conta 100% (decisão do dono, ago/2026)
@@ -6499,7 +6523,7 @@ app.get("/api/ic/projetos.xlsx", async (req, res) => {
     ws.getRow(1).alignment = { vertical: "middle" };
     for (const p of lista) {
       const c = p.resumo.classificacao || {};
-      ws.addRow({
+      ws.addRow(linhaSegura({
         // o campo em branco significa "ciclo vigente" em todo o resto do
         // sistema (String(p.edital || EDITAL.numero)); a planilha dizia o
         // contrário — saía com a coluna vazia para os projetos do ciclo
@@ -6514,7 +6538,7 @@ app.get("/api/ic/projetos.xlsx", async (req, res) => {
         fomento: p.fomento ? (fomentoDe(p.fomento.tipo)?.nome || p.fomento.tipo) : "",
         np: c.np ?? "", cl: c.cl ?? "", total: c.total ?? "",
         inicio: p.inicio || "", fim: p.fim || "",
-      });
+      }));
     }
     ws.autoFilter = { from: "A1", to: { row: 1, column: ws.columns.length } };
     ws.views = [{ state: "frozen", ySplit: 1 }];
@@ -6774,7 +6798,7 @@ app.get("/api/ic/bolsistas.xlsx", async (req, res) => {
     for (const p of projetos) {
       const mod = modalidadeEfetivaIC(p);
       for (const a of (p.alunos || []).filter((x) => x.bolsista && ehAlvo(x))) {
-        ws.addRow({
+        ws.addRow(linhaSegura({
           categoria: mod?.nome || (p.fomento.tipo === "cnpq" ? "Bolsa CNPq" : "Bolsa UNIEGO"),
           curso: (CURSOS.find((c) => c.slug === p.curso) || {}).nome || p.curso || "",
           protocolo: p.numero || "",
@@ -6794,7 +6818,7 @@ app.get("/api/ic/bolsistas.xlsx", async (req, res) => {
           vinculo: a.vinculo === "sim" ? `sim${a.vinculoOnde ? ` — ${a.vinculoOnde}` : ""}`
             : a.vinculo === "nao" ? "não" : "",
           banco: a.banco || "", agencia: a.agencia || "", conta: a.conta || "", pix: a.pix || "",
-        });
+        }));
       }
     }
     const buffer = await wb.xlsx.writeBuffer();
@@ -7549,14 +7573,14 @@ app.get("/api/ic/em/bolsistas.xlsx", async (req, res) => {
     ];
     ws.getRow(1).font = { bold: true };
     for (const b of lista) {
-      ws.addRow({
+      ws.addRow(linhaSegura({
         turma: b.turma, bolsa: bolsaEmDe(b.bolsa)?.nome || (b.bolsa || "—"),
         nome: b.nome, cpf: formatarCpf(b.cpf) || "", rg: b.rg || "",
         escola: b.escola || "", serie: b.serie || "", telefone: b.telefone || "",
         email: b.email || "", curso: b.cursoInteresse || "",
         respNome: b.responsavel?.nome || "", respCpf: formatarCpf(b.responsavel?.cpf) || "",
         banco: b.banco || "", agencia: b.agencia || "", conta: b.conta || "", pix: b.pix || "",
-      });
+      }));
     }
     const buffer = await wb.xlsx.writeBuffer();
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
@@ -10362,10 +10386,15 @@ app.get("/api/extensao/:id/certificado.pdf", async (req, res) => {
     const a = (await lerAcoes()).find((x) => x.id === req.params.id);
     if (!a || !podeCertificarAcao(u, a)) return res.status(404).send("Ação não encontrada");
     const ref = String(req.query?.ref || "").trim();
+    // o TIPO vem junto porque a mesma pessoa acumula papéis: quem organiza o
+    // evento entra na comissão e costuma estar inscrito também. Sem ele,
+    // `certificadoDe` devolvia o primeiro da ordem (participante) e os dois
+    // botões da guia emitiam o mesmo documento — o palestrante perdia o
+    // certificado com o título da apresentação (achado da varredura ago/2026)
     const cert = certificadoDe(a, {
-      cpf: ref, email: ref, nome: ref,
+      cpf: ref, email: ref, nome: ref, tipo: String(req.query?.tipo || "").trim(),
     }, {});
-    if (!cert) return res.status(404).send("Esta pessoa não tem certificado neste evento.");
+    if (!cert) return res.status(404).send("Esta pessoa não tem certificado nesta ação.");
     const buf = await pdfDoCertificadoEvento(a, cert);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${nomeArquivoCert(cert)}"`);
@@ -10388,8 +10417,11 @@ app.get("/api/publico/eventos/:slug/inscricao/:token/certificado.pdf", async (re
     if (!inscrito) return res.status(404).send("Inscrição não encontrada");
     const pode = acaoCertificavel(a);
     if (!pode.ok) return res.status(409).send(pode.motivo);
-    const cert = certificadoDe(a, { cpf: inscrito.cpf, email: inscrito.email, nome: inscrito.nome },
-      { hoje: hojeLocalISO() });
+    // pela credencial sai SEMPRE o de participante: é o documento daquela
+    // inscrição. Sem fixar o tipo, quem também está na comissão receberia o
+    // dela, que não é o que o link do QR promete
+    const cert = certificadoDe(a, { cpf: inscrito.cpf, email: inscrito.email, nome: inscrito.nome,
+      tipo: "participante" }, { hoje: hojeLocalISO() });
     if (!cert) {
       return res.status(409).send(eventoControlaFrequencia(a.evento)
         ? "O certificado sai para quem teve presença registrada no evento. Fale com a coordenação."
