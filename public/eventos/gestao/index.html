@@ -185,6 +185,27 @@
     .ctx .acoes{margin-left:0}
   }
   /* janela suspensa do "Cadastrar novo evento" */
+  /* Escolher evento: com o passar dos anos a lista corrida vira rolagem —
+     o botão abre uma janela com curso, ano e busca (pedido do dono, ago/2026) */
+  .side-sel .sel-bt{width:100%;text-align:left;background:rgba(255,255,255,.08);color:#fff;
+    border:1px solid rgba(255,255,255,.18);border-radius:9px;padding:9px 30px 9px 11px;
+    font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;position:relative;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:.15s}
+  .side-sel .sel-bt:hover{background:rgba(255,255,255,.16)}
+  .side-sel .sel-bt::after{content:"▾";position:absolute;right:11px;top:50%;transform:translateY(-50%);
+    opacity:.7;font-size:11px}
+  .esc-filtros{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px}
+  .esc-filtros select{flex:1 1 150px;width:auto}
+  .esc-lista{max-height:52vh;overflow-y:auto;margin-top:10px;border-top:1px solid var(--line)}
+  .esc-lab{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--muted);padding:12px 2px 5px}
+  .esc-it{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line-2,#f0f2f6);
+    padding:10px 10px;border-radius:9px;cursor:pointer;font-family:inherit;transition:.12s}
+  .esc-it:hover{background:var(--accent-wash,#e6f5fa)}
+  .esc-it.on{background:rgba(64,113,126,.12)}
+  .esc-n{font-size:14px;font-weight:700;color:var(--ink)}
+  .esc-m{font-size:12px;color:var(--muted);margin-top:2px}
+  .esc-vazio{padding:22px 6px;color:var(--muted);font-size:13.5px;text-align:center}
   .ov{position:fixed;inset:0;background:rgba(24,38,50,.55);z-index:10050;display:flex;
     align-items:flex-start;justify-content:center;padding:24px 12px;overflow-y:auto}
   .ov-cx{background:#fff;border-radius:16px;max-width:640px;width:100%;padding:22px 22px 18px;
@@ -235,7 +256,8 @@
     </a>
     <div class="side-sel">
       <span class="rot">Evento em gestão</span>
-      <select id="sel-evento" onchange="trocarEvento(this.value)" title="Trocar aqui troca o evento de todas as guias"></select>
+      <button id="sel-evento" class="sel-bt" onclick="abrirEscolherEvento()"
+        title="Escolher o evento em gestão — vale para todas as guias"></button>
       <button class="todos" onclick="nav('painel')">‹ ver todos os eventos</button>
     </div>
     <div class="side-nav"><div id="menu"></div></div>
@@ -463,25 +485,89 @@ async function sair(){
    (nome + no ar/rascunho) e, num grupo à parte, as ações que ainda não têm
    o evento configurado. Trocar aqui troca o evento de TODAS as guias. */
 function montarSeletor(){
-  const sel=$("sel-evento"); if(!sel) return;
-  const nomeDe=(a)=>a.proposta?.nomeAtividade||"(sem nome)";
-  // ação vinda do processo em PAPEL não é candidata a evento (decisão do
-  // dono, ago/2026): o EV é dos eventos geridos dentro do sistema; o que
-  // correu por fora vive no ARCHÉ EX, com proposta, relatório e listas
-  const com=ACOES.filter(a=>a.evento), sem=ACOES.filter(a=>!a.evento&&!a.origemPapel);
-  // com muitos eventos a lista corrida vira rolagem: agrupa por ANO (o mais
-  // recente primeiro) e ordena por data dentro de cada grupo
-  const porAno=new Map();
-  for(const a of com){ const y=anoDoEvento(a)||"sem data"; (porAno.get(y)||porAno.set(y,[]).get(y)).push(a); }
-  const anos=[...porAno.keys()].sort().reverse();
-  sel.innerHTML = `<option value=""${ABERTO?"":" selected"}>— escolher evento —</option>`
-    + anos.map(y=>`<optgroup label="${esc(y)}">${
-        porAno.get(y).sort((x,z)=>String(z.proposta?.periodoInicio||"").localeCompare(String(x.proposta?.periodoInicio||"")))
-          .map(a=>`<option value="${esc(a.id)}"${a.id===ABERTO?" selected":""}>${esc(nomeDe(a))} · ${esc(a.curso||"")} · ${a.evento.ativo?"no ar":"rascunho"}</option>`).join("")
-      }</optgroup>`).join("")
-    + (sem.length?`<optgroup label="Ações sem evento (configurar)">${
-        sem.map(a=>`<option value="${esc(a.id)}"${a.id===ABERTO?" selected":""}>${esc(nomeDe(a))}</option>`).join("")}</optgroup>`:"");
+  const bt=$("sel-evento"); if(!bt) return;
+  const a=ABERTO?ACOES.find(x=>x.id===ABERTO):null;
+  bt.textContent = a ? (a.proposta?.nomeAtividade||"(sem nome)") : "— escolher evento —";
+  bt.title = a ? `${a.proposta?.nomeAtividade||""} · ${a.curso||""}\nTrocar aqui troca o evento de todas as guias`
+    : "Escolher o evento em gestão";
 }
+
+/* ======================================================================
+   ESCOLHER O EVENTO (pedido do dono, ago/2026)
+
+   A lista suspensa servia enquanto os eventos cabiam nela. Com o setor em
+   uso, ela cresce todo semestre e vira rolagem — e o que a pessoa sabe do
+   evento que procura não é a posição na lista: é o CURSO, o ANO e o nome.
+   A janela pergunta por esses três, na ordem em que se lembra deles, e a
+   lista responde a cada tecla. Sem filtro nenhum ela mostra tudo, então
+   com poucos eventos o comportamento é o de antes.
+   ====================================================================== */
+let ESC={curso:"",ano:"",busca:""};
+
+function abrirEscolherEvento(){
+  const cx=document.createElement("div");
+  cx.className="ov"; cx.id="ov-escolher";
+  cx.onclick=(e)=>{ if(e.target===cx) fecharEscolher(); };
+  const cursos=[...new Set(ACOES.filter(x=>x.evento).map(x=>x.curso).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  const anos=anosDosEventos();
+  cx.innerHTML=`<div class="ov-cx" style="max-width:600px">
+    <h2>Escolher evento</h2>
+    <p class="muted" style="margin:0">O evento escolhido vale para todas as guias do ARCHÉ EV.</p>
+    <div class="esc-filtros">
+      <select id="esc-curso" onchange="ESC.curso=this.value;pintarEscolher()">
+        <option value="">Todos os cursos</option>
+        ${cursos.map(c=>`<option value="${esc(c)}"${ESC.curso===c?" selected":""}>${esc(c)}</option>`).join("")}
+      </select>
+      <select id="esc-ano" onchange="ESC.ano=this.value;pintarEscolher()">
+        <option value="">Todos os anos</option>
+        ${anos.map(y=>`<option value="${esc(y)}"${ESC.ano===y?" selected":""}>${esc(y)}</option>`).join("")}
+      </select>
+    </div>
+    <input id="esc-busca" placeholder="Buscar pelo nome do evento…" value="${esc(ESC.busca)}"
+      oninput="ESC.busca=this.value;pintarEscolher()">
+    <div class="esc-lista" id="esc-lista"></div>
+    <div class="ov-bt" style="margin-top:14px"><button class="bt bt-sec" onclick="fecharEscolher()">Fechar</button></div>
+  </div>`;
+  document.body.appendChild(cx);
+  pintarEscolher();
+  setTimeout(()=>$("esc-busca")?.focus(),30);
+  document.addEventListener("keydown",escTecla);
+}
+function escTecla(e){ if(e.key==="Escape") fecharEscolher(); }
+function fecharEscolher(){
+  document.getElementById("ov-escolher")?.remove();
+  document.removeEventListener("keydown",escTecla);
+}
+
+function pintarEscolher(){
+  const cx=$("esc-lista"); if(!cx) return;
+  const norm=(t)=>String(t||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  const q=norm(ESC.busca);
+  const cabe=(a)=>(!ESC.curso||a.curso===ESC.curso)
+    && (!ESC.ano||anoDoEvento(a)===ESC.ano)
+    && (!q||norm(a.proposta?.nomeAtividade).includes(q)||norm(a.numeroAcao).includes(q)||norm(a.curso).includes(q));
+  const com=ACOES.filter(a=>a.evento&&cabe(a))
+    .sort((x,z)=>String(z.proposta?.periodoInicio||"").localeCompare(String(x.proposta?.periodoInicio||"")));
+  // ação sem evento não tem ano nem página: o filtro de ano não se aplica a ela
+  const sem=ACOES.filter(a=>!a.evento&&!a.origemPapel
+    &&(!ESC.curso||a.curso===ESC.curso)&&(!q||norm(a.proposta?.nomeAtividade).includes(q)));
+  const per=(a)=>{
+    const i=a.proposta?.periodoInicio,f=a.proposta?.periodoFim;
+    return i?(f&&f!==i?`${fmt(i)} – ${fmt(f)}`:fmt(i)):"sem data";
+  };
+  const item=(a,extra)=>`<button class="esc-it${a.id===ABERTO?" on":""}" onclick="escolherEvento('${esc(a.id)}')">
+    <div class="esc-n">${esc(a.proposta?.nomeAtividade||"(sem nome)")}</div>
+    <div class="esc-m">${esc(a.curso||"sem curso")} · ${per(a)}${extra||""}</div></button>`;
+  cx.innerHTML = (com.length||sem.length)
+    ? (com.length?`<div class="esc-lab">Eventos · ${com.length}</div>`
+        +com.map(a=>item(a,` · ${a.evento.ativo?"página no ar":"rascunho"}`)).join(""):"")
+      +(sem.length?`<div class="esc-lab">Ações sem evento — configurar · ${sem.length}</div>`
+        +sem.map(a=>item(a,"")).join(""):"")
+    : `<div class="esc-vazio">Nenhum evento com esses filtros.<br>
+        <span style="font-size:12.5px">Tente limpar o curso, o ano ou a busca.</span></div>`;
+}
+
+function escolherEvento(id){ fecharEscolher(); trocarEvento(id); }
 
 /* Trocar o evento em gestão — pelo seletor da barra ou por um card do
    Painel geral (as duas coisas são o MESMO ato). Numa guia de evento,
