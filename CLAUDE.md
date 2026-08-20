@@ -1723,6 +1723,23 @@ public/
   seria exigência impossível de cumprir, como o CPF do gestor geral. Quem decide é
   `faltaNoPerfilDe` no server, e a consulta ao ICEM é **preguiçosa** (só quando a matrícula é
   o que falta): ela lê o estado e a régua roda em toda página de setor.
+- **O SEMESTRE VIRA COM O CALENDÁRIO** (`semestreDe`/`semestreCorrente`/`periodoDoSemestre` em
+  `lib/datas.js`, decisão do dono ago/2026): em **01/01** o ciclo corrente passa a ser AAAA/1 e
+  em **01/07** a AAAA/2, sem ninguém pedir — formulários, pedidos e documentos seguem a virada.
+  É o **semestre civil**, porque o calendário letivo muda de curso para curso e o civil não muda.
+  A conta é **UMA só**: havia três cópias dela (`semestreDe` nos Relatórios, `janelaDe` nas
+  Pautas — que veste o formato `2026-S2` — e NADA na Monitoria), e três contas iguais acabam
+  diferentes. Chave no formato `AAAA/N`, que é o que já está gravado no `ciclo` dos projetos.
+  **O que o calendário NÃO decide é o EDITAL** (`editalVigente`/`cicloSemEdital` em
+  lib/monitoria.js): edital é ato institucional, com número, cronograma e prazos — semestre novo
+  não publica edital. Antes, "vigente" era o primeiro edital não encerrado do catálogo, e em
+  01/01/2027 todo projeto novo nasceria no ciclo **2026/2**, o semestre passado, sem ninguém
+  perceber. Agora: havendo edital do ciclo corrente, é ele; **não havendo**, o módulo segue de pé
+  com o último aberto (parar seria pior), a gestão recebe o alerta no sino e a **submissão é
+  recusada** dizendo o que falta — não se submete projeto a um edital que não existe, e os
+  prazos sairiam do semestre anterior, já vencidos. Rascunho aberto nesse intervalo fica **sem
+  número de edital** (carimbar o antigo o faria afirmar um edital que não é o dele) e o recebe na
+  submissão.
 - **Relatório Semestral de Atividades** (`lib/relatorios.js` + `public/relatorios/` +
   `GET /api/relatorios/semestral.pdf`, ago/2026): a pergunta que o avaliador do MEC faz é
   sempre a mesma — *o que a instituição fez neste semestre, e onde está a prova?* —, e

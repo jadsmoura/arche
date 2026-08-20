@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import {
   hojeLocalISO, diaSerial, somaDias, dataCivil, dentroDaJanela, relogioPlausivel, agoraLocal,
   horaLocalHHMM,
+  numeroDoSemestre, semestreDe as semestreCivil, semestreCorrente, periodoDoSemestre,
+  fimDoSemestre, semestreSeguinte, semestreAnterior,
 } from "../lib/datas.js";
 
 test("horaLocalHHMM é o relógio de Brasília, com dois dígitos", () => {
@@ -64,4 +66,56 @@ test("relogioPlausivel barra relógio absurdo", () => {
   assert.equal(relogioPlausivel(new Date("2026-08-14T12:00:00Z")), true);
   assert.equal(relogioPlausivel(new Date("1999-08-14T12:00:00Z")), false);
   assert.equal(relogioPlausivel(new Date("2200-08-14T12:00:00Z")), false);
+});
+
+/* ======================================================================
+   O SEMESTRE VIRA COM O CALENDÁRIO (decisão do dono, ago/2026).
+
+   Em 01/01 passa a ser AAAA/1 e em 01/07 a AAAA/2, sem ninguém pedir.
+   Estes testes existem porque a conta agora é UMA só — antes havia três
+   cópias dela, e a que faltava (a monitoria) congelava o ciclo no último
+   edital publicado.
+   ====================================================================== */
+test("a virada acontece exatamente em 01/01 e em 01/07", () => {
+  assert.equal(semestreCivil("2026-12-31"), "2026/2");
+  assert.equal(semestreCivil("2027-01-01"), "2027/1", "vira no primeiro dia do ano");
+  assert.equal(semestreCivil("2027-06-30"), "2027/1");
+  assert.equal(semestreCivil("2027-07-01"), "2027/2", "e no primeiro dia de julho");
+  assert.equal(semestreCivil("2027-12-31"), "2027/2");
+  assert.equal(semestreCivil("2028-01-01"), "2028/1", "e assim por diante");
+});
+
+test("o semestre corrente é o de hoje, não o de um catálogo", () => {
+  const hoje = new Date();
+  assert.equal(semestreCorrente(hoje), semestreCivil(hojeLocalISO(hoje)));
+  // e é o relógio de Brasília que manda, como em todo o portal
+  assert.match(semestreCorrente(), /^\d{4}\/[12]$/);
+});
+
+test("data que não é data não vira semestre nenhum", () => {
+  for (const v of ["", null, undefined, "amanhã", "2026-13-01"]) {
+    assert.equal(semestreCivil(v), "", `"${v}" não é uma data`);
+    assert.equal(numeroDoSemestre(v), null);
+    assert.equal(fimDoSemestre(v), null);
+  }
+});
+
+test("o período de um semestre tem começo, fim e rótulo", () => {
+  assert.deepEqual(periodoDoSemestre("2027/1"), {
+    chave: "2027/1", ano: 2027, numero: 1,
+    inicio: "2027-01-01", fim: "2027-06-30", rotulo: "1º semestre de 2027" });
+  assert.deepEqual(periodoDoSemestre("2027/2"), {
+    chave: "2027/2", ano: 2027, numero: 2,
+    inicio: "2027-07-01", fim: "2027-12-31", rotulo: "2º semestre de 2027" });
+  assert.equal(periodoDoSemestre("2027/3"), null, "só existem dois semestres");
+  assert.equal(periodoDoSemestre("2027"), null);
+});
+
+test("o seguinte e o anterior atravessam o ano", () => {
+  assert.equal(semestreSeguinte("2026/2"), "2027/1");
+  assert.equal(semestreSeguinte("2027/1"), "2027/2");
+  assert.equal(semestreAnterior("2027/1"), "2026/2");
+  assert.equal(semestreAnterior("2027/2"), "2027/1");
+  assert.equal(fimDoSemestre("2027-03-15"), "2027-06-30");
+  assert.equal(fimDoSemestre("2027-09-15"), "2027-12-31");
 });

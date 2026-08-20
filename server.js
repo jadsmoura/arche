@@ -43,7 +43,8 @@ import {
 } from "./lib/ic.js";
 import { normalizarCpf, soDigitos, formatarCpf, cpfValido } from "./lib/cpf.js";
 import {
-  MON_KEY, EDITAL as MON_EDITAL, CRONOGRAMA as MON_CRONOGRAMA, VIGENCIA as MON_VIGENCIA,
+  MON_KEY, editalVigente as monEditalVigente, cicloCorrente as monCicloCorrente,
+  cicloSemEdital as monCicloSemEdital, CRONOGRAMA as MON_CRONOGRAMA, VIGENCIA as MON_VIGENCIA,
   PRAZOS as MON_PRAZOS, CH_SEMANAL as MON_CH_SEMANAL, ROTULO_STATUS as MON_ROTULO_STATUS,
   CRITERIOS_MONITOR, RESPOSTAS_CRITERIO, PARECERES as PARECERES_MON,
   CAMPOS_PLANO as CAMPOS_PLANO_MON, faltaNoPlano as monFaltaPlano,
@@ -899,6 +900,18 @@ app.get("/api/alertas", async (req, res) => {
     }
 
     if (u.modulos.includes("monitoria")) {
+      /* O calendário passou o edital publicado (decisão do dono, ago/2026):
+         o ciclo vira sozinho em 01/01 e 01/07, o edital não. Sem este aviso,
+         a PROPPEX só descobriria pelo professor que tentou submeter. */
+      const semEdital = monCicloSemEdital();
+      if (semEdital) {
+        alertas.push({ setor: "Monitoria", link: "/monitoria/",
+          texto: `O ciclo ${semEdital} começou e ainda não tem edital publicado`,
+          detalhe: `O edital vigente é o ${monEditalVigente().numero} (ciclo `
+            + `${monEditalVigente().ciclo}). Enquanto o novo não sair, os projetos deste `
+            + "semestre não podem ser submetidos.",
+          acao: "Publicar o edital do ciclo corrente." });
+      }
       // a monitoria tem prazo curto e três filas diferentes; o sino separa a
       // que é da PROPPEX (analisar e homologar) do que ela precisa COBRAR
       const projs = await lerMonitorias();
@@ -4924,7 +4937,7 @@ async function convidarMonitores(projeto, monitores) {
 }
 
 const monMeta = async () => ({
-  edital: MON_EDITAL, cronograma: MON_CRONOGRAMA,
+  edital: monEditalVigente(), cronograma: MON_CRONOGRAMA,
   editais: editaisMonitoriaParaLista({
     publicados: await resultadosMonitoriaPublicados(), ciclosDoArquivo: ciclosDoArquivoMon() }),
   vigencia: MON_VIGENCIA, prazos: MON_PRAZOS, chSemanal: MON_CH_SEMANAL,
@@ -5078,7 +5091,7 @@ app.get("/api/monitoria/resultado.pdf", async (req, res) => {
     const u = await sessaoMon(req, res);
     if (!u) return;
     if (!gereMon(u)) return res.status(403).send("Restrito à gestão da monitoria.");
-    const numero = String(req.query?.edital || MON_EDITAL.numero).trim();
+    const numero = String(req.query?.edital || monEditalVigente().numero).trim();
     const ed = editalMonitoriaDe(numero);
     if (!ed) return res.status(404).send("Edital não encontrado.");
     const { gerarResultadoMonitoriaPdf } = await import("./lib/pdf.js");
@@ -5122,7 +5135,7 @@ app.post("/api/monitoria/resultado/publicar", async (req, res) => {
    Turma com PDF arquivado da época não se republica: redireciona ao original. */
 app.get("/api/publico/monitoria/resultado.pdf", async (req, res) => {
   try {
-    const numero = String(req.query?.edital || MON_EDITAL.numero).trim();
+    const numero = String(req.query?.edital || monEditalVigente().numero).trim();
     const ed = editalMonitoriaDe(numero);
     if (!ed) return res.status(404).send("Edital não encontrado.");
     if (!(await resultadoMonPublico(numero)))
@@ -5271,7 +5284,22 @@ app.post("/api/monitoria/:id/submeter", async (req, res) => {
       const falta = monFaltaProjeto(p);
       if (falta.length)
         return { erro: [400, `Faltam dados no projeto: ${falta.join("; ")}.`], gravar: false };
+      /* O ciclo vira com o calendário, mas o EDITAL é um ato institucional —
+         semestre novo não publica edital sozinho. Sem o do ciclo corrente não
+         há a que submeter: o cronograma, os prazos e a vigência sairiam do
+         edital do semestre passado, e o professor receberia datas que já
+         venceram. Recusa-se dizendo o que falta, e a gestão vê o mesmo aviso
+         no sino. */
+      const semEdital = monCicloSemEdital();
+      if (semEdital && p.ciclo === semEdital) {
+        return { erro: [409, `O Edital de Monitoria do ciclo ${semEdital} ainda não foi publicado. `
+          + "A PROPPEX precisa publicá-lo antes que os projetos deste semestre sejam submetidos — "
+          + "o seu projeto fica salvo até lá."], gravar: false };
+      }
       if (!p.protocolo) p.protocolo = await novoProtocoloMon();
+      // rascunho aberto antes de o edital do ciclo sair fica sem número; é na
+      // submissão que ele ganha o do edital que passou a existir
+      if (!p.edital) p.edital = monEditalVigente().numero;
       p.status = "aguardando-aluno";
       p.submetidoEm = new Date().toISOString();
       const agora = new Date().toISOString();
@@ -5775,9 +5803,9 @@ app.get("/api/publico/monitoria/edital.pdf", async (req, res) => {
   try {
     const { gerarEditalMonitoriaPdf } = await import("./lib/pdf.js");
     const buf = await gerarEditalMonitoriaPdf({
-      edital: MON_EDITAL, texto: TEXTO_EDITAL_MON, cronograma: MON_CRONOGRAMA,
+      edital: monEditalVigente(), texto: TEXTO_EDITAL_MON, cronograma: MON_CRONOGRAMA,
       acessos: ACESSOS_MON });
-    enviarPdfMon(res, buf, `edital-monitoria-${MON_EDITAL.numero.replace("/", "-")}.pdf`);
+    enviarPdfMon(res, buf, `edital-monitoria-${monEditalVigente().numero.replace("/", "-")}.pdf`);
   } catch (e) {
     console.error("Erro no edital da monitoria:", e);
     res.status(500).send("Não foi possível gerar o edital.");

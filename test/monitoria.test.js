@@ -5,13 +5,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  CH_SEMANAL, COBRANCA, CRITERIOS_MONITOR, CRONOGRAMA, EDITAL, EDITAIS_MONITORIA,
+  CH_SEMANAL, COBRANCA, CRITERIOS_MONITOR, CRONOGRAMA, EDITAIS_MONITORIA,
   PRAZOS, STATUS, cargaHorariaTotal, cobrancaAberta, diasParaRelatorio, certificadosDe, editaisMonitoriaParaLista, faltaNaAvaliacao,
   faltaNoCadastroDoMonitor, faltaNoPlano, faltaNoProjeto, faltaNoRelatorio, monitorCadastrado,
   normalizarProjeto, papelNoProjeto, pendenciasDoCiclo, pendenciasDoProjeto,
   podeDecidir, podeEditar, podeSubmeter, proximoCiclo, resumir, panorama,
   semanasDe, submissaoAberta, todosCadastrados, visaoDoProjeto,
   MIN_FOTOS_MONITORIA, fotosDoRelatorio, faltamFotosMon,
+  cicloCorrente, editalVigente, editalDoCiclo, cicloSemEdital, normalizarProjeto as normProj,
 } from "../lib/monitoria.js";
 
 const CPF_A = "52998224725";   // válidos
@@ -43,8 +44,8 @@ function projetoBase(extra = {}) {
 /* ------------------------------- catálogo -------------------------------- */
 
 test("o edital vigente é o da PROPPEX e os antigos ficam com o órgão da época", () => {
-  assert.equal(EDITAL.numero, "03/2026");
-  assert.match(EDITAL.orgao, /PROPPEX/);
+  assert.equal(editalVigente("2026-08-20").numero, "03/2026");
+  assert.match(editalVigente("2026-08-20").orgao, /PROPPEX/);
   const antigo = EDITAIS_MONITORIA.find((e) => e.numero === "02/2025");
   assert.equal(antigo.orgao, "Diretoria Acadêmica (DIAC)");
   assert.match(antigo.instituicao, /Faculdade Evangélica/);
@@ -426,4 +427,48 @@ test("o panorama conta o ciclo, não a base inteira", () => {
   assert.equal(pan.monitores, 2);
   assert.equal(pan.relatoriosHomologados, 2);
   assert.ok(STATUS.every((s) => s in pan.porStatus));
+});
+
+/* ======================================================================
+   A VIRADA DO SEMESTRE (decisão do dono, ago/2026).
+
+   O ciclo da monitoria é o semestre civil e vira sozinho: 01/01 → AAAA/1,
+   01/07 → AAAA/2. Antes, "vigente" era o primeiro edital não encerrado do
+   catálogo — em 01/01/2027, com o 03/2026 ainda aberto, todo projeto novo
+   nasceria no ciclo 2026/2, o semestre PASSADO, e ninguém perceberia.
+
+   O que o calendário não decide é o EDITAL: ele é ato institucional, com
+   número, cronograma e prazos. Semestre novo não publica edital — e é essa
+   a diferença que estes testes fixam.
+   ====================================================================== */
+test("o ciclo corrente é o semestre civil de hoje, não o do catálogo", () => {
+  assert.equal(cicloCorrente("2026-08-20"), "2026/2");
+  assert.equal(cicloCorrente("2026-12-31"), "2026/2");
+  assert.equal(cicloCorrente("2027-01-01"), "2027/1", "vira sem ninguém pedir");
+  assert.equal(cicloCorrente("2027-07-01"), "2027/2");
+});
+
+test("havendo edital do ciclo, é ele o vigente", () => {
+  // hoje: o 03/2026 é do ciclo 2026/2, que é o corrente
+  assert.equal(editalVigente("2026-08-20").numero, "03/2026");
+  assert.equal(editalVigente("2026-08-20").ciclo, "2026/2");
+  assert.equal(cicloSemEdital("2026-08-20"), "", "está tudo em dia");
+});
+
+test("virado o ano sem edital novo, o módulo não para — mas AVISA", () => {
+  assert.equal(editalDoCiclo("2027/1"), null, "ninguém publicou o edital de 2027/1");
+  // o módulo segue de pé com o último aberto: parar seria pior
+  assert.ok(editalVigente("2027-01-05"), "continua havendo um edital para consultar");
+  // e o aviso diz QUAL ciclo ficou sem edital — é o que vira alerta no sino
+  assert.equal(cicloSemEdital("2027-01-05"), "2027/1");
+  assert.equal(cicloSemEdital("2027-07-05"), "2027/2");
+});
+
+test("projeto novo nasce no ciclo CORRENTE", () => {
+  // sem ciclo informado, o projeto pega o de hoje — e não o do último edital
+  const p = normProj({ disciplina: "Anatomia", curso: "enfermagem" });
+  assert.equal(p.ciclo, cicloCorrente(), "é o semestre de hoje que carimba o projeto");
+  // e o que já está gravado nunca se reescreve: ciclo antigo continua antigo
+  const velho = normProj({ ciclo: "2025/1", disciplina: "Anatomia" });
+  assert.equal(velho.ciclo, "2025/1");
 });
