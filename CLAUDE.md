@@ -1716,8 +1716,13 @@ public/
   o ponto de partida, e quem manda depois é a guia. **Titulação, telefone e matrícula vão ao
   PERFIL** de quem ainda não tem — a planilha os traz, e sem eles a pessoa bate na etapa de
   completar cadastro justamente no dia da primeira aula; o **CPF não vem na planilha** e segue
-  sendo pedido a cada um (é único por conta, e ninguém o informa por outro). Disciplina que dois
-  professores lecionam conta **uma vez** no painel, com os dois nomes: é uma disciplina, não duas.
+  sendo pedido a cada um (é único por conta, e ninguém o informa por outro). **O que faltar é
+  cobrado no PRÓXIMO ACESSO** (decisão do dono, ago/2026), pela etapa que já existe
+  (`faltaNoPerfil` + `?completar=1&next=`): o professor é levado ao perfil, vê o que falta apontado
+  nos próprios campos e volta ao setor de onde veio. E a etapa passa a dizer **de onde vieram** os
+  dados já preenchidos ("a coordenação do seu curso os enviou") quando o registro é `preCadastro`:
+  sem isso a pessoa acha que o portal os inventou — ou não confere o que está errado. Disciplina que
+  dois professores lecionam conta **uma vez** no painel, com os dois nomes: é uma disciplina, não duas.
   **A coordenação é POR CURSO, e isso não existia no ARCHÉ**: `modulosDe` dá coordenação por
   MÓDULO, e o coordenador de Enfermagem não pode ver as aulas de Direito. Por isso são DUAS
   figuras e dois registros: coordenar o módulo `praticas` (em `/usuarios/`) é ser a **coordenação
