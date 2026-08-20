@@ -112,6 +112,41 @@ test("a monitoria conta as horas do jeito que o certificado conta", () => {
   // 13 semanas × 4h × 2 monitores
   assert.equal(p.numeros.find((n) => /Horas/.test(n.rotulo)).valor, 104);
   assert.equal(p.numeros.find((n) => /homologados/.test(n.rotulo)).valor, 1);
+  assert.equal(p.nota, "", "sem arquivo no semestre, não há de onde explicar nada");
+});
+
+test("o ARQUIVO entra no relatório — era para isso que o histórico foi migrado", async () => {
+  const { projetosDoArquivo, normalizarLote } = await import("../lib/monitoriaHistorico.js");
+  const arquivo = projetosDoArquivo([normalizarLote({
+    lote: "mon-teste", curso: "enfermagem", ciclo: "2026/1", edital: "01/2026",
+    vigencia: { inicio: "2026-03-18", fim: "2026-06-12" },
+    registros: [
+      { aluno: "Isadora", orientador: "Bruna", disciplina: "SAE", matricula: "G1", horas: 20 },
+      { aluno: "Higor", orientador: "Bruna", disciplina: "SAE", matricula: "G2", horas: 20 },
+      { aluno: "Ana", orientador: "Elias", disciplina: "Funções Vitais", matricula: "G3", horas: 20 },
+    ],
+  })]);
+  // dois monitores na mesma disciplina são UM projeto: é a dupla orientação
+  // + disciplina que o edital certifica
+  assert.equal(arquivo.length, 2);
+
+  const p1 = panoramaMonitoria([], periodoDe("2026/1"), { cursos: CURSOS, arquivo });
+  assert.equal(p1.total, 2);
+  assert.equal(p1.numeros.find((n) => /Monitores/.test(n.rotulo)).valor, 3);
+  // no arquivo a hora vem DECLARADA na planilha — é o que a coordenação
+  // certificou; não se recalcula de uma CH semanal que ninguém registrou
+  assert.equal(p1.numeros.find((n) => /Horas/.test(n.rotulo)).valor, 60);
+  // o que o arquivo não tem não se inventa: relatório e homologação são do
+  // que correu AQUI, e por isso continuam zerados
+  assert.equal(p1.numeros.find((n) => /homologados/.test(n.rotulo)).valor, 0);
+  assert.match(p1.nota, /ARQUIVO/, "o documento diz de onde vieram as linhas");
+  assert.equal(p1.itens[0].numero, "arquivo", "sem protocolo, a origem ocupa a coluna");
+  assert.equal(p1.itens[0].curso, "Enfermagem");
+
+  // e o arquivo pertence ao SEMESTRE dele: não vaza para o seguinte
+  const p2 = panoramaMonitoria([], periodoDe("2026/2"), { cursos: CURSOS, arquivo });
+  assert.equal(p2.total, 0);
+  assert.equal(p2.nota, "");
 });
 
 /* ---------------------------------- atas ------------------------------- */

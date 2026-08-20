@@ -66,6 +66,7 @@ import {
 import {
   normalizarLote as normalizarLoteMon, certificadosHistoricos as certificadosHistoricosMon,
   certificadoHistorico as certificadoHistoricoMon, panoramaDoLote as panoramaLoteMon,
+  projetosDoArquivo as projetosDoArquivoMon,
 } from "./lib/monitoriaHistorico.js";
 import {
   slugDeNome, slugUnico, SLUG_VALIDO, slugReservado, SLUGS_RESERVADOS, gerarChaveQr, gerarCodigoMonitor, gerarToken, tokenValido,
@@ -6804,7 +6805,16 @@ async function emailsPorNome() {
    interno, em base64, e só o gestor geral grava.
    ========================================================================= */
 const ASSINATURAS_KEY = "sys-assinaturas-v1";
-const QUEM_ASSINA = { proreitor: "Pró-Reitor", reitor: "Reitor" };
+/* Quem assina os certificados. A PRÓ-REITORA ACADÊMICA entrou em ago/2026
+   (pedido do dono): o Programa de Monitoria é ação de ENSINO, concebida e
+   expedida pela PROAC — a PROPPEX opera o processo. Por isso o certificado
+   de monitoria sai no timbre da PROAC e é ela quem assina, ao lado do
+   reitor; os da IC seguem com o pró-reitor da PROPPEX. As três imagens
+   vivem no MESMO registro (`sys-assinaturas-v1`) e no mesmo card da tela:
+   um lugar só para trocar quando a reitoria trocar. */
+const QUEM_ASSINA = {
+  proreitor: "Pró-Reitor", reitor: "Reitor", proacademica: "Pró-Reitora Acadêmica",
+};
 
 async function lerAssinaturas() {
   const raw = await storage.get(ASSINATURAS_KEY);
@@ -10230,7 +10240,12 @@ async function montarPanorama(chave, periodo) {
   if (chave === "extensao") return panoramaExtensao(await lerAcoes(), periodo, { cursos });
   if (chave === "eventos") return panoramaEventos(await lerAcoes(), periodo, { cursos });
   if (chave === "ic") return panoramaIC(await lerProjetos(), periodo, { cursos });
-  if (chave === "monitoria") return panoramaMonitoria(await lerMonitorias(), periodo, { cursos });
+  // o ARQUIVO entra junto: os semestres anteriores a 2026/2 correram fora do
+  // ARCHÉ, e é no relatório que a instituição presta contas deles
+  if (chave === "monitoria") {
+    return panoramaMonitoria(await lerMonitorias(), periodo,
+      { cursos, arquivo: projetosDoArquivoMon(historicoMon) });
+  }
   if (chave === "atas") return panoramaAtas(await lerAtas(), periodo, { cursos, orgaos: ORGAOS });
   if (chave === "espacos") return panoramaEspacos(await lerReservas(), periodo, { espacos: await lerEspacos() });
   return null;

@@ -917,7 +917,8 @@ public/
   FACEG até 04/09/2025, UNIEGO depois) e um código de validação derivado do que ele
   afirma. Assinam o **pró-reitor e o reitor** — só no certificado a assinatura entra
   **digitalizada**. As imagens são **enviadas pela própria tela** (guia Certificados, card
-  "Assinaturas do certificado", só gestor geral) e ficam no estado interno
+  "Assinaturas do certificado", só gestor geral — o MESMO card guarda a da **pró-reitora
+  acadêmica**, que é quem assina os certificados de monitoria) e ficam no estado interno
   (`sys-assinaturas-v1`, base64), NÃO no repositório: em produção o disco é efêmero e
   trocar de reitor não pode exigir um deploy. Sem imagem, sai a linha em branco e nada
   quebra; os demais documentos seguem para assinatura à mão. A gestão avisa por e-mail, ciclo a ciclo (`POST /api/ic/certificados/avisar`),
@@ -1552,6 +1553,15 @@ public/
   lib/monitoria.js): é a mesma razão do mínimo da Extensão — o registro fotográfico é o que
   comprova a atividade —, em escala menor, porque a monitoria é semanal e não um evento. A
   régua TRAVA o envio, como na Extensão.
+  **O certificado de monitoria sai no timbre da PROAC** (pedido do dono, ago/2026): o timbre é
+  o do órgão que CONCEBE o programa — a monitoria é ação de ENSINO, e o edital dela é expedido
+  pela Pró-Reitoria Acadêmica; a PROPPEX opera o processo, e operar não põe ninguém no
+  documento. Assinam a **pró-reitora acadêmica e o reitor** (é a dupla que assina os editais
+  do programa em todos os ciclos, inclusive nos que correram fora do ARCHÉ). Os da IC seguem
+  com o timbre e o pró-reitor da PROPPEX. As TRÊS assinaturas digitalizadas vivem no mesmo
+  `sys-assinaturas-v1` e no mesmo card ("Assinaturas do certificado", guia Certificados do
+  ARCHÉ IC, só gestor geral): um lugar só para trocar quando a reitoria trocar, e cada linha
+  diz em que certificado ela entra. Sem imagem, sai a linha em branco e nada quebra.
   **Certificados** (`certificadosDe` em lib/monitoria.js, mesmo gerador da IC): o monitor só
   certifica com parecer **aprovado** (item 6.2) e leva a **carga horária cumprida**
   (semanas × CH semanal, semana iniciada conta); o docente recebe **um por PROJETO**, não um
@@ -1595,6 +1605,16 @@ public/
   certificados de 27 acadêmicos. A gestão vê em `GET /api/monitoria/historico` não quem TEM
   certificado, mas **quem ainda não foi encontrado no portal**: sem matrícula no perfil o
   documento existe e o aluno não sabe — e ninguém sabe que ele não sabe.
+  **E o arquivo ENTRA no Relatório Semestral** (`projetosDoArquivo` + `arquivo` em
+  `panoramaMonitoria`, pedido do dono ago/2026): era essa a razão de migrar o histórico —
+  certificado é o que a pessoa leva, o RELATÓRIO é o que a instituição apresenta, e um
+  semestre inteiro de monitoria que não aparece nele some da prestação de contas ao MEC. As
+  duas origens contam JUNTAS (projeto, monitor e hora são o mesmo fato), com três cuidados:
+  a hora do arquivo é a **declarada na planilha** (é o que a coordenação certificou), não
+  recalculada de uma CH semanal que ninguém registrou; **"Relatórios homologados" conta só o
+  que correu aqui**, porque o arquivo não tem relatório nem homologação no sistema; e cada
+  linha dele sai com **"arquivo" no lugar do protocolo**, mais uma NOTA no alto do documento
+  dizendo de onde vieram — número que ninguém sabe explicar é pior que número menor.
 - **A MATRÍCULA é obrigatória para o ESTUDANTE** (`faltaNoPerfil` em lib/auth.js, decisão do
   dono ago/2026): não é burocracia nova — é a única chave que os históricos de monitoria têm,
   e sem ela o certificado do aluno existe e ele não o encontra. Vale para quem tem função

@@ -129,6 +129,7 @@
   .ba-warn{background:var(--warn-soft);color:var(--warn);border:1px solid #f0e0bd}
   .ba-err{background:var(--err-soft);color:var(--err);border:1px solid #eed6d3}
   .ba-ok{background:var(--ok-soft);color:var(--ok);border:1px solid #cfeeda}
+  .ba-info{background:var(--info-soft);color:var(--info);border:1px solid #cfe6ee;font-weight:400}
 
   /* -------------------------------- listas ------------------------------ */
   .item{display:flex;align-items:center;gap:14px;padding:15px 18px;background:#fff;border:1px solid var(--line);
@@ -358,6 +359,7 @@ function painel(p) {
       ${(p.numeros || []).map((n) => `<div class="kpi">
         <div class="l">${esc(n.rotulo)}</div><div class="v">${n.valor}</div></div>`).join("")}
     </div>
+    ${p.nota ? `<div class="banner ba-info">${esc(p.nota)}</div>` : ""}
     ${(p.quadros || []).filter((q) => q.linhas?.length).map((q) => `<div class="card">
       <div class="card-t">${esc(q.titulo)}</div>
       <div class="card-s">${q.linhas.length} linha(s).</div>
