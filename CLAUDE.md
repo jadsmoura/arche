@@ -1743,6 +1743,19 @@ public/
   relatório vai; trocá-lo seria mudar de fila), e o **coordenador de curso não tem módulo em
   `modulosDe`** — por isso a saída rápida do `/api/alertas` consulta também o cadastro do AP, senão
   ele ficaria sem sino.
+- **A coordenação de curso alcança a MONITORIA do curso dela** (`coordenaOCurso` em
+  lib/monitoria.js + `quemMonAsync` no server, decisão do dono ago/2026): coordenador de curso é a
+  mesma pessoa nos dois módulos, e por isso a lista vem do MESMO cadastro do ARCHÉ AP
+  (`ap-equipe-v1`) — duas listas fariam uma delas envelhecer. Dentro do curso dela o alcance é o da
+  **gestão** (vê, analisa, decide e **homologa**); fora, ela não é nada ali — `papelNoProjeto`
+  devolve `null`, e o projeto de outro curso responde 404. Os atos INSTITUCIONAIS continuam sendo
+  da PROPPEX: publicar o resultado do ciclo e a prévia dele olham `gestaoPlena`, não `gestao` —
+  mostrar botão que a rota recusaria é porta que não abre. O arquivo histórico e a chamada de
+  relatório abrem para ela, **recortados ao curso**. **Divergência a registrar**: o Edital 03/2026
+  atribui a homologação à PROPPEX, e aqui a coordenação de curso também homologa — foi decisão do
+  dono, e o texto do edital é gerado pelo próprio ARCHÉ (`TEXTO_EDITAL`), então pode acompanhar
+  quando ele quiser. **Curso vazio não casa com curso vazio**: seria dar alcance sobre o que não se
+  sabe de quem é.
 - **Assinatura digitalizada VINCULADA AO USUÁRIO** (`sys-assinaturas-usuario-v1` +
   `/api/perfil/assinatura`, pedido do dono ago/2026): havia assinatura em dois lugares e nenhum
   deles era da PESSOA — as três institucionais (`sys-assinaturas-v1`, só o gestor geral troca) e a

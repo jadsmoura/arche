@@ -342,7 +342,9 @@ async function carregar() {
   DADOS = await r.json();
   const nome = DADOS.perfil?.nome || DADOS.eu || "";
   $("euNome").textContent = nome.split(" ").slice(0, 2).join(" ") || "—";
-  $("euPapel").textContent = DADOS.gestao ? "PROPPEX" : (DADOS.perfil?.funcao === "aluno" ? "Estudante" : "Docente");
+  $("euPapel").textContent = DADOS.gestaoPlena ? "PROPPEX"
+    : DADOS.cursosCoordenados?.length ? "Coordenação de curso"
+    : (DADOS.perfil?.funcao === "aluno" ? "Estudante" : "Docente");
   $("av").textContent = nome.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "··";
   render();
 }
@@ -1171,7 +1173,7 @@ function editaisPorAno() {
           ${e.resultadoPublicado
             ? `<a class="pdf" href="/api/publico/monitoria/resultado.pdf?edital=${encodeURIComponent(e.numero)}" target="_blank">resultado (PDF)</a>`
             : ""}
-          ${DADOS.gestao ? `<a class="pdf" href="/api/monitoria/resultado.pdf?edital=${encodeURIComponent(e.numero)}" target="_blank">prévia</a>
+          ${DADOS.gestaoPlena ? `<a class="pdf" href="/api/monitoria/resultado.pdf?edital=${encodeURIComponent(e.numero)}" target="_blank">prévia</a>
             <button class="bt bt-sec" style="padding:5px 10px;font-size:12px" onclick="publicarResultado('${esc(e.numero)}',${e.resultadoPublicado ? "false" : "true"})">${e.resultadoPublicado ? "recolher" : "publicar"}</button>` : ""}
         </div></div>`).join("")}`).join("")}
   </div>`;

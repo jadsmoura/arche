@@ -13,6 +13,7 @@ import {
   semanasDe, submissaoAberta, todosCadastrados, visaoDoProjeto,
   MIN_FOTOS_MONITORIA, fotosDoRelatorio, faltamFotosMon,
   cicloCorrente, editalVigente, editalDoCiclo, cicloSemEdital, normalizarProjeto as normProj,
+  coordenaOCurso, papelNoProjeto as papelMon, podeHomologar as podeHomologarMon,
 } from "../lib/monitoria.js";
 
 const CPF_A = "52998224725";   // válidos
@@ -471,4 +472,42 @@ test("projeto novo nasce no ciclo CORRENTE", () => {
   // e o que já está gravado nunca se reescreve: ciclo antigo continua antigo
   const velho = normProj({ ciclo: "2025/1", disciplina: "Anatomia" });
   assert.equal(velho.ciclo, "2025/1");
+});
+
+/* ======================================================================
+   A COORDENAÇÃO DE CURSO NA MONITORIA (decisão do dono, ago/2026).
+
+   Ela vem do cadastro de coordenação do portal — o mesmo do ARCHÉ AP,
+   porque coordenador de curso é a mesma pessoa nos dois módulos. Dentro
+   do curso dela o alcance é o da gestão; fora, ela não é nada ali.
+   ====================================================================== */
+test("a coordenação de curso alcança a monitoria DO CURSO dela", () => {
+  const enf = { id: "m1", curso: "enfermagem", status: "submetido",
+    orientador: { nome: "Ana", email: "ana@uniego.edu.br" }, monitores: [] };
+  const dir = { ...enf, id: "m2", curso: "direito",
+    orientador: { nome: "Bruno", email: "bruno@uniego.edu.br" } };
+  const talita = { email: "talita@uniego.edu.br", cpf: "", gestao: false, cursos: ["enfermagem"] };
+
+  assert.equal(coordenaOCurso(enf, talita), true);
+  assert.equal(coordenaOCurso(dir, talita), false);
+  assert.equal(papelMon(enf, talita), "gestao", "no curso dela, o alcance é o da gestão");
+  assert.equal(papelMon(dir, talita), null, "fora dele, ela não é nada");
+  // e é isso que lhe dá a homologação do curso — e só a dele
+  assert.equal(podeHomologarMon(enf, talita), true);
+  assert.equal(podeHomologarMon(dir, talita), false);
+
+  // quem não coordena nada segue como sempre
+  const professor = { email: "ana@uniego.edu.br", cpf: "", gestao: false, cursos: [] };
+  assert.equal(papelMon(enf, professor), "orientador");
+  assert.equal(papelMon(dir, professor), null);
+  // e a PROPPEX continua alcançando tudo
+  const proppex = { email: "p@uniego.edu.br", cpf: "", gestao: true, cursos: [] };
+  assert.equal(papelMon(dir, proppex), "gestao");
+});
+
+test("projeto sem curso não cai na mão de coordenador nenhum", () => {
+  const semCurso = { id: "x", curso: "", status: "submetido", orientador: {}, monitores: [] };
+  const talita = { email: "t@uniego.edu.br", gestao: false, cursos: ["enfermagem", ""] };
+  assert.equal(coordenaOCurso(semCurso, talita), false,
+    "curso vazio não casa com curso vazio — seria alcance sobre o que não se sabe de quem é");
 });

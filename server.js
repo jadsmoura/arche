@@ -166,7 +166,7 @@ import {
   professoresDoSemestre as apProfessoresDoSemestre, minhasDisciplinas as apMinhasDisciplinas,
   cursoDoProfessor as apCursoDoProfessor, filtrar as apFiltrar, panorama as apPanorama,
   pendenciasCobranca as apPendenciasCobranca, ehSegunda as apEhSegunda,
-  PAPEIS_COORDENACAO as AP_PAPEIS_COORD,
+  PAPEIS_COORDENACAO as AP_PAPEIS_COORD, cursosQueCoordena as apCursosQueCoordena,
 } from "./lib/praticas.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -4824,7 +4824,21 @@ async function avisarReserva(reserva, espacos, momento) {
    ======================================================================== */
 const SITE_BASE = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
 const gereMon = (u) => !!u && (u.papel === "gestor" || u.modulos?.includes("monitoria"));
-const quemMon = (u) => ({ email: u?.email, cpf: u?.cpf || "", gestao: gereMon(u) });
+/* Quem é a pessoa na monitoria. `cursos` são os que ela COORDENA — vem do
+   cadastro de coordenação do portal (`ap-equipe-v1`, o mesmo do ARCHÉ AP):
+   coordenador de curso é a mesma pessoa nos dois módulos, e manter duas
+   listas faria uma delas envelhecer. Dentro do curso dela o alcance é o da
+   gestão; fora, ela não é nada ali. */
+const quemMonCom = (u, cursos = []) => ({ email: u?.email, cpf: u?.cpf || "",
+  gestao: gereMon(u), cursos });
+const quemMon = (u) => quemMonCom(u);
+async function quemMonAsync(u) {
+  return quemMonCom(u, apCursosQueCoordena(await lerEquipeAP(), u?.email));
+}
+/** Gere a monitoria de ALGUM curso — o que abre as telas de acompanhamento. */
+async function gereMonAlgum(u) {
+  return gereMon(u) || (await apCursosQueCoordena(await lerEquipeAP(), u?.email)).length > 0;
+}
 
 async function lerMonitorias() {
   const raw = await storage.get(MON_KEY);
@@ -4998,12 +5012,19 @@ app.get("/api/monitoria", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
-    const quem = quemMon(u);
+    const quem = await quemMonAsync(u);
     const lista = await lerMonitorias();
     const meus = lista.filter((p) => monPodeVer(p, quem));
     const perfil = (await carregarPerfis())[u.email] || {};
     res.json({
-      eu: u.email, gestao: quem.gestao, gestorGeral: u.papel === "gestor",
+      /* `gestao` abre as telas de acompanhamento — e a coordenação de curso
+         também as abre, com a lista já recortada ao curso dela. Os atos
+         INSTITUCIONAIS (publicar o resultado do ciclo, o arquivo, a chamada
+         geral) continuam olhando `gestaoPlena`: mostrar botão que a rota
+         recusaria é porta que não abre. */
+      eu: u.email, gestao: quem.gestao || quem.cursos.length > 0,
+      gestaoPlena: quem.gestao, cursosCoordenados: quem.cursos,
+      gestorGeral: u.papel === "gestor",
       perfil: {
         nome: perfil.nome || u.nome || "", cpf: perfil.cpf || "",
         titulacao: perfil.titulacao || "", telefone: perfil.telefone || "",
@@ -5089,9 +5110,14 @@ app.get("/api/monitoria/historico", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
-    if (!gereMon(u)) return res.status(403).json({ error: "Só a gestão da monitoria." });
+    const quem = await quemMonAsync(u);
+    if (!quem.gestao && !quem.cursos.length)
+      return res.status(403).json({ error: "Só a gestão da monitoria." });
     const perfis = await carregarPerfis();
-    res.json({ lotes: historicoMon.map((l) => panoramaLoteMon(l, perfis)) });
+    // a coordenação de curso vê o arquivo DO CURSO dela; a PROPPEX, todos
+    const lotes = quem.gestao ? historicoMon
+      : historicoMon.filter((l) => quem.cursos.includes(String(l.curso || "")));
+    res.json({ lotes: lotes.map((l) => panoramaLoteMon(l, perfis)) });
   } catch (e) {
     console.error("Erro no arquivo histórico da monitoria:", e);
     res.status(500).json({ error: "Não foi possível carregar o arquivo." });
@@ -5198,7 +5224,7 @@ app.get("/api/monitoria/:id", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
-    const quem = quemMon(u);
+    const quem = await quemMonAsync(u);
     const p = (await lerMonitorias()).find((x) => x.id === req.params.id);
     if (!p || !monPodeVer(p, quem)) return res.status(404).json({ error: "Projeto não encontrado." });
     const v = monVisao(p, quem);
@@ -5226,7 +5252,7 @@ app.post("/api/monitoria", async (req, res) => {
     if (u.papel === "pendente")
       return res.status(403).json({ error: "Submeter projeto exige conta aprovada." });
     const body = req.body?.projeto || req.body || {};
-    const quem = quemMon(u);
+    const quem = await quemMonAsync(u);
     const perfil = (await carregarPerfis())[u.email] || {};
 
     const r = await comMonitorias((lista) => {
@@ -5317,7 +5343,7 @@ app.post("/api/monitoria/:id/submeter", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
-    const quem = quemMon(u);
+    const quem = await quemMonAsync(u);
     let convites = [];
     const r = await comMonitorias(async (lista) => {
       const p = lista.find((x) => x.id === req.params.id);
@@ -5375,7 +5401,7 @@ app.post("/api/monitoria/:id/convidar", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
-    const quem = quemMon(u);
+    const quem = await quemMonAsync(u);
     const lista = await lerMonitorias();
     const p = lista.find((x) => x.id === req.params.id);
     if (!p || !monPodeVer(p, quem)) return res.status(404).json({ error: "Projeto não encontrado." });
@@ -5400,7 +5426,7 @@ app.post("/api/monitoria/:id/inscricao", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
-    const quem = quemMon(u);
+    const quem = await quemMonAsync(u);
     let entrou = false;
     const r = await comMonitorias((lista) => {
       const p = lista.find((x) => x.id === req.params.id);
@@ -5462,7 +5488,7 @@ app.post("/api/monitoria/:id/decidir", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
-    const quem = quemMon(u);
+    const quem = await quemMonAsync(u);
     const decisao = String(req.body?.decisao || "");
     const parecer = String(req.body?.parecer || "").trim().slice(0, 4000);
     if (!["aprovar", "devolver", "reprovar"].includes(decisao))
@@ -5504,7 +5530,7 @@ app.post("/api/monitoria/:id/relatorio", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
-    const quem = quemMon(u);
+    const quem = await quemMonAsync(u);
     const enviar = !!req.body?.enviar;
     const r = await comMonitorias((lista) => {
       const p = lista.find((x) => x.id === req.params.id);
@@ -5559,7 +5585,7 @@ app.post("/api/monitoria/:id/relatorio/validar", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
-    const quem = quemMon(u);
+    const quem = await quemMonAsync(u);
     const acao = String(req.body?.acao || "validar");
     const monitorId = String(req.body?.monitor || "");
     const r = await comMonitorias((lista) => {
@@ -5625,7 +5651,7 @@ app.post("/api/monitoria/:id/homologar", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
-    const quem = quemMon(u);
+    const quem = await quemMonAsync(u);
     const r = await comMonitorias((lista) => {
       const p = lista.find((x) => x.id === req.params.id);
       if (!p || !monPodeVer(p, quem)) return { erro: [404, "Projeto não encontrado."], gravar: false };
@@ -5678,7 +5704,7 @@ app.delete("/api/monitoria/:id", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
-    const quem = quemMon(u);
+    const quem = await quemMonAsync(u);
     const r = await comMonitorias((lista) => {
       const i = lista.findIndex((x) => x.id === req.params.id);
       if (i < 0 || !monPodeVer(lista[i], quem)) return { erro: [404, "Projeto não encontrado."], gravar: false };
@@ -5809,8 +5835,12 @@ app.post("/api/monitoria/chamada-relatorio", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
-    if (!gereMon(u)) return res.status(403).json({ error: "A chamada é da PROPPEX." });
-    const porPessoa = pendenciasCobrancaMon(await lerMonitorias());
+    const quemC = await quemMonAsync(u);
+    if (!quemC.gestao && !quemC.cursos.length)
+      return res.status(403).json({ error: "A chamada é da coordenação." });
+    // a coordenação de curso chama quem é do curso dela — a PROPPEX, todos
+    const base = (await lerMonitorias()).filter((p) => monPodeVer(p, quemC));
+    const porPessoa = pendenciasCobrancaMon(base);
     const lista = [...porPessoa.entries()].map(([email, d]) => ({
       email, nome: d.nome, papel: d.papel, itens: d.itens.length }));
     if (req.body?.simular) return res.json({ ok: true, simulado: true, destinatarios: lista });
@@ -5859,7 +5889,7 @@ app.get("/api/monitoria/:id/projeto.pdf", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
-    const quem = quemMon(u);
+    const quem = await quemMonAsync(u);
     const p = (await lerMonitorias()).find((x) => x.id === req.params.id);
     if (!p || !monPodeVer(p, quem)) return res.status(404).send("Projeto não encontrado.");
     const { gerarProjetoMonitoriaPdf } = await import("./lib/pdf.js");
@@ -5876,7 +5906,7 @@ app.get("/api/monitoria/:id/ficha.pdf", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
-    const quem = quemMon(u);
+    const quem = await quemMonAsync(u);
     const p = (await lerMonitorias()).find((x) => x.id === req.params.id);
     if (!p || !monPodeVer(p, quem)) return res.status(404).send("Projeto não encontrado.");
     const papel = monPapel(p, quem);
@@ -5897,7 +5927,7 @@ app.get("/api/monitoria/:id/relatorio.pdf", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
     if (!u) return;
-    const quem = quemMon(u);
+    const quem = await quemMonAsync(u);
     const p = (await lerMonitorias()).find((x) => x.id === req.params.id);
     if (!p || !monPodeVer(p, quem)) return res.status(404).send("Projeto não encontrado.");
     const papel = monPapel(p, quem);
