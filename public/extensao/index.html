@@ -9,8 +9,8 @@
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Figtree:wght@400;500;600;700&display=swap');
   :root{
     --brand:#1c3742; --brand-2:#2d535c; --brand-3:#40717e; --accent:#71c8e2;
-    --bg:#ebeef3; --card:#fff; --line:#e3e7ee; --line-2:#f0f2f6; --trilho:#eef1f5;
-    --ink:#1c3742; --ink-soft:#3a4650; --muted:#7c8794; --muted-2:#a9b4c0;
+    --bg:#eef1f4; --card:#fff; --line:#dde4e8; --line-2:#f0f2f6; --trilho:#eef1f5;
+    --ink:#182632; --ink-soft:#3a4650; --muted:#657179; --muted-2:#a9b4c0;
     --ok:#3f8a5d; --ok-soft:#e5f3ea; --warn:#c98a2b; --warn-soft:#fbf3e4;
     --err:#a1524c; --err-soft:#f6e9e7; --info:#40717e; --info-soft:#e8f4fa;
     --roxo:#5e5091; --roxo-soft:#ecebf6;
@@ -127,6 +127,9 @@
   .b-registrada{background:#eceff3;color:var(--muted)}
   .banner{border-radius:10px;padding:13px 15px;margin-bottom:14px;font-size:13.5px;font-weight:500}
   .ba-warn{background:var(--warn-soft);color:var(--warn);border:1px solid #f0e0bd}
+  /* usada em cinco avisos desta tela e nunca definida: sem ela o banner saía
+     sem fundo e sem borda, indistinguível do corpo do card (varredura ago/2026) */
+  .ba-info{background:var(--info-soft);color:var(--info);border:1px solid #cfe6f2}
   .ba-err{background:var(--err-soft);color:var(--err);border:1px solid #eed6d3}
   .ba-ok{background:var(--ok-soft);color:var(--ok);border:1px solid #cfeeda}
 

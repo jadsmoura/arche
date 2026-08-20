@@ -82,7 +82,9 @@
       ".arche-topnav .nav-sino .qt{position:absolute;top:0;right:0;min-width:16px;height:16px;" +
       "border-radius:9px;background:#e2a63d;color:#1c3742;font-size:10px;font-weight:800;" +
       "display:grid;place-items:center;padding:0 4px;border:2px solid #1c3742}" +
-      ".arche-alertas{position:fixed;z-index:10000;top:52px;right:16px;width:min(380px,calc(100vw - 24px));" +
+      /* ancorado ao FIM da barra, não a uma altura fixa: com a barra em mais
+         de uma linha, os 52px abriam o painel POR CIMA dela */
+      ".arche-alertas{position:fixed;z-index:10000;top:var(--nav-alt,52px);right:16px;width:min(380px,calc(100vw - 24px));" +
       "background:#fff;border:1px solid #dde4e8;border-radius:14px;box-shadow:0 14px 40px -12px rgba(24,38,50,.35);" +
       "overflow:hidden;font-family:inherit}" +
       ".arche-alertas .cab{padding:12px 16px;font-weight:800;font-size:13px;color:#1c3742;" +
@@ -95,8 +97,17 @@
       ".arche-alertas .tx{font-size:13px;color:#182632;font-weight:600;margin-top:2px}" +
       ".arche-alertas .dt{font-size:11.5px;color:#657179;margin-top:2px}" +
       ".arche-alertas .zero{padding:18px 16px;font-size:13px;color:#657179}" +
-      "@media(max-width:600px){.arche-topnav{padding:8px 12px;gap:4px}" +
+      /* No CELULAR a barra rola na horizontal, em UMA linha (varredura de
+         ago/2026): com `flex-wrap:wrap` os 11 atalhos viravam ~4 linhas
+         grudadas no topo — cerca de um quinto da tela, em toda rolagem, em
+         todas as páginas. É o mesmo recurso que as barras internas dos
+         setores já usam. A CONTA fica fora da rolagem, colada à direita:
+         sair do sistema não pode depender de rolar a barra até o fim. */
+      "@media(max-width:600px){.arche-topnav{padding:8px 12px;gap:4px;flex-wrap:nowrap;" +
+      "overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}" +
+      ".arche-topnav::-webkit-scrollbar{display:none}" +
       ".arche-topnav a{font-size:12px;padding:5px 9px}.arche-topnav .nav-brand{font-size:13px}" +
+      ".arche-topnav .nav-dir{position:sticky;right:0;flex:none;background:#1c3742;padding-left:6px}" +
       /* no celular a barra é estreita e fica presa no topo: a conta se reduz
          ao avatar (que leva ao perfil) e o botão de voltar sai, já que o link
          "Portal" está ali do lado. Assim ela não come a tela. */
@@ -325,6 +336,14 @@
     nav.appendChild(dir2);
 
     document.body.insertBefore(nav, document.body.firstChild);
+    // a altura REAL da barra alimenta o painel do sino: no celular ela pode
+    // ser mais alta que os 52px que estavam cravados, e o painel abria por
+    // cima dela (varredura de ago/2026)
+    var medir = function () {
+      document.documentElement.style.setProperty("--nav-alt", (nav.offsetHeight + 4) + "px");
+    };
+    medir();
+    window.addEventListener("resize", medir);
   }
 
   /* --------------------- modo AVALIADOR (visualização) -------------------

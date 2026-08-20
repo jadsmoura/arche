@@ -9,8 +9,8 @@
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Figtree:wght@400;500;600;700&display=swap');
   :root{
     --brand:#1c3742; --brand-2:#2d535c; --brand-3:#40717e; --accent:#71c8e2;
-    --bg:#ebeef3; --card:#fff; --line:#e3e7ee; --line-2:#f0f2f6; --trilho:#eef1f5;
-    --ink:#1c3742; --ink-soft:#3a4650; --muted:#7c8794; --muted-2:#a9b4c0;
+    --bg:#eef1f4; --card:#fff; --line:#dde4e8; --line-2:#f0f2f6; --trilho:#eef1f5;
+    --ink:#182632; --ink-soft:#3a4650; --muted:#657179; --muted-2:#a9b4c0;
     --ok:#3f8a5d; --ok-soft:#e5f3ea; --warn:#c98a2b; --warn-soft:#fbf3e4;
     --err:#a1524c; --err-soft:#f6e9e7; --info:#40717e; --info-soft:#e8f4fa;
     --roxo:#5e5091; --roxo-soft:#ecebf6;
@@ -192,7 +192,9 @@
   .hide{display:none!important}
 
   /* ------------- janela de escolha (retomar encaminhamentos) ------------- */
-  .ov{position:fixed;inset:0;background:rgba(28,55,66,.42);z-index:40;display:flex;
+  /* tabela larga rola dentro do próprio quadro em vez de estourar a página */
+  .rolo{overflow-x:auto}
+  .ov{position:fixed;inset:0;background:rgba(28,55,66,.42);z-index:10050;display:flex;
     align-items:flex-start;justify-content:center;padding:56px 18px 24px;overflow-y:auto}
   .ov-cx{background:#fff;border-radius:14px;width:100%;max-width:560px;padding:22px 22px 18px;
     box-shadow:0 24px 60px rgba(18,38,50,.28)}

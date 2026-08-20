@@ -1660,7 +1660,26 @@ public/
 
 Paleta (mesma do sistema de Avaliação): fundo `#eef1f4`, marca `#1c3742`, hover `#2d535c`,
 acento `#40717e`, acento claro `#71c8e2`, wash `#e6f5fa`, texto `#182632`, muted `#657179`,
-linhas `#dde4e8`. Fonte: Figtree/system. Manter consistência em qualquer página nova.
+linhas `#dde4e8`. Fonte: **Figtree** no texto e **Sora** nos títulos. Manter consistência em
+qualquer página nova.
+
+**Os valores acima são os que valem, e a varredura de ago/2026 achou seis setores fora deles**
+— com `--bg:#ebeef3`, `--line:#e3e7ee`, `--ink:#1c3742` (a cor de MARCA no lugar da de texto) e
+`--muted:#7c8794`. O `muted` divergente dava **3,65:1** sobre o branco do card, abaixo do
+mínimo AA de 4,5:1, e ele pinta o `label` de TODO campo de formulário, a 11,5 px: o nome do
+campo era o que sumia no celular, sob sol. O oficial dá 5,01:1 (medido). Alinhados os seis.
+A **tipografia** também estava dividida: `public/assets/arche-ui.css` (página inicial, perfil,
+entrar, páginas públicas de evento) carregava Archivo + IBM Plex Sans, e os setores,
+Sora + Figtree — a própria barra do topo trocava de fonte ao navegar entre os dois grupos,
+porque ela pede Figtree e só os setores a carregavam. Unificado no arquivo compartilhado.
+Outros três acertos da mesma varredura: os modais dos setores estavam com `z-index:40` contra
+os `9999` da barra institucional (a barra pintava POR CIMA do modal, e no celular o botão de
+fechar ficava enterrado); três classes eram usadas sem existir (`.ba-info` na Extensão,
+`.bt-err` no EV — o único botão destrutivo do módulo saía no cinza do navegador —, `.rolo` nos
+Relatórios); e a barra do topo, com 11 atalhos e `flex-wrap:wrap`, virava ~4 linhas fixas no
+celular: passou a rolar na horizontal em UMA linha, com a conta presa à direita (sair não pode
+depender de rolar a barra até o fim) e o painel do sino ancorado à altura REAL da barra
+(`--nav-alt`), não aos 52 px que estavam cravados.
 
 ## Limitações no ambiente cloud
 
