@@ -1965,6 +1965,14 @@ app.post("/api/extensao", async (req, res) => {
           if (snapshot) final.relatorio = { ...final.relatorio, numerosEvento: snapshot };
           else if (final.relatorio.numerosEvento) delete final.relatorio.numerosEvento;
         }
+        // Registrada NÃO se desfaz por um salvar comum — nem por uma aba
+        // velha que carregou a ação antes do registro: registrar trava os
+        // campos e libera os certificados. A ÚNICA saída é a REABERTURA da
+        // que foi finalizada SEM relatório, que é o buraco que o botão
+        // "Finalizar" deixou; fora dela, a situação é preservada em
+        // silêncio (recusar travaria a gravação inteira por um dado velho).
+        if (base?.status === "registrada" && final.status !== "registrada"
+            && base.relatorio?.entregueEm) final.status = "registrada";
         // REGISTRAR pressupõe o relatório entregue (achado do dono,
         // ago/2026): sem esta régua dava para finalizar uma ação que nunca
         // teve relatório — ela sumia da guia Relatórios sem nunca ter

@@ -451,6 +451,16 @@ public/
   padrão não pode fechar mais cedo para quem não pediu. O relógio é o de Brasília
   (`horaLocalHHMM` em lib/datas.js), nunca o do navegador de quem se inscreve, e quem confere é
   o SERVIDOR, dentro da fila (a rota de trocar atividades também).
+- **A guia Relatórios é onde a ação se conclui** (pedido do dono, ago/2026): ela mostra tudo
+  o que ainda deve relatório — a **aprovada cujo período já começou** (antes, a ação só
+  aparecia ali depois de o período vencer, e quem encerrava a atividade no mesmo dia não a
+  encontrava em lugar nenhum), a pendente, a entregue e a **registrada SEM relatório**, que é
+  a anomalia e precisa ser vista para ser corrigida. O que ainda não começou fica de fora:
+  não há o que relatar, e listá-lo enterraria os atrasados. No cartão, a gestão **entrega
+  dali mesmo** (`entregarDaLista`) quando os obrigatórios já estão gravados; faltando algo, a
+  linha DIZ o que falta e leva à ação. `reabrirAcao` desfaz o registro **só** da que foi
+  finalizada sem relatório — e o servidor preserva `registrada` em silêncio nas demais
+  (recusar travaria a gravação inteira por causa de uma aba velha).
 - **Entregar e registrar são dois atos, e os dois têm dono** (achado do dono, ago/2026): o
   botão de ENTREGAR o relatório só era desenhado para quem NÃO é gestão — o pró-reitor, que
   organiza as próprias ações e ainda cobre a ausência do responsável, preenchia o relatório,

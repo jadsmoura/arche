@@ -531,9 +531,27 @@ function montarSidebar(){
     <button class="sair" onclick="sair()">sair</button>` : "";
 }
 
-// Relatórios e Certificação reaproveitam a lista, com recorte próprio.
+/* Relatórios e Certificação reaproveitam a lista, com recorte próprio.
+
+   A guia Relatórios é onde a ação SE CONCLUI (pedido do dono, ago/2026), e
+   por isso ela mostra tudo o que ainda deve relatório — não só o que já
+   venceu. Antes, a ação aprovada só aparecia aqui depois de o período
+   terminar: quem encerrava a atividade no mesmo dia não a encontrava em
+   lugar nenhum e concluía que o sistema a tinha perdido. Entram:
+     • aprovada cujo período JÁ COMEÇOU (o que não começou não tem o que
+       relatar, e listá-lo enterraria os atrasados);
+     • pendente e relatório entregue, como antes;
+     • registrada SEM relatório — a anomalia, que precisa ser vista para
+       ser corrigida (é o que sobrou de quem finalizou cedo demais).            */
+function deveRelatorio(a){
+  const s = statusReal(a);
+  if(!a.numeroAcao) return false;
+  if(s==="registrada") return !a.relatorio?.entregueEm;
+  if(s==="aprovada") return !!a.proposta?.periodoInicio && a.proposta.periodoInicio <= hojeISO();
+  return ["pendente","relatorio-entregue"].includes(s);
+}
 function passaPreset(a){
-  if(SECAO==="relatorios") return ["pendente","relatorio-entregue"].includes(statusReal(a));
+  if(SECAO==="relatorios") return deveRelatorio(a);
   return true;
 }
 
@@ -1936,12 +1954,68 @@ function acoesRapidas(a,s){
   const bt=(rot,fn,tit)=>`<button class="bt bt-ghost" style="padding:5px 10px;font-size:11.5px"
     title="${esc(tit)}" onclick="event.stopPropagation();${fn}">${rot}</button>`;
   const temRel=!!a.relatorio?.entregueEm;
-  return `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+  const falta=faltaParaEntregar(a);
+  return `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
     ${bt("📄 Proposta (PDF)",`exportar('${a.id}','proposta')`,"Formulário da proposta em PDF timbrado — sem lista de participantes")}
     ${temRel?bt("🖨 Relatório final (PDF)",`exportar('${a.id}','pdf')`,"Relatório final em PDF timbrado, com a lista de participantes"):""}
     ${temRel?bt("📑 Registro (.docx)",`exportar('${a.id}','registro')`,"Registro de Atividade de Extensão em Word"):""}
+    ${!temRel&&s!=="registrada" ? (falta.length
+      ? `<span class="muted" style="font-size:11.5px">Para entregar o relatório: ${esc(falta.join("; "))} —
+         <button class="bt bt-ghost" style="padding:5px 10px;font-size:11.5px"
+           onclick="event.stopPropagation();nav('detalhe','${a.id}')">abrir a ação</button></span>`
+      : bt("📨 Entregar relatório final",`entregarDaLista('${a.id}')`,
+          "Os campos obrigatórios já estão preenchidos — entrega daqui mesmo")) : ""}
     ${temRel&&s!=="registrada"?bt("✓ Validar e registrar",`registrarAcao('${a.id}')`,"Finalizar a ação como registrada"):""}
+    ${s==="registrada"&&!temRel?bt("↩ Reabrir para o relatório",`reabrirAcao('${a.id}')`,
+      "Ação finalizada sem relatório — reabre para a prestação de contas"):""}
   </div>`;
+}
+
+/* O que falta para a entrega, do que já ESTÁ GRAVADO na ação (a lista não
+   tem os campos na tela). É a mesma régua do servidor — lib/relatorioEx.js
+   e lib/portfolio.js —, dita em português para caber no cartão. */
+function faltaParaEntregar(a){
+  const f=[];
+  if(!String(a.relatorio?.avaliacaoResultados||"").trim()) f.push("preencher a avaliação/resultados");
+  const fotos=fotosDaAcao(a).length;
+  if(fotos<MIN_FOTOS) f.push(`anexar ${MIN_FOTOS-fotos} foto(s) — há ${fotos} de ${MIN_FOTOS}`);
+  return f;
+}
+
+/* Entregar SEM abrir a ação: quando os campos obrigatórios já estão
+   gravados, abrir a ação para clicar num botão é caminho sem trabalho no
+   meio. Usa o que está na base — não há formulário aberto para ler. */
+async function entregarDaLista(id){
+  const a=ACOES.find(x=>x.id===id); if(!a) return;
+  const falta=faltaParaEntregar(a);
+  if(falta.length){ alert("Ainda falta "+falta.join("; ")+"."); nav("detalhe",id); return; }
+  if(!confirm(`Entregar o relatório final de "${a.proposta?.nomeAtividade||"esta ação"}"?`)) return;
+  const pelaGestao = PROPPEX && !minhaAcao(a);
+  const antes=a.status, antesRel=a.relatorio;
+  a.relatorio={...a.relatorio, entregueEm:new Date().toISOString(),
+    ...(pelaGestao?{entreguePelaGestao:true, entreguePor:ME?.email||""}:{})};
+  a.status="relatorio-entregue"; a.atualizadoEm=new Date().toISOString();
+  try{ await salvar(); }
+  catch(e){ alert("Não foi possível entregar: "+(e.message||e)); a.relatorio=antesRel; a.status=antes; return; }
+  alert("✅ Relatório final entregue. Os PDFs saem pelos botões deste cartão.");
+  renderLista();
+}
+
+/* Reabrir a ação REGISTRADA SEM relatório (só a gestão). Existe porque o
+   "Finalizar" não cobrava o relatório e deixou ações encerradas sem
+   prestação de contas — e registrada é o que trava os campos e libera os
+   certificados. Só nessa situação: reabrir ação que já prestou contas
+   recolheria certificado que alguém já tem na mão. */
+async function reabrirAcao(id){
+  const a=ACOES.find(x=>x.id===id); if(!a) return;
+  if(a.relatorio?.entregueEm){ alert("Esta ação já tem relatório entregue — não se reabre."); return; }
+  if(!confirm(`Reabrir "${a.proposta?.nomeAtividade||"esta ação"}" para a entrega do relatório final?\n\n`
+    + "Ela volta a aceitar anexos e edição, e sai da situação Registrada.")) return;
+  a.status="aprovada"; a.atualizadoEm=new Date().toISOString();
+  try{ await salvar(); }
+  catch(e){ alert("Não foi possível reabrir: "+(e.message||e)); a.status="registrada"; return; }
+  alert("Ação reaberta. Preencha o relatório, anexe as fotos e entregue — depois finalize de novo.");
+  renderLista();
 }
 function exportar(id,tipo){ window.open(`/api/extensao/export/${tipo}/${id}`,"_blank"); }
 
