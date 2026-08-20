@@ -2715,11 +2715,21 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
           // fica sem caminho. A resposta diz que a inscrição existe, com que
           // e-mail (mascarado — é como a pessoa reconhece o próprio engano de
           // digitação) e a tela abre a recuperação já preenchida.
+          // A PISTA do e-mail só sai quando a pessoa JÁ PROVOU conhecer o
+          // endereço (decisão do dono, ago/2026, revendo a anterior): casando
+          // só pelo CPF, dizer "j••••@gmail.com" transformaria a rota pública
+          // num oráculo — com uma lista de CPFs dá para descobrir quem
+          // participou de um evento e qual o provedor de e-mail da pessoa.
+          // Quem digitou o próprio endereço errado continua tendo saída: a
+          // recuperação pede CPF e e-mail juntos, e a coordenação vê a lista.
           const mesmoEmail = String(ja.email || "").trim().toLowerCase() === email;
           return { erro: [409, mesmoEmail
             ? "Você já está inscrito neste evento — o link da sua credencial continua valendo."
-            : `Este CPF já está inscrito neste evento, com o e-mail ${emailMascarado(ja.email) || "informado na inscrição"}.`],
-            jaInscrito: { emailPista: emailMascarado(ja.email), mesmoEmail }, gravar: false };
+            : "Já existe inscrição com este CPF neste evento, feita com outro e-mail. "
+              + "Use “Já me inscrevi e perdi o link” com o CPF e o e-mail usados na inscrição — "
+              + "ou fale com a coordenação do evento."],
+            jaInscrito: { emailPista: mesmoEmail ? emailMascarado(ja.email) : "", mesmoEmail },
+            gravar: false };
         }
       }
       // campos extras validados contra o catálogo DA BASE (o cliente pode

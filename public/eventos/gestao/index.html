@@ -1846,7 +1846,7 @@ function renderProgEv(){
         <input placeholder="responsável / ministrante" value="${esc(p.responsavel)}" oninput="EV_PROG[${i}].responsavel=this.value">
         <input placeholder="local / sala" value="${esc(p.local)}" oninput="EV_PROG[${i}].local=this.value">
         <input type="number" min="0" placeholder="vagas" title="vagas da atividade (0 = sem limite próprio)" value="${p.vagas||""}" oninput="EV_PROG[${i}].vagas=this.value">
-        <input placeholder="CH (4h)" title="carga horária da atividade — usada no export da AEE por atividade" value="${esc(p.ch)}" oninput="EV_PROG[${i}].ch=this.value">
+        <input placeholder="CH em horas (ex.: 4)" inputmode="decimal" title="carga horária da atividade, em horas — entra no certificado de quem teve presença nela e no export da AEE por atividade" value="${esc(p.ch)}" oninput="EV_PROG[${i}].ch=this.value">
       </div>
       <div style="display:flex;gap:18px;align-items:center;margin-top:8px;flex-wrap:wrap">
         <label class="chk" style="margin:0;font-size:12.5px">
@@ -2828,7 +2828,12 @@ function encerrarEvento(id){
   const r=a.relatorio||{}, n=numerosEventoLocal(a);
   const cx=document.createElement("div");
   cx.className="ov"; cx.id="ov-encerrar";
-  cx.onclick=(e)=>{ if(e.target===cx) fecharEncerrar(); };
+  /* Clicar fora NÃO descarta (pedido do dono, ago/2026): é o formulário mais
+     longo do módulo, e o único campo que o sistema não preenche — a
+     avaliação/resultados — é justamente o que a pessoa acabou de escrever à
+     mão. Um clique na faixa ao lado jogava tudo fora, sem perguntar. É o
+     mesmo cuidado que o assistente de novo evento já tinha. */
+  cx.onclick=(e)=>{ if(e.target===cx) piscarEncerrar(); };
   const campo=(c)=>{
     const v=esc(r[c.chave]??"");
     const req=c.obrigatorio?` <span style="color:var(--err)">*</span>`:"";
@@ -2861,7 +2866,7 @@ function encerrarEvento(id){
     <label style="margin-top:16px">Observação para a PROPPEX <span class="muted">(opcional)</span></label>
     <textarea id="enc-obs" style="min-height:60px"></textarea>
     <div class="ov-bt" style="margin-top:16px">
-      <button class="bt bt-sec" onclick="fecharEncerrar()">Cancelar</button>
+      <button class="bt bt-sec" onclick="cancelarEncerramento()">Cancelar</button>
       <button class="bt bt-pri" onclick="confirmarEncerramento('${a.id}')">Encerrar e entregar</button>
     </div>
   </div>`;
@@ -2893,7 +2898,21 @@ async function preencherDoEvento(id){
     juízo de quem conduziu a ação.</div>`;
 }
 
-function encTecla(e){ if(e.key==="Escape") fecharEncerrar(); }
+function piscarEncerrar(){
+  const cx=$("ov-encerrar")?.querySelector(".ov-cx"); if(!cx) return;
+  cx.classList.remove("ov-piscar"); void cx.offsetWidth; cx.classList.add("ov-piscar");
+}
+// algo digitado? então perguntar antes de perder
+function encTemDados(){
+  return CAMPOS_REL.some(c=>String($("enc-"+c.chave)?.value||"").trim())
+    || String($("enc-obs")?.value||"").trim();
+}
+function cancelarEncerramento(){
+  if(encTemDados() && !confirm("Descartar o encerramento deste evento?\n\n"
+    +"O que você já preencheu do relatório será perdido — as fotos anexadas ficam.")) return;
+  fecharEncerrar();
+}
+function encTecla(e){ if(e.key==="Escape") cancelarEncerramento(); }
 function fecharEncerrar(){
   document.getElementById("ov-encerrar")?.remove();
   document.removeEventListener("keydown",encTecla);

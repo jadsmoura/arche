@@ -2452,7 +2452,7 @@ function renderProgEv(){
         <input placeholder="responsável / ministrante" value="${esc(p.responsavel)}" oninput="EV_PROG[${i}].responsavel=this.value">
         <input placeholder="local / sala" value="${esc(p.local)}" oninput="EV_PROG[${i}].local=this.value">
         <input type="number" min="0" placeholder="vagas" title="vagas da atividade (0 = sem limite próprio)" value="${p.vagas||""}" oninput="EV_PROG[${i}].vagas=this.value">
-        <input placeholder="CH (4h)" title="carga horária da atividade — usada no export da AEE por atividade" value="${esc(p.ch)}" oninput="EV_PROG[${i}].ch=this.value">
+        <input placeholder="CH em horas (ex.: 4)" inputmode="decimal" title="carga horária da atividade, em horas — entra no certificado de quem teve presença nela e no export da AEE por atividade" value="${esc(p.ch)}" oninput="EV_PROG[${i}].ch=this.value">
       </div>
       <div style="display:flex;gap:18px;align-items:center;margin-top:8px;flex-wrap:wrap">
         <label style="display:flex;align-items:center;gap:7px;margin:0;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:500;color:var(--ink)">

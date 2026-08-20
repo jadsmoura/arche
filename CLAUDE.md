@@ -367,9 +367,13 @@ public/
   **"Já inscrito" é uma SAÍDA, não uma parede** (pergunta do dono, ago/2026): o e-mail de
   confirmação É a credencial, e quem não o recebe tenta se inscrever de novo. A duplicidade
   já era barrada (`jaInscrito`), mas o erro não dava caminho. Agora ele diz que a inscrição
-  existe e **com que e-mail** — `emailMascarado` (`j••••@gmail.com`: o domínio à vista é o
-  que denuncia o "gmial.com") —, e a tela abre a recuperação **já preenchida** com o que a
-  pessoa acabou de digitar. A recuperação (CPF + e-mail, os dois) nunca dependeu de e-mail:
+  existe e a tela abre a recuperação **já preenchida** com o que a pessoa acabou de digitar.
+  A **pista do e-mail** (`emailMascarado`, `j••••@gmail.com`) só sai quando o endereço
+  informado é o MESMO da inscrição — ou seja, quando quem pergunta já provou conhecê-lo
+  (decisão do dono, ago/2026, revendo a anterior): casando só pelo CPF, a pista faria da rota
+  pública um oráculo — com uma lista de CPFs dá para descobrir quem participou de um evento e
+  qual o provedor de e-mail da pessoa. Quem digitou o próprio endereço errado continua com
+  saída: a recuperação pede CPF e e-mail juntos, e a coordenação vê a lista. A recuperação (CPF + e-mail, os dois) nunca dependeu de e-mail:
   leva direto à credencial. E ganhou **✉ Reenviar o e-mail** (`reenviar: true`), para o caso
   comum, que não é o endereço errado — é o spam. O reenvio vai SEMPRE ao endereço já
   gravado, nunca a um que venha no pedido: senão a recuperação viraria um jeito de mandar a

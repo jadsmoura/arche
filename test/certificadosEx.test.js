@@ -218,3 +218,34 @@ test("o histórico da pessoa reúne o evento e a ação sem evento", () => {
   assert.equal(lista.length, 2);
   assert.deepEqual([...new Set(lista.map((c) => c.acaoId))].sort(), ["ext-1", "ext-2"]);
 });
+
+/* A CH é TEXTO LIVRE no cadastro da atividade e o placeholder da tela
+   ensinava "4h" — com Number("4h") dando NaN, a soma das atividades ia a
+   zero e o certificado caía no fallback da CH da AÇÃO INTEIRA. Quem cumpriu
+   4 horas recebia um documento afirmando 40 (achado da varredura ago/2026).
+   É o erro que o cabeçalho deste módulo diz que não pode acontecer. */
+test("carga horária escrita como texto vale o número que ela diz", () => {
+  const comCh = (ch) => ({
+    id: "ext-ch", numeroAcao: "EXT-2026-020", status: "registrada",
+    proposta: { nomeAtividade: "Semana", periodoFim: "2026-08-12", cargaHoraria: "40" },
+    participantes: {
+      inscritos: [{ nome: "Ana", presente: true, presencas: [{ atividade: "aaaa0001" }] }],
+      palestrantes: [], comissao: [],
+    },
+    evento: { encerramento: { status: "validado" },
+      programacao: [{ id: "aaaa0001", titulo: "Oficina", ch }] },
+  });
+  const ch = (v) => certificadosDaAcao(comCh(v), { hoje: "2026-08-20" })[0].ch;
+  assert.equal(ch("4h"), 4, "o formato que o placeholder ensinava");
+  assert.equal(ch("4"), 4);
+  assert.equal(ch("4 h"), 4);
+  assert.equal(ch("1,5h"), 1.5, "meia hora com vírgula, como se digita em português");
+  // sem número nenhum não há o que somar: vale a CH da ação, que é o
+  // fallback documentado — e não zero, que seria certificado sem horas
+  assert.equal(ch("a combinar"), 40);
+  // a soma de atividades em formatos MISTOS não perde nenhuma parcela
+  const misto = comCh("4h");
+  misto.evento.programacao.push({ id: "aaaa0002", titulo: "Mesa", ch: "2" });
+  misto.participantes.inscritos[0].presencas.push({ atividade: "aaaa0002" });
+  assert.equal(certificadosDaAcao(misto, { hoje: "2026-08-20" })[0].ch, 6);
+});

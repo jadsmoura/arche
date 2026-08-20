@@ -911,7 +911,7 @@ async function inscrever(ev) {
     $("f-msg").innerHTML = `<div class="msg-erro">${esc(e2.message)}${e2.ja ? `
       <div style="margin-top:8px;font-weight:400">${e2.ja.mesmoEmail
         ? "Não recebeu o e-mail? Ele pode ter caído no spam. Reaver a credencial abaixo — e dá para reenviá-lo."
-        : "Se esse não é o seu endereço, foi um erro de digitação na inscrição: use-o abaixo para reaver a credencial, ou fale com a coordenação."}</div>
+        : "Se foi você que se inscreveu antes, use abaixo o CPF e o e-mail daquela inscrição para reaver a credencial. Se não lembra qual e-mail usou, fale com a coordenação do evento — ela vê a lista."}</div>
       <button class="bt bt-sec" style="margin-top:10px" type="button" onclick="abrirRecuperacao()">Reaver a minha credencial</button>
       </div>` : "</div>"}`;
     if (e2.ja) preencherRecuperacao();
