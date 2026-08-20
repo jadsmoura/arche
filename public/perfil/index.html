@@ -337,6 +337,7 @@ fetch("/api/me").then(async r=>{
   verOutro(); verMatricula();
   if($("cpf").value) $("cpf").value=fmtCPF($("cpf").value);   // guardado só em dígitos
   $("resumo-cont").textContent=$("resumo").value.length;
+  PRE_CADASTRO = !!p.preCadastro;
   marcarEtapa(ME.perfilFalta || []);
   TEM_SENHA=!!ME.temSenha;
   $("senha-estado").textContent=TEM_SENHA
@@ -351,6 +352,11 @@ $("nome").addEventListener("blur", pintarAvatar);
    servidor manda com ?completar=1) precisa saber POR QUE foi parado e o que
    falta — e ver isso apontado nos próprios campos, não numa lista solta. */
 const VINDO_DE_SETOR = new URLSearchParams(location.search).get("completar") === "1";
+/* Cadastro que a COORDENAÇÃO enviou (as listas de professores e disciplinas,
+   ago/2026). A pessoa chega e vê o próprio nome, o curso e a titulação já
+   preenchidos: sem dizer de onde vieram, ela pensa que o portal os inventou
+   — ou não confere o que está errado. */
+let PRE_CADASTRO = false;
 function marcarEtapa(falta){
   for(const el of document.querySelectorAll(".falta")) el.classList.remove("falta");
   for(const el of document.querySelectorAll(".falta-rot")) el.classList.remove("falta-rot");
@@ -370,6 +376,9 @@ function marcarEtapa(falta){
       ? "Antes de entrar no setor, o portal precisa de alguns dados seus. É uma vez só — depois disso você não vê mais esta etapa."
       : "Faltam dados que o portal usa nos documentos e nas submissões."}</p>
     <ul>${nomes.map(n=>`<li>${n}</li>`).join("")}</ul>
+    ${PRE_CADASTRO?`<p style="margin-top:10px;font-size:12.5px">Parte destes dados já veio preenchida:
+      a <b>coordenação do seu curso</b> a enviou à PROPPEX. Confira se está certo — o que estiver
+      errado você corrige aqui mesmo.</p>`:""}
     <p style="margin-top:10px;font-size:12.5px">O <b>CPF</b> é o que liga a você os projetos já cadastrados
       pela PROPPEX e os certificados de edições anteriores; a <b>titulação</b> é o que enquadra a proposta
       na modalidade do edital.</p>
@@ -480,7 +489,8 @@ async function sair(){
   location.href="/";
 }
 </script>
-<script src="/assets/arche-nav.js" defer>
+<script src="/assets/arche-nav.js" defer></script>
+<script>
 /* A ASSINATURA DIGITALIZADA (pedido do dono, ago/2026). Reduz-se em PNG, sem
    fundo: a redução das FOTOS pinta branco e sai em JPEG, o que destruiria a
    transparência — e é ela que faz a assinatura ficar bem sobre a linha. */
