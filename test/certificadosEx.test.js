@@ -1,4 +1,4 @@
-/* Certificados de EVENTO emitidos pelo ARCHÉ.
+/* Certificados das AÇÕES DE EXTENSÃO emitidos pelo ARCHÉ.
    O que se protege aqui é o que o documento afirma: quem tem direito, com
    quantas horas, com que assinaturas — e, antes de tudo, QUANDO ele passa a
    existir (só depois de a PROPPEX validar o encerramento). */
@@ -6,10 +6,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ASSINANTES_EVENTO, assinanteDoEventoValido, assinaturasDoCertificado,
-  certificadoDe, certificadosDePessoa, certificadosDoEvento, chDoParticipante,
-  codigoCertificadoEvento, eventoCertificavel, eventoEncerrado, podeEncerrar,
-  programacaoDoCertificado, situacaoEncerramento,
-} from "../lib/certificadosEv.js";
+  certificadoDe, certificadosDePessoa, certificadosDaAcao, chDoParticipante,
+  codigoCertificadoEvento, acaoCertificavel, eventoEncerrado, podeEncerrar,
+  programacaoDoCertificado, situacaoEncerramento, caixaCertificado,
+} from "../lib/certificadosEx.js";
 
 const CPF_A = "52998224725", CPF_B = "11144477735";
 
@@ -42,18 +42,18 @@ const acao = (extra = {}) => ({
 test("o certificado não existe antes de a PROPPEX validar o encerramento", () => {
   const aberto = acao({ encerramento: null });
   assert.equal(situacaoEncerramento(aberto), "aberto");
-  assert.equal(eventoCertificavel(aberto, "2026-08-20").ok, false);
-  assert.equal(certificadosDoEvento(aberto, { hoje: "2026-08-20" }).length, 0);
+  assert.equal(acaoCertificavel(aberto, "2026-08-20").ok, false);
+  assert.equal(certificadosDaAcao(aberto, { hoje: "2026-08-20" }).length, 0);
 
   const pedido = acao({ encerramento: { status: "solicitado" } });
-  const r = eventoCertificavel(pedido, "2026-08-20");
+  const r = acaoCertificavel(pedido, "2026-08-20");
   assert.equal(r.ok, false);
   assert.match(r.motivo, /aguarda a validação/i);
 
   const devolvido = acao({ encerramento: { status: "devolvido" } });
-  assert.match(eventoCertificavel(devolvido, "2026-08-20").motivo, /devolveu/i);
+  assert.match(acaoCertificavel(devolvido, "2026-08-20").motivo, /devolveu/i);
 
-  assert.equal(eventoCertificavel(acao(), "2026-08-20").ok, true);
+  assert.equal(acaoCertificavel(acao(), "2026-08-20").ok, true);
   assert.equal(eventoEncerrado(acao()), true);
 });
 
@@ -70,18 +70,18 @@ test("encerrar só depois de o evento acontecer, e uma vez só", () => {
 /* --------------------------- quem tem direito ---------------------------- */
 
 test("participante certifica com presença; sem controle, todo inscrito", () => {
-  const c = certificadosDoEvento(acao(), { hoje: "2026-08-20" });
+  const c = certificadosDaAcao(acao(), { hoje: "2026-08-20" });
   const nomes = c.filter((x) => x.tipo === "participante").map((x) => x.pessoa);
   assert.deepEqual(nomes, ["Ana"], "Bruno não foi credenciado");
 
   const semControle = acao({ controleFrequencia: false, encerramento: { status: "validado" } });
-  const c2 = certificadosDoEvento(semControle, { hoje: "2026-08-20" })
+  const c2 = certificadosDaAcao(semControle, { hoje: "2026-08-20" })
     .filter((x) => x.tipo === "participante").map((x) => x.pessoa);
   assert.deepEqual(c2, ["Ana", "Bruno"], "sem controle, a inscrição é a presença");
 });
 
 test("palestrante e comissão saem com o seu papel — e o coordenador entra", () => {
-  const c = certificadosDoEvento(acao(), { hoje: "2026-08-20" });
+  const c = certificadosDaAcao(acao(), { hoje: "2026-08-20" });
   const pal = c.find((x) => x.tipo === "palestrante");
   assert.equal(pal.pessoa, "Dra. Clara");
   assert.equal(pal.palestra, "Cuidado e evidência");
@@ -162,4 +162,59 @@ test("o verso traz a programação em ordem de dia e hora", () => {
   assert.equal(prog[0].ch, 2);
   assert.equal(prog[1].dia, "2026-08-11");
   assert.deepEqual(programacaoDoCertificado({ evento: {} }), []);
+});
+
+/* ------------- a ação SEM evento: a que correu fora do ARCHÉ -------------
+   O mesmo certificado, pelo mesmo motor — muda só o ato que o libera,
+   porque muda quem confere: no evento, o encerramento validado; na ação,
+   o REGISTRO, que é quando a PROPPEX confere relatório e listas. */
+const acaoSemEvento = (extra = {}) => {
+  const { evento, ...resto } = acao();
+  return { ...resto, status: "registrada", ...extra };
+};
+
+test("ação sem evento certifica quando a PROPPEX a REGISTRA", () => {
+  assert.equal(acaoCertificavel(acaoSemEvento(), "2026-08-20").ok, true);
+  const pendente = acaoCertificavel(acaoSemEvento({ status: "relatorio-entregue" }), "2026-08-20");
+  assert.equal(pendente.ok, false);
+  assert.match(pendente.motivo, /registrar/i, "a frase diz o que falta acontecer");
+  // sem número da ação não há certificado, com evento ou sem
+  assert.equal(acaoCertificavel(acaoSemEvento({ numeroAcao: "" }), "2026-08-20").ok, false);
+});
+
+test("sem evento, a lista digitada na Extensão É a lista de presença", () => {
+  // o Bruno tem presente:false — no evento isso o deixa de fora; aqui não
+  // existe credenciamento que pudesse dizer o contrário, e quem a
+  // coordenação lançou esteve lá
+  const c = certificadosDaAcao(acaoSemEvento(), { hoje: "2026-08-20" });
+  const nomes = c.filter((x) => x.tipo === "participante").map((x) => x.pessoa).sort();
+  assert.deepEqual(nomes, ["Ana", "Bruno"]);
+  // e a carga horária cai na da ação: sem programação não há atividade a somar
+  assert.equal(c.find((x) => x.pessoa === "Ana").ch, 8);
+  assert.deepEqual(programacaoDoCertificado(acaoSemEvento()), [], "sem programação, sem verso");
+  // no evento, a régua de presença continua valendo
+  const noEvento = certificadosDaAcao(acao(), { hoje: "2026-08-20" })
+    .filter((x) => x.tipo === "participante").map((x) => x.pessoa);
+  assert.deepEqual(noEvento, ["Ana"]);
+});
+
+test("as assinaturas moram no evento quando há um, e na ação quando não há", () => {
+  const png = { nome: "Prof. Eva", cargo: "Coordenação", base64: "iVBOR" };
+  const comEvento = acao({ assinaturas: { coordenacao: png } });
+  assert.equal(caixaCertificado(comEvento), comEvento.evento);
+  assert.equal(assinaturasDoCertificado(comEvento, {})[0].nome, "Prof. Eva");
+
+  const sem = acaoSemEvento({ assinaturas: { coordenacao: png } });
+  assert.equal(caixaCertificado(sem), sem, "sem evento, a caixa é a própria ação");
+  assert.equal(assinaturasDoCertificado(sem, {})[0].nome, "Prof. Eva");
+  // quem não tem imagem não entra no documento — em nenhum dos dois casos
+  assert.equal(assinaturasDoCertificado(acaoSemEvento({
+    assinaturas: { coordenacao: { nome: "Sem imagem" } } }), {}).length, 0);
+});
+
+test("o histórico da pessoa reúne o evento e a ação sem evento", () => {
+  const lista = certificadosDePessoa([acao(), acaoSemEvento({ id: "ext-2" })],
+    { cpf: CPF_A }, { hoje: "2026-08-20" });
+  assert.equal(lista.length, 2);
+  assert.deepEqual([...new Set(lista.map((c) => c.acaoId))].sort(), ["ext-1", "ext-2"]);
 });

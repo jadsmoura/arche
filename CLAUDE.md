@@ -266,7 +266,7 @@ public/
   a própria senha a marca `provisoria` some sozinha. Conta de gestor não recebe senha
   provisória — um gestor não redefine a senha do outro. Rota separada da de papéis de
   propósito: a de papéis reconstrói as listas, e resetar senha não pode rebaixar ninguém.
-- **Certificados dos EVENTOS são emitidos pelo ARCHÉ** (`lib/certificadosEv.js` +
+- **Certificados dos EVENTOS são emitidos pelo ARCHÉ** (`lib/certificadosEx.js` +
   `gerarCertificadoEventoPdf` + guia Certificados do ARCHÉ EV, decisão do dono ago/2026):
   com credenciamento, presenças e comissão organizadora já dentro do sistema, quem tem
   direito ao quê já está aqui — exportar para emitir fora era o passo mais longo entre o
@@ -302,12 +302,27 @@ public/
   que a verdade. As guias de certificado DENTRO de cada setor continuam onde estão (decisão do
   dono): lá é a operação de quem emite; aqui, o histórico de quem recebe. O participante sem
   conta baixa o dele pela própria credencial, que é onde ele volta depois do evento.
-- **Certificados da Extensão são de OUTRO sistema** (eventos da AEE,
-  `https://eventoscae.aee.edu.br/portal/login`): a guia Certificados do ARCHÉ EX **não
-  embute** a página — o login de lá pede a janela própria (cookies de terceiro), e uma
-  moldura em branco só confundiria quem vem emitir certificado. A guia diz onde a emissão
-  acontece, por que é fora do ARCHÉ, e leva até lá em **nova janela**. O endereço fica em
-  `CERTIFICADOS_EXTERNO`, no topo da SPA.
+- **A guia Certificados do EX é a MESMA do EV** (`lib/certificadosEx.js` — o antigo
+  `certificadosEv.js` —, decisão do dono ago/2026): o ARCHÉ EV é parte da atuação da
+  Extensão, e duas guias de certificado para a mesma coisa só fariam a coordenação procurar
+  em dois lugares. O motor passou a ser da **AÇÃO**, não do evento: **evento gerido fora do
+  ARCHÉ** tem a lista de participantes digitada na Extensão e certifica pelo mesmo caminho,
+  com o mesmo documento. Muda só o **ato que libera**, porque muda quem confere — ação COM
+  evento: o encerramento validado pela PROPPEX; ação SEM evento: a **ação REGISTRADA**, que
+  é o ato em que a PROPPEX já confere relatório final e listas. Sem evento, **a lista
+  digitada É a lista de presença** (não há credenciamento que a desminta), a CH cai na da
+  ação e o certificado sai **sem verso** (não há programação). O texto do documento diz
+  "ação de extensão" no lugar de "evento" (`ehEvento` no certificado; o particípio concorda
+  — ação *promovida*, evento *promovido*). As rotas são da ação
+  (`/api/extensao/:id/certificados`, `/certificado.pdf` e `/assinatura`), e as **assinaturas
+  do coordenador** moram no evento quando há um e na própria ação quando não há
+  (`caixaCertificado`) — a imagem nunca viaja em payload (`acaoSemSegredos`). Quem pode:
+  no evento, quem opera o evento; na ação sem evento, o dono e a gestão da Extensão —
+  coordenar `eventos` não dá alcance sobre o que não é evento. O aviso de "seu certificado
+  saiu" vale nos dois casos e **não se repete**: a marca `sys-ev-avisos-certificado-v1`
+  passou a guardar os e-mails já avisados, e participante incluído depois recebe só o dele.
+  O sistema da AEE (`CERTIFICADOS_EXTERNO`) continua citado na guia, para os certificados
+  emitidos lá antes de ago/2026.
 - **ARCHÉ Eventos** (`lib/eventos.js` + `public/eventos/` + rotas em server.js; 2ª geração
   em ago/2026, no molde Even3/Sympla — pesquisa com 3 agentes sobre as duas plataformas):
   EVENTOS GRATUITOS de todos os formatos — a ação de extensão ganha `a.evento` e uma página
@@ -436,6 +451,17 @@ public/
   padrão não pode fechar mais cedo para quem não pediu. O relógio é o de Brasília
   (`horaLocalHHMM` em lib/datas.js), nunca o do navegador de quem se inscreve, e quem confere é
   o SERVIDOR, dentro da fila (a rota de trocar atividades também).
+- **Encerrar o evento É entregar o relatório final** (`lib/relatorioEx.js` + o formulário do
+  botão "Encerrar evento" no ARCHÉ EV, achado do dono ago/2026): o primeiro evento gerido de
+  ponta a ponta encerrou, os certificados saíram — e a ação continuou **sem relatório** no
+  ARCHÉ EX, porque quem organiza termina o trabalho no EV e não volta ao outro setor. O
+  encerramento passou a pedir os campos do relatório e as fotos do portfólio, e grava a
+  entrega (`relatorio.entregueEm`, `status: relatorio-entregue`) com o snapshot dos números
+  do evento — o mesmo que a entrega pelo formulário do EX grava. Os campos são **um catálogo
+  só** (`CAMPOS_RELATORIO_FINAL`, servido em `camposRelatorio`) e a régua é **uma só**
+  (`faltaParaEntregar`): dois catálogos iguais em dois lugares acabam diferentes, e aí um
+  caminho aceita o que o outro recusa. Os anexos usam a MESMA rota do portfólio
+  (`/api/extensao/anexo`) — é o mesmo portfólio da mesma ação.
 - **O relatório final exige FOTOS** (`lib/portfolio.js`, decisão do dono ago/2026): a entrega
   pede **no mínimo 5 fotos** no portfólio da ação, sem teto — o registro fotográfico é o que
   comprova a realização, e proposta e relatório sozinhos não se conferem depois. A régua é

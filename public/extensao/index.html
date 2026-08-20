@@ -566,35 +566,159 @@ function nav(secao, id){
 }
 
 /* ============================ CERTIFICADOS ==============================
-   Sistema externo (AEE). Abre embutido para não tirar a pessoa do ARCHÉ —
-   a barra lateral continua ali —, com o aviso de que é outro sistema e com
-   a saída para nova aba sempre à mão: se o servidor de lá recusar a
-   moldura, a página fica em branco e o botão é o caminho.
+   O certificado é EMITIDO PELO ARCHÉ (decisão do dono, ago/2026), e é o
+   MESMO documento do ARCHÉ EV — o setor de eventos é parte da atuação da
+   Extensão, e ter duas guias de certificado diferentes para a mesma coisa
+   só faria a coordenação procurar em dois lugares.
+
+   Vale para as duas situações, e a diferença é só o ato que libera:
+     • evento gerido no ARCHÉ  → o encerramento validado pela PROPPEX;
+     • ação gerida FORA        → a ação registrada pela PROPPEX, depois do
+       relatório final e da lista de participantes digitada aqui.
+
+   Quem tem direito ao quê sai dos próprios registros da ação — não há
+   cadastro à parte —, e a emissão usa as mesmas rotas dos dois lados.
    ======================================================================== */
+let CERT_ABERTA = "";      // id da ação aberta na guia
+let CERT_DADOS = null;     // resposta de /api/extensao/:id/certificados
+
+function acoesCertificaveis(){
+  return ACOES.filter(a=>a.numeroAcao)
+    .sort((x,z)=>String(z.proposta?.periodoFim||"").localeCompare(String(x.proposta?.periodoFim||"")));
+}
+
 function renderCertificados(){
+  const lista=acoesCertificaveis();
   $("v-certificados").innerHTML = `
-    <div class="card" style="text-align:center;padding:38px 26px">
-      <div style="width:52px;height:52px;border-radius:14px;background:var(--info-soft);color:var(--info);
-        display:grid;place-items:center;margin:0 auto 16px">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
-          stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5"/>
-          <path d="M8.5 13.5 7 22l5-2.5L17 22l-1.5-8.5"/></svg>
-      </div>
-      <div class="card-t" style="font-size:17px">Certificados dos eventos de extensão</div>
-      <div class="card-s" style="max-width:520px;margin:8px auto 22px">
-        A emissão é feita no <b>sistema de eventos da AEE</b>, fora do ARCHÉ — com o login
-        daquele sistema. Ele exige a janela própria para entrar, então abrimos numa nova.
-      </div>
-      <a class="bt bt-pri" href="${CERTIFICADOS_EXTERNO}" target="_blank" rel="noopener">
-        Abrir o sistema de certificados ↗</a>
-      <div class="muted" style="margin-top:16px;font-size:12px;word-break:break-all">
-        ${CERTIFICADOS_EXTERNO}</div>
+    <div class="card">
+      <div class="sec-t" style="margin-top:0">Certificados das ações de extensão</div>
+      <div class="muted" style="margin-bottom:4px">O ARCHÉ emite o certificado de
+        <b>participantes</b>, <b>palestrantes</b> e <b>comissão organizadora</b> — o mesmo
+        documento do ARCHÉ EV, com a moldura do UNIEGO na frente e a programação no verso.
+        Quem tem direito sai dos registros da própria ação.</div>
+      <div class="muted" style="font-size:12.5px">Nos eventos geridos aqui, os certificados
+        saem quando a PROPPEX valida o encerramento. Nas ações que correram por fora, basta
+        lançar a lista de participantes na ação e a PROPPEX registrá-la.</div>
     </div>
+    ${lista.length ? `<div class="card">
+      <div class="sec-t" style="margin-top:0">Escolha a ação</div>
+      <div id="cert-lista">${lista.map(a=>cartaoAcaoCert(a)).join("")}</div>
+    </div>` : `<div class="card muted">Nenhuma ação aprovada ainda — o certificado nasce da
+      ação, e ela precisa do Número da Ação.</div>`}
+    <div id="cert-detalhe"></div>
     <div class="banner ba-info">
-      <b>Por que fora do ARCHÉ?</b> A certificação de eventos é do sistema da AEE, que já
-      guarda os inscritos e a frequência de cada evento. O ARCHÉ cuida da ação de extensão —
-      proposta, aprovação, relatório e participantes; o certificado sai de lá.
+      <b>Certificados antigos, no sistema da AEE.</b> O que foi emitido antes de ago/2026
+      continua lá, em <a href="${CERTIFICADOS_EXTERNO}" target="_blank" rel="noopener">${CERTIFICADOS_EXTERNO}</a>
+      — outro sistema, com o login dele.
     </div>`;
+  if(CERT_ABERTA) abrirCertificados(CERT_ABERTA);
+}
+
+function cartaoAcaoCert(a){
+  const ev=a.evento, st=String(ev?.encerramento?.status||"");
+  const [cor,txt] = !ev
+    ? (a.status==="registrada" ? ["ok","certificados liberados"] : ["warn","aguarda o registro da ação"])
+    : st==="validado" ? ["ok","certificados liberados"]
+    : st==="solicitado" ? ["warn","encerramento na PROPPEX"]
+    : st==="devolvido" ? ["warn","encerramento devolvido"]
+    : ["warn","evento em andamento"];
+  return `<button style="display:block;width:100%;text-align:left;padding:11px 0;background:none;
+      border:0;border-top:1px solid var(--line-2);cursor:pointer;font-family:inherit"
+      onclick="abrirCertificados('${esc(a.id)}')">
+    <span style="font-weight:700;font-size:14px;color:var(--ink)">${esc(a.proposta?.nomeAtividade||"(sem nome)")}</span>
+    <span class="badge" style="margin-left:8px;background:var(--${cor}-soft);color:var(--${cor})">${txt}</span>
+    <div class="muted" style="font-size:12.5px;margin-top:2px">${esc(a.numeroAcao||"")} ·
+      ${esc(a.curso||"")}${ev?"":" · sem evento no ARCHÉ"}</div>
+  </button>`;
+}
+
+async function abrirCertificados(id){
+  CERT_ABERTA=id;
+  const cx=$("cert-detalhe"); if(!cx) return;
+  cx.innerHTML=`<div class="card muted">Carregando…</div>`;
+  try{
+    const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/certificados`);
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||"Não foi possível carregar.");
+    CERT_DADOS=j; pintarCertificados(id);
+  }catch(e){ cx.innerHTML=`<div class="card muted">${esc(e.message)}</div>`; }
+}
+
+function pintarCertificados(id){
+  const a=ACOES.find(x=>x.id===id), j=CERT_DADOS, cx=$("cert-detalhe");
+  if(!a||!j||!cx) return;
+  const porTipo=(t)=>(j.certificados||[]).filter(c=>c.tipo===t);
+  const bloco=(t,rot)=>{
+    const l=porTipo(t); if(!l.length) return "";
+    return `<div class="sec-t">${rot} · ${l.length}</div>
+      ${l.map(c=>`<div style="display:flex;gap:10px;align-items:center;padding:9px 0;
+          border-top:1px solid var(--line-2)">
+        <div style="flex:1 1 auto;min-width:0">
+          <div style="font-weight:600;font-size:13.5px">${esc(c.pessoa)}</div>
+          <div class="muted" style="font-size:12px">${c.ch?`${esc(String(c.ch))} h`:""}
+            ${c.papel?` · ${esc(c.papel)}`:""}${c.palestra?` · ${esc(c.palestra)}`:""}
+            ${c.temEmail?"":" · sem e-mail no cadastro"}</div>
+        </div>
+        ${j.pode?`<a class="bt bt-sec" target="_blank" rel="noopener"
+          href="/api/extensao/${encodeURIComponent(a.id)}/certificado.pdf?ref=${encodeURIComponent(c.ref)}">📄 Emitir</a>`:""}
+      </div>`).join("")}`;
+  };
+  const ass=j.assinaturas||{};
+  const cartaoAss=(chave,rot,dica)=>{
+    const x=ass[chave]||{};
+    return `<div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px">
+      <div style="font-weight:700;font-size:13px">${rot}</div>
+      <div class="muted" style="font-size:12px;margin:2px 0 8px">${dica}</div>
+      ${x.temImagem?`<img src="/api/extensao/${encodeURIComponent(a.id)}/assinatura/${chave}?t=${Date.now()}"
+        alt="assinatura" style="max-height:52px;max-width:190px;display:block;margin-bottom:6px">`:""}
+      <input id="cas-nome-${chave}" placeholder="Nome de quem assina" value="${esc(x.nome||"")}">
+      <input id="cas-cargo-${chave}" placeholder="Cargo (ex.: Coordenação da ação)" value="${esc(x.cargo||"")}" style="margin-top:6px">
+      <input type="file" id="cas-file-${chave}" accept="image/png,image/jpeg" style="margin-top:8px;font-size:12px">
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="bt bt-sec" onclick="salvarAssinaturaCert('${esc(a.id)}','${chave}')">Salvar assinatura</button>
+        ${x.temImagem?`<button class="bt bt-sec" onclick="removerAssinaturaCert('${esc(a.id)}','${chave}')">Remover</button>`:""}
+      </div></div>`;
+  };
+  const total=(j.certificados||[]).length;
+  cx.innerHTML=`<div class="card">
+    <div class="sec-t" style="margin-top:0">${esc(a.proposta?.nomeAtividade||"")}</div>
+    ${j.pode
+      ? `<div class="banner ba-ok">✓ Certificados liberados — <b>${total}</b> pessoa(s) com direito.</div>`
+      : `<div class="banner ba-warn">${esc(j.motivo||"Os certificados ainda não estão liberados.")}</div>`}
+    ${total?`${bloco("participante","Participantes")}${bloco("palestrante","Palestrantes")}${bloco("comissao","Comissão organizadora")}`
+      : `<div class="muted">Ninguém com direito ainda. Os participantes vêm da lista da ação;
+         palestrantes e comissão, da equipe.</div>`}
+    <div class="sec-t">Assinaturas do certificado</div>
+    <div class="muted" style="margin-bottom:8px">Quem não tiver imagem <b>não aparece</b> no
+      documento — nada de linha em branco com nome embaixo. As do pró-reitor e do reitor são
+      as mesmas do ARCHÉ IC${j.institucionais?.proreitor&&j.institucionais?.reitor
+        ? " e já estão cadastradas." : " — cadastre-as no ARCHÉ IC, guia Certificados."}</div>
+    <div class="grid2">
+      ${cartaoAss("organizador","Responsável pela ação","Quem responde pela ação no projeto aprovado.")}
+      ${cartaoAss("coordenacao","Coordenação","Quem coordenou a execução (evento, curso, ação).")}
+    </div>
+  </div>`;
+}
+
+async function salvarAssinaturaCert(id,quem){
+  const f=$("cas-file-"+quem)?.files?.[0];
+  const nome=($("cas-nome-"+quem)?.value||"").trim();
+  if(!nome){ alert("Informe o nome de quem assina — é ele que sai impresso."); return; }
+  if(!f){ alert("Escolha o arquivo PNG da assinatura."); return; }
+  const fd=new FormData();
+  fd.append("file",f); fd.append("quem",quem); fd.append("nome",nome);
+  fd.append("cargo",($("cas-cargo-"+quem)?.value||"").trim());
+  const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/assinatura`,{method:"POST",body:fd});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ alert(j.error||"Não foi possível salvar a assinatura."); return; }
+  abrirCertificados(id);
+}
+
+async function removerAssinaturaCert(id,quem){
+  if(!confirm("Remover esta assinatura do certificado?")) return;
+  const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/assinatura?quem=${quem}`,{method:"DELETE"});
+  if(!r.ok){ alert("Não foi possível remover."); return; }
+  abrirCertificados(id);
 }
 
 /* =============================== PAINEL ================================= */

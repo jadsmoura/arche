@@ -82,9 +82,9 @@ import {
 } from "./lib/avisos.js";
 import {
   ASSINANTES_DO_EVENTO, assinanteDoEventoValido, assinaturasDoCertificado,
-  certificadoDe, certificadosDePessoa, certificadosDoEvento, eventoCertificavel,
+  caixaCertificado, certificadoDe, certificadosDePessoa, certificadosDaAcao, acaoCertificavel,
   eventoEncerrado, podeEncerrar, programacaoDoCertificado, situacaoEncerramento,
-} from "./lib/certificadosEv.js";
+} from "./lib/certificadosEx.js";
 import {
   TURMAS_EM, BOLSAS_EM, bolsaEmDe, turmaDe as turmaEmDe, turmaVigente as turmaEmVigente,
   ESCALA_AVALIACAO_EM, CRITERIOS_AVALIACAO_EM, RECOMENDACAO_EM, avaliacaoEMCompleta,
@@ -111,6 +111,9 @@ import {
   panoramaMonitoria,
 } from "./lib/relatorios.js";
 import { MIN_FOTOS_RELATORIO, faltamFotos, avisoFotos, fotosDoPortfolio } from "./lib/portfolio.js";
+import {
+  CAMPOS_RELATORIO_FINAL, normalizarRelatorioFinal, faltaParaEntregar,
+} from "./lib/relatorioEx.js";
 import {
   PERIODOS as PERIODOS_MATRIZ, normalizarCurricularizacao, panoramaCurricularizacao,
 } from "./lib/curricularizacao.js";
@@ -1776,6 +1779,25 @@ const podeVerAcao = (u, a) => gereEx(u) || minhaAcao(u, a);
 // Vale só para as rotas do evento — proposta, aprovação e relatório seguem
 // sendo da Extensão.
 const podeOperarEvento = (u, a) => podeVerAcao(u, a) || gereEv(u);
+// certificados: no evento, quem opera o evento; na ação SEM evento (a que
+// correu por fora e teve a lista digitada na Extensão), o dono e a gestão da
+// Extensão — coordenar `eventos` não dá alcance sobre o que não é evento.
+const podeCertificarAcao = (u, a) => (a?.evento ? podeOperarEvento(u, a) : podeVerAcao(u, a));
+/* As assinaturas que a TELA vê: nome, cargo e a data — nunca a imagem, que
+   pesa e tem rota própria (a mesma regra da capa e das fotos). */
+const acaoSemSegredos = (a) => {
+  if (!a) return a;
+  // a assinatura da ação SEM evento mora na raiz (caixaCertificado): a
+  // imagem segue a regra de sempre — fica guardada, sai por rota própria
+  const { assinaturas, ...resto } = a;
+  const out = a.evento ? { ...resto, evento: eventoSemSegredos(a.evento) } : { ...resto };
+  if (assinaturas) out.assinaturas = assinaturasVisiveis({ assinaturas });
+  return out;
+};
+const assinaturasVisiveis = (acao) => resumoAssinaturas(caixaCertificado(acao).assinaturas);
+const resumoAssinaturas = (ass) => Object.fromEntries(
+  Object.entries(ass || {}).filter(([, v]) => v)
+    .map(([k, v]) => [k, { nome: v.nome || "", cargo: v.cargo || "", temImagem: !!v.base64 }]));
 
 async function sessaoEx(req, res) {
   const u = await usuarioDe(req, res);
@@ -1807,14 +1829,8 @@ function eventoSemSegredos(ev) {
       : b);
   // a assinatura digitalizada é imagem como as demais: fica guardada, sai
   // por rota própria e nos payloads vai só o sinal de que existe
-  if (resto.assinaturas && typeof resto.assinaturas === "object") {
-    const a = {};
-    for (const [quem, v] of Object.entries(resto.assinaturas)) {
-      if (!v) continue;
-      a[quem] = { nome: v.nome || "", cargo: v.cargo || "", temImagem: !!v.base64 };
-    }
-    resto.assinaturas = a;
-  }
+  if (resto.assinaturas && typeof resto.assinaturas === "object")
+    resto.assinaturas = resumoAssinaturas(resto.assinaturas);
   return { ...resto, temCapa: !!capa };
 }
 
@@ -1860,7 +1876,7 @@ app.get("/api/extensao", async (req, res) => {
     // dela), sem enxergar o restante da Extensão alheia
     const acoes = (await lerAcoes())
       .filter((a) => podeVerAcao(u, a) || (gereEv(u) && a.evento))
-      .map((a) => a.evento ? { ...a, evento: eventoSemSegredos(a.evento) } : a);
+      .map(acaoSemSegredos);
     // os catálogos que o editor do evento usa (tipos de atividade e o texto
     // padrão da LGPD) seguem junto: a SPA não os duplica
     // as pessoas do setor para o "ver como" — quem submeteu ação (e, no EV,
@@ -1881,6 +1897,7 @@ app.get("/api/extensao", async (req, res) => {
       tiposBloco: TIPOS_BLOCO, categoriasApoio: CATEGORIAS_APOIO,
       redesSociais: REDES_SOCIAIS, frequencias: FREQUENCIAS, minFotosRelatorio: MIN_FOTOS_RELATORIO,
       papeisComissao: PAPEIS_COMISSAO, periodosMatriz: PERIODOS_MATRIZ,
+      camposRelatorio: CAMPOS_RELATORIO_FINAL,
     });
   } catch (e) {
     console.error("Erro ao listar ações de extensão:", e);
@@ -1901,6 +1918,7 @@ app.post("/api/extensao", async (req, res) => {
     if (!entrada.length) return res.status(400).json({ error: "Nada a gravar" });
     const r = await comAcoes((acoes) => {
       let gravadas = 0, recusadas = 0;
+      const registradas = [];
       for (const nova of entrada) {
         if (!nova?.id) { recusadas++; continue; }
         const i = acoes.findIndex((x) => x.id === nova.id);
@@ -1947,17 +1965,27 @@ app.post("/api/extensao", async (req, res) => {
           if (snapshot) final.relatorio = { ...final.relatorio, numerosEvento: snapshot };
           else if (final.relatorio.numerosEvento) delete final.relatorio.numerosEvento;
         }
+        // Ação SEM evento: quem libera o certificado é o REGISTRO da ação
+        // (é o ato em que a PROPPEX confere relatório e listas). Quem tem
+        // direito é avisado agora, do mesmo jeito que no evento — sem isso,
+        // o documento existiria e ninguém saberia.
+        if (!final.evento && final.status === "registrada" && base?.status !== "registrada")
+          registradas.push(final);
         if (i >= 0) acoes[i] = final; else acoes.push(final);
         gravadas++;
       }
-      return { gravadas, recusadas, gravar: gravadas > 0 };
+      return { gravadas, recusadas, registradas, gravar: gravadas > 0 };
     });
     // recusa com MOTIVO (hoje só a falta das fotos na entrega do relatório):
     // nada é gravado e a tela diz exatamente o que falta
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
     if (r.recusadas) console.warn(`[extensao] ${r.recusadas} ação(ões) recusada(s) de ${u.email}`);
+    for (const acao of r.registradas || []) {
+      avisarCertificadosDisponiveis(acao)
+        .catch((e) => console.error("[extensao] avisos de certificado:", e.message));
+    }
     const acoes = (await lerAcoes()).filter((a) => podeVerAcao(u, a)).map((a) =>
-      a.evento ? { ...a, evento: eventoSemSegredos(a.evento) } : a);
+      acaoSemSegredos);
     res.json({ ok: true, ...r, acoes });
   } catch (e) {
     console.error("Erro ao gravar ação de extensão:", e);
@@ -2701,7 +2729,7 @@ app.get("/api/publico/eventos/:slug/inscricao/:token", async (req, res) => {
         ({ id, titulo, dia: dia || "", horaInicio: horaInicio || "", horaFim: horaFim || "", local: local || "" }));
     // o certificado é a razão de a pessoa voltar a esta página depois do
     // evento: ou o botão existe, ou a linha diz o que ainda falta
-    const podeCert = eventoCertificavel(r.acao, hojeLocalISO());
+    const podeCert = acaoCertificavel(r.acao, hojeLocalISO());
     const meuCert = podeCert.ok
       ? certificadoDe(r.acao, { cpf: r.inscrito.cpf, email: r.inscrito.email, nome: r.inscrito.nome },
         { hoje: hojeLocalISO() })
@@ -10062,7 +10090,7 @@ const nomeArquivoCert = (cert) =>
 
 /* ---------------- assinatura do responsável e da coordenação ------------- */
 
-app.post("/api/extensao/:id/evento/assinatura", upload.single("file"), async (req, res) => {
+app.post("/api/extensao/:id/assinatura", upload.single("file"), async (req, res) => {
   try {
     const u = await sessaoEx(req, res);
     if (!u) return;
@@ -10079,10 +10107,11 @@ app.post("/api/extensao/:id/evento/assinatura", upload.single("file"), async (re
 
     const r = await comAcoes((acoes) => {
       const a = acoes.find((x) => x.id === req.params.id);
-      if (!a?.evento) return { erro: [404, "Evento não encontrado"], gravar: false };
-      if (!podeOperarEvento(u, a)) return { erro: [403, "Sem permissão para operar este evento"], gravar: false };
-      a.evento.assinaturas = a.evento.assinaturas || {};
-      a.evento.assinaturas[quem] = {
+      if (!a) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (!podeCertificarAcao(u, a)) return { erro: [403, "Sem permissão para esta ação"], gravar: false };
+      const cx = caixaCertificado(a);
+      cx.assinaturas = cx.assinaturas || {};
+      cx.assinaturas[quem] = {
         nome, cargo: String(req.body?.cargo || "").trim().slice(0, 140),
         base64: req.file.buffer.toString("base64"),
         em: new Date().toISOString(), por: u.email,
@@ -10091,36 +10120,37 @@ app.post("/api/extensao/:id/evento/assinatura", upload.single("file"), async (re
       return { acao: a };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-    res.json({ ok: true, evento: eventoSemSegredos(r.acao.evento) });
+    res.json({ ok: true, assinaturas: assinaturasVisiveis(r.acao) });
   } catch (e) {
     console.error("Erro ao gravar a assinatura do evento:", e);
     res.status(500).json({ error: "Falha ao gravar a assinatura." });
   }
 });
 
-app.delete("/api/extensao/:id/evento/assinatura", async (req, res) => {
+app.delete("/api/extensao/:id/assinatura", async (req, res) => {
   const u = await sessaoEx(req, res);
   if (!u) return;
   const quem = String(req.query?.quem || "").trim();
   if (!assinanteDoEventoValido(quem)) return res.status(400).json({ error: "Assinatura inválida." });
   const r = await comAcoes((acoes) => {
     const a = acoes.find((x) => x.id === req.params.id);
-    if (!a?.evento) return { erro: [404, "Evento não encontrado"], gravar: false };
-    if (!podeOperarEvento(u, a)) return { erro: [403, "Sem permissão para operar este evento"], gravar: false };
-    if (a.evento.assinaturas) delete a.evento.assinaturas[quem];
+    if (!a) return { erro: [404, "Ação não encontrada"], gravar: false };
+    if (!podeCertificarAcao(u, a)) return { erro: [403, "Sem permissão para esta ação"], gravar: false };
+    const cx = caixaCertificado(a);
+    if (cx.assinaturas) delete cx.assinaturas[quem];
     return { acao: a };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-  res.json({ ok: true, evento: eventoSemSegredos(r.acao.evento) });
+  res.json({ ok: true, assinaturas: assinaturasVisiveis(r.acao) });
 });
 
 /** A imagem da assinatura, para a própria gestão conferir o que subiu. */
-app.get("/api/extensao/:id/evento/assinatura/:quem", async (req, res) => {
+app.get("/api/extensao/:id/assinatura/:quem", async (req, res) => {
   const u = await sessaoEx(req, res);
   if (!u) return;
   const a = (await lerAcoes()).find((x) => x.id === req.params.id);
-  if (!a?.evento || !podeOperarEvento(u, a)) return res.status(404).end();
-  const x = a.evento.assinaturas?.[req.params.quem];
+  if (!a || !podeCertificarAcao(u, a)) return res.status(404).end();
+  const x = caixaCertificado(a).assinaturas?.[req.params.quem];
   if (!x?.base64) return res.status(404).end();
   res.setHeader("Content-Type", "image/png");
   res.setHeader("Cache-Control", "private, max-age=60");
@@ -10130,14 +10160,14 @@ app.get("/api/extensao/:id/evento/assinatura/:quem", async (req, res) => {
 /* --------------------------- a lista e a emissão ------------------------- */
 
 /** Quem tem direito a certificado neste evento — a tela da gestão. */
-app.get("/api/eventos/:id/certificados", async (req, res) => {
+app.get("/api/extensao/:id/certificados", async (req, res) => {
   try {
     const u = await sessaoEx(req, res);
     if (!u) return;
     const a = (await lerAcoes()).find((x) => x.id === req.params.id);
-    if (!a?.evento || !podeOperarEvento(u, a)) return res.status(404).json({ error: "Evento não encontrado" });
-    const pode = eventoCertificavel(a);
-    const lista = certificadosDoEvento(a).map(({ email, cpf, ...c }) => ({
+    if (!a || !podeCertificarAcao(u, a)) return res.status(404).json({ error: "Ação não encontrada" });
+    const pode = acaoCertificavel(a);
+    const lista = certificadosDaAcao(a).map(({ email, cpf, ...c }) => ({
       ...c, temEmail: !!email, temCpf: !!cpf,
       // a chave de emissão não expõe o CPF de ninguém na tela
       ref: cpf || email || c.pessoa,
@@ -10146,7 +10176,7 @@ app.get("/api/eventos/:id/certificados", async (req, res) => {
     res.json({
       ok: true, pode: pode.ok, motivo: pode.motivo,
       certificados: lista,
-      assinaturas: eventoSemSegredos(a.evento).assinaturas || {},
+      assinaturas: assinaturasVisiveis(a),
       institucionais: {
         proreitor: !!institucionais.proreitor?.base64,
         reitor: !!institucionais.reitor?.base64,
@@ -10159,12 +10189,12 @@ app.get("/api/eventos/:id/certificados", async (req, res) => {
 });
 
 /** A gestão emite o de uma pessoa (CPF, e-mail ou nome como referência). */
-app.get("/api/eventos/:id/certificado.pdf", async (req, res) => {
+app.get("/api/extensao/:id/certificado.pdf", async (req, res) => {
   try {
     const u = await sessaoEx(req, res);
     if (!u) return;
     const a = (await lerAcoes()).find((x) => x.id === req.params.id);
-    if (!a?.evento || !podeOperarEvento(u, a)) return res.status(404).send("Evento não encontrado");
+    if (!a || !podeCertificarAcao(u, a)) return res.status(404).send("Ação não encontrada");
     const ref = String(req.query?.ref || "").trim();
     const cert = certificadoDe(a, {
       cpf: ref, email: ref, nome: ref,
@@ -10190,7 +10220,7 @@ app.get("/api/publico/eventos/:slug/inscricao/:token/certificado.pdf", async (re
     const inscrito = (a.participantes?.inscritos || [])
       .find((x) => String(x?.token || "").toLowerCase() === t);
     if (!inscrito) return res.status(404).send("Inscrição não encontrada");
-    const pode = eventoCertificavel(a);
+    const pode = acaoCertificavel(a);
     if (!pode.ok) return res.status(409).send(pode.motivo);
     const cert = certificadoDe(a, { cpf: inscrito.cpf, email: inscrito.email, nome: inscrito.nome },
       { hoje: hojeLocalISO() });
@@ -10223,10 +10253,12 @@ app.get("/api/meus-certificados", async (req, res) => {
     const eu = { cpf: perfil.cpf || u.cpf || "", email: u.email, nome: perfil.nome || u.nome || "" };
     const out = [];
 
-    // EVENTOS — participante, palestrante e comissão organizadora
+    // EXTENSÃO — participante, palestrante e comissão organizadora, dos
+    // eventos geridos no ARCHÉ e das ações que correram por fora (a lista
+    // digitada na Extensão): é o mesmo certificado, pelo mesmo motor
     for (const c of certificadosDePessoa(await lerAcoes(), eu)) {
       out.push({
-        origem: "evento", setor: "Eventos",
+        origem: "evento", setor: c.slug ? "Eventos" : "Extensão",
         titulo: c.evento,
         papel: c.tipo === "participante" ? "Participante"
           : c.tipo === "palestrante" ? "Palestrante" : (c.papel || "Comissão organizadora"),
@@ -10311,7 +10343,17 @@ const AVISOS_CERT_KEY = "sys-ev-avisos-certificado-v1";
 
 async function avisarCertificadosDisponiveis(acao) {
   const base = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
-  const certs = certificadosDoEvento(acao);
+  const certs = certificadosDaAcao(acao);
+  // quem JÁ foi avisado desta ação não é avisado de novo: a marca deixou de
+  // ser só registro e passou a valer como guarda (ago/2026), porque a ação
+  // sem evento é liberada pelo REGISTRO — e a gestão pode gravar a ação
+  // outras vezes depois dele. Participante incluído mais tarde recebe o
+  // dele, e só ele.
+  let jaAvisados = new Set();
+  try {
+    const reg = JSON.parse((await storage.get(AVISOS_CERT_KEY)) || "{}");
+    jaAvisados = new Set(reg[acao.id]?.emails || []);
+  } catch { /* sem registro legível, avisa todo mundo — é o comportamento antigo */ }
   const porToken = new Map((acao.participantes?.inscritos || [])
     .filter((i) => i?.email && i?.token).map((i) => [String(i.email).toLowerCase(), i.token]));
   const vistos = new Set();
@@ -10320,6 +10362,7 @@ async function avisarCertificadosDisponiveis(acao) {
     const email = String(c.email || "").trim().toLowerCase();
     if (!email || vistos.has(email)) continue;
     vistos.add(email);
+    if (jaAvisados.has(email)) continue;
     const token = c.tipo === "participante" ? porToken.get(email) : null;
     fila.push({ cert: { ...c, email },
       link: token
@@ -10343,7 +10386,8 @@ async function avisarCertificadosDisponiveis(acao) {
 
   try {
     const reg = JSON.parse((await storage.get(AVISOS_CERT_KEY)) || "{}");
-    reg[acao.id] = { em: new Date().toISOString(), enviados, previstos: fila.length, semEmail };
+    reg[acao.id] = { em: new Date().toISOString(), enviados, previstos: fila.length, semEmail,
+      emails: [...new Set([...jaAvisados, ...vistos])] };
     await storage.set(AVISOS_CERT_KEY, JSON.stringify(reg));
   } catch { /* o registro é conveniência: falhar aqui não desfaz os envios */ }
   console.log(`[eventos] certificados de "${acao.proposta?.nomeAtividade || acao.id}": `
@@ -10363,12 +10407,20 @@ app.post("/api/extensao/:id/evento/encerrar", async (req, res) => {
     const u = await sessaoEx(req, res);
     if (!u) return;
     const obs = String(req.body?.observacao || "").trim().slice(0, 2000);
+    // Encerrar o evento É entregar o relatório final da ação (pedido do
+    // dono, ago/2026): o coordenador termina o trabalho no ARCHÉ EV e a ação
+    // ficava sem relatório num setor que ele não voltava a abrir. Os campos
+    // vêm no mesmo pedido e passam pela MESMA régua do formulário do EX.
+    const campos = normalizarRelatorioFinal(req.body?.relatorio);
     const r = await comAcoes((acoes) => {
       const a = acoes.find((x) => x.id === req.params.id);
       if (!a?.evento) return { erro: [404, "Evento não encontrado"], gravar: false };
       if (!podeOperarEvento(u, a)) return { erro: [403, "Sem permissão para operar este evento"], gravar: false };
       const pode = podeEncerrar(a, hojeLocalISO());
       if (!pode.ok) return { erro: [400, pode.motivo], gravar: false };
+      const faltas = faltaParaEntregar(a, campos);
+      if (faltas.length)
+        return { erro: [400, "Para encerrar o evento falta " + faltas.join("; ") + "."], gravar: false };
       const n = numerosDoEvento(a);
       a.evento.encerramento = {
         status: "solicitado", pedidoEm: new Date().toISOString(), pedidoPor: u.email,
@@ -10377,6 +10429,15 @@ app.post("/api/extensao/:id/evento/encerrar", async (req, res) => {
         numeros: { inscritos: n.inscritos, presentes: n.presentes },
         decididoEm: "", decididoPor: "", parecer: "",
       };
+      // o relatório entra ENTREGUE, com o snapshot dos números do sistema —
+      // o mesmo que a entrega pelo formulário do EX grava (o cliente não o
+      // fabrica). Reenviar o encerramento devolvido preserva a data original.
+      a.relatorio = {
+        ...(a.relatorio || {}), ...campos,
+        entregueEm: a.relatorio?.entregueEm || new Date().toISOString(),
+        numerosEvento: n,
+      };
+      if (a.status !== "registrada") a.status = "relatorio-entregue";
       a.atualizadoEm = new Date().toISOString();
       return { acao: a };
     });
