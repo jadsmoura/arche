@@ -81,6 +81,7 @@ import {
 import {
   PAPEIS_COMISSAO, faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento,
   videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento, contaPresente,
+  normalizarCursosExtras, cursosDaAcao,
 } from "./lib/eventos.js";
 import {
   AVISOS, AVISOS_KEY, SETORES_AVISO, aplicarMudanca as aplicarMudancaAviso,
@@ -1798,6 +1799,11 @@ function comAcoes(fn, { flushJa = true } = {}) {
   filaEx = proxima.catch(() => {});
   return proxima;
 }
+/* Os cursos que uma ação de extensão pode ter. São os 12 do catálogo mais o
+   guarda-chuva institucional — a ação da PROPPEX não é de curso nenhum, e a
+   tela do ARCHÉ EV já oferece essa opção desde sempre. */
+const CURSOS_ACAO = [...CURSOS.map((c) => c.nome), "Institucional / PROPPEX"];
+
 const gereEx = (u) => !!u?.modulos?.includes("extensao");
 // a coordenação do ARCHÉ EV: opera todos os EVENTOS (página, inscrições,
 // credenciamento, transmissão), sem alcançar a gestão da Extensão em si
@@ -2054,6 +2060,14 @@ app.post("/api/extensao", async (req, res) => {
         if (final.proposta)
           final.proposta = { ...final.proposta,
             curricularizacao: normalizarCurricularizacao(final.proposta.curricularizacao) };
+        /* Cursos CO-REALIZADORES (pedido de um professor, ago/2026): a
+           jornada é de dois cursos, e abrir duas ações para o mesmo evento
+           partiria a proposta, o número da ação e a contagem de
+           participantes ao meio. O principal segue sendo um — é ele que
+           nomeia a pasta no Drive —, e a régua é do SERVIDOR: curso fora do
+           catálogo, repetido ou igual ao principal não entra. */
+        final.cursosExtras = normalizarCursosExtras(
+          final.cursosExtras, final.curso, CURSOS_ACAO);
         // Números do evento no relatório: na ENTREGA (entregueEm aparecendo
         // agora) de uma ação com evento, o SERVIDOR fotografa os números do
         // sistema de inscrições — snapshot datado, calculado da ação já
@@ -2982,7 +2996,9 @@ app.get("/api/publico/eventos/:slug/inscricao/:token", async (req, res) => {
       : null;
     res.json({
       evento: {
-        slug: ev.slug, nome: p.nomeAtividade || "", curso: r.acao.curso || "",
+        // o curso que sai na página pública diz os DOIS, quando a ação é de
+        // mais de um: quem vê o cartaz precisa saber que o evento é dele
+        slug: ev.slug, nome: p.nomeAtividade || "", curso: cursosDaAcao(r.acao).join(" e "),
         periodoInicio: p.periodoInicio || "", periodoFim: p.periodoFim || "",
         local: p.local || "", municipio: p.municipio || "",
         transmissaoPublicada: ev.transmissao?.publicada === true,

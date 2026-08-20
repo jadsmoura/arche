@@ -432,6 +432,22 @@ public/
   (env EVENTOS_NOTIFY_EMAIL) — contato do hotsite, do texto LGPD padrão e da confirmação
   de inscrição, e destinatário do aviso automático quando uma página de evento entra no
   ar (`emailEventoAtivado`, fire-and-forget).
+- **A ação pode ser de MAIS DE UM CURSO** (`cursosExtras` + `normalizarCursosExtras`/
+  `cursosDaAcao`/`cursosEmTexto`/`acaoDoCurso` em lib/eventos.js, pedido de um professor
+  ago/2026): a jornada é de Engenharia Mecânica E de Engenharia Civil, e o formulário só
+  aceitava um. Abrir duas ações para o mesmo evento seria pior de todos os lados — duas
+  propostas para a PROPPEX aprovar, dois números na sequência oficial, duas páginas públicas
+  com o mesmo QR e a contagem de participantes partida ao meio. Por isso o curso PRINCIPAL
+  continua sendo UM (`acao.curso`): é ele que nomeia a pasta no Drive (`extensao/<curso>/…`) e
+  responde pela ação; os demais são CO-REALIZADORES, até quatro (acima disso a ação é
+  institucional, e para isso a lista já tem "Institucional / PROPPEX"). A régua é do SERVIDOR
+  (curso fora do catálogo, repetido ou igual ao principal não entra, e grava-se a grafia do
+  catálogo — "engenharia civil" e "Engenharia Civil" não são dois cursos), e **trocar o
+  principal tira-o dos corealizadores**, senão a ficha diria "Enfermagem e Enfermagem". O
+  campo aparece no assistente (passo 1) e na guia Dados do evento; os DOIS cursos saem no
+  cabeçalho, na lista, na página pública e no PDF da proposta e do relatório. E o **filtro por
+  curso acha a ação pelos dois lados** (`acaoDoCurso`) — sem isso a coordenação do segundo
+  curso não veria o próprio evento, que é o que o pedido queria resolver.
 - **Programação única e a conferência da carga horária** (`programacaoUnica`/`somaChHtml` na
   guia Programação do ARCHÉ EV, pedido do dono ago/2026): a CH do CERTIFICADO sai das
   atividades em que a pessoa teve presença; sem atividade nenhuma ela cai na CH da ação
