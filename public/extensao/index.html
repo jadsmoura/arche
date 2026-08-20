@@ -1347,6 +1347,40 @@ function fmtDataHora(iso){
   return `${z(d.getDate())}/${z(d.getMonth()+1)}/${d.getFullYear()} às ${z(d.getHours())}h${z(d.getMinutes())}`;
 }
 
+/* A BARRA DE AÇÕES, no ALTO da ação (pedido do dono, ago/2026): os dois
+   PDFs e o ato do momento. Eles existiam só no último card da página, depois
+   do relatório, do portfólio e da lista de participantes — quem abre a ação
+   para imprimir o projeto ou para encerrar o relatório procura no alto, não
+   rola três telas até achar. O card de baixo continua com o resto
+   (apreciação, .docx, .xlsx, cobrança), que é trabalho de conferência.
+
+   O ato do momento é UM: entregar, validar ou reabrir — nunca os três ao
+   mesmo tempo, senão a barra vira outro menu para decifrar. */
+function barraAcoes(a,s,podeRelatorio){
+  const bt=(rot,fn,cls="bt-sec",tit="")=>`<button class="bt ${cls}" title="${esc(tit)}" onclick="${fn}">${rot}</button>`;
+  const temRel=!!a.relatorio?.entregueEm;
+  const out=[];
+  if(PROPPEX){
+    out.push(bt("📄 Projeto (PDF)",`exportar('${a.id}','proposta')`,"bt-sec",
+      "A proposta em PDF timbrado, sem lista de participantes"));
+    if(podeRelatorio) out.push(bt("🖨 Relatório final (PDF)",`exportar('${a.id}','pdf')`,"bt-sec",
+      "O relatório em PDF timbrado, com a lista de participantes"+(temRel?"":" — sai com o que já estiver preenchido")));
+  }
+  if(podeRelatorio && s!=="registrada"){
+    const falta=faltaParaEntregar(a);
+    if(temRel && PROPPEX) out.push(bt("✓ Validar e registrar",`registrarAcao('${a.id}')`,"bt-ok",
+      "Finaliza a ação e libera os certificados"));
+    else if(temRel) out.push(bt("📨 Reenviar relatório atualizado",`enviarRelatorio('${a.id}')`,"bt-pri"));
+    else out.push(bt(`📨 Encerrar e entregar o relatório final${falta.length?" — falta "+esc(falta.join("; ")):""}`,
+      `enviarRelatorio('${a.id}')`, falta.length?"bt-ghost":"bt-pri",
+      falta.length?"O botão diz o que ainda falta":"Entrega o relatório à PROPPEX"));
+  }
+  if(s==="registrada" && !temRel && PROPPEX)
+    out.push(bt("↩ Reabrir para o relatório",`reabrirAcao('${a.id}')`,"bt-warn",
+      "Ação finalizada sem relatório — reabre para a prestação de contas"));
+  return out.length ? `<div class="exp" style="margin:12px 0 2px">${out.join("")}</div>` : "";
+}
+
 /* ============================== DETALHE ================================= */
 function renderDetalhe(id){
   const a = ACOES.find(x=>x.id===id);
@@ -1362,7 +1396,7 @@ function renderDetalhe(id){
     </div>
     <div class="muted" style="margin:4px 0 12px">${esc(a.curso)} · ${fmt(p.periodoInicio)} a ${fmt(p.periodoFim)} · ${esc(p.cargaHoraria)}h · ${esc(p.local)} (${esc(p.municipio)})${a.criadoPor?` · submetida por ${esc(a.criadoPorNome||a.criadoPor)} &lt;${esc(a.criadoPor)}&gt;`:""}</div>`;
 
-  html += marcas(a) + '<div style="margin-bottom:10px"></div>';
+  html += marcas(a) + barraAcoes(a,s,podeRelatorio) + '<div style="margin-bottom:10px"></div>';
   const c3 = completude(a);
   if(PROPPEX && c3.completa && s==="relatorio-entregue")
     html += `<div class="banner ba-ok">✅ <b>Ação completa (3/3).</b> A lista de participantes está recolhida — exporte a planilha para emitir os certificados no sistema da instituição e depois finalize o fluxo abaixo.</div>`;
@@ -1956,8 +1990,10 @@ function acoesRapidas(a,s){
   const temRel=!!a.relatorio?.entregueEm;
   const falta=faltaParaEntregar(a);
   return `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
-    ${bt("📄 Proposta (PDF)",`exportar('${a.id}','proposta')`,"Formulário da proposta em PDF timbrado — sem lista de participantes")}
-    ${temRel?bt("🖨 Relatório final (PDF)",`exportar('${a.id}','pdf')`,"Relatório final em PDF timbrado, com a lista de participantes"):""}
+    ${bt("📄 Projeto (PDF)",`exportar('${a.id}','proposta')`,"Formulário da proposta em PDF timbrado — sem lista de participantes")}
+    ${a.numeroAcao?bt("🖨 Relatório final (PDF)",`exportar('${a.id}','pdf')`,
+      "Relatório final em PDF timbrado, com a lista de participantes"
+      +(temRel?"":" — sai com o que já estiver preenchido")):""}
     ${temRel?bt("📑 Registro (.docx)",`exportar('${a.id}','registro')`,"Registro de Atividade de Extensão em Word"):""}
     ${!temRel&&s!=="registrada" ? (falta.length
       ? `<span class="muted" style="font-size:11.5px">Para entregar o relatório: ${esc(falta.join("; "))} —

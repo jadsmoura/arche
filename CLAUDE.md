@@ -451,6 +451,14 @@ public/
   padrão não pode fechar mais cedo para quem não pediu. O relógio é o de Brasília
   (`horaLocalHHMM` em lib/datas.js), nunca o do navegador de quem se inscreve, e quem confere é
   o SERVIDOR, dentro da fila (a rota de trocar atividades também).
+- **A barra de ações fica no ALTO da ação** (`barraAcoes`, pedido do dono ago/2026): os dois
+  PDFs — **Projeto** e **Relatório final** — e o ato do momento (encerrar e entregar, validar
+  e registrar, ou reabrir). Eles existiam só no último card, depois do relatório, do portfólio
+  e da lista de participantes: quem abre a ação para imprimir o projeto ou para encerrar o
+  relatório procura no alto, não rola três telas. O ato é **um só** por vez, senão a barra
+  vira outro menu para decifrar, e o botão de entrega **diz o que falta** quando falta. O PDF
+  do relatório sai **antes da entrega também**, com o que já estiver preenchido — é assim que
+  se confere o documento antes de assinar embaixo.
 - **A guia Relatórios é onde a ação se conclui** (pedido do dono, ago/2026): ela mostra tudo
   o que ainda deve relatório — a **aprovada cujo período já começou** (antes, a ação só
   aparecia ali depois de o período vencer, e quem encerrava a atividade no mesmo dia não a
