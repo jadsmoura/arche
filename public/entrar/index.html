@@ -178,7 +178,15 @@ let EMAIL = "", REDEFININDO = false;
 // Conta fora do @uniego.edu.br nasce pendente. Mas quem já submeteu projeto
 // pelo formulário do edital não precisa esperar: o projeto o reconhece pelo
 // CPF, e informá-lo no perfil abre o setor de Pesquisa na hora.
-if (q.get("pendente"))
+/* Conta que a GESTÃO removeu não está "aguardando aprovação": ela foi
+   tirada do portal, e dizer-lhe que a liberação vem em breve seria mandá-la
+   esperar por algo que não vem — e ligar para a PROPPEX perguntando por quê. */
+if (q.get("removido"))
+  aviso("warn", "🚫 O seu acesso ao ARCHÉ foi <b>encerrado pela PROPPEX</b>."
+    + '<div style="margin-top:8px;font-weight:400">Se você acredita que houve engano, fale com a'
+    + ' Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária —'
+    + ' só ela pode restabelecer o acesso.</div>');
+else if (q.get("pendente"))
   aviso("warn", "⏳ Seu acesso está <b>aguardando aprovação</b> da PROPPEX. Você receberá a liberação em breve."
     + '<div style="margin-top:8px;font-weight:400">Se você <b>submeteu projeto de Iniciação Científica</b> ou foi'
     + ' indicado em um, informe o seu <b>CPF</b> no perfil: é por ele que o sistema encontra os seus projetos,'
@@ -214,7 +222,7 @@ async function post(url, dados){
   return r.json().catch(() => ({ ok: false, error: "Resposta inesperada do servidor." }));
 }
 function entrou(j){
-  if (j.papel === "pendente") { location.href = "/entrar?pendente=1"; return; }
+  if (j.papel === "pendente") { location.href = j.removido ? "/entrar?removido=1" : "/entrar?pendente=1"; return; }
   location.href = NEXT;
 }
 function identificar(email){

@@ -328,6 +328,11 @@ app.use(async (req, res, next) => {
   const u = await usuarioDe(req, res);   // renova a sessão de quem está usando
   if (!u) return res.redirect("/entrar?next=" + encodeURIComponent(req.originalUrl));
   if (u.papel === "pendente") {
+    /* A REMOÇÃO vence até as exceções nominais. O aluno indicado na IC e o
+       monitor convidado entram com conta pendente porque o convite é nominal
+       — mas remover alguém que é aluno de IC não pode ser um ato sem efeito.
+       Quem a gestão tirou, saiu; volta só se um gestor geral o reaprovar. */
+    if (await contaRemovida(u.email)) return res.redirect("/entrar?removido=1");
     // exceção da IC: aluno indicado, avaliador ad hoc designado e bolsista
     // do ICEM entram pelo convite, que já é nominal (ver sessaoIC).
     const cpfDele = (await carregarPerfis())[u.email]?.cpf || "";
@@ -601,7 +606,7 @@ app.post("/auth/google", async (req, res) => {
     emitirCookie(res, { email, nome });
     // cadastro novo (ou conta ainda pendente) entra aprovado na hora
     const papel = await aprovarCadastroNovo(email, nome);
-    res.json({ ok: true, papel });
+    res.json({ ok: true, papel, removido: papel === "pendente" && await contaRemovida(email) });
   } catch (e) {
     res.status(400).json({ ok: false, error: e.message });
   }
@@ -650,7 +655,8 @@ app.post("/auth/codigo/verificar", async (req, res) => {
   // cadastro novo (ou conta ainda pendente) entra aprovado na hora
   const papel = await aprovarCadastroNovo(email, email);
   // temSenha diz à tela se vale oferecer a criação de senha logo após entrar
-  res.json({ ok: true, papel, temSenha: await temSenha(storage, email) });
+  res.json({ ok: true, papel, temSenha: await temSenha(storage, email),
+    removido: papel === "pendente" && await contaRemovida(email) });
 });
 
 /* ------------------------------ SENHA ----------------------------------- */
@@ -763,10 +769,22 @@ async function notificarPendente(email, nome) {
  * o alerta "cadastros novos".
  */
 const CADASTROS_KEY = "auth-novos-cadastros-v1";
+/** A gestão tirou esta conta do portal? É a única razão de um acesso não
+    voltar sozinho — e por isso a tela de entrada precisa poder dizê-lo, em
+    vez de prometer uma "liberação em breve" que não virá. */
+async function contaRemovida(email) {
+  const usuarios = await carregarUsuarios(storage);
+  return (usuarios.removidos || []).includes(String(email || "").toLowerCase());
+}
+
 async function aprovarCadastroNovo(email, nome) {
   const e = String(email || "").toLowerCase();
   const usuarios = await carregarUsuarios(storage);
   if (papelDe(e, usuarios) !== "pendente") return papelDe(e, usuarios);
+  /* Quem a gestão removeu não volta por entrar de novo — era o que
+     esvaziava o botão "remover acesso" (achado de ago/2026). Só um gestor
+     geral o traz de volta, em /usuarios/. */
+  if ((usuarios.removidos || []).includes(e)) return "pendente";
   usuarios.aprovados = [...new Set([...usuarios.aprovados, e])];
   usuarios.pendentes = usuarios.pendentes.filter((p) => p.email !== e);
   await salvarUsuarios(storage, usuarios);
@@ -1174,6 +1192,14 @@ app.post("/api/usuarios", async (req, res) => {
   u.aprovados = u.aprovados.filter((x) => x !== e);
   u.gestores = u.gestores.filter((x) => x !== e);
   delete u.coordenadores[e];
+  /* Remover é uma DECISÃO, e decisão dura (ago/2026): quem sai fica na lista
+     de removidos e não volta sozinho no login seguinte. Reaprovar, promover
+     ou designar coordenação desfaz a remoção — são justamente os atos de
+     quem quer a pessoa de volta. Gestor fixo não se remove. */
+  if (acao === "remover" && ehGestorFixo(e))
+    return res.status(400).json({ error: "As contas da pró-reitoria não se removem." });
+  u.removidos = (u.removidos || []).filter((x) => x !== e);
+  if (acao === "remover") u.removidos.push(e);
   if (acao === "aprovar") u.aprovados.push(e);
   else if (acao === "promover") u.gestores.push(e);
   else if (acao === "coordenar") {
@@ -1270,6 +1296,11 @@ app.get("/api/usuarios/resumo", async (req, res) => {
   }
 });
 
+/** As funções que fazem o portal tratar alguém como docente ou coordenação —
+    é o que a etiqueta de conta externa aponta para conferência. */
+const DECLARAM_DOCENCIA = ["professor", "professor-pesquisador", "coord-curso", "coord-pedagogico",
+  "coord-pesquisa", "coord-extensao", "coord-acao-comunitaria", "coord-ensino", "coord-politicas"];
+
 app.get("/api/usuarios/painel", async (req, res) => {
   try {
     const g = await exigirGestor(req, res); if (!g) return;
@@ -1288,6 +1319,17 @@ app.get("/api/usuarios/painel", async (req, res) => {
         titulacao: perfil.titulacao || "", matricula: perfil.matricula || "",
         temCpf: !!perfil.cpf, temPerfil: !!perfil.nome,
         preCadastro: !!perfil.preCadastro,
+        /* CONTA EXTERNA (pedido do dono, ago/2026): quem entrou por um e-mail
+           que não é o institucional e se DECLAROU docente ou coordenação. A
+           declaração não concede nada — o papel no sistema vem das listas
+           daqui, e coordenação de módulo só o gestor geral designa —, mas é
+           por ela que os setores tratam a pessoa como professora. Como o
+           cadastro é aberto a qualquer e-mail (é o que permite ao professor
+           sem @uniego trabalhar), a conferência da PROPPEX é DEPOIS: esta
+           etiqueta é o que a torna possível sem ler e-mail por e-mail. */
+        externa: !String(c.email || "").endsWith("@uniego.edu.br"),
+        declarouDocencia: DECLARAM_DOCENCIA.includes(normalizarFuncao(perfil.funcao)),
+        removido: (usuarios.removidos || []).includes(c.email),
         papel: papelDe(c.email, usuarios),
         modulos: modulosDe(c.email, usuarios),
         uso: c.uso,

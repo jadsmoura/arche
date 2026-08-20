@@ -254,3 +254,36 @@ test("campo em branco ou só espaços conta como faltando", async () => {
   const p = { nome: "  ", funcao: "professor", curso: "Direito", cpf: " ", telefone: "x", titulacao: "mestre" };
   assert.deepEqual(faltaNoPerfil(p).map((f) => f.campo).sort(), ["cpf", "nome"]);
 });
+
+/* ======================================================================
+   REMOVER ACESSO PRECISA DURAR (achado de ago/2026).
+
+   O cadastro é aberto: toda conta nova entra aprovada no primeiro login,
+   e é isso que permite ao professor sem @uniego.edu.br trabalhar. O
+   preço disso é que o único freio da gestão passa a ser a remoção — e
+   ela não valia nada: a pessoa voltava a `pendente`, e a aprovação
+   automática a reaprovava no acesso seguinte.
+   ====================================================================== */
+test("a remoção vence o domínio institucional e a lista de aprovados", () => {
+  const u = { gestores: [], coordenadores: {}, aprovados: ["fora@gmail.com"], pendentes: [],
+    removidos: ["fora@gmail.com", "dentro@uniego.edu.br"] };
+  assert.equal(papelDe("fora@gmail.com", u), "pendente", "estar em aprovados não basta");
+  assert.equal(papelDe("dentro@uniego.edu.br", u), "pendente", "nem o domínio da casa");
+  // e quem não foi removido segue como era
+  assert.equal(papelDe("outro@uniego.edu.br", u), "aprovado");
+});
+
+test("removido não é o mesmo que nunca aprovado — e reaprovar desfaz", () => {
+  const u = { gestores: [], coordenadores: {}, aprovados: [], pendentes: [], removidos: ["x@gmail.com"] };
+  assert.equal(papelDe("x@gmail.com", u), "pendente");
+  // é o que a rota de papéis faz ao reaprovar: tira de removidos, põe em aprovados
+  u.removidos = u.removidos.filter((e) => e !== "x@gmail.com");
+  u.aprovados.push("x@gmail.com");
+  assert.equal(papelDe("x@gmail.com", u), "aprovado");
+});
+
+test("sem a lista, nada muda — os cadastros antigos não têm o campo", () => {
+  const u = { gestores: [], coordenadores: {}, aprovados: ["a@gmail.com"], pendentes: [] };
+  assert.equal(papelDe("a@gmail.com", u), "aprovado");
+  assert.equal(papelDe("b@gmail.com", u), "pendente");
+});

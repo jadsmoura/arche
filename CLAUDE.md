@@ -188,6 +188,27 @@ public/
   entravam assim, e as pendentes antigas convergem ao entrar de novo. O registro fica em
   `auth-novos-cadastros-v1` (chave `auth-*`, fora do `/api/estado`) e alimenta o alerta
   "cadastros novos" + o e-mail à PROPPEX; rever um acesso é em `/usuarios/`.
+- **Remover acesso é uma DECISÃO, e decisão dura** (`removidos` em `lib/auth.js`, achado de
+  ago/2026): com o cadastro aberto a qualquer e-mail, a remoção pela gestão é o único freio que
+  sobra — e ela não valia nada. Quem era removido voltava a `pendente`, e `aprovarCadastroNovo`
+  o reaprovava no acesso seguinte: o botão prometia uma coisa e fazia outra, e a PROPPEX **não
+  conseguia tirar ninguém do portal**. Agora a remoção entra numa lista que **vence tudo** — a
+  lista de aprovados, o domínio `@uniego.edu.br` (que sozinho aprova) e até as **exceções
+  nominais** do aluno de IC e do monitor convidado, senão remover quem é aluno de IC seria um ato
+  sem efeito. Reaprovar, promover ou designar coordenação desfaz a remoção (são justamente os
+  atos de quem quer a pessoa de volta), e as **duas contas da pró-reitoria não se removem**. A
+  tela de entrada passa a dizer a verdade a quem foi removido ("acesso encerrado pela PROPPEX"):
+  o aviso de "aguardando aprovação, em breve" mandaria a pessoa esperar por algo que não vem.
+- **Conta EXTERNA que se declarou docência** (etiqueta e filtro em `/usuarios/`, decisão do dono
+  ago/2026): professor sem `@uniego.edu.br` precisa dos painéis de professor, e já os tem — toda
+  conta nova entra `aprovado` no primeiro login e a **função** se declara no próprio perfil.
+  Declarar-se professor **não concede nada** que a conta já não tivesse (o papel vem das listas
+  de `auth-usuarios-v1`, e coordenação de módulo só o gestor geral designa), e por isso não há
+  validação PRÉVIA: ela bloquearia professores reais no dia da submissão para impedir algo que o
+  **recorte por autor** já contém — quem se declara professor vê só o que ele mesmo cria. A
+  conferência é DEPOIS, e é para torná-la possível que o painel marca quem entrou por e-mail de
+  fora e se declarou docente ou coordenação, com filtro próprio (mais "acesso encerrado", para a
+  gestão rever o que decidiu).
 - **Painel de usuários** (`/usuarios/`, aba "Usuários cadastrados"; `GET /api/usuarios/painel`
   e `POST /api/usuarios/perfil`, só gestor geral): quem está cadastrado, o que faz na
   instituição e **que setores usa de fato** — contado nos próprios registros (projetos de

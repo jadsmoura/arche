@@ -309,7 +309,7 @@ function controles(p, fn){
 function irPara(n){ PAG.n=n; renderPainel(); }
 function mudarTamanho(v){ PAG.tam=Number(v)||25; PAG.n=1;
   sessionStorage.setItem("arche-us-tam",String(PAG.tam)); renderPainel(); }
-let FU={q:"",funcao:"",setor:"",papel:""};
+let FU={q:"",funcao:"",setor:"",papel:"",conta:""};
 const SETOR_NOME={pesquisa:"Pesquisa · IC",extensao:"Extensão",atas:"Atas"};
 const funcaoNome=(c,outro)=>{
   const f=PAINEL.funcoes.find(x=>x.codigo===c);
@@ -435,6 +435,10 @@ function renderPainel(){
     (!FU.funcao||u.funcao===FU.funcao)&&
     (!FU.setor||(FU.setor==="__nenhum"?!u.setores.length:u.setores.includes(FU.setor)))&&
     (!FU.papel||u.papel===FU.papel)&&
+    (!FU.conta||(FU.conta==="externa-docente"?(u.externa&&u.declarouDocencia)
+      :FU.conta==="externa"?u.externa
+      :FU.conta==="institucional"?!u.externa
+      :FU.conta==="removido"?u.removido:true))&&
     (!FU.q||`${u.nome} ${u.email} ${u.curso}`.toLowerCase().includes(FU.q.toLowerCase())));
   const semNome=PAINEL.usuarios.filter(u=>!u.temPerfil).length;
   const pg=paginar(lista,PAG);
@@ -457,6 +461,13 @@ function renderPainel(){
           <option value="">Papel: todos</option>
           ${["gestor","coordenador","aprovado","pendente"].map(p=>`<option value="${p}" ${FU.papel===p?"selected":""}>${p}</option>`).join("")}
         </select>
+        <select onchange="FU.conta=this.value;PAG.n=1;renderPainel()" title="O cadastro é aberto a qualquer e-mail — é o que permite ao professor sem @uniego trabalhar. A conferência é depois, aqui.">
+          <option value="">Conta: todas</option>
+          <option value="externa-docente" ${FU.conta==="externa-docente"?"selected":""}>Externa que se declarou docência</option>
+          <option value="externa" ${FU.conta==="externa"?"selected":""}>Externa (sem @uniego)</option>
+          <option value="institucional" ${FU.conta==="institucional"?"selected":""}>Institucional (@uniego)</option>
+          <option value="removido" ${FU.conta==="removido"?"selected":""}>Acesso encerrado pela gestão</option>
+        </select>
         <button class="bt bt-pri" onclick="abrirFicha('')">＋ Incluir usuário</button>
       </div>
       <div class="muted" style="margin-bottom:10px">${lista.length} de ${PAINEL.usuarios.length} usuário(s)${
@@ -467,7 +478,9 @@ function renderPainel(){
         <thead><tr><th>Pessoa</th><th>Função</th><th>Curso</th><th>Setores em uso</th><th>Papel</th><th></th></tr></thead>
         <tbody>${pg.itens.map(u=>`<tr>
           <td><div class="nm">${esc(u.nome||"— sem cadastro —")}
-            ${u.preCadastro?'<span class="badge" style="background:var(--warn-soft);color:var(--warn)">pré-cadastro</span>':""}</div>
+            ${u.preCadastro?'<span class="badge" style="background:var(--warn-soft);color:var(--warn)">pré-cadastro</span>':""}
+            ${u.externa&&u.declarouDocencia?'<span class="badge" style="background:var(--info-soft);color:var(--info)" title="Conta fora do @uniego.edu.br que se declarou professor(a) ou coordenação. A declaração não concede papel nenhum — serve para os setores tratarem a pessoa como docente.">externa · docência</span>':""}
+            ${u.removido?'<span class="badge" style="background:var(--err-soft);color:var(--err)" title="A gestão encerrou o acesso desta conta. Ela não volta sozinha no próximo login.">acesso encerrado</span>':""}</div>
             <div class="em">${esc(u.email)}</div></td>
           <td>${esc(funcaoNome(u.funcao,u.funcaoOutro))}</td>
           <td>${u.curso?esc(cursoNome(u.curso)):"—"}</td>
