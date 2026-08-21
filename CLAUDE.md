@@ -779,6 +779,27 @@ public/
   o quadro por curso no Painel (`GET /api/extensao/curricularizacao`), contando **só o que
   comprova** — aprovada, com relatório entregue ou registrada; proposta em análise não é
   comprovação. Os `codigo` de `PERIODOS` são a chave do que já está gravado.
+- **A COLAGEM DO WORD NÃO ESTRAGA MAIS O DOCUMENTO** (`lib/texto.js` +
+  `public/assets/arche-colagem.js` + `blindarTexto` em lib/pdf.js, achado do dono ago/2026
+  na proposta da Campanha Agosto Dourado): o texto aparecia CERTO na tela e saía
+  EMBARALHADO no PDF timbrado. As duas coisas eram verdadeiras — o navegador desenha quase
+  tudo (e põe "[]" no que não sabe), e as fontes padrão do PDF só desenham o repertório
+  **WinAnsi**; o que estiver fora vira lixo na página. E uma colagem "com formatação" traz
+  muita coisa de fora: as **letras que não são letras** (os alfanuméricos matemáticos de
+  U+1D400 — copiar um trecho em NEGRITO devolve símbolos que *parecem* letras e não são),
+  os **marcadores de lista do Word** (área de uso privado: U+F0A7, U+F0B7), espaços que não
+  são espaços e marcas invisíveis. São **três camadas, e cada uma resolve um problema
+  diferente**: a TELA limpa na colagem (para a pessoa VER o que vai ficar gravado — sem
+  isso o defeito só aparece dias depois, no PDF que a PROPPEX abre); o SERVIDOR limpa na
+  GRAVAÇÃO (`limparProfundo` no POST /api/extensao e no encerramento pelo EV: o defeito não
+  é de uma tela, é de todo texto que entra, por qualquer porta); e o GERADOR DE PDF blinda
+  uma última vez antes da tinta (`blindarTexto` embrulha `doc.text` em TODO PDF do ARCHÉ) —
+  é o que conserta os registros gravados ANTES desta correção, sem ninguém redigitar nada.
+  A limpeza **não reescreve texto**: não mexe em acento nem em ç, converte de volta o que
+  já era letra, troca marcador exótico pelo "•" do repertório e só descarta o que não tem
+  como ser impresso. **Imagem não é texto** — `base64`, capa, foto, logo e assinatura ficam
+  fora (a lista de chaves puladas está em lib/texto.js), senão a limpeza destruiria o
+  arquivo.
 - **UM VOCABULÁRIO SÓ PARA OS STATUS** (`lib/situacao.js`, decisão do dono ago/2026): o mesmo
   fato tinha nome diferente em cada tela — no ARCHÉ EX a ação era "submetida/aprovada/relatório
   entregue/registrada"; no ARCHÉ EV o evento era "rascunho/encerramento solicitado/validado" —,

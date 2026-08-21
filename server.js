@@ -96,6 +96,7 @@ import {
   eventoEncerrado, podeEncerrar, programacaoDoCertificado, situacaoEncerramento,
 } from "./lib/certificadosEx.js";
 import { situacaoDaAcao } from "./lib/situacao.js";
+import { limparColagem, limparProfundo, temColagemSuja } from "./lib/texto.js";
 import {
   TURMAS_EM, BOLSAS_EM, bolsaEmDe, turmaDe as turmaEmDe, turmaVigente as turmaEmVigente,
   ESCALA_AVALIACAO_EM, CRITERIOS_AVALIACAO_EM, RECOMENDACAO_EM, avaliacaoEMCompleta,
@@ -2169,6 +2170,15 @@ app.post("/api/extensao", async (req, res) => {
         // presenças são MESCLADAS por cima do que o formulário mandou.
         const preservado = base ? mesclarEventoEInscritos(base, nova) : {};
         const final = { ...nova, ...controlado, ...preservado, atualizadoEm: new Date().toISOString() };
+        /* LIMPEZA DA COLAGEM (achado do dono, ago/2026): a proposta da
+           Campanha Agosto Dourado aparecia certa na tela e saía embaralhada
+           no PDF timbrado. O texto vinha colado do Word/PDF com caracteres
+           que o navegador desenha e o documento oficial não — as "letras que
+           não são letras" do negrito copiado e os marcadores de lista do
+           Word. A régua é do SERVIDOR porque o defeito não é de uma tela: é
+           de todo texto que entra, por qualquer porta. Imagem não é texto e
+           fica de fora (a lista de chaves puladas em lib/texto.js). */
+        Object.assign(final, limparProfundo(final));
         // `situacao` é CALCULADA a cada leitura (lib/situacao.js) e viaja no
         // payload só para a tela desenhar o selo. Gravá-la de volta guardaria
         // no estado uma leitura velha do próprio estado — e ela envelhece
@@ -12332,7 +12342,9 @@ app.post("/api/extensao/:id/evento/encerrar", async (req, res) => {
     // dono, ago/2026): o coordenador termina o trabalho no ARCHÉ EV e a ação
     // ficava sem relatório num setor que ele não voltava a abrir. Os campos
     // vêm no mesmo pedido e passam pela MESMA régua do formulário do EX.
-    const campos = normalizarRelatorioFinal(req.body?.relatorio);
+    // mesma limpeza da gravação pelo formulário do EX: o encerramento pelo
+    // ARCHÉ EV é a outra porta do MESMO relatório final
+    const campos = limparProfundo(normalizarRelatorioFinal(req.body?.relatorio));
     const r = await comAcoes((acoes) => {
       const a = acoes.find((x) => x.id === req.params.id);
       if (!a?.evento) return { erro: [404, "Evento não encontrado"], gravar: false };
