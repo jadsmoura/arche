@@ -8,6 +8,7 @@ import {
   reservaPublica, ocupacaoPorEspaco, diasDaReserva, rotuloItem, itensEmDisputa, minhaReserva,
   ORGAOS_INSTITUCIONAIS, gruposDeOrgao, rotuloOrgao, exigeOficio, normalizarOficio,
   atravessaMeiaNoite, janelasDaReserva, horasDaReserva,
+  PARCEIROS_EXTERNOS, ORGAOS_EXTERNOS, codigosDeOrgao,
 } from "../lib/espacos.js";
 
 const ESP = normalizarEspacos(ESPACOS_PADRAO);
@@ -207,7 +208,8 @@ const CURSOS_TESTE = [{ slug: "enfermagem", nome: "Enfermagem" }, { slug: "direi
 
 test("o órgão vem de lista: cursos com prefixo próprio, setores pelo código", () => {
   const grupos = gruposDeOrgao(CURSOS_TESTE);
-  assert.deepEqual(grupos.map((g) => g.grupo), ["Cursos", "Setores e órgãos"]);
+  assert.deepEqual(grupos.map((g) => g.grupo),
+    ["Cursos", "Setores e órgãos", "Instituições parceiras"]);
   assert.equal(grupos[0].opcoes[0].codigo, "curso-enfermagem");
   assert.equal(rotuloOrgao("curso-enfermagem", CURSOS_TESTE), "Enfermagem");
   assert.equal(rotuloOrgao("proppex", CURSOS_TESTE).startsWith("PROPPEX"), true);
@@ -215,6 +217,27 @@ test("o órgão vem de lista: cursos com prefixo próprio, setores pelo código"
   // registro antigo, gravado como texto livre, continua legível
   assert.equal(rotuloOrgao("Enfermagem", CURSOS_TESTE), "Enfermagem");
   assert.ok(ORGAOS_INSTITUCIONAIS.every((o) => o.codigo && o.rotulo));
+});
+
+/* Instituições de fora que usam os espaços com regularidade (pedido do dono,
+   ago/2026): elas ganham código próprio para a ocupação por órgão conseguir
+   dizer quanto do auditório foi de cada uma — mas continuam externas, e
+   externo é ofício obrigatório. */
+test("o Colégio Couto é um órgão da lista, e como parceira EXTERNA exige ofício", () => {
+  assert.ok(PARCEIROS_EXTERNOS.some((p) => p.codigo === "colegio-couto"));
+  assert.equal(rotuloOrgao("colegio-couto", CURSOS_TESTE), "Colégio Couto");
+  assert.ok(codigosDeOrgao(CURSOS_TESTE).includes("colegio-couto"));
+  assert.ok(ORGAOS_EXTERNOS.includes("colegio-couto"));
+
+  const semOficio = pedido({ orgao: "colegio-couto", interessado: "setor" });
+  assert.equal(exigeOficio(semOficio), true);
+  assert.ok(validarReserva(semOficio, { espacos: ESP, hoje: HOJE, cursos: CURSOS_TESTE })
+    .some((e) => /ofício/i.test(e)));
+
+  // com o ofício anexado, o pedido do Colégio passa como qualquer outro
+  const comOficio = pedido({ orgao: "colegio-couto", interessado: "setor",
+    oficio: { link: "https://drive/x", name: "oficio.pdf" } });
+  assert.deepEqual(validarReserva(comOficio, { espacos: ESP, hoje: HOJE, cursos: CURSOS_TESTE }), []);
 });
 
 test("órgão fora da lista é recusado, e 'outro' cobra o nome", () => {

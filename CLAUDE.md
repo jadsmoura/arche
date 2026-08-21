@@ -1596,8 +1596,16 @@ public/
   prefixo `curso-`, mais `ORGAOS_INSTITUCIONAIS` e "Outro" com texto livre) — órgão escrito
   à mão não agrupa, e "Enfermagem", "Enf." e "Curso de Enfermagem" virariam três linhas do
   mesmo curso na ocupação; o que já estava gravado como texto livre continua legível
-  (`rotuloOrgao`). **Ofício** anexável em qualquer pedido e **obrigatório quando vem de
-  fora** (`exigeOficio`: interessado `comunidade` ou órgão `externo`/`comunidade`) — reserva
+  (`rotuloOrgao`). **Instituições de fora que usam os espaços com regularidade têm código
+  próprio** (`PARCEIROS_EXTERNOS`, num grupo "Instituições parceiras" no seletor; o primeiro
+  é o **Colégio Couto**, pedido do dono ago/2026): a linha genérica "Instituição ou empresa
+  externa" resolve o pedido e apaga quem pediu — e a ocupação por órgão, que é o número
+  levado ao conselho, não conseguia dizer quanto do auditório foi de uma escola parceira e
+  quanto foi de um evento avulso. Elas **continuam externas** (entram em `ORGAOS_EXTERNOS`,
+  ofício obrigatório): parceria não dispensa o documento. **Ofício** anexável em qualquer
+  pedido e **obrigatório quando vem de fora** (`exigeOficio`: interessado `comunidade` ou
+  órgão de `ORGAOS_EXTERNOS`, lista que a tela recebe do servidor em `orgaosExternos` — uma
+  cópia no cliente envelheceria calada a cada parceira nova) — reserva
   para quem não é da instituição é ato que a gestão precisa poder justificar depois, e a
   palavra de quem digitou o formulário não é documento. Sobe por `POST /api/espacos/oficio`
   (PDF, Word ou imagem, até 10 MB) ANTES de a reserva existir, como o portfólio da

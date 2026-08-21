@@ -748,9 +748,15 @@ function sincronizarFim() {
 /* O ofício é OBRIGATÓRIO quando o pedido vem de fora (decisão do dono,
    ago/2026): reserva para quem não é da instituição é ato que a gestão
    precisa poder justificar depois. A régua está no servidor; aqui a tela
-   apenas diz, antes, o que ele vai cobrar. */
+   apenas diz, antes, o que ele vai cobrar.
+
+   A lista de órgãos externos vem do SERVIDOR (`orgaosExternos`): ela cresce
+   quando uma parceira nova entra no catálogo — o Colégio Couto foi a
+   primeira —, e uma cópia aqui envelheceria calada, deixando a tela dizer
+   "opcional" sobre o que o servidor recusaria. */
 const pedidoExterno = () =>
-  $("f-interessado").value === "comunidade" || ["externo", "comunidade"].includes($("f-orgao").value);
+  $("f-interessado").value === "comunidade"
+  || (DADOS.orgaosExternos || ["externo", "comunidade"]).includes($("f-orgao").value);
 
 function mudouOrgao() {
   $("f-orgao-outro").classList.toggle("hide", $("f-orgao").value !== "outro");

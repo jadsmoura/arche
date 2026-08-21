@@ -138,7 +138,7 @@ import {
   ESPACOS_PADRAO, BLOCOS as BLOCOS_ESP, INTERESSADOS, ROTULO_STATUS as ROTULO_STATUS_ESP,
   OCUPA, VIVA, normalizarEspacos, normalizarReserva, normalizarBloqueio, validarReserva,
   conflitos, impedimentos, agenda, reservaPublica, ocupacaoPorEspaco, minhaReserva,
-  gruposDeOrgao, rotuloOrgao,
+  gruposDeOrgao, rotuloOrgao, ORGAOS_EXTERNOS,
 } from "./lib/espacos.js";
 import { CREDENCIAMENTO, MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
 import {
@@ -4542,6 +4542,9 @@ app.get("/api/espacos", async (req, res) => {
       gestao: gereEsp(u), gestorGeral: u.papel === "gestor",
       espacos, blocos: BLOCOS_ESP, interessados: INTERESSADOS,
       cursos: CURSOS.map((c) => c.nome), orgaos: gruposDeOrgao(CURSOS),
+      // quem vem de fora precisa de ofício: a lista é do catálogo, não uma
+      // cópia na tela (o Colégio Couto entrou nela em ago/2026)
+      orgaosExternos: ORGAOS_EXTERNOS,
       // os meses que TÊM reserva alimentam o filtro da agenda: com o registro
       // do auditório migrado, há ocupação em todo o semestre, e um seletor só
       // com os meses à frente esconderia metade do ano
