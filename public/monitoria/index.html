@@ -220,6 +220,11 @@
     .app{flex-direction:column}
     .side{width:100%;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center}
     .side-nav{padding:8px 10px;flex:1 1 100%;order:3;overflow-x:auto}
+    /* guia Arquivo: o aviso de matrícula repetida com nomes diferentes, e o
+       "limpar filtros" que não é um botão de ação */
+    .aviso-inline{display:block;font-size:11.5px;font-weight:600;color:var(--warn);margin-top:2px}
+    .bt-lk{background:none;border:0;padding:0;cursor:pointer;font:inherit;
+      color:var(--brand-3,#40717e);font-weight:600;text-decoration:underline}
     .side-nav #menu{display:flex;gap:6px}
     .side-lab{display:none}
     .side-item{width:auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent;border-radius:8px}
@@ -1152,18 +1157,69 @@ const kpi = (rot, val, det) => `<div class="kpi"><div class="l">${rot}</div>
 
 function arquivo() { setTimeout(carregarArquivo, 0); return `<div class="vazio">Carregando…</div>`; }
 
+let ARQ = null;                       // o que a rota devolveu, já carregado
+const ARQ_F = { curso: "", ciclo: "", conta: "", q: "" };
+
 async function carregarArquivo() {
-  let lotes = [];
-  try {
-    const r = await fetch("/api/monitoria/historico");
-    if (!r.ok) throw new Error(`Erro ${r.status}`);
-    lotes = (await r.json()).lotes || [];
-  } catch (e) {
-    $("tela").innerHTML = `<div class="card"><div class="card-t">Arquivo da monitoria</div>
-      <div class="aviso">Não foi possível carregar o arquivo agora (${esc(e.message)}).
-      Recarregue a página; se continuar, fale comigo.</div></div>`;
-    return;
+  if (!ARQ) {
+    try {
+      const r = await fetch("/api/monitoria/historico");
+      if (!r.ok) throw new Error(`Erro ${r.status}`);
+      ARQ = (await r.json()).lotes || [];
+    } catch (e) {
+      $("tela").innerHTML = `<div class="card"><div class="card-t">Arquivo da monitoria</div>
+        <div class="aviso">Não foi possível carregar o arquivo agora (${esc(e.message)}).
+        Recarregue a página; se continuar, fale comigo.</div></div>`;
+      return;
+    }
   }
+  desenharArquivo();
+}
+
+/* A UNIDADE É A PESSOA, não o lote (ago/2026). A mesma acadêmica aparece em
+   cinco semestres — em sete cards separados ela vira sete linhas soltas, e a
+   pergunta que a gestão faz ("quem ainda não foi encontrado no portal?") não
+   se responde folheando. Os ciclos continuam à vista no resumo do alto e no
+   filtro; a lista embaixo é de gente. */
+function pessoasDoArquivo(lotes) {
+  const mapa = new Map();
+  for (const l of lotes) {
+    for (const a of l.alunos) {
+      const chave = a.matricula || normalizar(a.nome);
+      const p = mapa.get(chave) || { nomes: [], matricula: a.matricula, certificados: 0,
+        conta: "", ciclos: [], cursos: [], entradas: [] };
+      if (!p.nomes.includes(a.nome)) p.nomes.push(a.nome);
+      p.certificados += a.certificados;
+      // guarda a origem de cada certificado: com o filtro de ciclo ou de curso
+      // ligado, a contagem tem de ser a DAQUELE recorte — somar o total da
+      // pessoa faria "2023/2" exibir os certificados dos outros semestres dela
+      p.entradas.push({ ciclo: l.ciclo, curso: l.curso, certificados: a.certificados });
+      if (!p.conta && a.conta) p.conta = a.conta;
+      if (!p.ciclos.includes(l.ciclo)) p.ciclos.push(l.ciclo);
+      if (!p.cursos.includes(l.curso)) p.cursos.push(l.curso);
+      mapa.set(chave, p);
+    }
+  }
+  return [...mapa.values()]
+    .map((p) => ({ ...p, ciclos: p.ciclos.sort(), nome: p.nomes[0] }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
+const normalizar = (v) => String(v || "").toLowerCase()
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+
+function filtrarArquivo() {
+  for (const k of ["curso", "ciclo", "conta", "q"]) {
+    const el = $("arq-" + k); if (el) ARQ_F[k] = el.value;
+  }
+  desenharListaArquivo();
+}
+function limparFiltroArquivo() {
+  for (const k of ["curso", "ciclo", "conta", "q"]) { ARQ_F[k] = ""; const el = $("arq-" + k); if (el) el.value = ""; }
+  desenharListaArquivo();
+}
+
+function desenharArquivo() {
+  const lotes = ARQ || [];
   if (!lotes.length) {
     $("tela").innerHTML = `<div class="card"><div class="card-t">Arquivo da monitoria</div>
       <div class="card-s">Nenhum semestre migrado ainda. As coordenações entregam a planilha do
@@ -1171,11 +1227,11 @@ async function carregarArquivo() {
         abrir projeto para um semestre que já acabou.</div></div>`;
     return;
   }
+  const pessoas = pessoasDoArquivo(lotes);
   const soma = (f) => lotes.reduce((t, l) => t + f(l), 0);
-  const registros = soma((l) => l.registros);
-  const pessoas = soma((l) => l.alunos.length);
-  const casados = soma((l) => l.comConta);
-  const cursos = [...new Set(lotes.map((l) => l.curso))];
+  const cursos = [...new Set(lotes.map((l) => l.curso))].sort();
+  const ciclos = [...new Set(lotes.map((l) => l.ciclo))].sort().reverse();
+  const semConta = pessoas.filter((p) => !p.conta).length;
 
   $("tela").innerHTML = `<div class="card">
     <div class="card-t">Arquivo da monitoria</div>
@@ -1185,25 +1241,72 @@ async function carregarArquivo() {
       <b>certificado devido</b> — e as horas entram no Relatório Semestral e no resultado do ciclo.</div>
     <div class="kpis">
       ${kpi("Ciclos migrados", lotes.length, cursos.join(" · "))}
-      ${kpi("Certificados", registros, "monitores e orientação")}
-      ${kpi("Acadêmicos", pessoas, "pessoas distintas")}
-      ${kpi("Já casados com conta", `${casados}/${pessoas}`,
-        casados < pessoas ? "os demais precisam informar a matrícula no perfil" : "todos encontrados")}
+      ${kpi("Certificados", soma((l) => l.registros), "monitores e orientação")}
+      ${kpi("Acadêmicos", pessoas.length, "pessoas distintas")}
+      ${kpi("Ainda sem conta casada", semConta,
+        semConta ? "não sabem que o certificado existe" : "todos encontrados")}
     </div>
+    <div class="card-s" style="margin-top:14px"><b>Por ciclo:</b> ${lotes
+      .slice().sort((a, b) => String(b.ciclo).localeCompare(String(a.ciclo)))
+      .map((l) => `${esc(l.curso)} ${esc(l.ciclo)} <b>${l.registros}</b>`).join(" · ")}</div>
   </div>
-  ${lotes.map((l) => `<div class="card">
-    <div class="card-t">${esc(l.curso)} · ${esc(l.ciclo)}</div>
-    <div class="card-s">${l.registros} certificado(s) de ${l.alunos.length} acadêmico(s)${
-      l.edital ? `, do edital ${esc(l.edital)}` : " — ciclo sem edital no catálogo do ARCHÉ"}.
-      Fonte: ${esc(l.fonte)}. <b>${l.comConta} de ${l.alunos.length}</b> já têm conta no portal que o
-      ARCHÉ conseguiu casar; os demais só encontrarão o certificado depois de informarem a matrícula
-      no perfil.</div>
-    ${l.alunos.map((a) => `<div class="item">
-      <div class="nm">${esc(a.nome)}
-        <div class="cs">${esc(a.matricula || "sem matrícula na planilha")} · ${a.certificados} certificado(s)</div></div>
-      <div class="cs">${a.conta ? `✓ ${esc(a.conta)}` : "— ainda sem conta casada"}</div></div>`).join("")}
-  </div>`).join("")}`;
+
+  <div class="card">
+    <div class="grid3">
+      <div><label>Curso</label><select id="arq-curso" onchange="filtrarArquivo()">
+        <option value="">Todos os cursos</option>
+        ${cursos.map((c) => `<option${ARQ_F.curso === c ? " selected" : ""}>${esc(c)}</option>`).join("")}
+      </select></div>
+      <div><label>Ciclo</label><select id="arq-ciclo" onchange="filtrarArquivo()">
+        <option value="">Todos os ciclos</option>
+        ${ciclos.map((c) => `<option${ARQ_F.ciclo === c ? " selected" : ""}>${esc(c)}</option>`).join("")}
+      </select></div>
+      <div><label>Conta no portal</label><select id="arq-conta" onchange="filtrarArquivo()">
+        <option value="">Tanto faz</option>
+        <option value="sem"${ARQ_F.conta === "sem" ? " selected" : ""}>Ainda sem conta casada</option>
+        <option value="com"${ARQ_F.conta === "com" ? " selected" : ""}>Já casados com conta</option>
+      </select></div>
+    </div>
+    <label>Buscar por nome ou matrícula</label>
+    <input id="arq-q" value="${esc(ARQ_F.q)}" oninput="filtrarArquivo()" placeholder="Ex.: Bruna, ou G2110017">
+    <div class="card-s" style="margin-top:8px">
+      <button class="bt-lk" onclick="limparFiltroArquivo()">limpar filtros</button></div>
+  </div>
+  <div id="arq-lista"></div>`;
+  desenharListaArquivo();
 }
+
+function desenharListaArquivo() {
+  const alvo = $("arq-lista"); if (!alvo) return;
+  const q = normalizar(ARQ_F.q);
+  const lista = pessoasDoArquivo(ARQ || []).filter((p) =>
+    (!ARQ_F.curso || p.cursos.includes(ARQ_F.curso))
+    && (!ARQ_F.ciclo || p.ciclos.includes(ARQ_F.ciclo))
+    && (!ARQ_F.conta || (ARQ_F.conta === "com" ? !!p.conta : !p.conta))
+    && (!q || normalizar(p.nomes.join(" ")).includes(q) || normalizar(p.matricula).includes(q)));
+
+  // os certificados do RECORTE: com filtro de ciclo ou curso, conta só os dele
+  const noRecorte = (p) => p.entradas
+    .filter((e) => (!ARQ_F.curso || e.curso === ARQ_F.curso) && (!ARQ_F.ciclo || e.ciclo === ARQ_F.ciclo))
+    .reduce((t, e) => t + e.certificados, 0);
+  const total = lista.reduce((t, p) => t + noRecorte(p), 0);
+  const recorte = [ARQ_F.curso, ARQ_F.ciclo].filter(Boolean).join(" · ");
+  alvo.innerHTML = `<div class="card">
+    <div class="card-t">${lista.length} acadêmico(s)${lista.length ? ` · ${total} certificado(s)` : ""}${
+      recorte ? ` <span class="card-s" style="font-weight:500">em ${esc(recorte)}</span>` : ""}</div>
+    ${lista.length ? lista.map((p) => `<div class="item">
+      <div class="nm">${esc(p.nome)}
+        ${p.nomes.length > 1 ? `<span class="aviso-inline">⚠ a mesma matrícula aparece como
+          ${esc(p.nomes.slice(1).join(", "))} — a coordenação precisa dizer qual é a certa</span>` : ""}
+        <div class="cs">${esc(p.matricula || "sem matrícula na planilha")} ·
+          ${noRecorte(p)} certificado(s)${noRecorte(p) !== p.certificados
+            ? ` <span style="opacity:.7">(${p.certificados} no total)</span>` : ""} ·
+          ${esc(p.cursos.join(", "))} · ciclos: ${esc(p.ciclos.join(", "))}</div></div>
+      <div class="cs">${p.conta ? `✓ ${esc(p.conta)}` : "— ainda sem conta casada"}</div></div>`).join("")
+      : `<div class="vazio">Nenhum acadêmico com esses filtros.</div>`}
+  </div>`;
+}
+
 
 
 /* Os editais e os RESULTADOS, num quadro por ANO — o mesmo desenho da
