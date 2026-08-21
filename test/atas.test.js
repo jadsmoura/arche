@@ -7,7 +7,7 @@ import {
   numeroAta, proximoSequencial, numerar, serieDe, siglaCurso, normalizarAta,
   validarAta, tituloDe, quorum, encaminhamentos, anotar, orgaoDe, avisosDaAta,
   renumerar, numeroIncoerente, anoDoNumero, renumerarAcervo,
-  buscarAtas, termosDaBusca,
+  buscarAtas, termosDaBusca, assinantesDaAta,
 } from "../lib/atas.js";
 import { extenso, dataExtenso, horaExtenso, redigirPorModelo, provedorAtivo, fichaDaReuniao,
   ESTILOS, estiloDe, estiloPadrao, instrucaoDe } from "../lib/redator.js";
@@ -821,4 +821,50 @@ test("rascunho e ata sem data de sessão ficam de fora", () => {
   assert.deepEqual(trocas, []);
   assert.equal(atas[0].numero, null);
   assert.equal(atas[1].numero, "ATA-NDE-PSI-2026-020");
+});
+
+/* FOLHA DE ASSINATURAS (pedido dos órgãos, ago/2026). A assinatura
+   digitalizada é do USUÁRIO e o laço com a ata é o E-MAIL da lista de
+   presença — é o que faz "envia uma vez, vale em toda ata". O que se
+   protege aqui: quem assina, quem NÃO assina, e o casamento da presidência,
+   que é declarada por nome e precisa achar o próprio e-mail na lista. */
+test("a folha de assinaturas sai da lista de presença", () => {
+  const ata = {
+    presidencia: { nome: "Ana Souza", cargo: "Coordenadora" },
+    secretaria: { nome: "Bruno Lima", email: "bruno@uniego.edu.br" },
+    participantes: [
+      { nome: "Ana Souza", email: "ana@uniego.edu.br", presenca: "presente" },
+      { nome: "Bruno Lima", email: "", presenca: "presente" },
+      { nome: "Carla Dias", email: "carla@uniego.edu.br", presenca: "presente" },
+      { nome: "Davi Melo", email: "davi@uniego.edu.br", presenca: "ausente" },
+      { nome: "Elis Prado", email: "elis@uniego.edu.br", presenca: "justificada" },
+    ],
+  };
+  const a = assinantesDaAta(ata);
+  assert.deepEqual(a.map((x) => x.nome), ["Ana Souza", "Bruno Lima", "Carla Dias"],
+    "ausente e falta justificada não assinam; quem preside não assina duas vezes");
+  assert.deepEqual(a.map((x) => x.papel), ["presidencia", "secretaria", "membro"]);
+  assert.equal(a[0].email, "ana@uniego.edu.br",
+    "a presidência é declarada por NOME: o e-mail vem da lista de presença");
+  assert.equal(a[1].email, "bruno@uniego.edu.br", "o campo próprio da secretaria vale");
+});
+
+test("sem e-mail não há a que atrelar a assinatura, e a folha não quebra", () => {
+  const a = assinantesDaAta({
+    presidencia: { nome: "Zuleica Pires" },          // nem consta entre os presentes
+    participantes: [{ nome: "Iara Nunes", presenca: "presente" }],
+  });
+  assert.deepEqual(a.map((x) => [x.nome, x.email]),
+    [["Zuleica Pires", ""], ["Iara Nunes", ""]], "entram na folha, para assinar à caneta");
+  assert.deepEqual(assinantesDaAta({}), [], "ata vazia não tem assinante");
+  assert.deepEqual(assinantesDaAta(null), []);
+});
+
+test("o nome casa com acento e caixa diferentes", () => {
+  const a = assinantesDaAta({
+    presidencia: { nome: "JOSÉ  MATEUS" },
+    participantes: [{ nome: "José Mateus", email: "jm@uniego.edu.br", presenca: "presente" }],
+  });
+  assert.equal(a.length, 1, "é a mesma pessoa: preside e não se repete embaixo");
+  assert.equal(a[0].email, "jm@uniego.edu.br");
 });

@@ -1578,6 +1578,30 @@ public/
   sessão sem horário de término. Cada aviso aponta a incoerência entre dois campos
   preenchidos em momentos diferentes, que é onde o erro mora. Registrar continua sendo
   ato do órgão: o sistema mostra e pergunta, não decide.
+- **Folha de assinaturas da ata** (`assinantesDaAta` em lib/atas.js + as rotas
+  `/api/atas/:id/assinatura*`, pedido dos órgãos ago/2026): a assinatura digitalizada de quem
+  esteve presente sai **acima da linha** no PDF, e a linha continua ali — a via impressa é a que
+  circula na mesa, e quem não enviou imagem assina à caneta no mesmo lugar. É o contrário do
+  certificado, onde quem não tem imagem não aparece. Assinam a presidência, a secretaria e todo
+  **presente**; ausente e falta justificada não assinam, e quem preside não assina duas vezes.
+  A imagem é a MESMA do resto do portal (`sys-assinaturas-usuario-v1`): **envia-se uma vez** e
+  vale em toda ata em que a pessoa constar — o laço é o **e-mail** da lista de presença. A
+  presidência é declarada por NOME (o formulário não pede o e-mail dela) e `validarAta` já exige
+  que ela conste entre os presentes: é de lá que sai o e-mail, senão quem presidiu apareceria sem
+  assinatura mesmo tendo enviado a sua.
+  **Duas portas, com a ORIGEM marcada** (decisão do dono, ago/2026, revendo a regra anterior): a
+  pessoa envia a sua no `/perfil/` (`titular`) e a **secretaria do órgão** pode digitalizar e
+  subir por um membro (`terceiro`), de dentro de uma ata em que ele é participante. A regra
+  absoluta de que ninguém envia a de outro protegia o que importa e não resolvia o colegiado —
+  metade dos membros de um NDE não abre o portal, e a folha ficaria em branco esperando gente que
+  não vem. As três regras que a marca sustenta: a de terceiro **nunca sobrescreve a do titular**
+  (409); o titular **substitui ou apaga a qualquer momento**, seja qual for a origem; e quem
+  subiu uma de terceiro desfaz o próprio engano, nunca mexe na do titular (403). A tela **diz de
+  onde veio cada uma** — assinatura carregada por outra pessoa não pode parecer o mesmo que
+  assinatura enviada pelo dono. O contexto é sempre UMA ATA (`podeEditarAta` + o e-mail tem de
+  ser participante dela): sem esse laço, a rota viraria "suba a assinatura de qualquer e-mail do
+  UNIEGO". Quem assina é calculado **uma vez** (`assinantesDaAta`), e é a mesma lista que a tela
+  mostra e que o PDF imprime.
 - **O ARCHÉ AT não envia e-mail.** A ata vive no sistema: PDF gerado sob demanda em
   `/api/atas/:id/pdf` e cópia arquivada no Drive ao registrar. Quem precisa do documento
   entra e baixa. (A Extensão continua enviando e-mails; a regra é só das atas.)

@@ -1234,7 +1234,7 @@ const cadTexto = (l) => CAD_ROT(l.cadencia) + (l.cadencia === "anual" && l.semes
 async function abrir(id) {
   try {
     const d = await api("/api/atas/" + encodeURIComponent(id));
-    ATUAL = d.ata; PODE_EDITAR = d.podeEditar;
+    ATUAL = d.ata; PODE_EDITAR = d.podeEditar; ASSINATURAS = d.assinaturas || {};
     nav("ata"); cabecalho(); renderEditor("v-ata");
   } catch (e) { alert(e.message); }
 }
@@ -1327,6 +1327,11 @@ function renderEditor(alvo) {
       </div>
       <div class="cnt" id="quorum"></div>
     </div>
+
+    <!-- FOLHA DE ASSINATURAS (pedido dos órgãos, ago/2026): a assinatura é
+         do USUÁRIO e vale em toda ata em que ele constar. O vínculo é o
+         e-mail da lista de presença acima. -->
+    <div class="card" id="card-assinaturas"></div>
 
     <div class="card hide" id="card-sugestoes"></div>
 
@@ -1740,11 +1745,127 @@ function renderParticipantes() {
     <td class="acao">${PODE_EDITAR ? `<span class="rm" onclick="rmPart(${i})">✕</span>` : ""}</td></tr>`).join("")
     || '<tr><td colspan="6" class="muted">Nenhum participante registrado ainda.</td></tr>';
 
+  renderAssinaturas();      // mudou quem está presente, mudou quem assina
   const p = ATUAL.participantes;
   $("quorum").textContent = `${p.filter((x) => x.presenca === "presente").length} presente(s) · `
     + `${p.filter((x) => x.presenca === "justificada").length} com falta justificada · `
     + `${p.filter((x) => x.presenca === "ausente").length} ausente(s)`;
 }
+/* ===================== FOLHA DE ASSINATURAS =============================
+   Quem assina a ata: a presidência, a secretaria e todo presente. A imagem
+   é do USUÁRIO (a mesma do /perfil/) e vale em TODA ata em que a pessoa
+   constar — envia-se uma vez, não uma por reunião. O laço é o e-mail.
+
+   Duas origens, e a tela DIZ qual é (decisão do dono, ago/2026): a que a
+   própria pessoa enviou no perfil e a que a secretaria do órgão subiu por
+   ela. A do titular vence sempre, e por isso a de terceiro não pode
+   substituí-la — nem a tela oferecer o botão que o servidor recusaria.
+
+   Enviar exige a ata SALVA: a rota confere se a pessoa é participante do
+   que está gravado, e não do que está na tela. Enquanto o e-mail não foi
+   salvo, a linha diz isso em vez de falhar no clique.
+   ------------------------------------------------------------------------ */
+let ASSINATURAS = {};              // { email: {tem, origem, em, porQuem} }
+
+const emailsQueAssinam = (a) => {
+  const e = (v) => String(v || "").trim().toLowerCase();
+  const chave = (v) => String(v || "").trim().toLowerCase();
+  const presentes = (a?.participantes || []).filter((p) => p.presenca === "presente");
+  const acha = (nome) => presentes.find((p) => chave(p.nome) === chave(nome));
+  const fora = [];
+  if (a?.presidencia?.nome) {
+    fora.push({ rot: "Presidência", nome: a.presidencia.nome, email: e(acha(a.presidencia.nome)?.email) });
+  }
+  if (a?.secretaria?.nome) {
+    fora.push({ rot: "Secretaria", nome: a.secretaria.nome,
+      email: e(a.secretaria.email) || e(acha(a.secretaria.nome)?.email) });
+  }
+  const ja = new Set(fora.map((x) => chave(x.nome)));
+  for (const p of presentes) {
+    if (ja.has(chave(p.nome))) continue;
+    fora.push({ rot: "Presente", nome: p.nome, email: e(p.email) });
+  }
+  return fora.filter((x) => x.nome);
+};
+
+function renderAssinaturas() {
+  const cx = $("card-assinaturas"); if (!cx) return;
+  const lista = emailsQueAssinam(ATUAL);
+  const salvo = new Set(Object.keys(ASSINATURAS));
+  const comImagem = lista.filter((x) => ASSINATURAS[x.email]?.tem).length;
+  const semEmail = lista.filter((x) => !x.email).length;
+  cx.innerHTML = `<div class="card-t">Folha de assinaturas</div>
+    <div class="card-s">A assinatura digitalizada de cada um sai <b>acima da linha</b> no PDF da ata,
+      e a linha continua ali para quem assina à caneta. A imagem é da PESSOA e é enviada
+      <b>uma vez só</b>: daí em diante toda ata em que ela constar com o mesmo e-mail já sai
+      assinada — aqui e nos outros setores do portal.</div>
+    <div class="cnt" style="margin:2px 0 10px">${lista.length} assinante(s) ·
+      ${comImagem} com assinatura guardada${semEmail ? ` · ${semEmail} sem e-mail na lista de presença` : ""}</div>
+    ${lista.length ? `<table class="pt"><thead><tr>
+        <th style="width:34%">Assinante</th><th style="width:30%">E-mail</th>
+        <th style="width:36%">Assinatura</th></tr></thead><tbody>
+      ${lista.map((x) => linhaAssinatura(x, salvo)).join("")}</tbody></table>`
+      : `<div class="muted">Registre os presentes acima — a folha sai deles.</div>`}
+    <input type="file" id="as-arq" accept="image/png,image/jpeg" style="display:none">`;
+}
+
+function linhaAssinatura(x, salvo) {
+  const a = ASSINATURAS[x.email] || null;
+  let estado, acoes = "";
+  if (!x.email) {
+    estado = `<span class="muted">informe o e-mail para vincular a assinatura</span>`;
+  } else if (a?.tem && a.origem === "titular") {
+    estado = `<b>enviada pela própria pessoa</b>`;
+    acoes = `<a class="bt bt-ghost" href="${verAssinatura(x.email)}" target="_blank">ver</a>`;
+  } else if (a?.tem) {
+    estado = `enviada pela secretaria${a.porQuem ? ` <span class="muted">(${esc(a.porQuem)})</span>` : ""}`;
+    acoes = `<a class="bt bt-ghost" href="${verAssinatura(x.email)}" target="_blank">ver</a>`
+      + (PODE_EDITAR ? ` <button class="bt bt-ghost" onclick="removerAssinaturaDe('${esc(x.email)}')">remover</button>` : "");
+  } else if (!salvo.has(x.email)) {
+    estado = `<span class="muted">salve a ata para poder enviar</span>`;
+  } else {
+    estado = `<span class="muted">sem assinatura — assina à caneta</span>`;
+    acoes = PODE_EDITAR ? `<button class="bt bt-sec" onclick="enviarAssinaturaDe('${esc(x.email)}')">enviar</button>` : "";
+  }
+  return `<tr><td>${esc(x.nome)} <span class="muted">· ${esc(x.rot.toLowerCase())}</span></td>
+    <td class="muted">${esc(x.email) || "—"}</td>
+    <td>${estado} ${acoes}</td></tr>`;
+}
+
+const verAssinatura = (email) =>
+  `/api/atas/${encodeURIComponent(ATUAL.id)}/assinatura.png?email=${encodeURIComponent(email)}&t=${Date.now()}`;
+
+function enviarAssinaturaDe(email) {
+  const inp = $("as-arq");
+  inp.value = "";
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    const fd = new FormData();
+    fd.append("file", f); fd.append("email", email);
+    try {
+      const r = await fetch(`/api/atas/${encodeURIComponent(ATUAL.id)}/assinatura`, { method: "POST", body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || `Erro ${r.status}`);
+      ASSINATURAS[email] = { tem: true, origem: j.origem, em: j.em, porQuem: j.porQuem };
+      renderAssinaturas();
+      aviso("Assinatura guardada — ela vale para todas as atas desta pessoa.", "ok");
+    } catch (e) { alert("Não foi possível guardar: " + e.message); }
+  };
+  inp.click();
+}
+
+async function removerAssinaturaDe(email) {
+  if (!confirm("Remover esta assinatura? Ela sai de TODAS as atas desta pessoa, não só desta.")) return;
+  try {
+    const r = await fetch(`/api/atas/${encodeURIComponent(ATUAL.id)}/assinatura?email=${encodeURIComponent(email)}`,
+      { method: "DELETE" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || `Erro ${r.status}`);
+    delete ASSINATURAS[email];
+    renderAssinaturas();
+  } catch (e) { alert("Não foi possível remover: " + e.message); }
+}
+
 const setPart = (i, k, v) => { ATUAL.participantes[i][k] = v; sujou(); };
 function rmPart(i) { ATUAL.participantes.splice(i, 1); sujou(); renderParticipantes(); }
 function addParticipante() {
@@ -1913,6 +2034,7 @@ async function salvar({ silencioso = false } = {}) {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ATUAL),
   });
   ATUAL = r.ata;
+  if (r.assinaturas) ASSINATURAS = r.assinaturas;
   AUTO.sujo = false; selo("salva");
   await carregar();
   if (SECAO === "nova") nav("ata");

@@ -20,7 +20,7 @@ import { varrer, varrerSeVencido, dispensar, situacao } from "./lib/cobranca.js"
 import {
   ATAS_KEY, ORGAOS, CURSOS, cursoDe, STATUS as ATA_STATUS, normalizarAta, validarAta,
   numerar, tituloDe, anotar, encaminhamentos, orgaoDe, podeVerAta, podeEditarAta, statusVigente,
-  buscarAtas, renumerar, numeroIncoerente, renumerarAcervo,
+  buscarAtas, renumerar, numeroIncoerente, renumerarAcervo, assinantesDaAta,
 } from "./lib/atas.js";
 import {
   PAUTAS, MOMENTOS, CADENCIAS, RITUAL, checklistSemestral, pautasSugeridas, janelaDe,
@@ -6467,8 +6467,42 @@ app.get("/api/atas/:id", async (req, res) => {
   if (!u) return;
   const a = (await lerAtas()).find((x) => x.id === req.params.id);
   if (!a || !podeVer(u, a)) return res.status(404).json({ error: "Ata não encontrada" });
-  res.json({ ata: a, podeEditar: podeEditar(u, a), gestao: gereAtas(u) });
+  res.json({
+    ata: a, podeEditar: podeEditar(u, a), gestao: gereAtas(u),
+    // quem já tem assinatura guardada e de onde ela veio — nunca a imagem,
+    // que tem rota própria. É o que a folha de assinaturas vai imprimir.
+    assinaturas: await assinaturasDosParticipantes(a),
+  });
 });
+
+/* As IMAGENS que a folha de assinaturas vai desenhar: `{ email: Buffer }`,
+   só de quem assina esta ata. Uma leitura do registro por PDF — não uma por
+   assinante. */
+async function imagensDaFolhaDaAta(ata) {
+  const todas = await lerAssinaturasDeUsuarios();
+  const saida = {};
+  for (const e of emailsQueAssinam(ata)) {
+    const a = todas[e];
+    if (!a?.base64) continue;
+    try { saida[e] = Buffer.from(a.base64, "base64"); } catch { /* imagem ilegível: fica a linha */ }
+  }
+  return saida;
+}
+
+/** `{ email: {tem, origem, em, porQuem} }` para os participantes com e-mail. */
+async function assinaturasDosParticipantes(ata) {
+  const todas = await lerAssinaturasDeUsuarios();
+  const saida = {};
+  for (const e of emailsQueAssinam(ata)) saida[e] = resumoAssinatura(todas[e]);
+  return saida;
+}
+
+/* Quem assina a folha vem de `assinantesDaAta` (lib/atas.js) — a MESMA
+   função que o gerador de PDF usa. Duas listas de assinantes acabariam
+   diferentes, e aí a tela mostraria assinatura guardada para alguém que o
+   documento não imprime. */
+const emailsQueAssinam = (ata) =>
+  [...new Set(assinantesDaAta(ata).map((x) => x.email).filter(Boolean))];
 
 // Cria ou atualiza. O número só é emitido quando a ata sai de rascunho, para
 // que reuniões abandonadas não consumam a sequência do órgão.
@@ -6508,7 +6542,9 @@ app.post("/api/atas", async (req, res) => {
       return { ata };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-    res.json({ ok: true, ata: r.ata });
+    // a folha de assinaturas acompanha a gravação: mudou quem está presente,
+    // mudou quem assina — e a tela precisa saber disso sem outra chamada
+    res.json({ ok: true, ata: r.ata, assinaturas: await assinaturasDosParticipantes(r.ata) });
   } catch (e) {
     console.error("Erro ao gravar ata:", e);
     res.status(500).json({ error: e.message || "Erro ao gravar a ata" });
@@ -6593,7 +6629,7 @@ app.get("/api/atas/:id/pdf", async (req, res) => {
     if (!ata || !podeVer(u, ata)) return res.status(404).send("Ata não encontrada");
     if (!ata.texto) return res.status(400).send("A ata ainda não tem texto — gere a minuta primeiro.");
     const { gerarAtaPdf } = await import("./lib/pdf.js");
-    const buffer = await gerarAtaPdf(ata);
+    const buffer = await gerarAtaPdf(ata, { assinaturas: await imagensDaFolhaDaAta(ata) });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${slug(ata.numero || ata.id)}.pdf"`);
     res.send(buffer);
@@ -6643,7 +6679,7 @@ app.post("/api/atas/:id/renumerar", async (req, res) => {
       try {
         const { gerarAtaPdf } = await import("./lib/pdf.js");
         pasta = pastaDaAta(r.ata);
-        await files.save({ buffer: await gerarAtaPdf(r.ata),
+        await files.save({ buffer: await gerarAtaPdf(r.ata, { assinaturas: await imagensDaFolhaDaAta(r.ata) }),
           originalName: `${slug(r.ata.numero)}.pdf`, prefix: pasta });
         arquivada = true;
       } catch (e) {
@@ -6734,7 +6770,7 @@ app.post("/api/atas/:id/registrar", async (req, res) => {
     if (erros.length) return res.status(400).json({ error: erros.join(" ") });
 
     const { gerarAtaPdf } = await import("./lib/pdf.js");
-    const pdfBuffer = await gerarAtaPdf(ata);
+    const pdfBuffer = await gerarAtaPdf(ata, { assinaturas: await imagensDaFolhaDaAta(ata) });
     const nomePdf = `${slug(ata.numero || ata.id)}${retificacao ? `-retificada-${versao}` : ""}.pdf`;
     const pasta = pastaDaAta(ata);
 
@@ -6837,6 +6873,111 @@ app.delete("/api/atas/:id/anexo/:indice", async (req, res) => {
 });
 
 // Só rascunho se apaga — ata numerada some do arquivo, nunca do histórico.
+/* ======================= ASSINATURAS DA FOLHA DA ATA ====================
+   Pedido dos órgãos (ago/2026): a folha de assinaturas da ata sai com a
+   assinatura digitalizada de quem esteve presente, sem que ninguém reenvie
+   a imagem a cada reunião. O vínculo é o **e-mail** do participante — é o
+   que o formulário já pede —, e o registro é o mesmo do resto do portal
+   (`sys-assinaturas-usuario-v1`): enviada uma vez, vale em toda ata em que
+   a pessoa constar, e também nos outros módulos.
+
+   Estas rotas são a SEGUNDA porta, a da secretaria do órgão (decisão do
+   dono, ago/2026), e existem porque metade dos membros de um colegiado não
+   abre o portal. O contexto é sempre UMA ATA: só se sobe pela assinatura de
+   quem é participante dela, e só quem pode editá-la. Sem esse laço, a rota
+   viraria "suba a assinatura de qualquer e-mail do UNIEGO".
+   ======================================================================= */
+
+/** A ata, o participante e o direito de mexer — os três de uma vez. */
+async function contextoAssinaturaAta(req, res) {
+  const u = await sessaoAtas(req, res);
+  if (!u) return null;
+  const ata = (await lerAtas()).find((x) => x.id === req.params.id);
+  if (!ata || !podeVer(u, ata)) { res.status(404).json({ error: "Ata não encontrada" }); return null; }
+  const email = String(req.body?.email || req.query?.email || "").trim().toLowerCase();
+  if (!email) { res.status(400).json({ error: "Informe o e-mail do participante." }); return null; }
+  const p = (ata.participantes || []).find((x) => String(x.email || "").toLowerCase() === email);
+  if (!p) {
+    res.status(400).json({ error: "Essa pessoa não consta como participante desta ata." });
+    return null;
+  }
+  return { u, ata, email, participante: p };
+}
+
+app.post("/api/atas/:id/assinatura", upload.single("file"), async (req, res) => {
+  try {
+    const cx = await contextoAssinaturaAta(req, res);
+    if (!cx) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    if (!podeEditar(cx.u, cx.ata))
+      return res.status(403).json({ error: "Só quem lavra esta ata envia a assinatura de um membro." });
+    const ruim = imagemDeAssinaturaInvalida(req.file);
+    if (ruim) return res.status(400).json({ error: ruim });
+    const todas = await lerAssinaturasDeUsuarios();
+    // a do TITULAR vence sempre: quem enviou a própria assinatura não a perde
+    // porque uma secretaria digitalizou outra folha
+    if (origemDaAssinatura(todas[cx.email]) === "titular" && todas[cx.email]?.base64) {
+      return res.status(409).json({
+        error: `${cx.participante.nome || cx.email} já enviou a própria assinatura pelo perfil — `
+          + "essa é a que vale, e só a própria pessoa a substitui.",
+      });
+    }
+    todas[cx.email] = {
+      base64: req.file.buffer.toString("base64"), tipo: req.file.mimetype,
+      arquivo: String(req.file.originalname || "").slice(0, 120),
+      bytes: req.file.size, em: new Date().toISOString(),
+      origem: "terceiro", porQuem: cx.u.email,
+    };
+    await storage.set(ASSINATURA_USUARIO_KEY, JSON.stringify(todas));
+    await storage.flush?.();
+    console.log(`[atas] assinatura de ${cx.email} enviada por ${cx.u.email}`);
+    res.json({ ok: true, email: cx.email, ...resumoAssinatura(todas[cx.email]) });
+  } catch (e) {
+    console.error("Erro ao guardar a assinatura de um membro:", e);
+    res.status(500).json({ error: "Não foi possível guardar a assinatura." });
+  }
+});
+
+/* Desfazer o próprio engano: a de TERCEIRO se remove por aqui; a do titular,
+   nunca — quem a enviou é quem a tira, no /perfil/. */
+app.delete("/api/atas/:id/assinatura", async (req, res) => {
+  try {
+    const cx = await contextoAssinaturaAta(req, res);
+    if (!cx) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    if (!podeEditar(cx.u, cx.ata))
+      return res.status(403).json({ error: "Só quem lavra esta ata mexe na assinatura de um membro." });
+    const todas = await lerAssinaturasDeUsuarios();
+    if (!todas[cx.email]?.base64) return res.json({ ok: true, tem: false });
+    if (origemDaAssinatura(todas[cx.email]) === "titular") {
+      return res.status(403).json({
+        error: "Esta assinatura foi enviada pela própria pessoa — só ela pode removê-la, no perfil.",
+      });
+    }
+    delete todas[cx.email];
+    await storage.set(ASSINATURA_USUARIO_KEY, JSON.stringify(todas));
+    await storage.flush?.();
+    res.json({ ok: true, tem: false });
+  } catch (e) {
+    console.error("Erro ao remover a assinatura de um membro:", e);
+    res.status(500).json({ error: "Não foi possível remover." });
+  }
+});
+
+/* A imagem que VAI SAIR na folha desta ata. Quem lavra precisa conferir
+   antes de registrar — a assinatura errada num documento do órgão não se
+   recolhe depois. Só participante desta ata, e só para quem a enxerga. */
+app.get("/api/atas/:id/assinatura.png", async (req, res) => {
+  const cx = await contextoAssinaturaAta(req, res);
+  if (!cx) return;
+  const a = (await lerAssinaturasDeUsuarios())[cx.email];
+  if (!a?.base64) return res.status(404).send("Sem assinatura guardada.");
+  res.setHeader("Content-Type", a.tipo || "image/png");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Cache-Control", "private, no-store");
+  res.end(Buffer.from(a.base64, "base64"));
+});
+
 app.delete("/api/atas/:id", async (req, res) => {
   const u = await sessaoAtas(req, res);
   if (!u) return;
@@ -7491,15 +7632,51 @@ async function assinaturasParaPdf() {
 
    Agora a assinatura é do USUÁRIO: envia-se uma vez e ela serve onde a
    pessoa assinar. O registro é por e-mail, fora do /api/estado (é imagem
-   de assinatura: não pode sair numa chave que qualquer conta aprovada lê),
-   e ninguém envia nem apaga a de outro — nem o gestor geral, porque uma
-   assinatura que um terceiro pode trocar não vale como assinatura.
+   de assinatura: não pode sair numa chave que qualquer conta aprovada lê).
+
+   QUEM ENVIA (revisão do dono, ago/2026, ao levar a assinatura para as
+   ATAS). A regra era absoluta: ninguém envia nem apaga a de outro, nem o
+   gestor geral. Ela protege o que importa e não resolvia o colegiado —
+   metade dos membros de um NDE não abre o portal, e a folha de assinaturas
+   da ata continuaria em branco esperando gente que não vem. Agora são as
+   duas portas, com a **origem marcada**:
+
+     - `titular`  — a pessoa enviou a sua, no /perfil/. Vence sempre.
+     - `terceiro` — a secretaria do órgão digitalizou e subiu pela pessoa,
+                    de dentro de uma ata em que ela é participante.
+
+   E as três regras que a marca sustenta: a de terceiro **nunca sobrescreve
+   a do titular** (o servidor recusa); o titular **substitui ou apaga a
+   qualquer momento**, seja qual for a origem; e quem subiu uma de terceiro
+   pode desfazer o próprio engano, nunca mexer na do titular. A tela diz de
+   onde veio cada uma — assinatura carregada por outra pessoa não pode
+   parecer o mesmo que assinatura enviada pelo dono.
    ====================================================================== */
 const ASSINATURA_USUARIO_KEY = "sys-assinaturas-usuario-v1";
 
 async function lerAssinaturasDeUsuarios() {
   const raw = await storage.get(ASSINATURA_USUARIO_KEY);
   return raw ? JSON.parse(raw) : {};
+}
+
+/* Registro anterior à marca veio do /perfil/, que era a única porta: é do
+   titular. Ler isso num lugar só evita que cada leitor decida diferente. */
+const origemDaAssinatura = (a) => (a?.origem === "terceiro" ? "terceiro" : "titular");
+
+/** O que a TELA pode saber de uma assinatura guardada — nunca a imagem. */
+const resumoAssinatura = (a) => (a?.base64
+  ? { tem: true, origem: origemDaAssinatura(a), em: a.em || "", porQuem: a.porQuem || "" }
+  : { tem: false, origem: "", em: "", porQuem: "" });
+
+/* Recusa a imagem que não serve: só PNG ou JPEG, até 2 MB. O PNG com fundo
+   transparente é o que fica bom sobre a linha — o JPEG passa, mas leva o
+   retângulo branco junto, e é por isso que a tela pede PNG. */
+function imagemDeAssinaturaInvalida(file) {
+  if (!file) return "Nenhuma imagem enviada.";
+  if (!/^image\/(png|jpeg)$/.test(file.mimetype || ""))
+    return "Envie a assinatura em PNG (de preferência com fundo transparente) ou JPG.";
+  if (file.size > 2 * 1024 * 1024) return "Imagem muito grande — até 2 MB.";
+  return "";
 }
 
 /** A assinatura de uma pessoa como Buffer, para o gerador de PDF. null se não houver. */
@@ -7511,24 +7688,22 @@ async function assinaturaDoUsuario(email) {
   try { return Buffer.from(a.base64, "base64"); } catch { return null; }
 }
 
-/** Só o dono envia a própria assinatura. */
+/** A PRÓPRIA assinatura — a do titular, que vence qualquer outra. */
 app.post("/api/perfil/assinatura", upload.single("file"), async (req, res) => {
   try {
     const u = await usuarioDe(req, res);
     if (!u) return res.status(401).json({ error: "Faça login." });
     if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
-    if (!req.file) return res.status(400).json({ error: "Nenhuma imagem enviada." });
-    // PNG com fundo transparente é o que fica bom sobre a linha; JPG passa,
-    // mas o retângulo branco aparece — por isso o aviso na tela
-    if (!/^image\/(png|jpeg)$/.test(req.file.mimetype || ""))
-      return res.status(400).json({ error: "Envie a assinatura em PNG (de preferência com fundo transparente)." });
-    if (req.file.size > 2 * 1024 * 1024)
-      return res.status(400).json({ error: "Imagem muito grande — até 2 MB." });
+    const ruim = imagemDeAssinaturaInvalida(req.file);
+    if (ruim) return res.status(400).json({ error: ruim });
     const todas = await lerAssinaturasDeUsuarios();
     todas[u.email] = {
       base64: req.file.buffer.toString("base64"), tipo: req.file.mimetype,
       arquivo: String(req.file.originalname || "").slice(0, 120),
       bytes: req.file.size, em: new Date().toISOString(),
+      // sobrescrever a de terceiro é justamente o que se espera aqui: a
+      // pessoa viu a que a secretaria subiu e mandou a sua
+      origem: "titular", porQuem: u.email,
     };
     await storage.set(ASSINATURA_USUARIO_KEY, JSON.stringify(todas));
     await storage.flush?.();
