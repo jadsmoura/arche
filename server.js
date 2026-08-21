@@ -20,7 +20,7 @@ import { varrer, varrerSeVencido, dispensar, situacao } from "./lib/cobranca.js"
 import {
   ATAS_KEY, ORGAOS, CURSOS, cursoDe, STATUS as ATA_STATUS, normalizarAta, validarAta,
   numerar, tituloDe, anotar, encaminhamentos, orgaoDe, podeVerAta, podeEditarAta, statusVigente,
-  buscarAtas,
+  buscarAtas, renumerar, numeroIncoerente,
 } from "./lib/atas.js";
 import {
   PAUTAS, MOMENTOS, CADENCIAS, RITUAL, checklistSemestral, pautasSugeridas, janelaDe,
@@ -6467,6 +6467,102 @@ app.get("/api/atas/:id/pdf", async (req, res) => {
   }
 });
 
+/* ------------------ REEMITIR O NÚMERO NA SÉRIE CERTA ---------------------
+   Para as atas que saíram com o ano errado antes da correção de ago/2026 —
+   sessão de 21/02/2025 numerada ATA-NDE-PSI-2026-017. É ato da GESTÃO
+   (número de ata é a chave do que está arquivado, e não se troca por engano
+   de clique) e só roda sobre a incoerência: renumerar ata coerente não teria
+   razão nenhuma.
+
+   O número antigo fica registrado na própria ata e no histórico — ele pode
+   ter sido citado noutra ata ou num ofício já entregue, e quem for conferir
+   precisa achar o rastro. Registrada, a ata ganha o PDF retificado na pasta
+   do ANO CERTO (a pasta sai de `ata.ano`); o documento antigo continua onde
+   está, porque a cópia arquivada é prova do que existiu.                    */
+app.post("/api/atas/:id/renumerar", async (req, res) => {
+  try {
+    const u = await sessaoAtas(req, res);
+    if (!u) return;
+    if (!gereAtas(u))
+      return res.status(403).json({ error: "Reemitir o número de uma ata é ato da gestão." });
+
+    const r = await comAtas((atas) => {
+      const i = atas.findIndex((x) => x.id === req.params.id);
+      if (i < 0) return { erro: [404, "Ata não encontrada"], gravar: false };
+      const saida = renumerar(atas, atas[i]);
+      if (saida.erro) return { erro: [400, saida.erro], gravar: false };
+      atas[i] = anotar({
+        ...saida.ata,
+        atualizadoEm: new Date().toISOString(), atualizadoPor: u.email,
+      }, { quem: u.email,
+        oQue: `reemitiu o número: ${saida.anterior} → ${saida.ata.numero} (ano da sessão)` });
+      return { ata: atas[i], anterior: saida.anterior };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+
+    // ata já registrada: o PDF vale o número novo, e vai para a pasta do ano
+    // certo. Falha de Drive não desfaz a reemissão — o número já está gravado.
+    let arquivada = false, pasta = "";
+    if (r.ata.status === "registrada" && r.ata.texto) {
+      try {
+        const { gerarAtaPdf } = await import("./lib/pdf.js");
+        pasta = pastaDaAta(r.ata);
+        await files.save({ buffer: await gerarAtaPdf(r.ata),
+          originalName: `${slug(r.ata.numero)}.pdf`, prefix: pasta });
+        arquivada = true;
+      } catch (e) {
+        console.error("Falha ao arquivar a ata renumerada:", e.message);
+      }
+    }
+    res.json({ ok: true, ata: r.ata, anterior: r.anterior, arquivada, pasta });
+  } catch (e) {
+    console.error("Erro ao reemitir o número da ata:", e);
+    res.status(500).json({ error: e.message || "Erro ao reemitir o número" });
+  }
+});
+
+/* ----------- as atas que já saíram com o ano errado, de uma vez -----------
+   Decisão do dono (ago/2026): "pode corrigir as numerações e anos, mesmo que
+   mudem de número — essas atas antigas não serão apresentadas, é só para fins
+   de organização e arquivo". No NDE de Psicologia havia sessões de 17/04,
+   18/09 e 21/02 de **2025** numeradas na série de 2026.
+
+   A passada roda UMA vez (a marca), e reemite na ordem CRONOLÓGICA das
+   sessões: numa série que se está organizando, a ata mais antiga tem de ser a
+   de número menor — renumerar na ordem em que estão gravadas devolveria uma
+   série embaralhada, que é meio caminho do problema.
+
+   O lugar que elas deixam na série velha fica VAGO de propósito: número não
+   se reaproveita, e o buraco é o que explica, depois, por que a sequência de
+   2026 pula de 008 para 011.
+
+   O PDF já arquivado no Drive fica onde está — é a prova do que existiu. Quem
+   quiser a cópia com o número novo gera pelo botão da tela, que rearquiva. */
+async function corrigirAnoDoNumeroDasAtas() {
+  const MARCA = "sys-atas-ano-do-numero-v1";
+  if (await storage.get(MARCA)) return;
+  const r = await comAtas((atas) => {
+    const tortas = atas.filter((a) => numeroIncoerente(a))
+      .sort((a, b) => String(a.sessao?.data || "").localeCompare(String(b.sessao?.data || "")));
+    if (!tortas.length) return { trocas: [], gravar: false };
+    const trocas = [];
+    for (const alvo of tortas) {
+      const i = atas.findIndex((x) => x.id === alvo.id);
+      if (i < 0) continue;
+      const saida = renumerar(atas, atas[i]);
+      if (saida.erro) { console.warn(`[atas] ${atas[i].numero}: ${saida.erro}`); continue; }
+      atas[i] = anotar({ ...saida.ata, atualizadoEm: new Date().toISOString() },
+        { quem: "sistema",
+          oQue: `reemitiu o número: ${saida.anterior} → ${saida.ata.numero} (ano da sessão)` });
+      trocas.push(`${saida.anterior} → ${saida.ata.numero}`);
+    }
+    return { trocas, gravar: trocas.length > 0 };
+  });
+  await storage.set(MARCA, new Date().toISOString());
+  if (r.trocas?.length) console.log(`[atas] ano do número corrigido em ${r.trocas.length}: ${r.trocas.join(", ")}`);
+  else console.log("[atas] nenhum número com ano incoerente.");
+}
+
 // Registro definitivo: fecha a ata, gera o PDF e arquiva a cópia no Drive.
 // Nada sai por e-mail — o documento fica no sistema, para download por quem o
 // registrou e pela PROPPEX.
@@ -12497,6 +12593,7 @@ app.listen(port, () => {
       aplicarCoresDosEspacos,    // as etiquetas de cor, no catálogo já gravado
       subirReservasMigradas,     // e as reservas que a recepção anotava à mão
       corrigirEmailsIndicacao,   // e-mail de aluno digitado errado na indicação
+      corrigirAnoDoNumeroDasAtas, // atas de 2025 numeradas na série de 2026
       subirEquipeAP,             // a coordenação do ARCHÉ AP, do arquivo em dados/
       subirProfessoresAP,        // e as listas de professores, curso a curso
       // SEMPRE por último, e a cada arranque (achado de ago/2026 — o caso

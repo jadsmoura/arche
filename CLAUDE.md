@@ -938,8 +938,18 @@ public/
   justamente esse campo que a numeração usa. Agora ele **acompanha a data da sessão
   enquanto a ata não tem número**, e **se fixa depois de numerada**: o número já foi emitido
   e é a chave do que está arquivado. As que já saíram tortas continuam no arquivo, e um
-  aviso (que não trava) as aponta — reemitir número de ata registrada é decisão da gestão,
-  não coisa que o sistema faça em silêncio.
+  aviso (que não trava) as aponta. **Reemitir é ato da GESTÃO** (`POST /api/atas/:id/renumerar`
+  + botão no aviso da ata): o número volta para a série do ano certo, o antigo fica em
+  `numerosAnteriores` e no histórico — ele pode ter sido citado noutra ata ou num ofício já
+  entregue —, e o lugar que ele deixou na série velha fica VAGO de propósito (número não se
+  reaproveita; o buraco é o que explica depois por que a sequência de 2026 pula um degrau).
+  As que já estavam na base foram corrigidas de uma vez (`corrigirAnoDoNumeroDasAtas`, marca
+  `sys-atas-ano-do-numero-v1`, autorização do dono ago/2026: "mesmo que mudem de número —
+  essas atas antigas são só para organização e arquivo"), na ordem **cronológica** das
+  sessões: numa série que se está organizando, a ata mais antiga tem de ser a de número
+  menor. O PDF já arquivado no Drive fica onde está, porque a cópia arquivada é prova do que
+  existiu; quem quiser a cópia com o número novo gera pelo botão, que rearquiva na pasta do
+  ano certo.
 - **Datas passadas são aceitas** de propósito, para os órgãos regularizarem o arquivo.
   Numa ata retroativa, o checklist cobrado e o ciclo de sessões são os do semestre
   DA SESSÃO, não os do semestre corrente (`/api/atas/pauta-regulatoria?data=…`). Duas

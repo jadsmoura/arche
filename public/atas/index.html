@@ -1350,12 +1350,65 @@ function renderEditor(alvo) {
       ${a.id && !a.numero && PODE_EDITAR ? `<button class="bt bt-err" onclick="excluir()">Excluir rascunho</button>` : ""}
     </div>
 
+    ${avisoAnoDoNumero(a)}
+
     ${a.historico?.length ? `<div class="card" style="margin-top:20px"><div class="card-t">Histórico</div>
       <div class="card-s">Quem mexeu na ata e quando.</div>
       <div class="hist">${a.historico.slice().reverse().slice(0, 12)
         .map((h) => `${fmtDH(h.quando)} — <b>${esc(h.quem)}</b> ${esc(h.oQue)}`).join("<br>")}</div></div>` : ""}`;
 
   renderParticipantes(); renderPauta(); renderSugestoes();
+}
+
+/* O NÚMERO DIZ UM ANO E A SESSÃO DIZ OUTRO (achado do dono, ago/2026):
+   ATA-NDE-PSI-2026-017 numa sessão de 21/02/2025. A causa está corrigida — o
+   ano acompanha a data enquanto a ata não tem número —, mas as que já saíram
+   assim continuam no arquivo, e é a série do órgão que fica incoerente.
+
+   Quem reemite é a GESTÃO: número de ata é a chave do que está arquivado. A
+   confirmação diz o que vai acontecer, e o número antigo não some — fica
+   registrado na ata, porque pode ter sido citado noutra ata ou num ofício. */
+const anoDoNumeroLocal = (a) =>
+  Number(String(a?.numero || "").match(/-(\d{4})-\d{3}$/)?.[1]) || 0;
+function numeroIncoerenteLocal(a) {
+  const s = Number(String(a?.sessao?.data || "").slice(0, 4)) || 0;
+  const n = anoDoNumeroLocal(a);
+  return !!s && !!n && s !== n;
+}
+function avisoAnoDoNumero(a) {
+  if (!numeroIncoerenteLocal(a)) return "";
+  return `<div class="card" style="margin-top:20px;border-left:4px solid var(--warn)">
+    <div class="card-t">⚠ O número não bate com o ano da sessão</div>
+    <div class="card-s">O número <b>${esc(a.numero)}</b> é da série de
+      <b>${anoDoNumeroLocal(a)}</b>, mas a sessão aconteceu em
+      <b>${fmtD(a.sessao.data)}</b>. Atas retroativas são aceitas de propósito, para os órgãos
+      regularizarem o arquivo — o que não pode é o número afirmar um ano em que a reunião não
+      houve.</div>
+    ${META.gestao ? `<button class="bt bt-warn" style="margin-top:10px" onclick="reemitirNumero()">
+      🔢 Reemitir o número na série de ${Number(String(a.sessao.data).slice(0, 4))}</button>
+      <div class="card-s" style="margin-top:6px">O número antigo fica registrado na ata e no
+      histórico; a cópia já arquivada no Drive continua onde está.</div>`
+      : `<div class="card-s" style="margin-top:6px">Fale com a PROPPEX para reemitir o número.</div>`}
+  </div>`;
+}
+async function reemitirNumero() {
+  const a = ATUAL; if (!a?.id) return;
+  const ano = Number(String(a.sessao?.data || "").slice(0, 4));
+  if (!confirm(`Reemitir o número desta ata na série de ${ano}?\n\n`
+    + `Atual: ${a.numero}\nO número novo é o próximo livre da série de ${ano}.\n\n`
+    + `O número antigo não se reaproveita e fica registrado na ata.`)) return;
+  try {
+    const r = await fetch(`/api/atas/${encodeURIComponent(a.id)}/renumerar`, { method: "POST" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || `Erro ${r.status}`);
+    ATUAL = j.ata;
+    await carregar();
+    abrir(j.ata.id);
+    alert(`Número reemitido.\n\n${j.anterior}  →  ${j.ata.numero}`
+      + (j.arquivada ? `\n\nO PDF foi arquivado em ${j.pasta}.` : ""));
+  } catch (e) {
+    alert("Não foi possível reemitir o número: " + e.message);
+  }
 }
 
 // Pautas do catálogo que cabem ao órgão desta ata (para o seletor do ponto).

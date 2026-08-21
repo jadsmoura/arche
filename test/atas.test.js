@@ -6,6 +6,7 @@ import zlib from "node:zlib";
 import {
   numeroAta, proximoSequencial, numerar, serieDe, siglaCurso, normalizarAta,
   validarAta, tituloDe, quorum, encaminhamentos, anotar, orgaoDe, avisosDaAta,
+  renumerar, numeroIncoerente, anoDoNumero,
   buscarAtas, termosDaBusca,
 } from "../lib/atas.js";
 import { extenso, dataExtenso, horaExtenso, redigirPorModelo, provedorAtivo, fichaDaReuniao,
@@ -725,4 +726,43 @@ test("o aviso encontra as atas cujo número não bate com o ano da sessão", () 
   assert.ok(aviso, "o aviso precisa apontar a incoerência");
   assert.match(aviso.texto, /2026/);
   assert.match(aviso.texto, /21\/02\/2025/);
+});
+
+/* --------------- reemitir o número na série do ano certo ------------------ */
+test("renumerar leva a ata para a série do ano da sessão e guarda o número antigo", () => {
+  const torta = { ...numerar([], nova()), numero: "ATA-NDE-PSI-2026-017", ano: 2026,
+    sessao: { ...nova().sessao, data: "2025-02-21" }, curso: "psicologia" };
+  const r = renumerar([torta], torta, { agora: new Date("2026-08-21T12:00:00Z") });
+  assert.equal(r.erro, undefined);
+  assert.equal(r.ata.numero, "ATA-NDE-PSI-2025-001");
+  assert.equal(r.ata.ano, 2025);
+  assert.equal(r.anterior, "ATA-NDE-PSI-2026-017");
+  assert.deepEqual(r.ata.numerosAnteriores.map((x) => x.numero), ["ATA-NDE-PSI-2026-017"]);
+  assert.equal(avisosDaAta(r.ata).some((x) => x.tipo === "ano-do-numero"), false);
+});
+
+test("renumerar respeita a série de destino e não repete número", () => {
+  const de2025 = numerar([], normalizarAta(bruta({ curso: "psicologia",
+    sessao: { tipo: "ordinária", data: "2025-05-10", horaInicio: "14:00", horaFim: "15:00",
+      local: "Sala", modalidade: "presencial" } }), { autor: "c@u.edu.br" }));
+  const torta = { ...numerar([de2025], nova()), numero: "ATA-NDE-PSI-2026-017", ano: 2026,
+    curso: "psicologia", sessao: { ...nova().sessao, data: "2025-02-21" } };
+  const r = renumerar([de2025, torta], torta);
+  assert.equal(de2025.numero, "ATA-NDE-PSI-2025-001");
+  assert.equal(r.ata.numero, "ATA-NDE-PSI-2025-002");   // o 001 já é de outra
+});
+
+test("não se renumera ata coerente, nem ata sem número", () => {
+  const ok = numerar([], nova());
+  assert.match(renumerar([ok], ok).erro, /já corresponde/);
+  assert.match(renumerar([], nova()).erro, /ainda não tem número/);
+});
+
+test("o número antigo sobrevive à normalização — é o rastro de quem for conferir", () => {
+  const torta = { ...numerar([], nova()), numero: "ATA-NDE-PSI-2026-017", ano: 2026,
+    curso: "psicologia", sessao: { ...nova().sessao, data: "2025-02-21" } };
+  const r = renumerar([torta], torta);
+  const gravada = normalizarAta(r.ata, { base: r.ata, autor: "c@u.edu.br" });
+  assert.deepEqual(gravada.numerosAnteriores.map((x) => x.numero), ["ATA-NDE-PSI-2026-017"]);
+  assert.equal(gravada.numero, "ATA-NDE-PSI-2025-001");
 });
