@@ -6,7 +6,7 @@ import zlib from "node:zlib";
 import {
   numeroAta, proximoSequencial, numerar, serieDe, siglaCurso, normalizarAta,
   validarAta, tituloDe, quorum, encaminhamentos, anotar, orgaoDe, avisosDaAta,
-  renumerar, numeroIncoerente, anoDoNumero,
+  renumerar, numeroIncoerente, anoDoNumero, renumerarAcervo,
   buscarAtas, termosDaBusca,
 } from "../lib/atas.js";
 import { extenso, dataExtenso, horaExtenso, redigirPorModelo, provedorAtivo, fichaDaReuniao,
@@ -765,4 +765,60 @@ test("o número antigo sobrevive à normalização — é o rastro de quem for c
   const gravada = normalizarAta(r.ata, { base: r.ata, autor: "c@u.edu.br" });
   assert.deepEqual(gravada.numerosAnteriores.map((x) => x.numero), ["ATA-NDE-PSI-2026-017"]);
   assert.equal(gravada.numero, "ATA-NDE-PSI-2025-001");
+});
+
+/* ------------- reorganizar a numeração do acervo inteiro ------------------
+   Autorização do dono, ago/2026: além das de 2025 numeradas na série de 2026,
+   a própria ordem estava embaralhada — a sessão de 21/02 com o número 017 e a
+   de 18/09 com o 010. Num arquivo que se apresenta ao MEC, o número precisa
+   acompanhar o tempo. */
+const dePsico = (data, numero, ano) => ({
+  ...normalizarAta(bruta({ curso: "psicologia",
+    sessao: { tipo: "ordinária", data, horaInicio: "14:00", horaFim: "15:00",
+      local: "Sala", modalidade: "presencial" } }), { autor: "c@u.edu.br" }),
+  id: "ata_" + data, criadoEm: "2026-01-01T00:00:00Z", numero, ano, status: "registrada",
+});
+
+test("cada série fica 001, 002, 003… na ordem das sessões", () => {
+  const acervo = [
+    dePsico("2025-09-18", "ATA-NDE-PSI-2026-010", 2026),
+    dePsico("2026-01-28", "ATA-NDE-PSI-2026-013", 2026),
+    dePsico("2025-02-21", "ATA-NDE-PSI-2026-017", 2026),
+    dePsico("2025-04-17", "ATA-NDE-PSI-2026-009", 2026),
+    dePsico("2026-04-22", "ATA-NDE-PSI-2026-014", 2026),
+  ];
+  const { atas, trocas } = renumerarAcervo(acervo);
+  const porData = atas.slice().sort((a, b) => a.sessao.data.localeCompare(b.sessao.data));
+  assert.deepEqual(porData.map((a) => a.numero), [
+    "ATA-NDE-PSI-2025-001", "ATA-NDE-PSI-2025-002", "ATA-NDE-PSI-2025-003",
+    "ATA-NDE-PSI-2026-001", "ATA-NDE-PSI-2026-002",
+  ]);
+  assert.deepEqual(porData.map((a) => a.ano), [2025, 2025, 2025, 2026, 2026]);
+  assert.equal(trocas.length, 5);
+  // o número antigo fica: pode ter sido citado noutra ata ou num ofício
+  assert.equal(porData[0].numerosAnteriores[0].numero, "ATA-NDE-PSI-2026-017");
+  assert.equal(atas.every((a) => !avisosDaAta(a).some((x) => x.tipo === "ano-do-numero")), true);
+});
+
+test("séries diferentes não se misturam, e a segunda passada não troca nada", () => {
+  const acervo = [
+    dePsico("2025-03-10", "ATA-NDE-PSI-2025-002", 2025),
+    { ...dePsico("2025-05-10", "ATA-NDE-ENF-2025-004", 2025), curso: "enfermagem", id: "e1" },
+    { ...dePsico("2025-02-01", "ATA-CONSU-2025-009", 2025), orgao: "CONSU", curso: "", id: "c1" },
+  ];
+  const um = renumerarAcervo(acervo);
+  assert.deepEqual(um.atas.map((a) => a.numero),
+    ["ATA-NDE-PSI-2025-001", "ATA-NDE-ENF-2025-001", "ATA-CONSU-2025-001"]);
+  const dois = renumerarAcervo(um.atas);
+  assert.deepEqual(dois.trocas, [], "rodar de novo não pode trocar número nenhum");
+});
+
+test("rascunho e ata sem data de sessão ficam de fora", () => {
+  const rascunho = { ...dePsico("2025-06-01", null, null), status: "rascunho", numero: null };
+  const semData = { ...dePsico("2025-07-01", "ATA-NDE-PSI-2026-020", 2026) };
+  semData.sessao = { ...semData.sessao, data: "" };
+  const { atas, trocas } = renumerarAcervo([rascunho, semData]);
+  assert.deepEqual(trocas, []);
+  assert.equal(atas[0].numero, null);
+  assert.equal(atas[1].numero, "ATA-NDE-PSI-2026-020");
 });

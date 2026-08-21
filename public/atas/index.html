@@ -1130,6 +1130,15 @@ async function renderConformidade() {
     </div>
 
     <div class="card">
+      <div class="card-t">Numeração do acervo</div>
+      <div class="card-s">Dentro de cada órgão e ano, as atas são numeradas na <b>ordem em que as
+        sessões aconteceram</b> — é assim que a série se lê. Depois de registrar um lote de atas
+        <b>retroativas</b>, esta passada recoloca a sequência em ordem. Os números trocados ficam
+        registrados em cada ata e no histórico; a cópia já arquivada no Drive continua onde está.</div>
+      <button class="bt bt-warn" onclick="reorganizarNumeracao()">🔢 Reorganizar a numeração</button>
+    </div>
+
+    <div class="card">
       <div class="card-t">Quem regularizar</div>
       <div class="card-s">Agrupado por órgão e curso — abra para ver o que está pendente e cobrar.</div>
       ${d.responsaveis.length ? d.responsaveis.map((g) => `<details class="resp">
@@ -1408,6 +1417,31 @@ async function reemitirNumero() {
       + (j.arquivada ? `\n\nO PDF foi arquivado em ${j.pasta}.` : ""));
   } catch (e) {
     alert("Não foi possível reemitir o número: " + e.message);
+  }
+}
+
+/* A mesma passada que o arranque fez uma vez, quando a PROPPEX quiser
+   repeti-la. Não roda a cada partida de propósito: uma ata retroativa
+   registrada depois deslocaria em silêncio o número de todas as seguintes
+   daquele ano, inclusive as já impressas e assinadas. Aqui, alguém decidiu. */
+async function reorganizarNumeracao() {
+  if (!confirm("Reorganizar a numeração do acervo?\n\n"
+    + "Dentro de cada órgão e ano, as atas passam a ser numeradas na ordem das sessões.\n"
+    + "Atas já impressas podem mudar de número — os antigos ficam registrados.")) return;
+  try {
+    const r = await fetch("/api/atas/renumerar-acervo", { method: "POST" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || `Erro ${r.status}`);
+    await carregar();
+    nav("conformidade");
+    const t = j.trocas || [];
+    alert(t.length
+      ? `Numeração reorganizada — ${t.length} ata(s):\n\n`
+        + t.slice(0, 20).map((x) => `${x.de}  →  ${x.para}`).join("\n")
+        + (t.length > 20 ? `\n… e mais ${t.length - 20}.` : "")
+      : "A numeração já estava em ordem — nada foi trocado.");
+  } catch (e) {
+    alert("Não foi possível reorganizar: " + e.message);
   }
 }
 

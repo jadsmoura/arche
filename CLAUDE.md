@@ -943,11 +943,18 @@ public/
   `numerosAnteriores` e no histórico — ele pode ter sido citado noutra ata ou num ofício já
   entregue —, e o lugar que ele deixou na série velha fica VAGO de propósito (número não se
   reaproveita; o buraco é o que explica depois por que a sequência de 2026 pula um degrau).
-  As que já estavam na base foram corrigidas de uma vez (`corrigirAnoDoNumeroDasAtas`, marca
-  `sys-atas-ano-do-numero-v1`, autorização do dono ago/2026: "mesmo que mudem de número —
-  essas atas antigas são só para organização e arquivo"), na ordem **cronológica** das
-  sessões: numa série que se está organizando, a ata mais antiga tem de ser a de número
-  menor. O PDF já arquivado no Drive fica onde está, porque a cópia arquivada é prova do que
+  O ACERVO INTEIRO foi reorganizado de uma vez (`renumerarAcervo` + `reorganizarNumeracaoDasAtas`,
+  marca `sys-atas-renumeracao-v1`, autorização do dono ago/2026: "pode reenumerar todas —
+  minha equipe está avisada para reimprimir"): não era só o ano errado, a própria ordem estava
+  embaralhada (a sessão de 21/02 com o número 017 e a de 18/09 com o 010). Cada série
+  (órgão + curso + ano da SESSÃO) passa a ser 001, 002, 003… **na ordem em que as reuniões
+  aconteceram** — num arquivo que se apresenta ao MEC, o número precisa acompanhar o tempo.
+  A passada roda UMA vez no arranque e **não** a cada partida: uma ata retroativa registrada
+  depois deslocaria em silêncio o número de todas as seguintes daquele ano, inclusive as já
+  impressas e assinadas. Para repetir depois de um lote de atas antigas, o botão
+  **"Reorganizar a numeração"** na guia Acompanhamento (`POST /api/atas/renumerar-acervo`, só
+  gestão) faz a mesma coisa — com a diferença que importa: alguém decidiu. Rascunho e ata sem
+  data de sessão ficam de fora, e rodar de novo sobre um acervo em ordem não troca nada. O PDF já arquivado no Drive fica onde está, porque a cópia arquivada é prova do que
   existiu; quem quiser a cópia com o número novo gera pelo botão, que rearquiva na pasta do
   ano certo.
 - **Datas passadas são aceitas** de propósito, para os órgãos regularizarem o arquivo.

@@ -20,7 +20,7 @@ import { varrer, varrerSeVencido, dispensar, situacao } from "./lib/cobranca.js"
 import {
   ATAS_KEY, ORGAOS, CURSOS, cursoDe, STATUS as ATA_STATUS, normalizarAta, validarAta,
   numerar, tituloDe, anotar, encaminhamentos, orgaoDe, podeVerAta, podeEditarAta, statusVigente,
-  buscarAtas, renumerar, numeroIncoerente,
+  buscarAtas, renumerar, numeroIncoerente, renumerarAcervo,
 } from "./lib/atas.js";
 import {
   PAUTAS, MOMENTOS, CADENCIAS, RITUAL, checklistSemestral, pautasSugeridas, janelaDe,
@@ -6521,47 +6521,63 @@ app.post("/api/atas/:id/renumerar", async (req, res) => {
   }
 });
 
-/* ----------- as atas que já saíram com o ano errado, de uma vez -----------
-   Decisão do dono (ago/2026): "pode corrigir as numerações e anos, mesmo que
-   mudem de número — essas atas antigas não serão apresentadas, é só para fins
-   de organização e arquivo". No NDE de Psicologia havia sessões de 17/04,
-   18/09 e 21/02 de **2025** numeradas na série de 2026.
+/* ------------- reorganizar a numeração do acervo de atas -----------------
+   Autorização do dono (ago/2026): "pode reenumerar todas — minha equipe está
+   avisada para reimprimir". Não era só o ano errado: dentro da própria série
+   a ordem estava embaralhada (a sessão de 21/02 com o número 017, a de 18/09
+   com o 010). Num arquivo que se apresenta ao MEC, o número precisa
+   acompanhar o tempo, senão a série não se lê.
 
-   A passada roda UMA vez (a marca), e reemite na ordem CRONOLÓGICA das
-   sessões: numa série que se está organizando, a ata mais antiga tem de ser a
-   de número menor — renumerar na ordem em que estão gravadas devolveria uma
-   série embaralhada, que é meio caminho do problema.
+   Cada série (órgão + curso + ano da SESSÃO) passa a ser 001, 002, 003… na
+   ordem em que as reuniões aconteceram. Todo número trocado fica registrado
+   na ata e no histórico: ele pode ter sido citado noutra ata ou num ofício já
+   entregue, e quem for conferir precisa achar o rastro.
 
-   O lugar que elas deixam na série velha fica VAGO de propósito: número não
-   se reaproveita, e o buraco é o que explica, depois, por que a sequência de
-   2026 pula de 008 para 011.
+   Roda UMA vez no arranque (a marca). Deliberadamente NÃO a cada partida: uma
+   ata retroativa registrada depois deslocaria em silêncio o número de todas
+   as seguintes daquele ano, inclusive as já impressas e assinadas. Quando a
+   PROPPEX quiser reorganizar de novo — depois de um lote de atas antigas, por
+   exemplo —, o botão da guia Acompanhamento faz a mesma passada, com a
+   diferença que importa: alguém decidiu.
 
-   O PDF já arquivado no Drive fica onde está — é a prova do que existiu. Quem
-   quiser a cópia com o número novo gera pelo botão da tela, que rearquiva. */
-async function corrigirAnoDoNumeroDasAtas() {
-  const MARCA = "sys-atas-ano-do-numero-v1";
-  if (await storage.get(MARCA)) return;
+   O PDF já arquivado no Drive fica onde está: a cópia arquivada é prova do
+   que existiu, e apagá-la seria pior que o número velho. */
+async function reorganizarNumeracaoDasAtas({ marca = "sys-atas-renumeracao-v1", quem = "sistema" } = {}) {
+  if (marca && await storage.get(marca)) return { trocas: [] };
   const r = await comAtas((atas) => {
-    const tortas = atas.filter((a) => numeroIncoerente(a))
-      .sort((a, b) => String(a.sessao?.data || "").localeCompare(String(b.sessao?.data || "")));
-    if (!tortas.length) return { trocas: [], gravar: false };
-    const trocas = [];
-    for (const alvo of tortas) {
-      const i = atas.findIndex((x) => x.id === alvo.id);
-      if (i < 0) continue;
-      const saida = renumerar(atas, atas[i]);
-      if (saida.erro) { console.warn(`[atas] ${atas[i].numero}: ${saida.erro}`); continue; }
-      atas[i] = anotar({ ...saida.ata, atualizadoEm: new Date().toISOString() },
-        { quem: "sistema",
-          oQue: `reemitiu o número: ${saida.anterior} → ${saida.ata.numero} (ano da sessão)` });
-      trocas.push(`${saida.anterior} → ${saida.ata.numero}`);
+    const { atas: novas, trocas } = renumerarAcervo(atas);
+    if (!trocas.length) return { trocas: [], gravar: false };
+    const mudou = new Map(trocas.map((t) => [t.id, t]));
+    for (let i = 0; i < atas.length; i++) {
+      const t = mudou.get(atas[i]?.id);
+      if (!t) continue;
+      atas[i] = anotar({ ...novas[i], atualizadoEm: new Date().toISOString() },
+        { quem, oQue: `reemitiu o número: ${t.de} → ${t.para} (ordem das sessões)` });
     }
-    return { trocas, gravar: trocas.length > 0 };
+    return { trocas, gravar: true };
   });
-  await storage.set(MARCA, new Date().toISOString());
-  if (r.trocas?.length) console.log(`[atas] ano do número corrigido em ${r.trocas.length}: ${r.trocas.join(", ")}`);
-  else console.log("[atas] nenhum número com ano incoerente.");
+  if (marca) await storage.set(marca, new Date().toISOString());
+  if (r.trocas?.length) {
+    console.log(`[atas] numeração reorganizada: ${r.trocas.length} ata(s) — `
+      + r.trocas.map((t) => `${t.de} → ${t.para}`).join(", "));
+  } else console.log("[atas] numeração já estava em ordem.");
+  return r;
 }
+
+/** A mesma passada, quando a PROPPEX decidir repeti-la. */
+app.post("/api/atas/renumerar-acervo", async (req, res) => {
+  try {
+    const u = await sessaoAtas(req, res);
+    if (!u) return;
+    if (!gereAtas(u))
+      return res.status(403).json({ error: "Reorganizar a numeração do acervo é ato da gestão." });
+    const r = await reorganizarNumeracaoDasAtas({ marca: "", quem: u.email });
+    res.json({ ok: true, trocas: r.trocas || [] });
+  } catch (e) {
+    console.error("Erro ao reorganizar a numeração das atas:", e);
+    res.status(500).json({ error: e.message || "Erro ao reorganizar a numeração" });
+  }
+});
 
 // Registro definitivo: fecha a ata, gera o PDF e arquiva a cópia no Drive.
 // Nada sai por e-mail — o documento fica no sistema, para download por quem o
@@ -12593,7 +12609,7 @@ app.listen(port, () => {
       aplicarCoresDosEspacos,    // as etiquetas de cor, no catálogo já gravado
       subirReservasMigradas,     // e as reservas que a recepção anotava à mão
       corrigirEmailsIndicacao,   // e-mail de aluno digitado errado na indicação
-      corrigirAnoDoNumeroDasAtas, // atas de 2025 numeradas na série de 2026
+      reorganizarNumeracaoDasAtas, // acervo de atas: número na ordem das sessões
       subirEquipeAP,             // a coordenação do ARCHÉ AP, do arquivo em dados/
       subirProfessoresAP,        // e as listas de professores, curso a curso
       // SEMPRE por último, e a cada arranque (achado de ago/2026 — o caso
