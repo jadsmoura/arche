@@ -1323,6 +1323,9 @@ function montarAnos(){
   if(anos.includes(escolhido)) el.value = escolhido;
 }
 const anoDaAcao = (a)=>String(a?.proposta?.periodoFim||a?.proposta?.periodoInicio||a?.criadoEm||"").slice(0,4);
+// quando a ação ACONTECEU — é por ela que a guia Relatórios ordena, e não
+// pela data em que a proposta foi digitada
+const dataExecucao = (a)=>String(a?.proposta?.periodoFim||a?.proposta?.periodoInicio||a?.criadoEm||"").slice(0,10);
 // dias de atraso do relatório final (0 = ainda no prazo)
 const atrasoRelatorio = (a)=>{
   // "aguardando-encerramento" é o mesmo fato que o antigo "pendente": o
@@ -1366,11 +1369,16 @@ function renderLista(){
       &&(!fa||anoDaAcao(a)===fa)&&passaPreset(a))
     // na guia Relatórios o que importa é quem está mais atrasado; nas demais,
     // a ordem continua sendo a da chegada
-    // na guia Relatórios o encerrado desce para o fim: ele fica na lista
-    // (é onde o documento mora), mas quem espera decisão vem antes
+    /* Na guia Relatórios a ordem é a da EXECUÇÃO, do mais recente para o mais
+       antigo (pedido do dono, ago/2026): quem abre a guia vem atrás do evento
+       que acabou de acontecer, e ele estava no fim da página — primeiro porque
+       a ordem era a da criação da proposta (uma ação submetida em março
+       aparecia antes de um evento realizado ontem), e depois porque eu havia
+       empurrado o encerrado para o fim da lista. Quem está atrasado continua
+       visível: o bloco "quem deve relatório" abre a guia e cada cartão traz os
+       dias de atraso ao lado do nome. */
     .sort((a,b)=> SECAO==="relatorios"
-      ? ((sit(a).etapa==="encerrado")-(sit(b).etapa==="encerrado"))
-        || (atrasoRelatorio(b)-atrasoRelatorio(a))
+      ? (dataExecucao(b)).localeCompare(dataExecucao(a))
         || (b.criadoEm||"").localeCompare(a.criadoEm||"")
       : (b.criadoEm||"").localeCompare(a.criadoEm||""));
   $("devedores").innerHTML = SECAO==="relatorios" ? quemDeveRelatorio(universo, fa) : "";

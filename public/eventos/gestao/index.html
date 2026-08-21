@@ -3125,7 +3125,11 @@ async function renderCertificados(a){
       <div class="sec-t">Quem tem certificado <span class="muted">(${(j.certificados||[]).length})</span></div>
       ${j.pode?`<div class="muted" style="margin:8px 0">A frente traz o texto do certificado; o verso,
         a programação do evento. A carga horária do participante é a das atividades em que ele teve
-        presença registrada.</div>`
+        presença registrada.</div>
+        ${j.semCredenciamento?`<div class="tut" style="font-size:12.5px;margin:0 0 10px">👥 <b>Ninguém foi
+          credenciado neste evento</b>, então a <b>lista de inscritos vale como lista de presença</b> e
+          todos entram com a carga horária do evento. Credenciamento que não aconteceu não é registro de
+          ausência — mas basta <b>uma</b> leitura de crachá para a lista de presença passar a mandar.</div>`:""}`
         :`<div class="muted" style="margin:8px 0">${esc(j.motivo||"Os certificados ainda não estão disponíveis.")}</div>`}
       ${(j.certificados||[]).length?`${tabela("participante","Participantes")}${tabela("palestrante","Palestrantes")}${tabela("comissao","Comissão organizadora")}`
         :`<div class="muted">Ninguém com direito a certificado ainda — confira presenças, comissão e palestrantes.</div>`}

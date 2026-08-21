@@ -314,6 +314,15 @@ public/
   viraria certificado antes de alguém olhar, e certificado emitido não se recolhe. Três
   documentos: **participante** (CH das ATIVIDADES em que teve presença, não a do evento
   inteiro), **palestrante** (com o título da apresentação) e **comissão** (com a função).
+  **Credenciamento que NÃO aconteceu não é lista de ausentes** (`houveCredenciamento` em
+  lib/eventos.js, achado do dono ago/2026 na Acolhida dos Cursos de Engenharia): o evento
+  pode estar configurado para controlar frequência e, no dia, ninguém ter parado na porta —
+  o monitor não abriu o PWA, o QR não foi projetado. A guia mostrava só a comissão, como se
+  os inscritos tivessem faltado. Sem NENHUMA presença lançada no evento inteiro, a **lista
+  de inscritos vale como lista de presença** e a CH cai na do evento; basta **uma** leitura
+  de crachá para a lista voltar a mandar. É a mesma leitura que a sugestão do relatório
+  final já fazia com o número de discentes, e a guia DIZ que foi isso que aconteceu
+  (`semCredenciamento` na rota) — número que ninguém sabe explicar é pior que número menor.
   Frente com o texto padrão na moldura do UNIEGO, **verso com a programação** — é ela que
   dá lastro às horas da frente. Assinam até quatro, e **quem não tem imagem não aparece**
   (nada de linha em branco com nome embaixo): responsável e coordenação enviam o PNG na
@@ -802,9 +811,14 @@ public/
 - **O encerrado NÃO some da guia Relatórios** (achado do dono, ago/2026: "um evento acabou de ser
   encerrado e ele não aparece na guia relatórios"): a ação saía da lista justamente quando o
   relatório passava a existir — quem encerrou o evento vinha procurar o documento e não achava.
-  Agora ela fica, no **fim** da lista (quem espera decisão vem antes), e o recorte é
-  `relatorioNoCiclo`: entra tudo o que já foi validado e começou; fica de fora só o projeto ainda
-  em análise e a ação que não começou, que enterrariam os atrasados.
+  Agora ela fica, e o recorte é `relatorioNoCiclo`: entra tudo o que já foi validado e começou;
+  fica de fora só o projeto ainda em análise e a ação que não começou, que enterrariam os
+  atrasados. A **ordem é a da EXECUÇÃO, do mais recente para o mais antigo** (`dataExecucao`,
+  por `periodoFim`; correção do dono ago/2026): quem abre a guia vem atrás do evento que
+  acabou de acontecer, e ele caía no fim da página — antes porque a ordem era a da CRIAÇÃO da
+  proposta (uma submetida em março vinha na frente de um evento realizado ontem), depois
+  porque eu havia empurrado o encerrado para o fim. Quem está atrasado continua visível: o
+  bloco "quem deve relatório" abre a guia e cada cartão traz os dias de atraso ao lado.
 - Fluxo da Extensão: proposta → aprovação (nº `EXT-AAAA-NNN`) → relatório final →
   participantes (3/3 completa) → **registrada → certificados**. Não alterar o formato do nº.
   A ordem é essa desde ago/2026 e é o que `acaoCertificavel` cobra: nas ações SEM evento é o

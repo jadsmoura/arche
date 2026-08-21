@@ -83,7 +83,7 @@ import {
 } from "./lib/eventos.js";
 import {
   PAPEIS_COMISSAO, faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento,
-  videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento, contaPresente,
+  videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento, contaPresente, houveCredenciamento,
   normalizarCursosExtras, cursosDaAcao,
 } from "./lib/eventos.js";
 import {
@@ -12030,6 +12030,10 @@ app.get("/api/extensao/:id/certificados", async (req, res) => {
     res.json({
       ok: true, pode: pode.ok, motivo: pode.motivo,
       certificados: lista,
+      // a coordenação precisa saber POR QUE todos os inscritos apareceram:
+      // ninguém foi credenciado, e aí a inscrição vale como presença
+      semCredenciamento: !!a.evento
+        && !houveCredenciamento(a.evento, a.participantes?.inscritos),
       assinaturas: assinaturasVisiveis(a),
       institucionais: {
         proreitor: !!institucionais.proreitor?.base64,

@@ -249,3 +249,34 @@ test("carga horária escrita como texto vale o número que ela diz", () => {
   misto.participantes.inscritos[0].presencas.push({ atividade: "aaaa0002" });
   assert.equal(certificadosDaAcao(misto, { hoje: "2026-08-20" })[0].ch, 6);
 });
+
+/* ------- credenciamento que NÃO aconteceu não é lista de ausentes ---------
+   Achado do dono, ago/2026, na Acolhida dos Cursos de Engenharia: o evento
+   estava configurado para controlar frequência e, no dia, ninguém foi
+   credenciado — o monitor não abriu o PWA. A guia "Encerrar evento" mostrava
+   só a comissão organizadora, como se os inscritos tivessem faltado. */
+test("sem NENHUMA presença lançada, a lista de inscritos vale como presença", () => {
+  const a = acao();
+  a.participantes.inscritos = [
+    { nome: "Ana", cpf: CPF_A, email: "ana@x.com" },
+    { nome: "Bruno", cpf: CPF_B, email: "bruno@x.com", presente: false },
+  ];
+  const certs = certificadosDaAcao(a, { hoje: "2026-08-20" });
+  const parts = certs.filter((c) => c.tipo === "participante").map((c) => c.pessoa);
+  assert.deepEqual(parts, ["Ana", "Bruno"]);
+  // sem presença por atividade, a CH é a do evento inteiro
+  assert.equal(certs.find((c) => c.pessoa === "Ana").ch, 8);
+});
+
+test("bastou UMA leitura de crachá para a lista de presença voltar a mandar", () => {
+  const certs = certificadosDaAcao(acao(), { hoje: "2026-08-20" });
+  const parts = certs.filter((c) => c.tipo === "participante").map((c) => c.pessoa);
+  assert.deepEqual(parts, ["Ana"]);            // Bruno não foi credenciado
+});
+
+test("evento SEM controle de frequência segue certificando todo inscrito", () => {
+  const a = acao({ controleFrequencia: false });
+  const parts = certificadosDaAcao(a, { hoje: "2026-08-20" })
+    .filter((c) => c.tipo === "participante").map((c) => c.pessoa);
+  assert.deepEqual(parts, ["Ana", "Bruno"]);
+});
