@@ -134,14 +134,6 @@
   .b-encerramento-em-validacao{background:var(--roxo-soft);color:var(--roxo)}
   .b-encerrado{background:#eceff3;color:var(--muted)}
   .b-pub{background:var(--wash,#e6f5fa);color:var(--teal);font-weight:600}
-  /* as duas guias do documento: projeto e relatório final, uma por vez */
-  .doc-abas{display:flex;gap:8px;margin:14px 0 0;flex-wrap:wrap}
-  .doc-aba{flex:1;min-width:150px;text-align:left;cursor:pointer;font:inherit;
-    background:#fff;border:1px solid var(--line);border-bottom:3px solid var(--line);
-    border-radius:10px 10px 0 0;padding:10px 14px;font-size:13.5px;font-weight:600;
-    color:var(--muted);line-height:1.35}
-  .doc-aba:hover{background:var(--wash,#e6f5fa)}
-  .doc-aba.on{color:var(--brand,#1c3742);border-bottom-color:var(--teal,#40717e);background:#fff}
   .banner{border-radius:10px;padding:13px 15px;margin-bottom:14px;font-size:13.5px;font-weight:500}
   .ba-warn{background:var(--warn-soft);color:var(--warn);border:1px solid #f0e0bd}
   /* usada em cinco avisos desta tela e nunca definida: sem ela o banner saía
@@ -1490,29 +1482,41 @@ function barraAcoes(a,s,podeRelatorio){
 }
 
 /* ============================== DETALHE ================================= */
-/* Guia escolhida à mão nesta ação; "" = a tela decide pelo que está pendente.
-   Zera ao trocar de ação: a guia que interessa numa não é a que interessa na
-   seguinte. */
-let DOC_ABA = "", DOC_ACAO = "";
-function trocarDoc(id, qual){ DOC_ABA = qual; renderDetalhe(id); window.scrollTo(0,0); }
+/* A SEÇÃO DECIDE QUAL DOCUMENTO A TELA MOSTRA (pedido do dono, ago/2026):
+   "não vejo sentido ter duas guias, se há dois setores — propostas ficam em
+   Propostas, e relatórios ficam em Relatórios". As guias dentro da ação eram
+   uma segunda navegação por cima da que a barra já faz, e a barra é a que a
+   pessoa usa para chegar até aqui.
 
-/* As duas guias do documento. Antes da validação existe só o projeto — e um
-   par de guias com uma delas vazia seria pior que nenhuma. */
-function abasDoDocumento(a, aba, podeRelatorio){
-  if(!podeRelatorio) return "";
-  const st = sit(a);
-  const feito = (x)=>`<span style="font-size:11px;opacity:.75">${x}</span>`;
-  const selo1 = a.numeroAcao ? feito("✓ validado") : "";
-  const selo2 = st.etapa==="encerrado" ? feito("✓ validado")
-    : st.relatorioEntregue ? feito("entregue")
-    : feito("a preencher");
-  const bt = (qual, rot, sel) => `<button class="doc-aba${aba===qual?" on":""}"
-    onclick="trocarDoc('${a.id}','${qual}')">${rot}<br>${sel}</button>`;
-  return `<div class="doc-abas">${bt("projeto","📄 Projeto",selo1)}${bt("relatorio","📊 Relatório final",selo2)}</div>`;
+   Aberta pela guia PROPOSTAS, a ação mostra o PROJETO e só ele. Aberta pela
+   guia RELATÓRIOS, mostra o relatório final — e com ele tudo o que alimenta
+   o documento: portfólio, lista de participantes e a operação do evento
+   (programação, inscritos, presenças, transmissão), que é de onde saem os
+   números do relatório.
+
+   De outros lugares (o Painel, um atalho) não há seção que diga: aí vale o
+   que está pendente. `SECAO` guarda a guia de origem porque `nav('detalhe')`
+   não a sobrescreve — é a mesma variável que a lista usa para se recortar. */
+function documentoDaVez(a, podeRelatorio){
+  if(!podeRelatorio) return "projeto";
+  if(SECAO==="relatorios") return "relatorio";
+  if(SECAO==="acoes") return "projeto";
+  return deveRelatorio(a) ? "relatorio" : "projeto";
 }
 
+/* O outro documento fica a um clique — sem isso, quem está no projeto teria
+   de voltar à lista e procurar a mesma ação na outra guia. */
+function atalhoOutroDoc(a, doc, podeRelatorio){
+  if(!podeRelatorio) return "";
+  const [secao, rot] = doc==="projeto"
+    ? ["relatorios", "Ver o relatório final desta ação →"]
+    : ["acoes", "← Ver o projeto desta ação"];
+  return `<div style="margin:2px 0 12px"><button class="bt bt-ghost"
+    style="padding:5px 11px;font-size:12px" onclick="irPara('${secao}','${a.id}')">${rot}</button></div>`;
+}
+function irPara(secao, id){ SECAO = secao; renderDetalhe(id); window.scrollTo(0,0); }
+
 function renderDetalhe(id){
-  if(DOC_ACAO !== id){ DOC_ACAO = id; DOC_ABA = ""; }
   const a = ACOES.find(x=>x.id===id);
   if(!a || (!PROPPEX && a.criadoPor!==ME?.email)){
     $("v-detalhe").innerHTML='<div class="card">Ação não encontrada.</div>'; return; }
@@ -1523,17 +1527,7 @@ function renderDetalhe(id){
      aparece em somente-leitura — quem trava é o `lock` lá dentro. */
   const podeRelatorio = ["aprovada","pendente","relatorio-entregue","devolvida","registrada"]
     .includes(s) && a.numeroAcao;
-  /* PROJETO e RELATÓRIO FINAL são DOIS DOCUMENTOS (pedido do dono, ago/2026):
-     a ação abria com os dois na mesma página — a ficha do projeto e, logo
-     abaixo, o formulário inteiro do relatório, a lista de participantes e a
-     fileira de botões dos dois. "Fica confuso, muitos botões e opções."
-     Agora é UM POR VEZ, em duas guias. O projeto vem primeiro e se conclui
-     na validação da PROPPEX (a ficha já era somente-leitura: o que ela ganha
-     é o selo de concluída); o relatório final só existe depois disso, e a
-     tela abre na guia que tem trabalho pendente — a outra fica a um clique,
-     porque conferir o projeto enquanto se escreve o relatório é rotina. */
-  const aba = !podeRelatorio ? "projeto"
-    : (DOC_ABA || (deveRelatorio(a) ? "relatorio" : "projeto"));
+  const doc = documentoDaVez(a, podeRelatorio);
   let html = `<div class="card">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <h2 style="font-size:20px;flex:1">${esc(p.nomeAtividade)}</h2>
@@ -1543,7 +1537,7 @@ function renderDetalhe(id){
     <div class="muted" style="margin:4px 0 12px">${esc(a.curso)} · ${fmt(p.periodoInicio)} a ${fmt(p.periodoFim)} · ${esc(p.cargaHoraria)}h · ${esc(p.local)} (${esc(p.municipio)})${a.criadoPor?` · submetida por ${esc(a.criadoPorNome||a.criadoPor)} &lt;${esc(a.criadoPor)}&gt;`:""}</div>
     ${sit(a).detalhe?`<div class="muted" style="margin:-6px 0 12px;font-size:13px">→ ${esc(sit(a).detalhe)}</div>`:""}`;
 
-  html += marcas(a) + barraAcoes(a,s,podeRelatorio) + abasDoDocumento(a, aba, podeRelatorio)
+  html += marcas(a) + barraAcoes(a,s,podeRelatorio) + atalhoOutroDoc(a, doc, podeRelatorio)
     + '<div style="margin-bottom:10px"></div>';
   const c3 = completude(a);
   if(PROPPEX && c3.completa && s==="relatorio-entregue")
@@ -1566,7 +1560,7 @@ function renderDetalhe(id){
     html += `<div class="banner ba-ok">✓ Proposta enviada. Aguardando análise da PROPPEX.</div>`;
 
   /* ======================== documento 1: O PROJETO ======================= */
-  if(aba==="projeto"){
+  if(doc==="projeto"){
   html += `<div class="sec-t">Projeto da ação${a.numeroAcao?" · validado":""}</div>
     <div class="kv"><b>Classificação:</b> ${esc(p.classificacao)}${p.classificacao==="Outro"?" — "+esc(p.classificacaoOutro):""}</div>
     ${p.temaCentral?`<div class="kv"><b>Tema central:</b> ${esc(p.temaCentral)}</div>`:""}
@@ -1592,7 +1586,7 @@ function renderDetalhe(id){
   }
 
   /* ==================== documento 2: O RELATÓRIO FINAL =================== */
-  if(podeRelatorio && aba==="relatorio"){
+  if(podeRelatorio && doc==="relatorio"){
     const lock = s==="registrada";
     html += `<div class="card"><div class="sec-t">Relatório final</div>${atalhoEncerrarEv(a)}<div id="r-sugestao"></div>`;
     if(PROPPEX && s!=="relatorio-entregue" && s!=="registrada")
@@ -1697,12 +1691,13 @@ function renderDetalhe(id){
   // pública exige o número da ação — e quem garante isso é o servidor.
   // o evento acompanha o PROJETO: ele é a execução do que a proposta prevê,
   // e o relatório final é o documento que se escreve depois dela
-  if(aba==="projeto") html += cardEvento(a);
+  if(doc==="relatorio") html += cardEvento(a);
 
-  html += `<button class="bt bt-ghost" onclick="nav('acoes')" style="margin-bottom:24px">← voltar à lista</button>`;
+  html += `<button class="bt bt-ghost" onclick="nav('${doc==="relatorio"?"relatorios":"acoes"}')"
+    style="margin-bottom:24px">← voltar à lista</button>`;
   $("v-detalhe").innerHTML = html;
-  if(podeRelatorio && aba==="relatorio"){ montarCola(a); renderTabelasPart(a); renderAnexos(a); sugerirRelatorio(a); }
-  if(aba==="projeto"){
+  if(doc==="relatorio"){
+    montarCola(a); renderTabelasPart(a); renderAnexos(a); sugerirRelatorio(a);
     renderProgEv(); renderFormEv(); renderDicaTransmissao();
     renderInscritosEv(a); renderMuralEv(a); agendarEvento(a.id);
   } else { clearInterval(EV_TIMER); }

@@ -607,17 +607,20 @@ public/
   começo"**, que escreve o que é FATO (quando, onde, carga horária, quantos participantes) e
   para no ponto em que a pessoa continua — o juízo sobre o que a ação alcançou é dela, e é
   isso que a PROPPEX lê.
-- **PROJETO e RELATÓRIO FINAL são DOIS DOCUMENTOS, um por vez** (`DOC_ABA`/`abasDoDocumento`
-  na SPA da Extensão, pedido do dono ago/2026): a ação abria com os dois na mesma página — a
-  ficha do projeto e, logo abaixo, o formulário inteiro do relatório, a lista de
-  participantes e a fileira de botões dos dois ("fica confuso, muitos botões e opções").
-  Agora são **duas guias** dentro da ação, e a tela abre naquela que tem trabalho pendente.
-  Enquanto o projeto não é validado **não existe a segunda guia** — um par de guias com uma
-  delas vazia seria pior que nenhuma. Validado, o projeto se conclui (a ficha já era
-  somente-leitura; o que ela ganha é o selo) e o relatório final passa a existir. O relatório
-  **continua na ação depois de registrado**, em somente-leitura: sumir com ele justamente
-  quando fica pronto deixaria a ação concluída sem o documento que a conclui. O card do
-  **evento acompanha o projeto** — ele é a execução do que a proposta prevê.
+- **PROJETO e RELATÓRIO FINAL são DOIS DOCUMENTOS, e quem escolhe é a SEÇÃO**
+  (`documentoDaVez` na SPA da Extensão, pedido do dono ago/2026): a ação abria com os dois na
+  mesma página — a ficha do projeto e, logo abaixo, o formulário inteiro do relatório, a lista
+  de participantes e a fileira de botões dos dois ("fica confuso, muitos botões e opções").
+  A primeira tentativa foi um par de guias DENTRO da ação, e o dono a recusou com razão: "não
+  vejo sentido ter duas guias, se há dois setores — propostas ficam em Propostas, e relatórios
+  ficam em Relatórios". Era uma segunda navegação por cima da que a barra já faz. Agora:
+  aberta pela guia **Propostas**, a ação mostra o PROJETO e só ele; aberta pela guia
+  **Relatórios**, mostra o relatório final e tudo o que o alimenta — portfólio, lista de
+  participantes e a **operação do evento** (programação, inscritos, presenças, transmissão),
+  que é de onde saem os números do documento. De outro lugar (o Painel, um atalho) vale o que
+  está pendente. Quem guarda a origem é `SECAO`, porque `nav('detalhe')` não a sobrescreve —
+  a mesma variável que recorta a lista. Um botão discreto leva ao outro documento da MESMA
+  ação, senão sair do projeto para o relatório exigiria voltar à lista e procurá-la de novo.
 - **O PDF timbrado só sai depois de VALIDADO** (pedido do dono, ago/2026, revendo a decisão
   anterior de deixar o relatório sair como rascunho): o documento no timbre do UNIEGO, com as
   assinaturas da pró-reitoria e da reitoria no pé, AFIRMA um ato institucional — enquanto o
