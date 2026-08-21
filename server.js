@@ -2700,6 +2700,21 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
     const acao = acoes.find((a) => a.id === id);
     if (!acao) return res.status(404).send("Ação não encontrada");
 
+    /* O PDF TIMBRADO SÓ SAI DEPOIS DE VALIDADO (pedido do dono, ago/2026,
+       revendo a decisão anterior de deixar o relatório sair como rascunho):
+       o documento no timbre do UNIEGO, com as assinaturas da pró-reitoria e
+       da reitoria no pé, AFIRMA um ato institucional. Enquanto o projeto não
+       foi validado e o relatório não foi encerrado, esse ato não aconteceu —
+       e um PDF assim circulando vira documento por engano. Para conferir o
+       que está escrito, a ficha na tela mostra os mesmos campos. */
+    const st = situacaoDaAcao(acao);
+    if (tipo === "proposta" && !String(acao.numeroAcao || "").trim())
+      return res.status(400).send("O projeto ainda não foi validado pela PROPPEX — "
+        + "o PDF timbrado sai depois da validação.");
+    if (tipo === "pdf" && st.etapa !== "encerrado")
+      return res.status(400).send("O relatório final ainda não foi validado e encerrado — "
+        + "o PDF timbrado sai depois disso.");
+
     const { gerarRegistroDocx, gerarCertificadosXlsx } = await import("./lib/exports.js");
     let buffer, nome, mime;
     const num = (acao.numeroAcao || acao.id).replace(/[^A-Za-z0-9-]/g, "-");
@@ -2748,6 +2763,10 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
 
     res.setHeader("Content-Type", mime);
     res.setHeader("Content-Disposition", `attachment; filename="${nome}"`);
+    // documento NÃO se guarda em cache: o navegador reservava o PDF baixado
+    // antes e devolvia o velho no clique seguinte — quem acabou de corrigir
+    // o texto reabria o documento e via o erro de novo
+    res.setHeader("Cache-Control", "no-store, must-revalidate");
     res.send(buffer);
   } catch (error) {
     console.error("Erro no export da extensão:", error);

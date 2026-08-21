@@ -594,6 +594,27 @@ public/
   começo"**, que escreve o que é FATO (quando, onde, carga horária, quantos participantes) e
   para no ponto em que a pessoa continua — o juízo sobre o que a ação alcançou é dela, e é
   isso que a PROPPEX lê.
+- **PROJETO e RELATÓRIO FINAL são DOIS DOCUMENTOS, um por vez** (`DOC_ABA`/`abasDoDocumento`
+  na SPA da Extensão, pedido do dono ago/2026): a ação abria com os dois na mesma página — a
+  ficha do projeto e, logo abaixo, o formulário inteiro do relatório, a lista de
+  participantes e a fileira de botões dos dois ("fica confuso, muitos botões e opções").
+  Agora são **duas guias** dentro da ação, e a tela abre naquela que tem trabalho pendente.
+  Enquanto o projeto não é validado **não existe a segunda guia** — um par de guias com uma
+  delas vazia seria pior que nenhuma. Validado, o projeto se conclui (a ficha já era
+  somente-leitura; o que ela ganha é o selo) e o relatório final passa a existir. O relatório
+  **continua na ação depois de registrado**, em somente-leitura: sumir com ele justamente
+  quando fica pronto deixaria a ação concluída sem o documento que a conclui. O card do
+  **evento acompanha o projeto** — ele é a execução do que a proposta prevê.
+- **O PDF timbrado só sai depois de VALIDADO** (pedido do dono, ago/2026, revendo a decisão
+  anterior de deixar o relatório sair como rascunho): o documento no timbre do UNIEGO, com as
+  assinaturas da pró-reitoria e da reitoria no pé, AFIRMA um ato institucional — enquanto o
+  projeto não foi validado e o relatório não foi encerrado, esse ato não aconteceu, e um PDF
+  assim circulando vira documento por engano. A régua é do SERVIDOR, na rota de export
+  (`proposta` exige `numeroAcao`; `pdf` exige a etapa `encerrado`), e a tela só deixa de
+  oferecer o que ele recusaria. Para conferir o texto antes, a ficha na tela tem os mesmos
+  campos. Os documentos saem com **`Cache-Control: no-store`**: o navegador guardava o PDF
+  baixado antes e devolvia o velho no clique seguinte — quem acabava de corrigir um texto
+  reabria o documento e via o erro de novo.
 - **A barra de ações fica no ALTO da ação** (`barraAcoes`, pedido do dono ago/2026): os dois
   PDFs — **Projeto** e **Relatório final** — e o ato do momento (encerrar e entregar, validar
   e registrar, ou reabrir). Eles existiam só no último card, depois do relatório, do portfólio
