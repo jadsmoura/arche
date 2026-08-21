@@ -355,6 +355,16 @@ const SECOES = () => {
   if (souMonitor()) s.push({ k: "minha", rot: "Minha monitoria" });
   s.push({ k: "relatorios", rot: "Relatórios" });
   s.push({ k: "certificados", rot: "Certificados" });
+  /* O ARQUIVO ganhou guia própria (achado do dono, ago/2026: "os projetos
+     antigos de monitoria sumiram do sistema"). Ele nunca sumiu — estava num
+     bloco no PÉ da guia Certificados, embaixo de uma lista pessoal vazia, e
+     quem procurava em Projetos não achava nada, porque o arquivo não vira
+     projeto de propósito (projeto tem prazo, relatório e cobrança, que não
+     existem para semestre encerrado). Duzentos registros atrás de uma lista
+     vazia é o mesmo que não existir.
+     Vale para a gestão E para a coordenação de curso, que já tinha a rota e
+     nunca via o bloco — não conseguia conferir o arquivo do próprio curso. */
+  if (DADOS?.gestao || DADOS?.cursosCoordenados?.length) s.push({ k: "arquivo", rot: "Arquivo" });
   s.push({ k: "edital", rot: "Edital e documentos" });
   return s;
 };
@@ -373,6 +383,7 @@ const TITULOS = {
   minha: ["Minha monitoria", "Sua inscrição, seu plano de trabalho e o seu relatório."],
   relatorios: ["Relatórios", "O que foi entregue, o que espera avaliação e o que espera homologação."],
   certificados: ["Certificados", "Emitidos automaticamente quando a PROPPEX homologa o relatório."],
+  arquivo: ["Arquivo da monitoria", "Os semestres que correram antes do ARCHÉ, transcritos das planilhas das coordenações."],
   edital: ["Edital e documentos", "O edital do ciclo e os documentos do processo."],
   projeto: ["Projeto de monitoria", ""],
   form: ["Projeto de monitoria", "Preencha e submeta — a indicação do monitor vai junto."],
@@ -387,7 +398,7 @@ function render() {
   $("topDir").innerHTML = META().submissaoAberta
     ? `<span style="color:var(--ok);font-weight:600">Submissões abertas até ${dataBR(META().prazos?.submissao)}</span>`
     : `<span>Submissões encerradas em ${dataBR(META().prazos?.submissao)}</span>`;
-  const telas = { painel, projetos, minha, relatorios, certificados, edital, projeto: telaProjeto, form: telaForm };
+  const telas = { painel, projetos, minha, relatorios, certificados, arquivo, edital, projeto: telaProjeto, form: telaForm };
   $("tela").innerHTML = (telas[SECAO] || painel)();
 }
 
@@ -1117,33 +1128,83 @@ async function carregarCertificados() {
       <a class="pdf" href="${esc(c.link || `/api/monitoria/certificado.pdf?projeto=${encodeURIComponent(c.projetoId)}&tipo=${encodeURIComponent(c.tipo)}`)}"
         target="_blank">baixar PDF</a></div>`).join("")
       : `<div class="vazio">Nenhum certificado ainda. Eles aparecem aqui quando o projeto é concluído.</div>`}
-  </div>${DADOS.gestao ? await blocoArquivo() : ""}`;
+  </div>${DADOS.gestao || DADOS.cursosCoordenados?.length
+    ? `<div class="card"><div class="card-s">Os semestres migrados das planilhas das coordenações
+        ficam na guia <b>Arquivo</b>.</div></div>` : ""}`;
 }
 
-/* O ARQUIVO — os semestres que correram FORA do ARCHÉ (a planilha que a
-   coordenação do curso guardou). O que a gestão precisa ver aqui não é quem
-   TEM certificado: é quem ainda não foi encontrado no portal. Sem matrícula
-   no perfil o documento existe e o aluno não sabe — e ninguém sabe que ele
-   não sabe. */
-async function blocoArquivo() {
+/* ============================ GUIA ARQUIVO ==============================
+   Os semestres que correram FORA do ARCHÉ — a planilha que a coordenação do
+   curso guardou. Eles NÃO viram projeto de propósito: projeto tem prazo,
+   relatório e cobrança, que não existem para semestre encerrado e fariam o
+   painel da PROPPEX contar como pendência o que já acabou.
+
+   Mas precisam ter onde morar. Até ago/2026 estavam num bloco no pé da guia
+   Certificados, embaixo de uma lista pessoal vazia — e o dono, procurando em
+   Projetos, concluiu (com razão) que tinham sumido. Duzentos registros atrás
+   de uma lista vazia é o mesmo que não existir.
+
+   O que a gestão precisa ver aqui não é quem TEM certificado: é quem ainda
+   não foi encontrado no portal. Sem matrícula no perfil, o documento existe e
+   o aluno não sabe — e ninguém sabe que ele não sabe. */
+const kpi = (rot, val, det) => `<div class="kpi"><div class="l">${rot}</div>
+  <div class="v">${val}</div><div class="d">${esc(det)}</div></div>`;
+
+function arquivo() { setTimeout(carregarArquivo, 0); return `<div class="vazio">Carregando…</div>`; }
+
+async function carregarArquivo() {
+  let lotes = [];
   try {
     const r = await fetch("/api/monitoria/historico");
-    if (!r.ok) return "";
-    const lotes = (await r.json()).lotes || [];
-    if (!lotes.length) return "";
-    return lotes.map((l) => `<div class="card">
-      <div class="card-t">Arquivo · ${esc(l.curso)} · ${esc(l.ciclo)}</div>
-      <div class="card-s">${l.registros} certificado(s) de ${l.alunos.length} acadêmico(s), do edital
-        ${esc(l.edital)}. Fonte: ${esc(l.fonte)}. <b>${l.comConta} de ${l.alunos.length}</b> já têm conta
-        no portal que o ARCHÉ conseguiu casar — os demais só encontrarão o certificado depois de
-        informarem a matrícula no perfil.</div>
-      ${l.alunos.map((a) => `<div class="item">
-        <div class="nm">${esc(a.nome)}
-          <div class="cs">${esc(a.matricula || "sem matrícula na planilha")} · ${a.certificados} certificado(s)</div></div>
-        <div class="cs">${a.conta ? `✓ ${esc(a.conta)}` : "— ainda sem conta casada"}</div></div>`).join("")}
-    </div>`).join("");
-  } catch { return ""; }
+    if (!r.ok) throw new Error(`Erro ${r.status}`);
+    lotes = (await r.json()).lotes || [];
+  } catch (e) {
+    $("tela").innerHTML = `<div class="card"><div class="card-t">Arquivo da monitoria</div>
+      <div class="aviso">Não foi possível carregar o arquivo agora (${esc(e.message)}).
+      Recarregue a página; se continuar, fale comigo.</div></div>`;
+    return;
+  }
+  if (!lotes.length) {
+    $("tela").innerHTML = `<div class="card"><div class="card-t">Arquivo da monitoria</div>
+      <div class="card-s">Nenhum semestre migrado ainda. As coordenações entregam a planilha do
+        curso e cada ciclo entra aqui — os certificados passam a existir sem que ninguém precise
+        abrir projeto para um semestre que já acabou.</div></div>`;
+    return;
+  }
+  const soma = (f) => lotes.reduce((t, l) => t + f(l), 0);
+  const registros = soma((l) => l.registros);
+  const pessoas = soma((l) => l.alunos.length);
+  const casados = soma((l) => l.comConta);
+  const cursos = [...new Set(lotes.map((l) => l.curso))];
+
+  $("tela").innerHTML = `<div class="card">
+    <div class="card-t">Arquivo da monitoria</div>
+    <div class="card-s">Os semestres conduzidos <b>antes</b> de o programa passar a correr no ARCHÉ,
+      transcritos das planilhas das coordenações. Eles não aparecem em <b>Projetos</b> porque não são
+      projetos: não há prazo, relatório nem cobrança num semestre encerrado. O que eles produzem é o
+      <b>certificado devido</b> — e as horas entram no Relatório Semestral e no resultado do ciclo.</div>
+    <div class="kpis">
+      ${kpi("Ciclos migrados", lotes.length, cursos.join(" · "))}
+      ${kpi("Certificados", registros, "monitores e orientação")}
+      ${kpi("Acadêmicos", pessoas, "pessoas distintas")}
+      ${kpi("Já casados com conta", `${casados}/${pessoas}`,
+        casados < pessoas ? "os demais precisam informar a matrícula no perfil" : "todos encontrados")}
+    </div>
+  </div>
+  ${lotes.map((l) => `<div class="card">
+    <div class="card-t">${esc(l.curso)} · ${esc(l.ciclo)}</div>
+    <div class="card-s">${l.registros} certificado(s) de ${l.alunos.length} acadêmico(s)${
+      l.edital ? `, do edital ${esc(l.edital)}` : " — ciclo sem edital no catálogo do ARCHÉ"}.
+      Fonte: ${esc(l.fonte)}. <b>${l.comConta} de ${l.alunos.length}</b> já têm conta no portal que o
+      ARCHÉ conseguiu casar; os demais só encontrarão o certificado depois de informarem a matrícula
+      no perfil.</div>
+    ${l.alunos.map((a) => `<div class="item">
+      <div class="nm">${esc(a.nome)}
+        <div class="cs">${esc(a.matricula || "sem matrícula na planilha")} · ${a.certificados} certificado(s)</div></div>
+      <div class="cs">${a.conta ? `✓ ${esc(a.conta)}` : "— ainda sem conta casada"}</div></div>`).join("")}
+  </div>`).join("")}`;
 }
+
 
 /* Os editais e os RESULTADOS, num quadro por ANO — o mesmo desenho da
    vitrine pública e da guia da IC (pedido do dono, ago/2026): a numeração
