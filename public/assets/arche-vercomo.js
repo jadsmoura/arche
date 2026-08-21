@@ -206,9 +206,11 @@
       return k === "todos" ? gente.length
         : gente.filter(function (p) { return p.papeis.indexOf(k) >= 0; }).length;
     };
-    var abas = [["todos", "Todos"]].concat(papeis.map(function (k) {
-      return [k, (CFG.papeis[k].plural || CFG.papeis[k].rot)];
-    }));
+    // aba vazia não é opção: "Docentes do portal 0" só ocupa espaço para
+    // quem não recebeu esse grupo (a coordenação de módulo não o recebe)
+    var abas = [["todos", "Todos"]].concat(papeis
+      .filter(function (k) { return conta(k) > 0; })
+      .map(function (k) { return [k, (CFG.papeis[k].plural || CFG.papeis[k].rot)]; }));
     document.getElementById("vcAbas").innerHTML = abas.map(function (a) {
       return '<button class="vc-aba' + (UI.aba === a[0] ? " on" : "") + '" data-aba="' + a[0] + '">'
         + a[1] + " " + conta(a[0]) + "</button>";
@@ -290,6 +292,16 @@
     instalar: function (cfg) {
       CFG = cfg || {};
       CFG.prefixos = CFG.prefixos || [];
+      // As CONTAS DO PORTAL valem em TODO setor (pedido do dono, ago/2026), e
+      // por isso o vocabulário delas é do componente: cada setor descreve os
+      // seus papéis, não repete estes três. O servidor só as manda ao gestor
+      // geral — sem elas, as abas simplesmente não aparecem.
+      // (os do setor vêm primeiro: a ordem das chaves é a ordem das abas)
+      CFG.papeis = Object.assign({}, CFG.papeis || {}, {
+        portalDocente: { rot: "Docente", plural: "Docentes do portal", cls: "o" },
+        portalAluno: { rot: "Estudante", plural: "Estudantes do portal", cls: "a" },
+        portalOutro: { rot: "Conta", plural: "Outras contas", cls: "v" },
+      });
       COMO = sessionStorage.getItem("arche-vc-" + CFG.chave) || "";
       if (!document.getElementById("vcEstilo")) {
         var st = document.createElement("style");

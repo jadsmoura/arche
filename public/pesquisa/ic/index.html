@@ -531,6 +531,10 @@ const PAPEL_VC = {
   orientador: { rot: "Professor", cls: "o" },
   aluno: { rot: "Aluno", cls: "a" },
   avaliador: { rot: "Avaliador", cls: "v" },
+  // as contas do PORTAL: quem ainda não tem projeto na IC, mas usa o sistema
+  docente: { rot: "Docente", cls: "o" },
+  estudante: { rot: "Estudante", cls: "a" },
+  conta: { rot: "Conta", cls: "v" },
 };
 let VC = { busca: "", aba: "todos" };
 
@@ -548,6 +552,11 @@ function vcPessoas() {
   juntar(META.pessoas?.orientadores, "orientador");
   juntar(META.pessoas?.alunos, "aluno");
   juntar(META.pessoas?.avaliadores, "avaliador");
+  // e as contas do portal, para alcançar quem ainda não tem projeto: quem já
+  // aparece acima é reconhecido pelo id e ganha só mais uma etiqueta
+  juntar(META.pessoas?.docentes, "docente");
+  juntar(META.pessoas?.estudantes, "estudante");
+  juntar(META.pessoas?.outros, "conta");
   return [...m.values()].sort((a, b) => (a.nome || a.email).localeCompare(b.nome || b.email, "pt-BR"));
 }
 
@@ -623,7 +632,9 @@ function renderVcAbas() {
   const gente = vcPessoas();
   const conta = (k) => (k === "todos" ? gente.length : gente.filter((p) => p.papeis.includes(k)).length);
   $("vcAbas").innerHTML = [["todos", "Todos"], ["orientador", "Professores"],
-    ["aluno", "Alunos"], ["avaliador", "Avaliadores"]]
+    ["aluno", "Alunos"], ["avaliador", "Avaliadores"],
+    ["docente", "Docentes do portal"], ["estudante", "Estudantes do portal"]]
+    .filter(([k]) => k === "todos" || conta(k))
     .map(([k, rot]) => `<button class="vc-aba ${VC.aba === k ? "on" : ""}" data-aba="${k}">${rot} ${conta(k)}</button>`)
     .join("");
 }

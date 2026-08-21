@@ -1134,8 +1134,95 @@ async function carregarCertificados() {
         target="_blank">baixar PDF</a></div>`).join("")
       : `<div class="vazio">Nenhum certificado ainda. Eles aparecem aqui quando o projeto é concluído.</div>`}
   </div>${DADOS.gestao || DADOS.cursosCoordenados?.length
-    ? `<div class="card"><div class="card-s">Os semestres migrados das planilhas das coordenações
-        ficam na guia <b>Arquivo</b>.</div></div>` : ""}`;
+    ? `<div class="card" id="cert-arq"><div class="card-t">Certificados do arquivo</div>
+        <div class="card-s">Os semestres migrados das planilhas das coordenações. Aqui a gestão
+          <b>abre o documento</b> para conferir como ele ficou; quem tem direito a ele o encontra
+          sozinho, pela matrícula. Quem ainda não foi encontrado no portal está na guia
+          <b>Arquivo</b>.</div>
+        <div class="vazio">Carregando…</div></div>` : ""}`;
+  if (DADOS.gestao || DADOS.cursosCoordenados?.length) carregarCertArquivo();
+}
+
+/* ===================== CERTIFICADOS DO ARQUIVO =========================
+   Pedido do dono (ago/2026): "inclua os certificados do arquivo aqui também,
+   para eu visualizar se for o caso." A guia Arquivo responde quem ainda não
+   foi encontrado no portal; esta responde a pergunta de quem certificou o
+   semestre — COMO FICOU O DOCUMENTO. São umas trezentas linhas, então o
+   bloco nasce filtrado: sem recorte nenhum, ninguém acha o que veio ver. */
+let CARQ = null;
+const CARQ_F = { ciclo: "", tipo: "", q: "" };
+
+async function carregarCertArquivo() {
+  const cx = $("cert-arq");
+  if (!cx) return;
+  if (!CARQ) {
+    try {
+      const r = await fetch("/api/monitoria/historico/certificados");
+      if (!r.ok) throw new Error(`Erro ${r.status}`);
+      CARQ = (await r.json()).certificados || [];
+    } catch (e) {
+      cx.querySelector(".vazio").outerHTML = `<div class="aviso">Não foi possível carregar os
+        certificados do arquivo (${esc(e.message)}).</div>`;
+      return;
+    }
+  }
+  desenharCertArquivo();
+}
+
+function desenharCertArquivo() {
+  const cx = $("cert-arq");
+  if (!cx) return;
+  const ciclos = [...new Set(CARQ.map((c) => c.ciclo))].sort().reverse();
+  const alvo = cx.querySelector(".vazio") || cx.querySelector("#carq-corpo");
+  const html = `<div id="carq-corpo">
+    <div class="grid3">
+      <div><label>Ciclo</label><select id="carq-ciclo" onchange="filtrarCertArquivo()">
+        <option value="">Todos os ciclos</option>
+        ${ciclos.map((c) => `<option value="${esc(c)}"${CARQ_F.ciclo === c ? " selected" : ""}>${esc(c)}</option>`).join("")}
+      </select></div>
+      <div><label>Documento</label><select id="carq-tipo" onchange="filtrarCertArquivo()">
+        <option value="">Monitor e orientação</option>
+        <option value="monitoria"${CARQ_F.tipo === "monitoria" ? " selected" : ""}>Só do monitor</option>
+        <option value="orientacao-monitoria"${CARQ_F.tipo === "orientacao-monitoria" ? " selected" : ""}>Só da orientação</option>
+      </select></div>
+      <div><label>Buscar</label><input id="carq-q" value="${esc(CARQ_F.q)}"
+        oninput="filtrarCertArquivo()" placeholder="Nome, matrícula ou disciplina"></div>
+    </div>
+    <div id="carq-lista"></div>
+  </div>`;
+  if (alvo) alvo.outerHTML = html; else cx.insertAdjacentHTML("beforeend", html);
+  desenharListaCertArquivo();
+}
+
+function filtrarCertArquivo() {
+  CARQ_F.ciclo = $("carq-ciclo").value;
+  CARQ_F.tipo = $("carq-tipo").value;
+  CARQ_F.q = $("carq-q").value;
+  desenharListaCertArquivo();
+}
+
+function desenharListaCertArquivo() {
+  const q = normalizar(CARQ_F.q);
+  const lista = CARQ.filter((c) =>
+    (!CARQ_F.ciclo || c.ciclo === CARQ_F.ciclo)
+    && (!CARQ_F.tipo || c.tipo === CARQ_F.tipo)
+    && (!q || normalizar(`${c.pessoa} ${c.matricula} ${c.disciplina} ${c.orientador}`).includes(q)));
+  // trezentos PDFs de uma vez é rolagem, não lista: mostra os primeiros e diz
+  // quantos ficaram de fora, para o recorte ser a forma de chegar ao resto
+  const TETO = 60;
+  const mostrar = lista.slice(0, TETO);
+  $("carq-lista").innerHTML = `<div class="card-s" style="margin:.6rem 0">
+      ${lista.length} certificado(s)${lista.length !== CARQ.length ? ` de ${CARQ.length}` : ""}
+      ${lista.length > TETO ? ` · mostrando os ${TETO} primeiros — estreite a busca` : ""}</div>
+    ${mostrar.map((c) => `<div class="item">
+      <div class="nm">${esc(c.pessoa)}
+        <div class="cs">${esc(c.tipo === "orientacao-monitoria" ? "Orientação" : "Monitoria")} ·
+          ${esc(c.disciplina)} · ${esc(c.curso)} · ${esc(c.ciclo)}${c.horas ? ` · ${c.horas}h` : ""}
+          ${c.matricula ? ` · ${esc(c.matricula)}` : ""}
+          ${c.tipo === "monitoria" ? ` · orientação: ${esc(c.orientador)}`
+            : c.monitores?.length ? ` · monitor(es): ${esc(c.monitores.join(", "))}` : ""}</div></div>
+      <a class="pdf" href="${esc(c.link)}" target="_blank">abrir PDF</a></div>`).join("")
+      || `<div class="vazio">Nenhum certificado com esse recorte.</div>`}`;
 }
 
 /* ============================ GUIA ARQUIVO ==============================

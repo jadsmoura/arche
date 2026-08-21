@@ -70,6 +70,8 @@ import {
   normalizarLote as normalizarLoteMon, certificadosHistoricos as certificadosHistoricosMon,
   certificadoHistorico as certificadoHistoricoMon, panoramaDoLote as panoramaLoteMon,
   projetosDoArquivo as projetosDoArquivoMon,
+  certificadosDoArquivo as certificadosDoArquivoMon,
+  certificadoDoArquivo as certificadoDoArquivoMon,
 } from "./lib/monitoriaHistorico.js";
 import {
   slugDeNome, slugUnico, SLUG_VALIDO, slugReservado, SLUGS_RESERVADOS, gerarChaveQr, gerarCodigoMonitor, gerarToken, tokenValido,
@@ -1848,7 +1850,7 @@ function travarEscritaVerComo(prefixo) {
  * nenhum. Recebe `{ papel: [ {email, cpf, nome} ] }` e devolve a mesma
  * forma, com as pessoas agrupadas e contadas.
  */
-function pessoasDeGrupos(grupos) {
+function pessoasDeGrupos(grupos, perfis = null) {
   const saida = {};
   for (const [papel, lista] of Object.entries(grupos || {})) {
     const m = new Map();
@@ -1858,12 +1860,60 @@ function pessoasDeGrupos(grupos) {
       const id = email || (cpf ? `cpf:${cpf}` : "");
       if (!id) continue;
       const atual = m.get(id) || { id, email, semConta: !email, nome: "", quantos: 0 };
-      m.set(id, { ...atual, nome: atual.nome || String(p?.nome || "").trim(), quantos: atual.quantos + 1 });
+      // o registro do setor nem sempre traz o nome (a ata guarda o e-mail de
+      // quem lavrou, a reserva o de quem pediu) — e uma lista de e-mails soltos
+      // não se escolhe. Quando há perfil, é dele que o nome vem.
+      const nome = String(p?.nome || "").trim() || String(perfis?.[email]?.nome || "").trim();
+      m.set(id, { ...atual, nome: atual.nome || nome, quantos: atual.quantos + 1 });
     }
     saida[papel] = [...m.values()]
       .sort((a, b) => (a.nome || a.email).localeCompare(b.nome || b.email, "pt-BR"));
   }
   return saida;
+}
+
+/* Quem, no portal, é do corpo docente ou da coordenação — o "professor" que
+   a pró-reitoria quer simular, em qualquer setor. */
+const FUNCOES_DOCENTES = new Set(["professor", "professor-pesquisador", "coord-curso",
+  "coord-pedagogico", "coord-pesquisa", "coord-extensao", "coord-acao-comunitaria",
+  "coord-ensino", "coord-politicas"]);
+
+/**
+ * As CONTAS DO PORTAL como opção do "ver como" (pedido do dono, ago/2026).
+ *
+ * Até aqui cada setor oferecia só quem já aparece nos PRÓPRIOS registros —
+ * quem submeteu ação, lavrou ata, pediu espaço. É o recorte certo para a
+ * pergunta "o professor diz que não vê a ação dele", e é curto demais para a
+ * outra pergunta, que é a mais comum: *como um professor vê este setor?* O
+ * professor que ainda não submeteu nada não estava na lista, e ele é
+ * justamente quem se quer orientar. A visão genérica mostra a CARA do acesso,
+ * mas não o que uma pessoa de verdade encontra lá dentro.
+ *
+ * Só para o **gestor geral**: a lista é o catálogo de contas do portal, e a
+ * gestão de acessos sempre foi exclusiva dele (`/usuarios/`). Coordenador de
+ * módulo continua com as pessoas do setor dele — ampliar o "ver como" não
+ * pode ampliar quem vê a lista de quem tem conta.
+ *
+ * Agrupadas pela FUNÇÃO declarada no perfil, porque é assim que a pergunta se
+ * faz: "ver como algum professor", "ver como um aluno".
+ */
+/** Os grupos do setor mais as contas do portal, com os nomes já preenchidos. */
+async function pessoasParaVerComo(grupos, u) {
+  const perfis = await carregarPerfis();
+  return pessoasDeGrupos({ ...grupos, ...gruposDoPortal(perfis, u) }, perfis);
+}
+
+function gruposDoPortal(perfis, u) {
+  if (u?.papel !== "gestor") return {};
+  const g = { portalDocente: [], portalAluno: [], portalOutro: [] };
+  for (const [email, p] of Object.entries(perfis || {})) {
+    if (!email) continue;
+    const f = normalizarFuncao(p?.funcao || "");
+    const alvo = f === "aluno" ? g.portalAluno
+      : FUNCOES_DOCENTES.has(f) ? g.portalDocente : g.portalOutro;
+    alvo.push({ email, nome: p?.nome || "" });
+  }
+  return g;
 }
 
 /* ======================= ARCHÉ EX — ações de extensão ====================
@@ -2106,12 +2156,12 @@ app.get("/api/extensao", async (req, res) => {
     // a lista acima já veio recortada pelo papel de quem olha.
     const real = euReal(req, u);
     const todas = gereEx(real) || gereEv(real) ? base : [];
-    const pessoas = todas.length ? pessoasDeGrupos({
+    const pessoas = gereEx(real) || gereEv(real) ? await pessoasParaVerComo({
       responsavel: todas.map((a) => ({
         email: a.proposta?.respEmail || a.criadoPor, nome: a.proposta?.responsavel || "" })),
       evento: todas.filter((a) => a.evento).map((a) => ({
         email: a.proposta?.respEmail || a.criadoPor, nome: a.proposta?.responsavel || "" })),
-    }) : null;
+    }, real) : null;
     res.json({
       acoes, gestao: gereEx(u), gestaoEventos: gereEv(u), eu: u.email,
       ...(pessoas ? { pessoas, verComo: String(req.query?.como || "") } : {}),
@@ -4592,8 +4642,10 @@ app.get("/api/espacos", async (req, res) => {
       // quem já pediu espaço alguma vez — é por esses olhos que a
       // responsável confere o que o solicitante enxerga da agenda
       ...(gereEsp(euReal(req, u))
-        ? { pessoas: pessoasDeGrupos({ solicitante: reservas.map((r) => ({
-            email: r.solicitante?.email, nome: r.solicitante?.nome })) }),
+        ? { pessoas: await pessoasParaVerComo({
+            solicitante: reservas.map((r) => ({
+              email: r.solicitante?.email, nome: r.solicitante?.nome })),
+          }, euReal(req, u)),
           verComo: String(req.query?.como || "") }
         : {}),
     });
@@ -5125,12 +5177,12 @@ app.get("/api/monitoria", async (req, res) => {
       // orientadores e monitores saem dos próprios projetos — no ARCHÉ MO
       // não há cadastro de papel à parte, como no resto do portal
       ...(gereMon(euReal(req, u)) ? {
-        pessoas: pessoasDeGrupos({
+        pessoas: await pessoasParaVerComo({
           orientador: lista.map((p) => ({
             email: p.orientador?.email || p.criadoPor, cpf: p.orientador?.cpf, nome: p.orientador?.nome })),
           monitor: lista.flatMap((p) => (p.monitores || []).map(
             (m) => ({ email: m.email, cpf: m.cpf, nome: m.nome }))),
-        }),
+        }, euReal(req, u)),
         verComo: String(req.query?.como || ""),
       } : {}),
       ...(quem.gestao
@@ -5212,6 +5264,68 @@ app.get("/api/monitoria/historico", async (req, res) => {
   } catch (e) {
     console.error("Erro no arquivo histórico da monitoria:", e);
     res.status(500).json({ error: "Não foi possível carregar o arquivo." });
+  }
+});
+
+/* GET /api/monitoria/historico/certificados — os documentos do arquivo, na
+   guia Certificados (pedido do dono, ago/2026).
+
+   A guia Arquivo responde "quem ainda não foi encontrado no portal?"; esta
+   responde outra pergunta, que é de quem CERTIFICOU o semestre: *como ficou o
+   documento?* Quem homologou a planilha precisa poder abrir o PDF antes de
+   avisar o aluno de que ele existe — ainda mais enquanto as incoerências das
+   planilhas (nome, matrícula, carga horária) estão em conferência.
+
+   O recorte é o mesmo do arquivo: a PROPPEX vê tudo, a coordenação de curso vê
+   o do curso dela. E a lista é a MESMA que o titular vê — montada pelo mesmo
+   montador —, senão a gestão emitiria documento que o dono não encontra. */
+app.get("/api/monitoria/historico/certificados", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const quem = await quemMonAsync(u);
+    if (!quem.gestao && !quem.cursos.length)
+      return res.status(403).json({ error: "Só a gestão da monitoria." });
+    const cursos = quem.gestao ? null : quem.cursos;
+    res.json({
+      certificados: certificadosDoArquivoMon(historicoMon, { cursos }).map((c) => ({
+        id: c.id, tipo: c.tipo, pessoa: c.pessoa, matricula: c.matricula || "",
+        disciplina: c.disciplina, orientador: c.orientador, curso: c.curso,
+        ciclo: c.ciclo, edital: c.edital, horas: c.horas,
+        monitores: c.monitores || [],
+        link: `/api/monitoria/historico/certificado.pdf?id=${encodeURIComponent(c.id)}`,
+      })),
+      ciclos: [...new Set(certificadosDoArquivoMon(historicoMon, { cursos }).map((c) => c.ciclo))],
+    });
+  } catch (e) {
+    console.error("Erro nos certificados do arquivo da monitoria:", e);
+    res.status(500).json({ error: "Não foi possível listar os certificados do arquivo." });
+  }
+});
+
+/* GET /api/monitoria/historico/certificado.pdf?id= — o documento em si, pelos
+   olhos da gestão. O id sozinho não abre nada: ele é conferido contra a lista
+   que a pessoa alcança, recalculada a cada pedido — é a mesma régua da rota
+   do titular (/api/meus-certificados/monitoria-historico.pdf), com o alcance
+   no lugar da identidade. */
+app.get("/api/monitoria/historico/certificado.pdf", async (req, res) => {
+  try {
+    const u = await sessaoMon(req, res);
+    if (!u) return;
+    const quem = await quemMonAsync(u);
+    if (!quem.gestao && !quem.cursos.length) return res.status(403).send("Só a gestão da monitoria.");
+    const cert = certificadoDoArquivoMon(historicoMon, String(req.query?.id || ""),
+      { cursos: quem.gestao ? null : quem.cursos });
+    if (!cert) return res.status(404).send("Certificado não encontrado no arquivo.");
+    const { gerarCertificadoPdf } = await import("./lib/pdf.js");
+    const buf = await gerarCertificadoPdf({
+      ...cert, codigo: codigoCert({ tipo: cert.tipo, projetoId: cert.id, pessoa: cert.pessoa }),
+      assinaturas: await assinaturasParaPdf(),
+    });
+    enviarPdfMon(res, buf, `certificado-monitoria-${cert.ciclo.replace("/", "-")}.pdf`);
+  } catch (e) {
+    console.error("Erro no certificado do arquivo da monitoria:", e);
+    res.status(500).send("Não foi possível gerar o certificado.");
   }
 });
 
@@ -6128,7 +6242,8 @@ app.get("/api/atas", async (req, res) => {
   // "ver como" sai daí — são os secretários e responsáveis de cada órgão.
   const real = euReal(req, u);
   const pessoas = gereAtas(real)
-    ? pessoasDeGrupos({ autor: todas.map((a) => ({ email: a.criadoPor, nome: a.secretaria || "" })) })
+    ? await pessoasParaVerComo(
+      { autor: todas.map((a) => ({ email: a.criadoPor, nome: a.secretaria || "" })) }, real)
     : null;
   res.json({
     gestao: gereAtas(u),
@@ -6871,7 +6986,7 @@ app.use("/api/ic", (req, res, next) => {
  * Quem é quem no setor, para a coordenação escolher por quais olhos olhar.
  * Sai dos próprios projetos: não há cadastro de papel à parte.
  */
-function pessoasDoSetor(projetos) {
+function pessoasDoSetor(projetos, perfis = null, u = null) {
   // A chave é o e-mail; quem ainda não tem conta entra pelo CPF, que é como
   // o projeto importado o identifica (ver visaoComo).
   const põe = (mapa, { email, cpf, nome }) => {
@@ -6886,8 +7001,23 @@ function pessoasDoSetor(projetos) {
     for (const a of p.alunos || []) põe(alunos, a);
     for (const a of p.avaliacoes || []) põe(avaliadores, a);
   }
+  // as CONTAS DO PORTAL (pedido do dono, ago/2026): quem ainda não tem projeto
+  // não aparecia em lista nenhuma — e é justamente o professor que se quer
+  // orientar. Só para o gestor geral, como nos demais setores.
+  const docentes = new Map(), estudantes = new Map(), outros = new Map();
+  if (u?.papel === "gestor") {
+    for (const [email, p] of Object.entries(perfis || {})) {
+      if (!email) continue;
+      const f = normalizarFuncao(p?.funcao || "");
+      põe(f === "aluno" ? estudantes : FUNCOES_DOCENTES.has(f) ? docentes : outros,
+        { email, cpf: "", nome: p?.nome || "" });
+    }
+  }
   const lista = (m) => [...m.values()].sort((a, b) => (a.nome || a.email).localeCompare(b.nome || b.email, "pt-BR"));
-  return { orientadores: lista(orientadores), alunos: lista(alunos), avaliadores: lista(avaliadores) };
+  return {
+    orientadores: lista(orientadores), alunos: lista(alunos), avaliadores: lista(avaliadores),
+    docentes: lista(docentes), estudantes: lista(estudantes), outros: lista(outros),
+  };
 }
 
 /**
@@ -7022,7 +7152,7 @@ app.get("/api/ic/meta", async (req, res) => {
     editaisEM: editaisEMParaLista(await resultadosPublicadosEM()),
     editaisMonitoria: editaisMonitoriaParaLista({
       publicados: await resultadosMonitoriaPublicados(), ciclosDoArquivo: ciclosDoArquivoMon() }),
-    ...(gereIC(u) ? { pessoas: pessoasDoSetor(projetos) } : {}),
+    ...(gereIC(u) ? { pessoas: pessoasDoSetor(projetos, await carregarPerfis(), u) } : {}),
     ...(como ? { simulando: como.email } : {}),
   });
 });
@@ -11079,7 +11209,7 @@ app.get("/api/praticas", async (req, res) => {
         }
         : {}),
       ...(gerePraticas(euReal(req, u))
-        ? { pessoas: pessoasDoAP(cadastro, equipe), verComo: String(req.query?.como || "") }
+        ? { pessoas: await pessoasDoAP(cadastro, equipe, euReal(req, u)), verComo: String(req.query?.como || "") }
         : {}),
     });
   } catch (e) {
@@ -11102,7 +11232,7 @@ function recorteDoCadastroAP(cadastro, quem) {
 }
 
 /** As pessoas do setor, para o "Ver como" da gestão. */
-function pessoasDoAP(cadastro, equipe) {
+async function pessoasDoAP(cadastro, equipe, u) {
   const prof = [], coord = [];
   for (const sem of Object.keys(cadastro)) {
     for (const p of apProfessoresDoSemestre(cadastro, sem)) prof.push({ email: p.email, nome: p.nome });
@@ -11111,7 +11241,7 @@ function pessoasDoAP(cadastro, equipe) {
     for (const e of v.coordenadores) coord.push({ email: e, nome: "", detalhe: slug });
   }
   for (const e of equipe.pedagogico || []) coord.push({ email: e, nome: "", detalhe: "pedagógico" });
-  return pessoasDeGrupos({ professor: prof, coordenador: coord });
+  return pessoasParaVerComo({ professor: prof, coordenador: coord }, u);
 }
 
 /** POST /api/praticas — cria ou atualiza o relatório (rascunho/devolvido). */

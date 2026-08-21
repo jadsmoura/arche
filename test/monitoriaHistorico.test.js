@@ -9,6 +9,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   certificadoHistorico, certificadosHistoricos, chaveNome, ehEsteMonitor,
+  certificadoDoArquivo, certificadosDoArquivo,
   normalizarLote, normalizarMatricula, panoramaDoLote,
 } from "../lib/monitoriaHistorico.js";
 
@@ -107,4 +108,33 @@ test("o panorama diz de quem cobrar a matrícula", () => {
   const isadora = p.alunos.find((a) => a.matricula === "G2410026");
   assert.equal(isadora.certificados, 2);
   assert.equal(isadora.conta, "isadora@uniego.edu.br");
+});
+
+/* A VISÃO DA GESTÃO (pedido do dono, ago/2026): a guia Certificados passou a
+   listar também os do arquivo, para quem certificou o semestre poder abrir o
+   documento e conferir como ficou. Duas coisas se protegem aqui: a lista é a
+   MESMA que o titular vê (uma segunda régua emitiria documento que o dono não
+   encontra) e o alcance recorta por curso — a coordenação de Odontologia não
+   abre o certificado de Enfermagem. */
+test("a gestão vê TODOS os certificados do arquivo, sem casar com ninguém", () => {
+  const todos = certificadosDoArquivo([LOTE]);
+  assert.equal(todos.length, 5, "3 do monitor + 2 projetos de orientação");
+  assert.deepEqual(
+    todos.filter((c) => c.tipo === "orientacao-monitoria").map((c) => c.pessoa).sort(),
+    ["Bruna Póvoa Ribeiro", "Isabela Cristina Evangelista Vaz"],
+  );
+  // é a mesma lista do titular: o que a gestão abre, a pessoa encontra
+  const dela = certificadosHistoricos([LOTE], { matricula: "G2410026" });
+  for (const c of dela) assert.ok(todos.some((t) => t.id === c.id));
+});
+
+test("o alcance por curso recorta o arquivo da gestão", () => {
+  assert.equal(certificadosDoArquivo([LOTE], { cursos: ["enfermagem"] }).length, 5);
+  assert.equal(certificadosDoArquivo([LOTE], { cursos: ["odontologia"] }).length, 0,
+    "a coordenação de outro curso não alcança este lote");
+  const um = certificadosDoArquivo([LOTE])[0];
+  assert.ok(certificadoDoArquivo([LOTE], um.id));
+  assert.equal(certificadoDoArquivo([LOTE], um.id, { cursos: ["odontologia"] }), null,
+    "o id sozinho não abre nada: ele se confere contra o alcance");
+  assert.equal(certificadoDoArquivo([LOTE], "mh-inexistente"), null);
 });
