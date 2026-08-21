@@ -56,7 +56,9 @@ public/
   atas/              ARCHÉ AT — Atas e Colegiados (SPA vanilla, mesmo desenho do EX)
   arche/             Avaliação Institucional (app COMPILADO do Manus — NÃO refatorar;
                      alterações só por append de <script>/<style> no fim dos html)
-  ic/                Vitrine PÚBLICA da IC (sem login, de propósito): editais, resultados
+  ic/                Vitrine PÚBLICA (sem login, de propósito) de TODOS os processos
+                     seletivos — também em `/editais`, o endereço que diz o que a página é
+                     (o /ic/ fica: já circula em grupos e ofícios). Editais, resultados
                      e a lista simplificada dos projetos — arquivo para o MEC. Os PDFs dos
                      editais e dos resultados publicados vivem em public/ic/docs/
   espacos/           ARCHÉ ES — Reserva de Espaços (SPA vanilla, mesmo desenho do EX/AT)
@@ -1174,6 +1176,18 @@ public/
   bolsa, NP/CL/nota final e vigência) e o PDF traz a **ficha completa de cada projeto**,
   uma por página, com sumário. Os dois respeitam **os mesmos filtros da tela** — exporta-se
   o que se está vendo, não a base inteira.
+- **A vitrine deixou de ser "da IC"** (achado do dono, ago/2026): uma coordenadora divulgou o
+  endereço no WhatsApp para anunciar o **edital de monitoria**, e a prévia do link dizia
+  "Iniciação Científica — UNIEGO". A página nasceu como a vitrine da IC e hoje reúne os TRÊS
+  processos (graduação, ICEM e Monitoria), com a Monitoria vindo da PROAC. Título, cabeçalho,
+  descrição e `og:*` passam a dizer **Editais e Resultados — UNIEGO** (as `og:*` são explícitas
+  porque é o que o WhatsApp lê), e o chamado de entrada leva aos DOIS setores. O **endereço
+  `/ic/` fica** — ele já circula em grupos e ofícios, e link divulgado não se troca —, e
+  **`arche.app.br/editais` serve o MESMO arquivo** (não redireciona: os dois endereços são o
+  documento), para quem divulgar de agora em diante. No mesmo passo, o texto do Edital 03/2026
+  passou a escrever o nome legal da instituição — **Centro Universitário Evangélico de
+  Goianésia** —, que é como o edital 01/2026 arquivado o escreve e como consta da Portaria MEC
+  nº 623/2025; faltava o "Evangélico".
 - **Vitrine pública** (`/ic/` + `GET /api/publico/ic`): acesso livre com os editais, os
   documentos e a lista simplificada (título, curso, orientador, bolsista, modalidade) —
   nunca e-mail, CPF, nota ou dado bancário. Campos em branco enquanto o processo corre;

@@ -413,6 +413,16 @@ app.get(["/avaliador", "/avaliador/", "/avaliador/index.html"], (_req, res) => {
   res.sendFile(path.join(PUBLIC, "avaliador", "index.html"));
 });
 
+/* arche.app.br/editais — o MESMO documento de /ic/ (achado do dono, ago/2026).
+   A vitrine nasceu como a da Iniciação Científica e hoje reúne os três
+   processos: graduação, Ensino Médio e Monitoria. O endereço /ic/ FICA — ele
+   já circula em grupos de professores e em ofícios, e link divulgado não se
+   troca —, mas quem divulgar de agora em diante tem um que diz o que a página
+   é. Serve o arquivo, não redireciona: os dois endereços são o documento. */
+app.get(["/editais", "/editais/", "/editais/index.html"], (_req, res) => {
+  res.sendFile(path.join(PUBLIC, "ic", "index.html"));
+});
+
 /* Como o visitante entrou na Avaliação — para a barra do topo saber que o
    selo é o de VISUALIZAÇÃO e se reduzir à navegação do avaliador (sem os
    atalhos dos setores, que só o levariam a telas de login). Devolve apenas
