@@ -1,0 +1,154 @@
+{
+  "lote": "mon-historico-2026-1-odontologia",
+  "fonte": "MONITORIA 2026.1.xlsx, entregue pela coordenação do curso de Odontologia (ago/2026)",
+  "curso": "odontologia",
+  "ciclo": "2026/1",
+  "edital": "01/2026",
+  "vigencia": {
+    "inicio": "2026-03-18",
+    "fim": "2026-06-12"
+  },
+  "observacao": "Ciclo conduzido fora do ARCHÉ. A planilha do curso não traz CPF nem e-mail: a âncora é a MATRÍCULA, com o nome completo como segunda chave. Vigência do cronograma do próprio Edital 01/2026 — resultados em 18/03/2026 e relatório final em 12/06/2026 —, a mesma do lote de Enfermagem.",
+  "registros": [
+    {
+      "aluno": "Amanda Gabrielle Alvarenga",
+      "matricula": "G2210008",
+      "orientador": "Eliene Soares Pimentel",
+      "disciplina": "Endodontia Terapêutica e Clínica",
+      "horas": 40
+    },
+    {
+      "aluno": "Isadora Fernandes Araujo",
+      "matricula": "G2210205",
+      "orientador": "Eliene Soares Pimentel",
+      "disciplina": "Endodontia Terapêutica e Clínica",
+      "horas": 40
+    },
+    {
+      "aluno": "Guilherme Ferreira Bruno",
+      "matricula": "G2210343",
+      "orientador": "Eliene Soares Pimentel",
+      "disciplina": "Endodontia Terapêutica e Clínica",
+      "horas": 40
+    },
+    {
+      "aluno": "Guilherme Ferreira Bruno",
+      "matricula": "G2210343",
+      "orientador": "Eliene Soares Pimentel",
+      "disciplina": "Dentística Restauradora",
+      "horas": 40
+    },
+    {
+      "aluno": "Jennifer Jamylle Medeiros Loiola",
+      "matricula": "G2410076",
+      "orientador": "Eliene Soares Pimentel",
+      "disciplina": "Dentística Restauradora",
+      "horas": 40
+    },
+    {
+      "aluno": "Vinicius Afonso Rodrigues Braz",
+      "matricula": "G2410107",
+      "orientador": "Eliene Soares Pimentel",
+      "disciplina": "Dentística Restauradora",
+      "horas": 40
+    },
+    {
+      "aluno": "Maria Clara da Silva Freire",
+      "matricula": "G2210005",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Pré-Clínica",
+      "horas": 40
+    },
+    {
+      "aluno": "Nathalia Luiza Pinheiro Galvão",
+      "matricula": "G2210315",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Pré-Clínica",
+      "horas": 40
+    },
+    {
+      "aluno": "Nathalia Luiza Pinheiro Galvão",
+      "matricula": "G2210315",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Periodontia Terapêutica",
+      "horas": 40
+    },
+    {
+      "aluno": "Beatriz Castro Lemes",
+      "matricula": "G2310030",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Periodontia Terapêutica",
+      "horas": 40
+    },
+    {
+      "aluno": "Bárbara Carrijo Campos Modesto Souza",
+      "matricula": "G2310500",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Periodontia Terapêutica",
+      "horas": 40
+    },
+    {
+      "aluno": "Estella Rabelo Campos Lopes",
+      "matricula": "G2310041",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Periodontia Terapêutica",
+      "horas": 40
+    },
+    {
+      "aluno": "Ludmila Fernandes Carneiro",
+      "matricula": "G2310202",
+      "orientador": "José Mateus dos Santos Júnior",
+      "disciplina": "Diagnóstico por Imagem",
+      "horas": 40
+    },
+    {
+      "aluno": "Nataly Fernandes Borges Bezerra",
+      "matricula": "G2310010",
+      "orientador": "José Mateus dos Santos Júnior",
+      "disciplina": "Diagnóstico por Imagem",
+      "horas": 40
+    },
+    {
+      "aluno": "Bianca Lima Pessoa",
+      "matricula": "G2310105",
+      "orientador": "José Mateus dos Santos Júnior",
+      "disciplina": "Diagnóstico por Imagem",
+      "horas": 40
+    },
+    {
+      "aluno": "Larissa Ribeiro Santos",
+      "matricula": "G2320114",
+      "orientador": "José Mateus dos Santos Júnior",
+      "disciplina": "Diagnóstico por Imagem",
+      "horas": 40
+    },
+    {
+      "aluno": "Estella Rabelo Campos Lopes",
+      "matricula": "G2310041",
+      "orientador": "José Mateus dos Santos Júnior",
+      "disciplina": "Diagnóstico por Imagem",
+      "horas": 40
+    },
+    {
+      "aluno": "Michelle Cabral França",
+      "matricula": "G2310171",
+      "orientador": "José Mateus dos Santos Júnior",
+      "disciplina": "Diagnóstico por Imagem",
+      "horas": 40
+    },
+    {
+      "aluno": "Kaique Richard Neres Cardoso",
+      "matricula": "G2410458",
+      "orientador": "Uander de Castro Oliveira",
+      "disciplina": "Anestesiologia e Farmacologia",
+      "horas": 40
+    },
+    {
+      "aluno": "Jennifer Jamylle Medeiros Loiola",
+      "matricula": "G2410076",
+      "orientador": "Luciano Barbosa da Silva",
+      "disciplina": "Morfologia e Escultura Dental",
+      "horas": 40
+    }
+  ]
+}

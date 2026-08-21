@@ -4940,7 +4940,17 @@ async function lerMonitorias() {
    um histórico que nunca muda seria peso morto em todas elas — a mesma razão
    que tirou de lá as artes dos eventos.
    ------------------------------------------------------------------------- */
-const LOTES_HISTORICO_MON = ["mon-historico-2026-1-enfermagem.json"];
+/* O ARQUIVO da monitoria, curso a curso — os lotes chegam aos poucos, como
+   as coordenações os encontram. Odontologia entregou cinco semestres de uma
+   vez (2024/1 a 2026/1, ago/2026); Enfermagem, o 2026/1. */
+const LOTES_HISTORICO_MON = [
+  "mon-historico-2026-1-enfermagem.json",
+  "mon-historico-2024-1-odontologia.json",
+  "mon-historico-2024-2-odontologia.json",
+  "mon-historico-2025-1-odontologia.json",
+  "mon-historico-2025-2-odontologia.json",
+  "mon-historico-2026-1-odontologia.json",
+];
 let historicoMon = [];
 
 async function subirHistoricoMonitoria() {

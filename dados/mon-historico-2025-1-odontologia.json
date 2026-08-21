@@ -1,0 +1,231 @@
+{
+  "lote": "mon-historico-2025-1-odontologia",
+  "fonte": "MONITORIA 2025.1.xlsx, entregue pela coordenação do curso de Odontologia (ago/2026)",
+  "curso": "odontologia",
+  "ciclo": "2025/1",
+  "edital": "01/2025",
+  "vigencia": {
+    "inicio": "2025-02-01",
+    "fim": "2025-06-30"
+  },
+  "observacao": "Ciclo conduzido fora do ARCHÉ. A planilha do curso não traz CPF nem e-mail: a âncora é a MATRÍCULA, com o nome completo como segunda chave. Edital 01/2025, publicado em 10/02/2025 pela Diretoria Acadêmica (DIAC), quando a instituição ainda era a FACEG — e é o timbre da FACEG que o certificado leva.",
+  "registros": [
+    {
+      "aluno": "Laura Maria Teixeira Marques",
+      "matricula": "G2320194",
+      "orientador": "Luciano Barbosa da Silva",
+      "disciplina": "Morfologia e Escultura Dental",
+      "horas": 40
+    },
+    {
+      "aluno": "Maria Eduarda Moreira Castro",
+      "matricula": "G2320217",
+      "orientador": "Luciano Barbosa da Silva",
+      "disciplina": "Morfologia e Escultura Dental",
+      "horas": 40
+    },
+    {
+      "aluno": "Camila Costa dos Santos",
+      "matricula": "G2320165",
+      "orientador": "Luciano Barbosa da Silva",
+      "disciplina": "Morfologia e Escultura Dental",
+      "horas": 40
+    },
+    {
+      "aluno": "Bárbara Carrijo Campos Modesto Souza",
+      "matricula": "G2310500",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Periodontia Terapêutica",
+      "horas": 40
+    },
+    {
+      "aluno": "Emilly Stefanne Leonel Rocha Silva",
+      "matricula": "G2210461",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Clínica de Atenção Básica",
+      "horas": 80
+    },
+    {
+      "aluno": "Morgana Santana Pereira",
+      "matricula": "G2310054",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Pré-Clínica",
+      "horas": 60
+    },
+    {
+      "aluno": "Rafaela Stephany Damas da Silva",
+      "matricula": "G2320237",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Pré-Clínica",
+      "horas": 60
+    },
+    {
+      "aluno": "Walisson Pereira Santos",
+      "matricula": "G2320136",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Pré-Clínica",
+      "horas": 60
+    },
+    {
+      "aluno": "Bárbara Carrijo Campos Modesto Souza",
+      "matricula": "G2310500",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Pré-Clínica",
+      "horas": 60
+    },
+    {
+      "aluno": "Bruna Alves Vieira",
+      "matricula": "G2110017",
+      "orientador": "Carolina Vansan Martins da Silva",
+      "disciplina": "Odontologia Pediátrica e Ortodontia Preventiva - Pré-Clínica",
+      "horas": 40
+    },
+    {
+      "aluno": "Lucas Peixoto de Oliveira",
+      "matricula": "G2110030",
+      "orientador": "Carolina Vansan Martins da Silva",
+      "disciplina": "Odontologia Pediátrica e Ortodontia Preventiva - Pré-Clínica",
+      "horas": 40
+    },
+    {
+      "aluno": "Maycon Mendes Lima",
+      "matricula": "G2110056",
+      "orientador": "Carolina Vansan Martins da Silva",
+      "disciplina": "Odontologia Pediátrica e Ortodontia Preventiva - Pré-Clínica",
+      "horas": 40
+    },
+    {
+      "aluno": "Emilly Stefanne Leonel Rocha Silva",
+      "matricula": "G2210461",
+      "orientador": "Carolina Vansan Martins da Silva",
+      "disciplina": "Clínica Integrada em Diagnóstico Bucal",
+      "horas": 40
+    },
+    {
+      "aluno": "Maria Clara Menezes Tostes",
+      "matricula": "G2210091",
+      "orientador": "Carolina Vansan Martins da Silva",
+      "disciplina": "Clínica Integrada em Diagnóstico Bucal",
+      "horas": 40
+    },
+    {
+      "aluno": "Júlia Rezende Cezarino",
+      "matricula": "G2210013",
+      "orientador": "Carolina Vansan Martins da Silva",
+      "disciplina": "Clínica Integrada em Diagnóstico Bucal",
+      "horas": 40
+    },
+    {
+      "aluno": "Andressa Alves Ferreira",
+      "matricula": "G2310142",
+      "orientador": "Eliene Soares Pimentel",
+      "disciplina": "Dentística Restauradora",
+      "horas": 60
+    },
+    {
+      "aluno": "Nataly Fernandes Borges Bezerra",
+      "matricula": "G2310010",
+      "orientador": "Eliene Soares Pimentel",
+      "disciplina": "Dentística Restauradora",
+      "horas": 60
+    },
+    {
+      "aluno": "Stefane Fernandes de Oliveira",
+      "matricula": "G2210193",
+      "orientador": "Eliene Soares Pimentel",
+      "disciplina": "Dentística Restauradora",
+      "horas": 60
+    },
+    {
+      "aluno": "Amanda Mutielly Serafim Teixeira",
+      "matricula": "G2110128",
+      "orientador": "Alyne Moreira Brasil",
+      "disciplina": "Endodontia Terapêutica e Clínica",
+      "horas": 40
+    },
+    {
+      "aluno": "Larissa Mota dos Reis",
+      "matricula": "G2110064",
+      "orientador": "Alyne Moreira Brasil",
+      "disciplina": "Endodontia Terapêutica e Clínica",
+      "horas": 40
+    },
+    {
+      "aluno": "Emanuelle Viana Yoshida",
+      "matricula": "G2210202",
+      "orientador": "Alyne Moreira Brasil",
+      "disciplina": "Endodontia Terapêutica e Clínica",
+      "horas": 40
+    },
+    {
+      "aluno": "Bruna Alves Vieira",
+      "matricula": "G2110017",
+      "orientador": "Alyne Moreira Brasil",
+      "disciplina": "Endodontia Terapêutica e Clínica",
+      "horas": 40
+    },
+    {
+      "aluno": "Camilly Christiny Tertuliano R. Mendonça",
+      "matricula": "G2210443",
+      "orientador": "Alyne Moreira Brasil",
+      "disciplina": "Endodontia Operatória",
+      "horas": 40
+    },
+    {
+      "aluno": "Kamilly Victória Andrade Souza",
+      "matricula": "G2310282",
+      "orientador": "Alyne Moreira Brasil",
+      "disciplina": "Endodontia Operatória",
+      "horas": 40
+    },
+    {
+      "aluno": "Júlia Rezende Cezarino",
+      "matricula": "G2210013",
+      "orientador": "Alyne Moreira Brasil",
+      "disciplina": "Endodontia Operatória",
+      "horas": 40
+    },
+    {
+      "aluno": "Leticia Mirelle Silva",
+      "matricula": "G2320139",
+      "orientador": "Amanda Ferreira",
+      "disciplina": "Oclusão",
+      "horas": 40
+    },
+    {
+      "aluno": "Jennifer Magalhães Sirqueira",
+      "matricula": "G2320059",
+      "orientador": "Amanda Ferreira",
+      "disciplina": "Oclusão",
+      "horas": 40
+    },
+    {
+      "aluno": "Natália Gomes Borba",
+      "matricula": "G2210089",
+      "orientador": "Amanda Ferreira",
+      "disciplina": "Oclusão",
+      "horas": 40
+    },
+    {
+      "aluno": "Lucas Peixoto de Oliveira",
+      "matricula": "G2110030",
+      "orientador": "Luciano Barbosa da Silva",
+      "disciplina": "Prótese Parcial Removível",
+      "horas": 40
+    },
+    {
+      "aluno": "Ana Júlia Rezende Silva",
+      "matricula": "G2210015",
+      "orientador": "Luciano Barbosa da Silva",
+      "disciplina": "Prótese Parcial Removível",
+      "horas": 40
+    },
+    {
+      "aluno": "Elany Cristina DE Oliveira M. Duarte",
+      "matricula": "G2210363",
+      "orientador": "Luciano Barbosa da Silva",
+      "disciplina": "Prótese Parcial Removível",
+      "horas": 40
+    }
+  ]
+}
