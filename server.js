@@ -2563,6 +2563,13 @@ app.post("/api/extensao/anexo", upload.single("file"), async (req, res) => {
     // inteira e engoliria o que o outro acabou de gravar (achado de ago/2026)
     const pre = (await lerAcoes()).find((a) => a.id === id);
     if (!pre) return res.status(404).json({ error: "Ação não encontrada" });
+    /* A ação é de QUEM A SUBMETEU (achado de ago/2026): a guarda só conferia
+       login, e qualquer conta aprovada podia anexar arquivo ao portfólio de
+       qualquer ação — inclusive às fotos que vão ao PDF que a PROPPEX
+       apresenta ao avaliador do MEC. Quem opera o evento também anexa: é ele
+       quem encerra e entrega o relatório pelo ARCHÉ EV. */
+    if (!podeOperarEvento(u, pre))
+      return res.status(403).json({ error: "Esta ação não é sua." });
     if (pre.status === "registrada")
       return res.status(400).json({ error: "Ação registrada — anexos travados" });
     const data = await files.save({
@@ -11792,6 +11799,54 @@ const nomeArquivoCert = (cert) =>
    cópia é EXPLÍCITA e só da PRÓPRIA assinatura — o coordenador pode enviar
    a imagem de outra pessoa pela rota normal (é ele quem responde por isso),
    mas ninguém "aproveita" a assinatura alheia num clique. */
+/* APAGAR UM ANEXO DO PORTFÓLIO (pedido do dono, ago/2026): quem organiza o
+   evento sobe a foto errada — a do outro dia, a repetida, a que saiu tremida
+   — e precisava conviver com ela no relatório que vai ao MEC. A remoção é do
+   REGISTRO: o arquivo continua arquivado no Drive da PROPPEX, como já
+   acontecia na tela da Extensão. O que muda é que agora há uma rota própria,
+   em vez de o cliente reescrever a ação inteira: no encerramento pelo EV não
+   há o formulário completo em mãos, e uma aba velha apagaria o que outra
+   pessoa acabou de anexar.
+
+   O anexo se identifica pelo `fileId`; os registros antigos, que podem não
+   tê-lo, aceitam o índice (`i:3`) — e o índice é conferido contra o nome,
+   senão uma lista que mudou entre a tela e o clique apagaria outro arquivo. */
+app.delete("/api/extensao/:id/anexo/:ref", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    const ref = decodeURIComponent(String(req.params.ref || ""));
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((x) => x.id === req.params.id);
+      if (!a) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (!podeOperarEvento(u, a)) return { erro: [403, "Esta ação não é sua."], gravar: false };
+      if (a.status === "registrada")
+        return { erro: [400, "Ação registrada — anexos travados."], gravar: false };
+      const lista = a.portfolio?.anexos || [];
+      let i = lista.findIndex((x) => x.fileId && x.fileId === ref);
+      if (i < 0 && /^i:\d+$/.test(ref)) {
+        const n = Number(ref.slice(2));
+        const nome = String(req.query?.nome || "");
+        // o índice só vale se o arquivo naquela posição for o que a tela viu
+        if (lista[n] && (!nome || String(lista[n].name || lista[n].nome || "") === nome)) i = n;
+      }
+      if (i < 0) return { erro: [404, "Anexo não encontrado — recarregue a página."], gravar: false };
+      const fora = lista[i];
+      a.portfolio = a.portfolio || {};
+      a.portfolio.anexos = lista.filter((_, k) => k !== i);
+      a.atualizadoEm = new Date().toISOString();
+      return { anexos: a.portfolio.anexos, fora };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    console.log(`[extensao] anexo removido do portfólio por ${u.email}: ${r.fora?.name || ref}`);
+    res.json({ ok: true, anexos: r.anexos });
+  } catch (e) {
+    console.error("Erro ao remover o anexo do portfólio:", e);
+    res.status(500).json({ error: "Não foi possível remover o anexo." });
+  }
+});
+
 app.post("/api/extensao/:id/assinatura/minha", async (req, res) => {
   try {
     const u = await sessaoEx(req, res);

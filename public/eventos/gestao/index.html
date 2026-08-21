@@ -3182,8 +3182,14 @@ function pintarFotosEncerramento(id){
   cx.innerHTML=`<div class="banner ${falta?"ba-warn":"ba-ok"}" style="margin:0 0 8px">
       ${falta?`Faltam <b>${falta}</b> foto(s) — há ${fotos} de ${MIN_FOTOS}.`
              :`<b>${fotos}</b> foto(s) anexada(s) — o mínimo está cumprido.`}</div>
-    ${anexos.length?`<div class="muted" style="font-size:12.5px">${anexos.map(x=>
-      `${ehFotoAnexo(x)?"🖼":"📎"} ${esc(x.name||x.nome||"anexo")}`).join("<br>")}</div>`
+    ${anexos.length?`<div class="enc-anexos">${anexos.map((x,i)=>`
+      <div class="enc-anexo">
+        ${ehFotoAnexo(x)&&x.link?`<img src="${esc(x.link)}" alt="" loading="lazy">`
+          :`<div class="sem">${ehFotoAnexo(x)?"🖼":"📎"}</div>`}
+        <button class="rm" title="Remover este anexo"
+          onclick="removerAnexoEncerramento('${esc(id)}','${esc(x.fileId||("i:"+i))}','${esc(x.name||x.nome||"")}')">✕</button>
+        <div class="cap">${esc(x.name||x.nome||"anexo")}</div>
+      </div>`).join("")}</div>`
       :`<div class="muted" style="font-size:12.5px">Nenhum arquivo anexado ainda.</div>`}`;
 }
 
@@ -3201,6 +3207,21 @@ async function subirAnexosEncerramento(id){
     a.portfolio=a.portfolio||{}; a.portfolio.anexos=j.anexos||a.portfolio.anexos||[];
   }
   if(inp) inp.value="";
+  pintarFotosEncerramento(id);
+}
+
+/* Apagar a foto que subiu errada (pedido do dono, ago/2026). A rota é
+   PRÓPRIA — não se reescreve a ação inteira: aqui não há o formulário
+   completo em mãos, e uma aba velha apagaria o que outra pessoa acabou de
+   anexar. O arquivo continua no Drive da PROPPEX; o que sai é o registro. */
+async function removerAnexoEncerramento(id,ref,nome){
+  if(!confirm(`Remover "${nome||"este anexo"}" do relatório?\n\nO arquivo continua arquivado no Drive da PROPPEX — o que sai é a referência no relatório.`)) return;
+  const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/anexo/${encodeURIComponent(ref)}`
+    +`?nome=${encodeURIComponent(nome||"")}`,{method:"DELETE"});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ alert(j.error||"Não foi possível remover."); return; }
+  const a=ACOES.find(x=>x.id===id);
+  if(a){ a.portfolio=a.portfolio||{}; a.portfolio.anexos=j.anexos||[]; }
   pintarFotosEncerramento(id);
 }
 

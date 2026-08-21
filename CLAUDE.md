@@ -624,6 +624,17 @@ public/
   (`faltaParaEntregar`): dois catálogos iguais em dois lugares acabam diferentes, e aí um
   caminho aceita o que o outro recusa. Os anexos usam a MESMA rota do portfólio
   (`/api/extensao/anexo`) — é o mesmo portfólio da mesma ação.
+- **A foto que subiu errada se apaga** (`DELETE /api/extensao/:id/anexo/:ref`, pedido do dono
+  ago/2026): quem organiza o evento sobe a foto do outro dia, a repetida ou a que saiu tremida — e
+  convivia com ela no documento que a PROPPEX apresenta ao MEC. No ARCHÉ EX o ✕ já existia, mas
+  **reescrevia a AÇÃO INTEIRA**: numa aba aberta há algum tempo, isso desfazia o que outra pessoa
+  tivesse anexado no meio-tempo. Agora a rota é própria e tira só aquele anexo, devolvendo a lista
+  como ficou; o arquivo **continua no Drive** (o que sai é a referência no relatório). No ARCHÉ EV
+  o encerramento passou a mostrar **miniaturas** com ✕ no lugar da lista de nomes — ver a foto é o
+  que permite reconhecer a que subiu errada. O contador de fotos cai junto: removida a terceira, a
+  entrega volta a ser recusada, e a tela diz isso antes do clique. E o **anexar ganhou a guarda que
+  faltava**: ela só conferia login, e qualquer conta aprovada podia anexar arquivo ao portfólio de
+  qualquer ação. Agora é `podeOperarEvento` — o dono, quem opera o evento e a gestão da Extensão.
 - **As fotos entram NO PDF do relatório** (`paginasDeFotos` em lib/pdf.js + `fotosDoRelatorio`
   no server + `files.read` nos três backends, pedido do dono ago/2026): o relatório final é o
   documento que a PROPPEX apresenta ao avaliador do MEC, e uma lista de nomes de arquivo não

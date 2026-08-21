@@ -1678,7 +1678,8 @@ function renderAnexos(a){
       <td><a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.name)}</a></td>
       <td>${fmtTam(x.size)}</td>
       <td>${x.enviadoEm?fmt(x.enviadoEm.slice(0,10)):""}</td>
-      <td>${lock?"":`<span class="rm" title="remover" onclick="removerAnexo('${a.id}',${i})">✕</span>`}</td></tr>`).join("")
+      <td>${lock?"":`<span class="rm" title="remover"
+        onclick="removerAnexo('${a.id}','${esc(x.fileId||("i:"+i))}','${esc(x.name||x.nome||"")}')">✕</span>`}</td></tr>`).join("")
     + `</tbody></table>`
     : '<div class="cnt">— nenhum arquivo anexado ainda.</div>';
 }
@@ -1736,11 +1737,24 @@ async function anexarArquivos(id){
   if(msg){ msg.textContent="✓ anexado(s) com sucesso"; setTimeout(()=>{ if($("ax-msg")) $("ax-msg").textContent=""; },3000); }
   renderAnexos(a);
 }
-async function removerAnexo(id,i){
-  const a=ACOES.find(x=>x.id===id); if(!a||!a.portfolio?.anexos) return;
-  if(!confirm("Remover este anexo do relatório?\n(o arquivo permanece arquivado no Drive da PROPPEX)")) return;
-  a.portfolio.anexos.splice(i,1); a.atualizadoEm=new Date().toISOString();
-  await salvar(); renderAnexos(a);
+/* A remoção passou a ter ROTA PRÓPRIA (ago/2026). Antes, a tela tirava o
+   anexo da lista e regravava a AÇÃO INTEIRA: numa aba aberta há algum tempo,
+   isso desfazia o que outra pessoa tivesse anexado no meio-tempo. Agora o
+   servidor tira só aquele anexo, e devolve a lista como ela ficou. O arquivo
+   continua no Drive da PROPPEX — o que sai é a referência no relatório. */
+async function removerAnexo(id,ref,nome){
+  const a=ACOES.find(x=>x.id===id); if(!a) return;
+  if(!confirm(`Remover "${nome||"este anexo"}" do relatório?\n\nO arquivo permanece arquivado no Drive da PROPPEX.`)) return;
+  const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/anexo/${encodeURIComponent(ref)}`
+    +`?nome=${encodeURIComponent(nome||"")}`,{method:"DELETE"});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ alert(j.error||"Não foi possível remover o anexo."); return; }
+  a.portfolio=a.portfolio||{}; a.portfolio.anexos=j.anexos||[];
+  renderAnexos(a);
+  // o contador de fotos tem de cair junto: removida a terceira foto, a
+  // entrega volta a ser recusada, e a tela precisa dizê-lo antes do clique
+  const aviso=$("fotos-aviso");
+  if(aviso) aviso.outerHTML=avisoFotosHtml(a);
 }
 
 /* ------------------------- participantes: colagem ----------------------- */
