@@ -770,6 +770,41 @@ public/
   o quadro por curso no Painel (`GET /api/extensao/curricularizacao`), contando **só o que
   comprova** — aprovada, com relatório entregue ou registrada; proposta em análise não é
   comprovação. Os `codigo` de `PERIODOS` são a chave do que já está gravado.
+- **UM VOCABULÁRIO SÓ PARA OS STATUS** (`lib/situacao.js`, decisão do dono ago/2026): o mesmo
+  fato tinha nome diferente em cada tela — no ARCHÉ EX a ação era "submetida/aprovada/relatório
+  entregue/registrada"; no ARCHÉ EV o evento era "rascunho/encerramento solicitado/validado" —,
+  e quem encerrava o evento num setor ia procurar o relatório no outro sem saber qual rótulo era
+  o dele ("uma confusão de status de evento finalizado, entregue…"). São **DOIS EIXOS**, e é por
+  isso que a lista nunca fechava numa linha só: a **ETAPA** do processo (*em preenchimento ·
+  aguardando validação · validado / evento em andamento · evento aguardando encerramento ·
+  aguardando validação [do encerramento] · evento validado e certificados emitidos*) e a
+  **PUBLICAÇÃO** da página, que é decisão INDEPENDENTE de quem organiza — daí as leituras
+  compostas ("validado e não publicado"). A conta é do SERVIDOR e viaja pronta em
+  `acao.situacao` (calculada em `acaoSemSegredos`, **nunca gravada**: depende da data de hoje,
+  e o POST a descarta): as duas SPAs são HTML estático, e se cada uma refizesse a régua as duas
+  voltariam a discordar sobre o mesmo evento. `relatorioNoCiclo`/`relatorioPendente` vêm junto,
+  para a guia Relatórios não repetir o recorte.
+- **Os TRÊS documentos do evento, e os atos que os produzem** (pedido do dono, ago/2026): todo
+  evento gera **projeto, relatório final e certificados**, e nenhum deles se cria à mão —
+  **cadastrar o evento CRIA o projeto** (é a própria ação de extensão); **validar o evento É
+  validar o projeto** (mesmo registro: a aprovação emite o `EXT-AAAA-NNN` — e por isso passou a
+  ser **recusada com o projeto incompleto**, senão a sequência oficial numeraria uma ação sem
+  justificativa nem metodologia); **encerrar o evento ENTREGA o relatório final**; e **validar o
+  encerramento valida e encerra o relatório final NO MESMO ATO**, junto com a liberação dos
+  certificados (`status: "registrada"` + `relatorio.validadoPeloEncerramento`; devolver desfaz o
+  registro, porque ação registrada com encerramento em aberto afirmaria um ciclo que não fechou).
+  Antes eram dois atos, e o segundo ninguém sabia que faltava: o evento ficava concluído no EV e
+  eternamente "relatório entregue" no EX. Por isso a ação COM evento tem **uma porta só** — o
+  "Validar e registrar" do ARCHÉ EX a recusa e leva ao encerramento no EV. O evento que correu
+  **fora** do sistema segue pelo ARCHÉ EX: projeto → relatório final com a lista → registro.
+  A guia **Início do EV** abre com o trilho dos três documentos (o que existe, o que falta e o
+  ato que produz cada um) — era isso que faltava para a integração ser legível de dentro do EV.
+- **O encerrado NÃO some da guia Relatórios** (achado do dono, ago/2026: "um evento acabou de ser
+  encerrado e ele não aparece na guia relatórios"): a ação saía da lista justamente quando o
+  relatório passava a existir — quem encerrou o evento vinha procurar o documento e não achava.
+  Agora ela fica, no **fim** da lista (quem espera decisão vem antes), e o recorte é
+  `relatorioNoCiclo`: entra tudo o que já foi validado e começou; fica de fora só o projeto ainda
+  em análise e a ação que não começou, que enterrariam os atrasados.
 - Fluxo da Extensão: proposta → aprovação (nº `EXT-AAAA-NNN`) → relatório final →
   participantes (3/3 completa) → **registrada → certificados**. Não alterar o formato do nº.
   A ordem é essa desde ago/2026 e é o que `acaoCertificavel` cobra: nas ações SEM evento é o

@@ -95,6 +95,7 @@ import {
   caixaCertificado, certificadoDe, certificadosDePessoa, certificadosDaAcao, acaoCertificavel,
   eventoEncerrado, podeEncerrar, programacaoDoCertificado, situacaoEncerramento,
 } from "./lib/certificadosEx.js";
+import { situacaoDaAcao } from "./lib/situacao.js";
 import {
   TURMAS_EM, BOLSAS_EM, bolsaEmDe, turmaDe as turmaEmDe, turmaVigente as turmaEmVigente,
   ESCALA_AVALIACAO_EM, CRITERIOS_AVALIACAO_EM, RECOMENDACAO_EM, avaliacaoEMCompleta,
@@ -883,12 +884,22 @@ app.get("/api/alertas", async (req, res) => {
 
     if (u.modulos.includes("extensao")) {
       const acoes = await lerAcoes();
-      const submetidas = acoes.filter((a) => a.status === "submetida").length;
+      /* O que espera DECISÃO, no vocabulário único (lib/situacao.js): projeto
+         em preenchimento não é fila da PROPPEX — o evento cadastrado pelo
+         assistente nasce `submetida` com o projeto pela metade, e contá-lo
+         aqui punha na caixa da pró-reitoria um rascunho que ninguém submeteu
+         de verdade. */
+      const porEtapa = (e) => acoes.filter((a) => situacaoDaAcao(a).etapa === e).length;
+      const submetidas = porEtapa("aguardando-validacao");
       if (submetidas) alertas.push({ setor: "Extensão", n: submetidas, link: "/extensao/",
-        texto: `${submetidas} proposta(s) aguardando aprovação` });
-      const relatorios = acoes.filter((a) => a.status === "relatorio-entregue").length;
+        texto: `${submetidas} projeto(s) aguardando validação` });
+      // o relatório do EVENTO não entra aqui: quem o valida é o mesmo ato que
+      // valida o encerramento, e esse já tem o seu alerta — duas linhas para
+      // a mesma decisão fariam a pró-reitoria procurar uma pendência a mais
+      const relatorios = acoes.filter((a) => !a.evento
+        && situacaoDaAcao(a).etapa === "encerramento-em-validacao").length;
       if (relatorios) alertas.push({ setor: "Extensão", n: relatorios, link: "/extensao/",
-        texto: `${relatorios} relatório(s) final(is) entregue(s) para conferir` });
+        texto: `${relatorios} relatório(s) final(is) aguardando validação` });
     }
 
     if (u.modulos.includes("atas")) {
@@ -1992,6 +2003,11 @@ const acaoSemSegredos = (a) => {
   if (assinaturas) out.assinaturas = assinaturasVisiveis({ assinaturas });
   if (Array.isArray(out.participantes?.inscritos))
     out.participantes = { ...out.participantes, inscritos: out.participantes.inscritos.map(inscritoLeve) };
+  // A SITUAÇÃO VIAJA PRONTA (decisão do dono, ago/2026): é a mesma ação nas
+  // duas telas, e cada uma tinha o seu vocabulário. A conta é do servidor —
+  // se o ARCHÉ EX e o ARCHÉ EV a refizessem cada um do seu jeito, voltariam
+  // a discordar sobre o mesmo evento.
+  out.situacao = situacaoDaAcao(a);
   return out;
 };
 const assinaturasVisiveis = (acao) => resumoAssinaturas(caixaCertificado(acao).assinaturas);
@@ -2153,6 +2169,11 @@ app.post("/api/extensao", async (req, res) => {
         // presenças são MESCLADAS por cima do que o formulário mandou.
         const preservado = base ? mesclarEventoEInscritos(base, nova) : {};
         const final = { ...nova, ...controlado, ...preservado, atualizadoEm: new Date().toISOString() };
+        // `situacao` é CALCULADA a cada leitura (lib/situacao.js) e viaja no
+        // payload só para a tela desenhar o selo. Gravá-la de volta guardaria
+        // no estado uma leitura velha do próprio estado — e ela envelhece
+        // sozinha, porque depende da data de hoje.
+        delete final.situacao;
         // Curricularização: o vínculo com o componente curricular é o que
         // comprova os 10% da matriz ao avaliador do MEC, e por isso passa
         // pela régua do catálogo aqui — desmarcado, nenhuma disciplina fica
@@ -2219,6 +2240,15 @@ app.post("/api/extensao", async (req, res) => {
         if (registrouAgora && !final.relatorio?.entregueEm)
           return { erro: [400, "Esta ação ainda não tem relatório final entregue — registrar encerra o "
             + "ciclo e libera os certificados. Entregue o relatório antes de finalizar."], gravar: false };
+        /* AÇÃO COM EVENTO tem UMA porta só (pedido do dono, ago/2026): quem
+           encerra o ciclo é a validação do encerramento, no ARCHÉ EV — é ela
+           que libera os certificados e, no mesmo ato, valida o relatório
+           final. Registrar por aqui deixaria a ação "registrada" com o
+           encerramento ainda em aberto: os certificados continuariam
+           bloqueados e ninguém entenderia por quê. */
+        if (registrouAgora && final.evento && situacaoEncerramento(final) !== "validado")
+          return { erro: [400, "Este é um evento: o ciclo se encerra validando o ENCERRAMENTO no ARCHÉ EV "
+            + "— é o mesmo ato que valida o relatório final e libera os certificados."], gravar: false };
         // Ação SEM evento: quem libera o certificado é o REGISTRO da ação
         // (é o ato em que a PROPPEX confere relatório e listas). Quem tem
         // direito é avisado agora, do mesmo jeito que no evento — sem isso,
@@ -2440,6 +2470,18 @@ app.post("/api/extensao/:id/aprovar", async (req, res) => {
         return { erro: [400, `Esta ação já está aprovada, com o número ${acoes[i].numeroAcao}.`], gravar: false };
       if (!["submetida", "devolvida"].includes(acoes[i].status))
         return { erro: [400, "Só se aprova proposta que está em análise."], gravar: false };
+      /* Aprovar o evento É VALIDAR O PROJETO (pedido do dono, ago/2026): são
+         o mesmo registro, e por isso a aprovação não pode acontecer com o
+         projeto pela metade — a ação ganharia o número da sequência oficial
+         sem justificativa, objetivos nem metodologia, e o PDF do projeto
+         sairia com lacunas no timbre do UNIEGO. A régua é a mesma que a guia
+         "Dados do evento" mostra e a que a publicação já exigia. */
+      if (acoes[i].evento) {
+        const falta = faltaNoProjetoDoEvento(acoes[i]);
+        if (falta.length)
+          return { erro: [400, "O projeto do evento ainda está incompleto — aprovar é validá-lo. "
+            + "Falta: " + falta.join(", ") + "."], gravar: false };
+      }
       // ano pelo calendário de Brasília: aprovar em 31/12 à noite não pode
       // emitir número do ano seguinte (nem zerar a sequência antes da hora)
       const ano = Number(hojeLocalISO().slice(0, 4));
@@ -2457,8 +2499,7 @@ app.post("/api/extensao/:id/aprovar", async (req, res) => {
       return { acao: acoes[i] };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-    res.json({ ok: true, numeroAcao: r.acao.numeroAcao,
-      acao: r.acao.evento ? { ...r.acao, evento: eventoSemSegredos(r.acao.evento) } : r.acao });
+    res.json({ ok: true, numeroAcao: r.acao.numeroAcao, acao: acaoSemSegredos(r.acao) });
   } catch (e) {
     console.error("Erro ao aprovar ação de extensão:", e);
     res.status(500).json({ error: "Falha ao aprovar" });
@@ -12344,11 +12385,30 @@ app.post("/api/extensao/:id/evento/encerramento", async (req, res) => {
       if (!a?.evento) return { erro: [404, "Evento não encontrado"], gravar: false };
       if (situacaoEncerramento(a) !== "solicitado")
         return { erro: [400, "Não há pedido de encerramento aguardando decisão neste evento."], gravar: false };
+      const agora = new Date().toISOString();
       a.evento.encerramento = {
         ...a.evento.encerramento, status: decisao,
-        decididoEm: new Date().toISOString(), decididoPor: u.email, parecer,
+        decididoEm: agora, decididoPor: u.email, parecer,
       };
-      a.atualizadoEm = new Date().toISOString();
+      /* UM ATO SÓ (pedido do dono, ago/2026): validar o encerramento libera
+         os certificados E encerra o relatório final da ação. Eram dois — a
+         pró-reitoria validava o encerramento no ARCHÉ EV e a ação continuava
+         eternamente em "relatório entregue" no ARCHÉ EX, esperando um
+         "Finalizar" que ninguém sabia que faltava. O evento ficava pendente
+         numa guia depois de concluído na outra, que é a confusão de status
+         que o dono apontou. Devolvido, o registro se desfaz junto: o
+         relatório volta a ser editável, e ação registrada com encerramento
+         em aberto afirmaria um ciclo que não fechou. */
+      if (decisao === "validado" && a.relatorio?.entregueEm) {
+        a.status = "registrada";
+        a.relatorio = { ...a.relatorio, validadoEm: agora, validadoPor: u.email,
+          validadoPeloEncerramento: true };
+      } else if (decisao === "devolvido" && a.relatorio?.validadoPeloEncerramento) {
+        a.status = "relatorio-entregue";
+        const { validadoEm, validadoPor, validadoPeloEncerramento, ...resto } = a.relatorio;
+        a.relatorio = resto;
+      }
+      a.atualizadoEm = agora;
       return { acao: a };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });

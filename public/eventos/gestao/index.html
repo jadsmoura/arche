@@ -92,6 +92,13 @@
     padding-bottom:8px;border-bottom:1px solid var(--line)}
   .muted{color:var(--muted);font-size:12.5px;font-weight:400}
   .hide{display:none!important}
+  /* os TRÊS documentos do evento: projeto → relatório final → certificados */
+  .docs{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+  @media(max-width:760px){.docs{grid-template-columns:1fr}}
+  .doc{border:1px solid var(--line);border-radius:10px;padding:13px 14px;background:var(--bg)}
+  .doc-t{font-family:Sora,sans-serif;font-weight:700;font-size:12.5px;color:var(--ink)}
+  .doc-e{font-size:13px;font-weight:700;margin:3px 0 5px;text-transform:lowercase}
+  .doc-d{font-size:12.5px;color:var(--muted);line-height:1.45}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
   .grid2>*,.grid3>*,.stat>*{min-width:0}
@@ -707,7 +714,8 @@ function contextoHtml(a){
   return `<div class="ctx">
     <span class="nm">${esc(p.nomeAtividade||"(sem nome)")}</span>
     <span class="meta">${esc(cursosEmTexto(a))}${a.numeroAcao?` · ${esc(a.numeroAcao)}`:" · ação ainda sem número"}${p.periodoInicio?` · ${fmt(p.periodoInicio)} – ${fmt(p.periodoFim)}`:""}</span>
-    <span class="badge" style="background:${ev.ativo?"var(--ok-soft)":"#eceff3"};color:${ev.ativo?"var(--ok)":"var(--muted)"}">${ev.ativo?"página no ar":"rascunho"}</span>
+    ${seloEtapa(a)}
+    <span class="badge" style="background:${ev.ativo?"var(--ok-soft)":"#eceff3"};color:${ev.ativo?"var(--ok)":"var(--muted)"}">${ev.ativo?"publicado":"não publicado"}</span>
     <span class="acoes">
       <button class="lk" onclick="nav('painel')" title="Escolher outro evento">trocar</button>
       <button class="bt bt-ghost" style="padding:5px 10px;font-size:12px" onclick="atualizarEvento('${esc(a.id)}')" title="Recarregar inscritos e presenças">↻ Atualizar</button>
@@ -729,8 +737,8 @@ function renderPainel(){
 
   $("v-painel").innerHTML=`
     <div class="stat" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
-      <div class="s"><b>${noAr.length}</b><span>Eventos no ar</span></div>
-      <div class="s"><b>${com.length-noAr.length}</b><span>Rascunhos</span></div>
+      <div class="s"><b>${noAr.length}</b><span>Páginas publicadas</span></div>
+      <div class="s"><b>${com.length-noAr.length}</b><span>Não publicadas</span></div>
       <div class="s"><b>${totais.insc}</b><span>Inscritos (todos)</span></div>
       <div class="s"><b style="color:var(--ok)">${totais.pres}</b><span>Presentes (todos)</span></div>
     </div>
@@ -1131,13 +1139,33 @@ function cardLista(a){
       <div class="nm">${esc(p.nomeAtividade||"(sem nome)")}</div>
       <div class="meta">${esc(a.curso||"")}${a.numeroAcao?` · ${esc(a.numeroAcao)}`:""}${periodo?` · ${periodo}`:""}</div>
       <div class="selos">
-        <span class="badge" style="background:${ev.ativo?"var(--ok-soft)":"#eceff3"};color:${ev.ativo?"var(--ok)":"var(--muted)"}">${ev.ativo?"página no ar":"rascunho"}</span>
+        ${seloEtapa(a)}
+        <span class="badge" style="background:${ev.ativo?"var(--ok-soft)":"#eceff3"};color:${ev.ativo?"var(--ok)":"var(--muted)"}">${ev.ativo?"publicado":"não publicado"}</span>
         ${tr.publicada?'<span class="badge" style="background:var(--wash);color:var(--brand-3)">▶ transmissão publicada</span>':""}
       </div>
       <div class="nums">${n.inscritos} inscrito(s) · ${n.presentes} presente(s) · ${(ev.programacao||[]).length} atividade(s)</div>
       ${atalhosCard(a)}
     </div>
   </div>`;
+}
+
+/* ------------------------ o selo da ETAPA do processo ---------------------
+   A situação vem PRONTA do servidor (lib/situacao.js, em `a.situacao`) e é a
+   MESMA que o ARCHÉ EX desenha — são dois eixos: a ETAPA (em preenchimento ·
+   aguardando validação · validado / em andamento · aguardando encerramento ·
+   aguardando validação do encerramento · encerrado) e a PUBLICAÇÃO da página,
+   que é decisão independente de quem organiza. Antes o cartão mostrava só a
+   publicação ("página no ar" / "rascunho"), e por isso um evento validado e
+   um sem projeto completo pareciam a mesma coisa aqui.                       */
+const CORES_ETAPA = {
+  preenchimento:["#fdf3e3","#a9701f"], "aguardando-validacao":["#e6f0f4","#2d6070"],
+  validado:["#e6f4ec","#2f7a51"], "aguardando-encerramento":["#fdf3e3","#a9701f"],
+  "encerramento-em-validacao":["#eceaf6","#5e5091"], encerrado:["#eceff3","#657179"],
+};
+function seloEtapa(a){
+  const s = a.situacao; if(!s?.rotulo) return "";
+  const [bg,fg] = CORES_ETAPA[s.etapa] || ["#eceff3","#657179"];
+  return `<span class="badge" style="background:${bg};color:${fg}" title="${esc(s.detalhe||"")}">${esc(s.rotulo)}</span>`;
 }
 
 /* A gestão do evento acontece NO CARTÃO (decisão do dono, ago/2026): aprovar
@@ -1188,12 +1216,21 @@ function atalhosCard(a){
           target="_blank" rel="noopener" onclick="event.stopPropagation()">↗ ver a página</a>`:"")
       + btEncerrar + btExcluir);
   }
-  if(!a.numeroAcao)
-    return linha((GESTAO_EX
-      ? bt("✓ Aprovar evento",`aprovarCard('${esc(a.id)}')`,
-          "Aprova a ação de extensão e emite o Número da Ação — depois disso a página pode ir ao ar","bt-pri")
-      : `<span class="muted" style="font-size:12px">⏳ aguarda a aprovação da ação (Número da Ação) para publicar</span>`)
+  if(!a.numeroAcao){
+    /* Aprovar o evento É VALIDAR O PROJETO (pedido do dono, ago/2026): o
+       servidor recusa a aprovação com o projeto pela metade, e a tela diz
+       isso ANTES do clique — botão que erra sempre é pior que botão ausente. */
+    const pendentes=faltasProjetoEv(a);
+    return linha((pendentes.length
+      ? `<span class="muted" style="font-size:12px">📝 o projeto ainda está incompleto (${pendentes.length} campo(s))</span>`
+        + bt("Completar o projeto",`selecionar('${esc(a.id)}','dados')`,
+            "Abrir a guia Dados do evento: "+pendentes.join(", "))
+      : GESTAO_EX
+        ? bt("✓ Validar evento e projeto",`aprovarCard('${esc(a.id)}')`,
+            "Valida a ação de extensão e emite o Número da Ação — o projeto é validado no mesmo ato","bt-pri")
+        : `<span class="muted" style="font-size:12px">⏳ projeto completo — aguardando a validação da PROPPEX</span>`)
       + btExcluir);
+  }
   const faltas=faltasProjetoEv(a);
   if(faltas.length)
     return linha(`<span class="muted" style="font-size:12px">📝 faltam ${faltas.length} campo(s) do projeto</span>`
@@ -1280,6 +1317,55 @@ async function publicarCard(id,ativo){
   await carregar(); montarSeletor(); nav(SECAO);
 }
 
+/** Abre a ação DESTE evento no ARCHÉ EX — o mesmo deep-link da saída da barra. */
+function abrirAcaoNoEx(id){ window.open("/extensao/#acao/"+encodeURIComponent(id), "_blank", "noopener"); }
+
+/* ---------------------- OS TRÊS DOCUMENTOS DO EVENTO ----------------------
+   Pedido do dono, ago/2026: "todo evento tem que ter três tipos de documentos:
+   projeto, relatório e certificados". Eles existem, e nesta ordem — mas quem
+   organiza o evento os via em dois setores e com dois vocabulários, e não
+   sabia em qual degrau estava. Este trilho é o mapa: o que já existe, o que
+   falta e o ato que produz cada um, sempre com o caminho para lá.
+
+   Nenhum deles é criado à mão: cadastrar o evento CRIA o projeto; encerrar o
+   evento ENTREGA o relatório final; validar o encerramento VALIDA o relatório
+   e libera os certificados — um ato só, na PROPPEX.                          */
+function trilhoDocumentos(a){
+  const s=a.situacao||{}; const enc=(a.evento?.encerramento||{}).status||"aberto";
+  const passo=(rot,estado,cor,txt,botao)=>`<div class="doc">
+    <div class="doc-t">${rot}</div>
+    <div class="doc-e" style="color:${cor}">${estado}</div>
+    <div class="doc-d">${txt}</div>${botao||""}</div>`;
+  const lk=(rot,fn)=>`<button class="lk" style="margin-top:6px" onclick="${fn}">${rot}</button>`;
+  const proj = a.numeroAcao
+    ? passo("1 · Projeto","validado","var(--ok)",`Ação ${esc(a.numeroAcao)} — validada pela PROPPEX.`,
+        lk("ver o PDF do projeto",`abrirAcaoNoEx('${esc(a.id)}')`))
+    : passo("1 · Projeto", s.etapa==="aguardando-validacao"?"aguardando validação":"em preenchimento",
+        "var(--warn)", s.etapa==="aguardando-validacao"
+          ? "O projeto está completo — a PROPPEX valida e emite o Número da Ação."
+          : "Cadastrar o evento já criou o projeto; complete os campos que faltam.",
+        lk("Dados do evento","nav('dados')"));
+  const rel = a.relatorio?.entregueEm
+    ? passo("2 · Relatório final", enc==="validado"?"validado e encerrado":"entregue, aguardando validação",
+        enc==="validado"?"var(--ok)":"var(--roxo)",
+        enc==="validado" ? "A PROPPEX validou o encerramento — o relatório está encerrado."
+          : "Encerrar o evento entregou o relatório final na Extensão.",
+        lk("ver o relatório",`abrirAcaoNoEx('${esc(a.id)}')`))
+    : passo("2 · Relatório final","a entregar","var(--muted)",
+        "Ele nasce do <b>encerramento</b>: os campos e as fotos são pedidos ali.",
+        lk("Encerrar evento","nav('certificados')"));
+  const cert = enc==="validado"
+    ? passo("3 · Certificados","emitidos","var(--ok)",
+        "Participantes, palestrantes e comissão já podem baixar.", lk("emitir / baixar","nav('certificados')"))
+    : passo("3 · Certificados","bloqueados","var(--muted)",
+        "Saem quando a PROPPEX validar o encerramento — e é o mesmo ato que encerra o relatório final.","");
+  return `<div class="card"><div class="sec-t">Os três documentos deste evento</div>
+    <div class="muted" style="margin-top:8px">Projeto, relatório final e certificados — o ARCHÉ cria os
+    três a partir do próprio evento: cadastrar faz o projeto, encerrar entrega o relatório e a validação
+    da PROPPEX encerra o relatório e libera os certificados, num ato só.</div>
+    <div class="docs">${proj}${rel}${cert}</div></div>`;
+}
+
 /* ========================= GESTÃO · INÍCIO ============================== */
 function renderInicio(a){
   const ev=a.evento||{};
@@ -1299,7 +1385,8 @@ function renderInicio(a){
   if(faltasProj.length) pend.push(`<b>Projeto do evento incompleto para publicação</b> — falta:
     ${esc(faltasProj.join(", "))}. Complete na guia
     <button class="lk" onclick="nav('dados')">Dados do evento</button>.`);
-  if(a.numeroAcao && !ev.ativo) pend.push(`A página pública está em <b>rascunho</b> — ative na guia
+  if(a.numeroAcao && !ev.ativo) pend.push(`A página pública ainda <b>não está publicada</b> — publicar é
+    decisão sua, e independe da validação: publique na guia
     <button class="lk" onclick="nav('pagina')">Página do evento</button>.`);
   if(ev.ativo && !(ev.programacao||[]).length) pend.push(`A página está no ar <b>sem programação</b> —
     monte as atividades na guia <button class="lk" onclick="nav('programacao')">Programação</button>.`);
@@ -1307,6 +1394,7 @@ function renderInicio(a){
     (${fmt(ev.inscricoesAte)}) já passou — a página segue no ar, mas sem inscrição nova.`);
 
   $("v-inicio").innerHTML=`
+    ${trilhoDocumentos(a)}
     ${pend.map(t=>`<div class="banner ${t.startsWith("⏳")?"ba-warn":"ba-info"}">${t}</div>`).join("")}
     <div class="stat" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
       <div class="s"><b id="ev-cnt-insc">${n.inscritos}</b><span>Inscritos</span></div>
@@ -1319,7 +1407,8 @@ function renderInicio(a){
     <div class="card">
       <div class="sec-t">Situação</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
-        <span class="badge" style="background:${ev.ativo?"var(--ok-soft)":"#eceff3"};color:${ev.ativo?"var(--ok)":"var(--muted)"}">${ev.ativo?"página no ar":"página em rascunho"}</span>
+        ${seloEtapa(a)}
+        <span class="badge" style="background:${ev.ativo?"var(--ok-soft)":"#eceff3"};color:${ev.ativo?"var(--ok)":"var(--muted)"}">${ev.ativo?"página publicada":"página não publicada"}</span>
         <span class="badge" style="background:${tr.publicada?"var(--wash)":"#eceff3"};color:${tr.publicada?"var(--brand-3)":"var(--muted)"}">${tr.publicada?"▶ transmissão publicada":"transmissão não publicada"}</span>
       </div>
       ${link&&ev.ativo?`<div class="banner ba-info" style="margin:12px 0 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1328,8 +1417,9 @@ function renderInicio(a){
         <button class="bt bt-sec" style="padding:5px 10px;font-size:12px" onclick="copiarTexto('${esc(link)}',this)">⧉ copiar</button>
       </div>`:""}
       <div class="muted" style="margin-top:12px">Página pública de inscrição gratuita, credenciamento
-        por QR na entrada (geral e por atividade) e transmissão online. A <b>certificação continua no
-        sistema da AEE</b> — exporte a planilha na guia Exportações e importe lá.</div>
+        por QR na entrada (geral e por atividade) e transmissão online. Os <b>certificados são emitidos
+        pelo próprio ARCHÉ</b>, na guia Encerrar evento, depois que a PROPPEX validar o encerramento; a
+        planilha da AEE continua nas Exportações para quem precisar dela.</div>
     </div>
 
     <div class="card">
