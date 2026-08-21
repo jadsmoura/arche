@@ -7,7 +7,7 @@ import {
   numeroAta, proximoSequencial, numerar, serieDe, siglaCurso, normalizarAta,
   validarAta, tituloDe, quorum, encaminhamentos, anotar, orgaoDe, avisosDaAta,
   renumerar, numeroIncoerente, anoDoNumero, renumerarAcervo,
-  buscarAtas, termosDaBusca, assinantesDaAta,
+  buscarAtas, termosDaBusca, assinantesDaAta, refDoAssinante, nomeServeDeChave,
 } from "../lib/atas.js";
 import { extenso, dataExtenso, horaExtenso, redigirPorModelo, provedorAtivo, fichaDaReuniao,
   ESTILOS, estiloDe, estiloPadrao, instrucaoDe } from "../lib/redator.js";
@@ -867,4 +867,34 @@ test("o nome casa com acento e caixa diferentes", () => {
   });
   assert.equal(a.length, 1, "é a mesma pessoa: preside e não se repete embaixo");
   assert.equal(a[0].email, "jm@uniego.edu.br");
+});
+
+/* O NOME COMPLETO como segunda chave (pedido do dono, ago/2026: "rastreie
+   pelo nome, para ganharmos tempo"). O `ref` é o endereço da assinatura, e é
+   ele que faz uma imagem enviada numa ata sair em todas as outras. O que se
+   protege: o e-mail manda quando existe (é o que separa homônimos) e nome de
+   uma palavra só não vira chave. */
+test("o ref é o e-mail quando há, e o nome completo quando não", () => {
+  assert.equal(refDoAssinante({ nome: "Ana Souza", email: "Ana@Uniego.edu.BR" }), "ana@uniego.edu.br");
+  assert.equal(refDoAssinante({ nome: "Ana Souza", email: "" }), "nome:ana souza");
+  assert.equal(refDoAssinante({ nome: "  ANA   SOUZA " }), "nome:ana souza", "acento, caixa e espaço não contam");
+  assert.equal(refDoAssinante({ nome: "José Mateus" }), "nome:jose mateus");
+  assert.equal(refDoAssinante({ nome: "Ana" }), "", "nome de uma palavra só não identifica ninguém");
+  assert.equal(refDoAssinante({}), "");
+  assert.equal(nomeServeDeChave("Ana"), false);
+  assert.equal(nomeServeDeChave("Ana Souza"), true);
+});
+
+test("a mesma pessoa tem o MESMO ref em atas diferentes", () => {
+  // a ata antiga não traz e-mail nenhum; a nova traz
+  const antiga = assinantesDaAta({
+    participantes: [{ nome: "Carla Dias Moreira", presenca: "presente" }],
+  })[0];
+  const nova = assinantesDaAta({
+    participantes: [{ nome: "Carla Dias Moreira", email: "carla@uniego.edu.br", presenca: "presente" }],
+  })[0];
+  assert.equal(antiga.ref, "nome:carla dias moreira");
+  assert.equal(nova.ref, "carla@uniego.edu.br");
+  // o que as liga é a chave do nome, e é por ela que a assinatura viaja
+  assert.equal(antiga.chaveNome, nova.chaveNome);
 });

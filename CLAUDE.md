@@ -1585,10 +1585,20 @@ public/
   certificado, onde quem não tem imagem não aparece. Assinam a presidência, a secretaria e todo
   **presente**; ausente e falta justificada não assinam, e quem preside não assina duas vezes.
   A imagem é a MESMA do resto do portal (`sys-assinaturas-usuario-v1`): **envia-se uma vez** e
-  vale em toda ata em que a pessoa constar — o laço é o **e-mail** da lista de presença. A
-  presidência é declarada por NOME (o formulário não pede o e-mail dela) e `validarAta` já exige
-  que ela conste entre os presentes: é de lá que sai o e-mail, senão quem presidiu apareceria sem
-  assinatura mesmo tendo enviado a sua.
+  vale em toda ata em que a pessoa constar. **São DUAS chaves, nesta ordem** (`refDoAssinante`;
+  pedido do dono ago/2026: "rastreie pelo nome, para ganharmos tempo"): o **e-mail**, quando a
+  lista de presença o traz — é a chave forte, e é o que separa dois homônimos —, e o **NOME
+  COMPLETO** quando não traz. Sem a segunda, o recurso não serviria ao acervo: boa parte das
+  listas antigas não tem e-mail nenhum, e a mesma professora aparece em dezenas de atas de NDE e
+  de Colegiado — enviar a imagem uma vez por ata seria o trabalho que isto existe para evitar.
+  Enviada em qualquer ata, ela passa a sair em **todas** as que trazem aquele nome, inclusive nas
+  já registradas, e a tela **diz quando o casamento foi pelo nome** e **quantas outras atas do
+  acervo** o envio acabou de cobrir. Nome de **uma palavra só não é chave** ("Ana" não identifica
+  ninguém, e uma assinatura colada em toda "Ana" do acervo seria pior que nenhuma): essa linha
+  fica com a linha em branco, para assinar à caneta. Entre dois registros do mesmo nome vence o do
+  **titular** e, empatados, o mais recente. A presidência é declarada por NOME (o formulário não
+  pede o e-mail dela) e `validarAta` já exige que ela conste entre os presentes: é de lá que sai o
+  e-mail, senão quem presidiu apareceria sem assinatura mesmo tendo enviado a sua.
   **Duas portas, com a ORIGEM marcada** (decisão do dono, ago/2026, revendo a regra anterior): a
   pessoa envia a sua no `/perfil/` (`titular`) e a **secretaria do órgão** pode digitalizar e
   subir por um membro (`terceiro`), de dentro de uma ata em que ele é participante. A regra

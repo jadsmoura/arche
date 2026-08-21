@@ -21,6 +21,7 @@ import {
   ATAS_KEY, ORGAOS, CURSOS, cursoDe, STATUS as ATA_STATUS, normalizarAta, validarAta,
   numerar, tituloDe, anotar, encaminhamentos, orgaoDe, podeVerAta, podeEditarAta, statusVigente,
   buscarAtas, renumerar, numeroIncoerente, renumerarAcervo, assinantesDaAta,
+  chaveDoNome, nomeServeDeChave, refDoAssinante,
 } from "./lib/atas.js";
 import {
   PAUTAS, MOMENTOS, CADENCIAS, RITUAL, checklistSemestral, pautasSugeridas, janelaDe,
@@ -6480,29 +6481,30 @@ app.get("/api/atas/:id", async (req, res) => {
    assinante. */
 async function imagensDaFolhaDaAta(ata) {
   const todas = await lerAssinaturasDeUsuarios();
+  const idx = indicePorNome(todas);
   const saida = {};
-  for (const e of emailsQueAssinam(ata)) {
-    const a = todas[e];
-    if (!a?.base64) continue;
-    try { saida[e] = Buffer.from(a.base64, "base64"); } catch { /* imagem ilegível: fica a linha */ }
+  for (const x of assinantesDaAta(ata)) {
+    const { registro } = acharAssinatura(todas, idx, x);
+    if (!registro?.base64 || !x.ref) continue;
+    try { saida[x.ref] = Buffer.from(registro.base64, "base64"); } catch { /* ilegível: fica a linha */ }
   }
   return saida;
 }
 
-/** `{ email: {tem, origem, em, porQuem} }` para os participantes com e-mail. */
+/** `{ ref: {tem, origem, via, em, porQuem} }` — um por assinante da folha. */
 async function assinaturasDosParticipantes(ata) {
   const todas = await lerAssinaturasDeUsuarios();
+  const idx = indicePorNome(todas);
   const saida = {};
-  for (const e of emailsQueAssinam(ata)) saida[e] = resumoAssinatura(todas[e]);
+  for (const x of assinantesDaAta(ata)) {
+    if (!x.ref) continue;
+    const { registro, via } = acharAssinatura(todas, idx, x);
+    // `via` é o que permite à tela dizer que a assinatura veio do NOME, e não
+    // do e-mail: casamento por nome é mais frouxo, e quem confere merece saber
+    saida[x.ref] = { ...resumoAssinatura(registro), via };
+  }
   return saida;
 }
-
-/* Quem assina a folha vem de `assinantesDaAta` (lib/atas.js) — a MESMA
-   função que o gerador de PDF usa. Duas listas de assinantes acabariam
-   diferentes, e aí a tela mostraria assinatura guardada para alguém que o
-   documento não imprime. */
-const emailsQueAssinam = (ata) =>
-  [...new Set(assinantesDaAta(ata).map((x) => x.email).filter(Boolean))];
 
 // Cria ou atualiza. O número só é emitido quando a ata sai de rascunho, para
 // que reuniões abandonadas não consumam a sequência do órgão.
@@ -6888,20 +6890,27 @@ app.delete("/api/atas/:id/anexo/:indice", async (req, res) => {
    viraria "suba a assinatura de qualquer e-mail do UNIEGO".
    ======================================================================= */
 
-/** A ata, o participante e o direito de mexer — os três de uma vez. */
+/** A ata, o assinante e o direito de mexer — os três de uma vez.
+    O `ref` é o endereço da assinatura: e-mail quando a lista de presença o
+    traz, `nome:<nome completo>` quando não. Ele tem de pertencer a alguém
+    que ASSINA ESTA ATA — é esse laço que impede a rota de virar "suba a
+    assinatura de qualquer e-mail (ou nome) do UNIEGO". */
 async function contextoAssinaturaAta(req, res) {
   const u = await sessaoAtas(req, res);
   if (!u) return null;
   const ata = (await lerAtas()).find((x) => x.id === req.params.id);
   if (!ata || !podeVer(u, ata)) { res.status(404).json({ error: "Ata não encontrada" }); return null; }
-  const email = String(req.body?.email || req.query?.email || "").trim().toLowerCase();
-  if (!email) { res.status(400).json({ error: "Informe o e-mail do participante." }); return null; }
-  const p = (ata.participantes || []).find((x) => String(x.email || "").toLowerCase() === email);
-  if (!p) {
-    res.status(400).json({ error: "Essa pessoa não consta como participante desta ata." });
+  const pedido = String(req.body?.ref || req.query?.ref
+    || req.body?.email || req.query?.email || "").trim().toLowerCase();
+  if (!pedido) { res.status(400).json({ error: "Informe de quem é a assinatura." }); return null; }
+  const assinante = assinantesDaAta(ata).find((x) => x.ref && x.ref === pedido);
+  if (!assinante) {
+    res.status(400).json({
+      error: "Essa pessoa não assina esta ata — confira se ela está na lista como presente.",
+    });
     return null;
   }
-  return { u, ata, email, participante: p };
+  return { u, ata, ref: assinante.ref, assinante };
 }
 
 app.post("/api/atas/:id/assinatura", upload.single("file"), async (req, res) => {
@@ -6916,22 +6925,31 @@ app.post("/api/atas/:id/assinatura", upload.single("file"), async (req, res) => 
     const todas = await lerAssinaturasDeUsuarios();
     // a do TITULAR vence sempre: quem enviou a própria assinatura não a perde
     // porque uma secretaria digitalizou outra folha
-    if (origemDaAssinatura(todas[cx.email]) === "titular" && todas[cx.email]?.base64) {
+    const jaTem = acharAssinatura(todas, indicePorNome(todas), cx.assinante).registro;
+    if (jaTem && origemDaAssinatura(jaTem) === "titular") {
       return res.status(409).json({
-        error: `${cx.participante.nome || cx.email} já enviou a própria assinatura pelo perfil — `
+        error: `${cx.assinante.nome || cx.ref} já enviou a própria assinatura pelo perfil — `
           + "essa é a que vale, e só a própria pessoa a substitui.",
       });
     }
-    todas[cx.email] = {
+    todas[cx.ref] = {
       base64: req.file.buffer.toString("base64"), tipo: req.file.mimetype,
       arquivo: String(req.file.originalname || "").slice(0, 120),
       bytes: req.file.size, em: new Date().toISOString(),
       origem: "terceiro", porQuem: cx.u.email,
+      // o NOME viaja junto: é ele que faz esta assinatura sair nas OUTRAS
+      // atas da mesma pessoa, inclusive nas que não têm o e-mail dela
+      nome: cx.assinante.nome || "",
     };
     await storage.set(ASSINATURA_USUARIO_KEY, JSON.stringify(todas));
     await storage.flush?.();
-    console.log(`[atas] assinatura de ${cx.email} enviada por ${cx.u.email}`);
-    res.json({ ok: true, email: cx.email, ...resumoAssinatura(todas[cx.email]) });
+    console.log(`[atas] assinatura de ${cx.ref} enviada por ${cx.u.email}`);
+    res.json({
+      ok: true, ref: cx.ref, ...resumoAssinatura(todas[cx.ref]), via: cx.assinante.email ? "email" : "nome",
+      // quantas OUTRAS atas do acervo desta pessoa passam a sair assinadas —
+      // é o ganho que o recurso promete, e ele merece ser dito em número
+      atas: await quantasAtasAssina(cx.assinante, cx.ata.id),
+    });
   } catch (e) {
     console.error("Erro ao guardar a assinatura de um membro:", e);
     res.status(500).json({ error: "Não foi possível guardar a assinatura." });
@@ -6948,13 +6966,15 @@ app.delete("/api/atas/:id/assinatura", async (req, res) => {
     if (!podeEditar(cx.u, cx.ata))
       return res.status(403).json({ error: "Só quem lavra esta ata mexe na assinatura de um membro." });
     const todas = await lerAssinaturasDeUsuarios();
-    if (!todas[cx.email]?.base64) return res.json({ ok: true, tem: false });
-    if (origemDaAssinatura(todas[cx.email]) === "titular") {
+    const achada = acharAssinatura(todas, indicePorNome(todas), cx.assinante);
+    if (!achada.registro) return res.json({ ok: true, tem: false });
+    if (origemDaAssinatura(achada.registro) === "titular") {
       return res.status(403).json({
         error: "Esta assinatura foi enviada pela própria pessoa — só ela pode removê-la, no perfil.",
       });
     }
-    delete todas[cx.email];
+    // remove o registro que estava valendo, seja ele o do e-mail ou o do nome
+    for (const [k, v] of Object.entries(todas)) if (v === achada.registro) delete todas[k];
     await storage.set(ASSINATURA_USUARIO_KEY, JSON.stringify(todas));
     await storage.flush?.();
     res.json({ ok: true, tem: false });
@@ -6964,13 +6984,29 @@ app.delete("/api/atas/:id/assinatura", async (req, res) => {
   }
 });
 
+/* Em quantas OUTRAS atas do acervo esta pessoa assina — o ganho que o
+   casamento por nome promete, dito em número na hora do envio. Conta só as
+   atas que o acervo já tem; a próxima em que o nome aparecer também sairá
+   assinada. */
+async function quantasAtasAssina(assinante, exceto) {
+  const atas = await lerAtas();
+  let n = 0;
+  for (const a of atas) {
+    if (a.id === exceto) continue;
+    if (assinantesDaAta(a).some((x) => (assinante.email && x.email === assinante.email)
+      || (x.chaveNome && x.chaveNome === assinante.chaveNome))) n++;
+  }
+  return n;
+}
+
 /* A imagem que VAI SAIR na folha desta ata. Quem lavra precisa conferir
    antes de registrar — a assinatura errada num documento do órgão não se
    recolhe depois. Só participante desta ata, e só para quem a enxerga. */
 app.get("/api/atas/:id/assinatura.png", async (req, res) => {
   const cx = await contextoAssinaturaAta(req, res);
   if (!cx) return;
-  const a = (await lerAssinaturasDeUsuarios())[cx.email];
+  const todas = await lerAssinaturasDeUsuarios();
+  const a = acharAssinatura(todas, indicePorNome(todas), cx.assinante).registro;
   if (!a?.base64) return res.status(404).send("Sem assinatura guardada.");
   res.setHeader("Content-Type", a.tipo || "image/png");
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -7668,6 +7704,51 @@ const resumoAssinatura = (a) => (a?.base64
   ? { tem: true, origem: origemDaAssinatura(a), em: a.em || "", porQuem: a.porQuem || "" }
   : { tem: false, origem: "", em: "", porQuem: "" });
 
+/* ===================== ACHAR A ASSINATURA DE UM ASSINANTE ================
+   Duas chaves, e a ordem entre elas é a regra (pedido do dono, ago/2026:
+   "rastreie pelo nome, para ganharmos tempo"):
+
+     1. o E-MAIL, quando a lista de presença o traz. É a chave forte, e é o
+        que separa dois homônimos;
+     2. o NOME COMPLETO, que é o que faz a assinatura enviada numa ata sair
+        em todas as outras onde aquele nome consta — inclusive nas antigas,
+        cujas listas de presença não têm e-mail nenhum.
+
+   Entre dois registros do mesmo nome, vence o do TITULAR (a pessoa enviou a
+   sua) e, empatados, o mais recente. O índice se monta uma vez por leitura:
+   com centenas de atas, procurar registro a registro por assinante seria
+   varrer o mesmo objeto dezenas de vezes.
+   ======================================================================== */
+function indicePorNome(todas) {
+  const idx = new Map();
+  for (const [chave, a] of Object.entries(todas || {})) {
+    if (!a?.base64) continue;
+    // o nome vem gravado no registro; nos guardados por nome, da própria chave
+    const nome = a.nome || (chave.startsWith("nome:") ? chave.slice(5) : "");
+    if (!nomeServeDeChave(nome)) continue;
+    const k = chaveDoNome(nome);
+    const atual = idx.get(k);
+    if (!atual || melhorAssinatura(a, atual)) idx.set(k, a);
+  }
+  return idx;
+}
+
+/** A de titular vence a de terceiro; entre iguais, a mais recente. */
+const melhorAssinatura = (nova, atual) => {
+  const peso = (x) => (origemDaAssinatura(x) === "titular" ? 1 : 0);
+  if (peso(nova) !== peso(atual)) return peso(nova) > peso(atual);
+  return String(nova?.em || "") > String(atual?.em || "");
+};
+
+/** O registro de um assinante e COMO ele foi encontrado (e-mail ou nome). */
+function acharAssinatura(todas, idx, assinante) {
+  const porEmail = assinante?.email ? todas[assinante.email] : null;
+  if (porEmail?.base64) return { registro: porEmail, via: "email" };
+  const porNome = idx.get(assinante?.chaveNome || "");
+  if (porNome?.base64) return { registro: porNome, via: "nome" };
+  return { registro: null, via: "" };
+}
+
 /* Recusa a imagem que não serve: só PNG ou JPEG, até 2 MB. O PNG com fundo
    transparente é o que fica bom sobre a linha — o JPEG passa, mas leva o
    retângulo branco junto, e é por isso que a tela pede PNG. */
@@ -7697,6 +7778,7 @@ app.post("/api/perfil/assinatura", upload.single("file"), async (req, res) => {
     const ruim = imagemDeAssinaturaInvalida(req.file);
     if (ruim) return res.status(400).json({ error: ruim });
     const todas = await lerAssinaturasDeUsuarios();
+    const perfil = (await carregarPerfis())[u.email] || {};
     todas[u.email] = {
       base64: req.file.buffer.toString("base64"), tipo: req.file.mimetype,
       arquivo: String(req.file.originalname || "").slice(0, 120),
@@ -7704,6 +7786,9 @@ app.post("/api/perfil/assinatura", upload.single("file"), async (req, res) => {
       // sobrescrever a de terceiro é justamente o que se espera aqui: a
       // pessoa viu a que a secretaria subiu e mandou a sua
       origem: "titular", porQuem: u.email,
+      // o NOME do perfil viaja junto: é ele que leva esta assinatura às atas
+      // antigas, cujas listas de presença trazem o nome e nenhum e-mail
+      nome: perfil.nome || u.nome || "",
     };
     await storage.set(ASSINATURA_USUARIO_KEY, JSON.stringify(todas));
     await storage.flush?.();
