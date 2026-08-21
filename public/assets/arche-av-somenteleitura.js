@@ -37,6 +37,41 @@
     location.href = "/entrar?next=" + encodeURIComponent(volta);
   }
 
+  /* O SELO DE VISUALIZAÇÃO GRUDA NO NAVEGADOR, e é isso que confunde: quem
+     abriu o `/avaliador` uma vez fica com ele, e nas visitas seguintes entra
+     no `/arche/` SEM passar pela portaria — logo, sem perceber que está em
+     modo de leitura. Foi o que aconteceu com a professora, que jurava (com
+     razão) ter entrado pelo `arche.app.br/arche`.
+
+     Bloquear a leitura do `/arche/` para esse selo não serve: é justamente
+     por ali que a página do avaliador entra (`/arche/avaliacao/`,
+     `/arche/dossie/`), e o avaliador do MEC pararia numa tela de senha.
+     A saída é deixar quem é DA CASA trocar o selo onde está, sem perder a
+     página: a senha compartilhada da portaria vale para isso. */
+  function usarSenha() {
+    var senha = window.prompt("Senha de acesso da Avaliação (a mesma da portaria):");
+    if (senha === null) return;
+    fetchOriginal("/api/av/entrar", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ senha: senha }),
+    }).then(function (r) {
+      if (r.ok) { location.reload(); return; }
+      window.alert("Senha incorreta. Se você não a tem, entre com a sua conta do ARCHÉ.");
+    }).catch(function () {
+      window.alert("Não foi possível conferir a senha agora. Tente de novo em instantes.");
+    });
+  }
+
+  function botao(rot, fn, primario) {
+    var b = document.createElement("button");
+    b.textContent = rot;
+    b.onclick = fn;
+    b.style.cssText = "cursor:pointer;font:600 12.5px Figtree,system-ui,sans-serif;border:0;"
+      + "border-radius:8px;padding:7px 13px;"
+      + (primario ? "background:#1c3742;color:#fff" : "background:#eceff3;color:#657179");
+    return b;
+  }
+
   function faixa() {
     if (document.getElementById("av-so-leitura")) return;
     var d = document.createElement("div");
@@ -46,14 +81,11 @@
       + "align-items:center;flex-wrap:wrap;justify-content:center;"
       + "background:#fdf3e3;color:#8a5a12;border-bottom:1px solid #f0e0bd;"
       + "font:500 13px/1.45 Figtree,system-ui,sans-serif;padding:9px 14px";
-    d.innerHTML = '<span>👁 <b>Acesso de visualização</b> — você entrou pelo link do avaliador. '
-      + 'Dá para ver tudo, mas <b>nada pode ser enviado ou alterado</b> por aqui.</span>';
-    var b = document.createElement("button");
-    b.textContent = "Entrar com a minha conta";
-    b.style.cssText = "cursor:pointer;font:600 12.5px Figtree,system-ui,sans-serif;"
-      + "background:#1c3742;color:#fff;border:0;border-radius:8px;padding:7px 13px";
-    b.onclick = entrar;
-    d.appendChild(b);
+    d.innerHTML = '<span>👁 <b>Acesso de visualização</b> — este navegador guardou o acesso de '
+      + '<b>avaliador</b> (basta ter aberto o link uma vez). Dá para ver tudo, mas '
+      + '<b>nada pode ser enviado ou alterado</b>.</span>';
+    d.appendChild(botao("Entrar com a minha conta", entrar, true));
+    d.appendChild(botao("Sou da organização — usar a senha", usarSenha, false));
     document.body.insertBefore(d, document.body.firstChild);
   }
 
@@ -78,19 +110,10 @@
     var linha = document.createElement("div");
     linha.style.cssText = "display:flex;gap:8px;margin-top:10px;flex-wrap:wrap";
     if (visualizacao) {
-      var b = document.createElement("button");
-      b.textContent = "Entrar com a minha conta";
-      b.style.cssText = "cursor:pointer;font:600 12.5px Figtree,system-ui,sans-serif;"
-        + "background:#1c3742;color:#fff;border:0;border-radius:8px;padding:7px 13px";
-      b.onclick = entrar;
-      linha.appendChild(b);
+      linha.appendChild(botao("Entrar com a minha conta", entrar, true));
+      linha.appendChild(botao("Sou da organização — usar a senha", usarSenha, false));
     }
-    var f = document.createElement("button");
-    f.textContent = "Fechar";
-    f.style.cssText = "cursor:pointer;font:600 12.5px Figtree,system-ui,sans-serif;"
-      + "background:#eceff3;color:#657179;border:0;border-radius:8px;padding:7px 13px";
-    f.onclick = function () { v.remove(); };
-    linha.appendChild(f);
+    linha.appendChild(botao("Fechar", function () { v.remove(); }, false));
     v.appendChild(linha);
   }
 

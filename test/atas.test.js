@@ -674,3 +674,55 @@ test("busca: resultado da sessão mais recente para a mais antiga", () => {
   const nova = ataDeBusca({ id: "n", sessao: { data: "2026-08-01" } });
   assert.deepEqual(buscarAtas([velha, nova], "matriz").resultados.map((x) => x.id), ["n", "v"]);
 });
+
+/* ------------------- o ano do número é o ano da SESSÃO -------------------
+   Achado do dono, ago/2026: uma ata do NDE de Psicologia com sessão em
+   21/02/2025 saiu numerada ATA-NDE-PSI-2026-017. O rascunho nasce com a data
+   de hoje, o ano ficava congelado nela, e trocar a data para a sessão
+   retroativa não desfazia — e é esse campo que a numeração usa. Datas
+   passadas são aceitas de propósito, para os órgãos regularizarem o arquivo:
+   o número precisa dizer o ano em que a reunião aconteceu. */
+test("trocar a data da sessão para um ano anterior leva o ano da ata junto", () => {
+  const rascunho = normalizarAta(bruta({ sessao: { tipo: "ordinária", data: "2026-08-21",
+    horaInicio: "14:30", horaFim: "15:30", local: "Sala", modalidade: "presencial" } }),
+    { autor: "camila@uniego.edu.br" });
+  assert.equal(rascunho.ano, 2026);
+
+  // a pessoa corrige a data para a sessão de fato, em 2025
+  const corrigida = normalizarAta({ ...rascunho, sessao: { ...rascunho.sessao, data: "2025-02-21" } },
+    { base: rascunho, autor: "camila@uniego.edu.br" });
+  assert.equal(corrigida.ano, 2025);
+  assert.match(numerar([], corrigida).numero, /^ATA-NDE-ENF-2025-\d{3}$/);
+});
+
+test("ata JÁ NUMERADA não muda de ano — o número já foi emitido", () => {
+  const a = numerar([], normalizarAta(bruta({ sessao: { tipo: "ordinária", data: "2025-02-21",
+    horaInicio: "14:30", horaFim: "15:30", local: "Sala", modalidade: "presencial" } }),
+    { autor: "c@u.edu.br" }));
+  assert.equal(a.ano, 2025);
+  const editada = normalizarAta({ ...a, sessao: { ...a.sessao, data: "2026-03-10" } },
+    { base: a, autor: "c@u.edu.br" });
+  assert.equal(editada.ano, 2025);
+  assert.equal(editada.numero, a.numero);
+});
+
+test("a série do ano retroativo é a daquele ano, não a do corrente", () => {
+  const de2025 = numerar([], normalizarAta(bruta({ sessao: { tipo: "ordinária", data: "2025-02-21",
+    horaInicio: "14:30", horaFim: "15:30", local: "Sala", modalidade: "presencial" } }), { autor: "c@u.edu.br" }));
+  const de2026 = numerar([de2025], normalizarAta(bruta({ sessao: { tipo: "ordinária", data: "2026-08-21",
+    horaInicio: "14:30", horaFim: "15:30", local: "Sala", modalidade: "presencial" } }), { autor: "c@u.edu.br" }));
+  assert.equal(de2025.numero, "ATA-NDE-ENF-2025-001");
+  assert.equal(de2026.numero, "ATA-NDE-ENF-2026-001");   // séries independentes
+});
+
+test("o aviso encontra as atas cujo número não bate com o ano da sessão", () => {
+  const a = numerar([], normalizarAta(bruta({ sessao: { tipo: "ordinária", data: "2025-02-21",
+    horaInicio: "14:30", horaFim: "15:30", local: "Sala", modalidade: "presencial" } }), { autor: "c@u.edu.br" }));
+  assert.equal(avisosDaAta(a).some((x) => x.tipo === "ano-do-numero"), false);
+  // a que já saiu errada: número de 2026 numa sessão de 2025
+  const torta = { ...a, numero: "ATA-NDE-PSI-2026-017" };
+  const aviso = avisosDaAta(torta).find((x) => x.tipo === "ano-do-numero");
+  assert.ok(aviso, "o aviso precisa apontar a incoerência");
+  assert.match(aviso.texto, /2026/);
+  assert.match(aviso.texto, /21\/02\/2025/);
+});

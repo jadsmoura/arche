@@ -182,8 +182,13 @@ public/
   compilado mostra só o número, e a frase que o servidor escreve não chegava a lugar
   nenhum. Agora uma faixa no alto avisa quem está com o selo de visualização, o 403 das
   rotas de escrita aparece com a explicação do servidor, e os dois trazem o botão que leva
-  ao login e volta para a mesma página — entrar com a conta do ARCHÉ devolve os próprios
-  direitos, porque a sessão vence o selo. O link de acesso completo se invalida em
+  ao login e volta para a mesma página, mais **"Sou da organização — usar a senha"**, que
+  troca o selo ali mesmo (POST `/api/av/entrar`) sem perder o lugar. O detalhe que
+  desorientava: **o selo GRUDA no navegador** — quem abriu o `/avaliador` uma vez entra nas
+  visitas seguintes direto pelo `/arche`, sem passar pela portaria, e por isso jura ter
+  entrado pelo endereço normal. Bloquear a leitura do `/arche/` para esse selo não serve: é
+  por ali que a página do avaliador entra (`/arche/avaliacao/`, `/arche/dossie/`), e o
+  avaliador do MEC pararia numa tela de senha. O link de acesso completo se invalida em
   bloco trocando `AV_LINK_VERSAO`. A mesma portaria vale para as APIs que o módulo usa
   (`/api/estado*` nas chaves abertas e os três `/api/drive/upload*`), senão bastaria pular a
   tela e ler tudo pela API. Para trocar a senha, mude a env var — não o código.
@@ -926,6 +931,15 @@ public/
   anterior sai com o logotipo, o nome e o rodapé da FACEG, e o texto diz "na Faculdade
   Evangélica de Goianésia". Vale só para as atas — os documentos da Extensão seguem
   com o timbre atual. Para corrigir a data de corte, mude a env var, não o código.
+- **O ano do NÚMERO é o ano da SESSÃO** (`normalizarAta` + o aviso `ano-do-numero`, achado
+  do dono ago/2026): uma ata do NDE de Psicologia com sessão em 21/02/2025 saiu numerada
+  `ATA-NDE-PSI-2026-017`. O campo `ano` congelava no primeiro valor gravado — o rascunho
+  nasce com a data de hoje —, e trocar a data para a sessão retroativa não o desfazia; é
+  justamente esse campo que a numeração usa. Agora ele **acompanha a data da sessão
+  enquanto a ata não tem número**, e **se fixa depois de numerada**: o número já foi emitido
+  e é a chave do que está arquivado. As que já saíram tortas continuam no arquivo, e um
+  aviso (que não trava) as aponta — reemitir número de ata registrada é decisão da gestão,
+  não coisa que o sistema faça em silêncio.
 - **Datas passadas são aceitas** de propósito, para os órgãos regularizarem o arquivo.
   Numa ata retroativa, o checklist cobrado e o ciclo de sessões são os do semestre
   DA SESSÃO, não os do semestre corrente (`/api/atas/pauta-regulatoria?data=…`). Duas
