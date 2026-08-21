@@ -21,7 +21,7 @@ import {
   ATAS_KEY, ORGAOS, CURSOS, cursoDe, STATUS as ATA_STATUS, normalizarAta, validarAta,
   numerar, tituloDe, anotar, encaminhamentos, orgaoDe, podeVerAta, podeEditarAta, statusVigente,
   buscarAtas, renumerar, numeroIncoerente, renumerarAcervo, assinantesDaAta,
-  chaveDoNome, nomeServeDeChave, refDoAssinante,
+  chaveDoNome, nomeServeDeChave, refDoAssinante, propagarEmailPorNome, paresDeIdentidade,
 } from "./lib/atas.js";
 import {
   PAUTAS, MOMENTOS, CADENCIAS, RITUAL, checklistSemestral, pautasSugeridas, janelaDe,
@@ -6541,12 +6541,27 @@ app.post("/api/atas", async (req, res) => {
       }
 
       if (i >= 0) atas[i] = ata; else atas.push(ata);
-      return { ata };
+      /* O NOME é a regra principal, e o e-mail informado aqui vale para o
+         acervo (decisão do dono, ago/2026): toda ata em que o mesmo nome
+         aparece SEM e-mail passa a ter o vínculo forte. Só na gravação
+         DELIBERADA — a automática roda a cada poucos segundos e espalharia
+         um endereço ainda pela metade, que ninguém sobrescreve depois. */
+      let preenchidos = 0;
+      if (!automatica) {
+        for (const pessoa of paresDeIdentidade(ata)) {
+          preenchidos += propagarEmailPorNome(atas, pessoa, { exceto: ata.id }).atas.length;
+        }
+      }
+      return { ata, preenchidos };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
     // a folha de assinaturas acompanha a gravação: mudou quem está presente,
     // mudou quem assina — e a tela precisa saber disso sem outra chamada
-    res.json({ ok: true, ata: r.ata, assinaturas: await assinaturasDosParticipantes(r.ata) });
+    res.json({
+      ok: true, ata: r.ata, assinaturas: await assinaturasDosParticipantes(r.ata),
+      // quantas atas do acervo ganharam o e-mail que esta acabou de informar
+      emailsPreenchidos: r.preenchidos || 0,
+    });
   } catch (e) {
     console.error("Erro ao gravar ata:", e);
     res.status(500).json({ error: e.message || "Erro ao gravar a ata" });
@@ -6944,11 +6959,19 @@ app.post("/api/atas/:id/assinatura", upload.single("file"), async (req, res) => 
     await storage.set(ASSINATURA_USUARIO_KEY, JSON.stringify(todas));
     await storage.flush?.();
     console.log(`[atas] assinatura de ${cx.ref} enviada por ${cx.u.email}`);
+    // e o e-mail informado aqui vale para o acervo: toda ata em que este NOME
+    // aparece sem e-mail passa a ter o vínculo forte (decisão do dono,
+    // ago/2026). Nunca sobrescreve endereço já preenchido.
+    const espalhou = await espalharEmailPeloAcervo(cx.assinante, cx.ata.id);
     res.json({
       ok: true, ref: cx.ref, ...resumoAssinatura(todas[cx.ref]), via: cx.assinante.email ? "email" : "nome",
       // quantas OUTRAS atas do acervo desta pessoa passam a sair assinadas —
       // é o ganho que o recurso promete, e ele merece ser dito em número
       atas: await quantasAtasAssina(cx.assinante, cx.ata.id),
+      emailsPreenchidos: espalhou.atas.length,
+      // atas em que o mesmo nome traz OUTRO endereço: não se sobrescreve
+      // ninguém em silêncio, mas quem acabou de informar precisa saber
+      emailsDivergentes: (espalhou.divergentes || []).length,
     });
   } catch (e) {
     console.error("Erro ao guardar a assinatura de um membro:", e);
@@ -6983,6 +7006,26 @@ app.delete("/api/atas/:id/assinatura", async (req, res) => {
     res.status(500).json({ error: "Não foi possível remover." });
   }
 });
+
+/* O NOME é a regra principal (decisão do dono, ago/2026): informado o e-mail
+   de alguém numa ata, ele passa a valer em toda ata em que o mesmo nome
+   aparece SEM e-mail. Roda dentro da fila de escrita, porque altera o
+   acervo; nunca sobrescreve endereço já preenchido. */
+async function espalharEmailPeloAcervo(pessoa, exceto = "") {
+  if (!pessoa?.email || !nomeServeDeChave(pessoa?.nome)) return { atas: [], pessoas: 0 };
+  const r = await comAtas((atas) => {
+    const feito = propagarEmailPorNome(atas, pessoa, { exceto });
+    return { ...feito, gravar: feito.atas.length > 0 };
+  });
+  if (r.divergentes?.length) {
+    console.log(`[atas] ${pessoa.nome} aparece com outro e-mail em `
+      + `${r.divergentes.length} ata(s) — não sobrescrito`);
+  }
+  if (r.atas.length) {
+    console.log(`[atas] e-mail de ${pessoa.nome} preenchido em ${r.atas.length} ata(s) do acervo`);
+  }
+  return r;
+}
 
 /* Em quantas OUTRAS atas do acervo esta pessoa assina — o ganho que o
    casamento por nome promete, dito em número na hora do envio. Conta só as

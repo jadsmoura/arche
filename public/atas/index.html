@@ -1864,9 +1864,20 @@ function enviarAssinaturaDe(ref) {
       renderAssinaturas();
       // o número é o ganho do recurso: dizer "e em outras 23 atas" é o que
       // mostra que não será preciso repetir isto reunião por reunião
-      aviso(j.atas
+      const partes = [j.atas
         ? `Assinatura guardada — ela passa a sair nesta ata e em outras ${j.atas} do acervo.`
-        : "Assinatura guardada — ela vale para todas as atas desta pessoa.", "ok");
+        : "Assinatura guardada — ela vale para todas as atas desta pessoa."];
+      // o e-mail informado aqui vale para o acervo: o nome é a regra
+      if (j.emailsPreenchidos) {
+        partes.push(`O e-mail foi preenchido em ${j.emailsPreenchidos} ata(s) que traziam só o nome.`);
+      }
+      // divergência não se resolve sozinha: o mesmo nome com outro endereço
+      // pode ser a segunda conta da pessoa ou um homônimo
+      if (j.emailsDivergentes) {
+        partes.push(`Atenção: em ${j.emailsDivergentes} ata(s) este nome aparece com OUTRO e-mail — `
+          + `nada foi sobrescrito.`);
+      }
+      aviso(partes.join(" "), "ok");
     } catch (e) { alert("Não foi possível guardar: " + e.message); }
   };
   inp.click();
@@ -2056,7 +2067,13 @@ async function salvar({ silencioso = false } = {}) {
   AUTO.sujo = false; selo("salva");
   await carregar();
   if (SECAO === "nova") nav("ata");
-  if (!silencioso) { cabecalho(); renderEditor("v-ata"); aviso("Ata salva.", "ok"); }
+  if (!silencioso) {
+    cabecalho(); renderEditor("v-ata");
+    // o nome é a regra principal: o e-mail digitado aqui completa o acervo
+    aviso(r.emailsPreenchidos
+      ? `Ata salva. O e-mail informado foi preenchido em ${r.emailsPreenchidos} ata(s) que traziam só o nome.`
+      : "Ata salva.", "ok");
+  }
   return ATUAL;
 }
 

@@ -1599,6 +1599,18 @@ public/
   **titular** e, empatados, o mais recente. A presidência é declarada por NOME (o formulário não
   pede o e-mail dela) e `validarAta` já exige que ela conste entre os presentes: é de lá que sai o
   e-mail, senão quem presidiu apareceria sem assinatura mesmo tendo enviado a sua.
+  **E o e-mail se COMPLETA pelo nome** (decisão do dono, ago/2026: "coloque como regra principal o
+  nome, inclusive, atualizando os e-mails"): informado o e-mail de alguém numa ata — ao salvá-la ou
+  ao subir a assinatura dela —, ele é gravado em **toda ata do acervo em que o mesmo nome aparece
+  SEM e-mail** (`propagarEmailPorNome`/`paresDeIdentidade`). É o que faz o vínculo fraco por nome
+  virar o vínculo forte por e-mail sem ninguém reabrir ata por ata, e vale nos dois sentidos: a
+  assinatura, que já saía pelo nome, passa a sair pelo e-mail. Três freios: **nunca sobrescreve**
+  endereço já preenchido (o mesmo nome com outro e-mail pode ser a segunda conta da pessoa ou um
+  homônimo — a tela DIZ que há divergência, e quem decide é gente); **endereço pela metade não
+  entra** (`EMAIL_PLAUSIVEL`, senão um "jadson@unieg" digitado no meio de uma frase se espalharia
+  para sempre, já que ninguém o sobrescreve); e a **gravação automática não propaga** — ela roda a
+  cada poucos segundos, com o campo ainda sendo digitado. A tela devolve em número quantas atas
+  ganharam o e-mail.
   **Duas portas, com a ORIGEM marcada** (decisão do dono, ago/2026, revendo a regra anterior): a
   pessoa envia a sua no `/perfil/` (`titular`) e a **secretaria do órgão** pode digitalizar e
   subir por um membro (`terceiro`), de dentro de uma ata em que ele é participante. A regra

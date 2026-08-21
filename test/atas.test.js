@@ -8,6 +8,7 @@ import {
   validarAta, tituloDe, quorum, encaminhamentos, anotar, orgaoDe, avisosDaAta,
   renumerar, numeroIncoerente, anoDoNumero, renumerarAcervo,
   buscarAtas, termosDaBusca, assinantesDaAta, refDoAssinante, nomeServeDeChave,
+  propagarEmailPorNome, paresDeIdentidade,
 } from "../lib/atas.js";
 import { extenso, dataExtenso, horaExtenso, redigirPorModelo, provedorAtivo, fichaDaReuniao,
   ESTILOS, estiloDe, estiloPadrao, instrucaoDe } from "../lib/redator.js";
@@ -897,4 +898,64 @@ test("a mesma pessoa tem o MESMO ref em atas diferentes", () => {
   assert.equal(nova.ref, "carla@uniego.edu.br");
   // o que as liga é a chave do nome, e é por ela que a assinatura viaja
   assert.equal(antiga.chaveNome, nova.chaveNome);
+});
+
+/* O NOME É A REGRA PRINCIPAL, E O E-MAIL SE COMPLETA POR ELE (decisão do
+   dono, ago/2026, com o exemplo dele: "Jadson Belem de Moura ... Belem e
+   Belém sejam considerados o mesmo nome"). Informado o e-mail de alguém numa
+   ata, ele passa a valer em toda ata em que o mesmo nome aparece SEM e-mail.
+   O que se protege: acento e caixa não separam a pessoa dela mesma, e um
+   endereço já preenchido nunca é sobrescrito em silêncio. */
+const acervo = () => ([
+  { id: "a1", numero: "ATA-NDE-PSI-2026-001",
+    participantes: [{ nome: "Jadson Belém de Moura", email: "" }, { nome: "Outra Pessoa", email: "" }] },
+  { id: "a2", numero: "ATA-COL-PSI-2026-001",
+    participantes: [{ nome: "JADSON   BELEM DE MOURA", email: "" }],
+    secretaria: { nome: "Jadson Belem de Moura", email: "" } },
+  { id: "a3", numero: "ATA-CPA-2026-001",
+    participantes: [{ nome: "Jadson Belem de Moura", email: "jadsonbelem@gmail.com" }] },
+]);
+
+test("o e-mail informado numa ata completa as que trazem só o nome", () => {
+  const atas = acervo();
+  const r = propagarEmailPorNome(atas, { nome: "Jadson Belem de Moura", email: "jadson.moura@uniego.edu.br" });
+  assert.deepEqual(r.atas, ["ATA-NDE-PSI-2026-001", "ATA-COL-PSI-2026-001"]);
+  assert.equal(r.pessoas, 2);
+  assert.equal(atas[0].participantes[0].email, "jadson.moura@uniego.edu.br", "Belém = Belem");
+  assert.equal(atas[1].participantes[0].email, "jadson.moura@uniego.edu.br", "caixa e espaço não contam");
+  assert.equal(atas[1].secretaria.email, "jadson.moura@uniego.edu.br", "a secretaria da sessão também");
+  assert.equal(atas[0].participantes[1].email, "", "quem tem outro nome não é tocado");
+});
+
+test("endereço já preenchido não se sobrescreve — vira divergência a conferir", () => {
+  const atas = acervo();
+  const r = propagarEmailPorNome(atas, { nome: "Jadson Belem de Moura", email: "jadson.moura@uniego.edu.br" });
+  assert.equal(atas[2].participantes[0].email, "jadsonbelem@gmail.com", "a segunda conta continua onde está");
+  assert.deepEqual(r.divergentes, [{ ata: "ATA-CPA-2026-001", email: "jadsonbelem@gmail.com" }]);
+});
+
+test("a propagação só corre com nome completo e endereço plausível", () => {
+  const atas = acervo();
+  assert.deepEqual(propagarEmailPorNome(atas, { nome: "Jadson", email: "x@y.br" }).atas, [],
+    "nome de uma palavra só não espalha nada");
+  assert.deepEqual(propagarEmailPorNome(atas, { nome: "Jadson Belem de Moura", email: "jadson@unieg" }).atas, [],
+    "endereço pela metade não ensina nada ao acervo");
+  assert.equal(atas[0].participantes[0].email, "", "e nada foi tocado nos dois casos");
+});
+
+test("os pares nome+e-mail que uma ata tem a ensinar", () => {
+  const pares = paresDeIdentidade({
+    participantes: [
+      { nome: "Ana Souza", email: "ana@uniego.edu.br" },
+      { nome: "Ana Souza", email: "outro@uniego.edu.br" },   // repetido: fica o primeiro
+      { nome: "Beto", email: "beto@uniego.edu.br" },          // uma palavra só
+      { nome: "Carla Dias", email: "carla@meio" },            // endereço pela metade
+      { nome: "Davi Melo", email: "" },
+    ],
+    secretaria: { nome: "Elis Prado Neto", email: "elis@uniego.edu.br" },
+  });
+  assert.deepEqual(pares, [
+    { nome: "Ana Souza", email: "ana@uniego.edu.br" },
+    { nome: "Elis Prado Neto", email: "elis@uniego.edu.br" },
+  ]);
 });
