@@ -4941,10 +4941,11 @@ async function lerMonitorias() {
    que tirou de lá as artes dos eventos.
    ------------------------------------------------------------------------- */
 /* O ARQUIVO da monitoria, curso a curso — os lotes chegam aos poucos, como
-   as coordenações os encontram. Odontologia entregou cinco semestres de uma
-   vez (2024/1 a 2026/1, ago/2026); Enfermagem, o 2026/1. */
+   as coordenações os encontram. Odontologia entregou seis semestres
+   (2023/2 a 2026/1, ago/2026); Enfermagem, o 2026/1. */
 const LOTES_HISTORICO_MON = [
   "mon-historico-2026-1-enfermagem.json",
+  "mon-historico-2023-2-odontologia.json",
   "mon-historico-2024-1-odontologia.json",
   "mon-historico-2024-2-odontologia.json",
   "mon-historico-2025-1-odontologia.json",

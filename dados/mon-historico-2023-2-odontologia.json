@@ -1,0 +1,280 @@
+{
+  "lote": "mon-historico-2023-2-odontologia",
+  "fonte": "MONITORIA 2023.2.xlsx, entregue pela coordenação do curso de Odontologia (ago/2026)",
+  "curso": "odontologia",
+  "ciclo": "2023/2",
+  "edital": "",
+  "vigencia": {
+    "inicio": "2023-08-01",
+    "fim": "2023-12-31"
+  },
+  "observacao": "Ciclo conduzido fora do ARCHÉ. A planilha do curso não traz CPF nem e-mail: a âncora é a MATRÍCULA, com o nome completo como segunda chave. Ciclo anterior aos editais que o ARCHÉ cataloga: a vigência registrada é a do semestre letivo, e o certificado a escreve em mês/ano. Confirmar com a coordenacao se houver o cronograma do edital da epoca.",
+  "registros": [
+    {
+      "aluno": "Vitor Henrique Moreira Moreno",
+      "matricula": "G2210460",
+      "orientador": "Eliene Soares Pimentel",
+      "disciplina": "Dentística Operatória",
+      "horas": 40
+    },
+    {
+      "aluno": "Emilly Stefanne Leonel Rocha Silva",
+      "matricula": "G2210461",
+      "orientador": "Eliene Soares Pimentel",
+      "disciplina": "Dentística Operatória",
+      "horas": 40
+    },
+    {
+      "aluno": "Ranniele de Jesus Queiroz",
+      "matricula": "G2310584",
+      "orientador": "Eliene Soares Pimentel",
+      "disciplina": "Dentística Operatória",
+      "horas": 40
+    },
+    {
+      "aluno": "Aline Silva de Jesus",
+      "matricula": "G2310588",
+      "orientador": "Eliene Soares Pimentel",
+      "disciplina": "Dentística Operatória",
+      "horas": 40
+    },
+    {
+      "aluno": "Josiane Kely Domingues da Silva",
+      "matricula": "G1910113",
+      "orientador": "Eliene Soares Pimentel",
+      "disciplina": "Optativa de Urgência",
+      "horas": 40
+    },
+    {
+      "aluno": "João Victor Nascimento Oliveira",
+      "matricula": "G1910025",
+      "orientador": "Eliene Soares Pimentel",
+      "disciplina": "Optativa de Urgência",
+      "horas": 40
+    },
+    {
+      "aluno": "João Victor Nascimento Oliveira",
+      "matricula": "G1910025",
+      "orientador": "Alyne Moreira Brasil",
+      "disciplina": "Endodontia I",
+      "horas": 40
+    },
+    {
+      "aluno": "Sara Cavalcante de Araújo",
+      "matricula": "G21110131",
+      "orientador": "Alyne Moreira Brasil",
+      "disciplina": "Endodontia I",
+      "horas": 40
+    },
+    {
+      "aluno": "Eurislainy Rodrigues dos Santos",
+      "matricula": "G2220186",
+      "orientador": "Alyne Moreira Brasil",
+      "disciplina": "Endodontia I",
+      "horas": 40
+    },
+    {
+      "aluno": "Bruna Alves Vieira",
+      "matricula": "G2110017",
+      "orientador": "Alyne Moreira Brasil",
+      "disciplina": "Endodontia I",
+      "horas": 40
+    },
+    {
+      "aluno": "Gabriella Victoria Mendes",
+      "matricula": "G2010097",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Periodontia Básica",
+      "horas": 40
+    },
+    {
+      "aluno": "Luana Carvalhães Amorim",
+      "matricula": "G2010022",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Periodontia Básica",
+      "horas": 40
+    },
+    {
+      "aluno": "Talita Gil Soares Araujo",
+      "matricula": "G2110129",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Periodontia Básica",
+      "horas": 40
+    },
+    {
+      "aluno": "Eurislainy Rodrigues dos Santos",
+      "matricula": "G2220186",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Periodontia Básica",
+      "horas": 40
+    },
+    {
+      "aluno": "Paulo Victor Barbosa Alves",
+      "matricula": "G1910055",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Periodontia Básica",
+      "horas": 40
+    },
+    {
+      "aluno": "Josiane Kely Domingues da Silva",
+      "matricula": "G1910113",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Periodontia Básica",
+      "horas": 40
+    },
+    {
+      "aluno": "Estela Carvalho Borges",
+      "matricula": "G1910087",
+      "orientador": "Paulo José Figueredo Júnior",
+      "disciplina": "Periodontia Básica",
+      "horas": 40
+    },
+    {
+      "aluno": "Gabriella Aparecida de Jesus Pereira",
+      "matricula": "G1910333",
+      "orientador": "Carolina Vansan Martins da Silva",
+      "disciplina": "Odontologia Pediátrica II",
+      "horas": 40
+    },
+    {
+      "aluno": "Ediênnia Mariana do Nascimento Candido",
+      "matricula": "G1910160",
+      "orientador": "Carolina Vansan Martins da Silva",
+      "disciplina": "Odontologia Pediátrica II",
+      "horas": 40
+    },
+    {
+      "aluno": "Rodrigo Mota Ferreira",
+      "matricula": "G1920044",
+      "orientador": "Carolina Vansan Martins da Silva",
+      "disciplina": "Odontologia Pediátrica II",
+      "horas": 40
+    },
+    {
+      "aluno": "Paulo Victor Gomes da Rocha",
+      "matricula": "G1920149",
+      "orientador": "Carolina Vansan Martins da Silva",
+      "disciplina": "Odontologia Pediátrica II",
+      "horas": 40
+    },
+    {
+      "aluno": "Brenda Raniely Ferreira de Carvalho",
+      "matricula": "G1910161",
+      "orientador": "Carolina Vansan Martins da Silva",
+      "disciplina": "Odontologia Pediátrica II",
+      "horas": 40
+    },
+    {
+      "aluno": "Carlos Humberto dos Santos",
+      "matricula": "G1920135",
+      "orientador": "Carolina Vansan Martins da Silva",
+      "disciplina": "Odontologia Pediátrica II",
+      "horas": 40
+    },
+    {
+      "aluno": "Natália Marques do Couto",
+      "matricula": "G2110049",
+      "orientador": "Pedro Paulo Ferreira Spíndola",
+      "disciplina": "Prótese Total Removível",
+      "horas": 40
+    },
+    {
+      "aluno": "Gabriela Souza Oliveira",
+      "matricula": "G2110024",
+      "orientador": "Pedro Paulo Ferreira Spíndola",
+      "disciplina": "Prótese Total Removível",
+      "horas": 40
+    },
+    {
+      "aluno": "Bruna Alves Vieira",
+      "matricula": "G2110017",
+      "orientador": "Pedro Paulo Ferreira Spíndola",
+      "disciplina": "Prótese Total Removível",
+      "horas": 40
+    },
+    {
+      "aluno": "Eurislainy Rodrigues dos Santos",
+      "matricula": "G2200186",
+      "orientador": "Pedro Paulo Ferreira Spíndola",
+      "disciplina": "Prótese Total Removível",
+      "horas": 40
+    },
+    {
+      "aluno": "Gabriel Strack Jager Pereira",
+      "matricula": "G2110108",
+      "orientador": "Pedro Paulo Ferreira Spíndola",
+      "disciplina": "Prótese Dentária",
+      "horas": 40
+    },
+    {
+      "aluno": "Bruno Alves Peixoto",
+      "matricula": "G2110030",
+      "orientador": "Pedro Paulo Ferreira Spíndola",
+      "disciplina": "Prótese Dentária",
+      "horas": 40
+    },
+    {
+      "aluno": "Luana Carvalhães Amorim",
+      "matricula": "G2010022",
+      "orientador": "Pedro Paulo Ferreira Spíndola",
+      "disciplina": "Prótese Fixa III",
+      "horas": 40
+    },
+    {
+      "aluno": "Verônica Raissa Silva Chaves",
+      "matricula": "G2010332",
+      "orientador": "Pedro Paulo Ferreira Spíndola",
+      "disciplina": "Prótese Fixa III",
+      "horas": 40
+    },
+    {
+      "aluno": "Vitor Henrique Moreira Moreno",
+      "matricula": "G2210460",
+      "orientador": "José Mateus dos Santos Júnior",
+      "disciplina": "Diagnóstico Básico",
+      "horas": 40
+    },
+    {
+      "aluno": "Ranniele de Jesus Queiroz",
+      "matricula": "G2310584",
+      "orientador": "José Mateus dos Santos Júnior",
+      "disciplina": "Diagnóstico Básico",
+      "horas": 40
+    },
+    {
+      "aluno": "Emilly Stefanne Leonel Rocha Silva",
+      "matricula": "G2210461",
+      "orientador": "José Mateus dos Santos Júnior",
+      "disciplina": "Diagnóstico Básico",
+      "horas": 40
+    },
+    {
+      "aluno": "Aline Silva de Jesus",
+      "matricula": "G2310588",
+      "orientador": "José Mateus dos Santos Júnior",
+      "disciplina": "Diagnóstico Básico",
+      "horas": 40
+    },
+    {
+      "aluno": "Talita Gil Soares Araujo",
+      "matricula": "G2110129",
+      "orientador": "José Mateus dos Santos Júnior",
+      "disciplina": "Clínica Integrada em Diagnóstico Bucal",
+      "horas": 40
+    },
+    {
+      "aluno": "Andreia Fernandes de Souza",
+      "matricula": "G2010147",
+      "orientador": "José Mateus dos Santos Júnior",
+      "disciplina": "Clínica Integrada em Diagnóstico Bucal",
+      "horas": 40
+    },
+    {
+      "aluno": "Eurislainy Rodrigues dos Santos",
+      "matricula": "G2220186",
+      "orientador": "José Mateus dos Santos Júnior",
+      "disciplina": "Clínica Integrada em Diagnóstico Bucal",
+      "horas": 40
+    }
+  ]
+}
