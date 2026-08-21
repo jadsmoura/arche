@@ -175,7 +175,15 @@ public/
   Avaliador com um selo de **VISUALIZAÇÃO** (`via: "avaliador"` no cookie;
   `somenteLeituraNaAv` no server) — páginas e leituras abrem, mas NENHUMA escrita passa
   (PUT/beacon do `/api/estado` e os três uploads recusam 403); quem também tem sessão no
-  ARCHÉ mantém os próprios direitos. O link de acesso completo se invalida em
+  ARCHÉ mantém os próprios direitos. **E a tela DIZ que o acesso é de visualização**
+  (`public/assets/arche-av-somenteleitura.js`, append nas 26 páginas — achado do dono
+  ago/2026): uma professora entrou pelo `/avaliador`, tentou enviar o PDI e recebeu
+  "✗ Erro: Erro 403", sem mais nada. O 403 estava certo; errado era o silêncio — o app
+  compilado mostra só o número, e a frase que o servidor escreve não chegava a lugar
+  nenhum. Agora uma faixa no alto avisa quem está com o selo de visualização, o 403 das
+  rotas de escrita aparece com a explicação do servidor, e os dois trazem o botão que leva
+  ao login e volta para a mesma página — entrar com a conta do ARCHÉ devolve os próprios
+  direitos, porque a sessão vence o selo. O link de acesso completo se invalida em
   bloco trocando `AV_LINK_VERSAO`. A mesma portaria vale para as APIs que o módulo usa
   (`/api/estado*` nas chaves abertas e os três `/api/drive/upload*`), senão bastaria pular a
   tela e ler tudo pela API. Para trocar a senha, mude a env var — não o código.
