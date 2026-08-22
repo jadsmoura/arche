@@ -40,6 +40,12 @@
     + "padding:11px 14px;font-size:13.5px;line-height:1.5;font-family:inherit;"
     + "border:1px solid #e8d3a8;background:#fbf3e4;color:#7a5714}"
     + ".agv-faixa.agv-err{border-color:#eed6d3;background:#fdeeec;color:#8c2f22}"
+    + ".agv-faixa.agv-ok{border-color:#cfeeda;background:#eaf7ef;color:#1f6b45}"
+    + ".agv-selo{position:fixed;right:14px;bottom:14px;z-index:80;border-radius:999px;"
+    + "padding:7px 14px;font-size:12.5px;font-family:inherit;font-weight:600;"
+    + "border:1px solid #cfeeda;background:#eaf7ef;color:#1f6b45;"
+    + "box-shadow:0 6px 18px rgba(18,38,50,.14)}"
+    + ".agv-selo.agv-salvando{border-color:#e8d3a8;background:#fbf3e4;color:#7a5714}"
     + ".agv-faixa b{font-weight:700}"
     + ".agv-faixa .agv-x{float:right;background:none;border:0;font-size:17px;line-height:1;"
     + "cursor:pointer;color:inherit;opacity:.65;padding:0 2px}"
@@ -52,7 +58,7 @@
     document.head.appendChild(st);
   }
 
-  function faixa(html, erro) {
+  function faixa(html, erro, extra) {
     css();
     var el = document.getElementById("agvFaixa");
     if (!el) {
@@ -63,7 +69,7 @@
         || document.body;
       alvo.insertBefore(el, alvo.firstChild);
     }
-    el.className = "agv-faixa" + (erro ? " agv-err" : "");
+    el.className = "agv-faixa" + (erro ? " agv-err" : "") + (extra ? " " + extra : "");
     el.innerHTML = '<button class="agv-x" title="Fechar" onclick="this.parentNode.remove()">×</button>' + html;
     el.style.display = "";
   }
@@ -71,6 +77,45 @@
   function limpar() {
     var el = document.getElementById("agvFaixa");
     if (el) el.remove();
+  }
+
+  /* A CONFIRMAÇÃO DE QUE GRAVOU (pedido do dono, ago/2026: "tem como incluir
+     uma confirmação de que o envio foi concluído?").
+
+     São duas peças, porque respondem a perguntas diferentes: a FAIXA verde
+     responde "acabou de salvar?" e some sozinha; o SELO no canto responde
+     "está tudo guardado?" e fica, dizendo a hora do último salvamento. Sem o
+     selo, quem se afasta da tela por um minuto perde a única confirmação que
+     houve — e foi justamente não ter confirmação nenhuma que fez o trabalho
+     de um dia parecer perdido sem ninguém saber por quê. */
+  var somem = null;
+
+  function hora() {
+    var d = new Date();
+    var dois = function (n) { return (n < 10 ? "0" : "") + n; };
+    return dois(d.getHours()) + ":" + dois(d.getMinutes()) + ":" + dois(d.getSeconds());
+  }
+
+  function selo(txt, salvando) {
+    css();
+    var el = document.getElementById("agvSelo");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "agvSelo";
+      document.body.appendChild(el);
+    }
+    el.className = "agv-selo" + (salvando ? " agv-salvando" : "");
+    el.textContent = txt;
+  }
+
+  function confirmou() {
+    var h = hora();
+    limpar();
+    faixa("<b>✓ Salvo no servidor às " + h + ".</b> O que você fez até aqui está guardado — "
+      + "pode fechar a página com segurança.", false, "agv-ok");
+    selo("✓ salvo " + h, false);
+    clearTimeout(somem);
+    somem = setTimeout(limpar, 6000);   // a faixa some; o selo fica
   }
 
   var PAPEL = { proreitoria: "Pró-Reitoria (PROPPEX)", avaliador: "avaliador" };
@@ -122,10 +167,12 @@
     if (!s || typeof s.set !== "function" || s.__agv) return false;
     var _set = s.set.bind(s);
     s.set = function () {
+      selo("salvando…", true);
       return Promise.resolve(_set.apply(null, arguments)).then(function (r) {
-        limpar();
+        confirmou();
         return r;
       }).catch(function (e) {
+        selo("✗ não salvo", true);
         // o erro é RELANÇADO abaixo, exatamente como vinha: quem chamou segue
         // tratando-o como antes, e o observador só acrescenta o aviso na tela
         var msg = (e && e.message) ? String(e.message) : String(e || "falha desconhecida");
