@@ -1235,6 +1235,7 @@ async function abrir(id) {
   try {
     const d = await api("/api/atas/" + encodeURIComponent(id));
     ATUAL = d.ata; PODE_EDITAR = d.podeEditar; ASSINATURAS = d.assinaturas || {};
+    ASS_MSG = null;                 // a mensagem é da ata que estava aberta
     nav("ata"); cabecalho(); renderEditor("v-ata");
   } catch (e) { alert(e.message); }
 }
@@ -1765,7 +1766,13 @@ function renderParticipantes() {
    que está gravado, e não do que está na tela. Enquanto o e-mail não foi
    salvo, a linha diz isso em vez de falhar no clique.
    ------------------------------------------------------------------------ */
-let ASSINATURAS = {};              // { email: {tem, origem, em, porQuem} }
+let ASSINATURAS = {};              // { ref: {tem, origem, via, em, porQuem} }
+/* A resposta do envio fica NO CARD, não no banner do topo (achado do dono,
+   ago/2026). Subir a assinatura de um colegiado inteiro é uma tarefa em
+   série — dez, quinze envios seguidos —, e o banner do topo faz
+   `scrollIntoView`: a cada imagem a página saltava para o começo e a pessoa
+   rolava de volta. A mensagem some no próximo envio. */
+let ASS_MSG = null;                // { texto, tipo } | null
 
 const chaveNome = (v) => String(v || "").trim().toLowerCase().normalize("NFD")
   .replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
@@ -1814,6 +1821,7 @@ function renderAssinaturas() {
         <th style="width:40%">Assinatura</th></tr></thead><tbody>
       ${lista.map((x) => linhaAssinatura(x, salvo)).join("")}</tbody></table>`
       : `<div class="muted">Registre os presentes acima — a folha sai deles.</div>`}
+    ${ASS_MSG ? `<div class="banner ba-${ASS_MSG.tipo}" style="margin-top:12px">${esc(ASS_MSG.texto)}</div>` : ""}
     <input type="file" id="as-arq" accept="image/png,image/jpeg" style="display:none">`;
 }
 
@@ -1861,7 +1869,6 @@ function enviarAssinaturaDe(ref) {
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) throw new Error(j.error || `Erro ${r.status}`);
       ASSINATURAS[ref] = { tem: true, origem: j.origem, via: j.via, em: j.em, porQuem: j.porQuem };
-      renderAssinaturas();
       // o número é o ganho do recurso: dizer "e em outras 23 atas" é o que
       // mostra que não será preciso repetir isto reunião por reunião
       const partes = [j.atas
@@ -1877,8 +1884,12 @@ function enviarAssinaturaDe(ref) {
         partes.push(`Atenção: em ${j.emailsDivergentes} ata(s) este nome aparece com OUTRO e-mail — `
           + `nada foi sobrescrito.`);
       }
-      aviso(partes.join(" "), "ok");
-    } catch (e) { alert("Não foi possível guardar: " + e.message); }
+      ASS_MSG = { texto: partes.join(" "), tipo: "ok" };
+    } catch (e) {
+      ASS_MSG = { texto: "Não foi possível guardar: " + e.message, tipo: "err" };
+    }
+    // o card se redesenha no lugar, e a página não sai de onde está
+    renderAssinaturas();
   };
   inp.click();
 }
@@ -1891,8 +1902,11 @@ async function removerAssinaturaDe(ref) {
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.ok) throw new Error(j.error || `Erro ${r.status}`);
     delete ASSINATURAS[ref];
-    renderAssinaturas();
-  } catch (e) { alert("Não foi possível remover: " + e.message); }
+    ASS_MSG = { texto: "Assinatura removida.", tipo: "ok" };
+  } catch (e) {
+    ASS_MSG = { texto: "Não foi possível remover: " + e.message, tipo: "err" };
+  }
+  renderAssinaturas();
 }
 
 const setPart = (i, k, v) => { ATUAL.participantes[i][k] = v; sujou(); };

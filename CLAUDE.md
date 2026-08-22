@@ -1623,7 +1623,10 @@ public/
   assinatura enviada pelo dono. O contexto é sempre UMA ATA (`podeEditarAta` + o e-mail tem de
   ser participante dela): sem esse laço, a rota viraria "suba a assinatura de qualquer e-mail do
   UNIEGO". Quem assina é calculado **uma vez** (`assinantesDaAta`), e é a mesma lista que a tela
-  mostra e que o PDF imprime.
+  mostra e que o PDF imprime. **A resposta do envio fica NO CARD** (`ASS_MSG`, achado do dono
+  ago/2026): subir a assinatura de um colegiado é tarefa em série — dez, quinze envios seguidos —,
+  e o banner do topo faz `scrollIntoView`; a cada imagem a página saltava para o começo e a
+  pessoa rolava de volta até a folha.
 - **O ARCHÉ AT não envia e-mail.** A ata vive no sistema: PDF gerado sob demanda em
   `/api/atas/:id/pdf` e cópia arquivada no Drive ao registrar. Quem precisa do documento
   entra e baixa. (A Extensão continua enviando e-mails; a regra é só das atas.)
