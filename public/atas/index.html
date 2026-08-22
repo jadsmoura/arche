@@ -407,6 +407,7 @@
 <!-- Escolha dos encaminhamentos que voltam à mesa nesta sessão. -->
 <div class="ov hide" id="ovEnc"></div>
 
+<script src="/assets/arche-paginacao.js"></script>
 <script src="/assets/arche-vercomo.js"></script>
 <script>
 /* "Ver como…" (decisão do dono, ago/2026): a gestão abre o setor pelos olhos
@@ -696,6 +697,9 @@ function renderArquivoLista() {
     (!FILTRO.status || a.status === FILTRO.status) &&
     (!FILTRO.q || `${a.numero || ""} ${a.titulo} ${a.presidencia?.nome || ""} ${a.secretaria?.nome || ""}`
       .toLowerCase().includes(FILTRO.q.toLowerCase())));
+  // a paginação corta a lista ANTES do agrupamento: os grupos por curso e por
+  // órgão continuam sendo o desenho, e o que muda é quantas atas cabem neles
+  const pag = ArchePag.recorte("at-arquivo", f, renderArquivoLista);
   alvo.innerHTML = `
     <div class="cnt">${f.length} ata(s) de ${LISTA.length}, por curso e por órgão.
       ${META.gestao
@@ -703,7 +707,8 @@ function renderArquivoLista() {
         : "Você vê aqui as atas que registrou; a PROPPEX acompanha as de todos."}
       ${FILTRO.q ? ` <b>Procurando um assunto?</b> Use a <button class="lk" style="font-size:13px"
         onclick="irParaBusca('${esc(FILTRO.q)}')">busca por conteúdo</button>, acima.` : ""}</div>
-    ${gruposDoArquivo(f)}`;
+    ${pag.barra}
+    ${gruposDoArquivo(pag.itens)}`;
 }
 
 /* Leva o termo digitado no arquivo para a busca por conteúdo, já procurando. */
@@ -875,6 +880,7 @@ function gruposDoArquivo(f) {
 }
 function filtrar(campo, valor) {
   FILTRO[campo] = valor;
+  ArchePag.zerar("at-arquivo");   // outro recorte é outra lista
   // o filtro de texto refaz SÓ a lista (o campo mantém o cursor); os seletores
   // podem refazer tudo, mas a lista basta e é mais barata
   renderArquivoLista();

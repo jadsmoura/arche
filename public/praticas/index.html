@@ -178,6 +178,7 @@
     </div></div>
   </div>
 </div>
+<script src="/assets/arche-paginacao.js"></script>
 <script src="/assets/arche-vercomo.js"></script>
 <script>
 /* "Ver como…": a coordenação abre o setor pelos olhos de quem o usa. O
@@ -370,7 +371,7 @@ function renderRelatorios() {
     <div class="card" style="padding:16px 18px">
       <div class="grid4">
         ${seletorSemestre()}
-        <select onchange="F.disciplina=this.value;nav('relatorios')">
+        <select onchange="F.disciplina=this.value;ArchePag.zerar('ap-relatorios');nav('relatorios')">
           <option value="">Disciplina: todas</option>
           ${disciplinas.map((d) => `<option ${F.disciplina === d ? "selected" : ""}>${esc(d)}</option>`).join("")}
         </select>
@@ -378,7 +379,7 @@ function renderRelatorios() {
           <option value="">Professor(a): todos</option>
           ${professores.map(([e, n]) => `<option value="${esc(e)}" ${F.professor === e ? "selected" : ""}>${esc(n)}</option>`).join("")}
         </select>` : "<span></span>"}
-        <select onchange="F.status=this.value;nav('relatorios')">
+        <select onchange="F.status=this.value;ArchePag.zerar('ap-relatorios');nav('relatorios')">
           <option value="">Situação: todas</option>
           ${Object.entries(ROT).map(([k, v]) => `<option value="${k}" ${F.status === k ? "selected" : ""}>${esc(v)}</option>`).join("")}
         </select>
@@ -392,8 +393,13 @@ function renderRelatorios() {
     ${ehCoord() && fila.length ? `<div class="banner ba-warn">
       <b>${fila.length}</b> relatório(s) aguardando a sua validação.</div>` : ""}
     ${cardAssinatura()}
-    ${lista.length ? lista.map(cartao).join("")
-      : `<div class="card"><div class="vazio">Nenhum relatório com esses filtros.</div></div>`}`;
+    ${(() => {
+      // um curso grande lança dezenas de aulas por semestre: paginado como as
+      // demais listas do portal (assets/arche-paginacao.js)
+      const pag = ArchePag.recorte("ap-relatorios", lista, () => nav("relatorios"));
+      return lista.length ? pag.barra + pag.itens.map(cartao).join("")
+        : `<div class="card"><div class="vazio">Nenhum relatório com esses filtros.</div></div>`;
+    })()}`;
 }
 
 function cartao(r) {

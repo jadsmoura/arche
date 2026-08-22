@@ -359,6 +359,7 @@
   </div>
 </div>
 
+<script src="/assets/arche-paginacao.js"></script>
 <script src="/assets/arche-vercomo.js"></script>
 <script>
 /* "Ver como…" (decisão do dono, ago/2026): a gestão abre o setor pelos olhos
@@ -1308,8 +1309,11 @@ async function enviarProposta(){
 function montarFiltros(){
   $("l-curso").innerHTML = '<option value="">Todos os cursos</option>'+CURSOS.map(c=>`<option>${c}</option>`).join("");
   montarAnos();
-  $("l-curso").onchange = renderLista; $("l-status").onchange = renderLista;
-  $("l-ano").onchange = renderLista;
+  // trocar o filtro é começar outra lista: volta à primeira página
+  const refiltrar = () => { ArchePag.zerar("ex-acoes"); renderLista(); };
+  $("l-curso").onchange = refiltrar; $("l-status").onchange = refiltrar;
+  $("l-ano").onchange = refiltrar;
+  if ($("l-pub")) $("l-pub").onchange = refiltrar;
 }
 /* O CICLO de uma ação é o ano em que ela encerra — é o que a PROPPEX usa para
    fechar o exercício e o que separa o que ainda se cobra do arquivo. A lista
@@ -1382,7 +1386,10 @@ function renderLista(){
         || (b.criadoEm||"").localeCompare(a.criadoEm||"")
       : (b.criadoEm||"").localeCompare(a.criadoEm||""));
   $("devedores").innerHTML = SECAO==="relatorios" ? quemDeveRelatorio(universo, fa) : "";
-  $("lista").innerHTML = list.length ? list.map(a=>{
+  // a lista de ações cresce a cada ciclo: paginada, com o tamanho na conta
+  // de quem olha (assets/arche-paginacao.js)
+  const pag = ArchePag.recorte("ex-acoes", list, renderLista);
+  $("lista").innerHTML = list.length ? pag.barra + pag.itens.map(a=>{
     const s=statusReal(a), atraso=atrasoRelatorio(a);
     return `<div class="item" onclick="nav('detalhe','${a.id}')">
       <div class="nm">${esc(a.proposta.nomeAtividade)}

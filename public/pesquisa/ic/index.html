@@ -283,6 +283,7 @@
     .kpis{grid-template-columns:repeat(2,1fr)}
   }
 </style>
+<script src="/assets/arche-paginacao.js"></script>
 </head>
 <body>
 <div class="app">
@@ -2083,6 +2084,7 @@ function limparFiltros() {
   renderGestao();
 }
 
+let PAG_IC = { itens: [], barra: "" };
 function renderGestao() {
   // o ciclo em evidência é o ATUAL; os passados só aparecem se escolhidos
   if (!FILTRO.edital) FILTRO.edital = META.edital?.numero || "__todos";
@@ -2128,37 +2130,37 @@ function renderGestao() {
 
     <div class="painel-filtros">
       <input class="busca" placeholder="🔎 Buscar por número, título, orientação ou aluno" value="${esc(FILTRO.q)}"
-        oninput="FILTRO.q=this.value;clearTimeout(window.__b);window.__b=setTimeout(renderGestao,250)">
+        oninput="FILTRO.q=this.value;ArchePag.zerar('ic-projetos');clearTimeout(window.__b);window.__b=setTimeout(renderGestao,250)">
       ${(META.editais || []).length > 1 ? `
-      <select onchange="FILTRO.edital=this.value;renderGestao()" title="Ciclo (edital) a mostrar">
+      <select onchange="FILTRO.edital=this.value;ArchePag.zerar('ic-projetos');renderGestao()" title="Ciclo (edital) a mostrar">
         ${(META.editais || []).map((e) => `<option value="${esc(e.numero)}" ${FILTRO.edital === e.numero ? "selected" : ""}>${esc(rotuloCiclo(e.numero))}${e.vigente ? " — atual" : ""} · ${e.projetos} projeto(s)</option>`).join("")}
         <option value="__todos" ${FILTRO.edital === "__todos" ? "selected" : ""}>Todos os ciclos</option>
       </select>` : ""}
-      <select onchange="FILTRO.status=this.value;renderGestao()">
+      <select onchange="FILTRO.status=this.value;ArchePag.zerar('ic-projetos');renderGestao()">
         <option value="">Situação: todas</option>
         ${META.status.map((s) => `<option value="${s}" ${FILTRO.status === s ? "selected" : ""}>${esc(META.rotulos[s] || s)}</option>`).join("")}
       </select>
-      <select onchange="FILTRO.curso=this.value;renderGestao()">
+      <select onchange="FILTRO.curso=this.value;ArchePag.zerar('ic-projetos');renderGestao()">
         <option value="">Curso: todos</option>
         ${META.cursos.map((c) => `<option value="${c.slug}" ${FILTRO.curso === c.slug ? "selected" : ""}>${esc(c.nome)}</option>`).join("")}
       </select>
-      <select onchange="FILTRO.linha=this.value;renderGestao()">
+      <select onchange="FILTRO.linha=this.value;ArchePag.zerar('ic-projetos');renderGestao()">
         <option value="">Linha: todas</option>
         ${META.linhas.map((l) => `<option value="${l.codigo}" ${FILTRO.linha === l.codigo ? "selected" : ""}>${esc(l.nome)}</option>`).join("")}
       </select>
-      <select onchange="FILTRO.grupo=this.value;renderGestao()" title="Vínculo com grupo de pesquisa">
+      <select onchange="FILTRO.grupo=this.value;ArchePag.zerar('ic-projetos');renderGestao()" title="Vínculo com grupo de pesquisa">
         <option value="">Grupo de pesquisa: todos</option>
         <option value="__com" ${FILTRO.grupo === "__com" ? "selected" : ""}>Vinculados a algum grupo</option>
         <option value="__sem" ${FILTRO.grupo === "__sem" ? "selected" : ""}>Sem grupo</option>
         ${gruposEmUso().map((g) => `<option value="${esc(g)}" ${FILTRO.grupo === g ? "selected" : ""}>${esc(g)}</option>`).join("")}
       </select>
-      <select onchange="FILTRO.titulacao=this.value;renderGestao()" title="Titulação de quem orienta">
+      <select onchange="FILTRO.titulacao=this.value;ArchePag.zerar('ic-projetos');renderGestao()" title="Titulação de quem orienta">
         <option value="">Titulação: todas</option>
         <option value="doutor" ${FILTRO.titulacao === "doutor" ? "selected" : ""}>Professores doutores</option>
         <option value="mestre" ${FILTRO.titulacao === "mestre" ? "selected" : ""}>Professores mestres</option>
         <option value="especialista" ${FILTRO.titulacao === "especialista" ? "selected" : ""}>Professores especialistas</option>
       </select>
-      <select onchange="FILTRO.bolsa=this.value;renderGestao()" title="Fomento decidido na seleção">
+      <select onchange="FILTRO.bolsa=this.value;ArchePag.zerar('ic-projetos');renderGestao()" title="Fomento decidido na seleção">
         <option value="">Bolsa: todas</option>
         <option value="cnpq" ${FILTRO.bolsa === "cnpq" ? "selected" : ""}>Com bolsa CNPq</option>
         <option value="uniego" ${FILTRO.bolsa === "uniego" ? "selected" : ""}>Com bolsa UNIEGO</option>
@@ -2169,7 +2171,13 @@ function renderGestao() {
     <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">${lista.length} projeto(s)${
       (() => { const n = lista.filter((p) => p.grupoPesquisa).length;
         return n ? ` · ${n} vinculado(s) a grupo de pesquisa` : ""; })()}</div>
-    ${lista.map((p) => `<div class="proj-linha">
+    ${(() => {
+      // o edital 01/2026 sozinho tem 33 projetos, e a guia mostra também os
+      // ciclos passados: paginada como as demais listas do portal
+      PAG_IC = ArchePag.recorte("ic-projetos", lista, renderGestao);
+      return PAG_IC.barra;
+    })()}
+    ${PAG_IC.itens.map((p) => `<div class="proj-linha">
       <div class="item" onclick="abrir('${esc(p.id)}')">
         <div style="flex:1;min-width:0">
           <div class="nm">${esc(p.titulo || "(sem título)")}</div>

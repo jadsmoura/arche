@@ -295,6 +295,7 @@
     </div></div>
   </div>
 </div>
+<script src="/assets/arche-paginacao.js"></script>
 <script src="/assets/arche-vercomo.js"></script>
 <script>
 /* "Ver como…" (decisão do dono, ago/2026): a gestão abre o setor pelos olhos
@@ -1198,6 +1199,7 @@ function filtrarCertArquivo() {
   CARQ_F.ciclo = $("carq-ciclo").value;
   CARQ_F.tipo = $("carq-tipo").value;
   CARQ_F.q = $("carq-q").value;
+  ArchePag.zerar("mon-cert-arquivo");   // outro recorte é outra lista
   desenharListaCertArquivo();
 }
 
@@ -1207,14 +1209,13 @@ function desenharListaCertArquivo() {
     (!CARQ_F.ciclo || c.ciclo === CARQ_F.ciclo)
     && (!CARQ_F.tipo || c.tipo === CARQ_F.tipo)
     && (!q || normalizar(`${c.pessoa} ${c.matricula} ${c.disciplina} ${c.orientador}`).includes(q)));
-  // trezentos PDFs de uma vez é rolagem, não lista: mostra os primeiros e diz
-  // quantos ficaram de fora, para o recorte ser a forma de chegar ao resto
-  const TETO = 60;
-  const mostrar = lista.slice(0, TETO);
+  // trezentos PDFs de uma vez é rolagem, não lista — e o corte mudo dos "60
+  // primeiros" escondia o resto sem dar como chegar até ele
+  const p = ArchePag.recorte("mon-cert-arquivo", lista, desenharListaCertArquivo);
   $("carq-lista").innerHTML = `<div class="card-s" style="margin:.6rem 0">
-      ${lista.length} certificado(s)${lista.length !== CARQ.length ? ` de ${CARQ.length}` : ""}
-      ${lista.length > TETO ? ` · mostrando os ${TETO} primeiros — estreite a busca` : ""}</div>
-    ${mostrar.map((c) => `<div class="item">
+      ${lista.length} certificado(s)${lista.length !== CARQ.length ? ` de ${CARQ.length}` : ""}</div>
+    ${p.barra}
+    ${p.itens.map((c) => `<div class="item">
       <div class="nm">${esc(c.pessoa)}
         <div class="cs">${esc(c.tipo === "orientacao-monitoria" ? "Orientação" : "Monitoria")} ·
           ${esc(c.disciplina)} · ${esc(c.curso)} · ${esc(c.ciclo)}${c.horas ? ` · ${c.horas}h` : ""}
@@ -1298,10 +1299,12 @@ function filtrarArquivo() {
   for (const k of ["curso", "ciclo", "conta", "q"]) {
     const el = $("arq-" + k); if (el) ARQ_F[k] = el.value;
   }
+  ArchePag.zerar("mon-arquivo");        // outro recorte é outra lista
   desenharListaArquivo();
 }
 function limparFiltroArquivo() {
   for (const k of ["curso", "ciclo", "conta", "q"]) { ARQ_F[k] = ""; const el = $("arq-" + k); if (el) el.value = ""; }
+  ArchePag.zerar("mon-arquivo");
   desenharListaArquivo();
 }
 
@@ -1378,10 +1381,12 @@ function desenharListaArquivo() {
     .reduce((t, e) => t + e.certificados, 0);
   const total = lista.reduce((t, p) => t + noRecorte(p), 0);
   const recorte = [ARQ_F.curso, ARQ_F.ciclo].filter(Boolean).join(" · ");
+  const pag = ArchePag.recorte("mon-arquivo", lista, desenharListaArquivo);
   alvo.innerHTML = `<div class="card">
     <div class="card-t">${lista.length} acadêmico(s)${lista.length ? ` · ${total} certificado(s)` : ""}${
       recorte ? ` <span class="card-s" style="font-weight:500">em ${esc(recorte)}</span>` : ""}</div>
-    ${lista.length ? lista.map((p) => `<div class="item">
+    ${pag.barra}
+    ${lista.length ? pag.itens.map((p) => `<div class="item">
       <div class="nm">${esc(p.nome)}
         ${p.nomes.length > 1 ? `<span class="aviso-inline">⚠ a mesma matrícula aparece como
           ${esc(p.nomes.slice(1).join(", "))} — a coordenação precisa dizer qual é a certa</span>` : ""}

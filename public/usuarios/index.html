@@ -170,23 +170,7 @@ function checkboxes(cls,marcados=[],comDica=false){
 }
 /* A lista de aprovados também passou de 50: mesma paginação, com um filtro
    por e-mail — achar alguém rolando 51 linhas não é achar. */
-let FILTRO_APR="", PAG_APR={n:1,tam:25}, ULTIMO=null;
-function irAprovados(n){ PAG_APR.n=n; render(ULTIMO); }
-function tamanhoAprovados(v){ PAG_APR.tam=Number(v)||25; PAG_APR.n=1; render(ULTIMO); }
-function controlesApr(p){
-  const b=(rot,alvo,ativo,off)=>`<button ${off?"disabled":""} ${ativo?'class="on"':""}
-    onclick="irAprovados(${alvo})">${rot}</button>`;
-  const nums=[];
-  for(let i=1;i<=p.paginas;i++) if(p.paginas<=7||i===1||i===p.paginas||Math.abs(i-PAG_APR.n)<=1) nums.push(b(String(i),i,i===PAG_APR.n,false));
-  return `<div class="pag">
-    <span class="info">${p.ini+1}–${Math.min(p.ini+PAG_APR.tam,p.total)} de ${p.total}</span>
-    <label class="info" style="margin:0">Mostrar
-      <select onchange="tamanhoAprovados(this.value)">
-        ${[10,25,50,100].map(n=>`<option value="${n}" ${PAG_APR.tam===n?"selected":""}>${n}</option>`).join("")}
-      </select> por página</label>
-    ${b("‹ Anterior",PAG_APR.n-1,false,PAG_APR.n<=1)}${nums.join("")}${b("Próxima ›",PAG_APR.n+1,false,PAG_APR.n>=p.paginas)}
-  </div>`;
-}
+let FILTRO_APR="", ULTIMO=null;
 
 function render(u){
   ULTIMO=u;
@@ -224,12 +208,12 @@ function render(u){
 
     <div class="card"><div class="sec">✅ Submissores aprovados manualmente (${u.aprovados.length})</div>
       ${u.aprovados.length?`<input placeholder="🔎 Filtrar por e-mail" value="${esc(FILTRO_APR)}"
-          style="margin-bottom:10px" oninput="FILTRO_APR=this.value;PAG_APR.n=1;clearTimeout(window.__a);window.__a=setTimeout(()=>render(ULTIMO),250)">
+          style="margin-bottom:10px" oninput="FILTRO_APR=this.value;ArchePag.zerar('us-aprovados');clearTimeout(window.__a);window.__a=setTimeout(()=>render(ULTIMO),250)">
         ${(()=>{const f=u.aprovados.filter(e=>!FILTRO_APR||e.includes(FILTRO_APR.toLowerCase()));
-          const p=paginar(f,PAG_APR);
-          return p.itens.map(e=>`<div class="u"><span class="em">${esc(e)}</span><span class="badge b-a">submissor</span>
+          const p=ArchePag.recorte("us-aprovados",f,()=>render(ULTIMO));
+          return p.barra + p.itens.map(e=>`<div class="u"><span class="em">${esc(e)}</span><span class="badge b-a">submissor</span>
             <button class="bt bt-err" onclick="agir('remover','${esc(e)}')">✕ Revogar</button></div>`).join("")
-            + (f.length?controlesApr(p):'<div class="muted">Nenhum e-mail com esse filtro.</div>');})()}`
+            + (f.length?"":'<div class="muted">Nenhum e-mail com esse filtro.</div>');})()}`
       :'<div class="muted">Nenhum aprovado manualmente (contas @uniego.edu.br entram sozinhas e não precisam aparecer aqui).</div>'}
       <div class="add"><input id="novo-email" type="email" placeholder="aprovar e-mail externo (ex.: professor@gmail.com)">
         <button class="bt bt-ok" onclick="agir('aprovar',$('novo-email').value.trim())">＋ Aprovar</button></div>
@@ -272,44 +256,9 @@ async function senhaProvisoria(){
    próprios registros: projetos de IC, ações de extensão e atas lavradas.
    Papel no sistema (o que pode) fica na aba de acessos; aqui é quem é. */
 let PAINEL={usuarios:[],funcoes:[],cursos:[],modulos:[]};
-/* Paginação: a lista já passa de 60 pessoas e vai só crescer. `porPagina`
-   fica na conta de quem olha (sessionStorage) — quem gosta de ver 100 não
-   quer reescolher a cada visita. */
-let PAG={n:1, tam:Number(sessionStorage.getItem("arche-us-tam"))||25};
-function paginar(lista, pag, aoMudar){
-  const tam=pag.tam, total=lista.length, paginas=Math.max(1,Math.ceil(total/tam));
-  pag.n=Math.min(Math.max(1,pag.n),paginas);
-  const ini=(pag.n-1)*tam;
-  return { itens:lista.slice(ini,ini+tam), total, paginas, ini, aoMudar };
-}
-function controles(p, fn){
-  if(!p.total) return "";
-  const botao=(rot,alvo,ativo,off)=>`<button ${off?"disabled":""} ${ativo?'class="on"':""}
-    onclick="${fn}(${alvo})">${rot}</button>`;
-  const paginas=[];
-  const janela=(a,b)=>{for(let i=a;i<=b;i++)paginas.push(botao(String(i),i,i===PAG.n,false));};
-  if(p.paginas<=7) janela(1,p.paginas);
-  else{
-    janela(1,1);
-    if(PAG.n>3) paginas.push('<span class="info">…</span>');
-    janela(Math.max(2,PAG.n-1),Math.min(p.paginas-1,PAG.n+1));
-    if(PAG.n<p.paginas-2) paginas.push('<span class="info">…</span>');
-    janela(p.paginas,p.paginas);
-  }
-  return `<div class="pag">
-    <span class="info">${p.ini+1}–${Math.min(p.ini+PAG.tam,p.total)} de ${p.total}</span>
-    <label class="info" style="margin:0">Mostrar
-      <select onchange="mudarTamanho(this.value)">
-        ${[10,25,50,100].map(n=>`<option value="${n}" ${PAG.tam===n?"selected":""}>${n}</option>`).join("")}
-      </select> por página</label>
-    ${botao("‹ Anterior",PAG.n-1,false,PAG.n<=1)}
-    ${paginas.join("")}
-    ${botao("Próxima ›",PAG.n+1,false,PAG.n>=p.paginas)}
-  </div>`;
-}
-function irPara(n){ PAG.n=n; renderPainel(); }
-function mudarTamanho(v){ PAG.tam=Number(v)||25; PAG.n=1;
-  sessionStorage.setItem("arche-us-tam",String(PAG.tam)); renderPainel(); }
+/* A paginação é a compartilhada do portal (assets/arche-paginacao.js): esta
+   tela chegou a ter DUAS cópias quase iguais da mesma regra, e duas cópias
+   acabam diferentes — uma lembrava o tamanho escolhido, a outra não. */
 let FU={q:"",funcao:"",setor:"",papel:"",conta:""};
 const SETOR_NOME={pesquisa:"Pesquisa · IC",extensao:"Extensão",atas:"Atas"};
 const funcaoNome=(c,outro)=>{
@@ -442,27 +391,27 @@ function renderPainel(){
       :FU.conta==="removido"?u.removido:true))&&
     (!FU.q||`${u.nome} ${u.email} ${u.curso}`.toLowerCase().includes(FU.q.toLowerCase())));
   const semNome=PAINEL.usuarios.filter(u=>!u.temPerfil).length;
-  const pg=paginar(lista,PAG);
+  const pg=ArchePag.recorte("us-painel",lista,renderPainel);
 
   $("v-usuarios").innerHTML=blocoDuplicidades()+`
     <div class="card">
       <div class="filtros-u">
         <input placeholder="🔎 Buscar por nome, e-mail ou curso" value="${esc(FU.q)}"
-          oninput="FU.q=this.value;PAG.n=1;clearTimeout(window.__t);window.__t=setTimeout(renderPainel,250)">
-        <select onchange="FU.funcao=this.value;PAG.n=1;renderPainel()">
+          oninput="FU.q=this.value;ArchePag.zerar('us-painel');clearTimeout(window.__t);window.__t=setTimeout(renderPainel,250)">
+        <select onchange="FU.funcao=this.value;ArchePag.zerar('us-painel');renderPainel()">
           <option value="">Função: todas</option>
           ${PAINEL.funcoes.map(f=>`<option value="${f.codigo}" ${FU.funcao===f.codigo?"selected":""}>${esc(f.nome)}</option>`).join("")}
         </select>
-        <select onchange="FU.setor=this.value;PAG.n=1;renderPainel()">
+        <select onchange="FU.setor=this.value;ArchePag.zerar('us-painel');renderPainel()">
           <option value="">Setor em uso: todos</option>
           ${Object.entries(SETOR_NOME).map(([k,v])=>`<option value="${k}" ${FU.setor===k?"selected":""}>${esc(v)}</option>`).join("")}
           <option value="__nenhum" ${FU.setor==="__nenhum"?"selected":""}>Ainda não usou nenhum</option>
         </select>
-        <select onchange="FU.papel=this.value;PAG.n=1;renderPainel()">
+        <select onchange="FU.papel=this.value;ArchePag.zerar('us-painel');renderPainel()">
           <option value="">Papel: todos</option>
           ${["gestor","coordenador","aprovado","pendente"].map(p=>`<option value="${p}" ${FU.papel===p?"selected":""}>${p}</option>`).join("")}
         </select>
-        <select onchange="FU.conta=this.value;PAG.n=1;renderPainel()" title="O cadastro é aberto a qualquer e-mail — é o que permite ao professor sem @uniego trabalhar. A conferência é depois, aqui.">
+        <select onchange="FU.conta=this.value;ArchePag.zerar('us-painel');renderPainel()" title="O cadastro é aberto a qualquer e-mail — é o que permite ao professor sem @uniego trabalhar. A conferência é depois, aqui.">
           <option value="">Conta: todas</option>
           <option value="externa-docente" ${FU.conta==="externa-docente"?"selected":""}>Externa que se declarou docência</option>
           <option value="externa" ${FU.conta==="externa"?"selected":""}>Externa (sem @uniego)</option>
@@ -491,7 +440,7 @@ function renderPainel(){
           <td><button class="bt bt-sec" onclick="abrirFicha('${esc(u.email)}')">Editar</button></td>
         </tr>`).join("")||`<tr><td colspan="6" class="muted">Ninguém encontrado com esses filtros.</td></tr>`}</tbody>
       </table></div>
-      ${controles(pg,"irPara")}
+      ${pg.barra}
     </div>`;
 }
 
@@ -627,6 +576,7 @@ fetch("/api/usuarios").then(async r=>{
   render(await r.json());
 });
 </script>
+<script src="/assets/arche-paginacao.js"></script>
 <script src="/assets/arche-nav.js" defer></script>
 </body>
 </html>

@@ -2152,6 +2152,23 @@ public/
   registro destrava direitos** e a vitrine pública dá público — e, nos grupos, o relatório
   anual é GERADO da planilha de produção do edital de IC e do Lattes que a Avaliação já lê.
 
+- **Paginação das listas** (`public/assets/arche-paginacao.js`, pedido do dono ago/2026:
+  "sempre que aparecem listas estão muito longas; gostaria daqueles filtros de mostrar 10, 20, 50,
+  100"): uma barra só, compartilhada — **Mostrando 1–20 de 137 · Mostrar [20] · ‹ 1 2 3 ›** — em
+  cima da lista, para quem troca de página cair no começo da nova. É UM componente de propósito: o
+  `/usuarios/` já tinha DUAS cópias quase iguais da mesma regra dentro do mesmo arquivo, e duas
+  cópias acabam diferentes (uma lembrava o tamanho escolhido, a outra não). Três decisões que ele
+  carrega para as telas não repetirem: o tamanho **fica na conta de quem olha** (localStorage por
+  chave — quem gosta de ver 100 não reescolhe a cada visita); a barra **não se desenha** quando a
+  lista cabe na menor opção (paginação sobre sete linhas é ruído); e a página **se ajusta sozinha**
+  ao tamanho da lista, senão filtrar de 300 para 12 linhas deixaria a pessoa numa página vazia. Cada
+  tela chama `ArchePag.zerar(chave)` no filtro: outro recorte é outra lista. Onde está: usuários
+  (painel e aprovados), acervo de atas, ações da Extensão, projetos da IC, inscritos do evento,
+  agendamentos de espaços, relatórios de aulas práticas e as duas listas do arquivo da monitoria —
+  estas duas substituindo o **corte mudo** dos "60 primeiros", que escondia o resto sem dar como
+  chegar até ele. Fica de fora o `/certificados/`, que é o histórico de UMA pessoa (uma dúzia de
+  linhas), e as listas de IMPRESSÃO, que existem para sair inteiras no papel.
+
 ## Identidade visual
 
 Paleta (mesma do sistema de Avaliação): fundo `#eef1f4`, marca `#1c3742`, hover `#2d535c`,

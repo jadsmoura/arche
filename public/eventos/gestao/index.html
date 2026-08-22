@@ -327,6 +327,7 @@
   </div>
 </div>
 
+<script src="/assets/arche-paginacao.js"></script>
 <script src="/assets/arche-vercomo.js"></script>
 <script>
 /* "Ver como…" (decisão do dono, ago/2026): a gestão abre o setor pelos olhos
@@ -1632,7 +1633,7 @@ function renderInscritos(a){
     <div class="card">
       <div class="sec-t">Inscritos e presenças</div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 6px">
-        <input id="ev-busca" placeholder="Buscar por nome, e-mail ou CPF…" style="max-width:280px" oninput="renderInscritosEv(ACOES.find(x=>x.id==='${esc(a.id)}'))">
+        <input id="ev-busca" placeholder="Buscar por nome, e-mail ou CPF…" style="max-width:280px" oninput="ArchePag.zerar('ev-inscritos');renderInscritosEv(ACOES.find(x=>x.id==='${esc(a.id)}'))">
         ${proprias.length?`<label style="margin:0;display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--muted)">Atividade
           <select id="ev-atv-sel" style="width:auto;max-width:240px;font-size:12.5px;padding:6px 30px 6px 8px"
             onchange="renderInscritosEv(ACOES.find(x=>x.id==='${esc(a.id)}'))">
@@ -2678,9 +2679,12 @@ function renderInscritosEv(a){
     || String(x.email||"").toLowerCase().includes(q)
     || String(x.cpf||"").replace(/\D/g,"").includes(q.replace(/\D/g,"")||"§"));
   const hora=(iso)=>{ try{ return new Date(iso).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}); }catch{ return ""; } };
-  el.innerHTML = lista.length ? `<table class="pt">
+  // um evento grande passa de trezentos inscritos, e a guia é operada NO DIA,
+  // com o telão ao lado: paginada como as demais listas do portal
+  const pag=ArchePag.recorte("ev-inscritos",lista,()=>renderInscritosEv(a));
+  el.innerHTML = lista.length ? `${pag.barra}<table class="pt">
     <thead><tr><th>Nome</th><th>Contato</th><th>Origem</th><th>Código</th><th>Atividades</th><th>Presença</th></tr></thead>
-    <tbody>${lista.map(x=>{
+    <tbody>${pag.itens.map(x=>{
       const marcadas=(x.atividades||[]).map(tituloAtv);
       const porAtv=(x.presencas||[]).filter(p=>p&&p.atividade);
       return `<tr>

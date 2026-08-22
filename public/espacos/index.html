@@ -351,6 +351,7 @@
   </div>
 </div>
 
+<script src="/assets/arche-paginacao.js"></script>
 <script src="/assets/arche-vercomo.js"></script>
 <script>
 /* "Ver como…" (decisão do dono, ago/2026): a gestão abre o setor pelos olhos
@@ -1000,7 +1001,7 @@ function renderAgendamentos() {
   const doPeriodo = todas.filter(noPeriodo);
   const cont = (st) => doPeriodo.filter((r) => r.status === st).length;
   const chip = (rot, valor, n, cor) => `<button class="fchip${AGD.status === valor ? " on" : ""}"
-    onclick="AGD.status='${valor}';renderAgendamentos()">${rot}
+    onclick="AGD.status='${valor}';ArchePag.zerar('esp-agendamentos');renderAgendamentos()">${rot}
     <b style="color:${cor || "var(--muted)"}">${n}</b></button>`;
 
   /* Agrupado por MÊS (pedido do dono, ago/2026): a lista corrida de sessenta
@@ -1008,7 +1009,10 @@ function renderAgendamentos() {
      mês que se pensa a ocupação do campus. O mês é o do início da reserva: o
      CONINT, que atravessa de 19 a 30/10, é de outubro. */
   let mesAtual = "";
-  const linhas = lista.map((r) => {
+  // o registro do auditório sozinho já traz 75 reservas migradas, e a lista
+  // cresce a cada semestre: paginada como as demais do portal
+  const pag = ArchePag.recorte("esp-agendamentos", lista, renderAgendamentosLista);
+  const linhas = pag.itens.map((r) => {
     const mes = String(r.dataInicio).slice(0, 7);
     let cabecalho = "";
     if (mes !== mesAtual) {
@@ -1051,12 +1055,12 @@ function renderAgendamentos() {
             AGD.quando === "futuros" ? "De hoje em diante" : AGD.quando === "passados" ? "Já realizados" : "Todo o histórico"
           }${AGD.espaco ? ` · ${esc(nomeEspaco(AGD.espaco))}` : ""}</div></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <select onchange="AGD.quando=this.value;renderAgendamentos()" style="width:auto;padding:7px 10px;font-size:13px">
+          <select onchange="AGD.quando=this.value;ArchePag.zerar('esp-agendamentos');renderAgendamentos()" style="width:auto;padding:7px 10px;font-size:13px">
             <option value="futuros"${AGD.quando === "futuros" ? " selected" : ""}>de hoje em diante</option>
             <option value="passados"${AGD.quando === "passados" ? " selected" : ""}>já realizados</option>
             <option value="todos"${AGD.quando === "todos" ? " selected" : ""}>todo o histórico</option>
           </select>
-          <select onchange="AGD.espaco=this.value;renderAgendamentos()" style="width:auto;padding:7px 10px;font-size:13px">
+          <select onchange="AGD.espaco=this.value;ArchePag.zerar('esp-agendamentos');renderAgendamentos()" style="width:auto;padding:7px 10px;font-size:13px">
             <option value="">todos os espaços</option>
             ${(DADOS.espacos || []).map((e) => `<option value="${esc(e.id)}"${AGD.espaco === e.id ? " selected" : ""}>${esc(e.nome)}</option>`).join("")}
           </select>
@@ -1071,11 +1075,11 @@ function renderAgendamentos() {
         ${chip("recusadas", "recusada", cont("recusada"), "var(--err)")}
         ${chip("canceladas", "cancelada", cont("cancelada"), "var(--muted)")}
         <input id="agd-busca" placeholder="Buscar por atividade, órgão, protocolo ou solicitante"
-          value="${esc(AGD.busca)}" oninput="AGD.busca=this.value;renderAgendamentosLista()"
+          value="${esc(AGD.busca)}" oninput="AGD.busca=this.value;ArchePag.zerar('esp-agendamentos');renderAgendamentosLista()"
           style="flex:1 1 240px;min-width:200px;padding:7px 10px;font-size:13px">
       </div>
 
-      <div id="agd-lista">${lista.length ? `<table class="pt agd">
+      <div id="agd-lista">${lista.length ? `${pag.barra}<table class="pt agd">
         <tr><th>Espaço</th><th>Quando</th><th>Atividade</th><th>Solicitante</th><th>Situação</th><th></th></tr>
         ${linhas}
       </table>` : '<div class="vazio">Nenhum agendamento com esses filtros.</div>'}</div>
