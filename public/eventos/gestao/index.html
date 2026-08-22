@@ -2681,7 +2681,10 @@ function renderInscritosEv(a){
   const hora=(iso)=>{ try{ return new Date(iso).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}); }catch{ return ""; } };
   // um evento grande passa de trezentos inscritos, e a guia é operada NO DIA,
   // com o telão ao lado: paginada como as demais listas do portal
-  const pag=ArchePag.recorte("ev-inscritos",lista,()=>renderInscritosEv(a));
+  // o redesenho REBUSCA a ação: a guia se recarrega sozinha a cada 30 s no dia
+  // do evento, e um fechamento sobre o objeto antigo mostraria a página 2 com
+  // a lista de inscritos de trinta segundos atrás
+  const pag=ArchePag.recorte("ev-inscritos",lista,()=>renderInscritosEv(ACOES.find(x=>x.id===a.id)||a));
   el.innerHTML = lista.length ? `${pag.barra}<table class="pt">
     <thead><tr><th>Nome</th><th>Contato</th><th>Origem</th><th>Código</th><th>Atividades</th><th>Presença</th></tr></thead>
     <tbody>${pag.itens.map(x=>{

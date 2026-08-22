@@ -1611,6 +1611,12 @@ public/
   para sempre, já que ninguém o sobrescreve); e a **gravação automática não propaga** — ela roda a
   cada poucos segundos, com o campo ainda sendo digitado. A tela devolve em número quantas atas
   ganharam o e-mail.
+  **A porta de TERCEIRO vale só para a folha da ATA** (achado da varredura, ago/2026): o registro
+  de assinaturas é UM só, e `assinaturaDoUsuario` — que assina o relatório de aula prática, o
+  semestral e os certificados de evento — passou a devolver **apenas a do titular**. Sem isso, a
+  secretaria que digitalizasse a assinatura de um professor para a folha de uma ata estaria, sem
+  querer, assinando em nome dele documentos que afirmam um ato dele. Quem lê a folha da ata é
+  `imagensDaFolhaDaAta`, que aceita as duas origens de propósito.
   **Duas portas, com a ORIGEM marcada** (decisão do dono, ago/2026, revendo a regra anterior): a
   pessoa envia a sua no `/perfil/` (`titular`) e a **secretaria do órgão** pode digitalizar e
   subir por um membro (`terceiro`), de dentro de uma ata em que ele é participante. A regra
@@ -2171,8 +2177,13 @@ public/
   chave — quem gosta de ver 100 não reescolhe a cada visita); a barra **não se desenha** quando a
   lista cabe na menor opção (paginação sobre sete linhas é ruído); e a página **se ajusta sozinha**
   ao tamanho da lista, senão filtrar de 300 para 12 linhas deixaria a pessoa numa página vazia. Cada
-  tela chama `ArchePag.zerar(chave)` no filtro: outro recorte é outra lista. Onde está: usuários
-  (painel e aprovados), acervo de atas, ações da Extensão, projetos da IC, inscritos do evento,
+  tela chama `ArchePag.zerar(chave)` no filtro: outro recorte é outra lista. **Lista AGRUPADA não
+  se pagina por cima** (achado da varredura, ago/2026): o arquivo de atas mostra blocos por curso e
+  por órgão, e o cabeçalho de cada um diz quantas atas ele tem — cortar a lista antes de agrupar
+  fazia esse número contar só o que caiu na página ("Enfermagem · 3 ata(s)" num curso com trinta).
+  Um contador que mente é pior que a lista longa, e ali o agrupamento com blocos recolhidos já é a
+  resposta ao tamanho. Onde está: usuários
+  (painel e aprovados), ações da Extensão, projetos da IC, inscritos do evento,
   agendamentos de espaços, relatórios de aulas práticas e as duas listas do arquivo da monitoria —
   estas duas substituindo o **corte mudo** dos "60 primeiros", que escondia o resto sem dar como
   chegar até ele. Fica de fora o `/certificados/`, que é o histórico de UMA pessoa (uma dúzia de

@@ -73,6 +73,7 @@ import {
   projetosDoArquivo as projetosDoArquivoMon,
   certificadosDoArquivo as certificadosDoArquivoMon,
   certificadoDoArquivo as certificadoDoArquivoMon,
+  ehEsteMonitor as ehEsteMonitorMon, ehEsteOrientador as ehEsteOrientadorMon,
 } from "./lib/monitoriaHistorico.js";
 import {
   slugDeNome, slugUnico, SLUG_VALIDO, slugReservado, SLUGS_RESERVADOS, gerarChaveQr, gerarCodigoMonitor, gerarToken, tokenValido,
@@ -5298,15 +5299,16 @@ app.get("/api/monitoria/historico/certificados", async (req, res) => {
     if (!quem.gestao && !quem.cursos.length)
       return res.status(403).json({ error: "Só a gestão da monitoria." });
     const cursos = quem.gestao ? null : quem.cursos;
+    const lista = certificadosDoArquivoMon(historicoMon, { cursos });
     res.json({
-      certificados: certificadosDoArquivoMon(historicoMon, { cursos }).map((c) => ({
+      certificados: lista.map((c) => ({
         id: c.id, tipo: c.tipo, pessoa: c.pessoa, matricula: c.matricula || "",
         disciplina: c.disciplina, orientador: c.orientador, curso: c.curso,
         ciclo: c.ciclo, edital: c.edital, horas: c.horas,
         monitores: c.monitores || [],
         link: `/api/monitoria/historico/certificado.pdf?id=${encodeURIComponent(c.id)}`,
       })),
-      ciclos: [...new Set(certificadosDoArquivoMon(historicoMon, { cursos }).map((c) => c.ciclo))],
+      ciclos: [...new Set(lista.map((c) => c.ciclo))],
     });
   } catch (e) {
     console.error("Erro nos certificados do arquivo da monitoria:", e);
@@ -5319,6 +5321,29 @@ app.get("/api/monitoria/historico/certificados", async (req, res) => {
    que a pessoa alcança, recalculada a cada pedido — é a mesma régua da rota
    do titular (/api/meus-certificados/monitoria-historico.pdf), com o alcance
    no lugar da identidade. */
+/* O CPF de quem vai receber o documento (achado da varredura, ago/2026). A
+   planilha do arquivo não traz CPF: quem o tem é o PERFIL da pessoa, e é ele
+   que o certificado do titular imprime ("inscrito(a) no CPF nº …"). Sem isto,
+   o mesmo certificado sairia COM CPF pelo titular e SEM CPF pela gestão — e
+   a guia existe justamente para a coordenação conferir como o documento
+   ficou. Casa pela mesma régua do resto do arquivo (matrícula > nome, com a
+   matrícula podendo vetar); sem conta casada, sai sem CPF, como antes. */
+async function cpfDoTitularDoArquivo(cert) {
+  const perfis = await carregarPerfis();
+  const alvo = cert.tipo === "orientacao-monitoria"
+    ? { nome: cert.orientador || cert.pessoa, matricula: "" }
+    : { nome: cert.pessoa, matricula: cert.matricula || "" };
+  for (const [email, p] of Object.entries(perfis)) {
+    if (!p?.cpf) continue;
+    const conta = { email, nome: p.nome || "", matricula: p.matricula || "" };
+    const bate = cert.tipo === "orientacao-monitoria"
+      ? ehEsteOrientadorMon(alvo.nome, conta)
+      : ehEsteMonitorMon({ aluno: alvo.nome, matricula: alvo.matricula }, conta);
+    if (bate) return soDigitos(p.cpf);
+  }
+  return "";
+}
+
 app.get("/api/monitoria/historico/certificado.pdf", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
@@ -5330,7 +5355,8 @@ app.get("/api/monitoria/historico/certificado.pdf", async (req, res) => {
     if (!cert) return res.status(404).send("Certificado não encontrado no arquivo.");
     const { gerarCertificadoPdf } = await import("./lib/pdf.js");
     const buf = await gerarCertificadoPdf({
-      ...cert, codigo: codigoCert({ tipo: cert.tipo, projetoId: cert.id, pessoa: cert.pessoa }),
+      ...cert, cpf: await cpfDoTitularDoArquivo(cert),
+      codigo: codigoCert({ tipo: cert.tipo, projetoId: cert.id, pessoa: cert.pessoa }),
       assinaturas: await assinaturasParaPdf(),
     });
     enviarPdfMon(res, buf, `certificado-monitoria-${cert.ciclo.replace("/", "-")}.pdf`);
@@ -7803,12 +7829,26 @@ function imagemDeAssinaturaInvalida(file) {
   return "";
 }
 
-/** A assinatura de uma pessoa como Buffer, para o gerador de PDF. null se não houver. */
+/**
+ * A assinatura de uma pessoa como Buffer, para o gerador de PDF — **só a que
+ * ela mesma enviou** (achado da varredura de ago/2026).
+ *
+ * A porta de TERCEIRO foi aberta para a folha de assinaturas da ATA, e só
+ * para ela: metade dos membros de um colegiado não abre o portal, e a folha
+ * ficaria em branco. Mas o registro é UM só, e estes leitores — o relatório
+ * de aula prática, o semestral e os certificados de evento — passariam a
+ * assinar EM NOME da pessoa com uma imagem que outra subiu. Esses documentos
+ * afirmam um ato de quem os assina; a regra deles continua sendo a antiga:
+ * assinatura que um terceiro carrega não vale como assinatura.
+ *
+ * Quem lê a folha da ata é `imagensDaFolhaDaAta`, que aceita as duas origens
+ * de propósito.
+ */
 async function assinaturaDoUsuario(email) {
   const e = String(email || "").trim().toLowerCase();
   if (!e) return null;
   const a = (await lerAssinaturasDeUsuarios())[e];
-  if (!a?.base64) return null;
+  if (!a?.base64 || origemDaAssinatura(a) !== "titular") return null;
   try { return Buffer.from(a.base64, "base64"); } catch { return null; }
 }
 
