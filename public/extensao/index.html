@@ -1504,10 +1504,19 @@ function barraAcoes(a,s,podeRelatorio){
    De outros lugares (o Painel, um atalho) não há seção que diga: aí vale o
    que está pendente. `SECAO` guarda a guia de origem porque `nav('detalhe')`
    não a sobrescreve — é a mesma variável que a lista usa para se recortar. */
+/* QUAL DOS DOIS DOCUMENTOS A FICHA ABRE.
+   A regra é do dono: "propostas ficam em propostas, e relatórios ficam em
+   relatórios". Ela vale enquanto a PROPOSTA é o documento vivo — e para de
+   valer quando ela já cumpriu o papel: projeto validado, período começado,
+   relatório a entregar. Aí não há mais nada a fazer no projeto, e abrir a
+   ficha nele deixava a pessoa num beco (achado do dono, ago/2026: "projeto
+   finalizado não deveria abrir o relatório pra preenchimento?"). O cabeçalho
+   já diz "aguardando relatório final"; o que faltava era o formulário estar
+   ali. A separação das GUIAS continua igual — o que muda é o documento da
+   vez dentro da ficha —, e o botão de voltar ao projeto segue a um clique. */
 function documentoDaVez(a, podeRelatorio){
   if(!podeRelatorio) return "projeto";
   if(SECAO==="relatorios") return "relatorio";
-  if(SECAO==="acoes") return "projeto";
   return deveRelatorio(a) ? "relatorio" : "projeto";
 }
 

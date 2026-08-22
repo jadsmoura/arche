@@ -619,7 +619,13 @@ public/
   aberta pela guia **Propostas**, a ação mostra o PROJETO e só ele; aberta pela guia
   **Relatórios**, mostra o relatório final e tudo o que o alimenta — portfólio, lista de
   participantes e a **operação do evento** (programação, inscritos, presenças, transmissão),
-  que é de onde saem os números do documento. De outro lugar (o Painel, um atalho) vale o que
+  que é de onde saem os números do documento. **A regra vale enquanto a PROPOSTA é o documento
+  vivo** (achado do dono, ago/2026: "projeto finalizado não deveria abrir o relatório pra
+  preenchimento?"): validado o projeto e começado o período, não há mais o que fazer nele, e
+  abrir a ficha no projeto deixava quem chegou pela guia Propostas num beco — o cabeçalho dizia
+  "aguardando relatório final" e o formulário estava noutra guia. A ficha passa a abrir no
+  RELATÓRIO quando é ele que falta, venha de onde vier; a separação das GUIAS não muda, e o
+  botão de voltar ao projeto segue a um clique. De outro lugar (o Painel, um atalho) vale o que
   está pendente. Quem guarda a origem é `SECAO`, porque `nav('detalhe')` não a sobrescreve —
   a mesma variável que recorta a lista. Um botão discreto leva ao outro documento da MESMA
   ação, senão sair do projeto para o relatório exigiria voltar à lista e procurá-la de novo.
@@ -836,6 +842,14 @@ public/
   é o que conserta os registros gravados ANTES desta correção, sem ninguém redigitar nada.
   A limpeza **não reescreve texto**: não mexe em acento nem em ç, converte de volta o que
   já era letra, troca marcador exótico pelo "•" do repertório e só descarta o que não tem
+  **A lista de blocos deixou de ser a régua** (segundo achado do dono, ago/2026: o mesmo PDF
+  continuou saindo torto): o Unicode tem mais formas de escrever uma letra do que cabe num
+  catálogo — matemáticos de outras faixas, monoespaçado, largura inteira, letras em círculo,
+  ligaduras, dígitos decorados. Todas trazem a letra real declarada pelo PRÓPRIO padrão, na
+  **decomposição de compatibilidade** (`"𝗖".normalize("NFKD")` devolve `"C"`), e é ela que
+  fecha o buraco. Não é adivinhação nem reescrita: é ler o que o Unicode afirma. Roda **só em
+  quem já não desenha no PDF**, então acento e ç nunca passam por ali — eles desenham, e o
+  NFKD os partiria em letra + acento.
   como ser impresso. **Imagem não é texto** — `base64`, capa, foto, logo e assinatura ficam
   fora (a lista de chaves puladas está em lib/texto.js), senão a limpeza destruiria o
   arquivo.

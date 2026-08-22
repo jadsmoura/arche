@@ -94,3 +94,28 @@ test("números, nulos e vazios atravessam sem virar string", () => {
   const o = limparProfundo({ ch: 4, ativo: true, nada: null, vazio: "" });
   assert.deepEqual(o, { ch: 4, ativo: true, nada: null, vazio: "" });
 });
+
+/* A REDE QUE NÃO DEPENDE DE CATÁLOGO (achado do dono, ago/2026: o defeito da
+   Agosto Dourado sobreviveu à primeira correção). A tabela de blocos cobre o
+   que se conhece; o Unicode tem mais formas de escrever uma letra do que cabe
+   numa lista. A decomposição de compatibilidade é o próprio padrão dizendo
+   qual é a letra — e é ela que fecha o buraco. */
+test("a letra volta de QUALQUER forma decorada, não só das catalogadas", () => {
+  const mat = (s, base) => [...s].map((c) => (c >= "A" && c <= "Z"
+    ? String.fromCodePoint(base + c.charCodeAt(0) - 65)
+    : c >= "a" && c <= "z" ? String.fromCodePoint(base + 26 + c.charCodeAt(0) - 97) : c)).join("");
+  // monoespaçado matemático, que não estava na tabela de blocos
+  assert.equal(limparColagem(mat("Fase", 0x1d670)), "Fase");
+  // largura inteira (o teclado japonês do Word e alguns PDFs devolvem isto)
+  assert.equal(limparColagem("Ｄistribuir materiais"), "Distribuir materiais");
+  // letra em círculo e ligadura tipográfica
+  assert.equal(limparColagem("Ⓐpresentação da oﬁcina"), "Apresentação da oficina");
+  // dígito decorado
+  assert.equal(limparColagem("①. Fase de capacitação"), "1. Fase de capacitação");
+});
+
+test("a rede não toca no que o PDF já desenha", () => {
+  // o NFKD partiria acento e ç — mas ele só roda em quem NÃO desenha
+  const bom = "Ação, açúcar, coração — ênfase, 50% e ½ da turma; \"aspas\" e 'apóstrofo'";
+  assert.equal(limparColagem(bom), bom);
+});
