@@ -2152,6 +2152,15 @@ public/
   registro destrava direitos** e a vitrine pública dá público — e, nos grupos, o relatório
   anual é GERADO da planilha de produção do edital de IC e do Lattes que a Avaliação já lê.
 
+- **TODA LISTA NOVA NASCE PAGINADA, com 20 por página** (decisão do dono, ago/2026: "acho que
+  uma lista padrão inicial de 20 fica bom; se eu quiser expandir escolho outras opções.
+  Implemente esse padrão para próximas alterações e criações"). É regra do portal, não escolha de
+  cada tela: ao criar ou mexer numa lista de REGISTROS (não de opções de `<select>`), use
+  `ArchePag.recorte(chave, lista, redesenhar)` e `ArchePag.zerar(chave)` nos filtros. O número 20
+  mora em UM lugar (`PADRAO` no componente) — não se redefine tela a tela, senão o portal volta a
+  ter uma régua por página. **Nunca resolva lista longa com corte mudo** (`slice(0, N)`,
+  "mostrando os primeiros N"): esconder registros sem dar como chegar até eles é pior que a lista
+  longa que se queria evitar.
 - **Paginação das listas** (`public/assets/arche-paginacao.js`, pedido do dono ago/2026:
   "sempre que aparecem listas estão muito longas; gostaria daqueles filtros de mostrar 10, 20, 50,
   100"): uma barra só, compartilhada — **Mostrando 1–20 de 137 · Mostrar [20] · ‹ 1 2 3 ›** — em

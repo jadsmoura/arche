@@ -35,6 +35,12 @@
 (function () {
   if (window.ArchePag) return;
 
+  /* O PADRÃO É 20, e é uma decisão do dono (ago/2026): "acho que uma lista
+     padrão inicial de 20 fica bom; se eu quiser expandir escolho outras
+     opções". Vinte linhas cabem numa tela sem rolagem longa e bastam para
+     reconhecer o que se procura; quem quer mais troca no seletor, e a
+     escolha fica guardada. Vale para TODA lista nova do portal — este
+     número não se redefine tela a tela. */
   var TAMANHOS = [10, 20, 50, 100];
   var PADRAO = 20;
 
