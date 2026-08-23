@@ -306,6 +306,20 @@ public/
   de que sair, e o botão seria uma porta que não abre. Esse link é o ÚNICO isento das duas
   reescritas (`data-arche-saida`): sem a isenção, a regra que manda `/arche/` ao painel o
   devolveria justamente para onde ele está saindo, e o recarimbo o traria de volta ao modo.
+  **A SAÍDA É SÓ DE QUEM TEM SESSÃO** (decisão do dono, ago/2026: "não deixe o modo avaliador
+  sair do modo avaliador"): quem decide não é COMO se entrou no modo, é se existe conta para
+  onde voltar — por isso a condição é `q.logado`, e não `PERFIL_AV`. Um avaliador que chegue
+  pelo link com o parâmetro e sem selo cairia na segunda regra e ganharia um botão que não é
+  dele: uma porta que não abre e, pior, um convite a tentar. Sem resposta do servidor, o modo
+  fecha SEM saída — é o lado seguro de errar.
+  **E o modo tem SELETOR DE CURSO** (`CURSOS_AV`/`ondeEstou`/`seletorDeCurso`, pedido do dono
+  ago/2026: "a ideia é sempre usar esse link para o modo avaliador; o avaliador consiga escolher
+  o curso que vai avaliar"): um link por curso seriam doze endereços para a PROPPEX administrar
+  e mandar certos. A troca leva ao MESMO módulo do curso escolhido (`dossie` ou `avaliacao`,
+  lido do caminho) com o parâmetro recarimbado, e o seletor não se desenha na página inicial do
+  módulo, onde não há curso que trocar. Psicologia mora um nível acima e por isso o diretório
+  dela é vazio no catálogo — ao mexer na lista, lembre que `dossie` e `avaliacao` têm os mesmos
+  diretórios.
 - **O avaliador do MEC não vê diagnóstico interno de gravação** (mesma revisão): as faixas que
   explicam por que o dossiê não está salvando servem a quem trabalha nele; o acesso do
   avaliador é de leitura por desenho, ele não tem o que salvar, e um aviso técnico sobre o que
