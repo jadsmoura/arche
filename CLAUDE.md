@@ -253,6 +253,25 @@ public/
   é o que faz a separação acontecer sem ninguém perder o texto que já está na tela; e a chave
   antiga **nunca mais é escrita**. A tela passa a dizer: selo com a hora do último salvamento
   e faixa quando a gravação é recusada, nomeando o selo de visualização quando é ele.
+- **ANEXAR COMPROVANTE SÃO DUAS GRAVAÇÕES, e o aviso de "salvo" só falava de uma**
+  (`arche-dossie-gravacao.js`, achado do dono ago/2026: "acessei pelo usuário dela e anexei, e
+  o comprovante não subiu" — depois de ter esperado o aviso de salvar). O ARQUIVO sobe por
+  `/api/drive/upload` e só então o DOSSIÊ é gravado com a referência a ele. Quando o upload
+  falha, o app zera o anexo e grava assim mesmo — e essa gravação é VERDADEIRA, então o aviso
+  de confirmação aparecia dizendo "salvo, pode fechar a página com segurança" logo depois de o
+  arquivo ter sido recusado: certo sobre o dossiê, e completamente errado sobre o que a pessoa
+  acabou de fazer. Agora o upload recusado tem voz própria (o `alert` do app diz só "não foi
+  possível enviar o arquivo", sem o motivo) e **o aviso de sucesso se cala por 12 s depois de
+  uma falha** — quem manda na tela, ali, é a falha. O motivo mais comum é o **selo de
+  VISUALIZAÇÃO**, que recusa os três uploads com 403 e é nomeado na faixa, com o caminho de
+  saída.
+- **"Carregar exemplo" saiu da ficha, em todos os papéis** (achado do dono ago/2026: "na visão
+  de avaliador não pode aparecer o botão carregar exemplo"). Ele é resto do protótipo, e o
+  texto ao lado ainda dizia "nesta demonstração" numa página que se apresenta ao avaliador do
+  MEC como prova de conformidade. Some para TODOS, e por uma razão mais forte que a estética:
+  `loadExample()` faz `p.data = parseLattes(EXEMPLO_XML)` — **substitui o currículo real do
+  docente por um de exemplo** na memória da página, e basta uma gravação depois disso para a
+  produção fictícia entrar no dossiê do curso por cima da verdadeira.
 - **O avaliador do MEC não vê diagnóstico interno de gravação** (mesma revisão): as faixas que
   explicam por que o dossiê não está salvando servem a quem trabalha nele; o acesso do
   avaliador é de leitura por desenho, ele não tem o que salvar, e um aviso técnico sobre o que

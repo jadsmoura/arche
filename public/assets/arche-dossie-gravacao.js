@@ -109,6 +109,21 @@
   }
 
   function confirmou() {
+    /* O ARQUIVO E O DOSSIÊ SÃO DUAS GRAVAÇÕES, e só uma delas é esta
+       (achado do dono, ago/2026: "acessei pelo usuário dela e anexei, e o
+       comprovante não subiu" — depois de ter esperado o aviso de salvar).
+
+       Anexar comprovante são dois passos: o ARQUIVO sobe por
+       `/api/drive/upload`, e só depois o DOSSIÊ é gravado com a referência
+       a ele. Quando o upload falha, o app zera o anexo e grava assim mesmo
+       — e essa gravação é verdadeira, então o meu aviso aparecia dizendo
+       "salvo, pode fechar a página com segurança" logo depois de o arquivo
+       ter sido recusado. O aviso estava certo sobre o dossiê e completamente
+       errado sobre o que a pessoa acabou de fazer.
+
+       Por isso o aviso de sucesso se cala por alguns segundos depois de um
+       upload recusado: quem manda na tela, ali, é a falha. */
+    if (Date.now() - falhouUpload < 12000) { selo("✗ comprovante não enviado", true); return; }
     var h = hora();
     limpar();
     faixa("<b>✓ Salvo no servidor às " + h + ".</b> O que você fez até aqui está guardado — "
@@ -117,6 +132,56 @@
     clearTimeout(somem);
     somem = setTimeout(limpar, 6000);   // a faixa some; o selo fica
   }
+
+  /* ===================================================================
+     O UPLOAD DO COMPROVANTE PASSA A DIZER QUANDO É RECUSADO.
+
+     O app trata a falha com um `alert()` genérico ("Não foi possível
+     enviar o arquivo") que não diz o motivo — e o motivo, no caso mais
+     comum, é o **selo de VISUALIZAÇÃO**: quem abriu `arche.app.br/avaliador`
+     uma vez leva o selo guardado no navegador, e com ele o ARCHÉ recusa
+     os três uploads com 403, mesmo entrando depois pelo endereço normal.
+     Sem o nome disso, a pessoa tenta de novo, tenta outro arquivo, e
+     conclui que o sistema perdeu o anexo.
+     =================================================================== */
+  var falhouUpload = 0;
+
+  (function vigiarUpload() {
+    var _fetch = window.fetch;
+    window.fetch = function (entrada, init) {
+      var url = "";
+      try { url = typeof entrada === "string" ? entrada : (entrada && entrada.url) || ""; } catch (e) { url = ""; }
+      var r = _fetch.apply(this, arguments);
+      if (url.indexOf("/api/drive/upload") < 0) return r;
+      return Promise.resolve(r).then(function (resp) {
+        if (resp && resp.ok) return resp;
+        falhouUpload = Date.now();
+        var st = resp ? resp.status : "sem resposta";
+        selo("✗ comprovante não enviado", true);
+        faixa("<b>O comprovante NÃO foi enviado</b> (erro " + st + "). O item continua sem "
+          + "anexo — o que você vê na tela não está guardado. Tente de novo depois de "
+          + "resolver o aviso abaixo.", true);
+        if (st === 403) {
+          _fetch("/api/av/quem").then(function (q) { return q.json(); }).then(function (q) {
+            if (!q || q.via !== "avaliador" || q.logado) return;
+            faixa("<b>O comprovante não foi enviado: este navegador está com o selo de "
+              + "VISUALIZAÇÃO.</b> Ele fica guardado desde a primeira vez que se abre "
+              + "<b>arche.app.br/avaliador</b>, e com ele o ARCHÉ recusa todo envio de arquivo — "
+              + "inclusive aqui, mesmo entrando pelo endereço normal. "
+              + '<a href="/entrar?next=' + encodeURIComponent(location.pathname)
+              + '">Entre no portal</a>, recarregue esta página e anexe de novo.', true);
+          }).catch(function () { /* fica o aviso acima */ });
+        }
+        return resp;
+      }, function (e) {
+        falhouUpload = Date.now();
+        selo("✗ comprovante não enviado", true);
+        faixa("<b>O comprovante NÃO foi enviado.</b> O item continua sem anexo. Confira a "
+          + "conexão e anexe de novo. (" + ((e && e.message) || e) + ")", true);
+        throw e;
+      });
+    };
+  })();
 
   var PAPEL = { proreitoria: "Pró-Reitoria (PROPPEX)", avaliador: "avaliador" };
 
@@ -289,11 +354,50 @@
       linha.appendChild(bt);
     }
   }
+  /* ===================================================================
+     "CARREGAR EXEMPLO" SAI DA TELA (achado do dono, ago/2026: "na visão
+     de avaliador não pode aparecer o botão carregar exemplo").
+
+     Ele é resto do protótipo, e o texto ao lado ainda dizia "nesta
+     demonstração" — numa página que se apresenta ao avaliador do MEC como
+     prova de conformidade do curso.
+
+     Some para TODOS os papéis, não só para o avaliador, e a razão é mais
+     forte que a estética: `loadExample()` faz `p.data = parseLattes(
+     EXEMPLO_XML)` — ou seja, SUBSTITUI o currículo real do docente por um
+     currículo de exemplo, ali na memória da página. Basta uma gravação
+     depois disso para a produção fictícia entrar no dossiê do curso por
+     cima da verdadeira. Um clique errado, e o documento que vai ao MEC
+     afirma publicações que não existem.
+
+     Nada legítimo depende de carregar exemplo num dossiê de verdade.
+     =================================================================== */
+  function tirarOExemplo() {
+    var bt = document.getElementById("demo");
+    if (bt) {
+      var linha = bt.parentNode;
+      bt.remove();
+      // a linha existia só para segurar o botão
+      if (linha && linha.className === "obrow" && !linha.querySelector("button, a, input")) linha.remove();
+    }
+    var cx = document.getElementById("obEval");
+    if (cx && cx.getAttribute("data-arche-texto") !== "1") {
+      var pgf = cx.querySelector("p");
+      if (pgf) {
+        pgf.textContent = "Este docente ainda não importou o currículo Lattes. As produções "
+          + "aparecem aqui assim que ele fizer a importação.";
+      }
+      cx.setAttribute("data-arche-texto", "1");
+    }
+  }
+  tirarOExemplo();
+
   if (typeof renderProf === "function") {
     var _rp = renderProf;
     renderProf = function () {
       var r = _rp.apply(this, arguments);
       try { botaoRemoverXml(); } catch (e) { /* nunca derruba a ficha */ }
+      try { tirarOExemplo(); } catch (e) { /* nunca derruba a ficha */ }
       return r;
     };
   }
