@@ -317,6 +317,18 @@ public/
   eles apontam para a raiz de cada módulo, que é Psicologia, e sem o acerto o avaliador que
   estivesse em Odontologia cairia noutro curso ao trocar de painel, que é o trânsito que ele
   mais faz durante a visita.
+  **O avaliador não vê a tela de login piscar** (`public/assets/arche-av-abertura.js`, append
+  nas 12 páginas do dossiê — achado do dono ago/2026: "quando clico em Produção Docente a página
+  vai alguns segundos para essa tela e depois vai pra página correta"): com `?perfil=avaliador`,
+  o app compilado faz `await loadSavedState()` — a leitura do dossiê INTEIRO no Drive — ANTES de
+  chamar `loginAsAvaliador()`, e durante esses segundos ficava no ar a tela de entrada: dois
+  botões de acesso que não são do avaliador (um deles "Entrar como Pró-Reitoria") e um parágrafo
+  começando com "Demonstração", na tela de quem veio avaliar o curso. O append não acelera nada:
+  cobre a espera com "Abrindo o painel do avaliador…" e sai quando o `#appView` deixa de estar
+  escondido (observando o app, não um tempo fixo — o dossiê de um curso grande demora mais). Três
+  cuidados: só age com o parâmetro no endereço (sem ele a tela de entrada é a tela certa); sai
+  quando o app abre; e desiste em 20 s devolvendo a tela de entrada — uma cobertura que não sai
+  é uma página morta, pior que ver a tela errada por três segundos.
   **O CURSO SE ESCOLHE NO INÍCIO** (`/avaliador`, bloco "Curso a avaliar" acima dos painéis):
   é a decisão que abre a visita, não um menu para mexer no meio dela — para trocar, o avaliador
   volta ao início pelo "Início" da barra. Escolhido o curso, os dois cartões passam a apontar
