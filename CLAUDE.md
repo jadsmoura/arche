@@ -288,6 +288,24 @@ public/
   `loadExample()` faz `p.data = parseLattes(EXEMPLO_XML)` — **substitui o currículo real do
   docente por um de exemplo** na memória da página, e basta uma gravação depois disso para a
   produção fictícia entrar no dossiê do curso por cima da verdadeira.
+- **O MODO AVALIADOR SOBREVIVE À NAVEGAÇÃO** (`arche-nav.js`, achado do dono ago/2026: "na
+  página inicial está ok, mas quando entro para ver a Produção Docente e os Indicadores a barra
+  superior volta a aparecer com os links"). Eram dois furos no mesmo lugar: o painel do
+  avaliador liga para `?perfil=avaliador`, mas os links DENTRO do app compilado são relativos
+  (`./dossie/`, `./avaliacao/`) e não levavam o parâmetro adiante — do segundo clique em diante
+  a página não sabia mais quem estava olhando; e o modo só valia para quem NÃO tem sessão, então
+  a pró-reitoria conferindo a visão do avaliador (ou uma conta esquecida aberta na máquina do
+  laboratório) via a barra do portal inteira por cima do link de avaliador. O modo passa a ligar
+  por TRÊS caminhos: o selo sem sessão (como antes), o `?perfil=avaliador` no endereço — que
+  vale **mesmo com sessão aberta**, porque se o endereço diz que esta é a visão do avaliador é
+  ela que se mostra — e a lembrança na ABA (`sessionStorage`), que atravessa os cliques
+  internos. Cada clique em link para dentro de `/arche` recarimba o parâmetro (na captura, não
+  reescrevendo o DOM: o app redesenha as listas o tempo todo e um link novo escaparia da
+  varredura), para o endereço continuar dizendo a verdade sobre o que está na tela. Quem tem
+  sessão ganha **"Sair do modo avaliador"**; o avaliador de verdade não — para ele não há modo
+  de que sair, e o botão seria uma porta que não abre. Esse link é o ÚNICO isento das duas
+  reescritas (`data-arche-saida`): sem a isenção, a regra que manda `/arche/` ao painel o
+  devolveria justamente para onde ele está saindo, e o recarimbo o traria de volta ao modo.
 - **O avaliador do MEC não vê diagnóstico interno de gravação** (mesma revisão): as faixas que
   explicam por que o dossiê não está salvando servem a quem trabalha nele; o acesso do
   avaliador é de leitura por desenho, ele não tem o que salvar, e um aviso técnico sobre o que

@@ -515,7 +515,60 @@
      apontam ao início do módulo (/arche/, com os acessos de submissão)
      passam a voltar à página do avaliador. Quem tem sessão no ARCHÉ nunca
      entra neste modo. */
-  function montarModoAvaliador() {
+  /* O MODO AVALIADOR PRECISA SOBREVIVER À NAVEGAÇÃO (achado do dono,
+     ago/2026: "na página inicial está ok, mas quando entro para ver a
+     Produção Docente e os Indicadores a barra superior volta a aparecer
+     com os links").
+
+     Eram dois furos no mesmo lugar:
+
+       1. o painel do avaliador liga para `?perfil=avaliador`, mas os links
+          DENTRO do app compilado são relativos (`./dossie/`, `./avaliacao/`)
+          e não levam o parâmetro adiante — do segundo clique em diante, a
+          página não sabia mais quem estava olhando;
+       2. o modo só valia para quem NÃO tem sessão. Quem está logado no
+          ARCHÉ — a pró-reitoria conferindo o que o avaliador vê, ou um
+          professor que deixou a conta aberta na máquina do laboratório —
+          via a barra do portal inteira POR CIMA do link de avaliador.
+
+     Agora o modo liga por TRÊS caminhos: o selo sem sessão (como antes), o
+     `?perfil=avaliador` no endereço (que vale mesmo com sessão aberta — se
+     o endereço diz que esta é a visão do avaliador, é ela que se mostra) e
+     a lembrança na ABA, que é o que atravessa os cliques internos. Cada
+     link para dentro de `/arche` recarimba o parâmetro, para o endereço
+     continuar dizendo a verdade sobre o que está na tela.
+
+     Quem tem sessão ganha a saída ("Sair do modo avaliador"); o avaliador
+     de verdade, não — para ele não há modo nenhum de que sair. */
+  var PERFIL_AV = /(^|[?&])perfil=avaliador(&|$)/.test(location.search);
+  function lembrarAv(v) {
+    try { if (v) sessionStorage.setItem("arche-av-modo", "1"); else sessionStorage.removeItem("arche-av-modo"); }
+    catch (e) { /* modo restrito: vale só o endereço */ }
+  }
+  function lembradoAv() {
+    try { return sessionStorage.getItem("arche-av-modo") === "1"; } catch (e) { return false; }
+  }
+
+  /* Carimba o parâmetro nos cliques em vez de reescrever o DOM: o app
+     compilado redesenha as listas o tempo todo, e um link recém-desenhado
+     escaparia de qualquer varredura. */
+  function levarOModoAdiante() {
+    document.addEventListener("click", function (e) {
+      var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+      if (!a || a.target === "_blank" || e.defaultPrevented) return;
+      if (a.dataset.archeSaida === "1") return;   // a saída não se recarimba
+      var u;
+      try { u = new URL(a.href, location.origin); } catch (x) { return; }
+      if (u.origin !== location.origin || u.pathname.indexOf("/arche") !== 0) return;
+      if (u.searchParams.get("perfil") === "avaliador") return;
+      u.searchParams.set("perfil", "avaliador");
+      a.href = u.toString();
+    }, true);
+  }
+
+  function montarModoAvaliador(podeSair) {
+    lembrarAv(true);
+    levarOModoAdiante();
     var alvo = document.querySelector(".arche-topnav");
     if (!alvo) {
       alvo = document.createElement("nav");
@@ -529,13 +582,29 @@
     dir.className = "nav-dir";
     var volta = document.createElement("a");
     volta.href = "/avaliador"; volta.className = "nav-portal";
-    volta.textContent = "← Página do avaliador";
+    volta.textContent = "← Voltar ao painel do avaliador";
     dir.appendChild(volta);
+    /* Só para quem tem conta: o avaliador do MEC não tem de que sair, e um
+       botão assim na tela dele seria uma porta que não abre. */
+    if (podeSair) {
+      var sai = document.createElement("a");
+      sai.href = "/arche/";
+      sai.className = "nav-portal";
+      sai.style.cssText = "border-color:rgba(255,255,255,.35);color:#fff";
+      sai.textContent = "Sair do modo avaliador";
+      // fora da reescrita abaixo: é o ÚNICO link que deve mesmo ir ao
+      // /arche/ completo — reescrevê-lo devolveria ao painel do avaliador,
+      // que é justamente de onde se está saindo
+      sai.dataset.archeSaida = "1";
+      sai.addEventListener("click", function () { lembrarAv(false); });
+      dir.appendChild(sai);
+    }
     alvo.appendChild(dir);
     // "Início"/marca do app apontam ao módulo completo — no modo avaliador,
     // voltam à página dele (compara o caminho resolvido, não o texto)
     var links = alvo.querySelectorAll("a");
     for (var i = 0; i < links.length; i++) {
+      if (links[i].dataset.archeSaida === "1") continue;
       try {
         var p = new URL(links[i].href, location.origin).pathname;
         if (p === "/arche/" || p === "/arche") links[i].href = "/avaliador";
@@ -551,10 +620,18 @@
       fetch("/api/av/quem")
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (q) {
-          if (q && q.via === "avaliador" && !q.logado) montarModoAvaliador();
+          var selo = q && q.via === "avaliador" && !q.logado;
+          // o endereço manda: dizendo "perfil=avaliador", é essa a visão —
+          // mesmo para quem tem sessão, que é como se confere o que o
+          // avaliador enxerga sem ter de sair da própria conta
+          if (selo) montarModoAvaliador(false);
+          else if (PERFIL_AV || lembradoAv()) montarModoAvaliador(true);
           else { montar(); aplicarVisibilidade(); }
         })
-        .catch(function () { montar(); aplicarVisibilidade(); });
+        .catch(function () {
+          if (PERFIL_AV || lembradoAv()) montarModoAvaliador(true);
+          else { montar(); aplicarVisibilidade(); }
+        });
       return;
     }
     montar(); aplicarVisibilidade();
