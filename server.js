@@ -935,7 +935,9 @@ app.get("/api/alertas", async (req, res) => {
       // com a página ainda fechada — os dois deixam gente sem se inscrever
       const acoes = await lerAcoes();
       const doEv = acoes.filter((a) => a.evento && !a.origemPapel);
-      const semAprovacao = doEv.filter((a) => !a.numeroAcao).length;
+      // reprovada não espera aprovação de ninguém — sem este recorte ela
+      // ficaria PRESA no sino para sempre (revisão adversarial, ago/2026)
+      const semAprovacao = doEv.filter((a) => !a.numeroAcao && a.status !== "reprovada").length;
       if (semAprovacao) alertas.push({ setor: "Eventos", n: semAprovacao, link: "/eventos/gestao/",
         texto: `${semAprovacao} evento(s) cadastrado(s) aguardando aprovação da ação` });
       const naoPublicados = doEv.filter((a) => a.numeroAcao && !a.evento?.ativo).length;
@@ -2194,6 +2196,7 @@ app.get("/api/extensao", async (req, res) => {
  * editar. Nunca apaga o que não veio no corpo: a lista do cliente já é um
  * recorte, e um "salvar" do professor não pode sumir com as ações alheias.
  */
+const base_ok_id = (v) => /^[a-zA-Z0-9_-]{1,60}$/.test(String(v || ""));
 app.post("/api/extensao", async (req, res) => {
   try {
     const u = await sessaoEx(req, res);
@@ -2205,6 +2208,11 @@ app.post("/api/extensao", async (req, res) => {
       const registradas = [];
       for (const nova of entrada) {
         if (!nova?.id) { recusadas++; continue; }
+        /* O id vira atributo onclick em DEZENAS de templates das duas SPAs:
+           um id com aspas quebraria o HTML de todo mundo que abrisse a
+           lista (achado da revisão adversarial, ago/2026). Ação NOVA só
+           entra com id no formato que o próprio cliente gera. */
+        if (!base_ok_id(nova.id)) { recusadas++; continue; }
         const i = acoes.findIndex((x) => x.id === nova.id);
         const base = i >= 0 ? acoes[i] : null;
         // ação nova: quem submete é o dono. Ação existente: só o dono ou a gestão
@@ -2223,6 +2231,19 @@ app.post("/api/extensao", async (req, res) => {
               criadoPor: base.criadoPor, criadoEm: base.criadoEm }
           : { numeroAcao: null, status: "submetida", apreciacao: "",
               criadoPor: u.email, criadoEm: new Date().toISOString() });
+        /* A REPROVAÇÃO é decisão final e "prova da decisão" — o POST em
+           bloco não pode desfazê-la nem apagar o motivo: nem o salvar do
+           dono (que não manda `motivoReprovacao` de volta), nem o da
+           GESTÃO numa aba aberta antes da decisão, que devolveria o status
+           antigo em silêncio (achado da revisão adversarial, ago/2026 — a
+           mesma razão da guarda que preserva `registrada`). Sair de
+           reprovada não tem rota de propósito. */
+        if (base?.status === "reprovada") {
+          controlado.status = "reprovada";
+          controlado.motivoReprovacao = base.motivoReprovacao;
+          controlado.reprovadaEm = base.reprovadaEm;
+          controlado.reprovadaPor = base.reprovadaPor;
+        }
         // A CONFIG do evento e as INSCRIÇÕES ONLINE/PRESENÇAS têm escrita
         // própria (rota /:id/evento e o credenciamento público) e escritores
         // CONCORRENTES: o salvar comum do formulário carrega um snapshot que
@@ -2241,6 +2262,22 @@ app.post("/api/extensao", async (req, res) => {
            de todo texto que entra, por qualquer porta. Imagem não é texto e
            fica de fora (a lista de chaves puladas em lib/texto.js). */
         Object.assign(final, limparProfundo(final));
+        /* Palestrantes e comissão passam pela MESMA normalização da rota de
+           equipe do EV (revisão adversarial, ago/2026): a proposta agora os
+           grava por aqui, e estas listas alimentam os certificados — campo
+           fora do shape ou sem teto não pode entrar por uma porta e ser
+           recusado na outra. Inscritos ficam como estão: têm escrita própria
+           e a mescla acima já cuida deles. */
+        if (final.participantes) {
+          if (Array.isArray(final.participantes.palestrantes))
+            final.participantes.palestrantes = final.participantes.palestrantes
+              .map((x) => normalizarPessoaEvento(x, { palestrante: true }))
+              .filter((x) => x.nome || x.cpf || x.matricula || x.email).slice(0, 200);
+          if (Array.isArray(final.participantes.comissao))
+            final.participantes.comissao = final.participantes.comissao
+              .map((x) => normalizarPessoaEvento(x, {}))
+              .filter((x) => x.nome || x.cpf || x.matricula || x.email).slice(0, 300);
+        }
         // `situacao` é CALCULADA a cada leitura (lib/situacao.js) e viaja no
         // payload só para a tela desenhar o selo. Gravá-la de volta guardaria
         // no estado uma leitura velha do próprio estado — e ela envelhece
@@ -2380,6 +2417,12 @@ app.post("/api/extensao/:id/excluir", async (req, res) => {
       const dono = minhaAcao(u, a);
       if (!gereEx(u) && !(dono && !a.numeroAcao))
         return { erro: [403, "Só a gestão da Extensão exclui uma ação já aprovada."], gravar: false };
+      /* A reprovada é a prova da decisão da PROPPEX — o DONO não a apaga
+         (revisão adversarial, ago/2026: o e-mail promete "o registro fica
+         arquivado", e a exclusão pelo dono o desmentiria). A gestão pode:
+         é dela a decisão, e o resumo fica em sys-ex-exclusoes-v1. */
+      if (a.status === "reprovada" && !gereEx(u))
+        return { erro: [403, "Proposta reprovada fica arquivada — só a gestão da Extensão pode excluí-la."], gravar: false };
       if (a.status === "registrada")
         return { erro: [400, "Ação registrada — o ciclo está encerrado e o registro não se apaga."], gravar: false };
       const inscritos = (a.participantes?.inscritos || []).length;
@@ -2481,7 +2524,7 @@ app.post("/api/extensao/devolver", async (req, res) => {
     } catch (e) {
       console.error("[extensao] aviso de devolução falhou:", e.message);
     }
-    res.json({ ok: true, avisado, acao: r.acao });
+    res.json({ ok: true, avisado, acao: acaoSemSegredos(r.acao) });
   } catch (e) {
     console.error("Erro ao devolver proposta:", e);
     res.status(500).json({ error: "Falha ao devolver" });
@@ -2525,7 +2568,7 @@ app.post("/api/extensao/reprovar", async (req, res) => {
     } catch (e) {
       console.error("[extensao] aviso de reprovação falhou:", e.message);
     }
-    res.json({ ok: true, avisado, acao: r.acao });
+    res.json({ ok: true, avisado, acao: acaoSemSegredos(r.acao) });
   } catch (e) {
     console.error("Erro ao reprovar proposta:", e);
     res.status(500).json({ error: "Falha ao reprovar" });

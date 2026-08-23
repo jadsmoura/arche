@@ -815,6 +815,36 @@ public/
   não (o reenvio recusa), o registro fica com o motivo como prova da decisão, ela não entra na
   guia Relatórios nem em fila nenhuma, e o professor recebe o e-mail com o motivo
   (`emailPropostaReprovada`, aviso `ex-proposta-reprovada`).
+- **A BARRA DE AÇÕES OBEDECE AO DOCUMENTO ABERTO** (achado do dono, ago/2026: "tentei aprovar
+  e o projeto pediu foto — foto é no relatório, não no projeto"): na visão do PROJETO a barra
+  traz o PDF do projeto e, com a proposta em análise, a DECISÃO da PROPPEX (aprovar · devolver ·
+  reprovar) — no alto, onde se procura; os atos do relatório (preencher com o evento, encerrar e
+  entregar, validar) só aparecem na visão do RELATÓRIO. Antes a barra oferecia o ato do
+  relatório em cima da proposta, e quem vinha aprovar esbarrava na cobrança de fotos de um
+  documento que não era o dele. No bloco "Relatórios em atraso", cada ação é LINK que abre a
+  ficha na guia Relatórios — a linha sem link era um beco. O "Visualizar como professor" saiu
+  da visão padrão ("esses dois botões estão confusos e se sobrepondo"): ele faz um subconjunto
+  do "Ver como…", que tem a visão genérica de docente entre as opções; quem estava no modo
+  antigo ainda sai dele pelo botão de voltar.
+- **REPROVADA é imutável e vigiada nos cantos** (correções da revisão adversarial, ago/2026):
+  o POST em bloco preserva status, motivo e carimbos de uma ação reprovada — para gestão E
+  não-gestão (a aba velha da gestão devolveria o status antigo em silêncio; a mesma razão da
+  guarda de `registrada`); o DONO não a exclui (o e-mail promete "o registro fica arquivado" —
+  só a gestão exclui, com resumo em `sys-ex-exclusoes-v1`); o sino não a conta como "evento
+  aguardando aprovação" e o card do EV explica em vez de oferecer o botão que o servidor
+  recusaria; as rotas devolver/reprovar respondem por `acaoSemSegredos`; id de ação NOVA no
+  POST em bloco só entra em `[a-zA-Z0-9_-]{1,60}` (o id vira atributo onclick em dezenas de
+  templates — um id com aspas quebraria o HTML de quem abrisse a lista); e as listas de
+  palestrantes/comissão do POST em bloco passam pela MESMA `normalizarPessoaEvento` da rota de
+  equipe do EV.
+- **Texto que JÁ CHEGOU destruído na colagem tem aviso próprio** (`trechoCorrompido` na SPA do
+  EX — achado do dono, ago/2026: "o PDF continua gerando caracteres malucos"): copiar texto de
+  DENTRO de um PDF com fontes sem mapa devolve símbolos no lugar das letras ("–VçF—¦" onde se
+  escreveu "gestantes") — caracteres LEGÍTIMOS do repertório, que nenhuma limpeza reverte,
+  porque a letra original não existe mais no dado; o gerador atual foi conferido limpo (math
+  bold e PUA crus saem certos). A ficha do projeto avisa quando os campos longos têm o padrão
+  (heurística conservadora: palavra com 2+ símbolos raros e densidade alta — travessão solto
+  nunca dispara) e manda recolar do documento ORIGINAL, não de um PDF.
 - **O correlato em Relatórios ABRE NA VALIDAÇÃO** (pedido do dono, ago/2026: "o módulo
   Relatórios deve ser aberto assim que o seu paralelo em Propostas for criado e validado" —
   revendo a regra que o segurava até o período começar): aprovada, a ação já aparece na guia

@@ -1377,7 +1377,12 @@ function renderInicio(a){
 
   // pendências: o que espera um ato da coordenação
   const pend=[];
-  if(!a.numeroAcao) pend.push(`⏳ <b>A ativação da página depende da aprovação da ação</b> — o evento
+  // reprovada não espera aprovação: oferecer o botão seria uma porta que o
+  // servidor sempre recusa (revisão adversarial, ago/2026)
+  if(a.status==="reprovada") pend.push(`✗ <b>A proposta desta ação foi reprovada pela PROPPEX</b>${
+    a.motivoReprovacao?` — motivo: ${esc(a.motivoReprovacao)}`:""}. O evento não vai ao ar; o registro
+    fica arquivado. Uma nova atividade entra como nova proposta, no ARCHÉ EX.`);
+  else if(!a.numeroAcao) pend.push(`⏳ <b>A ativação da página depende da aprovação da ação</b> — o evento
     já pode ficar todo configurado (inscrições, página, programação e transmissão), mas só vai ao ar
     depois do Número da Ação. ${GESTAO_EX
       ? `<button class="lk" onclick="aprovarCard('${esc(a.id)}')">Aprovar evento agora</button>`

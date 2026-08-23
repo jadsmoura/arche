@@ -562,12 +562,17 @@ function alternarVisao(){
 }
 function montarAlternador(){
   if(!GESTAO){ $("dir-info").innerHTML = ""; return; }
+  /* O "Visualizar como professor" SAIU DA VISÃO PADRÃO (achado do dono,
+     ago/2026: "esses dois botões estão confusos e se sobrepondo"): ele nasceu
+     antes do "Ver como…" e faz um subconjunto do que o componente do portal
+     faz — a visão genérica de docente é uma das opções lá. Dois botões
+     lado a lado, os dois prometendo trocar de olhos, era escolher no escuro.
+     O modo antigo continua funcionando por baixo (quem estava nele ainda sai
+     dele pelo botão de voltar), mas não se oferece mais. */
   $("dir-info").innerHTML = MODO_PROF
     ? `<button class="bt bt-warn" style="padding:7px 12px;font-size:12.5px" onclick="alternarVisao()">
          ↩ Voltar à visão da PROPPEX</button>`
-    : `<button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="alternarVisao()"
-         title="Percorra o sistema como um professor o vê, sem os botões de gestão">
-         👤 Visualizar como professor</button>`;
+    : "";
 }
 function bannerVisao(){
   return MODO_PROF ? `<div class="banner ba-warn" style="display:flex;align-items:center;gap:10px">
@@ -1313,7 +1318,7 @@ function renderEquipeProp(){
     || `<div class="muted" style="font-size:12.5px">— nenhum membro cadastrado.</div>`;
 }
 /* Só as linhas com gente: linha vazia esquecida não vira participante. */
-const lerEquipeProp=(lista)=>lista.filter(x=>(x.nome||x.cpf||x.email||"").trim());
+const lerEquipeProp=(lista)=>lista.filter(x=>(x.nome||x.cpf||x.matricula||x.email||"").trim());
 
 /* O que faltará para o CERTIFICADO — aviso, não trava (a régua dura é a da
    emissão, que já existe no servidor). */
@@ -1341,7 +1346,7 @@ async function enviarProposta(){
   for(const [id,lab] of obr){ if(!$(id).value.trim()){ $("f-msg").textContent="⚠ Preencha: "+lab; $(id).focus(); return; } }
   // linha de palestrante/comissão com dados e SEM nome não identifica ninguém
   if([...PROP_PAL,...PROP_COM].some(x=>!String(x.nome||"").trim()
-      && String(x.cpf||x.email||x.telefone||x.palestra||x.funcao||"").trim())){
+      && String(x.cpf||x.matricula||x.email||x.telefone||x.palestra||x.instituicao||x.funcao||x.ch||"").trim())){
     $("f-msg").textContent="⚠ Há linha de palestrante/comissão sem o nome — preencha ou remova a linha."; return; }
   // o que faltará para o CERTIFICADO avisa, mas não trava a proposta:
   // palestrante ainda em confirmação é o caso normal de uma submissão
@@ -1477,7 +1482,8 @@ function renderLista(){
        ["encerramento-em-validacao","Relatório a validar"],["encerrado","Encerrado"]]
     : [["preenchimento","Em preenchimento"],["aguardando-validacao","Aguardando validação"],
        ["validado","Validado / em andamento"],["aguardando-encerramento","Aguardando encerramento"],
-       ["encerramento-em-validacao","Relatório a validar"],["encerrado","Encerrado"]];
+       ["encerramento-em-validacao","Relatório a validar"],["encerrado","Encerrado"],
+       ["reprovada","Reprovada"]];
   $("stats").innerHTML =
     `<div class="s" style="border-color:var(--ok)"><b style="color:var(--ok)">${completas}</b><span>Completas (3/3)</span></div>
      <div class="s" style="border-color:#ffe0b2"><b style="color:var(--warn)">${incompletas}</b><span>Incompletas</span></div>`
@@ -1539,7 +1545,8 @@ function quemDeveRelatorio(universo, ano){
     ${gente.map(p=>`<div class="linha" style="align-items:flex-start">
       <div class="txt" style="flex:1">
         <div class="p1">${esc(p.nome)}${p.email?` <span class="muted" style="font-weight:400">&lt;${esc(p.email)}&gt;</span>`:""}</div>
-        <div class="p2">${p.acoes.map(a=>`${esc(a.numeroAcao||a.proposta.nomeAtividade)} — ${atrasoRelatorio(a)} dia(s)`).join(" · ")}</div>
+        <div class="p2">${p.acoes.map(a=>`<a href="#" class="lk" onclick="irPara('relatorios','${a.id}');return false"
+          title="Abrir o relatório desta ação">${esc(a.numeroAcao||a.proposta.nomeAtividade)}</a> — ${atrasoRelatorio(a)} dia(s)`).join(" · ")}</div>
       </div>
       <span style="font-size:11.5px;font-weight:700;color:var(--warn);white-space:nowrap">${p.pior} dia(s)</span>
     </div>`).join("")}
@@ -1562,10 +1569,29 @@ function fmtDataHora(iso){
 
    O ato do momento é UM: entregar, validar ou reabrir — nunca os três ao
    mesmo tempo, senão a barra vira outro menu para decifrar. */
-function barraAcoes(a,s,podeRelatorio){
+function barraAcoes(a,s,podeRelatorio,doc){
   const bt=(rot,fn,cls="bt-sec",tit="")=>`<button class="bt ${cls}" title="${esc(tit)}" onclick="${fn}">${rot}</button>`;
   const temRel=!!a.relatorio?.entregueEm;
   const out=[];
+  /* A BARRA OBEDECE AO DOCUMENTO ABERTO (achado do dono, ago/2026: "tentei
+     aprovar e o projeto pediu foto — foto é no relatório, não no projeto").
+     Na visão do PROJETO, o ato é a DECISÃO da PROPPEX (aprovar · devolver ·
+     reprovar), no alto, onde se procura; os atos do relatório — preencher,
+     encerrar, validar — só aparecem na visão do RELATÓRIO. Antes a barra
+     oferecia o ato do relatório em cima da proposta, e quem vinha aprovar
+     esbarrava na cobrança de fotos de um documento que não era o dele. */
+  if(doc==="projeto"){
+    if(PROPPEX && a.numeroAcao)
+      out.push(bt("📄 Projeto (PDF)",`exportar('${a.id}','proposta')`,"bt-sec",
+        "O projeto em PDF timbrado, sem lista de participantes"));
+    if(PROPPEX && (s==="submetida"||s==="devolvida")){
+      out.push(bt("✓ Aprovar e emitir Número da Ação",`aprovar('${a.id}')`,"bt-pri"));
+      out.push(bt("↩ Devolver para alterações",`abrirDecisao('${a.id}','devolver')`,"bt-warn"));
+      out.push(bt("✗ Reprovar",`abrirDecisao('${a.id}','reprovar')`,"bt-err"));
+    }
+    return (out.length ? `<div class="exp" style="margin:12px 0 2px">${out.join("")}</div>` : "")
+      + `<div id="dec-caixa"></div>`;
+  }
   /* O PDF TIMBRADO SÓ DEPOIS DE VALIDADO (pedido do dono, ago/2026): o
      documento com as assinaturas da pró-reitoria e da reitoria no pé afirma
      um ato institucional — enquanto ele não aconteceu, o PDF não existe. A
@@ -1654,6 +1680,32 @@ function atalhoOutroDoc(a, doc, podeRelatorio){
 }
 function irPara(secao, id){ SECAO = secao; renderDetalhe(id); window.scrollTo(0,0); }
 
+/* TEXTO QUE JÁ CHEGOU DESTRUÍDO NA COLAGEM (achado do dono, ago/2026: "o
+   PDF continua gerando caracteres malucos"). Copiar texto de um PDF com
+   fontes sem mapa devolve símbolos no lugar das letras ("–VçF—¦" onde se
+   escreveu "gestantes") — caracteres LEGÍTIMOS do repertório, que nenhuma
+   limpeza pode reverter, porque a letra original não existe mais no dado.
+   A tela e o PDF mostram o mesmo lixo, e sem aviso a culpa cai no gerador.
+   A heurística é conservadora: só acusa palavra com DOIS OU MAIS símbolos
+   raros e densidade alta — travessão solto em texto normal nunca dispara. */
+function trechoCorrompido(a){
+  const p=a.proposta||{};
+  const suspeita=(s)=>((String(s||"").match(/\S+/g)||[]).filter(w=>{
+    const raros=(w.match(/[–—¦†‡×ÖÆ§¶¤›‹œþÿ]/g)||[]).length;
+    return raros>=2 && raros>=Math.ceil(w.length*0.25);
+  }).length)>=3;
+  return ["justificativa","objetivoGeral","objetivosEspecificos","metodologia","programacao"]
+    .some(k=>suspeita(p[k]));
+}
+function avisoTextoCorrompido(a){
+  if(!trechoCorrompido(a)) return "";
+  return `<div class="banner ba-warn">⚠ <b>Trechos deste projeto parecem ter vindo de uma colagem
+    que destruiu as letras</b> (copiar texto de dentro de um PDF faz isso — os símbolos entram no
+    lugar das letras e não há como recuperá-las). O PDF timbrado sai com os mesmos símbolos.
+    <b>Peça ao responsável que recole o texto do documento original</b> (Word ou Google Docs),
+    não de um PDF.</div>`;
+}
+
 /* Palestrantes e comissão como a proposta os indicou — é parte do documento
    que a PROPPEX aprecia. O texto livre antigo (comissaoTexto) continua
    saindo nas ações gravadas antes de ago/2026. */
@@ -1692,7 +1744,7 @@ function renderDetalhe(id){
     <div class="muted" style="margin:4px 0 12px">${esc(a.curso)} · ${fmt(p.periodoInicio)} a ${fmt(p.periodoFim)} · ${esc(p.cargaHoraria)}h · ${esc(p.local)} (${esc(p.municipio)})${a.criadoPor?` · submetida por ${esc(a.criadoPorNome||a.criadoPor)} &lt;${esc(a.criadoPor)}&gt;`:""}</div>
     ${sit(a).detalhe?`<div class="muted" style="margin:-6px 0 12px;font-size:13px">→ ${esc(sit(a).detalhe)}</div>`:""}`;
 
-  html += marcas(a) + barraAcoes(a,s,podeRelatorio) + atalhoOutroDoc(a, doc, podeRelatorio)
+  html += marcas(a) + barraAcoes(a,s,podeRelatorio,doc) + atalhoOutroDoc(a, doc, podeRelatorio)
     + '<div style="margin-bottom:10px"></div>';
   const c3 = completude(a);
   if(PROPPEX && c3.completa && s==="relatorio-entregue")
@@ -1713,12 +1765,15 @@ function renderDetalhe(id){
         <span class="muted">— devolvida em ${fmtDataHora(d.em)}${d.reenviadaEm?`, reenviada em ${fmtDataHora(d.reenviadaEm)}`:""}</span></div>`).join("")}
     </details>`;
   if(s==="pendente" && !PROPPEX)
-    html += `<div class="banner ba-warn">⏰ O período da ação terminou — o relatório final está pendente. Preencha a seção "Relatório final" abaixo.</div>`;
+    html += doc==="relatorio"
+      ? `<div class="banner ba-warn">⏰ O período da ação terminou — o relatório final está pendente. Preencha a seção "Relatório final" abaixo.</div>`
+      : `<div class="banner ba-warn">⏰ O período da ação terminou — o relatório final está pendente. Ele se preenche na guia <b>Relatórios</b>; o atalho acima leva até lá.</div>`;
   if(s==="submetida" && !PROPPEX)
     html += `<div class="banner ba-ok">✓ Proposta enviada. Aguardando análise da PROPPEX.</div>`;
 
   /* ======================== documento 1: O PROJETO ======================= */
   if(doc==="projeto"){
+  html += avisoTextoCorrompido(a);
   html += `<div class="sec-t">Projeto da ação${a.numeroAcao?" · validado":""}</div>
     <div class="kv"><b>Classificação:</b> ${esc(p.classificacao)}${p.classificacao==="Outro"?" — "+esc(p.classificacaoOutro):""}</div>
     ${p.temaCentral?`<div class="kv"><b>Tema central:</b> ${esc(p.temaCentral)}</div>`:""}
@@ -1734,19 +1789,6 @@ function renderDetalhe(id){
     ${blocoCurricularizacao(p)}
     <div class="kv"><b>Responsável:</b> ${esc(p.respNome)} — ${esc(p.respCargo)} · ${esc(p.respTelefone)} · ${esc(p.respEmail)}</div>`;
 
-  /* ---- a decisão da PROPPEX: três saídas, e só elas (pedido do dono,
-     ago/2026) — aprovar; devolver para alterações, com comentário; e
-     reprovar, com comentário. O comentário se escreve NUMA CAIXA na própria
-     ficha (o prompt() do navegador não dá espaço para um parecer). ---- */
-  if(PROPPEX && (s==="submetida"||s==="devolvida")){
-    html += `<div class="sec-t">Decisão da PROPPEX</div>
-    <div class="exp">
-      <button class="bt bt-pri" onclick="aprovar('${a.id}')">✓ Aprovar e emitir Número da Ação</button>
-      <button class="bt bt-warn" onclick="abrirDecisao('${a.id}','devolver')">↩ Devolver para alterações</button>
-      <button class="bt bt-err" onclick="abrirDecisao('${a.id}','reprovar')">✗ Reprovar</button>
-    </div>
-    <div id="dec-caixa"></div>`;
-  }
   html += `</div>`;
   }
 
