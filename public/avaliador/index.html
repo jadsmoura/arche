@@ -34,6 +34,13 @@
     box-shadow:0 2px 14px rgba(24,38,50,.06)}
   .bloco h2{font-size:21px;color:var(--brand)}
   .bloco .sub{font-size:13px;font-weight:600;color:var(--accent);margin-top:2px}
+  .curso-cx{display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap}
+  .curso-rot{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--muted,#657179)}
+  #cursoAv{flex:1 1 260px;max-width:420px;font-family:inherit;font-size:15px;font-weight:700;
+    color:var(--ink,#182632);background:#fff;border:1.5px solid var(--accent,#40717e);
+    border-radius:10px;padding:11px 13px;cursor:pointer}
+  #cursoAv:focus-visible{outline:2px solid var(--accent,#40717e);outline-offset:2px}
   .cards{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}
   @media(max-width:720px){.cards{grid-template-columns:1fr}h1{font-size:28px}}
   .card{background:#fbfcfd;border:1px solid var(--line);border-radius:14px;padding:20px;
@@ -71,6 +78,21 @@
     do grego <em>arché</em> — Origem, Fundamento, Princípio.</p>
   <span class="selo-ro">Acesso de visualização — os documentos abrem para consulta, nada é alterado</span>
 
+  <!-- O CURSO SE ESCOLHE AQUI, ANTES DE ENTRAR NUM PAINEL (decisao do dono,
+       ago/2026): e a decisao que abre a visita, nao um menu para mexer no
+       meio dela. Escolhido o curso, os dois paineis abaixo passam a apontar
+       para ele; para trocar, o avaliador volta a esta pagina pelo "Inicio"
+       da barra. Um link por curso seriam doze enderecos para a PROPPEX
+       administrar e mandar certos. -->
+  <div class="bloco escolha">
+    <h2>Curso a avaliar</h2>
+    <p class="sub">Escolha o curso; os dois painéis abaixo abrem nele</p>
+    <label class="curso-cx">
+      <span class="curso-rot">Curso</span>
+      <select id="cursoAv" aria-label="Curso a avaliar"></select>
+    </label>
+  </div>
+
   <div class="bloco">
     <h2>Painéis do avaliador</h2>
     <p class="sub">Acesso exclusivo para avaliadores designados</p>
@@ -105,6 +127,56 @@
     Centro Universitário Evangélico de Goianésia — UNIEGO · Apoio à avaliação in loco — SINAES/INEP</p>
   <img src="/assets/logo-proppex.png" alt="PROPPEX">
 </footer>
+<script>
+/* Os doze cursos. O primeiro campo e o DIRETORIO: Psicologia mora um nivel
+   acima (`/arche/dossie/`), que e como o app compilado foi publicado, e por
+   isso o dela e vazio. Em ordem alfabetica pelo NOME, que e o que se procura
+   numa lista. `dossie` e `avaliacao` tem os mesmos diretorios — ao mexer
+   aqui, vale para os dois paineis. */
+(function () {
+  var CURSOS = [
+    ["administracao", "Administração"],
+    ["agronomia", "Agronomia"],
+    ["contabeis", "Ciências Contábeis"],
+    ["direito", "Direito"],
+    ["educacao-fisica", "Educação Física"],
+    ["enfermagem", "Enfermagem"],
+    ["engenharia-civil", "Engenharia Civil"],
+    ["engenharia-mecanica", "Engenharia Mecânica"],
+    ["engenharia-software", "Engenharia de Software"],
+    ["medicina-veterinaria", "Medicina Veterinária"],
+    ["odontologia", "Odontologia"],
+    ["", "Psicologia"],
+  ];
+  var sel = document.getElementById("cursoAv");
+  if (!sel) return;
+
+  /* O curso escolhido fica na ABA (nunca no servidor): e preferencia de
+     quem esta olhando, some quando a aba fecha, e assim o avaliador que
+     volta ao inicio reencontra o curso em que estava. */
+  var guardado = "";
+  try { guardado = sessionStorage.getItem("arche-av-curso") || ""; } catch (e) { guardado = ""; }
+
+  CURSOS.forEach(function (c) {
+    var o = document.createElement("option");
+    o.value = c[0]; o.textContent = c[1];
+    if (c[0] === guardado) o.selected = true;
+    sel.appendChild(o);
+  });
+
+  function apontar() {
+    var curso = sel.value ? sel.value + "/" : "";
+    try { sessionStorage.setItem("arche-av-curso", sel.value); } catch (e) { /* modo restrito */ }
+    var cards = document.querySelectorAll(".cards a.card");
+    for (var i = 0; i < cards.length; i++) {
+      var mod = /dossie/.test(cards[i].getAttribute("href")) ? "dossie" : "avaliacao";
+      cards[i].href = "/arche/" + mod + "/" + curso + "?perfil=avaliador";
+    }
+  }
+  sel.addEventListener("change", apontar);
+  apontar();
+})();
+</script>
 <script src="/assets/arche-av-somenteleitura.js" defer></script>
 </body>
 </html>

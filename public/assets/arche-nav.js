@@ -103,19 +103,6 @@
       ".arche-menu span{display:block;font-size:11.5px;color:#657179;margin-top:1px;line-height:1.35}" +
       ".arche-topnav .nav-portal{border:1px solid rgba(113,200,226,.5);color:#71c8e2;font-weight:600}" +
       ".arche-topnav .nav-portal:hover{background:rgba(113,200,226,.15);color:#fff}" +
-      /* seletor de curso do modo avaliador: um link por curso seria uma
-         lista de doze endereços para a PROPPEX administrar */
-      ".arche-topnav .nav-curso-cx{display:inline-flex;align-items:center;gap:7px;margin-left:6px;" +
-      "padding-left:10px;border-left:1px solid rgba(255,255,255,.18)}" +
-      ".arche-topnav .nav-curso-rot{font-size:10.5px;font-weight:700;letter-spacing:.09em;" +
-      "text-transform:uppercase;color:rgba(255,255,255,.62)}" +
-      ".arche-topnav .nav-curso-av{font-family:inherit;font-size:13px;font-weight:600;color:#fff;" +
-      "background:rgba(255,255,255,.10);border:1px solid rgba(113,200,226,.45);border-radius:7px;" +
-      "padding:5px 9px;cursor:pointer;max-width:220px}" +
-      ".arche-topnav .nav-curso-av:hover{background:rgba(255,255,255,.16)}" +
-      ".arche-topnav .nav-curso-av:focus-visible{outline:2px solid #71c8e2;outline-offset:1px}" +
-      // a lista aberta é desenhada pelo sistema: precisa de fundo claro
-      ".arche-topnav .nav-curso-av option{background:#fff;color:#182632;font-weight:500}" +
       /* conta do usuário, à direita de tudo */
       ".arche-topnav .nav-conta{display:flex;align-items:center;gap:2px;margin-left:4px;" +
       "padding-left:8px;border-left:1px solid rgba(255,255,255,.18)}" +
@@ -555,28 +542,6 @@
      de verdade, não — para ele não há modo nenhum de que sair. */
   var PERFIL_AV = /(^|[?&])perfil=avaliador(&|$)/.test(location.search);
 
-  /* OS DOZE CURSOS, para o avaliador trocar sem precisar de um link por
-     curso (pedido do dono, ago/2026: "a ideia é sempre usar esse link para
-     o modo avaliador; o avaliador consiga escolher o curso que vai
-     avaliar"). O primeiro campo é o diretório — Psicologia mora um nível
-     acima, que é como o app compilado foi publicado, e por isso o dela é
-     vazio. Em ordem alfabética pelo NOME, que é o que se procura na lista.
-     Ao mexer aqui, mexa nos dois módulos: `dossie` e `avaliacao` têm os
-     mesmos diretórios. */
-  var CURSOS_AV = [
-    ["administracao", "Administração"],
-    ["agronomia", "Agronomia"],
-    ["contabeis", "Ciências Contábeis"],
-    ["direito", "Direito"],
-    ["educacao-fisica", "Educação Física"],
-    ["enfermagem", "Enfermagem"],
-    ["engenharia-civil", "Engenharia Civil"],
-    ["engenharia-mecanica", "Engenharia Mecânica"],
-    ["engenharia-software", "Engenharia de Software"],
-    ["medicina-veterinaria", "Medicina Veterinária"],
-    ["odontologia", "Odontologia"],
-    ["", "Psicologia"],
-  ];
 
   /* Em que módulo e em que curso a página está. Devolve null fora deles —
      na página inicial do módulo não há curso que trocar. */
@@ -588,28 +553,6 @@
     return { modulo: m[1], curso: curso };
   }
 
-  function seletorDeCurso(onde) {
-    var s = document.createElement("select");
-    s.className = "nav-curso-av";
-    s.setAttribute("aria-label", "Curso a avaliar");
-    CURSOS_AV.forEach(function (c) {
-      var o = document.createElement("option");
-      o.value = c[0]; o.textContent = c[1];
-      if (c[0] === onde.curso) o.selected = true;
-      s.appendChild(o);
-    });
-    s.addEventListener("change", function () {
-      location.href = "/arche/" + onde.modulo + "/"
-        + (s.value ? s.value + "/" : "") + "?perfil=avaliador";
-    });
-    var cx = document.createElement("span");
-    cx.className = "nav-curso-cx";
-    var rot = document.createElement("span");
-    rot.className = "nav-curso-rot";
-    rot.textContent = "Curso:";
-    cx.appendChild(rot); cx.appendChild(s);
-    return cx;
-  }
   function lembrarAv(v) {
     try { if (v) sessionStorage.setItem("arche-av-modo", "1"); else sessionStorage.removeItem("arche-av-modo"); }
     catch (e) { /* modo restrito: vale só o endereço */ }
@@ -647,48 +590,47 @@
       alvo.appendChild(marca);
       document.body.insertBefore(alvo, document.body.firstChild);
     }
-    var onde = ondeEstou();
-    if (onde) alvo.appendChild(seletorDeCurso(onde));
+    /* A BARRA DO AVALIADOR TEM TRÊS BOTÕES, E SÓ (decisão do dono,
+       ago/2026): **Início**, que volta ao painel dele; **Indicadores**; e
+       **Produção Docente**. Nada mais.
 
+       Saíram duas coisas que eu havia posto aqui e não deviam estar:
+
+         - o "Sair do modo avaliador", que era uma porta para o portal
+           inteiro desenhada na tela de quem não deve chegar lá. Ela existia
+           para a pró-reitoria conferir sem trocar de janela — conveniência
+           minha, risco dela. Quem tem conta sai pelo endereço, digitando;
+         - o SELETOR DE CURSO, que ficava perdido entre os atalhos. O curso
+           se escolhe no INÍCIO, antes de entrar num painel — é a decisão
+           que abre a visita, não um menu para mexer no meio dela.
+
+       Os três botões são os do próprio app compilado; o que este trecho faz
+       é mandá-los ao lugar certo. */
     var dir = document.createElement("span");
     dir.className = "nav-dir";
-    var volta = document.createElement("a");
-    volta.href = "/avaliador"; volta.className = "nav-portal";
-    volta.textContent = "← Voltar ao painel do avaliador";
-    dir.appendChild(volta);
-    /* A SAÍDA É SÓ DE QUEM TEM SESSÃO NO ARCHÉ (decisão do dono, ago/2026:
-       "não deixe o modo avaliador sair do modo avaliador").
-
-       Quem decide não é COMO se entrou no modo — é se existe uma conta para
-       onde voltar. O avaliador do MEC não tem conta: para ele o botão seria
-       uma porta que não abre e, pior, um convite a tentar. A pró-reitoria
-       conferindo a visão dele tem, e é para ela que a saída existe.
-
-       Por isso a condição é `logado`, e não `PERFIL_AV`: um avaliador que
-       chegue pelo link com o parâmetro e sem selo cairia na segunda e
-       ganharia um botão que não é dele. */
-    if (podeSair) {
-      var sai = document.createElement("a");
-      sai.href = "/arche/";
-      sai.className = "nav-portal";
-      sai.style.cssText = "border-color:rgba(255,255,255,.35);color:#fff";
-      sai.textContent = "Sair do modo avaliador";
-      // fora da reescrita abaixo: é o ÚNICO link que deve mesmo ir ao
-      // /arche/ completo — reescrevê-lo devolveria ao painel do avaliador,
-      // que é justamente de onde se está saindo
-      sai.dataset.archeSaida = "1";
-      sai.addEventListener("click", function () { lembrarAv(false); });
-      dir.appendChild(sai);
-    }
     alvo.appendChild(dir);
     // "Início"/marca do app apontam ao módulo completo — no modo avaliador,
     // voltam à página dele (compara o caminho resolvido, não o texto)
+    /* Os três botões, apontados ao lugar certo:
+
+       - "Início" (e a marca) vão ao MÓDULO completo — no modo avaliador,
+         voltam ao painel dele, que é de onde ele escolhe o curso;
+       - "Indicadores" e "Produção Docente" apontam à RAIZ de cada módulo,
+         que é Psicologia. Sem este acerto, o avaliador que estivesse em
+         Odontologia e trocasse de painel cairia noutro curso sem perceber —
+         e é justamente entre esses dois painéis que ele transita o tempo
+         todo durante a visita. Levam o curso em que ele está. */
+    var onde = ondeEstou();
     var links = alvo.querySelectorAll("a");
     for (var i = 0; i < links.length; i++) {
-      if (links[i].dataset.archeSaida === "1") continue;
       try {
-        var p = new URL(links[i].href, location.origin).pathname;
-        if (p === "/arche/" || p === "/arche") links[i].href = "/avaliador";
+        var u = new URL(links[i].href, location.origin);
+        var p = u.pathname;
+        if (p === "/arche/" || p === "/arche") { links[i].href = "/avaliador"; continue; }
+        var raiz = p.match(/^\/arche\/(dossie|avaliacao)\/?$/);
+        if (!raiz) continue;
+        links[i].href = "/arche/" + raiz[1] + "/"
+          + (onde && onde.curso ? onde.curso + "/" : "") + "?perfil=avaliador";
       } catch (e) { /* href torto: deixa como está */ }
     }
   }

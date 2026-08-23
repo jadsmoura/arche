@@ -306,20 +306,25 @@ public/
   de que sair, e o botão seria uma porta que não abre. Esse link é o ÚNICO isento das duas
   reescritas (`data-arche-saida`): sem a isenção, a regra que manda `/arche/` ao painel o
   devolveria justamente para onde ele está saindo, e o recarimbo o traria de volta ao modo.
-  **A SAÍDA É SÓ DE QUEM TEM SESSÃO** (decisão do dono, ago/2026: "não deixe o modo avaliador
-  sair do modo avaliador"): quem decide não é COMO se entrou no modo, é se existe conta para
-  onde voltar — por isso a condição é `q.logado`, e não `PERFIL_AV`. Um avaliador que chegue
-  pelo link com o parâmetro e sem selo cairia na segunda regra e ganharia um botão que não é
-  dele: uma porta que não abre e, pior, um convite a tentar. Sem resposta do servidor, o modo
-  fecha SEM saída — é o lado seguro de errar.
-  **E o modo tem SELETOR DE CURSO** (`CURSOS_AV`/`ondeEstou`/`seletorDeCurso`, pedido do dono
-  ago/2026: "a ideia é sempre usar esse link para o modo avaliador; o avaliador consiga escolher
-  o curso que vai avaliar"): um link por curso seriam doze endereços para a PROPPEX administrar
-  e mandar certos. A troca leva ao MESMO módulo do curso escolhido (`dossie` ou `avaliacao`,
-  lido do caminho) com o parâmetro recarimbado, e o seletor não se desenha na página inicial do
-  módulo, onde não há curso que trocar. Psicologia mora um nível acima e por isso o diretório
-  dela é vazio no catálogo — ao mexer na lista, lembre que `dossie` e `avaliacao` têm os mesmos
-  diretórios.
+  **A BARRA DO AVALIADOR TEM TRÊS BOTÕES, E SÓ** (decisão do dono, ago/2026): **Início**, que
+  volta ao painel dele; **Indicadores**; e **Produção Docente**. Duas coisas que eu havia posto
+  ali saíram: o **"Sair do modo avaliador"** — uma porta para o portal inteiro desenhada na tela
+  de quem não deve chegar lá; ela existia para a pró-reitoria conferir sem trocar de janela,
+  conveniência minha e risco dela, e quem tem conta sai pelo endereço, digitando — e o
+  **seletor de curso**, que ficava perdido entre os atalhos. Os três botões são os do próprio
+  app compilado; o que o append faz é apontá-los ao lugar certo: "Início" e a marca vão ao
+  painel do avaliador, e **"Indicadores"/"Produção Docente" levam o CURSO em que ele está** —
+  eles apontam para a raiz de cada módulo, que é Psicologia, e sem o acerto o avaliador que
+  estivesse em Odontologia cairia noutro curso ao trocar de painel, que é o trânsito que ele
+  mais faz durante a visita.
+  **O CURSO SE ESCOLHE NO INÍCIO** (`/avaliador`, bloco "Curso a avaliar" acima dos painéis):
+  é a decisão que abre a visita, não um menu para mexer no meio dela — para trocar, o avaliador
+  volta ao início pelo "Início" da barra. Escolhido o curso, os dois cartões passam a apontar
+  para ele, e a escolha fica na ABA (`sessionStorage`, nunca no servidor: é preferência de quem
+  está olhando, some quando a aba fecha, e faz o avaliador reencontrar o curso ao voltar). Um
+  link por curso seriam doze endereços para a PROPPEX administrar e mandar certos; o link é UM
+  só. Psicologia mora um nível acima e por isso o diretório dela é vazio no catálogo — `dossie`
+  e `avaliacao` têm os mesmos diretórios.
 - **O avaliador do MEC não vê diagnóstico interno de gravação** (mesma revisão): as faixas que
   explicam por que o dossiê não está salvando servem a quem trabalha nele; o acesso do
   avaliador é de leitura por desenho, ele não tem o que salvar, e um aviso técnico sobre o que
