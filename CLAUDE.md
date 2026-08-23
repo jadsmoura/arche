@@ -120,6 +120,24 @@ public/
   voltava vazio). Só Psicologia escapava, por morar um nível acima. O arquivo é UM só,
   servido também nesses dois caminhos por uma rota no server — copiá-lo seria manter três
   versões da mesma coisa.
+- **A GRAVAÇÃO DOS INDICADORES NÃO ATROPELA QUEM ESTAVA JUNTO, E CONFERE O SERVIDOR**
+  (`public/assets/arche-avaliacao-gravacao.js`, append nas 12 páginas de avaliação — achado de
+  ago/2026, a partir da queixa de professoras de que "anexaram documentos e não estava
+  firmando"): eram DOIS defeitos multiplicados. O app dos indicadores grava o curso INTEIRO
+  numa chave só, mandando o retrato da ABA por cima de tudo — duas professoras do mesmo curso,
+  cada uma no seu indicador, e a última a gravar apagava o anexo da primeira. E o
+  `window.storage` INLINE do bundle (que sobrepõe o do firebase-config) grava no localStorage,
+  tenta o servidor **sem conferir a resposta** e devolve sucesso SEMPRE — o 403 do selo de
+  visualização passava calado, a tela da professora continuava mostrando tudo (o get lê o
+  localStorage DELA), e no servidor não havia nada: em outro computador o trabalho não existia,
+  e ninguém conseguia nem reproduzir. A correção embrulha o `set` para TODAS as chaves do app
+  (`avaliacao-mec-*`, `docs-institucionais*`, `links-pastas*`, `indicador-*`): LER → MESCLAR
+  (seção a seção, entrada a entrada — mesclar nunca descarta ninguém) → GRAVAR com
+  `porNoServidor`, que confere o status e só atualiza o localStorage quando o servidor aceitou
+  (cache local que diverge do servidor é o que tornava o defeito invisível). A tela ganha o
+  selo "✓ salvo HH:MM:SS", o upload ganha selo próprio, e a recusa vira faixa — nomeando o
+  selo de visualização quando é ele. Se a releitura falhar, grava sem mesclar: segurar a
+  gravação de quem trabalha seria pior.
 - **Indicador 2.16 no dossiê** (append em `public/arche/dossie/*`, correção do dono ago/2026):
   o painel simulava o conceito variando o EIXO ERRADO — fixava 50% dos docentes e fazia variar
   o número de produções (1, 4, 7, 9), limiares que não existem no instrumento. É o contrário:
