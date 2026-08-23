@@ -162,6 +162,59 @@ public/
   está trabalhando seria pior que o risco que isto corrige. Os três itens foram restaurados
   dos próprios comprovantes (título, ano, autoria e veículo lidos dos PDFs no Drive) e
   entraram como inclusão manual, para sobreviverem à próxima reimportação do Lattes.
+- **A GRAVAÇÃO DO DOSSIÊ NÃO REMOVE PRODUÇÃO QUE NINGUÉM EXCLUIU**
+  (`public/assets/arche-dossie-integridade.js`, append nas 12 páginas — achado de ago/2026,
+  a partir da queixa de vários professores de que "arquivos anexados sumiram do sistema"):
+  ninguém apagou nada; o dossiê se apagava sozinho, um pouco a cada abertura. Ao CARREGAR, o
+  app compilado poda o documento que veio do servidor **no próprio objeto** — corta a produção
+  anterior a `ano−3` (a janela do 2.16), descarta o grupo que ficou vazio e deduplica por
+  `título.slice(0,40) + ano` — e ao GRAVAR escreve exatamente esse objeto podado, porque
+  `data.groups` e `itemStates` saem os dois dele. A poda é da EXIBIÇÃO e estava sendo gravada
+  como se fosse o documento: o item saía levando o `anexo.path`, a referência ao comprovante.
+  O arquivo continuava no Drive; sumia a linha que apontava para ele — do lado de quem anexou,
+  isso é indistinguível de perda. E tinha relógio: em 01/01/2027 o corte passaria a 2024,
+  levando junto o que é de 2023. A trava é na SAÍDA: antes de gravar, o documento que sai é
+  comparado com o que está no servidor e **tudo o que sumiria sem alguém ter mandado sumir
+  volta para dentro** — item, status, motivo e anexo, mais o comprovante de item que
+  sobreviveu à poda e perdeu o anexo na deduplicação, e os documentos pessoais, que o app
+  reconstrói de um template a cada carga. A TELA não muda: o recorte de anos continua valendo
+  para o que se mostra e para a conta do 2.16, que é o que o instrumento do INEP pede. Ela
+  **não ressuscita exclusão deliberada** (o item excluído pelo docente fica registrado em
+  `ajustesProducao.excluidas`, e a trava respeita a lista — desfazer a decisão da pessoa seria
+  o mesmo defeito ao contrário) e **não inventa**: só devolve o que está gravado no servidor.
+  Se a releitura falhar, grava como vinha — segurar a gravação de quem está trabalhando seria
+  pior que o risco que isto corrige.
+- **A PRÓ-REITORIA GRAVA A FUNÇÃO E O REGIME; o regime não gravava para NINGUÉM**
+  (`arche-dossie-gravacao.js`, achado do dono ago/2026: "cliquei em alterar regime de trabalho
+  de alguns professores e não salvou; quando atualizei a página voltou ao que estava errado").
+  Eram dois defeitos no mesmo lugar. A ficha dá à PROPPEX dois campos editáveis — função e
+  regime — e os dois chamavam `scheduleSave()`, que recusa em silêncio quem não é docente: a
+  tela prometia uma edição que o sistema não guardava, e o regime de trabalho é dado de
+  indicador. E o clique nos botões do regime não pedia gravação a papel NENHUM (escrevia
+  `p.regime` e chamava `renderProf()`, só) — o regime do próprio docente também só ficava
+  guardado se outra ação disparasse a gravação depois. A correção é a menor possível: relê o
+  documento como está no SERVIDOR e altera **apenas esses dois campos, apenas do docente
+  aberto**, numa fila. Nunca o registro inteiro — assim é impossível esta gravação apagar
+  produção, comprovante ou foto de quem quer que seja.
+- **Remover o XML de um docente** (botão "Remover XML" na ficha, só PROPPEX — pedido do dono
+  ago/2026: "caso eu encontre um erro, prefiro que o professor atualize do zero, para evitar
+  confusão"): é o caso do XML trocado — alguém sobe na própria ficha o arquivo de outra pessoa
+  e a produção alheia passa a contar no dossiê do curso. Corrigir por cima é pior: reimportar
+  mistura o que estava com o que chega, e depois ninguém diz qual item veio de onde. SAI o
+  currículo importado, os comprovantes presos a ele e os ajustes (o excluído e o incluído à
+  mão, que são ajustes SOBRE esse currículo); FICAM nome, titulação, função, regime, foto e os
+  **documentos pessoais** (os diplomas do 2.5), que não vieram do Lattes. Os arquivos
+  continuam no Drive — o que se remove é o dossiê que apontava para eles. A confirmação nomeia
+  o docente e diz quantos itens saem, e a trava de integridade não desfaz a remoção, porque
+  ficha sem `data` ela não repovoa.
+- **O avaliador do MEC não vê diagnóstico interno de gravação** (mesma revisão): as faixas que
+  explicam por que o dossiê não está salvando servem a quem trabalha nele; o acesso do
+  avaliador é de leitura por desenho, ele não tem o que salvar, e um aviso técnico sobre o que
+  o sistema deixa ou não de gravar não diz nada a quem está ali para avaliar o curso. Pela
+  mesma razão saiu a **faixa de conferência do XML**: ela nasceu para responder a uma pergunta
+  pontual (de quem era o XML de uma docente) e virou aviso permanente na ficha — uma faixa
+  vermelha dizendo "este currículo parece ser de outra pessoa" sobre a ficha de uma professora
+  não é diagnóstico, é acusação impressa na prova de conformidade do curso.
 - **Portaria da Avaliação** (`lib/portaria.js`, decisão do dono em ago/2026): como o cartão do
   módulo fica na página inicial, à vista de qualquer visitante, a entrada pede uma **senha
   compartilhada** (`AV_SENHA`, "uniego" por padrão) — só para barrar quem chegou ali por acaso.
