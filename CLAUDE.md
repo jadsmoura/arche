@@ -207,6 +207,52 @@ public/
   continuam no Drive — o que se remove é o dossiê que apontava para eles. A confirmação nomeia
   o docente e diz quantos itens saem, e a trava de integridade não desfaz a remoção, porque
   ficha sem `data` ela não repovoa.
+- **O relatório de produção leva o LINK do comprovante, não o comprovante**
+  (`public/assets/arche-dossie-exportlink.js`, pedido do dono ago/2026: "coloque só o link,
+  para o avaliador por acaso clicar e acessar o que está salvo no sistema; senão fica um
+  arquivo muito grande"): o "Exportar Relatório PDF" do dossiê baixava CADA comprovante,
+  renderizava a primeira página com o PDF.js e a colava como imagem JPEG. Medido com 6
+  comprovantes digitalizados de 2,6 MB: **2.600 KB embutindo, 9 KB só com o link** — 274×,
+  e isso para UM docente; um curso tem vinte e a produção deles inteira. Era trabalho perdido
+  de todo jeito, porque o comprovante já está no sistema com endereço próprio
+  (`/api/files/<id>`): o relatório precisa dizer ONDE ele está, não carregá-lo junto. A linha
+  "✓ nome-do-arquivo" vira LINK clicável, e a capa diz que é assim. O endereço de cada um sai
+  de uma FILA montada na ordem exata em que o gerador percorre docentes e itens — não do nome
+  do arquivo, que se repete entre docentes e faria o link apontar para o comprovante de outra
+  pessoa; esgotada a fila, a linha sai sem link, porque link errado num documento que vai ao
+  MEC é pior que link nenhum. Dois detalhes que o append carrega: `textWithLink` desenha
+  chamando o próprio `text`, então há guarda de **reentrância** (sem ela a primeira linha
+  consumia a fila inteira); e o jsPDF 2.x monta `text`/`save` como propriedades **da
+  instância**, não do protótipo — quem se envolve é o CONSTRUTOR.
+- **PDF e imagem ABREM na guia; o resto continua baixando** (`abreNoNavegador`/`disposicao`
+  em lib/files.js, pergunta do dono ago/2026 conferindo os Documentos Institucionais: "cliquei
+  pra ver um e ele me dá opção de baixar; é possível abrir em nova guia? Acho mais fluido").
+  O `/api/files/*` mandava `Content-Disposition: attachment` em tudo, e para quem CONFERE
+  documento — a pró-reitoria passando por trinta, o avaliador clicando no comprovante — baixar
+  cada um para abrir na pasta de downloads é o caminho mais longo possível. A lista do que abre
+  é FECHADA e curta **por segurança**: o arquivo é enviado por usuário e servido no MESMO
+  endereço do portal, então tudo o que o navegador ABRE ali roda como se fosse página do ARCHÉ
+  — um `.html` ou um `.svg` anexado como "comprovante" leria o cookie de sessão de quem
+  clicasse. Só `application/pdf`, `image/png` e `image/jpeg`; `xml` está no catálogo de tipos e
+  **não** entra aqui de propósito. A rota manda `attachment` ANTES de chamar o backend e o
+  backend só AFROUXA: quem esquecer de chamar continua baixando, que é o padrão seguro.
+- **A JUSTIFICATIVA DO CONCEITO ERA UMA SÓ PARA OS DOZE CURSOS**
+  (`public/assets/arche-justificativa.js`, achado do dono ago/2026: "atualizei o texto da
+  justificativa do conceito e parece que não está salvando"). Não estava, e por dois motivos.
+  A chave `justificativas-conceito-v1` está escrita IGUAL nas doze páginas de avaliação, e o
+  que se guarda nela é um mapa por INDICADOR ("2.1", "3.4") — a justificativa do 2.1 de
+  Psicologia e a do 2.1 de Enfermagem eram a MESMA gaveta: quem escrevia por último apagava a
+  do outro curso, e o texto de um aparecia no outro como se fosse dele. Num documento que
+  sustenta o conceito de cada curso perante o MEC, é o defeito mais caro possível. E a
+  gravação mandava o mapa inteiro DAQUELA aba por cima de tudo, com a falha morrendo num
+  `console.warn` — o caso comum sendo o 403 do **selo de visualização**, que fica guardado no
+  navegador de quem abriu o `/avaliador` uma vez. A correção se põe entre o append antigo e o
+  servidor, no `fetch`: **gravar** passa a escrever na chave DO CURSO
+  (`justificativas-conceito-<curso>-v1`), relendo antes e mesclando indicador a indicador,
+  numa fila; **ler** usa a chave do curso e, **só enquanto ela não existe**, cai na antiga —
+  é o que faz a separação acontecer sem ninguém perder o texto que já está na tela; e a chave
+  antiga **nunca mais é escrita**. A tela passa a dizer: selo com a hora do último salvamento
+  e faixa quando a gravação é recusada, nomeando o selo de visualização quando é ele.
 - **O avaliador do MEC não vê diagnóstico interno de gravação** (mesma revisão): as faixas que
   explicam por que o dossiê não está salvando servem a quem trabalha nele; o acesso do
   avaliador é de leitura por desenho, ele não tem o que salvar, e um aviso técnico sobre o que
