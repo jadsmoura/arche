@@ -295,6 +295,18 @@ public/
   escolheu, não o tema do editor dela. O `<span style="font-weight:700">` do Google Docs é lido
   e vira `<b>`, senão o negrito se perderia justamente no caso mais comum; e o texto de tabela
   colada fica, separado por quebra de linha, sem a tabela.
+  **Os pulos de linha do PDF colado se COSTURAM** (`costurar` no mesmo arquivo, achado do dono
+  ago/2026: "por que do nada o texto das justificativas estão com esses pulos de linha, como se
+  tivesse dado enter?"): tinha dado enter MESMO — no documento de ORIGEM. Copiar de um PDF (ou
+  de um Word gerado de PDF) entrega um enter no fim de CADA linha visual (às vezes um parágrafo
+  por linha no HTML), e o campo rico, que preserva quebras, passou a mostrá-los; o textarea
+  antigo recebia os mesmos enters, mas espremido na largura dele o pulo se confundia com a
+  quebra natural da caixa. A costura junta o que é quebra de MEIO DE FRASE e preserva a
+  estrutura: fica a linha em branco (parágrafo deliberado), o item de lista e a quebra em que a
+  linha anterior termina em pontuação de fim E a seguinte começa fora da minúscula. Roda na
+  CARGA e na COLAGEM (e na visão do avaliador), nunca a cada tecla — o Enter de quem digita não
+  é tocado enquanto digita. Os textos já gravados com os pulos saram sozinhos na próxima
+  abertura, sem ninguém reeditar.
 - **A JUSTIFICATIVA DO CONCEITO ERA UMA SÓ PARA OS DOZE CURSOS**
   (`public/assets/arche-justificativa.js`, achado do dono ago/2026: "atualizei o texto da
   justificativa do conceito e parece que não está salvando"). Não estava, e por dois motivos.

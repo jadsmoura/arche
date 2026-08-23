@@ -297,11 +297,59 @@
       .replace(/(<br>\s*){3,}/g, "<br><br>");
   }
 
+  /* ===================================================================
+     A COSTURA DOS PULOS DE LINHA (achado do dono, ago/2026: "por que do
+     nada o texto das justificativas estão com esses pulos de linha, como
+     se tivesse dado enter?").
+
+     Tinha dado enter MESMO — no documento de ORIGEM. Copiar texto de um
+     PDF (ou de um Word gerado de um PDF) entrega um enter no fim de CADA
+     LINHA VISUAL, e cada linha pode vir como parágrafo próprio no HTML da
+     colagem. O campo rico preserva quebras de linha — é o combinado — e
+     por isso passou a mostrá-las como são; o textarea antigo recebia os
+     MESMOS enters, mas, espremido na largura dele, o pulo se confundia
+     com a quebra natural da caixa e ninguém via.
+
+     A costura junta de volta o que é quebra de MEIO DE FRASE e preserva o
+     que é estrutura. A quebra FICA quando: há linha em branco (parágrafo
+     deliberado); a linha seguinte começa como item de lista; ou a
+     anterior termina em pontuação de fim E a seguinte começa fora da
+     minúscula — a cara de um parágrafo de verdade. Todo o resto vira
+     espaço, que é o que o texto original queria dizer.
+
+     Roda na CARGA e na COLAGEM, nunca a cada tecla: o Enter de quem está
+     digitando não é tocado enquanto ele digita.
+     =================================================================== */
+  var LISTA_RX = /^([-–—•*·▪]|\d{1,3}[.)])\s/;
+  function soTexto(s) {
+    var d = document.createElement("div");
+    d.innerHTML = String(s == null ? "" : s);
+    return (d.textContent || "").replace(/ /g, " ");
+  }
+  function costurar(html) {
+    var v = String(html == null ? "" : html);
+    var partes = v.split(/((?:<br\s*\/?>\s*){2,}|<br\s*\/?>|<\/p>\s*<p>)/i);
+    if (partes.length < 3) return v;
+    var saida = partes[0];
+    for (var i = 1; i < partes.length; i += 2) {
+      var sep = partes[i], depois = partes[i + 1] || "";
+      var antes = soTexto(saida).replace(/\s+$/, "");
+      var bTxt = soTexto(depois).replace(/^\s+/, "");
+      var manter =
+        (sep.match(/<br/gi) || []).length >= 2 ||            // linha em branco: parágrafo
+        !antes || !bTxt ||                                   // borda vazia: não se decide
+        LISTA_RX.test(bTxt) ||                               // item de lista
+        (/[.!?:;…]["”')\]]*$/.test(antes) && !/^[a-zà-öø-ÿ]/.test(bTxt));
+      saida += (manter ? sep : " ") + depois;
+    }
+    return saida;
+  }
+
   /* O que está gravado pode ser texto puro (tudo o que veio antes disto). */
   function paraHtml(valor) {
     var v = String(valor == null ? "" : valor);
     if (!v) return "";
-    return TEM_TAG.test(v) ? limpar(v) : escapar(v).replace(/\n/g, "<br>");
+    return costurar(TEM_TAG.test(v) ? limpar(v) : escapar(v).replace(/\n/g, "<br>"));
   }
 
   var CSS_RICO = ""
@@ -373,7 +421,8 @@
       if (!dt) return;
       e.preventDefault();
       var html = dt.getData("text/html");
-      var limpo = html ? limpar(html) : escapar(dt.getData("text/plain")).replace(/\n/g, "<br>");
+      // a costura roda na colagem: é por ela que os enters do PDF entravam
+      var limpo = costurar(html ? limpar(html) : escapar(dt.getData("text/plain")).replace(/\n/g, "<br>"));
       try { document.execCommand("insertHTML", false, limpo); } catch (err) { rico.innerHTML += limpo; }
       avisar(area, rico);
     });
@@ -389,10 +438,18 @@
     if (!el || el.getAttribute("data-rico") === "1") return;
     el.setAttribute("data-rico", "1");
     var bruto = el.textContent || "";
-    if (!TEM_TAG.test(bruto)) return;    // texto puro: já está certo como está
+    if (!TEM_TAG.test(bruto)) {
+      // texto puro da era do textarea: os enters do PDF colado também se costuram
+      if (/\n/.test(bruto)) {
+        var cru = escapar(bruto).replace(/\n/g, "<br>");
+        var h = costurar(cru);
+        if (h !== cru) { cssRico(); el.classList.add("just-rico-readonly"); el.innerHTML = h; }
+      }
+      return;
+    }
     cssRico();
     el.classList.add("just-rico-readonly");
-    el.innerHTML = limpar(bruto);
+    el.innerHTML = costurar(limpar(bruto));
   }
 
   function varrer() {
