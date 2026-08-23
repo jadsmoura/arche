@@ -815,6 +815,14 @@ public/
   não (o reenvio recusa), o registro fica com o motivo como prova da decisão, ela não entra na
   guia Relatórios nem em fila nenhuma, e o professor recebe o e-mail com o motivo
   (`emailPropostaReprovada`, aviso `ex-proposta-reprovada`).
+- **O card do fim da ficha do relatório só tem o que a barra não tem** (achado do dono,
+  ago/2026: "esses botões parecem estar em duplicidade — remova-os"): entregar/reenviar,
+  validar e registrar e o PDF do relatório vivem na BARRA do alto, um ato por vez; o card do
+  fim ficou com as EXPORTAÇÕES da gestão (.docx/.xlsx, que não são ato do fluxo), a apreciação
+  com o próprio botão de salvar, e o dispensar cobrança. O "Relatório Final em PDF (timbrado)"
+  saía ali o tempo todo e o servidor o recusava até o encerramento — botão que sempre falha não
+  é atalho, é armadilha. Para quem não é gestão o card nem se desenha: o único botão dele era o
+  de entregar, que está na barra.
 - **A BARRA DE AÇÕES OBEDECE AO DOCUMENTO ABERTO** (achado do dono, ago/2026: "tentei aprovar
   e o projeto pediu foto — foto é no relatório, não no projeto"): na visão do PROJETO a barra
   traz o PDF do projeto e, com a proposta em análise, a DECISÃO da PROPPEX (aprovar · devolver ·

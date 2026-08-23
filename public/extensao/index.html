@@ -1866,30 +1866,27 @@ function renderDetalhe(id){
       <div id="p-tabelas"></div>
     </div>`;
 
-    /* botões de envio/apreciação/export */
-    html += `<div class="card"><div class="exp">`;
-    // A ENTREGA do relatório também é da gestão (achado do dono, ago/2026):
-    // o botão só existia para quem NÃO é gestão, e o pró-reitor — que
-    // organiza as próprias ações e ainda cobre a ausência do responsável —
-    // preenchia o relatório, anexava as fotos e não tinha como entregá-lo.
-    // A ação ficava fora da guia Relatórios, que é onde ela se conclui.
-    if(!lock)
-      html += `<button class="bt bt-pri" onclick="enviarRelatorio('${a.id}')">📨 ${
-        s==="relatorio-entregue" ? "Reenviar relatório atualizado"
-        : PROPPEX && !minhaAcao(a) ? "Entregar o relatório final (em nome do responsável)"
-        : "Enviar relatório final à PROPPEX"}</button>`;
+    /* O CARD DO FIM SÓ TEM O QUE A BARRA DO ALTO NÃO TEM (achado do dono,
+       ago/2026: "esses botões parecem estar em duplicidade — remova-os").
+       Entregar/reenviar, validar e registrar e o PDF do relatório vivem na
+       barra, no alto, um ato por vez; aqui ficam as EXPORTAÇÕES da gestão
+       (.docx e .xlsx, que não são ato do fluxo) e a apreciação, que
+       pertence ao campo logo abaixo. O PDF timbrado do relatório saía aqui
+       o tempo todo e o servidor o recusava até o encerramento — botão que
+       sempre falha não é atalho, é armadilha. Para quem não é gestão o
+       card nem se desenha: o único botão dele era o de entregar, que está
+       na barra. */
     if(PROPPEX){
-      html += `<button class="bt bt-sec" onclick="exportar('${a.id}','registro')">📄 Registro de Atividade (.docx)</button>
+      html += `<div class="card"><div class="sec-t" style="margin-top:0">Exportações e apreciação</div><div class="exp">
+        <button class="bt bt-sec" onclick="exportar('${a.id}','registro')">📄 Registro de Atividade (.docx)</button>
         <button class="bt bt-sec" onclick="exportar('${a.id}','certificados')">📊 Planilha de Certificados (.xlsx)</button>
-        <button class="bt bt-sec" onclick="exportar('${a.id}','pdf')">🖨 Relatório Final em PDF (timbrado)</button>`;
-      if(!lock) html += `<button class="bt bt-pri" onclick="salvarApreciacao('${a.id}')">💾 Salvar apreciação</button>
-        <button class="bt bt-ok" onclick="registrarAcao('${a.id}')">🎓 Certificados emitidos — Finalizar (Registrada)</button>
-        <button class="bt bt-ghost" onclick="dispensarCobranca('${a.id}')" title="O responsável deixa de receber o lembrete automático do relatório final">🔕 Dispensar cobrança automática</button>`;
+        ${lock?"":`<button class="bt bt-ghost" onclick="dispensarCobranca('${a.id}')" title="O responsável deixa de receber o lembrete automático do relatório final">🔕 Dispensar cobrança automática</button>`}
+      </div>
+      <label>Apreciação da Coordenadoria de Extensão</label>
+      <textarea id="d-apreciacao" ${lock?"disabled":""}>${esc(a.apreciacao||"")}</textarea>
+      ${lock?"":`<div style="margin-top:8px"><button class="bt bt-pri" onclick="salvarApreciacao('${a.id}')">💾 Salvar apreciação</button></div>`}
+      <div class="muted" style="margin-top:8px">As exportações também são arquivadas automaticamente no Drive da PROPPEX (extensão/curso/nº da ação).</div></div>`;
     }
-    html += `</div>`;
-    if(PROPPEX) html += `<label>Apreciação da Coordenadoria de Extensão</label>
-      <textarea id="d-apreciacao" ${lock?"disabled":""}>${esc(a.apreciacao||"")}</textarea>`;
-    html += `<div class="muted" style="margin-top:8px">As exportações também são arquivadas automaticamente no Drive da PROPPEX (extensão/curso/nº da ação).</div></div>`;
   }
 
   /* ---- evento e inscrições (ARCHÉ Eventos) ---- */
