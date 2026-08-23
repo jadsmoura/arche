@@ -236,6 +236,22 @@ public/
   clicasse. Só `application/pdf`, `image/png` e `image/jpeg`; `xml` está no catálogo de tipos e
   **não** entra aqui de propósito. A rota manda `attachment` ANTES de chamar o backend e o
   backend só AFROUXA: quem esquecer de chamar continua baixando, que é o padrão seguro.
+- **A justificativa do conceito guarda o NEGRITO da colagem** (mesmo arquivo, pedido do dono
+  ago/2026: "colo o texto com algumas marcações em negrito e gostaria que a formatação fosse e
+  ficasse salva"): o campo era um `<textarea>`, e textarea não guarda formatação — o negrito
+  morria na colagem, antes de chegar ao servidor. O campo rico se põe **por cima** do antigo em
+  vez de substituí-lo: o textarea continua no DOM, escondido, porque é NELE que o append
+  original escutou `input` e `blur`; o campo rico escreve o HTML nele e dispara os mesmos
+  eventos, então a gravação segue pelo caminho já corrigido (chave do curso, mescla, fila,
+  aviso na tela). **Sobrevivem negrito, itálico, sublinhado, quebras de linha e listas**; sai
+  todo o resto — fonte, tamanho, cor, fundo, tabelas, imagens, links —, por duas razões: colar
+  do Word traz HTML arbitrário, e guardá-lo para desenhar na tela do avaliador seria pôr código
+  de fora dentro da página do ARCHÉ (a lista de permissão é fechada e **nenhum atributo passa**,
+  nem `style`, nem `href`); e a justificativa vai ao MEC dentro do dossiê — a Calibri 11 azul
+  colada do Word não decide a aparência do indicador. O que se preserva é a ÊNFASE que a pessoa
+  escolheu, não o tema do editor dela. O `<span style="font-weight:700">` do Google Docs é lido
+  e vira `<b>`, senão o negrito se perderia justamente no caso mais comum; e o texto de tabela
+  colada fica, separado por quebra de linha, sem a tabela.
 - **A JUSTIFICATIVA DO CONCEITO ERA UMA SÓ PARA OS DOZE CURSOS**
   (`public/assets/arche-justificativa.js`, achado do dono ago/2026: "atualizei o texto da
   justificativa do conceito e parece que não está salvando"). Não estava, e por dois motivos.
