@@ -1218,6 +1218,11 @@ function atalhosCard(a){
       + btEncerrar + btExcluir);
   }
   if(!a.numeroAcao){
+    /* Reprovada não tem aprovação a oferecer: o botão devolveria 400 sempre
+       (revisão adversarial, ago/2026) — o cartão diz a decisão. */
+    if(a.status==="reprovada")
+      return linha(`<span class="muted" style="font-size:12px">✗ proposta reprovada pela PROPPEX
+        — o registro fica arquivado</span>` + btExcluir);
     /* Aprovar o evento É VALIDAR O PROJETO (pedido do dono, ago/2026): o
        servidor recusa a aprovação com o projeto pela metade, e a tela diz
        isso ANTES do clique — botão que erra sempre é pior que botão ausente. */

@@ -834,6 +834,14 @@ public/
   da visão padrão ("esses dois botões estão confusos e se sobrepondo"): ele faz um subconjunto
   do "Ver como…", que tem a visão genérica de docente entre as opções; quem estava no modo
   antigo ainda sai dele pelo botão de voltar.
+- **Vereditos da revisão adversarial aplicados** (ago/2026): o CARTÃO do evento reprovado no
+  ARCHÉ EV diz a decisão em vez de oferecer "Validar evento e projeto" (que devolveria 400
+  sempre); **CPF que não valida NÃO ENTRA nas listas de palestrantes/comissão** do POST em
+  bloco — o campo esvazia e o resto da linha fica (a emissão só exige o nome, então um dígito
+  trocado sairia IMPRESSO no certificado, e o histórico `/certificados/`, que casa por CPF,
+  nunca o entregaria ao dono; a tela avisa "CPF inválido" nas pendências da proposta); e a
+  etapa `reprovada` entrou nas barras/rotulos/cores do Painel do EX — reprovada NÃO conta como
+  "incompleta": está encerrada por decisão.
 - **REPROVADA é imutável e vigiada nos cantos** (correções da revisão adversarial, ago/2026):
   o POST em bloco preserva status, motivo e carimbos de uma ação reprovada — para gestão E
   não-gestão (a aba velha da gestão devolveria o status antigo em silêncio; a mesma razão da
@@ -845,14 +853,20 @@ public/
   templates — um id com aspas quebraria o HTML de quem abrisse a lista); e as listas de
   palestrantes/comissão do POST em bloco passam pela MESMA `normalizarPessoaEvento` da rota de
   equipe do EV.
-- **Texto que JÁ CHEGOU destruído na colagem tem aviso próprio** (`trechoCorrompido` na SPA do
-  EX — achado do dono, ago/2026: "o PDF continua gerando caracteres malucos"): copiar texto de
-  DENTRO de um PDF com fontes sem mapa devolve símbolos no lugar das letras ("–VçF—¦" onde se
-  escreveu "gestantes") — caracteres LEGÍTIMOS do repertório, que nenhuma limpeza reverte,
-  porque a letra original não existe mais no dado; o gerador atual foi conferido limpo (math
-  bold e PUA crus saem certos). A ficha do projeto avisa quando os campos longos têm o padrão
-  (heurística conservadora: palavra com 2+ símbolos raros e densidade alta — travessão solto
-  nunca dispara) e manda recolar do documento ORIGINAL, não de um PDF.
+- **Texto que JÁ CHEGOU cifrado na colagem tem aviso E LEITURA** (`trechoCorrompido`/
+  `decifrarTokenPdf`/`sugestoesDecifradas` na SPA do EX — achado do dono, ago/2026: "o PDF
+  continua gerando caracteres malucos... acho que ela copiou de algum chat de IA"): copiar
+  texto de dentro de certos PDFs (inclusive PDFs exportados de chats de IA) devolve os bytes
+  **deslocados MEIO BYTE** — mecanismo PROVADO por reprodução: o cifrado sintético de
+  "Desmistificar mitos e tabus" reproduz letra a letra o lixo do print ("FW6Ö—7F–f–6").
+  É cifra, não perda: nibble a nibble, "FW6Ö—7F–f–6" lê-se "?esmistific(ar)" — só a PRIMEIRA
+  letra fica incerta (o nibble alto dela é o que se perdeu; 0x44 D · 0x54 T · 0x64 d · 0x74 t).
+  O gerador de PDF foi conferido limpo (math bold e PUA crus saem certos); o lixo está no DADO
+  gravado, e a tela mostra o mesmo lixo. A ficha avisa (heurística conservadora — travessão
+  solto nunca dispara), diz que o PDF sai igual, manda recolar do documento ORIGINAL, e mostra
+  as leituras decodificadas como SUGESTÃO para conferência humana — documento oficial não se
+  corrige sozinho por heurística: as bordas de cada trecho perdem meio caractere, e é gente
+  quem recola.
 - **O correlato em Relatórios ABRE NA VALIDAÇÃO** (pedido do dono, ago/2026: "o módulo
   Relatórios deve ser aberto assim que o seu paralelo em Propostas for criado e validado" —
   revendo a regra que o segurava até o período começar): aprovada, a ação já aparece na guia

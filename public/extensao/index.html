@@ -823,10 +823,11 @@ const CORES = {submetida:"#40717e", devolvida:"#a1524c", aprovada:"#3f8a5d",
   // as ETAPAS do vocabulário único (lib/situacao.js), nas mesmas cores
   preenchimento:"#c98a2b", "aguardando-validacao":"#40717e", validado:"#3f8a5d",
   "aguardando-encerramento":"#c98a2b", "encerramento-em-validacao":"#5e5091",
-  encerrado:"#a9b4c0"};
+  encerrado:"#a9b4c0", reprovada:"#a1524c"};
 const ETAPA_ROTULO = {preenchimento:"Em preenchimento", "aguardando-validacao":"Aguardando validação",
   validado:"Validado / em andamento", "aguardando-encerramento":"Aguardando encerramento",
-  "encerramento-em-validacao":"Relatório aguardando validação", encerrado:"Encerrado · certificados emitidos"};
+  "encerramento-em-validacao":"Relatório aguardando validação", encerrado:"Encerrado · certificados emitidos",
+  reprovada:"Reprovada"};
 const diasEntre=(iso)=>Math.round((new Date(iso+"T12:00:00Z")-new Date(hojeISO()+"T12:00:00Z"))/86400000);
 
 /* Panorama do setor (pedido do dono, ago/2026): as ações por CURSO, por
@@ -942,7 +943,7 @@ function renderPainel(){
   </div>`;
 
   const ordem = ["preenchimento","aguardando-validacao","validado","aguardando-encerramento",
-    "encerramento-em-validacao","encerrado"];
+    "encerramento-em-validacao","encerrado","reprovada"];
   const barras = ordem.filter(s=>st[s]).map(s=>{
     const pct = total? Math.round((st[s]/total)*100) : 0;
     return `<div class="barra"><div class="cab"><span>${ETAPA_ROTULO[s]||s}</span><span>${st[s]}</span></div>
@@ -1277,8 +1278,9 @@ function montarForm(){
    (participantes.palestrantes / participantes.comissao), com os mesmos
    campos da guia de equipe do EV. A régua dura (CPF/matrícula, e-mail,
    telefone) NÃO trava a submissão da proposta: na proposta o palestrante
-   pode ainda estar sendo confirmado — o que falta aparece como aviso, e a
-   cobrança de verdade continua onde sempre foi, na emissão. */
+   pode ainda estar sendo confirmado — o que falta aparece como aviso. A
+   régua dura de completude continua na guia de equipe do ARCHÉ EV; o CPF
+   que não valida o SERVIDOR descarta na gravação (o aviso abaixo diz). */
 const PAPEIS_COMISSAO_EX = [
   ["coordenacao","Coordenação do evento"],["professor","Professor(a)"],
   ["monitor","Monitor(a)"],["aluno","Aluno(a) organizador(a)"],
@@ -1323,8 +1325,12 @@ const lerEquipeProp=(lista)=>lista.filter(x=>(x.nome||x.cpf||x.matricula||x.emai
 /* O que faltará para o CERTIFICADO — aviso, não trava (a régua dura é a da
    emissão, que já existe no servidor). */
 function pendenciasEquipeProp(){
+  const cpfOk=(v)=>{ const d=String(v||"").replace(/\D/g,""); if(d.length!==11||/^(\d)\1+$/.test(d)) return false;
+    let s=0; for(let i=0;i<9;i++) s+=+d[i]*(10-i); let r=(s*10)%11; if(r===10)r=0; if(r!==+d[9]) return false;
+    s=0; for(let i=0;i<10;i++) s+=+d[i]*(11-i); r=(s*10)%11; if(r===10)r=0; return r===+d[10]; };
   const falta=(x,pal)=>{
     const f=[]; const tem=(v)=>String(v||"").trim();
+    if(tem(x.cpf)&&!cpfOk(x.cpf)) f.push("CPF inválido (confira os dígitos — o sistema descarta CPF que não valida)");
     if(!tem(x.cpf)&&!tem(x.matricula)) f.push("CPF ou matrícula");
     if(!tem(x.email)) f.push("e-mail");
     if(!tem(x.telefone)) f.push("telefone");
@@ -1469,10 +1475,11 @@ function renderLista(){
   const fp=$("l-pub")?$("l-pub").value:"";
   const universo = minhas();
   const st = {};
-  let completas=0, incompletas=0;
+  let completas=0, incompletas=0, reprovadas=0;
   for(const a of universo){
     const s=sit(a).etapa; st[s]=(st[s]||0)+1;
-    if(completude(a).completa) completas++; else incompletas++;
+    if(sit(a).etapa==="reprovada"){ reprovadas++; }
+    else if(completude(a).completa) completas++; else incompletas++;
   }
   // os contadores falam a MESMA língua do selo e do filtro
   // na guia Relatórios só as etapas em que o relatório existe: os degraus do
@@ -1697,13 +1704,69 @@ function trechoCorrompido(a){
   return ["justificativa","objetivoGeral","objetivosEspecificos","metodologia","programacao"]
     .some(k=>suspeita(p[k]));
 }
+/* A DECODIFICAÇÃO DO LIXO (ago/2026, depois de provado o mecanismo): o
+   texto copiado de certos PDFs chega com os bytes DESLOCADOS MEIO BYTE —
+   "FW6Ö—7F–f–6" é, nibble a nibble, "Desmistific(ar)". É cifra, não perda:
+   grande parte se lê de volta. A leitura entra como SUGESTÃO no aviso, para
+   gente conferir — as bordas de cada trecho perdem meio caractere, e
+   documento oficial não se corrige sozinho por heurística. */
+function decifrarTokenPdf(tok){
+  const EXTRA={0x80:"€",0x82:"‚",0x83:"ƒ",0x84:"„",0x85:"…",0x86:"†",0x87:"‡",0x88:"ˆ",0x89:"‰",
+    0x8A:"Š",0x8B:"‹",0x8C:"Œ",0x8E:"Ž",0x91:"\u2018",0x92:"\u2019",0x93:"\u201C",0x94:"\u201D",
+    0x95:"•",0x96:"–",0x97:"—",0x98:"˜",0x99:"™",0x9A:"š",0x9B:"›",0x9C:"œ",0x9E:"ž",0x9F:"Ÿ"};
+  const MAPA={}; for(const [b,c] of Object.entries(EXTRA)) MAPA[c]=+b;
+  const byteDe=(ch)=>{ if(MAPA[ch]!=null) return MAPA[ch];
+    const cp=ch.codePointAt(0); return (cp>=0x20&&cp<=0xFF)?cp:null; };
+  const ok=(b)=>(b>=0x41&&b<=0x5A)||(b>=0x61&&b<=0x7A)||(b>=0xC0&&b<=0xFF&&b!==0xD7&&b!==0xF7);
+  const nibs=[];
+  for(const ch of tok){ const b=byteDe(ch); if(b==null) return null; nibs.push(b>>4,b&15); }
+  const saidas=[];
+  for(let pref=0;pref<16;pref++){
+    const fluxo=[pref,...nibs]; const bytes=[];
+    let valido=true;
+    for(let i=0;i+1<fluxo.length;i+=2){ const b=(fluxo[i]<<4)|fluxo[i+1]; if(!ok(b)){valido=false;break;} bytes.push(b); }
+    if(!valido||bytes.length<4) continue;
+    let t=""; for(const b of bytes) t+=EXTRA[b]||String.fromCharCode(b);
+    // cara de palavra: sem maiúscula no meio
+    if(!/^[A-ZÀ-Ýa-zà-ÿ][a-zà-ÿ]+$/.test(t)) continue;
+    saidas.push(t);
+  }
+  /* o nibble perdido é o ALTO da primeira letra: só ELA fica incerta
+     (0x44 D · 0x54 T · 0x64 d · 0x74 t — o resto é idêntico). Se todos os
+     candidatos coincidem da 2ª letra em diante, a leitura está feita e a
+     inicial sai como "?": para reconhecer "?esmistific(ar)" ninguém precisa
+     do D. Sufixos realmente diferentes, aí sim, não se sugere nada. */
+  if(!saidas.length) return null;
+  const sufixos=[...new Set(saidas.map(t=>t.slice(1).toLowerCase()))];
+  if(sufixos.length!==1) return null;
+  const iniciais=[...new Set(saidas.map(t=>t[0].toUpperCase()))];
+  return (iniciais.length===1?iniciais[0]:"?") + saidas[0].slice(1);
+}
+function sugestoesDecifradas(a){
+  const p=a.proposta||{}, vistas=new Set(), out=[];
+  for(const k of ["justificativa","objetivoGeral","objetivosEspecificos","metodologia","programacao"]){
+    for(const tok of (String(p[k]||"").match(/\S+/g)||[])){
+      const raros=(tok.match(/[–—¦†‡×ÖÆ§¶¤›‹œþÿ]/g)||[]).length;
+      if(raros<1||tok.length<4||vistas.has(tok)) continue;
+      vistas.add(tok);
+      const lido=decifrarTokenPdf(tok.replace(/^[•"("]+|[.,;:)"]+$/g,""));
+      if(lido) out.push([tok,lido]);
+      if(out.length>=8) break;
+    }
+  }
+  return out;
+}
 function avisoTextoCorrompido(a){
   if(!trechoCorrompido(a)) return "";
-  return `<div class="banner ba-warn">⚠ <b>Trechos deste projeto parecem ter vindo de uma colagem
-    que destruiu as letras</b> (copiar texto de dentro de um PDF faz isso — os símbolos entram no
-    lugar das letras e não há como recuperá-las). O PDF timbrado sai com os mesmos símbolos.
-    <b>Peça ao responsável que recole o texto do documento original</b> (Word ou Google Docs),
-    não de um PDF.</div>`;
+  const sug=sugestoesDecifradas(a);
+  return `<div class="banner ba-warn">⚠ <b>Trechos deste projeto vieram de uma colagem que cifrou
+    as letras</b> — é o que acontece ao copiar texto de dentro de certos PDFs (inclusive PDFs
+    exportados de chats de IA): os símbolos entram no lugar das letras. O PDF timbrado sai com os
+    mesmos símbolos. <b>Peça ao responsável que recole o texto do documento original</b> (Word,
+    Google Docs ou o próprio chat), não de um PDF.${sug.length?`
+    <div style="margin-top:8px;font-size:12.5px"><b>O sistema conseguiu ler parte dos trechos</b>
+    (leitura por decodificação — confira antes de usar):<br>${sug.map(([de,para])=>
+      `<span class="muted">${esc(de)}</span> → <b>${esc(para)}…</b>`).join(" · ")}</div>`:""}</div>`;
 }
 
 /* Palestrantes e comissão como a proposta os indicou — é parte do documento

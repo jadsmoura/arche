@@ -2269,13 +2269,21 @@ app.post("/api/extensao", async (req, res) => {
            recusado na outra. Inscritos ficam como estão: têm escrita própria
            e a mescla acima já cuida deles. */
         if (final.participantes) {
+          /* CPF QUE NÃO VALIDA NÃO ENTRA (revisão adversarial, ago/2026): a
+             emissão só exige o nome, então um dígito trocado aqui sairia
+             IMPRESSO no certificado — e "certificado emitido com CPF errado
+             não se corrige depois". O campo esvazia (o resto da linha fica):
+             sem CPF o documento espera, com CPF errado ele sai errado — e o
+             histórico /certificados/, que casa por CPF, nunca o entregaria
+             ao dono verdadeiro. */
+          const semCpfTorto = (x) => (x.cpf && !cpfValido(x.cpf)) ? { ...x, cpf: "" } : x;
           if (Array.isArray(final.participantes.palestrantes))
             final.participantes.palestrantes = final.participantes.palestrantes
-              .map((x) => normalizarPessoaEvento(x, { palestrante: true }))
+              .map((x) => semCpfTorto(normalizarPessoaEvento(x, { palestrante: true })))
               .filter((x) => x.nome || x.cpf || x.matricula || x.email).slice(0, 200);
           if (Array.isArray(final.participantes.comissao))
             final.participantes.comissao = final.participantes.comissao
-              .map((x) => normalizarPessoaEvento(x, {}))
+              .map((x) => semCpfTorto(normalizarPessoaEvento(x, {})))
               .filter((x) => x.nome || x.cpf || x.matricula || x.email).slice(0, 300);
         }
         // `situacao` é CALCULADA a cada leitura (lib/situacao.js) e viaja no
