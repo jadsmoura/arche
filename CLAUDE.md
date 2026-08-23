@@ -142,7 +142,13 @@ public/
   um item só é caro. O docente **exclui** o item (com **Desfazer** no aviso e a lista
   "Excluídas por você", que restaura com um clique — engano não vira perda) e **inclui
   produção à mão** (tipo, título, ano, autores, veículo), que entra sem comprovante para ele
-  anexar em seguida. Só o DOCENTE, no próprio dossiê; PROPPEX e avaliador seguem só olhando.
+  anexar em seguida. **A FORMAÇÃO também se inclui à mão** (pedido de professores, ago/2026):
+  na guia Diplomas e certificados o botão vira "+ Incluir formação manualmente" e o modal
+  troca os campos — nível (Graduação…Pós-doutorado, ou curso/capacitação), nome do curso,
+  instituição e ano de conclusão **sem a régua dos 4 anos** (um diploma de 2010 comprova
+  titulação do mesmo jeito; a régua é da produção). Formação **não conta no 2.16**
+  (PROD_CATS não a inclui) e viaja no MESMO `ajustesProducao.manuais`, sobrevivendo à
+  reimportação do XML como as demais inclusões. Só o DOCENTE, no próprio dossiê; PROPPEX e avaliador seguem só olhando.
   O que ele excluiu e o que incluiu viaja no MESMO registro do dossiê, e é **reaplicado depois
   de cada reimportação** do XML (senão o excluído voltaria e o manual sumiria) — a chave é o
   que o item afirma (tipo + título + ano), não o id, que muda a cada exportação.

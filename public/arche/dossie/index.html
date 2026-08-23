@@ -2035,7 +2035,14 @@ window.addEventListener('pagehide', function(){
   var ANO_MIN = ANO - 3;          // o dossiê só considera os últimos 4 anos
   // formação (diplomas) fica fora: quem inclui diploma à mão é a secretaria,
   // com o documento; aqui é produção
-  var CATS_MANUAL = ["artigos", "livros", "capitulos", "eventos", "tecnica", "orientacoes"];
+  /* A FORMAÇÃO também se inclui à mão (pedido de professores, ago/2026):
+     curso, especialização, mestrado — o que não veio no XML ou veio sem o
+     registro certo. Ela cai na guia Diplomas e certificados, NÃO conta no
+     2.16 (formação não é produção — PROD_CATS não a inclui) e não tem a
+     régua dos 4 anos: um diploma de 2010 comprova titulação do mesmo jeito. */
+  var CATS_MANUAL = ["formacao", "artigos", "livros", "capitulos", "eventos", "tecnica", "orientacoes"];
+  var NIVEIS_FORMACAO = ["Graduação", "Especialização", "Aperfeiçoamento", "Mestrado",
+    "Doutorado", "Pós-doutorado", "Curso / capacitação"];
 
   function souDono() { return state.role === "docente"; }
   function chaveDoProf(p) { return p.lattesId ? "lattes:" + p.lattesId : "nome:" + (p.nome || "").toLowerCase(); }
@@ -2160,26 +2167,52 @@ window.addEventListener('pagehide', function(){
     ov.className = "modal-overlay";
     ov.innerHTML =
       '<div class="modal-box">' +
-        "<h3>Incluir produção manualmente</h3>" +
-        '<p class="ex-ajuda">Para o que foi publicado depois da última atualização do Lattes, ou o que ' +
-        "não veio na exportação. A produção entra na lista <b>sem comprovante</b> — anexe o documento em " +
-        "seguida, como nas demais. O dossiê considera as produções a partir de " + ANO_MIN + ".</p>" +
-        "<label>Tipo de produção</label><select id=\"exCat\">" +
+        "<h3 id=\"exTituloModal\">Incluir produção manualmente</h3>" +
+        '<p class="ex-ajuda" id="exAjuda"></p>' +
+        "<label>Tipo</label><select id=\"exCat\">" +
         CATS.filter(function (c) { return CATS_MANUAL.indexOf(c.key) >= 0; }).map(function (c) {
           return '<option value="' + c.key + '"' + (c.key === sugerida ? " selected" : "") + ">" +
             escapeHtml(c.label.replace(/ \(.*\)/, "")) + "</option>";
         }).join("") +
         "</select>" +
-        "<label>Título</label><textarea id=\"exTitulo\" placeholder=\"Título do artigo, livro, capítulo, trabalho…\"></textarea>" +
-        '<label>Ano</label><input id="exAno" type="number" inputmode="numeric" min="' + ANO_MIN + '" max="' + (ANO + 1) + '" value="' + ANO + '">' +
-        "<label>Autores</label><input id=\"exAutores\" placeholder=\"Como aparecem na publicação\">" +
-        "<label>Periódico, evento ou editora</label><input id=\"exDetalhe\" placeholder=\"Ex.: Revista Brasileira de …\">" +
+        '<div id="exNivelW" style="display:none"><label>Nível da formação</label><select id="exNivel">' +
+        NIVEIS_FORMACAO.map(function (n) { return "<option>" + n + "</option>"; }).join("") +
+        "</select></div>" +
+        "<label id=\"exLabTitulo\">Título</label><textarea id=\"exTitulo\"></textarea>" +
+        '<label>Ano</label><input id="exAno" type="number" inputmode="numeric" value="' + ANO + '">' +
+        '<div id="exAutoresW"><label>Autores</label><input id="exAutores" placeholder="Como aparecem na publicação"></div>' +
+        "<label id=\"exLabDetalhe\">Periódico, evento ou editora</label><input id=\"exDetalhe\">" +
         '<div class="modal-actions">' +
           '<button class="btn btn-cancel" id="exCancelar">Cancelar</button>' +
           '<button class="btn btn-confirm" id="exSalvar">Incluir produção</button>' +
         "</div>" +
       "</div>";
     document.body.appendChild(ov);
+    /* Os campos falam a língua do que se inclui: formação não tem autores,
+       o "título" é o nome do curso, o "veículo" é a instituição — e o ANO
+       não tem a régua dos 4 anos, que é da produção. */
+    function ehFormacao() { return ov.querySelector("#exCat").value === "formacao"; }
+    function ajustarCampos() {
+      var f = ehFormacao();
+      ov.querySelector("#exTituloModal").textContent = f ? "Incluir formação manualmente" : "Incluir produção manualmente";
+      ov.querySelector("#exAjuda").innerHTML = f
+        ? "Para a formação que não veio no XML do Lattes — curso, especialização, mestrado. Entra na " +
+          "guia Diplomas e certificados <b>sem comprovante</b>: anexe o diploma ou certificado em seguida. " +
+          "Formação não entra na conta de produção do 2.16."
+        : "Para o que foi publicado depois da última atualização do Lattes, ou o que não veio na " +
+          "exportação. A produção entra na lista <b>sem comprovante</b> — anexe o documento em seguida, " +
+          "como nas demais. O dossiê considera as produções a partir de " + ANO_MIN + ".";
+      ov.querySelector("#exNivelW").style.display = f ? "" : "none";
+      ov.querySelector("#exAutoresW").style.display = f ? "none" : "";
+      ov.querySelector("#exLabTitulo").textContent = f ? "Nome do curso / formação" : "Título";
+      ov.querySelector("#exTitulo").placeholder = f ? "Ex.: Especialização em Saúde da Família" : "Título do artigo, livro, capítulo, trabalho…";
+      ov.querySelector("#exLabDetalhe").textContent = f ? "Instituição" : "Periódico, evento ou editora";
+      ov.querySelector("#exDetalhe").placeholder = f ? "Ex.: UNIEGO" : "Ex.: Revista Brasileira de …";
+      var ano = ov.querySelector("#exAno");
+      ano.min = f ? 1950 : ANO_MIN; ano.max = ANO + 1;
+    }
+    ov.querySelector("#exCat").addEventListener("change", ajustarCampos);
+    ajustarCampos();
     function fechar() { ov.remove(); document.removeEventListener("keydown", naTecla); }
     function naTecla(e) { if (e.key === "Escape") fechar(); }
     document.addEventListener("keydown", naTecla);
@@ -2191,10 +2224,14 @@ window.addEventListener('pagehide', function(){
       var ano = String(ov.querySelector("#exAno").value || "").trim();
       var autores = ov.querySelector("#exAutores").value.trim();
       var detalhe = ov.querySelector("#exDetalhe").value.trim();
-      if (titulo.length < 5) { alert("Escreva o título da produção."); ov.querySelector("#exTitulo").focus(); return; }
-      if (!/^\d{4}$/.test(ano) || +ano < ANO_MIN || +ano > ANO + 1) {
-        alert("Informe o ano entre " + ANO_MIN + " e " + (ANO + 1) +
-              ".\n\nO dossiê considera as produções dos últimos quatro anos — fora dessa janela a produção não entra na avaliação.");
+      var formacao = cat === "formacao";
+      if (titulo.length < 5) { alert(formacao ? "Escreva o nome do curso ou formação." : "Escreva o título da produção."); ov.querySelector("#exTitulo").focus(); return; }
+      var anoMin = formacao ? 1950 : ANO_MIN;
+      if (!/^\d{4}$/.test(ano) || +ano < anoMin || +ano > ANO + 1) {
+        alert(formacao
+          ? "Informe o ano de conclusão (entre " + anoMin + " e " + (ANO + 1) + ")."
+          : "Informe o ano entre " + ANO_MIN + " e " + (ANO + 1) +
+            ".\n\nO dossiê considera as produções dos últimos quatro anos — fora dessa janela a produção não entra na avaliação.");
         ov.querySelector("#exAno").focus();
         return;
       }
@@ -2207,8 +2244,12 @@ window.addEventListener('pagehide', function(){
       var it = {
         id: "manual-" + cat + "-" + Math.random().toString(36).slice(2, 8),
         code: base.code + "-M" + String(g.items.length + 1).padStart(2, "0"),
-        title: titulo, detail: detalhe, year: ano, authors: autores,
-        typeTag: "Incluída manualmente", cat: cat,
+        title: titulo, detail: detalhe, year: ano,
+        authors: formacao ? "" : autores,
+        // na formação o selo diz o NÍVEL (é o que o XML traz no typeTag);
+        // a marca de inclusão manual continua no `manual: true` e no selo da lista
+        typeTag: formacao ? (ov.querySelector("#exNivel").value || "Formação") : "Incluída manualmente",
+        cat: cat,
         anexo: null, status: "pend", motivo: "", manual: true
       };
       g.items.push(it);
@@ -2219,7 +2260,9 @@ window.addEventListener('pagehide', function(){
       fechar();
       renderProf();
       scheduleSave();
-      aviso("Produção incluída. Anexe o comprovante na lista — sem ele ela fica pendente.", null);
+      aviso(formacao
+        ? "Formação incluída. Anexe o diploma ou certificado na lista — sem ele ela fica pendente."
+        : "Produção incluída. Anexe o comprovante na lista — sem ele ela fica pendente.", null);
     });
     ov.querySelector("#exTitulo").focus();
   }
@@ -2259,12 +2302,14 @@ window.addEventListener('pagehide', function(){
         bt = document.createElement("button");
         bt.id = "exIncluir";
         bt.className = "btn sm ghost";
-        bt.textContent = "+ Incluir produção manualmente";
         bt.addEventListener("click", abrirModal);
       }
       var gc = head.querySelector(".gc");
       if (gc) head.insertBefore(bt, gc); else head.appendChild(bt);
       bt.style.display = "";
+      // na guia de diplomas o que se inclui é FORMAÇÃO — o botão diz isso
+      bt.textContent = state.guia === "diplomas"
+        ? "+ Incluir formação manualmente" : "+ Incluir produção manualmente";
     } else if (bt) { bt.style.display = "none"; }
     renderLixeira(p, lista);
   }
