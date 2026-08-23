@@ -248,6 +248,25 @@ public/
   chamando o próprio `text`, então há guarda de **reentrância** (sem ela a primeira linha
   consumia a fila inteira); e o jsPDF 2.x monta `text`/`save` como propriedades **da
   instância**, não do protótipo — quem se envolve é o CONSTRUTOR.
+- **O relatório de produção docente sai do SERVIDOR, com os elementos gráficos da tela**
+  (`gerarProducaoDocentePdf` em lib/pdf.js + `GET /api/avaliacao/producao.pdf?curso=` +
+  `public/assets/arche-dossie-relatorio.js`, pedido do dono ago/2026: "tem como ele vir com
+  os elementos gráficos, como fotos, o quadro de produções, o regime de trabalho, etc? pra
+  ficar bonito"): o botão do dossiê gerava o documento no NAVEGADOR (jsPDF de CDN) — texto
+  puro, sem timbre, sem foto. Agora o clique baixa o PDF do servidor, do MESMO motor dos
+  demais documentos oficiais: timbrado UNIEGO, capa com os números do curso, o **quadro do
+  2.16** (conceito simulado + escada de proporções, a MESMA conta do painel — 9 produções,
+  janela ano corrente + três anteriores, denominador com todos os docentes), barras por tipo
+  de produção, **regime de trabalho e titulação**, e a ficha de cada docente com a **foto em
+  círculo** (acima de ~1,5 MB saem as iniciais — o documento não pode voltar a pesar) e a
+  produção com o comprovante em **LINK clicável** (a decisão anterior segue: embutir deixava
+  o arquivo 274× maior). O "✓" e o "≥" não existem no WinAnsi das fontes padrão: o visto é
+  DESENHADO (vetor) e a comparação sai por extenso. Os **documentos pessoais (RG, CTPS)
+  ficam fora** de propósito — comprovam vínculo, não produção, e o documento circula com o
+  avaliador. A portaria da rota é a MESMA das chaves `dossie-*` no `/api/estado` (sessão OU
+  selo da Avaliação — nada que essas rotas já não entreguem). O gerador antigo do navegador
+  fica como **saída de emergência** no append (servidor recusou → o clique é reencaminhado a
+  ele), e é o único caso que ainda depende do CDN.
 - **PDF e imagem ABREM na guia; o resto continua baixando** (`abreNoNavegador`/`disposicao`
   em lib/files.js, pergunta do dono ago/2026 conferindo os Documentos Institucionais: "cliquei
   pra ver um e ele me dá opção de baixar; é possível abrir em nova guia? Acho mais fluido").

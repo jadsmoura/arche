@@ -1723,6 +1723,44 @@ app.get("/api/estado/list", async (req, res) => {
   }
 });
 
+/* O RELATÓRIO DE PRODUÇÃO DOCENTE em PDF (pedido do dono, ago/2026: "tem
+   como ele vir com os elementos gráficos, como fotos, o quadro de produções,
+   o regime de trabalho, etc? pra ficar bonito"). O botão do dossiê gerava o
+   documento no NAVEGADOR, com bibliotecas de CDN e sem o timbre — agora ele
+   sai daqui, do mesmo gerador dos demais documentos oficiais, lendo o dossiê
+   gravado. A portaria é a MESMA das páginas e das chaves `dossie-*` no
+   /api/estado (leitura: sessão OU selo da Avaliação) — o relatório não conta
+   nada que essas rotas já não entreguem. */
+const CURSOS_AV = {
+  administracao: "Administração", agronomia: "Agronomia", contabeis: "Ciências Contábeis",
+  direito: "Direito", "educacao-fisica": "Educação Física", enfermagem: "Enfermagem",
+  "engenharia-civil": "Engenharia Civil", "engenharia-mecanica": "Engenharia Mecânica",
+  "engenharia-software": "Engenharia de Software", "medicina-veterinaria": "Medicina Veterinária",
+  odontologia: "Odontologia", psicologia: "Psicologia",
+};
+app.get("/api/avaliacao/producao.pdf", async (req, res) => {
+  try {
+    if (!liberadoNaAv(req))
+      return res.status(403).send("Acesso restrito — entre no portal ou use o link de acesso da Avaliação.");
+    const curso = String(req.query.curso || "").trim().toLowerCase();
+    const cursoNome = CURSOS_AV[curso];
+    if (!cursoNome) return res.status(400).send("Curso desconhecido.");
+    const bruto = await storage.get(`dossie-${curso}-v1`);
+    if (!bruto) return res.status(404).send("O dossiê deste curso ainda não tem dados gravados no servidor.");
+    let dossie;
+    try { dossie = JSON.parse(bruto); } catch { return res.status(500).send("O dossiê gravado não pôde ser lido."); }
+    const { gerarProducaoDocentePdf } = await import("./lib/pdf.js");
+    const buffer = await gerarProducaoDocentePdf({ curso, cursoNome, dossie });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Disposition", `inline; filename="producao-docente-${curso}.pdf"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro no relatório de produção docente:", e);
+    res.status(500).send("Erro ao gerar o relatório: " + e.message);
+  }
+});
+
 /* ------------------------------- UPLOADS -------------------------------- */
 // Os três uploads abaixo são da Avaliação e do dossiê: valem a mesma portaria
 // das páginas, senão a barreira só existiria na tela.
