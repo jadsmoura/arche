@@ -91,6 +91,12 @@
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
   @media(max-width:820px){.grid2,.grid3{grid-template-columns:1fr}}
+  /* linhas de palestrante/comissão na proposta (mesmo desenho da equipe do EV) */
+  .eq-linha{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px;background:#fff}
+  .grid-eq{display:grid;grid-template-columns:2fr 1.4fr 1fr auto;gap:8px;margin-top:6px}
+  .grid-eq:first-child{margin-top:0}
+  .grid-eq input,.grid-eq select{margin:0}
+  @media(max-width:820px){.grid-eq{grid-template-columns:1fr 1fr}}
   label{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin:12px 0 5px}
   input,select,textarea{width:100%;border:1px solid #cfd6de;border-radius:8px;padding:10px 12px;
     font-family:Figtree,system-ui,sans-serif;font-size:14px;background:#fff;color:var(--ink);transition:border-color .15s,box-shadow .15s}
@@ -121,6 +127,7 @@
   .badge{display:inline-block;font-size:11px;font-weight:600;border-radius:20px;padding:3px 10px;white-space:nowrap}
   .b-submetida{background:var(--info-soft);color:var(--info)}
   .b-devolvida{background:var(--err-soft);color:var(--err)}
+  .b-reprovada{background:var(--err-soft);color:var(--err)}
   .b-aprovada{background:var(--ok-soft);color:var(--ok)}
   .b-pendente{background:var(--warn-soft);color:var(--warn)}
   .b-relatorio-entregue{background:var(--roxo-soft);color:var(--roxo)}
@@ -270,8 +277,26 @@
             <label>Objetivos específicos * <span class="muted">(um por linha)</span></label><textarea id="f-objesp"></textarea>
             <label>Metodologia *</label><textarea id="f-metodologia"></textarea>
             <label>Programação <span class="muted">(datas, atividades, ministrantes)</span></label><textarea id="f-programacao" style="min-height:120px"></textarea>
-            <label>Certificação solicitada <span class="muted">(quem deve receber certificado)</span></label><textarea id="f-cert" style="min-height:60px"></textarea>
-            <label>Comissão organizadora</label><textarea id="f-comissao" style="min-height:60px"></textarea>
+
+            <!-- Palestrantes e comissão ESTRUTURADOS (pedido do dono, ago/2026):
+                 o mesmo desenho da equipe do ARCHÉ EV, porque é destas listas
+                 que os certificados saem — um campo de escrita obrigava a
+                 redigitar tudo na hora de emitir. Gravam nas MESMAS listas
+                 (participantes.palestrantes / .comissao). -->
+            <div class="sec-t">Palestrantes e ministrantes</div>
+            <p class="muted" style="font-size:12.5px;margin:-2px 0 8px">
+              Quem apresenta palestra, oficina ou minicurso. O <b>título da palestra</b>
+              é o que sai escrito no certificado. Pode deixar em branco e completar depois.</p>
+            <div id="f-pal-linhas"></div>
+            <button type="button" class="bt bt-sec" onclick="addEquipeProp('pal')" style="margin-top:6px">+ Adicionar palestrante</button>
+
+            <div class="sec-t">Comissão organizadora</div>
+            <p class="muted" style="font-size:12.5px;margin:-2px 0 8px">
+              Professores, monitores, alunos organizadores e colaboradores. A <b>função</b>
+              aparece na organização do evento; o <b>papel</b> serve para a coordenação se
+              orientar na lista.</p>
+            <div id="f-com-linhas"></div>
+            <button type="button" class="bt bt-sec" onclick="addEquipeProp('com')" style="margin-top:6px">+ Adicionar membro</button>
 
             <div class="sec-t">Recursos e parcerias</div>
             <div class="grid3">
@@ -333,6 +358,7 @@
                   <option value="aguardando-encerramento">Aguardando encerramento</option>
                   <option value="encerramento-em-validacao">Relatório aguardando validação</option>
                   <option value="encerrado">Encerrado · certificados emitidos</option>
+                  <option value="reprovada">Reprovada</option>
                 </select></div>
               <div><label style="margin-top:0">Filtrar por publicação</label>
                 <select id="l-pub">
@@ -471,7 +497,8 @@ function selo(a){
     + (s.rotuloPublicacao?` <span class="badge b-pub">${esc(s.rotuloPublicacao)}</span>`:"");
 }
 const STATUS_LABEL = {submetida:"Submetida", devolvida:"Devolvida p/ ajustes", aprovada:"Aprovada",
-  pendente:"Relatório pendente", "relatorio-entregue":"Relatório entregue", registrada:"Registrada"};
+  pendente:"Relatório pendente", "relatorio-entregue":"Relatório entregue", registrada:"Registrada",
+  reprovada:"Reprovada"};
 
 // Completude do fluxo: ① proposta · ② relatório final · ③ participantes
 function completude(a){
@@ -1226,6 +1253,7 @@ function avisoCurricularizacao(){
 function montarForm(){
   $("f-curso").innerHTML = '<option value="">Selecione…</option>'+CURSOS.map(c=>`<option>${c}</option>`).join("");
   $("f-class").onchange = ()=>$("f-class-outro-w").classList.toggle("hide",$("f-class").value!=="Outro");
+  renderEquipeProp();      // desenha os avisos "nenhum cadastrado"
   // pré-preenche com o perfil do usuário logado
   const p = ME?.perfil;
   if(p){
@@ -1236,6 +1264,74 @@ function montarForm(){
   }
   if(ME?.email) $("f-resp-email").value = ME.email;
 }
+/* ============== PALESTRANTES E COMISSÃO NA PROPOSTA ======================
+   (pedido do dono, ago/2026: "utilize o mesmo sistema de indicação que tem
+   no ARCHÉ Eventos — isso facilita a emissão de certificados depois")
+
+   As linhas gravam nas MESMAS listas de onde os certificados saem
+   (participantes.palestrantes / participantes.comissao), com os mesmos
+   campos da guia de equipe do EV. A régua dura (CPF/matrícula, e-mail,
+   telefone) NÃO trava a submissão da proposta: na proposta o palestrante
+   pode ainda estar sendo confirmado — o que falta aparece como aviso, e a
+   cobrança de verdade continua onde sempre foi, na emissão. */
+const PAPEIS_COMISSAO_EX = [
+  ["coordenacao","Coordenação do evento"],["professor","Professor(a)"],
+  ["monitor","Monitor(a)"],["aluno","Aluno(a) organizador(a)"],
+  ["colaborador","Colaborador(a)"],["apoio","Apoio técnico"]];
+let PROP_PAL = [], PROP_COM = [];
+
+function addEquipeProp(tipo, dados){
+  (tipo==="pal"?PROP_PAL:PROP_COM).push(dados || (tipo==="pal"
+    ? {nome:"",cpf:"",matricula:"",email:"",telefone:"",palestra:"",instituicao:"",ch:""}
+    : {nome:"",cpf:"",matricula:"",email:"",telefone:"",papel:"professor",funcao:"",ch:""}));
+  renderEquipeProp();
+}
+function rmEquipeProp(tipo,i){ (tipo==="pal"?PROP_PAL:PROP_COM).splice(i,1); renderEquipeProp(); }
+
+function renderEquipeProp(){
+  const campo=(t,i,k,ph,tam)=>`<input value="${esc((t==="pal"?PROP_PAL:PROP_COM)[i][k]||"")}"
+    placeholder="${ph}" style="${tam||""}"
+    oninput="(('${t}'==='pal')?PROP_PAL:PROP_COM)[${i}].${k}=this.value">`;
+  const linha=(t,i,meio)=>`<div class="eq-linha">
+    <div class="grid-eq">
+      ${campo(t,i,"nome","nome completo *")}
+      ${campo(t,i,"cpf","CPF")}
+      ${campo(t,i,"matricula","matrícula (se aluno)")}
+      <button type="button" class="bt bt-ghost" style="padding:6px 10px" title="Remover"
+        onclick="rmEquipeProp('${t}',${i})">✕</button>
+    </div>
+    <div class="grid-eq">${campo(t,i,"email","e-mail")}${campo(t,i,"telefone","telefone")}${meio}${campo(t,i,"ch","CH (em branco = a do evento)")}</div>`;
+  const pal=$("f-pal-linhas"), com=$("f-com-linhas");
+  if(!pal||!com) return;
+  pal.innerHTML = PROP_PAL.map((x,i)=>linha("pal",i,campo("pal",i,"instituicao","instituição"))
+    + `<div class="grid-eq" style="grid-template-columns:1fr">${campo("pal",i,"palestra","título da palestra / minicurso (sai no certificado)")}</div></div>`).join("")
+    || `<div class="muted" style="font-size:12.5px">— nenhum palestrante cadastrado.</div>`;
+  com.innerHTML = PROP_COM.map((x,i)=>linha("com",i,
+    `<select onchange="PROP_COM[${i}].papel=this.value">${PAPEIS_COMISSAO_EX.map(p=>
+      `<option value="${p[0]}"${x.papel===p[0]?" selected":""}>${p[1]}</option>`).join("")}</select>`)
+    + `<div class="grid-eq" style="grid-template-columns:1fr">${campo("com",i,"funcao","função na organização (ex.: Coordenação do evento)")}</div></div>`).join("")
+    || `<div class="muted" style="font-size:12.5px">— nenhum membro cadastrado.</div>`;
+}
+/* Só as linhas com gente: linha vazia esquecida não vira participante. */
+const lerEquipeProp=(lista)=>lista.filter(x=>(x.nome||x.cpf||x.email||"").trim());
+
+/* O que faltará para o CERTIFICADO — aviso, não trava (a régua dura é a da
+   emissão, que já existe no servidor). */
+function pendenciasEquipeProp(){
+  const falta=(x,pal)=>{
+    const f=[]; const tem=(v)=>String(v||"").trim();
+    if(!tem(x.cpf)&&!tem(x.matricula)) f.push("CPF ou matrícula");
+    if(!tem(x.email)) f.push("e-mail");
+    if(!tem(x.telefone)) f.push("telefone");
+    if(pal&&!tem(x.palestra)) f.push("título da palestra");
+    return f;
+  };
+  const p=[];
+  for(const x of lerEquipeProp(PROP_PAL)){ const f=falta(x,true); if(f.length) p.push(`${x.nome||"(sem nome)"}: ${f.join(", ")}`); }
+  for(const x of lerEquipeProp(PROP_COM)){ const f=falta(x,false); if(f.length) p.push(`${x.nome||"(sem nome)"}: ${f.join(", ")}`); }
+  return p;
+}
+
 async function enviarProposta(){
   const obr = [["f-curso","curso"],["f-nome","nome da atividade"],["f-inicio","início"],["f-fim","término"],
     ["f-ch","carga horária"],["f-publico","público-alvo"],["f-local","local"],["f-municipio","município"],
@@ -1243,6 +1339,16 @@ async function enviarProposta(){
     ["f-metodologia","metodologia"],["f-resp-nome","nome do responsável"],["f-resp-cargo","cargo"],
     ["f-resp-tel","telefone"],["f-resp-email","e-mail"]];
   for(const [id,lab] of obr){ if(!$(id).value.trim()){ $("f-msg").textContent="⚠ Preencha: "+lab; $(id).focus(); return; } }
+  // linha de palestrante/comissão com dados e SEM nome não identifica ninguém
+  if([...PROP_PAL,...PROP_COM].some(x=>!String(x.nome||"").trim()
+      && String(x.cpf||x.email||x.telefone||x.palestra||x.funcao||"").trim())){
+    $("f-msg").textContent="⚠ Há linha de palestrante/comissão sem o nome — preencha ou remova a linha."; return; }
+  // o que faltará para o CERTIFICADO avisa, mas não trava a proposta:
+  // palestrante ainda em confirmação é o caso normal de uma submissão
+  const pend = pendenciasEquipeProp();
+  if(pend.length && !confirm("Para os certificados saírem depois, faltam dados em:\n\n"
+      + pend.slice(0,8).join("\n") + (pend.length>8?"\n…":"")
+      + "\n\nDá para completar depois, na própria ação. Enviar assim mesmo?")) return;
   $("f-msg").textContent="Enviando…";
   await carregar();
   // correção de proposta devolvida: é a MESMA ação, com o mesmo id
@@ -1262,8 +1368,12 @@ async function enviarProposta(){
       local:$("f-local").value.trim(), municipio:$("f-municipio").value.trim(),
       justificativa:$("f-justificativa").value.trim(), objetivoGeral:$("f-objgeral").value.trim(),
       objetivosEspecificos:$("f-objesp").value.trim(), metodologia:$("f-metodologia").value.trim(),
-      programacao:$("f-programacao").value.trim(), certificacaoSolicitada:$("f-cert").value.trim(),
-      comissaoTexto:$("f-comissao").value.trim(), parceria:$("f-parceria").value.trim(),
+      programacao:$("f-programacao").value.trim(),
+      // os dois campos de texto antigos não se digitam mais; o que já estava
+      // gravado numa proposta em correção NÃO se apaga — é registro
+      certificacaoSolicitada:base?.proposta?.certificacaoSolicitada||"",
+      comissaoTexto:base?.proposta?.comissaoTexto||"",
+      parceria:$("f-parceria").value.trim(),
       recursoInstalacao:$("f-rec-inst").value.trim(), recursoMultimidia:$("f-rec-multi").value.trim(),
       recursoOutros:$("f-rec-outros").value.trim(),
       respNome:$("f-resp-nome").value.trim(), respCargo:$("f-resp-cargo").value.trim(),
@@ -1271,9 +1381,13 @@ async function enviarProposta(){
       curricularizacao: lerCurricularizacao(),
     },
     // o que já existe na ação não se perde na correção: relatório,
-    // participantes e apreciação continuam onde estavam
+    // inscritos e apreciação continuam onde estavam. Palestrantes e
+    // comissão saem das LINHAS do formulário — são elas o cadastro agora
     relatorio: base?.relatorio || {},
-    participantes: base?.participantes || {inscritos:[],palestrantes:[],comissao:[]},
+    participantes: { ...(base?.participantes||{}),
+      inscritos: base?.participantes?.inscritos || [],
+      palestrantes: lerEquipeProp(PROP_PAL),
+      comissao: lerEquipeProp(PROP_COM) },
     apreciacao: base?.apreciacao || "",
     anexos: base?.anexos,
     motivoDevolucao: base?.motivoDevolucao,
@@ -1517,6 +1631,14 @@ function barraAcoes(a,s,podeRelatorio){
 function documentoDaVez(a, podeRelatorio){
   if(!podeRelatorio) return "projeto";
   if(SECAO==="relatorios") return "relatorio";
+  /* A separação voltou a ser ESTRITA na guia Propostas (decisão do dono,
+     ago/2026, revendo a anterior: "dentro de proposta, campos como
+     relatório final estão aparecendo — não faz sentido"). A proposta é o
+     documento simples que o professor preenche; quem chega por ela vê ELA,
+     e o atalho para o relatório segue a um clique. A abertura "no que está
+     pendente" continua valendo só para quem chega de fora das duas guias
+     (Painel, atalhos). */
+  if(SECAO==="acoes") return "projeto";
   return deveRelatorio(a) ? "relatorio" : "projeto";
 }
 
@@ -1531,6 +1653,23 @@ function atalhoOutroDoc(a, doc, podeRelatorio){
     style="padding:5px 11px;font-size:12px" onclick="irPara('${secao}','${a.id}')">${rot}</button></div>`;
 }
 function irPara(secao, id){ SECAO = secao; renderDetalhe(id); window.scrollTo(0,0); }
+
+/* Palestrantes e comissão como a proposta os indicou — é parte do documento
+   que a PROPPEX aprecia. O texto livre antigo (comissaoTexto) continua
+   saindo nas ações gravadas antes de ago/2026. */
+function quadroEquipeProposta(a){
+  const pal=a.participantes?.palestrantes||[], com=a.participantes?.comissao||[];
+  const rot=Object.fromEntries(PAPEIS_COMISSAO_EX);
+  const linha=(x,meio)=>`<div class="kv" style="margin-left:12px">• <b>${esc(x.nome||"—")}</b>${meio?` — ${meio}`:""}${x.ch?` · ${esc(x.ch)}h`:""}</div>`;
+  let h="";
+  if(pal.length) h+=`<div class="kv"><b>Palestrantes e ministrantes (${pal.length}):</b></div>`
+    + pal.map(x=>linha(x,[x.palestra?`“${esc(x.palestra)}”`:"",esc(x.instituicao||"")].filter(Boolean).join(" · "))).join("");
+  if(com.length) h+=`<div class="kv"><b>Comissão organizadora (${com.length}):</b></div>`
+    + com.map(x=>linha(x,[esc(x.funcao||""),esc(rot[x.papel]||x.papel||"")].filter(Boolean).join(" · "))).join("");
+  if(!com.length && a.proposta?.comissaoTexto)
+    h+=`<div class="kv"><b>Comissão organizadora:</b><br>${esc(a.proposta.comissaoTexto).replace(/\n/g,"<br>")}</div>`;
+  return h;
+}
 
 function renderDetalhe(id){
   const a = ACOES.find(x=>x.id===id);
@@ -1558,6 +1697,9 @@ function renderDetalhe(id){
   const c3 = completude(a);
   if(PROPPEX && c3.completa && s==="relatorio-entregue")
     html += `<div class="banner ba-ok">✅ <b>Ação completa (3/3).</b> A lista de participantes está recolhida — exporte a planilha para emitir os certificados no sistema da instituição e depois finalize o fluxo abaixo.</div>`;
+  if(s==="reprovada")
+    html += `<div class="banner ba-err">✗ <b>Proposta reprovada pela PROPPEX.</b>${a.motivoReprovacao?` Motivo: ${esc(a.motivoReprovacao)}`:""}
+      <div class="muted" style="margin-top:6px">A decisão é final — este registro fica arquivado. Uma nova atividade pode ser proposta a qualquer momento, como nova proposta.</div></div>`;
   if(s==="devolvida" && a.motivoDevolucao)
     html += `<div class="banner ba-err">↩ <b>Devolvida para ajustes:</b> ${esc(a.motivoDevolucao)}
       ${!PROPPEX ? `<div style="margin-top:10px"><button class="bt bt-pri" onclick="corrigirProposta('${a.id}')">✏ Corrigir e reenviar</button></div>
@@ -1587,16 +1729,23 @@ function renderDetalhe(id){
     <div class="kv"><b>Metodologia:</b> ${esc(p.metodologia)}</div>
     ${p.programacao?`<div class="kv"><b>Programação:</b><br>${esc(p.programacao).replace(/\n/g,"<br>")}</div>`:""}
     ${p.certificacaoSolicitada?`<div class="kv"><b>Certificação solicitada:</b><br>${esc(p.certificacaoSolicitada).replace(/\n/g,"<br>")}</div>`:""}
+    ${quadroEquipeProposta(a)}
     ${p.parceria?`<div class="kv"><b>Parcerias:</b> ${esc(p.parceria)}</div>`:""}
     ${blocoCurricularizacao(p)}
     <div class="kv"><b>Responsável:</b> ${esc(p.respNome)} — ${esc(p.respCargo)} · ${esc(p.respTelefone)} · ${esc(p.respEmail)}</div>`;
 
-  /* ---- ações do PROPPEX sobre a proposta ---- */
+  /* ---- a decisão da PROPPEX: três saídas, e só elas (pedido do dono,
+     ago/2026) — aprovar; devolver para alterações, com comentário; e
+     reprovar, com comentário. O comentário se escreve NUMA CAIXA na própria
+     ficha (o prompt() do navegador não dá espaço para um parecer). ---- */
   if(PROPPEX && (s==="submetida"||s==="devolvida")){
-    html += `<div class="exp">
+    html += `<div class="sec-t">Decisão da PROPPEX</div>
+    <div class="exp">
       <button class="bt bt-pri" onclick="aprovar('${a.id}')">✓ Aprovar e emitir Número da Ação</button>
-      <button class="bt bt-warn" onclick="devolver('${a.id}')">↩ Devolver para ajustes</button>
-    </div>`;
+      <button class="bt bt-warn" onclick="abrirDecisao('${a.id}','devolver')">↩ Devolver para alterações</button>
+      <button class="bt bt-err" onclick="abrirDecisao('${a.id}','reprovar')">✗ Reprovar</button>
+    </div>
+    <div id="dec-caixa"></div>`;
   }
   html += `</div>`;
   }
@@ -2184,18 +2333,35 @@ async function aprovar(id){
     renderLista(); renderDetalhe(id);
   }catch(e){ alert("Não foi possível aprovar: "+e.message); }
 }
-/* Devolver é ato da gestão, e agora fecha o ciclo: quem devolve escreve o
-   motivo, o responsável recebe o e-mail com ele na hora e a proposta volta
-   a ser editável na conta dele. Quem grava é o servidor — o motivo e a
-   situação não podem sair do formulário. */
+/* Devolver e reprovar são atos da gestão, e os dois exigem o COMENTÁRIO
+   (pedido do dono, ago/2026): é ele que o professor recebe por e-mail e que
+   fica registrado. A caixa abre na própria ficha — o prompt() do navegador
+   não dá espaço para um parecer — e diz a diferença entre os dois atos:
+   devolver reabre a proposta para correção; reprovar encerra. */
+function abrirDecisao(id, tipo){
+  const cx=$("dec-caixa"); if(!cx) return;
+  const dev = tipo==="devolver";
+  cx.innerHTML=`<div class="banner ${dev?"ba-warn":"ba-err"}" style="display:block;margin-top:10px">
+    <b>${dev?"↩ Devolver para alterações":"✗ Reprovar a proposta"}</b><br>
+    <span class="muted" style="font-size:12.5px">${dev
+      ?"A proposta volta a ficar editável para o responsável corrigir e reenviar — é a mesma ação, com o histórico."
+      :"Decisão final: a proposta não volta a ficar editável. O registro fica arquivado com o motivo."}</span>
+    <label style="margin-top:8px">Comentário ao responsável * <span class="muted">(vai por e-mail e fica registrado)</span></label>
+    <textarea id="dec-motivo" style="min-height:80px"></textarea>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="bt ${dev?"bt-warn":"bt-err"}" onclick="${dev?"devolver":"reprovar"}('${id}')">Confirmar ${dev?"devolução":"reprovação"}</button>
+      <button class="bt bt-ghost" onclick="$('dec-caixa').innerHTML=''">Cancelar</button>
+    </div></div>`;
+  cx.scrollIntoView({behavior:"smooth",block:"center"});
+  $("dec-motivo").focus();
+}
 async function devolver(id){
   const a=ACOES.find(x=>x.id===id); if(!a)return;
-  const m=prompt("Motivo da devolução (vai por e-mail ao responsável e fica registrado):");
-  if(m===null)return;
-  if(m.trim().length<5){ alert("Escreva o motivo — é ele que o professor recebe."); return; }
+  const m=($("dec-motivo")?.value||"").trim();
+  if(m.length<5){ alert("Escreva o comentário — é ele que o professor recebe."); return; }
   try{
     const r=await fetch("/api/extensao/devolver",{method:"POST",
-      headers:{"Content-Type":"application/json"},body:JSON.stringify({id,motivo:m.trim()})});
+      headers:{"Content-Type":"application/json"},body:JSON.stringify({id,motivo:m})});
     const j=await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||r.status);
     await carregar();
@@ -2204,6 +2370,23 @@ async function devolver(id){
       : "↩ Devolvida para ajustes.\n\nO e-mail não pôde ser enviado — avise o responsável por outro meio.");
     renderLista(); renderDetalhe(id);
   }catch(e){ alert("Não foi possível devolver: "+e.message); }
+}
+async function reprovar(id){
+  const a=ACOES.find(x=>x.id===id); if(!a)return;
+  const m=($("dec-motivo")?.value||"").trim();
+  if(m.length<5){ alert("Escreva o comentário — é ele que o professor recebe."); return; }
+  if(!confirm(`Reprovar a proposta "${a.proposta.nomeAtividade}"?\n\nA decisão é FINAL: a proposta não volta a ficar editável. Para devolver para correção, use "Devolver para alterações".`)) return;
+  try{
+    const r=await fetch("/api/extensao/reprovar",{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify({id,motivo:m})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    await carregar();
+    alert(j.avisado
+      ? `✗ Proposta reprovada.\n\nO responsável foi avisado por e-mail (${j.avisado}) com o motivo.`
+      : "✗ Proposta reprovada.\n\nO e-mail não pôde ser enviado — avise o responsável por outro meio.");
+    renderLista(); renderDetalhe(id);
+  }catch(e){ alert("Não foi possível reprovar: "+e.message); }
 }
 
 /* Do lado do professor: a proposta devolvida volta ao formulário com tudo o
@@ -2237,8 +2420,11 @@ function preencherFormulario(a){
   por("f-publico",p.publicoAlvo); por("f-local",p.local); por("f-municipio",p.municipio);
   por("f-justificativa",p.justificativa); por("f-objgeral",p.objetivoGeral);
   por("f-objesp",p.objetivosEspecificos); por("f-metodologia",p.metodologia);
-  por("f-programacao",p.programacao); por("f-cert",p.certificacaoSolicitada);
-  por("f-comissao",p.comissaoTexto); por("f-parceria",p.parceria);
+  por("f-programacao",p.programacao); por("f-parceria",p.parceria);
+  // palestrantes e comissão voltam como linhas — são as listas da ação
+  PROP_PAL=(a.participantes?.palestrantes||[]).map(x=>({...x}));
+  PROP_COM=(a.participantes?.comissao||[]).map(x=>({...x}));
+  renderEquipeProp();
   por("f-rec-inst",p.recursoInstalacao); por("f-rec-multi",p.recursoMultimidia);
   por("f-rec-outros",p.recursoOutros);
   por("f-resp-nome",p.respNome); por("f-resp-cargo",p.respCargo);
@@ -2281,6 +2467,8 @@ function cancelarCorrecao(){
   // a caixa não é input de texto, e as linhas de disciplina ficariam para trás
   $("f-cur").checked=false; $("f-cur-linhas").innerHTML="";
   $("f-cur-bloco").classList.add("hide");
+  // as linhas da equipe também são estado, não input solto
+  PROP_PAL=[]; PROP_COM=[]; renderEquipeProp();
   // o select é remontado: a correção pode ter injetado um curso fora da lista
   montarForm();
   $("f-municipio").value="Goianésia/GO";
@@ -2609,7 +2797,7 @@ function cardEvento(a){
 
     <div class="sec-t" style="margin-top:22px">Inscritos e presenças</div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
-      <input id="ev-busca" placeholder="Buscar por nome, e-mail ou CPF…" style="max-width:280px" oninput="renderInscritosEv(ACOES.find(x=>x.id==='${a.id}'))">
+      <input id="ev-busca" placeholder="Buscar por nome, e-mail ou CPF…" style="max-width:280px" oninput="ArchePag.zerar('ex-ev-inscritos');renderInscritosEv(ACOES.find(x=>x.id==='${a.id}'))">
       ${proprias.length?`<label style="margin:0;display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--muted)">Atividade
         <select id="ev-atv-sel" style="width:auto;max-width:240px;font-size:12.5px;padding:6px 30px 6px 8px"
           onchange="renderInscritosEv(ACOES.find(x=>x.id==='${a.id}'))">
@@ -2792,9 +2980,12 @@ function renderInscritosEv(a){
     || String(x.email||"").toLowerCase().includes(q)
     || String(x.cpf||"").replace(/\D/g,"").includes(q.replace(/\D/g,"")||"§"));
   const hora=(iso)=>{ try{ return new Date(iso).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}); }catch{ return ""; } };
-  el.innerHTML = lista.length ? `<table class="pt">
+  // paginada como TODA lista de registros do portal (regra do dono, ago/2026)
+  // — o ARCHÉ EV já paginava a mesma tabela; esta cópia tinha ficado de fora
+  const pag=ArchePag.recorte("ex-ev-inscritos",lista,()=>renderInscritosEv(ACOES.find(x=>x.id===a.id)||a));
+  el.innerHTML = lista.length ? `${pag.barra}<table class="pt">
     <thead><tr><th>Nome</th><th>Contato</th><th>Origem</th><th>Código</th><th>Atividades</th><th>Presença</th></tr></thead>
-    <tbody>${lista.map(x=>{
+    <tbody>${pag.itens.map(x=>{
       const marcadas=(x.atividades||[]).map(tituloAtv);
       const porAtv=(x.presencas||[]).filter(p=>p&&p.atividade);
       return `<tr>

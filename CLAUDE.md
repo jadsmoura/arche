@@ -792,6 +792,34 @@ public/
   começo"**, que escreve o que é FATO (quando, onde, carga horária, quantos participantes) e
   para no ponto em que a pessoa continua — o juízo sobre o que a ação alcançou é dela, e é
   isso que a PROPPEX lê.
+- **A PROPOSTA É O DOCUMENTO SIMPLES DO PROFESSOR, e a análise tem TRÊS SAÍDAS** (pedido do
+  dono, ago/2026: "devem haver duas etapas — Propostas e Relatórios; a proposta é um documento
+  mais simples, só com o que o professor preenche"). O formulário de Nova proposta perdeu os
+  campos de texto "Certificação solicitada" e "Comissão organizadora" e ganhou **palestrantes e
+  comissão ESTRUTURADOS** (linhas no molde da equipe do ARCHÉ EV — nome, CPF/matrícula, e-mail,
+  telefone, papel/função ou palestra/instituição, CH), gravando nas MESMAS listas de onde os
+  certificados saem (`participantes.palestrantes`/`.comissao`): "isso facilita a emissão de
+  certificados depois", e um campo de escrita obrigava a redigitar tudo na emissão. A régua
+  dura do certificado NÃO trava a submissão (palestrante ainda em confirmação é o caso normal)
+  — o que falta aparece num aviso com confirm, e a cobrança de verdade continua na emissão. Os
+  campos antigos gravados (`certificacaoSolicitada`/`comissaoTexto`) não se apagam e continuam
+  saindo na ficha e no PDF; o PDF da proposta ganhou os quadros estruturados. A separação das
+  guias voltou a ser ESTRITA na guia Propostas (`documentoDaVez`: `SECAO==="acoes"` abre SEMPRE
+  o projeto — revendo a regra anterior; "dentro de proposta, campos como relatório final estão
+  aparecendo, não faz sentido"); a abertura "no que está pendente" vale só para quem chega de
+  fora das duas guias. **A decisão da PROPPEX são três botões, e só** — Aprovar (emite o
+  número), **Devolver para alterações** e **Reprovar**, os dois últimos com campo de
+  comentário na própria ficha (prompt() não dá espaço para um parecer). **REPROVADA é fim de
+  linha** (`POST /api/extensao/reprovar`, etapa própria em lib/situacao.js): difere da
+  devolvida no que importa — a devolvida volta editável e reentra pelo reenvio; a reprovada
+  não (o reenvio recusa), o registro fica com o motivo como prova da decisão, ela não entra na
+  guia Relatórios nem em fila nenhuma, e o professor recebe o e-mail com o motivo
+  (`emailPropostaReprovada`, aviso `ex-proposta-reprovada`).
+- **O correlato em Relatórios ABRE NA VALIDAÇÃO** (pedido do dono, ago/2026: "o módulo
+  Relatórios deve ser aberto assim que o seu paralelo em Propostas for criado e validado" —
+  revendo a regra que o segurava até o período começar): aprovada, a ação já aparece na guia
+  Relatórios, mesmo com o período no futuro. `relatorioNoCiclo` em lib/situacao.js deixou de
+  olhar `periodoInicio`.
 - **PROJETO e RELATÓRIO FINAL são DOIS DOCUMENTOS, e quem escolhe é a SEÇÃO**
   (`documentoDaVez` na SPA da Extensão, pedido do dono ago/2026): a ação abria com os dois na
   mesma página — a ficha do projeto e, logo abaixo, o formulário inteiro do relatório, a lista

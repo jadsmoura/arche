@@ -114,17 +114,31 @@ test("ação SEM evento sobe o mesmo degrau, com os atos dela", () => {
   assert.equal(s.certificados, true);
 });
 
-test("o que ainda não começou fica FORA da guia Relatórios", () => {
+test("o correlato em Relatórios abre na VALIDAÇÃO, mesmo antes do período (decisão do dono, ago/2026)", () => {
   const a = evento({}, { periodoInicio: "2026-09-01", periodoFim: "2026-09-05" });
-  assert.equal(temRelatorioNoCiclo(a, HOJE), false);
+  assert.equal(temRelatorioNoCiclo(a, HOJE), true);
   const começou = evento({}, { periodoInicio: "2026-08-15", periodoFim: "2026-08-30" });
   assert.equal(temRelatorioNoCiclo(começou, HOJE), true);
+  // o que ainda ESPERA validação continua fora
+  const semNumero = evento({ numeroAcao: "" });
+  assert.equal(temRelatorioNoCiclo(semNumero, HOJE), false);
+});
+
+test("reprovada é fim de linha: etapa própria, fora da guia Relatórios e de toda fila", () => {
+  const a = evento({ numeroAcao: "", status: "reprovada" });
+  const s = situacaoDaAcao(a, HOJE);
+  assert.equal(s.etapa, "reprovada");
+  assert.equal(s.rotulo, "Reprovada");
+  assert.equal(s.relatorioNoCiclo, false);
+  assert.equal(s.relatorioPendente, false);
+  assert.equal(s.certificados, false);
 });
 
 test("toda etapa devolvida está no catálogo", () => {
   const casos = [
     evento({ numeroAcao: "" }, { metodologia: "" }), evento({ numeroAcao: "" }), evento(),
     evento({}, { periodoInicio: "2026-09-01", periodoFim: "2026-09-05" }),
+    evento({ numeroAcao: "", status: "reprovada" }),
   ];
   for (const a of casos) assert.ok(ETAPAS.includes(situacaoDaAcao(a, HOJE).etapa));
 });

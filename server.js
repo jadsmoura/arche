@@ -2488,6 +2488,50 @@ app.post("/api/extensao/devolver", async (req, res) => {
   }
 });
 
+/* REPROVAR é a terceira saída da análise (pedido do dono, ago/2026: a
+   PROPPEX decide entre aprovar, devolver para alterações e reprovar, as duas
+   últimas com comentário). Difere da devolução no destino: a devolvida volta
+   editável e reentra pela rota de reenvio; a REPROVADA é decisão final — o
+   reenvio a recusa (ele só aceita `devolvida`), e o registro fica com o
+   motivo, como prova da decisão. O professor é avisado por e-mail. */
+app.post("/api/extensao/reprovar", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    if (!gereEx(u)) return res.status(403).json({ error: "Somente a gestão da Extensão reprova propostas." });
+    const motivo = String(req.body?.motivo || "").trim();
+    if (motivo.length < 5) return res.status(400).json({ error: "Escreva o motivo da reprovação — é ele que o professor recebe." });
+
+    const r = await comAcoes((acoes) => {
+      const i = acoes.findIndex((a) => a.id === req.body?.id);
+      if (i < 0) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (!["submetida", "devolvida"].includes(acoes[i].status))
+        return { erro: [400, "Só se reprova proposta que está em análise."], gravar: false };
+      acoes[i] = {
+        ...acoes[i], status: "reprovada", motivoReprovacao: motivo.slice(0, 2000),
+        reprovadaEm: new Date().toISOString(), reprovadaPor: u.email,
+        atualizadoEm: new Date().toISOString(),
+      };
+      return { acao: acoes[i] };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+
+    // o e-mail não trava a decisão: se falhar, o motivo já está gravado
+    let avisado = null;
+    try {
+      const { emailPropostaReprovada } = await import("./lib/mailer.js");
+      const msg = emailPropostaReprovada(r.acao, { baseUrl: `${req.protocol}://${req.get("host")}` });
+      if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(msg.para)) avisado = await enviarAviso("ex-proposta-reprovada", msg);
+    } catch (e) {
+      console.error("[extensao] aviso de reprovação falhou:", e.message);
+    }
+    res.json({ ok: true, avisado, acao: r.acao });
+  } catch (e) {
+    console.error("Erro ao reprovar proposta:", e);
+    res.status(500).json({ error: "Falha ao reprovar" });
+  }
+});
+
 /* O reenvio da proposta corrigida: é a MESMA ação, com o histórico inteiro —
    nada de abrir uma nova e deixar duas na base. */
 app.post("/api/extensao/reenviar", async (req, res) => {
