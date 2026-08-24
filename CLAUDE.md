@@ -2032,8 +2032,11 @@ public/
   texto que a pessoa digitou entra **inteiro, letra por letra**, depois de dois-pontos:
   mexer na frase dela para encaixar numa fórmula é reescrever o que a reunião disse.
 - **Assistente de escrita** (`lib/assistente.js` + `public/assets/arche-ia.js`): botões de
-  IA nos campos longos das atas. Vale **só no ARCHÉ AT** — proposta e relatório da Extensão
-  ficam de fora por decisão do dono, para não induzir dependência num texto que é autoria
+  IA nos campos longos das atas **e, desde ago/2026 (pedido do dono, "melhorar com ia"), nos
+  dois campos longos do relatório de aula prática** — objetivo e atividades desenvolvidas
+  (`praticas.objetivo`/`praticas.atividades` no catálogo; `data-ia` nos textareas do AP, com
+  disciplina, curso, data e local como contexto). Proposta e relatório da Extensão seguem de
+  fora por decisão do dono, para não induzir dependência num texto que é autoria
   do professor. O assistente **nunca cria conteúdo**: exige texto do autor (mín. 15
   caracteres) e só reescreve. Sem chave de IA, os botões não aparecem.
 

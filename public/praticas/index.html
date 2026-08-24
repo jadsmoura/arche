@@ -485,8 +485,12 @@ function renderNova() {
         <div class="ajuda">${esc(c.ajuda)}</div></div>`;
     }
     if (c.tipo === "longo") {
+      // "melhorar com IA" nos dois campos longos (pedido do dono, ago/2026):
+      // o assistente é o MESMO das atas (assets/arche-ia.js) — só reescreve o
+      // que o professor digitou, e sem chave de IA nenhum botão aparece
       return `<div style="grid-column:1/-1"><label>${esc(c.rotulo)} *</label>
-        <textarea id="f-${c.campo}" placeholder="${esc(c.ajuda)}">${esc(v)}</textarea>
+        <textarea id="f-${c.campo}" data-ia="praticas.${esc(c.campo)}"
+          placeholder="${esc(c.ajuda)}">${esc(v)}</textarea>
         <div class="ajuda">${esc(c.ajuda)}</div></div>`;
     }
     return `<div><label>${esc(c.rotulo)} *</label>
@@ -910,6 +914,19 @@ async function enviarChamada(bt) {
 
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") document.querySelector(".ov")?.remove(); });
 carregar();
+
+/* O contexto que o assistente de escrita recebe junto com o texto: disciplina,
+   curso e data dão coerência à reescrita sem virarem conteúdo do campo. */
+window.archeIAContexto = () => {
+  const sel = ($("f-disciplina") || {}).value || "";
+  return {
+    disciplina: sel === "__manual" ? (($("f-disciplina-manual") || {}).value || "") : sel,
+    curso: nomeCurso((($("f-curso-manual") || {}).value) || EDIT?.curso || D.meuCurso || ""),
+    "data da aula": ($("f-data") || {}).value || "",
+    local: ($("f-local") || {}).value || "",
+  };
+};
 </script>
+<script src="/assets/arche-ia.js"></script>
 </body>
 </html>

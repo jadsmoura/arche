@@ -26,11 +26,16 @@ const comChaveFalsa = async (fn) => {
 };
 
 /* ------------------------------- catálogo ------------------------------- */
-test("o assistente cobre só campos de ata — a Extensão fica de fora", () => {
+test("o assistente cobre atas e aulas práticas — a Extensão fica de fora", () => {
   const ids = Object.keys(CAMPOS);
   assert.ok(ids.length, "catálogo vazio");
-  assert.ok(ids.every((id) => id.startsWith("atas.")),
+  // pedido do dono (ago/2026): os dois campos longos do relatório de aula
+  // prática entram; proposta e relatório de extensão seguem de fora
+  assert.ok(ids.every((id) => id.startsWith("atas.") || id.startsWith("praticas.")),
     "proposta e relatório de extensão são autoria do professor: " + ids.join(", "));
+  for (const id of ["praticas.objetivo", "praticas.atividades"]) {
+    assert.ok(ids.includes(id), `faltou ${id}`);
+  }
   for (const id of ["atas.discussao", "atas.deliberacao", "atas.informes", "atas.observacoes"]) {
     assert.ok(ids.includes(id), `faltou ${id}`);
   }
