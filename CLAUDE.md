@@ -2316,6 +2316,13 @@ public/
   coordenação (é o denominador do painel), e o 403 de quem não está nele passou a apontar o caminho
   do registro retroativo. O resto do fluxo é o mesmo — 3 fotos, envio, validação pela coordenação do
   curso, PDF timbrado.
+  **O aviso do relatório enviado se REENVIA quando se perde** (`varrerAvisosAP` +
+  `sys-ap-avisos-enviado-v1`, achado do dono ago/2026: "a coordenadora relatou não ter recebido
+  a notificação"): o aviso à coordenação falhava em silêncio desde que a guia Coordenação passou
+  a guardar `{email, nome, papel}` — o mailer recebia um OBJETO como endereço. Consertada a
+  extração do e-mail, a varredura horária olha os relatórios parados em "enviado" SEM marca de
+  aviso e reenvia, uma vez por relatório — cura o retroativo e qualquer falha futura (rede, cota,
+  deploy no meio). A marca só se grava com o envio feito; validado/devolvido fica fora.
   **A cobrança é de SEGUNDA-FEIRA** (`varrerCobrancaAP` + `ap-lembrete-semanal`): a varredura é
   horária como as outras, mas o lembrete só sai na segunda e uma vez por pessoa. O sistema **não
   conhece o horário das aulas** — conhece as disciplinas de cada um —, então o e-mail não afirma que

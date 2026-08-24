@@ -12274,12 +12274,24 @@ async function avisarPraticas(r, evento) {
       ["Protocolo", r.protocolo],
     ];
     if (evento === "enviado") {
-      for (const para of await destinatariosDaCoordenacaoAP(r.curso)) {
+      const destinos = await destinatariosDaCoordenacaoAP(r.curso);
+      if (!destinos.length) {
+        console.log(`[praticas] ${r.protocolo || r.id}: sem coordenação cadastrada em ${r.curso} — aviso sem destinatário`);
+        return false;
+      }
+      for (const para of destinos) {
         await enviarAviso("ap-relatorio-enviado", emailMovimentacaoPratica({
           para, assunto: `Relatório de aula prática para validar — ${r.disciplina}`,
           titulo: "Um relatório aguarda a sua validação", linhas }));
       }
-      return;
+      console.log(`[praticas] ${r.protocolo || r.id}: aviso de envio a ${destinos.join(", ")}`);
+      /* A marca do aviso que SAIU: é ela que a varredura de reenvio confere.
+         Só se grava depois de os envios passarem — falha no meio deixa o
+         relatório sem marca, e a varredura da próxima hora tenta de novo. */
+      const marcas = JSON.parse((await storage.get(AP_AVISOS_KEY)) || "{}");
+      marcas[r.id] = new Date().toISOString();
+      await storage.set(AP_AVISOS_KEY, JSON.stringify(marcas));
+      return true;
     }
     const para = r.professor?.email;
     if (!para) return;
@@ -12293,6 +12305,27 @@ async function avisarPraticas(r, evento) {
     }));
   } catch (e) {
     console.error("[praticas] aviso por e-mail não enviado:", e.message);
+  }
+}
+
+const AP_AVISOS_KEY = "sys-ap-avisos-enviado-v1";
+
+/* O AVISO QUE SE PERDEU SE REENVIA (achado do dono, ago/2026: "a coordenadora
+   relatou não ter recebido a notificação assim que o Manoel mandou o
+   relatório"): o aviso do envio falhava em silêncio desde que a lista de
+   coordenadores passou a guardar {email, nome, papel} — o mailer recebia um
+   objeto como endereço —, e aviso perdido não voltava nunca. A varredura
+   olha os relatórios parados em "enviado" SEM marca de aviso e reenvia, uma
+   vez por relatório: cobre o retroativo (os avisos engolidos pelo defeito) e
+   qualquer falha futura de envio — rede, cota, deploy no meio. Relatório já
+   validado ou devolvido fica fora: o fluxo dele já andou sem o aviso. */
+async function varrerAvisosAP() {
+  const lista = await lerPraticas();
+  const marcas = JSON.parse((await storage.get(AP_AVISOS_KEY)) || "{}");
+  for (const r of lista) {
+    if (r.status !== "enviado" || marcas[r.id]) continue;
+    try { await avisarPraticas(r, "enviado"); }
+    catch (e) { console.error(`[praticas] reenvio do aviso de ${r.protocolo || r.id}:`, e.message); }
   }
 }
 
@@ -13383,4 +13416,8 @@ app.listen(port, () => {
   // SEGUNDA-FEIRA — é a própria função que confere o dia
   setTimeout(() => varrerCobrancaAP().catch((e) => console.error("[cobranca-ap]", e.message)), 60_000).unref();
   setInterval(() => varrerCobrancaAP().catch((e) => console.error("[cobranca-ap]", e.message)), 60 * 60 * 1000).unref();
+  // o aviso de relatório enviado que se perdeu (falha de envio, deploy no
+  // meio) volta pela mesma varredura horária — uma vez por relatório
+  setTimeout(() => varrerAvisosAP().catch((e) => console.error("[avisos-ap]", e.message)), 75_000).unref();
+  setInterval(() => varrerAvisosAP().catch((e) => console.error("[avisos-ap]", e.message)), 60 * 60 * 1000).unref();
 });
