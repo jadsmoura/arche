@@ -11747,18 +11747,40 @@ app.post("/api/praticas", async (req, res) => {
         /* Relatório NOVO. Só quem está no cadastro do semestre registra: sem
            isso, o "disciplinas sem relatório" do painel não teria denominador
            — e um relatório de alguém que não leciona não tem coordenação a
-           quem ir. A gestão inclui em nome de quem for preciso. */
+           quem ir. A gestão inclui em nome de quem for preciso.
+
+           A EXCEÇÃO é o SEMESTRE ANTERIOR (pedido do dono, ago/2026: "alguns
+           professores vão lançar relatórios de semestres anteriores, mas
+           esses não estão cadastrados no sistema"): cadastro de semestre
+           passado não existe e não vai existir — recusar deixaria a aula
+           dada fora da prestação de contas. Para aula cuja DATA cai em
+           semestre já encerrado, a disciplina entra digitada à mão e o CURSO
+           vem do formulário, conferido no catálogo (é ele que decide a qual
+           coordenação o relatório vai — sem curso válido não há quem
+           valide). O relatório sai marcado `foraDoCadastro`, para a
+           coordenação saber que a disciplina não veio do cadastro. */
         const semestre = semestreDe(String(b.data || "")) || semestreCorrente();
         const minhas = apMinhasDisciplinas(cadastro, semestre, u.email);
         const curso = apCursoDoProfessor(cadastro, semestre, u.email);
-        if (!minhas.length && !quem.gestao) {
+        const retroativo = /^\d{4}\/[12]$/.test(semestre) && semestre < semestreCorrente();
+        if (!minhas.length && !quem.gestao && !retroativo) {
           return { erro: [403, `Você ainda não está no cadastro de ${semestre}. `
             + "A coordenação do curso inclui professores e disciplinas na guia "
-            + "“Professores e Disciplinas”."], gravar: false };
+            + "“Professores e Disciplinas”. Para registrar aula de SEMESTRE "
+            + "ANTERIOR, informe no formulário a data da aula daquele semestre "
+            + "— o registro retroativo aceita a disciplina digitada à mão."], gravar: false };
+        }
+        let cursoNovo = curso || String(b.curso || "").trim();
+        if (!curso && !CURSOS.some((c) => c.slug === cursoNovo)) {
+          return { erro: [400, "Escolha o curso da disciplina: é ele que define a "
+            + "coordenação que valida este relatório."], gravar: false };
         }
         const novo = normalizarRelatorioAP(b, { base: {
           id: `ap-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
-          curso: curso || String(b.curso || ""),
+          curso: cursoNovo,
+          // a marca é do servidor: disciplina que não está no cadastro do
+          // semestre entrou à mão, e a coordenação precisa ver isso
+          foraDoCadastro: !minhas.some((d) => d.disciplina === String(b.disciplina || "").trim()),
           professor: { email: u.email, nome: perfil.nome || u.nome || "" },
           criadoPor: u.email,
         } });

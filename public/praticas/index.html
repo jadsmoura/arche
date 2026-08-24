@@ -410,7 +410,8 @@ function cartao(r) {
         <div class="cs">${fmt(r.data)} · ${esc(r.local || "—")}${
           !meu ? ` · ${esc(r.professor?.nome || r.professor?.email || "")}` : ""}</div>
         <div class="cs">${esc(nomeCurso(r.curso))}${r.protocolo ? ` · ${esc(r.protocolo)}` : ""}
-          · ${(r.fotos || []).length} foto(s)</div>
+          · ${(r.fotos || []).length} foto(s)${r.foraDoCadastro
+            ? ' · <span style="color:#a75a0b;font-weight:600">disciplina fora do cadastro (registro retroativo)</span>' : ""}</div>
       </div>
       <span class="badge b-${esc(r.status)}">${esc(ROT[r.status] || r.status)}</span>
     </div>
@@ -439,20 +440,44 @@ function editar(id) { EDIT = (D.relatorios || []).find((r) => r.id === id) || nu
 function renderNova() {
   const r = EDIT || {};
   const minhas = D.minhasDisciplinas || [];
-  if (!minhas.length && !D.gestao) {
-    return `<div class="card"><div class="banner ba-warn">Você ainda não está no cadastro de
-      <b>${esc(D.semestre)}</b>. A coordenação do curso inclui professores e disciplinas na guia
-      <b>Professores e Disciplinas</b> — fale com ela para registrar as suas aulas.</div></div>`;
-  }
+  /* Sem cadastro o formulário NÃO é mais uma parede (pedido do dono,
+     ago/2026): professores vão lançar relatórios de SEMESTRES ANTERIORES,
+     que não têm cadastro e não vão ter. O registro retroativo aceita a
+     disciplina digitada à mão e pede o curso (é ele que define a coordenação
+     que valida). No semestre corrente a regra não muda: quem manda é o
+     cadastro da coordenação — e o servidor confere pela data da aula. */
+  const semCadastro = !minhas.length && !D.gestao;
+  const aviso = semCadastro
+    ? `<div class="banner ba-warn">Você ainda não está no cadastro de <b>${esc(D.semestre)}</b> —
+        para aulas deste semestre, a coordenação do curso inclui professores e disciplinas na guia
+        <b>Professores e Disciplinas</b>. <b>Aula de semestre anterior</b> pode ser registrada aqui
+        mesmo: informe a data da aula, digite a disciplina e escolha o curso.</div>`
+    : "";
   const campo = (c) => {
     const v = r[c.campo] || "";
     if (c.tipo === "disciplina") {
+      const manual = !!r.id && !!v && !minhas.some((d) => d.disciplina === v);
       return `<div><label>${esc(c.rotulo)} *</label>
-        <select id="f-disciplina">
+        <select id="f-disciplina" onchange="modoManualDisc(this.value)">
           <option value="">Selecione…</option>
           ${minhas.map((d) => `<option value="${esc(d.disciplina)}" ${v === d.disciplina ? "selected" : ""}>
             ${esc(d.disciplina)}</option>`).join("")}
-        </select><div class="ajuda">${esc(c.ajuda)}</div></div>`;
+          <option value="__manual" ${manual || (semCadastro && !minhas.length) ? "selected" : ""}>
+            Outra — disciplina de semestre anterior (digitar)</option>
+        </select><div class="ajuda">${esc(c.ajuda)}</div>
+        <div id="f-manual" style="${manual || semCadastro ? "" : "display:none"};margin-top:8px">
+          <input id="f-disciplina-manual" value="${manual ? esc(v) : ""}"
+            placeholder="Nome da disciplina, como consta na matriz">
+          <div class="ajuda">Para aula de semestre anterior, que não está no cadastro. A coordenação
+            verá que a disciplina foi digitada à mão.</div>
+          <label style="margin-top:6px">Curso da disciplina *</label>
+          <select id="f-curso-manual" ${r.id && !D.gestao ? "disabled" : ""}
+            <option value="">Selecione o curso…</option>
+            ${(D.catalogoCursos || []).map((cu) => `<option value="${esc(cu.slug)}"
+              ${r.curso === cu.slug ? "selected" : ""}>${esc(cu.nome)}</option>`).join("")}
+          </select>
+          <div class="ajuda">É o curso que define a coordenação que valida este relatório.</div>
+        </div></div>`;
     }
     if (c.tipo === "data") {
       return `<div><label>${esc(c.rotulo)} *</label>
@@ -475,6 +500,7 @@ function renderNova() {
       <div class="card-s">${r.protocolo ? `Protocolo ${esc(r.protocolo)} · ` : ""}Todos os campos são
         obrigatórios, e o registro fotográfico também: são <b>${D.minFotos} fotos</b>, que é o que
         comprova a realização da aula.</div>
+      ${aviso}
       <div id="f-alerta"></div>
       <div class="grid2">${(D.campos || []).map(campo).join("")}</div>
       <div class="exp">
@@ -498,9 +524,19 @@ function renderNova() {
     </div>` : `<div class="card"><div class="muted">Salve o rascunho para anexar as fotos.</div></div>`}`;
 }
 
+function modoManualDisc(v) {
+  const bloco = $("f-manual");
+  if (bloco) bloco.style.display = v === "__manual" ? "" : "none";
+}
+
 function corpoDoForm() {
   const b = { id: EDIT?.id || "" };
   for (const c of D.campos || []) b[c.campo] = ($(`f-${c.campo}`) || {}).value || "";
+  // disciplina digitada à mão (semestre anterior): vai com o curso escolhido
+  if (b.disciplina === "__manual") {
+    b.disciplina = ($("f-disciplina-manual") || {}).value || "";
+    b.curso = ($("f-curso-manual") || {}).value || "";
+  }
   return b;
 }
 

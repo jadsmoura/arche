@@ -2291,6 +2291,19 @@ public/
   28/06 está relatando o semestre que acabou, e é nele que ela conta. O ciclo vira sozinho
   (`semestreCorrente` de lib/datas.js) — e por isso, em 01/01 e 01/07, o cadastro do semestre novo
   nasce vazio: o **alerta no sino** e o botão de copiar são o que impede o módulo de parar na virada.
+  **Relatório de SEMESTRE ANTERIOR entra com campos manuais** (pedido do dono, ago/2026: "alguns
+  professores vão lançar relatórios de semestres anteriores, mas esses não estão cadastrados no
+  sistema"): cadastro de semestre passado não existe e não vai existir — recusar deixaria a aula
+  dada fora da prestação de contas. Quando a DATA da aula cai em semestre já encerrado, o registro
+  passa sem o cadastro: a **disciplina se digita à mão** (opção "Outra — disciplina de semestre
+  anterior" no seletor; para quem não está em cadastro nenhum, o formulário já abre nesse modo) e o
+  **curso se escolhe do catálogo**, porque é ele que define a coordenação que valida — curso
+  inválido é 400. O relatório sai marcado **`foraDoCadastro`** (marca do SERVIDOR, na criação), e a
+  lista diz "disciplina fora do cadastro (registro retroativo)" — a coordenação precisa ver que a
+  disciplina não veio do cadastro. **No semestre CORRENTE nada muda**: quem manda é o cadastro da
+  coordenação (é o denominador do painel), e o 403 de quem não está nele passou a apontar o caminho
+  do registro retroativo. O resto do fluxo é o mesmo — 3 fotos, envio, validação pela coordenação do
+  curso, PDF timbrado.
   **A cobrança é de SEGUNDA-FEIRA** (`varrerCobrancaAP` + `ap-lembrete-semanal`): a varredura é
   horária como as outras, mas o lembrete só sai na segunda e uma vez por pessoa. O sistema **não
   conhece o horário das aulas** — conhece as disciplinas de cada um —, então o e-mail não afirma que
