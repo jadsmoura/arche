@@ -898,6 +898,25 @@ public/
   da visão padrão ("esses dois botões estão confusos e se sobrepondo"): ele faz um subconjunto
   do "Ver como…", que tem a visão genérica de docente entre as opções; quem estava no modo
   antigo ainda sai dele pelo botão de voltar.
+- **A PROPOSTA JÁ ENCAMINHADA PODE SER EDITADA, e a edição fica MARCADA** (pedido do dono,
+  ago/2026): o botão "✏ Editar a proposta" aparece na visão do PROJETO para a `submetida` e a
+  `aprovada` — a submetida se ajusta sem o vaivém da devolução, e a aprovada se corrige sem
+  mexer no número nem na situação (o formulário avisa e o botão vira "Salvar alterações"; o
+  reenviar continua sendo só da devolvida, e a edição não re-notifica a PROPPEX). Toda edição
+  de quem NÃO gere o setor numa proposta submetida/aprovada entra em `edicoesProposta`
+  ({em, por, situacao}, teto 20) e a ficha diz "proposta editada após o envio" — quem analisa
+  (ou já aprovou) precisa ver que o documento mudou. A comparação roda DEPOIS da limpeza da
+  colagem e da régua da curricularização, senão "igual" nunca é igual e todo salvar (inclusive
+  o do relatório) viraria edição de proposta. Reprovada e registrada continuam intocáveis.
+- **A PROPOSTA APROVADA sai com as assinaturas do banco** (pedido do dono, ago/2026: "fazer o
+  banco de assinaturas para que no momento de aprovar a proposta, as assinaturas sejam
+  inseridas"): o banco institucional (`sys-assinaturas-v1`, card na guia Certificados do ARCHÉ
+  IC) ganhou as duas coordenações da Extensão — `coordextensao` (Thiago, curso livre) e
+  `coordacao` (Camila, demais ações) — e o PDF da proposta (que só existe DEPOIS da validação)
+  passa a inserir as três imagens sobre as linhas: coordenação da ação (escolhida pela
+  classificação), pró-reitor e reitor. Sem imagem, sai a linha em branco, como sempre. Revisa
+  a regra "digitalizada só nos certificados" APENAS para a proposta aprovada da Extensão;
+  relatório e resultado seguem para assinatura à mão.
 - **Vereditos da revisão adversarial aplicados** (ago/2026): o CARTÃO do evento reprovado no
   ARCHÉ EV diz a decisão em vez de oferecer "Validar evento e projeto" (que devolveria 400
   sempre); **CPF que não valida NÃO ENTRA nas listas de palestrantes/comissão** do POST em

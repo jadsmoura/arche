@@ -2419,6 +2419,20 @@ app.post("/api/extensao", async (req, res) => {
         if (final.proposta)
           final.proposta = { ...final.proposta,
             curricularizacao: normalizarCurricularizacao(final.proposta.curricularizacao) };
+        /* A PROPOSTA JÁ ENCAMINHADA PODE SER EDITADA (pedido do dono,
+           ago/2026) — e a edição fica MARCADA: mudar o texto de uma proposta
+           submetida ou já aprovada é legítimo, mas quem analisa (ou já
+           aprovou) precisa poder ver que o documento mudou depois do envio.
+           A comparação roda AQUI, depois da limpeza da colagem e da régua da
+           curricularização — antes delas, "igual" nunca era igual e todo
+           salvar (inclusive o do relatório) viraria edição de proposta. Só
+           marca quem NÃO gere o setor e só quando a proposta de fato mudou. */
+        final.edicoesProposta = base?.edicoesProposta || [];
+        if (base && !gereEx(u) && ["submetida", "aprovada"].includes(String(base.status || ""))
+          && JSON.stringify(final.proposta || {}) !== JSON.stringify(base.proposta || {})) {
+          final.edicoesProposta = [...final.edicoesProposta,
+            { em: new Date().toISOString(), por: u.email, situacao: base.status }].slice(-20);
+        }
         /* Cursos CO-REALIZADORES (pedido de um professor, ago/2026): a
            jornada é de dois cursos, e abrir duas ações para o mesmo evento
            partiria a proposta, o número da ação e a contagem de
@@ -3014,7 +3028,15 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
       // participantes: quem carrega nomes é o Registro de Atividade (o
       // relatório), como nos modelos em papel (decisão do dono, ago/2026)
       const { gerarPropostaPdf } = await import("./lib/pdf.js");
-      buffer = await gerarPropostaPdf(acao);
+      /* A proposta APROVADA sai com as assinaturas digitalizadas do banco
+         (pedido do dono, ago/2026): o PDF só existe depois da validação, e o
+         ato que ele afirma já aconteceu. Sem imagem, sai a linha em branco. */
+      const banco = await assinaturasParaPdf();
+      buffer = await gerarPropostaPdf(acao, { assinaturas: {
+        proreitor: banco.proreitor, reitor: banco.reitor,
+        coordenacao: /curso/i.test(String(acao.proposta?.classificacao || ""))
+          ? banco.coordextensao : banco.coordacao,
+      } });
       nome = `Proposta-${num}.pdf`;
       mime = "application/pdf";
     } else {
@@ -7925,6 +7947,12 @@ const ASSINATURAS_KEY = "sys-assinaturas-v1";
    um lugar só para trocar quando a reitoria trocar. */
 const QUEM_ASSINA = {
   proreitor: "Pró-Reitor", reitor: "Reitor", proacademica: "Pró-Reitora Acadêmica",
+  /* As duas coordenações da Extensão entraram em ago/2026 (pedido do dono:
+     "fazer o banco de assinaturas para que no momento de aprovar a proposta,
+     as assinaturas sejam inseridas"): a proposta APROVADA sai com a
+     assinatura da coordenação da ação — curso livre é da Extensão, o resto
+     é da Ação Comunitária — ao lado do pró-reitor e do reitor. */
+  coordextensao: "Coordenador de Extensão", coordacao: "Coordenação de Ação Comunitária",
 };
 
 async function lerAssinaturas() {

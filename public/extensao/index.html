@@ -1407,7 +1407,8 @@ async function enviarProposta(){
   else ACOES.push(registro);
   await salvar();
 
-  if(base){
+  const soEdicao = base && base.status!=="devolvida";   // submetida/aprovada: nada de reenviar
+  if(base && !soEdicao){
     // a situação quem muda é o servidor: devolvida → submetida, com o
     // motivo antigo guardado no histórico da ação
     try{
@@ -1417,10 +1418,13 @@ async function enviarProposta(){
       if(!r.ok) throw new Error(j.error||r.status);
     }catch(e){ $("f-msg").textContent=""; alert("A proposta foi salva, mas o reenvio falhou: "+e.message); return; }
   }
-  fetch("/api/extensao/notificar",{method:"POST",headers:{"Content-Type":"application/json"},
+  // editar proposta já na fila não re-avisa a PROPPEX: o aviso é do envio
+  if(!soEdicao) fetch("/api/extensao/notificar",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({id:registro.id})}).catch(()=>{});
   $("f-msg").textContent="";
-  alert(base
+  alert(soEdicao
+    ? "✅ Alterações salvas na proposta.\n\nA situação da ação não mudou — a edição ficou registrada na ficha."
+    : base
     ? "✅ Proposta corrigida e reenviada à PROPPEX!\n\nÉ a mesma ação, agora de volta na fila de análise."
     : "✅ Proposta enviada à PROPPEX!\n\nVocê receberá uma cópia da proposta em PDF no seu e-mail. Acompanhe a situação na aba \"Ações de extensão\". Quando aprovada, ela receberá o Número da Ação.");
   const voltarPara = base ? registro.id : null;
@@ -1596,6 +1600,13 @@ function barraAcoes(a,s,podeRelatorio,doc){
       out.push(bt("↩ Devolver para alterações",`abrirDecisao('${a.id}','devolver')`,"bt-warn"));
       out.push(bt("✗ Reprovar",`abrirDecisao('${a.id}','reprovar')`,"bt-err"));
     }
+    /* A PROPOSTA JÁ ENCAMINHADA PODE SER EDITADA (pedido do dono, ago/2026):
+       a submetida se ajusta sem o vaivém da devolução, e a aprovada se
+       corrige sem mexer no número nem na situação. A edição fica marcada na
+       ficha; a reprovada e a registrada continuam intocáveis. */
+    if(s==="submetida"||s==="aprovada")
+      out.push(bt("✏ Editar a proposta",`corrigirProposta('${a.id}')`,"bt-sec",
+        "A proposta volta ao formulário para ajustes — a situação e o número da ação não mudam"));
     return (out.length ? `<div class="exp" style="margin:12px 0 2px">${out.join("")}</div>` : "")
       + `<div id="dec-caixa"></div>`;
   }
@@ -1827,6 +1838,14 @@ function renderDetalhe(id){
       ${a.devolucoes.map(d=>`<div class="kv" style="margin-top:6px">↩ ${esc(d.motivo||"")}
         <span class="muted">— devolvida em ${fmtDataHora(d.em)}${d.reenviadaEm?`, reenviada em ${fmtDataHora(d.reenviadaEm)}`:""}</span></div>`).join("")}
     </details>`;
+  // proposta editada depois de encaminhada: quem analisa (ou já aprovou)
+  // precisa ver que o documento mudou depois do envio
+  if((a.edicoesProposta||[]).length){
+    const ult=a.edicoesProposta[a.edicoesProposta.length-1];
+    html += `<div class="kv muted" style="margin-top:6px">✏ Proposta editada após o envio —
+      ${a.edicoesProposta.length} edição(ões), a última em ${fmtDataHora(ult.em)} por ${esc(ult.por||"")}
+      ${ult.situacao==="aprovada"?" (já aprovada)":""}.</div>`;
+  }
   if(s==="pendente" && !PROPPEX)
     html += doc==="relatorio"
       ? `<div class="banner ba-warn">⏰ O período da ação terminou — o relatório final está pendente. Preencha a seção "Relatório final" abaixo.</div>`
@@ -2554,13 +2573,19 @@ function marcarCorrecao(a){
   if(!a) return;
   const div=document.createElement("div");
   div.id="f-correcao"; div.className="banner ba-warn";
-  div.innerHTML=`<b>Corrigindo a proposta “${esc(a.proposta?.nomeAtividade||"")}”.</b>
-    ${a.motivoDevolucao?`<br>Motivo apontado pela PROPPEX: ${esc(a.motivoDevolucao)}`:""}
-    <br>Ajuste o que foi pedido e clique em <b>Reenviar à PROPPEX</b> — é a mesma proposta,
-    com o mesmo histórico. <a href="#" onclick="cancelarCorrecao();return false">Cancelar</a>`;
+  const devolvida = a.status==="devolvida";
+  div.innerHTML = devolvida
+    ? `<b>Corrigindo a proposta “${esc(a.proposta?.nomeAtividade||"")}”.</b>
+      ${a.motivoDevolucao?`<br>Motivo apontado pela PROPPEX: ${esc(a.motivoDevolucao)}`:""}
+      <br>Ajuste o que foi pedido e clique em <b>Reenviar à PROPPEX</b> — é a mesma proposta,
+      com o mesmo histórico. <a href="#" onclick="cancelarCorrecao();return false">Cancelar</a>`
+    : `<b>Editando a proposta “${esc(a.proposta?.nomeAtividade||"")}”, já encaminhada.</b>
+      <br>As alterações não mudam a situação da ação${a.numeroAcao?` nem o número ${esc(a.numeroAcao)}`:""} —
+      salve e a proposta segue de onde estava, com a edição registrada na ficha.
+      <a href="#" onclick="cancelarCorrecao();return false">Cancelar</a>`;
   alvo.insertBefore(div, alvo.firstChild);
   const bt=$("v-nova").querySelector("button.bt-pri");
-  if(bt) bt.textContent="Reenviar à PROPPEX";
+  if(bt) bt.textContent = devolvida ? "Reenviar à PROPPEX" : "💾 Salvar alterações";
 }
 
 function cancelarCorrecao(){

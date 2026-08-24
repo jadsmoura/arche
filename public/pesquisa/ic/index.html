@@ -1986,17 +1986,24 @@ function renderAssinaturas() {
   };
   return `<div class="card">
     <div class="card-t">Assinaturas do certificado</div>
-    <div class="card-s">A imagem entra sobre a linha, no certificado — e só nele: proposta,
-      relatório e resultado continuam saindo para assinatura à mão. Use <b>PNG com fundo
-      transparente</b> e traço escuro (JPG funciona, mas o retângulo branco aparece). Até 2 MB.
-      <br>Este card vale para <b>todos os certificados do portal</b>: quem assina acompanha o
-      órgão que concebe o programa — a <b>IC</b> é da PROPPEX; a <b>monitoria</b> é ação de
-      ensino, sai no timbre da <b>PROAC</b> e é a Pró-Reitora Acadêmica quem assina, ao lado do
-      reitor. Sem imagem, sai a linha em branco e nada quebra.</div>
-    ${cartao("proreitor", "Pró-Reitor", "Dr. Jadson Belem de Moura", "certificados da IC")}
+    <div class="card-s">A imagem entra sobre a linha nos certificados e, desde ago/2026, na
+      <b>proposta APROVADA da Extensão</b> (pedido do dono: ao aprovar, as assinaturas do banco
+      são inseridas no PDF); relatório e resultado continuam saindo para assinatura à mão. Use
+      <b>PNG com fundo transparente</b> e traço escuro (JPG funciona, mas o retângulo branco
+      aparece). Até 2 MB.
+      <br>Este card é o <b>banco de assinaturas institucional</b> do portal: quem assina
+      acompanha o órgão que concebe o programa — a <b>IC</b> é da PROPPEX; a <b>monitoria</b> é
+      ação de ensino, sai no timbre da <b>PROAC</b> e é a Pró-Reitora Acadêmica quem assina, ao
+      lado do reitor. Sem imagem, sai a linha em branco e nada quebra.</div>
+    ${cartao("proreitor", "Pró-Reitor", "Dr. Jadson Belem de Moura",
+      "certificados da IC e proposta aprovada da Extensão")}
     ${cartao("proacademica", "Pró-Reitora Acadêmica", "Dra. Matildes José de Oliveira",
       "certificados de monitoria")}
     ${cartao("reitor", "Reitor", "Dr. José Mateus dos Santos", "todos os certificados")}
+    ${cartao("coordextensao", "Coordenador de Extensão", "Thiago Brito Steckelberg",
+      "proposta aprovada de curso livre (Extensão)")}
+    ${cartao("coordacao", "Coordenação de Ação Comunitária", "Dra. Camila Cardoso",
+      "proposta aprovada das demais ações de extensão")}
   </div>`;
 }
 
