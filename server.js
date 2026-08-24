@@ -1468,12 +1468,20 @@ const FUSOES_KEY = "sys-fusoes-v1";
  * Mesma sequência de sempre: projetos, atas e ações primeiro; o cadastro por
  * último, para uma falha no meio não deixar a pessoa sem conta E sem registros.
  */
-async function executarFusao({ manter, remover, por, simular = false }) {
+async function executarFusao({ manter, remover, por, simular = false, destinoSemPerfil = false }) {
   const [perfis, usuarios] = await Promise.all([carregarPerfis(), carregarUsuarios(storage)]);
-  const impedimento = podeFundir(
+  let impedimento = podeFundir(
     { email: manter, nome: perfis[manter]?.nome, cpf: perfis[manter]?.cpf },
     { email: remover, nome: perfis[remover]?.nome, cpf: perfis[remover]?.cpf },
   );
+  /* Fusão de arranque com o destino ainda SEM perfil (o caso Claudia,
+     ago/2026): a pessoa não CONSEGUE preencher o perfil da conta nova — o
+     CPF barra por já estar na conta antiga — e o freio dos nomes exigiria
+     um nome que não tem como existir. Quem identificou o destino foi o
+     pedido explícito do dono; o freio só se dispensa quando o destino
+     realmente não tem nome nenhum gravado. */
+  if (impedimento && destinoSemPerfil && !perfis[manter]?.nome
+    && /nome preenchido/.test(impedimento)) impedimento = "";
   if (impedimento) return { error: impedimento };
   if (ehGestorFixo(remover))
     return { error: "Conta de gestor geral fixo não se funde — ela é a identidade da pró-reitoria." };
@@ -1585,17 +1593,33 @@ async function fundirContasSolicitadas() {
         continue;
       }
       const cpfLimpo = String(f.cpf || "").replace(/\D/g, "");
-      const candidatas = Object.entries(perfis)
-        .filter(([e, p]) => e.endsWith(f.dominioDestino) && (
-          f.nome.every((t) => chaveNome(p?.nome).includes(t))
-          || (cpfLimpo && String(p?.cpf || "").replace(/\D/g, "") === cpfLimpo)))
-        .map(([e]) => e);
+      /* A conta de destino pode existir SEM perfil (a pessoa não consegue
+         salvá-lo: o CPF barra por estar na conta antiga — foi o que o print
+         do dono mostrou). Por isso a varredura cobre todas as contas que o
+         portal conhece — perfis, listas de acesso e cadastros novos — e casa
+         pelo nome do perfil, pelo CPF ou pelo PRÓPRIO ENDEREÇO (o primeiro
+         nome na parte local do e-mail do domínio institucional). */
+      const usuarios = await carregarUsuarios(storage);
+      let novos = [];
+      try { novos = JSON.parse((await storage.get(CADASTROS_KEY)) || "[]"); } catch { novos = []; }
+      const conhecidas = new Set([
+        ...Object.keys(perfis),
+        ...(usuarios.aprovados || []), ...(usuarios.pendentes || []),
+        ...Object.keys(usuarios.coordenadores || {}),
+        ...novos.map((c) => String(c?.email || "")),
+      ].map((e) => String(e || "").trim().toLowerCase()).filter(Boolean));
+      const primeiroNome = (f.nome || [])[0] || "";
+      const candidatas = [...conhecidas].filter((e) => e.endsWith(f.dominioDestino) && (
+        f.nome.every((t) => chaveNome(perfis[e]?.nome).includes(t))
+        || (cpfLimpo && String(perfis[e]?.cpf || "").replace(/\D/g, "") === cpfLimpo)
+        || (primeiroNome && e.split("@")[0].includes(primeiroNome))));
       if (candidatas.length !== 1) {
         console.log(`[fusao] ${f.marca}: ${candidatas.length} conta(s) candidata(s) no domínio`
           + ` (${candidatas.join(", ") || "nenhuma"}) — aguardando o próximo arranque`);
         continue;
       }
-      const r = await executarFusao({ manter: candidatas[0], remover: f.remover, por: "arranque (pedido do dono)" });
+      const r = await executarFusao({ manter: candidatas[0], remover: f.remover,
+        por: "arranque (pedido do dono)", destinoSemPerfil: !perfis[candidatas[0]]?.nome });
       if (r.error) { console.error(`[fusao] ${f.marca}: ${r.error}`); continue; }
       await storage.set(f.marca, JSON.stringify({ em: new Date().toISOString(), ...r.resumo }));
       await storage.flush?.();
