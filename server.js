@@ -109,7 +109,7 @@ import {
 } from "./lib/em.js";
 import {
   duplicidadesPorNome, podeFundir, fundirPerfil, fundirProjeto, fundirAcao, fundirAta, fundirPapeis,
-  chaveNome,
+  chaveNome, nomesCompativeis,
 } from "./lib/fusao.js";
 import { certificadosDe, destinatariosDoCiclo, certificavel, codigo as codigoCert } from "./lib/certificados.js";
 import {
@@ -8351,6 +8351,50 @@ async function assinaturaPorIdentidade(email) {
   return assinaturaDoUsuario(candidatas[0][0]);
 }
 
+/* O ENVIO NOS FLUXOS ALIMENTA O BANCO (pedido do dono, ago/2026: "um
+   professor ou coordenador, ao submeter ou gerenciar uma proposta, pode
+   subir sua assinatura e essa passa a compor o banco, e não mais precisa
+   ser pedida nos próximos documentos — em todos os módulos"). A PRÓPRIA
+   assinatura (o nome confere com o perfil de quem envia) entra como
+   TITULAR — a mais nova substitui a anterior, como no perfil; a de OUTRA
+   pessoa entra como digitalizada pela gestão (`terceiro`), achando a conta
+   pelo nome (única) ou guardada pelo próprio nome, e NUNCA por cima de um
+   titular. Nome de uma palavra só não é chave — não alimenta nada. */
+async function alimentarBancoDeAssinatura({ nome, buffer, tipo, arquivo, bytes, porEmail }) {
+  try {
+    if (!nomeServeDeChave(nome)) return;
+    const [todas, perfis] = await Promise.all([lerAssinaturasDeUsuarios(), carregarPerfis()]);
+    const registro = {
+      base64: buffer.toString("base64"), tipo: tipo || "image/png",
+      arquivo: String(arquivo || "").slice(0, 120), bytes: bytes || buffer.length,
+      em: new Date().toISOString(), nome: String(nome || "").trim().slice(0, 120),
+    };
+    const meu = chaveNome(perfis[porEmail]?.nome || "");
+    if (meu && nomesCompativeis(meu, chaveNome(nome))) {
+      todas[porEmail] = { ...registro, origem: "titular" };
+    } else {
+      const kn = chaveDoNome(nome);
+      const donos = Object.entries(perfis)
+        .filter(([, p]) => chaveDoNome(p?.nome || "") === kn).map(([e]) => e);
+      const chave = donos.length === 1 ? donos[0] : "nome:" + kn;
+      if (todas[chave]?.base64 && origemDaAssinatura(todas[chave]) === "titular") return;
+      todas[chave] = { ...registro, origem: "terceiro", porQuem: porEmail };
+    }
+    await storage.set(ASSINATURA_USUARIO_KEY, JSON.stringify(todas));
+    console.log(`[assinaturas] banco alimentado pelo envio de ${porEmail} (${nome})`);
+  } catch (e) {
+    console.error("[assinaturas] banco não alimentado:", e.message);
+  }
+}
+
+/** A assinatura do banco pelo NOME (a melhor: titular vence terceiro). */
+async function assinaturaDoBancoPorNome(nome) {
+  if (!nomeServeDeChave(nome)) return null;
+  const todas = await lerAssinaturasDeUsuarios();
+  const reg = indicePorNome(todas).get(chaveDoNome(nome));
+  try { return reg?.base64 ? Buffer.from(reg.base64, "base64") : null; } catch { return null; }
+}
+
 app.post("/api/ic/assinatura", upload.single("file"), async (req, res) => {
   const g = await exigirGestor(req, res); if (!g) return;
   const quem = String(req.body?.quem || "").trim();
@@ -12964,10 +13008,37 @@ async function assinaturasInstitucionais() {
 async function pdfDoCertificadoEvento(acao, cert) {
   const { gerarCertificadoEventoPdf } = await import("./lib/pdf.js");
   const institucionais = await assinaturasInstitucionais();
-  const assinaturas = assinaturasDoCertificado(acao, institucionais).map((a) => ({
-    nome: a.nome, cargo: a.cargo,
+  const lista = assinaturasDoCertificado(acao, institucionais).map((a) => ({
+    chave: a.chave, nome: a.nome, cargo: a.cargo,
     img: a.img || (a.base64 ? Buffer.from(a.base64, "base64") : null),
   }));
+  /* O BANCO COMPLETA O QUE O EVENTO NÃO TEM (pedido do dono, ago/2026): quem
+     já subiu a assinatura uma vez — em qualquer módulo — não a reenvia a
+     cada evento. Faltando a do responsável ou a da coordenação, busca-se no
+     banco pela identidade (e-mail do responsável) ou pelo nome declarado na
+     caixa da ação; sem imagem em lugar nenhum, a regra de sempre: a linha
+     não aparece. A ordem dos assinantes é a do catálogo. */
+  const temChave = new Set(lista.map((a) => a.chave));
+  const cx = caixaCertificado(acao);
+  const doBanco = [];
+  if (!temChave.has("organizador")) {
+    const nome = String(cx.assinaturas?.organizador?.nome || acao.proposta?.respNome || "").trim();
+    const email = String(acao.proposta?.respEmail || acao.criadoPor || "").trim().toLowerCase();
+    const img = (email ? await assinaturaPorIdentidade(email) : null)
+      || (nome ? await assinaturaDoBancoPorNome(nome) : null);
+    if (img && nome) doBanco.push({ chave: "organizador", nome,
+      cargo: String(cx.assinaturas?.organizador?.cargo || "").trim() || "Responsável pela ação", img });
+  }
+  if (!temChave.has("coordenacao")) {
+    const nome = String(cx.assinaturas?.coordenacao?.nome || "").trim();
+    const img = nome ? await assinaturaDoBancoPorNome(nome) : null;
+    if (img) doBanco.push({ chave: "coordenacao", nome,
+      cargo: String(cx.assinaturas?.coordenacao?.cargo || "").trim() || "Coordenação do evento", img });
+  }
+  const ordem = ["organizador", "coordenacao", "proreitor", "reitor"];
+  const assinaturas = [...lista, ...doBanco]
+    .sort((a, b) => ordem.indexOf(a.chave) - ordem.indexOf(b.chave))
+    .map(({ nome, cargo, img }) => ({ nome, cargo, img }));
   return gerarCertificadoEventoPdf({
     cert, programacao: programacaoDoCertificado(acao), assinaturas,
   });
@@ -13095,6 +13166,10 @@ app.post("/api/extensao/:id/assinatura", upload.single("file"), async (req, res)
       return { acao: a };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    // e o envio COMPÕE O BANCO central: nos próximos documentos, de qualquer
+    // módulo, esta assinatura não precisa ser pedida de novo
+    alimentarBancoDeAssinatura({ nome, buffer: req.file.buffer, tipo: req.file.mimetype,
+      arquivo: req.file.originalname, bytes: req.file.size, porEmail: u.email }).catch(() => {});
     res.json({ ok: true, assinaturas: assinaturasVisiveis(r.acao) });
   } catch (e) {
     console.error("Erro ao gravar a assinatura do evento:", e);

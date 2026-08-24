@@ -2392,6 +2392,19 @@ public/
   identidade (`assinaturaPorIdentidade`: e-mail → CPF → nome completo, sempre a de TITULAR, e só
   com UMA conta casando — duas contas candidatas não se decide): o relatório de aula prática de
   quem tem a assinatura na OUTRA conta da mesma pessoa deixa de sair com a linha em branco.
+- **O envio nos fluxos ALIMENTA o banco, e os documentos BUSCAM no banco**
+  (`alimentarBancoDeAssinatura` + `assinaturaDoBancoPorNome` no server, pedido do dono
+  ago/2026: "ao submeter ou gerenciar uma proposta, o professor pode subir sua assinatura e
+  essa passa a compor o banco — não mais precisa ser pedida nos próximos documentos, em todos
+  os módulos"): a assinatura subida na guia do evento/ação (`POST /api/extensao/:id/assinatura`)
+  também entra no banco central — a PRÓPRIA (nome compatível com o perfil de quem envia,
+  `nomesCompativeis`) como TITULAR, substituindo a anterior como no perfil; a de OUTRA pessoa
+  como `terceiro`, na conta única que o nome encontra ou guardada pelo próprio nome
+  (`nome:<chave>`), NUNCA por cima de um titular. E o certificado de evento/ação COMPLETA do
+  banco o que a caixa da ação não tem (`pdfDoCertificadoEvento`): faltando a imagem do
+  responsável ou da coordenação, busca por identidade (respEmail) ou pelo nome declarado —
+  sem imagem em lugar nenhum, a regra de sempre (a linha não aparece). Nome de uma palavra só
+  não é chave e não alimenta nada.
 - **Assinatura digitalizada VINCULADA AO USUÁRIO** (`sys-assinaturas-usuario-v1` +
   `/api/perfil/assinatura`, pedido do dono ago/2026): havia assinatura em dois lugares e nenhum
   deles era da PESSOA — as três institucionais (`sys-assinaturas-v1`, só o gestor geral troca) e a
