@@ -109,6 +109,7 @@ import {
 } from "./lib/em.js";
 import {
   duplicidadesPorNome, podeFundir, fundirPerfil, fundirProjeto, fundirAcao, fundirAta, fundirPapeis,
+  chaveNome,
 } from "./lib/fusao.js";
 import { certificadosDe, destinatariosDoCiclo, certificavel, codigo as codigoCert } from "./lib/certificados.js";
 import {
@@ -1461,20 +1462,21 @@ app.get("/api/usuarios/painel", async (req, res) => {
  * perfil removido inteiro — em `sys-fusoes-v1`, para nada se perder.
  */
 const FUSOES_KEY = "sys-fusoes-v1";
-app.post("/api/usuarios/fundir", async (req, res) => {
-  const g = await exigirGestor(req, res); if (!g) return;
-  const manter = String(req.body?.manter || "").trim().toLowerCase();
-  const remover = String(req.body?.remover || "").trim().toLowerCase();
-  const simular = req.body?.simular === true;
-
+/**
+ * O motor da fusão — compartilhado entre a rota da gestão e a fusão de
+ * arranque (pedido do dono, ago/2026). `simular: true` devolve só o resumo.
+ * Mesma sequência de sempre: projetos, atas e ações primeiro; o cadastro por
+ * último, para uma falha no meio não deixar a pessoa sem conta E sem registros.
+ */
+async function executarFusao({ manter, remover, por, simular = false }) {
   const [perfis, usuarios] = await Promise.all([carregarPerfis(), carregarUsuarios(storage)]);
   const impedimento = podeFundir(
     { email: manter, nome: perfis[manter]?.nome, cpf: perfis[manter]?.cpf },
     { email: remover, nome: perfis[remover]?.nome, cpf: perfis[remover]?.cpf },
   );
-  if (impedimento) return res.status(400).json({ error: impedimento });
+  if (impedimento) return { error: impedimento };
   if (ehGestorFixo(remover))
-    return res.status(400).json({ error: "Conta de gestor geral fixo não se funde — ela é a identidade da pró-reitoria." });
+    return { error: "Conta de gestor geral fixo não se funde — ela é a identidade da pró-reitoria." };
 
   // a PRÉVIA lê fora da fila (é só contagem); a fusão de verdade transforma
   // dentro dela, para não gravar em cima de escrita simultânea
@@ -1499,10 +1501,8 @@ app.post("/api/usuarios/fundir", async (req, res) => {
     papel: papelDe(remover, usuarios), modulos: modulosDe(remover, usuarios),
     avisos: [...new Set(avisos)],
   };
-  if (simular) return res.json({ simulado: true, ...resumo });
+  if (simular) return { resumo };
 
-  // grava: projetos, atas e ações primeiro; o cadastro por último, para que
-  // uma falha no meio não deixe a pessoa sem conta E sem os registros
   await comProjetos((lista) => {
     let n = 0;
     for (let i = 0; i < lista.length; i++) {
@@ -1538,13 +1538,72 @@ app.post("/api/usuarios/fundir", async (req, res) => {
   // o registro do que foi feito, com o perfil removido inteiro: fusão não se
   // desfaz sozinha, e sem isto não haveria como reconstruir à mão
   const log = JSON.parse((await storage.get(FUSOES_KEY)) || "[]");
-  log.push({ em: new Date().toISOString(), por: g.email, ...resumo, perfilRemovido: removido });
+  log.push({ em: new Date().toISOString(), por, ...resumo, perfilRemovido: removido });
   await storage.set(FUSOES_KEY, JSON.stringify(log.slice(-200)));
   await storage.flush?.();
-  console.log(`[usuarios] ${remover} fundido em ${manter} por ${g.email}: `
+  console.log(`[usuarios] ${remover} fundido em ${manter} por ${por}: `
     + `${nProjetos} projeto(s), ${nAcoes} ação(ões), ${nAtas} ata(s)`);
-  res.json({ ok: true, ...resumo });
+  return { resumo };
+}
+
+app.post("/api/usuarios/fundir", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  const manter = String(req.body?.manter || "").trim().toLowerCase();
+  const remover = String(req.body?.remover || "").trim().toLowerCase();
+  const simular = req.body?.simular === true;
+  const r = await executarFusao({ manter, remover, por: g.email, simular });
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json(simular ? { simulado: true, ...r.resumo } : { ok: true, ...r.resumo });
 });
+
+/* Fusões pedidas pelo dono, executadas no ARRANQUE (ago/2026): "a professora
+   Claudia Santos está com duas contas — unifique em uma; ela quer o e-mail
+   docente.evangelicagoianesia.edu.br". A conta que SAI é conhecida (o
+   pré-cadastro do edital 01/2026, claudiadtds@gmail.com — e-mail, nome e CPF
+   vieram do formulário); a que FICA se encontra pelo domínio docente + nome
+   ou CPF, porque endereço de e-mail não se adivinha. Se houver zero ou mais
+   de uma candidata, NADA acontece e o pedido fica de pé para o próximo
+   arranque — fundir a conta errada seria pior que esperar. A marca só grava
+   com a fusão feita (ou com a origem já inexistente, que encerra o pedido). */
+async function fundirContasSolicitadas() {
+  const PEDIDOS = [{
+    marca: "sys-fusao-claudia-v1",
+    remover: "claudiadtds@gmail.com",
+    dominioDestino: "@docente.evangelicagoianesia.edu.br",
+    nome: ["claudia", "santos"],
+    cpf: "62927485100",
+  }];
+  for (const f of PEDIDOS) {
+    try {
+      if (await storage.get(f.marca)) continue;
+      const perfis = await carregarPerfis();
+      if (!perfis[f.remover]) {
+        // a origem já não existe (o pré-cadastro pode ter sido transferido
+        // pela própria pessoa ao informar o CPF) — não há o que fundir
+        console.log(`[fusao] ${f.marca}: ${f.remover} não existe — pedido encerrado`);
+        await storage.set(f.marca, JSON.stringify({ em: new Date().toISOString(), resultado: "origem-inexistente" }));
+        continue;
+      }
+      const cpfLimpo = String(f.cpf || "").replace(/\D/g, "");
+      const candidatas = Object.entries(perfis)
+        .filter(([e, p]) => e.endsWith(f.dominioDestino) && (
+          f.nome.every((t) => chaveNome(p?.nome).includes(t))
+          || (cpfLimpo && String(p?.cpf || "").replace(/\D/g, "") === cpfLimpo)))
+        .map(([e]) => e);
+      if (candidatas.length !== 1) {
+        console.log(`[fusao] ${f.marca}: ${candidatas.length} conta(s) candidata(s) no domínio`
+          + ` (${candidatas.join(", ") || "nenhuma"}) — aguardando o próximo arranque`);
+        continue;
+      }
+      const r = await executarFusao({ manter: candidatas[0], remover: f.remover, por: "arranque (pedido do dono)" });
+      if (r.error) { console.error(`[fusao] ${f.marca}: ${r.error}`); continue; }
+      await storage.set(f.marca, JSON.stringify({ em: new Date().toISOString(), ...r.resumo }));
+      await storage.flush?.();
+    } catch (e) {
+      console.error(`[fusao] ${f.marca}:`, e.message);
+    }
+  }
+}
 
 app.post("/api/usuarios/perfil", async (req, res) => {
   const g = await exigirGestor(req, res); if (!g) return;
@@ -12164,10 +12223,19 @@ app.get("/api/praticas/:id/pdf", async (req, res) => {
    PROFESSOR. Sem coordenador designado para o curso, o aviso sobe à
    coordenação pedagógica, que é quem cobre a ausência.
    ---------------------------------------------------------------------- */
+/* O coordenador do curso E o pedagógico do curso recebem o aviso do relatório
+   enviado (pedido do dono, ago/2026 — e o CONSERTO do aviso que existia e não
+   chegava: quando a guia Coordenação passou a guardar {email, nome, papel},
+   esta lista seguiu devolvendo os OBJETOS, e o mailer recebia um objeto como
+   endereço — o envio falhava em silêncio, no catch do avisarPraticas). O
+   e-mail se extrai aqui; a forma antiga, só o endereço em texto, segue aceita. */
 async function destinatariosDaCoordenacaoAP(curso) {
   const equipe = await lerEquipeAP();
-  const doCurso = equipe.cursos?.[curso]?.coordenadores || [];
-  return doCurso.length ? doCurso : (equipe.pedagogico || []);
+  const emails = (lista) => (lista || [])
+    .map((c) => (typeof c === "string" ? c : c?.email || ""))
+    .filter((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
+  const doCurso = emails(equipe.cursos?.[curso]?.coordenadores);
+  return doCurso.length ? doCurso : emails(equipe.pedagogico);
 }
 
 async function avisarPraticas(r, evento) {
@@ -13267,6 +13335,7 @@ app.listen(port, () => {
       // deixaria a pessoa "duplicada" no painel (a conta de um lado, os
       // projetos pelo CPF do outro) até alguém regravar o perfil. A passada é
       // idempotente e nunca sobrescreve e-mail existente.
+      fundirContasSolicitadas,     // as fusões de conta pedidas pelo dono
       vincularPerfisIC,
     ]) {
       try { await etapa(); }

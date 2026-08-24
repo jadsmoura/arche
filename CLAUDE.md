@@ -503,7 +503,16 @@ public/
   completa o que falta e **nunca sobrescreve** o que a pessoa preencheu; a conta que fica
   **herda** o alcance da outra (nunca o contrário); parecer entregue sobrevive à junção de
   avaliadores; a **senha não viaja** (é da conta, não da pessoa); e o que foi movido, com o
-  perfil removido inteiro, fica em `sys-fusoes-v1` — fusão não se desfaz sozinha. As **duas
+  perfil removido inteiro, fica em `sys-fusoes-v1` — fusão não se desfaz sozinha.
+  **Nome CONTIDO no outro é a mesma pessoa** (`nomesCompativeis` em lib/fusao.js, o caso
+  Claudia ago/2026): "Claudia Santos" numa conta e "Claudia Dias Teixeira dos Santos" na
+  outra travavam o freio de `podeFundir`, que exigia igualdade exata. A régua: o nome mais
+  curto tem ao menos duas palavras e TODAS aparecem no mais longo, na MESMA ordem. O motor
+  da fusão virou função compartilhada (`executarFusao`) e ganhou o segundo chamador: as
+  **fusões pedidas pelo dono rodam no ARRANQUE** (`fundirContasSolicitadas`, marca
+  `sys-fusao-<pessoa>-v1`) — a conta que SAI é explícita e a que FICA se encontra por
+  domínio + nome/CPF, porque e-mail não se adivinha; com zero ou mais de uma candidata NADA
+  acontece e o pedido fica de pé para o próximo arranque, dito no log. As **duas
   contas da pró-reitoria não aparecem como duplicidade**: são duas de propósito.
 - **Função na instituição** (`FUNCOES`/`normalizarFuncao` em lib/auth.js): o que a pessoa
   FAZ — professor, professor pesquisador, coordenador de curso, coordenador pedagógico,

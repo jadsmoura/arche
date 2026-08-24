@@ -107,3 +107,16 @@ test("só se funde o que é a mesma pessoa", () => {
   // CPFs diferentes: são pessoas diferentes, por mais que o nome coincida
   assert.match(podeFundir(a, { email: INSTIT, nome: a.nome, cpf: "52998224725" }), /CPFs diferentes/);
 });
+
+test("nome CONTIDO no outro é a mesma pessoa (o caso Claudia, ago/2026)", () => {
+  const curta = { email: PESSOAL, nome: "Claudia Santos" };
+  const longa = { email: INSTIT, nome: "Claudia Dias Teixeira dos Santos" };
+  assert.equal(podeFundir(curta, longa), "", "nome curto contido no completo funde");
+  assert.equal(podeFundir(longa, curta), "", "vale nos dois sentidos");
+  // as palavras têm de estar na MESMA ordem — fora dela não é evidência
+  assert.match(podeFundir({ email: PESSOAL, nome: "Santos Claudia" }, longa), /não conferem/);
+  // uma palavra só nunca casa com nada
+  assert.match(podeFundir({ email: PESSOAL, nome: "Claudia" }, longa), /não conferem/);
+  // palavra que não existe no nome longo: outra pessoa
+  assert.match(podeFundir({ email: PESSOAL, nome: "Claudia Pereira" }, longa), /não conferem/);
+});
