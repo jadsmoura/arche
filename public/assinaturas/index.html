@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banco de Assinaturas — ARCHÉ</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1f4;--marca:#1c3742;--hover:#2d535c;--acento:#40717e;--claro:#71c8e2;
+--wash:#e6f5fa;--ink:#182632;--muted:#657179;--line:#dde4e8;--ok:#1f6b45;--warn:#7a5714;--err:#8c2f22}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:Figtree,system-ui,sans-serif;font-size:14.5px;line-height:1.5}
+.wrap{max-width:1060px;margin:0 auto;padding:22px 16px 60px}
+h1{font-family:Sora,sans-serif;font-size:21px;color:var(--marca);margin:14px 0 2px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:16px}
+.card-t{font-family:Sora,sans-serif;font-size:15px;color:var(--marca);margin-bottom:4px}
+.card-s{color:var(--muted);font-size:12.8px;margin-bottom:12px}
+label{display:block;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+input,select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+input:focus,select:focus{outline:none;border-color:var(--acento)}
+.filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.bt{font:inherit;font-weight:600;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--acento);
+padding:7px 12px;cursor:pointer;font-size:12.8px}
+.bt:hover{border-color:var(--acento);background:var(--wash)}
+.bt-pri{background:var(--marca);border-color:var(--marca);color:#fff}
+.bt-pri:hover{background:var(--hover)}
+.bt-err{background:#fdeeec;border-color:#eed6d3;color:var(--err)}
+.bt-xs{padding:4px 9px;font-size:12px}
+.linha{display:flex;gap:12px;align-items:center;padding:10px 4px;border-top:1px solid var(--line);flex-wrap:wrap}
+.linha:first-of-type{border-top:0}
+.quem{flex:1;min-width:230px}
+.nm{font-weight:600}
+.dt{color:var(--muted);font-size:12.3px}
+.selo{font-size:11px;font-weight:700;letter-spacing:.04em;border-radius:999px;padding:3px 10px;white-space:nowrap}
+.s-titular{background:#eaf7ef;color:var(--ok);border:1px solid #cfeeda}
+.s-terceiro{background:#fbf3e4;color:var(--warn);border:1px solid #e8d3a8}
+.s-sem{background:#f2f5f7;color:var(--muted);border:1px solid var(--line)}
+.mini{height:34px;max-width:120px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 6px}
+.banner{border-radius:10px;padding:11px 14px;font-size:13.3px;margin-bottom:12px}
+.ba-warn{background:#fbf3e4;border:1px solid #e8d3a8;color:var(--warn)}
+.ba-err{background:#fdeeec;border:1px solid #eed6d3;color:var(--err)}
+.ba-ok{background:#eaf7ef;border:1px solid #cfeeda;color:var(--ok)}
+.dup{border:1px solid #e8d3a8;background:#fffdf6;border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.dup .rot{font-weight:700}
+.dup .contas{margin:8px 0;display:flex;flex-direction:column;gap:5px}
+.dup label.radio{display:flex;align-items:center;gap:8px;font-size:13.3px;color:var(--ink);text-transform:none;letter-spacing:0}
+.muted{color:var(--muted)}
+.vazio{color:var(--muted);padding:16px 4px}
+@media (max-width:640px){.linha{gap:8px}.quem{min-width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🖋 Banco de Assinaturas</h1>
+  <div class="sub">Central única das assinaturas digitalizadas do portal — vinculadas à pessoa por
+    e-mail, nome completo ou CPF. Acesso da gestão dos módulos.</div>
+  <div id="app"><div class="card muted">Carregando…</div></div>
+</div>
+
+<script src="/assets/arche-paginacao.js"></script>
+<script>
+const $=(id)=>document.getElementById(id);
+const esc=(s)=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let D=null, F={q:"", filtro:""};
+
+async function carregar(){
+  const r=await fetch("/api/assinaturas/banco");
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){
+    $("app").innerHTML=`<div class="card"><div class="banner ba-err">${esc(j.error||"Sem acesso.")}</div>
+      <div class="muted">O banco de assinaturas é da gestão: gestor geral e coordenadores de módulo
+      designados em Gestão de acessos.</div></div>`;
+    return;
+  }
+  D=j; render();
+}
+
+function fmt(iso){ if(!iso)return""; const d=new Date(iso); return isNaN(d)?"":d.toLocaleDateString("pt-BR"); }
+
+function render(){
+  const html=[];
+  if((D.duplicidades||[]).length) html.push(cardDuplicidades());
+  html.push(cardPessoas());
+  if(D.institucionais) html.push(cardInstitucionais());
+  $("app").innerHTML=html.join("");
+}
+
+/* ------------------------- duplicidades + fusão ------------------------- */
+function cardDuplicidades(){
+  const podeFundir=D.gestorGeral;
+  return `<div class="card">
+    <div class="card-t">⚠ Possível duplicidade de cadastro (${D.duplicidades.length})</div>
+    <div class="card-s">O mesmo nome completo — ou o mesmo CPF — aparece em mais de uma conta.
+      ${podeFundir
+        ? "Marque a conta que <b>fica</b> e junte os cadastros: projetos, ações, atas e o perfil migram para ela, e a assinatura passa a valer nas duas identidades."
+        : "A fusão de cadastros é do gestor geral — avise a PROPPEX para juntar as contas."}</div>
+    ${D.duplicidades.map((g,i)=>`<div class="dup">
+      <div class="rot">${esc(g.rotulo)} <span class="muted" style="font-weight:400">— mesmo ${g.motivo==="cpf"?"CPF":"nome completo"} em ${g.contas.length} contas</span></div>
+      <div class="contas">${g.contas.map(e=>`<label class="radio">
+        ${podeFundir?`<input type="radio" name="dup-${i}" value="${esc(e)}">`:"•"}
+        <span>${esc(e)}</span></label>`).join("")}</div>
+      ${podeFundir?`<button class="bt bt-pri bt-xs" onclick="fundir(${i})">⧉ Juntar cadastros nesta conta</button>
+        <span class="muted" style="font-size:12px;margin-left:8px">antes de gravar, o sistema mostra o que vai ser movido</span>`:""}
+    </div>`).join("")}
+  </div>`;
+}
+
+async function fundir(i){
+  const g=D.duplicidades[i];
+  const manter=(document.querySelector(`input[name="dup-${i}"]:checked`)||{}).value;
+  if(!manter){ alert("Marque primeiro a conta que FICA — as demais serão fundidas nela."); return; }
+  for(const remover of g.contas.filter(e=>e!==manter)){
+    // a prévia diz o que sai de uma conta para a outra — fusão não se desfaz
+    const sim=await fetch("/api/usuarios/fundir",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({manter,remover,simular:true})});
+    const js=await sim.json().catch(()=>({}));
+    if(!sim.ok){ alert(`Não dá para fundir ${remover}:\n${js.error||sim.status}`); continue; }
+    const resumo=`Fundir ${remover} → ${manter}\n\n`+
+      `• ${js.projetos||0} projeto(s) de IC, ${js.acoes||0} ação(ões) de extensão, ${js.atas||0} ata(s) migram\n`+
+      `• o perfil que fica ganha: ${(js.campos||[]).join(", ")||"nada novo"}\n`+
+      (js.avisos||[]).map(a=>`• ${a}\n`).join("")+
+      `\nA fusão não se desfaz sozinha. Confirmar?`;
+    if(!confirm(resumo)) continue;
+    const r=await fetch("/api/usuarios/fundir",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({manter,remover})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){ alert(`A fusão falhou: ${j.error||r.status}`); }
+  }
+  await carregar();
+}
+
+/* ------------------------------ as pessoas ------------------------------ */
+function cardPessoas(){
+  const q=F.q.trim().toLowerCase();
+  let lista=(D.pessoas||[]).filter(p=>
+    (!q || (p.nome||"").toLowerCase().includes(q) || (p.email||"").includes(q) || (p.cpf||"").includes(q))
+    && (!F.filtro || (F.filtro==="titular"&&p.origem==="titular")
+      || (F.filtro==="terceiro"&&p.origem==="terceiro") || (F.filtro==="sem"&&!p.tem)));
+  const pag=ArchePag.recorte("banco-assinaturas",lista,render);
+  const com=(D.pessoas||[]).filter(p=>p.tem).length;
+  return `<div class="card">
+    <div class="card-t">Pessoas do portal — ${com} com assinatura, de ${(D.pessoas||[]).length} contas</div>
+    <div class="card-s">A assinatura enviada pela <b>própria pessoa</b> (no perfil) vale sempre e só ela
+      troca; a gestão pode <b>enviar por alguém</b> (fica marcada como digitalizada pela gestão, e a da
+      própria pessoa a substitui quando chegar). Use PNG com fundo transparente, até 2&nbsp;MB. A imagem
+      sai nos documentos em que a pessoa assina — relatório de aula prática, semestral, certificados.</div>
+    <div class="filtros">
+      <div><label>Buscar</label><input id="f-q" value="${esc(F.q)}" placeholder="nome, e-mail ou CPF"
+        oninput="F.q=this.value;ArchePag.zerar('banco-assinaturas');render();
+          setTimeout(()=>{const e=document.getElementById('f-q');e.focus();e.setSelectionRange(e.value.length,e.value.length)},0)"></div>
+      <div><label>Mostrar</label><select onchange="F.filtro=this.value;ArchePag.zerar('banco-assinaturas');render()">
+        <option value="">Todas as contas</option>
+        <option value="titular" ${F.filtro==="titular"?"selected":""}>Com assinatura da própria pessoa</option>
+        <option value="terceiro" ${F.filtro==="terceiro"?"selected":""}>Digitalizada pela gestão</option>
+        <option value="sem" ${F.filtro==="sem"?"selected":""}>Sem assinatura</option>
+      </select></div>
+    </div>
+    <div id="p-msg"></div>
+    ${pag.barra}
+    ${pag.itens.length?pag.itens.map(linhaPessoa).join(""):'<div class="vazio">Nenhuma conta com esses filtros.</div>'}
+  </div>`;
+}
+
+function linhaPessoa(p){
+  const selo=p.tem
+    ? (p.origem==="titular"?'<span class="selo s-titular">✓ da própria pessoa</span>'
+      :`<span class="selo s-terceiro">✎ pela gestão${p.porQuem?` (${esc(p.porQuem)})`:""}</span>`)
+    :'<span class="selo s-sem">sem assinatura</span>';
+  const chave=p.email||("nome:"+p.nome);
+  return `<div class="linha">
+    <div class="quem">
+      <div class="nm">${esc(p.nome||"(sem nome no cadastro)")}</div>
+      <div class="dt">${esc(p.email||"registro por nome — folha de ata")}${p.cpf?` · CPF ${esc(p.cpf)}`:""}${p.funcao?` · ${esc(p.funcao)}`:""}${p.curso?` · ${esc(p.curso)}`:""}</div>
+    </div>
+    ${p.tem&&p.email?`<img class="mini" loading="lazy" alt="assinatura"
+      src="/api/assinaturas/banco/imagem?email=${encodeURIComponent(p.email)}">`:""}
+    ${selo}
+    ${p.email?`<span>
+      ${!p.tem||p.origem==="terceiro"?`<button class="bt bt-xs" onclick="enviarPor('${esc(p.email)}')">⬆ ${p.tem?"Substituir":"Enviar por ela"}</button>`:""}
+      ${p.tem&&p.origem==="terceiro"?`<button class="bt bt-err bt-xs" onclick="removerDe('${esc(p.email)}')">✕</button>`:""}
+    </span>`:""}
+  </div>`;
+}
+
+function enviarPor(email){
+  const inp=document.createElement("input");
+  inp.type="file"; inp.accept="image/png,image/jpeg";
+  inp.onchange=async()=>{
+    const f=inp.files[0]; if(!f)return;
+    const fd=new FormData(); fd.append("file",f); fd.append("email",email);
+    const r=await fetch("/api/assinaturas/banco",{method:"POST",body:fd});
+    const j=await r.json().catch(()=>({}));
+    $("p-msg").innerHTML=r.ok?`<div class="banner ba-ok">Assinatura de ${esc(email)} guardada no banco.</div>`
+      :`<div class="banner ba-err">${esc(j.error||"Falha no envio.")}</div>`;
+    if(r.ok) await carregar(); else setTimeout(()=>{const m=$("p-msg");if(m)m.scrollIntoView({block:"center"});},0);
+  };
+  inp.click();
+}
+
+async function removerDe(email){
+  if(!confirm(`Remover do banco a assinatura digitalizada de ${email}?`))return;
+  const r=await fetch("/api/assinaturas/banco?email="+encodeURIComponent(email),{method:"DELETE"});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ alert(j.error||"Não foi possível remover."); return; }
+  await carregar();
+}
+
+/* --------------------------- as institucionais -------------------------- */
+function cardInstitucionais(){
+  return `<div class="card">
+    <div class="card-t">Assinaturas institucionais</div>
+    <div class="card-s">As da reitoria e das coordenações, que entram nos certificados e na proposta
+      aprovada da Extensão. Só o gestor geral as troca — trocar de reitor não pode exigir um deploy.</div>
+    <div id="i-msg"></div>
+    ${D.institucionais.map(a=>`<div class="linha">
+      <div class="quem"><div class="nm">${esc(a.rotulo)}</div>
+        <div class="dt">${a.tem?`enviada${a.em?` em ${fmt(a.em)}`:""}`:"sem imagem — sai a linha em branco"}</div></div>
+      ${a.tem?'<span class="selo s-titular">✓ no banco</span>':'<span class="selo s-sem">sem imagem</span>'}
+      <button class="bt bt-xs" onclick="enviarInstitucional('${esc(a.chave)}')">⬆ ${a.tem?"Substituir":"Enviar"}</button>
+    </div>`).join("")}
+  </div>`;
+}
+
+function enviarInstitucional(quem){
+  const inp=document.createElement("input");
+  inp.type="file"; inp.accept="image/png,image/jpeg";
+  inp.onchange=async()=>{
+    const f=inp.files[0]; if(!f)return;
+    const fd=new FormData(); fd.append("file",f); fd.append("quem",quem);
+    const r=await fetch("/api/ic/assinatura",{method:"POST",body:fd});
+    const j=await r.json().catch(()=>({}));
+    $("i-msg").innerHTML=r.ok?`<div class="banner ba-ok">Assinatura institucional guardada.</div>`
+      :`<div class="banner ba-err">${esc(j.error||"Falha no envio.")}</div>`;
+    if(r.ok) await carregar();
+  };
+  inp.click();
+}
+
+carregar();
+</script>
+<script src="/assets/arche-nav.js"></script>
+</body>
+</html>

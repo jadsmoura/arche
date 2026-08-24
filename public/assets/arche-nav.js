@@ -289,6 +289,18 @@
     btn.className = "nav-sino"; btn.type = "button"; btn.title = "Alertas da gestão";
     btn.innerHTML = "🔔";
     caixa.insertBefore(btn, caixa.firstChild);
+    /* O BANCO DE ASSINATURAS ao lado do sino (pedido do dono, ago/2026:
+       "inclua ele em todos os módulos, com acesso apenas para quem tiver
+       gestão"): a barra está em todo módulo, e o público é o MESMO do sino
+       — gestor geral e coordenadores designados. Um atalho, uma página. */
+    var banco = document.createElement("a");
+    banco.className = "nav-sino"; banco.href = "/assinaturas/";
+    banco.title = "Banco de assinaturas (gestão)";
+    banco.textContent = "🖋";
+    banco.style.textDecoration = "none";
+    banco.style.display = "inline-flex";
+    banco.style.alignItems = "center";
+    caixa.insertBefore(banco, btn.nextSibling);
     var painel = null, dados = null;
 
     function fechar() { if (painel) { painel.remove(); painel = null; } }

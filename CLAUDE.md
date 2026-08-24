@@ -2372,6 +2372,26 @@ public/
   dono, e o texto do edital é gerado pelo próprio ARCHÉ (`TEXTO_EDITAL`), então pode acompanhar
   quando ele quiser. **Curso vazio não casa com curso vazio**: seria dar alcance sobre o que não se
   sabe de quem é.
+- **BANCO DE ASSINATURAS centralizado** (`/assinaturas/` + `/api/assinaturas/banco*`, pedido do
+  dono ago/2026: "centralise esse banco de assinaturas, inclua ele em todos os módulos, acesso
+  apenas para quem tiver gestão naquele módulo"): página ÚNICA, com atalho 🖋 na barra de todos
+  os módulos AO LADO DO SINO — mesmo público: gestor geral e coordenadores designados em
+  `/usuarios/` (`modulosDe`); professor não vê o atalho e a rota recusa. O banco é o MESMO
+  registro de sempre (`sys-assinaturas-usuario-v1` — a página não cria um segundo), vinculado à
+  PESSOA por **e-mail, nome completo ou CPF** (as chaves do perfil; CPF sai MASCARADO para a
+  gestão de módulo). A gestão **envia a assinatura POR alguém** (origem `terceiro`, com as três
+  regras das atas: nunca sobrescreve a do titular — 409 —, o titular substitui/apaga a qualquer
+  momento, quem subiu desfaz o próprio engano e o gestor geral desfaz qualquer terceiro) — e o
+  envio EXIGE conta com nome no cadastro. A **DUPLICIDADE** (mesmo nome completo ≥2 palavras ou
+  mesmo CPF em contas diferentes, excluídas as duas contas da pró-reitoria) sai apontada com o
+  botão **"Juntar cadastros"** — que roda a fusão que já existe (`/api/usuarios/fundir`, com
+  prévia simulada antes de gravar) e continua sendo ato EXCLUSIVO do gestor geral; o coordenador
+  vê o aviso e chama a PROPPEX. As **institucionais** (pró-reitor, reitor, pró-reitora acadêmica
+  e as duas coordenações da Extensão) aparecem na mesma página, só para o gestor geral, pelo
+  mesmo `/api/ic/assinatura` do card do ARCHÉ IC. E os DOCUMENTOS acham a assinatura pela
+  identidade (`assinaturaPorIdentidade`: e-mail → CPF → nome completo, sempre a de TITULAR, e só
+  com UMA conta casando — duas contas candidatas não se decide): o relatório de aula prática de
+  quem tem a assinatura na OUTRA conta da mesma pessoa deixa de sair com a linha em branco.
 - **Assinatura digitalizada VINCULADA AO USUÁRIO** (`sys-assinaturas-usuario-v1` +
   `/api/perfil/assinatura`, pedido do dono ago/2026): havia assinatura em dois lugares e nenhum
   deles era da PESSOA — as três institucionais (`sys-assinaturas-v1`, só o gestor geral troca) e a

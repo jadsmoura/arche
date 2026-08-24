@@ -347,7 +347,7 @@ async function faltaNoPerfilDe(u, perfil) {
 // Setores de gestão exigem login (Avaliação Institucional continua aberta).
 // /eventos/* segue PÚBLICO (hotsite, inscrição, credenciamento, assistir) —
 // só a sala de gestão do ARCHÉ EV, em /eventos/gestao, pede sessão.
-const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios|espacos|monitoria|praticas|relatorios|diagnostico|prototipos)(\/|$)|^\/eventos\/gestao(\/|$)/;
+const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios|espacos|monitoria|praticas|relatorios|diagnostico|prototipos|assinaturas)(\/|$)|^\/eventos\/gestao(\/|$)/;
 app.use(async (req, res, next) => {
   // HEAD também (achado de ago/2026): o express.static responde HEAD, e a
   // guarda só de GET deixava um HEAD sem sessão confirmar a existência
@@ -8154,6 +8154,203 @@ app.get("/api/perfil/assinatura.png", async (req, res) => {
   res.end(Buffer.from(a.base64, "base64"));
 });
 
+/* ================= BANCO DE ASSINATURAS (pedido do dono, ago/2026) =======
+   "Centralise esse banco de assinaturas. Inclua ele em todos os módulos.
+   O acesso deve ser apenas para quem tiver acesso de gestão naquele módulo."
+
+   A página é UMA (`/assinaturas/`, atalho na barra de todos os módulos para
+   quem gere algum), e o acesso é da GESTÃO: gestor geral e os coordenadores
+   de módulo designados em /usuarios/ (`modulosDe`). O vínculo é com a
+   PESSOA — e-mail, nome completo ou CPF, as chaves do perfil — e o banco é
+   o MESMO de sempre (`sys-assinaturas-usuario-v1`): a página não cria um
+   segundo registro, ela dá à gestão a visão e a porta de envio POR alguém
+   (origem `terceiro`, as três regras das atas valem: nunca sobrescreve a do
+   titular, o titular substitui/apaga a qualquer momento, e quem subiu por
+   outro desfaz o próprio engano). A DUPLICIDADE — o mesmo nome completo ou
+   o mesmo CPF em duas contas — sai apontada, com a fusão de cadastros a um
+   clique para o GESTOR GERAL (fusão é gestão de acessos, e continua sendo
+   ato exclusivo dele; o coordenador vê o aviso e chama a PROPPEX). */
+async function gestorDeModulo(req, res) {
+  const u = await usuarioDe(req, res);
+  if (!u) { res.status(401).json({ error: "Faça login." }); return null; }
+  if (u.papel !== "gestor" && !(u.modulos || []).length) {
+    res.status(403).json({ error: "O banco de assinaturas é da gestão dos módulos." });
+    return null;
+  }
+  return { ...u, gestorGeral: u.papel === "gestor" };
+}
+const mascararCpf = (cpf) => {
+  const d = String(cpf || "").replace(/\D/g, "");
+  return d.length === 11 ? `${d.slice(0, 3)}.•••.•••-${d.slice(9)}` : "";
+};
+
+app.get("/api/assinaturas/banco", async (req, res) => {
+  try {
+    const g = await gestorDeModulo(req, res); if (!g) return;
+    const [perfis, todas] = await Promise.all([carregarPerfis(), lerAssinaturasDeUsuarios()]);
+    const emails = new Set([
+      ...Object.keys(perfis),
+      ...Object.keys(todas).filter((k) => k.includes("@")),
+    ].map((e) => e.trim().toLowerCase()).filter(Boolean));
+    const pessoas = [];
+    for (const e of [...emails].sort()) {
+      const p = perfis[e] || {};
+      const a = todas[e];
+      pessoas.push({
+        email: e, nome: p.nome || a?.nome || "", funcao: p.funcao || "", curso: p.curso || "",
+        cpf: mascararCpf(p.cpf),
+        tem: !!a?.base64,
+        origem: a?.base64 ? origemDaAssinatura(a) : "",
+        em: a?.em || "", porQuem: a?.porQuem || "",
+      });
+    }
+    // as guardadas só por NOME (folhas de ata sem e-mail) também são o banco
+    for (const [k, a] of Object.entries(todas)) {
+      if (k.startsWith("nome:") && a?.base64) {
+        pessoas.push({ email: "", nome: a.nome || k.slice(5), funcao: "", curso: "", cpf: "",
+          tem: true, origem: origemDaAssinatura(a), em: a.em || "", porQuem: a.porQuem || "" });
+      }
+    }
+    // duplicidade: o mesmo NOME COMPLETO (duas palavras ou mais) ou o mesmo
+    // CPF em contas diferentes — é o que a fusão de cadastros resolve
+    const porNome = new Map(), porCpf = new Map();
+    for (const e of emails) {
+      if (ehGestorFixo(e)) continue;   // as duas contas da pró-reitoria são duas de propósito
+      const p = perfis[e] || {};
+      const kn = chaveNome(p.nome || "");
+      if (kn && kn.split(" ").length >= 2) porNome.set(kn, [...(porNome.get(kn) || []), e]);
+      const d = String(p.cpf || "").replace(/\D/g, "");
+      if (d.length === 11) porCpf.set(d, [...(porCpf.get(d) || []), e]);
+    }
+    const duplicidades = [];
+    for (const [kn, es] of porNome) {
+      if (es.length > 1) duplicidades.push({ motivo: "nome", rotulo: perfis[es[0]]?.nome || kn, contas: es });
+    }
+    for (const [d, es] of porCpf) {
+      if (es.length > 1 && !duplicidades.some((x) => x.contas.join("|") === es.join("|"))) {
+        duplicidades.push({ motivo: "cpf", rotulo: perfis[es[0]]?.nome || mascararCpf(d), contas: es });
+      }
+    }
+    res.json({
+      ok: true, gestorGeral: g.gestorGeral, modulos: g.modulos || [],
+      pessoas, duplicidades,
+      // as institucionais (pró-reitor, reitor…) aparecem para o gestor geral,
+      // que é quem as troca — o envio usa a rota que já existe (/api/ic/assinatura)
+      ...(g.gestorGeral ? {
+        institucionais: await (async () => {
+          const guardadas = await lerAssinaturas();
+          return Object.entries(QUEM_ASSINA).map(([chave, rotulo]) => ({
+            chave, rotulo, tem: !!guardadas[chave]?.base64, em: guardadas[chave]?.em || "",
+          }));
+        })(),
+      } : {}),
+    });
+  } catch (e) {
+    console.error("Erro no banco de assinaturas:", e);
+    res.status(500).json({ error: "Não foi possível carregar o banco agora." });
+  }
+});
+
+/** A imagem de uma pessoa, para a gestão CONFERIR o que está no banco. */
+app.get("/api/assinaturas/banco/imagem", async (req, res) => {
+  const g = await gestorDeModulo(req, res); if (!g) return;
+  const e = String(req.query?.email || "").trim().toLowerCase();
+  const a = (await lerAssinaturasDeUsuarios())[e];
+  if (!a?.base64) return res.status(404).send("Sem assinatura no banco.");
+  res.setHeader("Content-Type", a.tipo || "image/png");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Cache-Control", "private, no-store");
+  res.end(Buffer.from(a.base64, "base64"));
+});
+
+/** O envio POR uma pessoa (origem `terceiro`) — as regras das atas valem. */
+app.post("/api/assinaturas/banco", upload.single("file"), async (req, res) => {
+  try {
+    const g = await gestorDeModulo(req, res); if (!g) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    const e = String(req.body?.email || "").trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return res.status(400).json({ error: "E-mail inválido." });
+    const perfis = await carregarPerfis();
+    // o NOME é obrigatório porque é ele que sai impresso no documento — e é
+    // a segunda chave do vínculo; conta sem cadastro se inclui em /usuarios/
+    if (!String(perfis[e]?.nome || "").trim()) {
+      return res.status(400).json({ error: "Esta conta não tem cadastro com nome no portal — "
+        + "inclua a pessoa no painel de usuários antes de enviar a assinatura dela." });
+    }
+    const ruim = imagemDeAssinaturaInvalida(req.file);
+    if (ruim) return res.status(400).json({ error: ruim });
+    const todas = await lerAssinaturasDeUsuarios();
+    if (todas[e]?.base64 && origemDaAssinatura(todas[e]) === "titular") {
+      return res.status(409).json({ error: `${perfis[e].nome} já enviou a própria assinatura pelo perfil — `
+        + "essa é a que vale, e só a própria pessoa a substitui." });
+    }
+    todas[e] = {
+      base64: req.file.buffer.toString("base64"), tipo: req.file.mimetype,
+      arquivo: String(req.file.originalname || "").slice(0, 120),
+      bytes: req.file.size, em: new Date().toISOString(),
+      origem: "terceiro", porQuem: g.email, nome: perfis[e].nome,
+    };
+    await storage.set(ASSINATURA_USUARIO_KEY, JSON.stringify(todas));
+    await storage.flush?.();
+    console.log(`[assinaturas] banco: assinatura de ${e} enviada por ${g.email}`);
+    res.json({ ok: true, email: e, origem: "terceiro" });
+  } catch (e) {
+    console.error("Erro no envio ao banco de assinaturas:", e);
+    res.status(500).json({ error: "Não foi possível guardar a assinatura." });
+  }
+});
+
+/** Remover do banco: só a de TERCEIRO — a do titular é da pessoa, no perfil. */
+app.delete("/api/assinaturas/banco", async (req, res) => {
+  try {
+    const g = await gestorDeModulo(req, res); if (!g) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    const e = String(req.query?.email || "").trim().toLowerCase();
+    const todas = await lerAssinaturasDeUsuarios();
+    const a = todas[e];
+    if (!a?.base64) return res.json({ ok: true, tem: false });
+    if (origemDaAssinatura(a) === "titular") {
+      return res.status(403).json({ error: "Esta assinatura foi enviada pela própria pessoa — "
+        + "só ela pode removê-la, no perfil." });
+    }
+    // desfaz-se o próprio engano; o gestor geral desfaz qualquer envio de terceiro
+    if (!g.gestorGeral && String(a.porQuem || "").toLowerCase() !== g.email) {
+      return res.status(403).json({ error: "Esta imagem foi enviada por outra pessoa da gestão — "
+        + "quem a enviou (ou o gestor geral) é quem a remove." });
+    }
+    delete todas[e];
+    await storage.set(ASSINATURA_USUARIO_KEY, JSON.stringify(todas));
+    await storage.flush?.();
+    res.json({ ok: true, tem: false });
+  } catch (e) {
+    console.error("Erro ao remover do banco de assinaturas:", e);
+    res.status(500).json({ error: "Não foi possível remover." });
+  }
+});
+
+/* A ASSINATURA PELA IDENTIDADE (e-mail → CPF → nome completo): o documento
+   referencia a pessoa pelo e-mail de UMA conta, e a assinatura pode viver na
+   OUTRA conta da mesma pessoa (a duplicidade que o banco aponta). A busca
+   segue as chaves do vínculo, sempre pela assinatura de TITULAR; nome só
+   serve de chave com duas palavras ou mais, e só com UMA conta casando. */
+async function assinaturaPorIdentidade(email) {
+  const direta = await assinaturaDoUsuario(email);
+  if (direta) return direta;
+  const e = String(email || "").trim().toLowerCase();
+  if (!e) return null;
+  const perfis = await carregarPerfis();
+  const p = perfis[e];
+  if (!p) return null;
+  const cpf = String(p.cpf || "").replace(/\D/g, "");
+  const kn = chaveNome(p.nome || "");
+  const nomeVale = kn && kn.split(" ").length >= 2;
+  const candidatas = Object.entries(perfis).filter(([outro, q]) => outro !== e && (
+    (cpf && String(q?.cpf || "").replace(/\D/g, "") === cpf)
+    || (nomeVale && chaveNome(q?.nome || "") === kn)));
+  if (candidatas.length !== 1) return null;      // duas contas casando: não se decide
+  return assinaturaDoUsuario(candidatas[0][0]);
+}
+
 app.post("/api/ic/assinatura", upload.single("file"), async (req, res) => {
   const g = await exigirGestor(req, res); if (!g) return;
   const quem = String(req.body?.quem || "").trim();
@@ -12211,7 +12408,7 @@ app.get("/api/praticas/semestral.pdf", async (req, res) => {
       coordenador: { nome: perfil.nome || u.nome || "",
         cargo: quem.pedagogico ? "Coordenação Pedagógica" : `Coordenação do curso${curso ? ` de ${cursoDe(curso)?.nome}` : ""}` },
       assinaturas: {
-        coordenador: await assinaturaDoUsuario(u.email),
+        coordenador: await assinaturaPorIdentidade(u.email),
         proacademica: institucionais.proacademica, reitor: institucionais.reitor,
       },
       emitidoPor: u.email,
@@ -12253,11 +12450,11 @@ app.get("/api/praticas/:id/pdf", async (req, res) => {
         : null,
       fotos,
       assinaturas: {
-        professor: await assinaturaDoUsuario(p.professor?.email),
+        professor: await assinaturaPorIdentidade(p.professor?.email),
         // a assinatura do coordenador só entra se ele VALIDOU: assinar o que
         // ainda não se validou seria o documento afirmar um ato que não houve
         ...(p.status === "validado" && coordEmail
-          ? { coordenador: await assinaturaDoUsuario(coordEmail) } : {}),
+          ? { coordenador: await assinaturaPorIdentidade(coordEmail) } : {}),
       },
     });
     res.setHeader("Content-Type", "application/pdf");
