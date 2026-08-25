@@ -2409,7 +2409,9 @@ public/
   `/api/perfil/assinatura`, pedido do dono ago/2026): havia assinatura em dois lugares e nenhum
   deles era da PESSOA — as três institucionais (`sys-assinaturas-v1`, só o gestor geral troca) e a
   de cada evento. A mesma pessoa reenviava o mesmo PNG a cada evento novo. Agora envia-se **uma
-  vez** (no `/perfil/` ou na guia Relatórios do AP) e ela serve onde a pessoa assinar: no relatório
+  vez** (no `/perfil/` ou na guia Relatórios do AP — o card é de TODOS do módulo, professor
+  incluído, desde ago/2026: antes só a coordenação o via, e é o professor quem assina o
+  relatório de cada aula) e ela serve onde a pessoa assinar: no relatório
   de aula prática, no semestral e nos certificados dos eventos, pelo botão **"✍ Usar a minha"**
   (`POST /api/extensao/:id/assinatura/minha`). **Ninguém envia nem apaga a de outro** — nem o
   gestor geral: assinatura que um terceiro troca não vale como assinatura. A redução no navegador é

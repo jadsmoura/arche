@@ -646,12 +646,21 @@ async function decidir(id, decisao) {
    eventos e onde mais a pessoa assinar. Ninguém envia nem apaga a de outro:
    assinatura que um terceiro troca não vale como assinatura. */
 function cardAssinatura() {
-  if (!ehCoord()) return "";
+  /* O card é de TODOS do módulo (pedido do dono, ago/2026: "inclua o campo
+     de anexar assinatura também no módulo de relatórios de aulas práticas —
+     o professor anexa uma vez e ela fica vinculada ao usuário dele"): o
+     PROFESSOR assina o relatório de cada aula que registra, e antes só a
+     coordenação via o campo. Anexada uma vez, ela entra no banco central e
+     sai em todo documento em que a pessoa assinar — relatórios, atas,
+     certificados de eventos. */
+  const ondeEntra = ehCoord()
+    ? "Entra no relatório semestral que você emite e no relatório de cada aula que você validar."
+    : "Entra, automaticamente, no relatório de cada aula prática que você registrar — e em todo "
+      + "documento do ARCHÉ em que você assinar (atas, eventos).";
   return `<div class="card">
     <div class="card-t">A sua assinatura digitalizada</div>
-    <div class="card-s">Entra no relatório semestral que você emite e no relatório de cada aula que
-      você validar. Envie uma vez: ela vale também nos outros módulos do ARCHÉ (nos eventos,
-      por exemplo). Só você a envia ou remove.</div>
+    <div class="card-s">${ondeEntra} Anexe <b>uma vez</b>: ela fica vinculada ao seu usuário, no
+      banco de assinaturas do portal, e não é pedida de novo. Só você a envia ou remove.</div>
     <div class="assinatura" id="as-cx">
       <img id="as-img" src="/api/perfil/assinatura.png?t=${Date.now()}" alt=""
         onerror="this.style.display='none';document.getElementById('as-vazio').style.display='block'">
