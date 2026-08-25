@@ -15,6 +15,47 @@
   .setor-grupo{margin-bottom:8px}
   .setor-grupo .section-label{margin:34px 0 2px}
   .grupo-sub{font-size:13px;color:var(--muted);margin:0 0 14px;max-width:70ch}
+  /* ---- SETORES EM PAINÉIS COM LINHAS (layout aprovado pelo dono, ago/2026,
+     escolhido entre quatro opções em /prototipos/portal/): a página tinha 12
+     cartões grandes e ficou carregada. Cada grupo virou um painel de largura
+     inteira com os setores em LINHAS (ícone, sigla, nome, subtítulo — a linha
+     inteira é o botão); a descrição longa e as etiquetas de cada setor moram
+     dentro dele. No alto, a faixa "Os seus favoritos": a ☆ fixa o setor ali,
+     e a escolha grava NA CONTA (/api/favoritos), valendo em qualquer
+     computador. O filtro por papel não muda: as linhas carregam o MESMO
+     data-setor dos cartões antigos, e é o arche-nav quem esconde. ---- */
+  .painel-setores{position:relative;background:var(--card);border:1px solid var(--line);border-radius:16px;
+    box-shadow:var(--shadow);overflow:hidden;padding:0 18px 16px;margin-top:10px}
+  .painel-setores::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;
+    background:linear-gradient(90deg,var(--brand) 0%,var(--accent-deep) 100%)}
+  .painel-setores.fav::before{background:linear-gradient(90deg,var(--accent-deep) 0%,var(--accent) 100%)}
+  .ps-cab{padding:16px 6px 12px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .ps-cab .eyebrow{margin:0}
+  .ps-sub{font-size:12.5px;color:var(--muted);line-height:1.45;margin:0}
+  .ps-linhas{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+  .linha-setor{position:relative;display:flex;align-items:center;gap:13px;padding:11px 14px;transition:.13s;
+    border:1px solid #eef2f4;border-radius:13px;background:#fcfdfe;color:inherit}
+  a.linha-setor:hover{background:var(--wash);border-color:var(--wash2)}
+  .ls-ic{width:42px;height:42px;flex:none;border-radius:11px;display:grid;place-items:center;
+    background:var(--wash);border:1px solid var(--wash2);color:var(--brand-2)}
+  .ls-ic svg{width:22px;height:22px}
+  .ls-tx{flex:1;min-width:0;display:flex;flex-direction:column}
+  .ls-mod{font-family:Sora,sans-serif;font-weight:800;font-size:11px;letter-spacing:.04em;color:var(--accent-deep)}
+  .ls-t{font-family:Sora,sans-serif;font-size:15px;font-weight:700;color:var(--ink);line-height:1.25}
+  .ls-s{font-size:11.5px;color:var(--muted);margin-top:1px}
+  .ls-seta{color:var(--muted-2);flex:none;transition:transform .15s;display:grid}
+  a.linha-setor:hover .ls-seta{transform:translateX(3px);color:var(--accent-deep)}
+  .linha-setor.soon{opacity:.65}
+  .selo-breve{flex:none;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--muted);border:1px solid var(--line-strong);border-radius:999px;padding:3px 9px}
+  .pin{flex:none;border:0;background:none;cursor:pointer;font-size:17px;line-height:1;
+    color:var(--line-strong);padding:4px 2px;transition:.15s;font-family:inherit}
+  .pin:hover{color:var(--warn);transform:scale(1.15)}
+  .pin.on{color:#e2a52e}
+  /* a faixa de favoritos só se desenha logado E com favorito visível — painel
+     vazio na página inicial é ruído (a regra é a mesma do painel de demandas) */
+  #grupo-favoritos{display:none}
+  body.arche-logado #grupo-favoritos.tem{display:block}
   /* as duas visões da página inicial: os setores só aparecem LOGADO; a visão
      pública (vitrines + entrada) só para o visitante. Até o /api/me responder,
      nenhuma das duas — evita o portal inteiro piscar para quem está sem sessão. */
@@ -172,305 +213,190 @@
        recebe nada e o bloco não se desenha. -->
   <div id="painel-demandas"></div>
 
+  <!-- ============ FAVORITOS (decisão do dono, ago/2026, junto com o layout
+       de painéis): os setores que a pessoa fixou, sempre no alto. As linhas
+       são CLONES das linhas dos painéis abaixo (mesmo data-setor — o filtro
+       por papel as alcança igual), montadas pelo script no fim da página com
+       o que /api/favoritos devolver. Sem favorito visível, a faixa some. -->
+  <div id="grupo-favoritos" class="setor-grupo">
+    <div class="painel-setores fav">
+      <div class="ps-cab"><p class="eyebrow">★ OS SEUS FAVORITOS</p>
+        <p class="ps-sub">Os setores que você fixou, sempre no alto — a ☆ de cada linha fixa; a ★ tira.</p></div>
+      <div class="ps-linhas" id="fav-linhas"></div>
+    </div>
+  </div>
+
   <p class="eyebrow section-label so-logado">SETORES · GESTÃO DA PROPPEX</p>
   <p class="grupo-sub so-logado" style="margin-top:-2px">Os setores na mesma ordem da barra do topo:
-    ensino, pesquisa, extensão e os serviços que atravessam todos eles.</p>
+    ensino, pesquisa, extensão e os serviços que atravessam todos eles. A ☆ fixa um setor nos favoritos.</p>
 
   <div class="setor-grupo so-logado" data-grupo="ensino">
-    <p class="eyebrow section-label">ENSINO</p>
-    <p class="grupo-sub">Aulas práticas, monitoria e os documentos de quem participou.</p>
-    <div class="grid3">
+    <div class="painel-setores">
+      <div class="ps-cab"><p class="eyebrow">ENSINO</p>
+        <p class="ps-sub">Aulas práticas, monitoria e o painel do curso.</p></div>
+      <div class="ps-linhas">
 
-    <a class="card" href="/praticas/" data-setor="/praticas/">
-      <span class="card-num f-code">01</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
+      <a class="linha-setor" href="/praticas/" data-setor="/praticas/">
+        <span class="ls-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6a2 2 0 0 1 2 2v2H7V5a2 2 0 0 1 2-2z"/><path d="M7 7v11a3 3 0 0 0 3 3h4a3 3 0 0 0 3-3V7"/><path d="M7 13h10"/></svg>
         </span>
-        <span class="card-mod">ARCHÉ <b>AP</b></span>
-      </span>
-      <h2 class="card-t">Aulas Práticas</h2>
-      <p class="card-sub">Registro · Fotos · Validação</p>
-      <p class="card-d">Da Pró-Reitoria Acadêmica: depois da aula prática o professor
-        registra o objetivo, o local, as atividades e as fotos; a coordenação do curso
-        valida, e o semestre inteiro sai num relatório.</p>
-      <div class="card-meta">
-        <span class="chip">PROAC</span>
-        <span class="chip">registro fotográfico</span>
-        <span class="chip">relatório semestral</span>
-      </div>
-      <span class="card-cta">Acessar o setor
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
+        <span class="ls-tx"><span class="ls-mod">ARCHÉ AP</span>
+          <span class="ls-t">Aulas Práticas</span>
+          <span class="ls-s">Registro · Fotos · Validação</span></span>
+        <button class="pin" type="button" aria-label="Fixar nos favoritos">☆</button>
+        <span class="ls-seta" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
 
-    <a class="card" href="/monitoria/" data-setor="/monitoria/">
-      <span class="card-num f-code">02</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
+      <a class="linha-setor" href="/monitoria/" data-setor="/monitoria/">
+        <span class="ls-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5z"/><path d="M6 10.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5M20 9v5"/></svg>
         </span>
-        <span class="card-mod">ARCHÉ <b>MO</b></span>
-      </span>
-      <h2 class="card-t">Monitoria</h2>
-      <p class="card-sub">Projetos · Monitores · Relatórios</p>
-      <p class="card-d">Programa de Monitoria Acadêmica: o professor submete o projeto
-        da disciplina e indica o monitor, que se inscreve; a PROPPEX homologa e o
-        certificado sai ao fim do semestre.</p>
-      <div class="card-meta">
-        <span class="chip">inscrição</span>
-        <span class="chip">relatório</span>
-        <span class="chip">certificado</span>
-      </div>
-      <span class="card-cta">Acessar o setor
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
+        <span class="ls-tx"><span class="ls-mod">ARCHÉ MO</span>
+          <span class="ls-t">Monitoria</span>
+          <span class="ls-s">Projetos · Monitores · Relatórios</span></span>
+        <button class="pin" type="button" aria-label="Fixar nos favoritos">☆</button>
+        <span class="ls-seta" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
 
-    <!-- Seu Curso (pedido do dono, ago/2026): as informações institucionais do
-         curso — coordenações, NDE, Colegiado — e, para a PROPPEX, o catálogo de
-         cursos e a gestão de acessos. Só coordenação de curso e gestor geral o
-         veem (coordenaCursos no /api/me + regra no arche-nav). -->
-    <!-- nasce ESCONDIDO (pedido do dono, ago/2026: "esse bloco só deve
-         aparecer para gestores — usuários comuns e professores não"): os
-         demais cartões nascem visíveis e a visibilidade os esconde; este é o
-         contrário, senão o professor o veria piscar enquanto o /api/me não
-         responde. Quem o MOSTRA é o arche-nav, para gestor geral e
-         coordenação de curso. -->
-    <a class="card" href="/curso/" data-setor="/curso/" style="display:none">
-      <span class="card-num f-code">SC</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
+      <!-- Seu Curso nasce ESCONDIDO (pedido do dono, ago/2026): quem o mostra
+           é o arche-nav, só para gestor geral e coordenação de curso — visível
+           de nascença, ele piscaria na tela do professor até o /api/me responder. -->
+      <a class="linha-setor" href="/curso/" data-setor="/curso/" style="display:none">
+        <span class="ls-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
         </span>
-        <span class="card-mod">ARCHÉ <b>SC</b></span>
-      </span>
-      <h2 class="card-t">Seu Curso</h2>
-      <p class="card-sub">Coordenações · NDE · Colegiado</p>
-      <p class="card-d">O painel institucional do curso: a coordenação mantém a composição
-        do NDE e do Colegiado e as coordenações — e o que se grava aqui vale nos módulos,
-        da validação das aulas práticas ao alcance na monitoria.</p>
-      <div class="card-meta">
-        <span class="chip">composição</span>
-        <span class="chip">coordenações</span>
-        <span class="chip">acessos</span>
+        <span class="ls-tx"><span class="ls-mod">ARCHÉ SC</span>
+          <span class="ls-t">Seu Curso</span>
+          <span class="ls-s">Coordenações · NDE · Colegiado</span></span>
+        <button class="pin" type="button" aria-label="Fixar nos favoritos">☆</button>
+        <span class="ls-seta" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
       </div>
-      <span class="card-cta">Acessar o painel
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
     </div>
   </div>
 
   <div class="setor-grupo so-logado" data-grupo="pesquisa">
-    <p class="eyebrow section-label">PESQUISA</p>
-    <p class="grupo-sub">Iniciação Científica, ICEM e a inovação tecnológica.</p>
-    <div class="grid3">
+    <div class="painel-setores">
+      <div class="ps-cab"><p class="eyebrow">PESQUISA</p>
+        <p class="ps-sub">Iniciação Científica, ICEM e a inovação tecnológica.</p></div>
+      <div class="ps-linhas">
 
-    <a class="card" href="/pesquisa/ic/" data-setor="/pesquisa/ic/">
-      <span class="card-num f-code">03</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
+      <a class="linha-setor" href="/pesquisa/ic/" data-setor="/pesquisa/ic/">
+        <span class="ls-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v6.5L4.5 18a2 2 0 0 0 1.8 3h11.4a2 2 0 0 0 1.8-3L14 8.5V2"/><path d="M8.5 2h7M7 15h10"/></svg>
         </span>
-        <span class="card-mod">ARCHÉ <b>IC</b></span>
-      </span>
-      <h2 class="card-t">Pesquisa</h2>
-      <p class="card-sub">Iniciação Científica · Grupos · Projetos</p>
-      <p class="card-d">Submissão e homologação de projetos, avaliação de mérito,
-        cronograma, relatórios e bolsas de IC (PIBIC/PIBITI).</p>
-      <div class="card-meta">
-        <span class="chip">PIBIC / PIBITI</span>
-        <span class="chip">projetos</span>
-        <span class="chip">relatórios</span>
-      </div>
-      <span class="card-cta">Acessar o setor
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
+        <span class="ls-tx"><span class="ls-mod">ARCHÉ IC</span>
+          <span class="ls-t">Pesquisa</span>
+          <span class="ls-s">Iniciação Científica · Grupos · Projetos</span></span>
+        <button class="pin" type="button" aria-label="Fixar nos favoritos">☆</button>
+        <span class="ls-seta" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
 
-    <div class="card soon" data-setor="/inovacao/">
-      <span class="card-num f-code">04</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
+      <div class="linha-setor soon" data-setor="/inovacao/">
+        <span class="ls-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1M12 2a7 7 0 0 1 4 12.7c-.6.5-1 1.3-1 2.1"/></svg>
         </span>
-        <span class="card-mod">ARCHÉ <b>IN</b></span>
-      </span>
-      <h2 class="card-t">Inovação</h2>
-      <p class="card-sub">Propriedade Intelectual · Patentes</p>
-      <p class="card-d">Registro de propriedade intelectual, patentes, transferência
-        de tecnologia e empreendedorismo acadêmico.</p>
-      <span class="badge-soon">Em breve</span>
-    </div>
+        <span class="ls-tx"><span class="ls-mod">ARCHÉ IN</span>
+          <span class="ls-t">Inovação</span>
+          <span class="ls-s">Propriedade Intelectual · Patentes</span></span>
+        <span class="selo-breve">Em breve</span>
+      </div>
+      </div>
     </div>
   </div>
 
   <div class="setor-grupo so-logado" data-grupo="extensao">
-    <p class="eyebrow section-label">EXTENSÃO</p>
-    <p class="grupo-sub">As ações de extensão e a operação dos eventos.</p>
-    <div class="grid3">
+    <div class="painel-setores">
+      <div class="ps-cab"><p class="eyebrow">EXTENSÃO</p>
+        <p class="ps-sub">As ações de extensão e a operação dos eventos.</p></div>
+      <div class="ps-linhas">
 
-    <a class="card b" href="/extensao/" data-setor="/extensao/">
-      <span class="card-num f-code">05</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
+      <a class="linha-setor" href="/extensao/" data-setor="/extensao/">
+        <span class="ls-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.5 9h17M3.5 15h17M12 3a14 14 0 0 0 0 18M12 3a14 14 0 0 1 0 18"/></svg>
         </span>
-        <span class="card-mod">ARCHÉ <b>EX</b></span>
-      </span>
-      <h2 class="card-t">Extensão</h2>
-      <p class="card-sub">Ações · Projetos · Certificação</p>
-      <p class="card-d">Submissão de ações de extensão, aprovação e número da ação,
-        relatório final, lista de participantes e exportação para registro.</p>
-      <div class="card-meta">
-        <span class="chip">propostas</span>
-        <span class="chip">relatório final</span>
-        <span class="chip">certificados</span>
-      </div>
-      <span class="card-cta">Acessar o setor
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
+        <span class="ls-tx"><span class="ls-mod">ARCHÉ EX</span>
+          <span class="ls-t">Extensão</span>
+          <span class="ls-s">Ações · Projetos · Certificação</span></span>
+        <button class="pin" type="button" aria-label="Fixar nos favoritos">☆</button>
+        <span class="ls-seta" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
 
-    <a class="card" href="/eventos/gestao/" data-setor="/eventos/gestao/">
-      <span class="card-num f-code">06</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
+      <a class="linha-setor" href="/eventos/gestao/" data-setor="/eventos/gestao/">
+        <span class="ls-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 9h18M8.5 14.5l2.3 2.3 4.7-4.6"/></svg>
         </span>
-        <span class="card-mod">ARCHÉ <b>EV</b></span>
-      </span>
-      <h2 class="card-t">Eventos</h2>
-      <p class="card-sub">Inscrições · Credenciamento · Transmissão</p>
-      <p class="card-d">A operação dos eventos das ações de extensão: página pública
-        com programação, inscrições online, credenciamento por QR e transmissão
-        com presença.</p>
-      <div class="card-meta">
-        <span class="chip">hotsite</span>
-        <span class="chip">inscrições</span>
-        <span class="chip">credenciamento</span>
+        <span class="ls-tx"><span class="ls-mod">ARCHÉ EV</span>
+          <span class="ls-t">Eventos</span>
+          <span class="ls-s">Inscrições · Credenciamento · Transmissão</span></span>
+        <button class="pin" type="button" aria-label="Fixar nos favoritos">☆</button>
+        <span class="ls-seta" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
       </div>
-      <span class="card-cta">Acessar o setor
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
     </div>
   </div>
 
   <div class="setor-grupo so-logado" data-grupo="servicos">
-    <p class="eyebrow section-label">SERVIÇOS</p>
-    <p class="grupo-sub">O que atravessa todos os setores: reuniões, espaços, relatórios, avaliação — e os seus certificados.</p>
-    <div class="grid3">
+    <div class="painel-setores">
+      <div class="ps-cab"><p class="eyebrow">SERVIÇOS</p>
+        <p class="ps-sub">O que atravessa todos os setores: reuniões, espaços, relatórios, avaliação — e os seus certificados.</p></div>
+      <div class="ps-linhas">
 
-    <a class="card" href="/atas/" data-setor="/atas/">
-      <span class="card-num f-code">07</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
+      <a class="linha-setor" href="/atas/" data-setor="/atas/">
+        <span class="ls-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 13h8M8 17h5"/></svg>
         </span>
-        <span class="card-mod">ARCHÉ <b>AT</b></span>
-      </span>
-      <h2 class="card-t">Atas e Colegiados</h2>
-      <p class="card-sub">NDE · Colegiado · CONSU · CPA</p>
-      <p class="card-d">Registro das reuniões dos órgãos colegiados: presenças,
-        pauta e deliberações viram ata em PDF, enviada e arquivada.</p>
-      <div class="card-meta">
-        <span class="chip">presenças</span>
-        <span class="chip">deliberações</span>
-        <span class="chip">encaminhamentos</span>
-      </div>
-      <span class="card-cta">Acessar o setor
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
+        <span class="ls-tx"><span class="ls-mod">ARCHÉ AT</span>
+          <span class="ls-t">Atas e Colegiados</span>
+          <span class="ls-s">NDE · Colegiado · CONSU · CPA</span></span>
+        <button class="pin" type="button" aria-label="Fixar nos favoritos">☆</button>
+        <span class="ls-seta" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
 
-    <a class="card" href="/espacos/" data-setor="/espacos/">
-      <span class="card-num f-code">08</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
+      <a class="linha-setor" href="/espacos/" data-setor="/espacos/">
+        <span class="ls-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
         </span>
-        <span class="card-mod">ARCHÉ <b>ES</b></span>
-      </span>
-      <h2 class="card-t">Espaços</h2>
-      <p class="card-sub">Auditórios · Quadra · Salas · Laboratórios</p>
-      <p class="card-d">Agendamento dos espaços acadêmicos e solicitação de reserva —
-        com o calendário à vista, para ninguém pedir em cima do que já está ocupado.</p>
-      <div class="card-meta">
-        <span class="chip">agenda</span>
-        <span class="chip">reserva</span>
-        <span class="chip">bloqueios</span>
-      </div>
-      <span class="card-cta">Acessar o setor
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
+        <span class="ls-tx"><span class="ls-mod">ARCHÉ ES</span>
+          <span class="ls-t">Espaços</span>
+          <span class="ls-s">Auditórios · Quadra · Salas · Laboratórios</span></span>
+        <button class="pin" type="button" aria-label="Fixar nos favoritos">☆</button>
+        <span class="ls-seta" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
 
-    <a class="card" href="/relatorios/" data-setor="/relatorios/">
-      <span class="card-num f-code">09</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
+      <a class="linha-setor" href="/relatorios/" data-setor="/relatorios/">
+        <span class="ls-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 2v5h5M8 17v-4M12 17v-7M16 17v-2"/></svg>
         </span>
-        <span class="card-mod">ARCHÉ <b>RE</b></span>
-      </span>
-      <h2 class="card-t">Relatórios</h2>
-      <p class="card-sub">Semestrais · Por setor · MEC</p>
-      <p class="card-d">O que cada setor fez no semestre, com números, gráficos e a relação nominal
-        de tudo que foi contado — o documento da prestação de contas e da comprovação.</p>
-      <div class="card-meta">
-        <span class="chip">semestre</span>
-        <span class="chip">gráficos</span>
-        <span class="chip">comprovação</span>
-      </div>
-      <span class="card-cta">Acessar o setor
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
+        <span class="ls-tx"><span class="ls-mod">ARCHÉ RE</span>
+          <span class="ls-t">Relatórios</span>
+          <span class="ls-s">Semestrais · Por setor · MEC</span></span>
+        <button class="pin" type="button" aria-label="Fixar nos favoritos">☆</button>
+        <span class="ls-seta" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
 
-    <a class="card" href="/certificados/" data-setor="/certificados/">
-      <span class="card-num f-code">10</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
+      <a class="linha-setor" href="/certificados/" data-setor="/certificados/">
+        <span class="ls-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5"/><path d="M8.5 13.5 7 21l5-2.2L17 21l-1.5-7.5"/></svg>
         </span>
-        <span class="card-mod">ARCHÉ <b>CE</b></span>
-      </span>
-      <h2 class="card-t">Certificados</h2>
-      <p class="card-sub">Eventos · IC · Monitoria</p>
-      <p class="card-d">Os seus certificados, de todos os programas, num lugar só — gerados na
-        hora, com o código de validação e a programação no verso.</p>
-      <div class="card-meta">
-        <span class="chip">meus documentos</span>
-        <span class="chip">PDF</span>
-      </div>
-      <span class="card-cta">Ver os meus
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
+        <span class="ls-tx"><span class="ls-mod">ARCHÉ CE</span>
+          <span class="ls-t">Certificados</span>
+          <span class="ls-s">Eventos · IC · Monitoria</span></span>
+        <button class="pin" type="button" aria-label="Fixar nos favoritos">☆</button>
+        <span class="ls-seta" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
 
-    <a class="card b" href="/arche/" data-setor="/arche/">
-      <span class="card-num f-code">AV</span>
-      <span class="card-topo">
-        <span class="card-ic" aria-hidden="true">
+      <a class="linha-setor" href="/arche/" data-setor="/arche/">
+        <span class="ls-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 11l3 3 5-6"/></svg>
         </span>
-        <span class="card-mod">ARCHÉ <b>AV</b></span>
-      </span>
-      <h2 class="card-t">Avaliação Institucional</h2>
-      <p class="card-sub">Indicadores · Produção Docente · Dossiê</p>
-      <p class="card-d">Apoio à avaliação in loco: indicadores por curso, produção
-        docente, dossiê, documentos institucionais e perfil avaliador.</p>
-      <div class="card-meta">
-        <span class="chip">3 dimensões</span>
-        <span class="chip">dossiê docente</span>
-        <span class="chip">visão do avaliador</span>
+        <span class="ls-tx"><span class="ls-mod">ARCHÉ AV</span>
+          <span class="ls-t">Avaliação Institucional</span>
+          <span class="ls-s">Indicadores · Produção Docente · Dossiê</span></span>
+        <button class="pin" type="button" aria-label="Fixar nos favoritos">☆</button>
+        <span class="ls-seta" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
       </div>
-      <span class="card-cta">Acessar o módulo
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </span>
-    </a>
     </div>
   </div>
 
@@ -531,6 +457,69 @@ fetch("/api/me").then((r) => (r.ok ? r.json() : {})).then((me) => {
       <a class="bt bt-pri" href="/" style="width:100%;margin-top:14px">Voltar ao portal completo</a>`;
   }
 }).catch(() => { document.body.classList.add("arche-logado"); });
+
+/* ------------------------- os seus favoritos -------------------------
+   A escolha é da CONTA (/api/favoritos): fixada num computador, vale em
+   todos. A faixa clona as linhas dos painéis — mesmo data-setor, então o
+   filtro por papel do arche-nav as alcança igual (rode ele antes ou depois
+   desta pintura: se antes, o clone herda o display do original; se depois,
+   o seletor por data-setor pega o clone também — e a repintura tardia
+   corrige a contagem da faixa). Sem favorito visível, a faixa não existe. */
+let FAVORITOS = null;
+if (!VER_PUBLICO) {
+  fetch("/api/favoritos").then((r) => (r.ok ? r.json() : null)).then((j) => {
+    if (!j) return;                       // visitante: sem faixa e sem estrelas
+    FAVORITOS = Array.isArray(j.favoritos) ? j.favoritos : [];
+    pintarFavoritos();
+    // o arche-nav aplica o filtro por papel no próprio ritmo (espera o
+    // /api/me dele); repintar depois refaz a contagem com o filtro valendo
+    setTimeout(pintarFavoritos, 1500);
+    setTimeout(pintarFavoritos, 3500);
+  }).catch(() => {});
+}
+function pintarFavoritos() {
+  if (!Array.isArray(FAVORITOS)) return;
+  document.querySelectorAll(".setor-grupo[data-grupo] .linha-setor[data-setor]").forEach((l) => {
+    const pin = l.querySelector(".pin");
+    if (!pin) return;
+    const on = FAVORITOS.includes(l.dataset.setor);
+    pin.textContent = on ? "★" : "☆";
+    pin.classList.toggle("on", on);
+    pin.title = on ? "Tirar dos favoritos" : "Fixar nos favoritos";
+  });
+  const cx = document.getElementById("fav-linhas");
+  cx.innerHTML = "";
+  let visiveis = 0;
+  for (const h of FAVORITOS) {
+    const orig = document.querySelector('.setor-grupo[data-grupo] .linha-setor[data-setor="' + h + '"]');
+    if (!orig) continue;
+    const c = orig.cloneNode(true);
+    if (orig.style.display === "none") c.style.display = "none";
+    else visiveis++;
+    cx.appendChild(c);
+  }
+  document.getElementById("grupo-favoritos").classList.toggle("tem", visiveis > 0);
+}
+// as linhas da faixa são clones recriados a cada pintura — por isso o clique
+// na estrela é delegado, e vale para a faixa e para os painéis ao mesmo tempo
+document.addEventListener("click", (ev) => {
+  const pin = ev.target.closest(".pin");
+  if (!pin) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  if (!Array.isArray(FAVORITOS)) return;   // ainda carregando (ou sem sessão)
+  const linha = pin.closest("[data-setor]");
+  if (!linha) return;
+  const h = linha.dataset.setor;
+  FAVORITOS = FAVORITOS.includes(h) ? FAVORITOS.filter((x) => x !== h) : [...FAVORITOS, h];
+  pintarFavoritos();                       // a tela responde já; o servidor confirma atrás
+  fetch("/api/favoritos", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ favoritos: FAVORITOS }),
+  }).then((r) => (r.ok ? r.json() : null)).then((j) => {
+    if (j && Array.isArray(j.favoritos)) { FAVORITOS = j.favoritos; pintarFavoritos(); }
+  }).catch(() => {});
+});
 
 /* ---------------------- demandas abertas por setor ----------------------
    Uma fila por setor, com o que espera decisão e o atalho para o lugar onde

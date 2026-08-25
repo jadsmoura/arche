@@ -495,6 +495,36 @@ app.get("/api/me", async (req, res) => {
   });
 });
 
+/* ---------------- FAVORITOS DA PÁGINA INICIAL ----------------
+   (decisão do dono, ago/2026, junto com o layout "painéis com linhas"): a
+   faixa "Os seus favoritos" fixa setores no alto do portal. A escolha é da
+   CONTA — gravada aqui, vale em qualquer computador — e mora numa chave
+   interna (auth-*), fora do /api/estado. Só entram endereços do catálogo:
+   favorito é ATALHO, não porta — quem barra continua sendo o servidor de
+   cada setor, e a tela ainda esconde o que o papel da pessoa não vê. */
+const FAVORITOS_KEY = "auth-favoritos-v1";
+const SETORES_FAVORITAVEIS = new Set([
+  "/praticas/", "/monitoria/", "/curso/", "/pesquisa/ic/", "/extensao/",
+  "/eventos/gestao/", "/atas/", "/espacos/", "/relatorios/", "/certificados/", "/arche/",
+]);
+app.get("/api/favoritos", async (req, res) => {
+  const u = await usuarioDe(req);
+  if (!u) return res.status(401).json({ error: "não autenticado" });
+  const tudo = JSON.parse((await storage.get(FAVORITOS_KEY)) || "{}");
+  res.json({ favoritos: Array.isArray(tudo[u.email]) ? tudo[u.email] : [] });
+});
+app.post("/api/favoritos", async (req, res) => {
+  const u = await usuarioDe(req);
+  if (!u) return res.status(401).json({ error: "não autenticado" });
+  const lista = [...new Set((Array.isArray(req.body?.favoritos) ? req.body.favoritos : [])
+    .filter((h) => SETORES_FAVORITAVEIS.has(h)))].slice(0, 12);
+  const tudo = JSON.parse((await storage.get(FAVORITOS_KEY)) || "{}");
+  if (lista.length) tudo[u.email] = lista;
+  else delete tudo[u.email];
+  await storage.set(FAVORITOS_KEY, JSON.stringify(tudo));
+  res.json({ ok: true, favoritos: lista });
+});
+
 // Ficha do usuário vinculada à conta (a chave é o e-mail da sessão).
 // Campos livres são limitados no tamanho para não inflar o estado, que é
 // regravado por inteiro a cada gravação.

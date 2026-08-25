@@ -77,14 +77,22 @@ public/
 
 - **Gestão de acessos** é da conta, não de um setor: o atalho mora no **perfil** do
   gestor (`/perfil/`), não na barra lateral da Extensão.
-- **Os cartões do portal vêm AGRUPADOS** (ideia do dono, ago/2026), na mesma divisão da barra do
-  topo: **Ensino** (Aulas Práticas, Monitoria), **Pesquisa** (IC, Inovação), **Extensão** (Extensão,
-  Eventos) e **Serviços** (Atas, Espaços, Relatórios, Certificados, Avaliação) — dez cartões numa
-  lista só se leem inteiros toda vez. O grupo **some quando nenhum cartão dele é visível**
-  (`aplicarVisibilidade`), senão o aluno veria um título "SERVIÇOS" sobre o vazio. Na BARRA o
-  Certificados se repete nos três grupos (só um menu está aberto por vez, e é o que o dono pediu);
-  no PORTAL ele aparece **uma vez**, em Serviços — a página inteira se vê de uma olhada, e três
-  cartões idênticos leriam como defeito.
+- **Os setores do portal são PAINÉIS COM LINHAS + FAVORITOS** (layout escolhido pelo dono em
+  ago/2026 entre quatro opções montadas em `/prototipos/portal/` — a página tinha 12 cartões
+  grandes e ficou "um pouco poluída", mas ícones, siglas e botões agradavam): cada grupo —
+  **Ensino** (Aulas Práticas, Monitoria, Seu Curso), **Pesquisa** (IC, Inovação), **Extensão**
+  (Extensão, Eventos) e **Serviços** (Atas, Espaços, Relatórios, Certificados, Avaliação) — é um
+  painel de LARGURA INTEIRA com os setores em **linhas** (ícone, sigla, nome, subtítulo; a linha
+  inteira é o botão), a mesma divisão da barra do topo. A revisão do dono pediu as duas coisas
+  que o desenho carrega: **distribuição uniforme** (painéis empilhados, nunca um alto ao lado de
+  um baixo) e a faixa **"★ Os seus favoritos"** no alto — a ☆ de cada linha fixa o setor ali, e a
+  escolha grava **NA CONTA** (`GET/POST /api/favoritos`, chave interna `auth-favoritos-v1`, só
+  endereços do catálogo `SETORES_FAVORITAVEIS`, teto 12): vale em qualquer computador. A faixa
+  clona as linhas dos painéis (MESMO `data-setor` — o filtro por papel as alcança igual) e **some
+  sem favorito visível**, como o painel de demandas. A descrição longa e as etiquetas de cada
+  setor saíram da página inicial — moram dentro do setor. Favorito é ATALHO, não porta: quem
+  barra segue sendo o servidor. Na BARRA o Certificados se repete nos três grupos (só um menu
+  está aberto por vez); no PORTAL ele aparece **uma vez**, em Serviços.
 - **O portal mostra a cada um os seus setores** (`aplicarVisibilidade` em
   `assets/arche-nav.js` + `data-setor` nos cartões de `public/index.html`, decisão do
   dono ago/2026): **aluno** (função `aluno` no perfil) vê só Extensão e Pesquisa·IC;
@@ -2613,9 +2621,10 @@ public/
   ago/2026: "estou achando um pouco poluído, mas gosto dos ícones, das siglas e dos botões —
   crie opções e NÃO aplique até eu aprovar"): quatro apresentações dos MESMOS 12 cartões —
   A compacto em grade, B painéis com linhas, C abas por grupo, D destaques + grade compacta —
-  navegáveis pelo seletor no alto (`?v=a|b|c|d`). **A página inicial real segue intocada até
-  o dono escolher**; aprovada uma opção, aplica-se em `public/index.html` preservando
-  `data-setor`/`aplicarVisibilidade` (o filtro por papel é o mesmo em qualquer layout).
+  navegáveis pelo seletor no alto (`?v=a|b|c|d`). O dono **aprovou a B revisada** (painéis
+  uniformes + favoritos) e ela **está aplicada** em `public/index.html`, preservando
+  `data-setor`/`aplicarVisibilidade` (o filtro por papel é o mesmo em qualquer layout); o
+  protótipo fica como registro da escolha.
 
 - **TODA LISTA NOVA NASCE PAGINADA, com 20 por página** (decisão do dono, ago/2026: "acho que
   uma lista padrão inicial de 20 fica bom; se eu quiser expandir escolho outras opções.
