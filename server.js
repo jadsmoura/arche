@@ -12485,13 +12485,27 @@ app.get("/api/praticas/:id/pdf", async (req, res) => {
       } catch { /* foto que não abre não derruba o documento */ }
     }
     const coordEmail = p.parecer?.por || "";
+    let coordenador = coordEmail
+      ? { nome: p.parecer?.nome || perfis[coordEmail]?.nome || "", cargo: "Coordenação do curso" }
+      : null;
+    /* SEM validação ainda, o NOME de quem valida já se conhece do cadastro
+       do curso (achado do dono, ago/2026: o relatório saía com a linha da
+       coordenação anônima). O nome identifica quem vai assinar; a
+       ASSINATURA continua entrando só depois de validar — assinar o que não
+       se validou seria o documento afirmar um ato que não houve. Validando
+       outra pessoa (a pedagógica, por exemplo), o documento final sai com o
+       nome de quem de fato validou. */
+    if (!coordenador) {
+      const equipe = await lerEquipeAP();
+      const lista = equipe.cursos?.[p.curso]?.coordenadores || [];
+      const c = lista.find((x) => x?.papel === "coordenador" && x?.nome) || lista.find((x) => x?.nome);
+      if (c) coordenador = { nome: c.nome, cargo: "Coordenação do curso" };
+    }
     const { gerarRelatorioAulaPraticaPdf } = await import("./lib/pdf.js");
     const buf = await gerarRelatorioAulaPraticaPdf({
       relatorio: p, curso: cursoDe(p.curso)?.nome || p.curso,
       professor: { nome: p.professor?.nome || perfis[p.professor?.email]?.nome || "" },
-      coordenador: coordEmail
-        ? { nome: p.parecer?.nome || perfis[coordEmail]?.nome || "", cargo: "Coordenação do curso" }
-        : null,
+      coordenador,
       fotos,
       assinaturas: {
         professor: await assinaturaPorIdentidade(p.professor?.email),
