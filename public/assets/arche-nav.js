@@ -465,6 +465,15 @@
           var alvos = document.querySelectorAll('[data-setor="' + href + '"]');
           for (var i = 0; i < alvos.length; i++) alvos[i].style.display = "none";
         });
+        /* O cartão do Seu Curso é o CONTRÁRIO dos demais (pedido do dono,
+           ago/2026): nasce escondido no HTML e só se mostra a quem tem o
+           painel — gestor geral e coordenação de curso. Os outros nascem
+           visíveis e se escondem; este, se nascesse visível, piscaria na
+           tela do professor enquanto o /api/me não responde. */
+        if (esconder.indexOf("/curso/") < 0) {
+          var sc = document.querySelectorAll('[data-setor="/curso/"]');
+          for (var j = 0; j < sc.length; j++) sc[j].style.display = "";
+        }
         /* E o GRUPO some quando nenhum cartão dele sobrou: o aluno veria um
            título "SERVIÇOS" sobre o vazio, que é pior do que não ter grupo. */
         var grupos = document.querySelectorAll(".setor-grupo[data-grupo]");

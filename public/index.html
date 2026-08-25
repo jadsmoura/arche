@@ -231,7 +231,13 @@
          curso — coordenações, NDE, Colegiado — e, para a PROPPEX, o catálogo de
          cursos e a gestão de acessos. Só coordenação de curso e gestor geral o
          veem (coordenaCursos no /api/me + regra no arche-nav). -->
-    <a class="card" href="/curso/" data-setor="/curso/">
+    <!-- nasce ESCONDIDO (pedido do dono, ago/2026: "esse bloco só deve
+         aparecer para gestores — usuários comuns e professores não"): os
+         demais cartões nascem visíveis e a visibilidade os esconde; este é o
+         contrário, senão o professor o veria piscar enquanto o /api/me não
+         responde. Quem o MOSTRA é o arche-nav, para gestor geral e
+         coordenação de curso. -->
+    <a class="card" href="/curso/" data-setor="/curso/" style="display:none">
       <span class="card-num f-code">SC</span>
       <span class="card-topo">
         <span class="card-ic" aria-hidden="true">
