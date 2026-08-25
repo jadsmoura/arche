@@ -2019,6 +2019,13 @@ public/
   secretaria que digitalizasse a assinatura de um professor para a folha de uma ata estaria, sem
   querer, assinando em nome dele documentos que afirmam um ato dele. Quem lê a folha da ata é
   `imagensDaFolhaDaAta`, que aceita as duas origens de propósito.
+  **A exceção é o ATO REGISTRADO** (`assinaturaDeAtoRegistrado`, achado do dono ago/2026: enviou a
+  assinatura da coordenadora ao banco e o relatório de aula prática validado por ela continuou
+  saindo sem a imagem): quando o documento afirma um ato que a PRÓPRIA CONTA da pessoa praticou e
+  o sistema registrou — o professor que submeteu o relatório de aula prática, a coordenação que o
+  validou com data e hora, quem emite o semestral —, a assinatura digitalizada pela gestão
+  (`terceiro`) também vale: o ato é da pessoa e está registrado, a imagem não inventa nada. Vale
+  nesses três lugares do AP e em nenhum outro; linha genérica segue só com o titular.
   **Duas portas, com a ORIGEM marcada** (decisão do dono, ago/2026, revendo a regra anterior): a
   pessoa envia a sua no `/perfil/` (`titular`) e a **secretaria do órgão** pode digitalizar e
   subir por um membro (`terceiro`), de dentro de uma ata em que ele é participante. A regra

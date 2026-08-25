@@ -8589,6 +8589,30 @@ async function assinaturaPorIdentidade(email) {
   return assinaturaDoUsuario(candidatas[0][0]);
 }
 
+/* A ASSINATURA DE UM ATO REGISTRADO (achado do dono, ago/2026: enviou a
+   assinatura da coordenadora ao banco e o relatório de aula prática validado
+   por ela continuou saindo sem a imagem): a regra "só titular fora da folha
+   da ata" existe para a assinatura digitalizada pela gestão (`terceiro`)
+   nunca afirmar um ato que não houve. Quando o documento afirma um ato que a
+   PRÓPRIA CONTA da pessoa praticou e o sistema registrou — o professor que
+   submeteu o relatório, a coordenação que o validou com data e hora — a
+   imagem do banco não inventa nada: o ato é dela, registrado. Nesses lugares
+   vale também a de `terceiro`; em linha genérica, a regra do titular segue. */
+async function assinaturaDeAtoRegistrado(email) {
+  const titular = await assinaturaPorIdentidade(email);
+  if (titular) return titular;
+  const e = String(email || "").trim().toLowerCase();
+  if (!e) return null;
+  const todas = await lerAssinaturasDeUsuarios();
+  let reg = todas[e];
+  if (!reg?.base64) {
+    // a digitalizada pode ter entrado pelo NOME (guardada antes de a conta casar)
+    const nome = (await carregarPerfis())[e]?.nome || "";
+    if (nomeServeDeChave(nome)) reg = todas["nome:" + chaveDoNome(nome)];
+  }
+  try { return reg?.base64 ? Buffer.from(reg.base64, "base64") : null; } catch { return null; }
+}
+
 /* O ENVIO NOS FLUXOS ALIMENTA O BANCO (pedido do dono, ago/2026: "um
    professor ou coordenador, ao submeter ou gerenciar uma proposta, pode
    subir sua assinatura e essa passa a compor o banco, e não mais precisa
@@ -12690,7 +12714,9 @@ app.get("/api/praticas/semestral.pdf", async (req, res) => {
       coordenador: { nome: perfil.nome || u.nome || "",
         cargo: quem.pedagogico ? "Coordenação Pedagógica" : `Coordenação do curso${curso ? ` de ${cursoDe(curso)?.nome}` : ""}` },
       assinaturas: {
-        coordenador: await assinaturaPorIdentidade(u.email),
+        // quem EMITE é quem assina — ato da própria sessão, então a
+        // digitalizada pela gestão no banco também vale
+        coordenador: await assinaturaDeAtoRegistrado(u.email),
         proacademica: institucionais.proacademica, reitor: institucionais.reitor,
       },
       emitidoPor: u.email,
@@ -12746,11 +12772,13 @@ app.get("/api/praticas/:id/pdf", async (req, res) => {
       coordenador,
       fotos,
       assinaturas: {
-        professor: await assinaturaPorIdentidade(p.professor?.email),
+        // atos REGISTRADOS pela própria conta (submeter, validar): vale
+        // também a assinatura digitalizada pela gestão no banco
+        professor: await assinaturaDeAtoRegistrado(p.professor?.email),
         // a assinatura do coordenador só entra se ele VALIDOU: assinar o que
         // ainda não se validou seria o documento afirmar um ato que não houve
         ...(p.status === "validado" && coordEmail
-          ? { coordenador: await assinaturaPorIdentidade(coordEmail) } : {}),
+          ? { coordenador: await assinaturaDeAtoRegistrado(coordEmail) } : {}),
       },
     });
     res.setHeader("Content-Type", "application/pdf");
