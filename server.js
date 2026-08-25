@@ -8195,6 +8195,44 @@ async function aplicarInstituicaoNoArranque() {
   aplicarNoCatalogo(await lerInstituicao());
 }
 
+/* MIGRAÇÃO DE ARRANQUE (pedido do dono, ago/2026: "migre os coordenadores
+   que estão indicados no módulo de relatórios de aulas práticas e vincule
+   eles como coordenadores e gestores de seus cursos"): a dupla de cada
+   curso no cadastro do AP (`ap-equipe-v1`, semeada da planilha do dono)
+   vira a COMPOSIÇÃO institucional do curso — e com ela o painel Seu Curso,
+   o cartão no portal e o alcance de gestão do próprio curso, que já saem
+   dessas duas fontes. NUNCA sobrescreve o que o painel já tem: a
+   composição editada pela tela é mais nova que a planilha. Nome que faltar
+   no cadastro do AP vem do perfil. Marca única; rodar de novo não muda nada. */
+async function migrarCoordenadoresApParaInstituicao() {
+  const MARCA = "sys-instituicao-coordap-v1";
+  if (await storage.get(MARCA)) return;
+  const [equipe, inst, perfis] = await Promise.all([lerEquipeAP(), lerInstituicao(), carregarPerfis()]);
+  let cursosTocados = 0, pessoas = 0;
+  for (const [slug, v] of Object.entries(equipe.cursos || {})) {
+    if (!CURSOS.some((c) => c.slug === slug)) continue;
+    const comp = normalizarComposicao(inst.cursos[slug] || {});
+    let mudou = false;
+    for (const papel of ["coordenador", "pedagogico"]) {
+      if (comp[papel]?.nome || comp[papel]?.email) continue;      // o painel manda
+      const p = (v.coordenadores || []).find((x) => x?.papel === papel && x?.email);
+      if (!p) continue;
+      comp[papel] = { nome: p.nome || perfis[p.email]?.nome || "", email: p.email };
+      mudou = true; pessoas += 1;
+    }
+    if (mudou) {
+      comp.atualizadoEm = new Date().toISOString();
+      comp.por = "migração do cadastro do AP";
+      inst.cursos[slug] = comp;
+      cursosTocados += 1;
+    }
+  }
+  if (cursosTocados) await salvarInstituicao(inst);
+  await storage.set(MARCA, JSON.stringify({ em: new Date().toISOString(), cursos: cursosTocados, pessoas }));
+  await storage.flush?.();
+  console.log(`[curso] coordenadores do AP migrados à composição: ${pessoas} pessoa(s) em ${cursosTocados} curso(s)`);
+}
+
 /** O catálogo público de cursos ATIVOS — é dele que as telas montam as
     listas (as três que tinham cópia embutida passaram a buscar aqui). */
 app.get("/api/cursos", (req, res) => {
@@ -13871,6 +13909,7 @@ app.listen(port, () => {
       reorganizarNumeracaoDasAtas, // acervo de atas: número na ordem das sessões
       subirEquipeAP,             // a coordenação do ARCHÉ AP, do arquivo em dados/
       subirProfessoresAP,        // e as listas de professores, curso a curso
+      migrarCoordenadoresApParaInstituicao, // a dupla do AP vira a composição do curso
       // SEMPRE por último, e a cada arranque (achado de ago/2026 — o caso
       // Marlana): as migrações acima podem carimbar CPF em projeto que ainda
       // não tem e-mail, e uma vinculação que rodasse só uma vez, antes delas,
