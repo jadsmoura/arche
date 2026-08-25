@@ -114,6 +114,7 @@ import {
 import {
   INSTITUICAO_KEY, normalizarInstituicao, normalizarComposicao, aplicarNoCatalogo,
   cursosAtivos, cursosDaPessoa, equipeApDaComposicao, slugDeCursoNovo, siglaDeCursoNovo,
+  CARGOS_REITORIA, normalizarReitoria,
 } from "./lib/instituicao.js";
 import { certificadosDe, destinatariosDoCiclo, certificavel, codigo as codigoCert } from "./lib/certificados.js";
 import {
@@ -8217,12 +8218,30 @@ app.get("/api/curso", async (req, res) => {
     const visiveis = gestorGeral ? CATALOGO.map((c) => c.slug) : meus;
     const cursos = {};
     for (const slug of visiveis) cursos[slug] = normalizarComposicao(inst.cursos[slug] || {});
-    res.json({ ok: true, gestorGeral, meus: visiveis, catalogo: CATALOGO, cursos });
+    res.json({ ok: true, gestorGeral, meus: visiveis, catalogo: CATALOGO, cursos,
+      ...(gestorGeral ? {
+        reitoria: inst.reitoria, cargosReitoria: CARGOS_REITORIA, modulos: MODULOS,
+      } : {}) });
   } catch (e) {
     console.error("Erro no painel do curso:", e);
     res.status(500).json({ error: "Não foi possível carregar agora." });
   }
 });
+
+/** A gravação da composição + a sincronia com o AP, num lugar só: é usada
+    pela rota do painel e pela INCLUSÃO de curso (que já nomeia a dupla). */
+async function gravarComposicaoDoCurso(slug, corpo, porEmail, { manterCoordenador = null } = {}) {
+  const inst = await lerInstituicao();
+  const nova = normalizarComposicao({ ...corpo, atualizadoEm: new Date().toISOString(), por: porEmail });
+  if (manterCoordenador) nova.coordenador = manterCoordenador;
+  inst.cursos[slug] = nova;
+  await salvarInstituicao(inst);
+  const equipe = await lerEquipeAP();
+  const equipeNova = normalizarEquipeAP(equipeApDaComposicao(equipe, slug, nova));
+  await storage.set(AP_EQUIPE_KEY, JSON.stringify(equipeNova));
+  await storage.flush?.();
+  return nova;
+}
 
 /** Grava a composição de UM curso — e os acessos acompanham (ap-equipe). */
 app.post("/api/curso/:slug", async (req, res) => {
@@ -8236,28 +8255,30 @@ app.post("/api/curso/:slug", async (req, res) => {
     if (!gestorGeral && !meus.includes(slug)) {
       return res.status(403).json({ error: "Cada coordenação edita só o painel do próprio curso." });
     }
-    const inst = await lerInstituicao();
-    const antes = normalizarComposicao(inst.cursos[slug] || {});
-    const nova = normalizarComposicao({ ...req.body,
-      atualizadoEm: new Date().toISOString(), por: u.email });
     /* Quem NOMEIA o coordenador do curso é o gestor geral: sem isso, a
        coordenação poderia passar o curso adiante sozinha. O pedagógico, o
        NDE e o Colegiado são manutenção do próprio curso. */
-    if (!gestorGeral) nova.coordenador = antes.coordenador;
-    inst.cursos[slug] = nova;
-    await salvarInstituicao(inst);
-    // A INTERLIGAÇÃO: a dupla vira o cadastro do AP — validação das aulas
-    // práticas, alcance na monitoria e sino passam a obedecer a esta edição
-    const equipe = await lerEquipeAP();
-    const equipeNova = normalizarEquipeAP(equipeApDaComposicao(equipe, slug, nova));
-    await storage.set(AP_EQUIPE_KEY, JSON.stringify(equipeNova));
-    await storage.flush?.();
+    const antes = normalizarComposicao((await lerInstituicao()).cursos[slug] || {});
+    const nova = await gravarComposicaoDoCurso(slug, req.body, u.email,
+      { manterCoordenador: gestorGeral ? null : antes.coordenador });
     console.log(`[curso] composição de ${slug} gravada por ${u.email}`);
-    res.json({ ok: true, curso: slug, composicao: inst.cursos[slug] });
+    res.json({ ok: true, curso: slug, composicao: nova });
   } catch (e) {
     console.error("Erro ao gravar a composição do curso:", e);
     res.status(500).json({ error: "Não foi possível gravar agora." });
   }
+});
+
+/** O registro da REITORIA (só gestor geral): quem ocupa os cargos. É o
+    retrato institucional — o acesso continua nas listas de auth-usuarios,
+    geridas na mesma tela, e as assinaturas dos documentos no banco. */
+app.post("/api/instituicao/reitoria", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  const inst = await lerInstituicao();
+  inst.reitoria = normalizarReitoria({ ...req.body, atualizadoEm: new Date().toISOString(), por: g.email });
+  await salvarInstituicao(inst);
+  await storage.flush?.();
+  res.json({ ok: true, reitoria: inst.reitoria });
 });
 
 /** Incluir curso no catálogo (só gestor geral). Slug e sigla saem do nome. */
@@ -8273,6 +8294,14 @@ app.post("/api/cursos", async (req, res) => {
   const inst = await lerInstituicao();
   inst.extras.push({ slug, nome, sigla });
   await salvarInstituicao(inst);
+  /* O curso já nasce com a dupla nomeada (pedido do dono, ago/2026: "incluir
+     curso, indicando coordenador e coordenador pedagógico — a partir daí
+     esse usuário passa a ter acesso ao painel do seu curso"): a mesma
+     gravação do painel, com a sincronia do AP inclusa. */
+  if (req.body?.coordenador?.nome || req.body?.pedagogico?.nome) {
+    await gravarComposicaoDoCurso(slug,
+      { coordenador: req.body.coordenador, pedagogico: req.body.pedagogico }, g.email);
+  }
   await storage.flush?.();
   console.log(`[curso] curso incluído no catálogo: ${nome} (${slug}) por ${g.email}`);
   res.json({ ok: true, slug, nome, sigla });

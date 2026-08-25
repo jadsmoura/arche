@@ -440,6 +440,18 @@ public/
   certificados) vive na conta **institucional** — a pessoal é só de gestão
   (`identidadeInstitucionalDoProReitor` gravou o e-mail do UNIEGO nos projetos dele, o que
   também encerra o casamento por nome na conta pessoal).
+- **O SEU CURSO tem barra LATERAL e a navegação por SELEÇÃO** (revisão do dono, ago/2026):
+  barra lateral no molde dos demais módulos (ARCHÉ SC), com a **lista suspensa de cursos** no
+  topo — o coordenador alterna entre os seus; o gestor vê todos MAIS **"🏛 Institucional"**.
+  Institucional (só gestor) abre três entradas: **Reitoria** (o registro de quem ocupa os
+  cargos — reitor, pró-reitores em `sys-instituicao-v1.reitoria`, mais coordenadores
+  institucionais — E os atos rápidos de acesso na mesma tela: promover/rebaixar gestor geral e
+  designar/tirar coordenações de módulo, pelas rotas do `/api/usuarios`), **Cursos** (o
+  catálogo, com "incluir curso" já **nomeando coordenador e pedagógico** — a dupla ganha o
+  painel e a validação do AP no mesmo ato, `gravarComposicaoDoCurso`) e **Usuários e
+  acessos** (os atalhos). Escolhido um CURSO: **Dados do curso** (as duas coordenações) e
+  **NDE e Colegiado** (as listas). O salvar manda a composição INTEIRA com a parte da outra
+  guia vinda do estado — senão salvar os dados apagaria o NDE.
 - **SEU CURSO — informações institucionais** (`/curso/` + `lib/instituicao.js` +
   `/api/curso*`/`/api/cursos*`, pedido do dono ago/2026): o painel institucional por curso —
   **coordenador, pedagógico, NDE e Colegiado** — mais, para o gestor geral, o **catálogo de
