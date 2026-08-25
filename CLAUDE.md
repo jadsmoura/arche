@@ -2609,6 +2609,13 @@ public/
   viram certificado** de atividade complementar (é o que traz o aluno toda semana), **o
   registro destrava direitos** e a vitrine pública dá público — e, nos grupos, o relatório
   anual é GERADO da planilha de produção do edital de IC e do Lattes que a Avaliação já lê.
+  E há o protótipo do **layout da página inicial** (`/prototipos/portal/`, pedido do dono
+  ago/2026: "estou achando um pouco poluído, mas gosto dos ícones, das siglas e dos botões —
+  crie opções e NÃO aplique até eu aprovar"): quatro apresentações dos MESMOS 12 cartões —
+  A compacto em grade, B painéis com linhas, C abas por grupo, D destaques + grade compacta —
+  navegáveis pelo seletor no alto (`?v=a|b|c|d`). **A página inicial real segue intocada até
+  o dono escolher**; aprovada uma opção, aplica-se em `public/index.html` preservando
+  `data-setor`/`aplicarVisibilidade` (o filtro por papel é o mesmo em qualquer layout).
 
 - **TODA LISTA NOVA NASCE PAGINADA, com 20 por página** (decisão do dono, ago/2026: "acho que
   uma lista padrão inicial de 20 fica bom; se eu quiser expandir escolho outras opções.
