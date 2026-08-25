@@ -2025,7 +2025,11 @@ public/
   o sistema registrou — o professor que submeteu o relatório de aula prática, a coordenação que o
   validou com data e hora, quem emite o semestral —, a assinatura digitalizada pela gestão
   (`terceiro`) também vale: o ato é da pessoa e está registrado, a imagem não inventa nada. Vale
-  nesses três lugares do AP e em nenhum outro; linha genérica segue só com o titular.
+  nesses três lugares do AP e em nenhum outro; linha genérica segue só com o titular. A resolução
+  cobre a OUTRA conta da mesma pessoa (CPF/nome, uma candidata só) e a chave `nome:`; e a página
+  `/assinaturas/` ganhou o quadro **"Coordenações dos cursos — Aulas Práticas"** (`coordenacoesAP`
+  no GET do banco), que diz curso a curso como o relatório validado sairia assinado — calculado
+  pela MESMA `registroDeAssinaturaParaAto` do PDF, para o quadro nunca divergir do documento.
   **Duas portas, com a ORIGEM marcada** (decisão do dono, ago/2026, revendo a regra anterior): a
   pessoa envia a sua no `/perfil/` (`titular`) e a **secretaria do órgão** pode digitalizar e
   subir por um membro (`terceiro`), de dentro de uma ata em que ele é participante. A regra

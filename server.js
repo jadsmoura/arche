@@ -8469,9 +8469,29 @@ app.get("/api/assinaturas/banco", async (req, res) => {
         duplicidades.push({ motivo: "cpf", rotulo: perfis[es[0]]?.nome || mascararCpf(d), contas: es });
       }
     }
+    /* CONFERÊNCIA DAS COORDENAÇÕES (pedido do dono, ago/2026: "verifique se
+       para os outros coordenadores estão ok"): para cada curso, a dupla que
+       valida as aulas práticas e COMO o relatório validado sairia assinado —
+       calculado pela MESMA resolução do PDF (registroDeAssinaturaParaAto),
+       senão o quadro diria uma coisa e o documento faria outra. */
+    const equipeAP = await lerEquipeAP();
+    const coordenacoesAP = [];
+    for (const [slug, cfg] of Object.entries(equipeAP.cursos || {})) {
+      for (const c of (cfg?.coordenadores || [])) {
+        if (!c?.email) continue;
+        const reg = await registroDeAssinaturaParaAto(c.email);
+        coordenacoesAP.push({
+          curso: cursoDe(slug)?.nome || slug, slug,
+          nome: c.nome || perfis[c.email]?.nome || "", email: c.email,
+          papel: c.papel === "pedagogico" ? "Coordenação Pedagógica" : "Coordenação do curso",
+          assinatura: reg ? origemDaAssinatura(reg) : "",
+        });
+      }
+    }
+    coordenacoesAP.sort((a, b) => a.curso.localeCompare(b.curso, "pt-BR") || a.papel.localeCompare(b.papel));
     res.json({
       ok: true, gestorGeral: g.gestorGeral, modulos: g.modulos || [],
-      pessoas, duplicidades,
+      pessoas, duplicidades, coordenacoesAP,
       // as institucionais (pró-reitor, reitor…) aparecem para o gestor geral,
       // que é quem as troca — o envio usa a rota que já existe (/api/ic/assinatura)
       ...(g.gestorGeral ? {
@@ -8598,18 +8618,39 @@ async function assinaturaPorIdentidade(email) {
    submeteu o relatório, a coordenação que o validou com data e hora — a
    imagem do banco não inventa nada: o ato é dela, registrado. Nesses lugares
    vale também a de `terceiro`; em linha genérica, a regra do titular segue. */
-async function assinaturaDeAtoRegistrado(email) {
-  const titular = await assinaturaPorIdentidade(email);
-  if (titular) return titular;
+async function registroDeAssinaturaParaAto(email) {
   const e = String(email || "").trim().toLowerCase();
   if (!e) return null;
-  const todas = await lerAssinaturasDeUsuarios();
-  let reg = todas[e];
-  if (!reg?.base64) {
-    // a digitalizada pode ter entrado pelo NOME (guardada antes de a conta casar)
-    const nome = (await carregarPerfis())[e]?.nome || "";
-    if (nomeServeDeChave(nome)) reg = todas["nome:" + chaveDoNome(nome)];
+  const [todas, perfis] = await Promise.all([lerAssinaturasDeUsuarios(), carregarPerfis()]);
+  const minha = todas[e]?.base64 ? todas[e] : null;
+  // 1. a titular da própria conta vence tudo
+  if (minha && origemDaAssinatura(minha) === "titular") return minha;
+  // a OUTRA conta da mesma pessoa (CPF ou nome completo, UMA candidata só —
+  // a mesma régua de assinaturaPorIdentidade): coordenador valida com um
+  // e-mail e a assinatura pode viver no outro
+  const p = perfis[e];
+  const cpf = String(p?.cpf || "").replace(/\D/g, "");
+  const kn = chaveNome(p?.nome || "");
+  const nomeVale = kn && kn.split(" ").length >= 2;
+  const candidatas = p ? Object.entries(perfis).filter(([outro, q]) => outro !== e && (
+    (cpf && String(q?.cpf || "").replace(/\D/g, "") === cpf)
+    || (nomeVale && chaveNome(q?.nome || "") === kn))) : [];
+  const daOutra = candidatas.length === 1 && todas[candidatas[0][0]]?.base64
+    ? todas[candidatas[0][0]] : null;
+  // 2. titular da outra conta
+  if (daOutra && origemDaAssinatura(daOutra) === "titular") return daOutra;
+  // 3. como o ato é registrado, a digitalizada pela gestão também vale —
+  //    própria conta, outra conta, ou guardada pelo NOME (antes de a conta casar)
+  if (minha) return minha;
+  if (daOutra) return daOutra;
+  if (nomeServeDeChave(p?.nome || "")) {
+    const r = todas["nome:" + chaveDoNome(p.nome)];
+    if (r?.base64) return r;
   }
+  return null;
+}
+async function assinaturaDeAtoRegistrado(email) {
+  const reg = await registroDeAssinaturaParaAto(email);
   try { return reg?.base64 ? Buffer.from(reg.base64, "base64") : null; } catch { return null; }
 }
 

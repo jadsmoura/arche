@@ -83,9 +83,34 @@ function fmt(iso){ if(!iso)return""; const d=new Date(iso); return isNaN(d)?"":d
 function render(){
   const html=[];
   if((D.duplicidades||[]).length) html.push(cardDuplicidades());
+  if((D.coordenacoesAP||[]).length) html.push(cardCoordenacoes());
   html.push(cardPessoas());
   if(D.institucionais) html.push(cardInstitucionais());
   $("app").innerHTML=html.join("");
+}
+
+/* ------------- conferência: as coordenações que assinam o AP -------------
+   Pedido do dono (ago/2026), depois de um relatório validado sair sem a
+   assinatura da coordenadora: um quadro com a dupla de cada curso e COMO o
+   relatório validado sairia — calculado pelo servidor com a MESMA resolução
+   do PDF, para o quadro nunca dizer uma coisa e o documento fazer outra. */
+function cardCoordenacoes(){
+  const lista=D.coordenacoesAP||[];
+  const sem=lista.filter((c)=>!c.assinatura).length;
+  const selo=(c)=> c.assinatura==="titular" ? '<span class="selo s-titular">✓ enviada pela própria pessoa</span>'
+    : c.assinatura ? '<span class="selo s-terceiro">✓ enviada pela gestão</span>'
+    : '<span class="selo s-sem">✗ sem assinatura</span>';
+  return `<div class="card">
+    <div class="card-t">Coordenações dos cursos — Aulas Práticas${sem?` · ${sem} sem assinatura`:" · todas com assinatura"}</div>
+    <div class="card-s">Quem valida o relatório de aula prática, curso a curso, e como o documento
+      validado sai assinado — calculado pela mesma régua do PDF. Quem está <b>sem assinatura</b>
+      valida normalmente, mas o relatório sai com a linha em branco: envie a assinatura pela lista
+      de pessoas abaixo (busque pelo nome), e ela passa a valer nos relatórios que a pessoa validar.</div>
+    ${lista.map((c)=>`<div class="linha">
+      <div class="quem"><span class="nm">${esc(c.nome||c.email)}</span>
+        <div class="dt">${esc(c.curso)} · ${esc(c.papel)} · ${esc(c.email)}</div></div>
+      ${selo(c)}</div>`).join("")}
+  </div>`;
 }
 
 /* ------------------------- duplicidades + fusão ------------------------- */
