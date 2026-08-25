@@ -410,6 +410,15 @@ ArcheVerComo.instalar({
 const CURSOS = ["Administração","Agronomia","Ciências Contábeis","Direito","Educação Física",
   "Enfermagem","Engenharia Civil","Engenharia de Software","Engenharia Mecânica",
   "Medicina Veterinária","Odontologia","Psicologia","Institucional / PROPPEX"];
+/* O catálogo de cursos vem do SERVIDOR (o gestor inclui e desativa cursos no
+   painel /curso/, ago/2026): a lista embutida acima é só o ponto de partida
+   da primeira pintura — chegando o catálogo, os seletores se refazem. */
+fetch("/api/cursos").then(r=>r.ok?r.json():null).then(j=>{
+  if(!j||!(j.cursos||[]).length) return;
+  CURSOS.splice(0,CURSOS.length,...j.cursos.map(c=>c.nome),"Institucional / PROPPEX");
+  if(typeof montarFiltros==="function") montarFiltros();
+  if(typeof montarForm==="function" && !EDITANDO) montarForm();
+}).catch(()=>{});
 // as ações vêm de /api/extensao (recorte por pessoa) e a sequência oficial
 // do Número da Ação vive no servidor — nada da Extensão passa pelo /api/estado
 // GESTAO = o que a conta realmente é. PROPPEX = o que a tela está mostrando.

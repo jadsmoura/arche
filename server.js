@@ -111,6 +111,10 @@ import {
   duplicidadesPorNome, podeFundir, fundirPerfil, fundirProjeto, fundirAcao, fundirAta, fundirPapeis,
   chaveNome, nomesCompativeis,
 } from "./lib/fusao.js";
+import {
+  INSTITUICAO_KEY, normalizarInstituicao, normalizarComposicao, aplicarNoCatalogo,
+  cursosAtivos, cursosDaPessoa, equipeApDaComposicao, slugDeCursoNovo, siglaDeCursoNovo,
+} from "./lib/instituicao.js";
 import { certificadosDe, destinatariosDoCiclo, certificavel, codigo as codigoCert } from "./lib/certificados.js";
 import {
   EDITAL, LINHAS, GRUPOS_PESQUISA, FOMENTOS, TITULACOES, BLOCOS_PRODUCAO, normalizarTitulacao,
@@ -347,7 +351,7 @@ async function faltaNoPerfilDe(u, perfil) {
 // Setores de gestão exigem login (Avaliação Institucional continua aberta).
 // /eventos/* segue PÚBLICO (hotsite, inscrição, credenciamento, assistir) —
 // só a sala de gestão do ARCHÉ EV, em /eventos/gestao, pede sessão.
-const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios|espacos|monitoria|praticas|relatorios|diagnostico|prototipos|assinaturas)(\/|$)|^\/eventos\/gestao(\/|$)/;
+const AREAS_PROTEGIDAS = /^\/(extensao|pesquisa|inovacao|atas|usuarios|espacos|monitoria|praticas|relatorios|diagnostico|prototipos|assinaturas|curso)(\/|$)|^\/eventos\/gestao(\/|$)/;
 app.use(async (req, res, next) => {
   // HEAD também (achado de ago/2026): o express.static responde HEAD, e a
   // guarda só de GET deixava um HEAD sem sessão confirmar a existência
@@ -481,6 +485,9 @@ app.get("/api/me", async (req, res) => {
   const perfis = await carregarPerfis();
   res.json({
     ...u, perfil: perfis[u.email] || null, temSenha: await temSenha(storage, u.email),
+    // os cursos que a pessoa coordena (composição institucional + cadastro do
+    // AP): é o que abre o cartão "Seu Curso" no portal e a página /curso/
+    coordenaCursos: await cursosQueCoordenaDe(u.email),
     // o que falta para o perfil ficar completo — é o que a tela usa para
     // pedir só o que falta, em vez de mandar a pessoa reler o formulário
     perfilFalta: await faltaNoPerfilDe(u, perfis[u.email]),
@@ -8154,6 +8161,140 @@ app.get("/api/perfil/assinatura.png", async (req, res) => {
   res.end(Buffer.from(a.base64, "base64"));
 });
 
+/* ============ SEU CURSO — informações institucionais (ago/2026) ==========
+   Pedido do dono: "um local onde eu possa editar informações institucionais
+   — incluir e excluir cursos, editar coordenadores de curso e pedagógicos,
+   salvar e alterar membros de NDE e Colegiado; para cada coordenador, um
+   módulo Seu Curso, cada um só no painel do próprio curso; eu edito todos;
+   tudo interligado — os acessos acompanham a edição."
+   As regras estão em lib/instituicao.js. A interligação: gravar a dupla
+   coordenador/pedagógico REESCREVE o cadastro do ARCHÉ AP (`ap-equipe-v1`),
+   de onde saem a validação das aulas práticas, o alcance da monitoria e o
+   sino da coordenação de curso. */
+async function lerInstituicao() {
+  try { return normalizarInstituicao(JSON.parse((await storage.get(INSTITUICAO_KEY)) || "{}")); }
+  catch { return normalizarInstituicao({}); }
+}
+async function salvarInstituicao(inst) {
+  const limpo = normalizarInstituicao(inst);
+  await storage.set(INSTITUICAO_KEY, JSON.stringify(limpo));
+  aplicarNoCatalogo(limpo);
+  return limpo;
+}
+/** Os cursos que a pessoa coordena: composição institucional OU cadastro do AP. */
+async function cursosQueCoordenaDe(email) {
+  try {
+    const [inst, equipe] = await Promise.all([lerInstituicao(), lerEquipeAP()]);
+    return [...new Set([...cursosDaPessoa(inst, email), ...apCursosQueCoordena(equipe, email)])];
+  } catch { return []; }
+}
+// aplica o catálogo no ARRANQUE, antes das demais migrações: curso incluído
+// pelo gestor precisa existir para tudo o que roda depois
+async function aplicarInstituicaoNoArranque() {
+  aplicarNoCatalogo(await lerInstituicao());
+}
+
+/** O catálogo público de cursos ATIVOS — é dele que as telas montam as
+    listas (as três que tinham cópia embutida passaram a buscar aqui). */
+app.get("/api/cursos", (req, res) => {
+  res.json({ cursos: cursosAtivos().map((c) => ({ slug: c.slug, nome: c.nome, sigla: c.sigla })) });
+});
+
+/** A página /curso/: o gestor geral vê todos; o coordenador, só o(s) dele. */
+app.get("/api/curso", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    const gestorGeral = u.papel === "gestor";
+    const meus = gestorGeral ? null : await cursosQueCoordenaDe(u.email);
+    if (!gestorGeral && !meus.length) {
+      return res.status(403).json({ error: "O painel Seu Curso é da coordenação de curso — "
+        + "o gestor geral designa quem coordena cada curso." });
+    }
+    const inst = await lerInstituicao();
+    const CATALOGO = CURSOS.map((c) => ({ slug: c.slug, nome: c.nome, sigla: c.sigla,
+      ativo: c.ativo !== false, extra: !!c.extra }));
+    const visiveis = gestorGeral ? CATALOGO.map((c) => c.slug) : meus;
+    const cursos = {};
+    for (const slug of visiveis) cursos[slug] = normalizarComposicao(inst.cursos[slug] || {});
+    res.json({ ok: true, gestorGeral, meus: visiveis, catalogo: CATALOGO, cursos });
+  } catch (e) {
+    console.error("Erro no painel do curso:", e);
+    res.status(500).json({ error: "Não foi possível carregar agora." });
+  }
+});
+
+/** Grava a composição de UM curso — e os acessos acompanham (ap-equipe). */
+app.post("/api/curso/:slug", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    const slug = String(req.params.slug || "").trim();
+    if (!CURSOS.some((c) => c.slug === slug)) return res.status(404).json({ error: "Curso desconhecido." });
+    const gestorGeral = u.papel === "gestor";
+    const meus = gestorGeral ? null : await cursosQueCoordenaDe(u.email);
+    if (!gestorGeral && !meus.includes(slug)) {
+      return res.status(403).json({ error: "Cada coordenação edita só o painel do próprio curso." });
+    }
+    const inst = await lerInstituicao();
+    const antes = normalizarComposicao(inst.cursos[slug] || {});
+    const nova = normalizarComposicao({ ...req.body,
+      atualizadoEm: new Date().toISOString(), por: u.email });
+    /* Quem NOMEIA o coordenador do curso é o gestor geral: sem isso, a
+       coordenação poderia passar o curso adiante sozinha. O pedagógico, o
+       NDE e o Colegiado são manutenção do próprio curso. */
+    if (!gestorGeral) nova.coordenador = antes.coordenador;
+    inst.cursos[slug] = nova;
+    await salvarInstituicao(inst);
+    // A INTERLIGAÇÃO: a dupla vira o cadastro do AP — validação das aulas
+    // práticas, alcance na monitoria e sino passam a obedecer a esta edição
+    const equipe = await lerEquipeAP();
+    const equipeNova = normalizarEquipeAP(equipeApDaComposicao(equipe, slug, nova));
+    await storage.set(AP_EQUIPE_KEY, JSON.stringify(equipeNova));
+    await storage.flush?.();
+    console.log(`[curso] composição de ${slug} gravada por ${u.email}`);
+    res.json({ ok: true, curso: slug, composicao: inst.cursos[slug] });
+  } catch (e) {
+    console.error("Erro ao gravar a composição do curso:", e);
+    res.status(500).json({ error: "Não foi possível gravar agora." });
+  }
+});
+
+/** Incluir curso no catálogo (só gestor geral). Slug e sigla saem do nome. */
+app.post("/api/cursos", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  const nome = String(req.body?.nome || "").trim().slice(0, 80);
+  if (nome.length < 3) return res.status(400).json({ error: "Informe o nome do curso." });
+  const slug = slugDeCursoNovo(nome);
+  if (!slug) return res.status(400).json({ error: "Nome inválido." });
+  if (CURSOS.some((c) => c.slug === slug))
+    return res.status(400).json({ error: "Já existe um curso com esse nome no catálogo." });
+  const sigla = String(req.body?.sigla || "").trim().toUpperCase().slice(0, 4) || siglaDeCursoNovo(nome);
+  const inst = await lerInstituicao();
+  inst.extras.push({ slug, nome, sigla });
+  await salvarInstituicao(inst);
+  await storage.flush?.();
+  console.log(`[curso] curso incluído no catálogo: ${nome} (${slug}) por ${g.email}`);
+  res.json({ ok: true, slug, nome, sigla });
+});
+
+/** Desativar/reativar curso (só gestor geral). NUNCA se apaga: há atas,
+    ações e projetos gravados com o curso — o desativado sai dos formulários
+    novos e o histórico continua legível. */
+app.post("/api/cursos/:slug/ativo", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  const slug = String(req.params.slug || "").trim();
+  if (!CURSOS.some((c) => c.slug === slug)) return res.status(404).json({ error: "Curso desconhecido." });
+  const ativo = req.body?.ativo !== false;
+  const inst = await lerInstituicao();
+  inst.desativados = inst.desativados.filter((x) => x !== slug);
+  if (!ativo) inst.desativados.push(slug);
+  await salvarInstituicao(inst);
+  await storage.flush?.();
+  console.log(`[curso] ${slug} ${ativo ? "reativado" : "desativado"} por ${g.email}`);
+  res.json({ ok: true, slug, ativo });
+});
+
 /* ================= BANCO DE ASSINATURAS (pedido do dono, ago/2026) =======
    "Centralise esse banco de assinaturas. Inclua ele em todos os módulos.
    O acesso deve ser apenas para quem tiver acesso de gestão naquele módulo."
@@ -13685,6 +13826,7 @@ app.listen(port, () => {
   // uma corre na sua vez, e o que quebrar fica dito no log.
   (async () => {
     for (const etapa of [
+      aplicarInstituicaoNoArranque, // o catálogo de cursos editado pelo gestor
       subirHistoricoMonitoria,   // o arquivo da monitoria: só leitura de disco
       subirLotesIniciais, aplicarAnexosIniciais, zerarAlunosIniciais,
       enquadrarCronogramasIniciais, subirArquivoHistorico, subirAlunosHistoricos,

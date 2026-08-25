@@ -38,6 +38,7 @@
     { grupo: "Ensino", itens: [
       { href: "/praticas/", rot: "Aulas Práticas", sub: "Relatórios das aulas práticas · PROAC", teste: em("/praticas") },
       { href: "/monitoria/", rot: "Monitoria", sub: "Projetos, monitores e relatórios", teste: em("/monitoria") },
+      { href: "/curso/", rot: "Seu Curso", sub: "Coordenações, NDE e Colegiado", teste: em("/curso") },
       CERTIFICADOS,
     ] },
     { grupo: "Pesquisa", itens: [
@@ -429,15 +430,19 @@
     quemSou()
       .then(function (me) {
         var esconder;
+        /* Seu Curso (ago/2026): o cartão é da coordenação de CURSO (o
+           /api/me diz quais ela coordena) e do gestor geral — para o resto
+           do portal ele seria uma porta que não abre. */
+        var coordenaCurso = !!me && (me.papel === "gestor" || (me.coordenaCursos || []).length > 0);
         if (!me || !me.email) {
           // visitante (decisão do dono, ago/2026): a barra deixa de anunciar
           // os setores de gestão — os atalhos levariam à tela de login. As
           // páginas públicas (vitrines, hotsites) ficam só com "Portal" e a
           // visão pública; os quatro grupos somem inteiros, por ficarem vazios.
           esconder = ["/atas/", "/extensao/", "/eventos/gestao/", "/pesquisa/ic/", "/monitoria/",
-            "/praticas/", "/relatorios/", "/espacos/", "/arche/", "/certificados/"];
+            "/praticas/", "/relatorios/", "/espacos/", "/arche/", "/certificados/", "/curso/"];
         } else if (me.papel === "gestor" || (me.modulos || []).length > 0) {
-          esconder = [];                                   // gestão e coordenações veem tudo
+          esconder = coordenaCurso ? [] : ["/curso/"];     // gestão e coordenações veem tudo
         } else {
           // Espaços fica visível a TODO usuário logado (decisão do dono,
           // ago/2026): quem solicita reserva é professor, coordenação, setor,
@@ -450,6 +455,7 @@
           esconder = (me.perfil && me.perfil.funcao === "aluno")
             ? ["/atas/", "/inovacao/", "/arche/", "/eventos/gestao/", "/relatorios/", "/praticas/"]
             : ["/arche/", "/relatorios/"];
+          if (!coordenaCurso) esconder.push("/curso/");
         }
         OCULTOS = {};
         esconder.forEach(function (href) { OCULTOS[href] = true; });

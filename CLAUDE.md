@@ -42,6 +42,9 @@ lib/pautas.js        Catálogo da Pauta Regulatória (indicadores INEP) e confor
 lib/redator.js       Redação da minuta da ata: modelo (padrão) | gemini | anthropic
 lib/assistente.js    Assistente de escrita dos campos da ata (só ARCHÉ AT)
 lib/marca.js         Identidade institucional por data (FACEG até set/2025; UNIEGO depois)
+lib/instituicao.js   Seu Curso: catálogo de cursos editável (incluir/desativar — o array de
+                     lib/atas.js é mutado no arranque e a cada edição) e a composição por
+                     curso (coordenador, pedagógico, NDE, Colegiado) com sincronia no AP
 lib/portaria.js      Portaria do ARCHÉ AV: senha compartilhada e link de acesso (sem login)
 lib/fusao.js         Fusão de cadastros duplicados (a mesma pessoa em duas contas)
 lib/alertas.js       Alertas de regularização das atas para a PROPPEX
@@ -437,6 +440,25 @@ public/
   certificados) vive na conta **institucional** — a pessoal é só de gestão
   (`identidadeInstitucionalDoProReitor` gravou o e-mail do UNIEGO nos projetos dele, o que
   também encerra o casamento por nome na conta pessoal).
+- **SEU CURSO — informações institucionais** (`/curso/` + `lib/instituicao.js` +
+  `/api/curso*`/`/api/cursos*`, pedido do dono ago/2026): o painel institucional por curso —
+  **coordenador, pedagógico, NDE e Colegiado** — mais, para o gestor geral, o **catálogo de
+  cursos** e a concentração de **Usuários e acessos** (atalhos ao `/usuarios/`, que continua no
+  endereço de sempre, e ao banco de assinaturas). Cartão no grupo ENSINO, visível SÓ para
+  gestor geral e coordenação de curso (`coordenaCursos` no `/api/me`, calculado da composição +
+  do cadastro do AP; regra em arche-nav). Quem edita: o gestor geral, tudo; a coordenação de
+  curso, SÓ o painel do próprio curso — e **o campo coordenador só o gestor grava** (senão a
+  coordenação passaria o curso adiante sozinha). A **INTERLIGAÇÃO é real**: gravar a dupla
+  coordenador+pedagógico REESCREVE `ap-equipe-v1` (validação das aulas práticas, alcance na
+  monitoria, sino) — configurar no painel É configurar o acesso. O **catálogo de cursos é UM**
+  (o array de lib/atas.js): curso novo entra MUTANDO o array (arranque + edição, registro em
+  `sys-instituicao-v1`), e por isso todos os módulos o enxergam; **"excluir" é DESATIVAR**
+  (`ativo:false` — há atas/ações/projetos gravados com o curso; o desativado sai dos
+  formulários novos via `GET /api/cursos`, e `cursoDe` segue resolvendo o histórico). As três
+  telas que tinham lista de cursos embutida (extensão, perfil, gestão de eventos) passaram a
+  buscar `/api/cursos`, com a lista embutida como ponto de partida da primeira pintura. A
+  COMPOSIÇÃO é retrato institucional: as ATAS continuam com a presença digitada a cada sessão
+  (a decisão anterior do dono não muda).
 - **Coordenação por setor** (`/usuarios/`, ação `coordenar`): o gestor geral designa
   coordenadores para qualquer um dos sete módulos — `extensao`, `pesquisa`, `inovacao`,
   `atas`, `eventos`, `espacos` e `monitoria`. Dentro do setor marcado a pessoa tem o alcance da PROPPEX (no ARCHÉ

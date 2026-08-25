@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seu Curso — ARCHÉ</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1f4;--marca:#1c3742;--hover:#2d535c;--acento:#40717e;--claro:#71c8e2;
+--wash:#e6f5fa;--ink:#182632;--muted:#657179;--line:#dde4e8;--ok:#1f6b45;--warn:#7a5714;--err:#8c2f22}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:Figtree,system-ui,sans-serif;font-size:14.5px;line-height:1.5}
+.wrap{max-width:1020px;margin:0 auto;padding:22px 16px 60px}
+h1{font-family:Sora,sans-serif;font-size:21px;color:var(--marca);margin:14px 0 2px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+.guias{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.guia{font:inherit;font-weight:600;font-size:13px;border:1px solid var(--line);background:#fff;
+color:var(--acento);border-radius:999px;padding:7px 14px;cursor:pointer}
+.guia.on{background:var(--marca);border-color:var(--marca);color:#fff}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:16px}
+.card-t{font-family:Sora,sans-serif;font-size:15px;color:var(--marca);margin-bottom:4px}
+.card-s{color:var(--muted);font-size:12.8px;margin-bottom:12px}
+label{display:block;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+input,select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);width:100%}
+input:focus,select:focus{outline:none;border-color:var(--acento)}
+input[disabled]{background:#f2f5f7;color:var(--muted)}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.bt{font:inherit;font-weight:600;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--acento);
+padding:7px 12px;cursor:pointer;font-size:12.8px}
+.bt:hover{border-color:var(--acento);background:var(--wash)}
+.bt-pri{background:var(--marca);border-color:var(--marca);color:#fff}
+.bt-pri:hover{background:var(--hover)}
+.bt-err{background:#fdeeec;border-color:#eed6d3;color:var(--err)}
+.bt-xs{padding:4px 9px;font-size:12px}
+.linha{display:grid;grid-template-columns:1fr 1fr 34px;gap:8px;margin-bottom:8px;align-items:center}
+.banner{border-radius:10px;padding:11px 14px;font-size:13.3px;margin:10px 0}
+.ba-ok{background:#eaf7ef;border:1px solid #cfeeda;color:var(--ok)}
+.ba-err{background:#fdeeec;border:1px solid #eed6d3;color:var(--err)}
+.ba-info{background:var(--wash);border:1px solid #bfe3ef;color:var(--marca)}
+.muted{color:var(--muted)}
+.tabela{width:100%;border-collapse:collapse}
+.tabela td,.tabela th{padding:8px 6px;border-top:1px solid var(--line);text-align:left;font-size:13.3px}
+.tabela th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-top:0}
+.selo{font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px}
+.s-on{background:#eaf7ef;color:var(--ok);border:1px solid #cfeeda}
+.s-off{background:#f2f5f7;color:var(--muted);border:1px solid var(--line)}
+.atalhos{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.atalho{display:block;border:1px solid var(--line);border-radius:10px;padding:14px;text-decoration:none;color:var(--ink);background:#fff}
+.atalho:hover{border-color:var(--acento);background:var(--wash)}
+.atalho b{color:var(--marca)}
+@media (max-width:640px){.duo{grid-template-columns:1fr}.linha{grid-template-columns:1fr 1fr 34px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎓 Seu Curso</h1>
+  <div class="sub">As informações institucionais do curso — coordenações, NDE e Colegiado — e, para a
+    PROPPEX, o catálogo de cursos e os acessos. O que se grava aqui vale nos módulos: quem entra como
+    coordenação passa a validar as aulas práticas e a alcançar a monitoria do curso.</div>
+  <div class="guias" id="guias"></div>
+  <div id="app"><div class="card muted">Carregando…</div></div>
+</div>
+
+<script>
+const $=(id)=>document.getElementById(id);
+const esc=(s)=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let D=null, GUIA="painel", CURSO="", COMP=null;
+
+async function carregar(){
+  const r=await fetch("/api/curso");
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){
+    $("app").innerHTML=`<div class="card"><div class="banner ba-err">${esc(j.error||"Sem acesso.")}</div></div>`;
+    return;
+  }
+  D=j;
+  if(!CURSO || !D.meus.includes(CURSO)) CURSO=D.meus[0]||"";
+  COMP=JSON.parse(JSON.stringify(D.cursos[CURSO]||{}));
+  render();
+}
+
+function nomeCurso(slug){ return (D.catalogo.find(c=>c.slug===slug)||{}).nome||slug; }
+
+function render(){
+  const guias=[["painel","Painel do curso"]];
+  if(D.gestorGeral){ guias.push(["cursos","Cursos da instituição"]); guias.push(["acessos","Usuários e acessos"]); }
+  $("guias").innerHTML=guias.map(([k,r])=>`<button class="guia ${GUIA===k?"on":""}"
+    onclick="GUIA='${k}';render()">${r}</button>`).join("");
+  $("app").innerHTML = GUIA==="cursos"?vCursos() : GUIA==="acessos"?vAcessos() : vPainel();
+}
+
+/* ========================= o painel de UM curso ========================= */
+function pessoaCampos(chave,rotulo,trava){
+  const p=COMP[chave]||{};
+  return `<div class="card">
+    <div class="card-t">${esc(rotulo)}</div>
+    ${trava?'<div class="card-s">Quem nomeia o coordenador do curso é o gestor geral — a coordenação edita o restante do painel.</div>':""}
+    <div class="duo">
+      <div><label>Nome completo</label>
+        <input id="${chave}-nome" value="${esc(p.nome||"")}" ${trava?"disabled":""} placeholder="Nome como consta nos documentos"></div>
+      <div><label>E-mail (o vínculo com a conta e os acessos)</label>
+        <input id="${chave}-email" value="${esc(p.email||"")}" ${trava?"disabled":""} placeholder="nome@uniego.edu.br"></div>
+    </div>
+  </div>`;
+}
+
+function listaCampos(chave,rotulo,sub){
+  const lista=COMP[chave]||[];
+  return `<div class="card">
+    <div class="card-t">${esc(rotulo)} (${lista.length})</div>
+    <div class="card-s">${esc(sub)}</div>
+    <div id="${chave}-linhas">${lista.map((p,i)=>linhaMembro(chave,i,p)).join("")}</div>
+    <button class="bt bt-xs" onclick="addMembro('${chave}')">＋ Incluir membro</button>
+  </div>`;
+}
+function linhaMembro(chave,i,p={}){
+  return `<div class="linha" data-l="${chave}">
+    <input data-c="nome" value="${esc(p.nome||"")}" placeholder="Nome completo">
+    <input data-c="email" value="${esc(p.email||"")}" placeholder="E-mail (opcional)">
+    <button class="bt bt-err bt-xs" title="Remover" onclick="this.parentNode.remove()">✕</button>
+  </div>`;
+}
+function addMembro(chave){ $(chave+"-linhas").insertAdjacentHTML("beforeend",linhaMembro(chave,0)); }
+
+function vPainel(){
+  if(!CURSO) return '<div class="card muted">Nenhum curso sob a sua coordenação.</div>';
+  const trocador = D.meus.length>1
+    ? `<div class="card"><label>Curso</label><select onchange="CURSO=this.value;COMP=JSON.parse(JSON.stringify(D.cursos[CURSO]||{}));render()">
+        ${D.meus.map(s=>`<option value="${esc(s)}" ${s===CURSO?"selected":""}>${esc(nomeCurso(s))}</option>`).join("")}
+      </select></div>` : "";
+  const quando = COMP.atualizadoEm
+    ? `<div class="muted" style="font-size:12.3px">Última gravação: ${new Date(COMP.atualizadoEm).toLocaleString("pt-BR")}${COMP.por?` por ${esc(COMP.por)}`:""}</div>` : "";
+  return `${trocador}
+    <div class="banner ba-info"><b>${esc(nomeCurso(CURSO))}</b> — o que se grava aqui é o retrato
+      institucional do curso, e a dupla coordenador + pedagógico passa, no mesmo ato, a validar as
+      aulas práticas e a alcançar a monitoria do curso. A presença nas atas continua digitada a cada
+      sessão, como sempre.</div>
+    ${pessoaCampos("coordenador","Coordenador(a) do curso",!D.gestorGeral)}
+    ${pessoaCampos("pedagogico","Coordenador(a) pedagógico(a)",false)}
+    ${listaCampos("nde","NDE — Núcleo Docente Estruturante","Os docentes que compõem o NDE do curso.")}
+    ${listaCampos("colegiado","Colegiado do curso","Docentes e representantes que compõem o Colegiado.")}
+    <div class="card">
+      <div id="p-msg"></div>
+      <button class="bt bt-pri" onclick="salvarPainel()">💾 Salvar o painel do curso</button>
+      ${quando}
+    </div>`;
+}
+
+function lerLista(chave){
+  return [...document.querySelectorAll(`.linha[data-l="${chave}"]`)].map(l=>({
+    nome:l.querySelector('[data-c="nome"]').value.trim(),
+    email:l.querySelector('[data-c="email"]').value.trim(),
+  })).filter(p=>p.nome);
+}
+
+async function salvarPainel(){
+  const corpo={
+    coordenador:{nome:($("coordenador-nome")||{}).value||"",email:($("coordenador-email")||{}).value||""},
+    pedagogico:{nome:$("pedagogico-nome").value,email:$("pedagogico-email").value},
+    nde:lerLista("nde"), colegiado:lerLista("colegiado"),
+  };
+  const r=await fetch("/api/curso/"+encodeURIComponent(CURSO),{method:"POST",
+    headers:{"Content-Type":"application/json"},body:JSON.stringify(corpo)});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ $("p-msg").innerHTML=`<div class="banner ba-err">${esc(j.error||"Não foi possível gravar.")}</div>`; return; }
+  await carregar();
+  $("p-msg").innerHTML='<div class="banner ba-ok">Painel gravado — e os acessos da coordenação já acompanham.</div>';
+}
+
+/* ==================== o catálogo (só gestor geral) ====================== */
+function vCursos(){
+  return `<div class="card">
+    <div class="card-t">Cursos da instituição</div>
+    <div class="card-s">O catálogo que alimenta TODOS os módulos — Extensão, IC, Atas, Aulas Práticas,
+      Monitoria. Curso não se apaga: há atas, ações e projetos gravados com ele — <b>desativar</b> o
+      tira dos formulários novos e o histórico continua legível.</div>
+    <div id="c-msg"></div>
+    <table class="tabela"><tr><th>Curso</th><th>Sigla</th><th>Situação</th><th></th></tr>
+      ${D.catalogo.map(c=>`<tr>
+        <td>${esc(c.nome)}${c.extra?' <span class="muted" style="font-size:11.5px">(incluído pela gestão)</span>':""}</td>
+        <td>${esc(c.sigla||"")}</td>
+        <td><span class="selo ${c.ativo?"s-on":"s-off"}">${c.ativo?"ativo":"desativado"}</span></td>
+        <td><button class="bt bt-xs ${c.ativo?"bt-err":""}" onclick="mudarAtivo('${esc(c.slug)}',${c.ativo?"false":"true"})">
+          ${c.ativo?"Desativar":"Reativar"}</button></td>
+      </tr>`).join("")}
+    </table>
+  </div>
+  <div class="card">
+    <div class="card-t">Incluir curso</div>
+    <div class="card-s">Ele entra no catálogo de todos os módulos no mesmo instante.</div>
+    <div class="duo">
+      <div><label>Nome do curso</label><input id="novo-nome" placeholder="Ex.: Ciências Biológicas"></div>
+      <div><label>Sigla (até 4 letras — opcional)</label><input id="novo-sigla" maxlength="4" placeholder="CBI"></div>
+    </div>
+    <div style="margin-top:10px"><button class="bt bt-pri" onclick="incluirCurso()">＋ Incluir no catálogo</button></div>
+  </div>`;
+}
+async function incluirCurso(){
+  const r=await fetch("/api/cursos",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({nome:$("novo-nome").value,sigla:$("novo-sigla").value})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ $("c-msg").innerHTML=`<div class="banner ba-err">${esc(j.error||"Falhou.")}</div>`; return; }
+  await carregar(); GUIA="cursos"; render();
+  $("c-msg").innerHTML=`<div class="banner ba-ok">Curso incluído: ${esc(j.nome)} (${esc(j.sigla)}).</div>`;
+}
+async function mudarAtivo(slug,ativo){
+  const c=D.catalogo.find(x=>x.slug===slug);
+  if(ativo==="false"||ativo===false){
+    if(!confirm(`Desativar ${c.nome}?\n\nEle sai dos formulários novos de todos os módulos; tudo o que já foi gravado continua legível. Dá para reativar quando quiser.`))return;
+  }
+  const r=await fetch("/api/cursos/"+encodeURIComponent(slug)+"/ativo",{method:"POST",
+    headers:{"Content-Type":"application/json"},body:JSON.stringify({ativo:ativo===true||ativo==="true"})});
+  if(!r.ok){ const j=await r.json().catch(()=>({})); alert(j.error||"Falhou."); return; }
+  await carregar(); GUIA="cursos"; render();
+}
+
+/* ================= usuários e acessos (só gestor geral) ================= */
+function vAcessos(){
+  return `<div class="card">
+    <div class="card-t">Usuários e acessos</div>
+    <div class="card-s">A gestão de contas, papéis e funções institucionais do portal — concentrada
+      aqui, como pedido. Os painéis abrem na página de Gestão de acessos, que continua no mesmo
+      endereço (links já circulam).</div>
+    <div class="atalhos">
+      <a class="atalho" href="/usuarios/"><b>👥 Usuários cadastrados</b><br>
+        <span class="muted">Quem está no portal, função na instituição, curso, setores que usa —
+        edição de cadastro e inclusão à mão.</span></a>
+      <a class="atalho" href="/usuarios/#papeis"><b>🔐 Papéis e acessos</b><br>
+        <span class="muted">Aprovar, promover, designar coordenações de módulo, remover acesso e
+        senha provisória.</span></a>
+      <a class="atalho" href="/usuarios/#avisos"><b>🔔 Envios automáticos</b><br>
+        <span class="muted">Os avisos por e-mail do portal — ligar, silenciar até uma data,
+        desligar.</span></a>
+      <a class="atalho" href="/assinaturas/"><b>🖋 Banco de assinaturas</b><br>
+        <span class="muted">As assinaturas digitalizadas, vinculadas às pessoas, com as duplicidades
+        apontadas.</span></a>
+    </div>
+  </div>`;
+}
+
+carregar();
+</script>
+<script src="/assets/arche-nav.js"></script>
+</body>
+</html>

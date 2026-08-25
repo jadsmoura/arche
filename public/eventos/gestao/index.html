@@ -834,6 +834,12 @@ function renderCardsPainel(){
 const CURSOS_EV = ["Administração","Agronomia","Ciências Contábeis","Direito","Educação Física",
   "Enfermagem","Engenharia Civil","Engenharia de Software","Engenharia Mecânica",
   "Medicina Veterinária","Odontologia","Psicologia","Institucional / PROPPEX"];
+/* O catálogo vem do servidor (painel /curso/ do gestor, ago/2026): as telas
+   do EV desenham sob demanda, então basta a lista estar atualizada. */
+fetch("/api/cursos").then(r=>r.ok?r.json():null).then(j=>{
+  if(j&&(j.cursos||[]).length)
+    CURSOS_EV.splice(0,CURSOS_EV.length,...j.cursos.map(c=>c.nome),"Institucional / PROPPEX");
+}).catch(()=>{});
 
 /* ------------------- a ação de MAIS DE UM CURSO -------------------------
    Pedido de um professor (ago/2026): a jornada é de Engenharia Mecânica E

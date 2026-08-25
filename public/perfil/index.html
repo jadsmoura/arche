@@ -230,6 +230,17 @@
 const CURSOS=["Administração","Agronomia","Ciências Contábeis","Direito","Educação Física","Enfermagem",
 "Engenharia Civil","Engenharia de Software","Engenharia Mecânica","Medicina Veterinária","Odontologia",
 "Psicologia","Institucional / PROPPEX"];
+/* O catálogo vem do servidor (painel /curso/ do gestor, ago/2026): chegando,
+   o select se refaz preservando o que estava escolhido. */
+fetch("/api/cursos").then(r=>r.ok?r.json():null).then(j=>{
+  if(!j||!(j.cursos||[]).length) return;
+  CURSOS.splice(0,CURSOS.length,...j.cursos.map(c=>c.nome),"Institucional / PROPPEX");
+  const el=document.getElementById("curso"); if(!el) return;
+  const v=el.value;
+  el.innerHTML='<option value="">Selecione…</option>'+CURSOS.map(c=>`<option>${c}</option>`).join("");
+  if(v && ![...el.options].some(o=>o.value===v)) el.insertAdjacentHTML("beforeend",`<option>${v}</option>`);
+  el.value=v;
+}).catch(()=>{});
 const CAMPOS=["nome","tratamento","titulacao","vinculo","funcao","funcaoOutro","curso","matricula","cpf",
   "telefone","whatsapp","emailAlternativo","lattes","orcid","resumo"];
 /* O mesmo catálogo do painel da gestão (lib/auth.js): função é o que a
