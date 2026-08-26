@@ -3058,7 +3058,16 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
       mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     } else if (tipo === "pdf") {
       const { gerarRelatorioPdf } = await import("./lib/pdf.js");
-      buffer = await gerarRelatorioPdf(acao, { fotos: await fotosDoRelatorio(acao) });
+      /* O RELATÓRIO VALIDADO sai com as assinaturas do banco (achado do dono,
+         ago/2026, num relatório da Veterinária com as linhas em branco): as
+         mesmas três institucionais da proposta aprovada, mais a do
+         RESPONSÁVEL — pela identidade (o e-mail dele) ou pelo nome declarado.
+         O rascunho conferido antes da entrega sai igual: as linhas dizem quem
+         assina, e imagem só afirma o que o encerramento já registrou. */
+      buffer = await gerarRelatorioPdf(acao, {
+        fotos: await fotosDoRelatorio(acao),
+        assinaturas: await assinaturasDaAcaoExtensao(acao),
+      });
       nome = `Relatorio-Final-${num}.pdf`;
       mime = "application/pdf";
     } else if (tipo === "proposta") {
@@ -3069,12 +3078,7 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
       /* A proposta APROVADA sai com as assinaturas digitalizadas do banco
          (pedido do dono, ago/2026): o PDF só existe depois da validação, e o
          ato que ele afirma já aconteceu. Sem imagem, sai a linha em branco. */
-      const banco = await assinaturasParaPdf();
-      buffer = await gerarPropostaPdf(acao, { assinaturas: {
-        proreitor: banco.proreitor, reitor: banco.reitor,
-        coordenacao: /curso/i.test(String(acao.proposta?.classificacao || ""))
-          ? banco.coordextensao : banco.coordacao,
-      } });
+      buffer = await gerarPropostaPdf(acao, { assinaturas: await assinaturasDaAcaoExtensao(acao) });
       nome = `Proposta-${num}.pdf`;
       mime = "application/pdf";
     } else {
@@ -8688,6 +8692,26 @@ async function alimentarBancoDeAssinatura({ nome, buffer, tipo, arquivo, bytes, 
   } catch (e) {
     console.error("[assinaturas] banco não alimentado:", e.message);
   }
+}
+
+/* As assinaturas dos DOCUMENTOS da ação de extensão (proposta aprovada e
+   relatório validado — ago/2026): as três institucionais — coordenação da
+   ação pela classificação (curso livre → Extensão; demais → Ação
+   Comunitária), pró-reitor e reitor — mais a do RESPONSÁVEL, buscada pela
+   identidade (respEmail/criadoPor: os atos de submeter e entregar são dele,
+   registrados) e, sem conta casando, pelo nome declarado na proposta. */
+async function assinaturasDaAcaoExtensao(acao) {
+  const banco = await assinaturasParaPdf();
+  const respEmail = String(acao.proposta?.respEmail || acao.criadoPor || "").trim().toLowerCase();
+  const respNome = acao.proposta?.respNome || "";
+  const responsavel = (respEmail ? await assinaturaDeAtoRegistrado(respEmail) : null)
+    || (respNome ? await assinaturaDoBancoPorNome(respNome) : null);
+  return {
+    responsavel,
+    proreitor: banco.proreitor, reitor: banco.reitor,
+    coordenacao: /curso/i.test(String(acao.proposta?.classificacao || ""))
+      ? banco.coordextensao : banco.coordacao,
+  };
 }
 
 /** A assinatura do banco pelo NOME (a melhor: titular vence terceiro). */

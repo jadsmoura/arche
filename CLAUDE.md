@@ -956,9 +956,14 @@ public/
   IC) ganhou as duas coordenações da Extensão — `coordextensao` (Thiago, curso livre) e
   `coordacao` (Camila, demais ações) — e o PDF da proposta (que só existe DEPOIS da validação)
   passa a inserir as três imagens sobre as linhas: coordenação da ação (escolhida pela
-  classificação), pró-reitor e reitor. Sem imagem, sai a linha em branco, como sempre. Revisa
-  a regra "digitalizada só nos certificados" APENAS para a proposta aprovada da Extensão;
-  relatório e resultado seguem para assinatura à mão.
+  classificação), pró-reitor e reitor. Sem imagem, sai a linha em branco, como sempre.
+  **O RELATÓRIO VALIDADO sai igual** (achado do dono, ago/2026, num relatório da Veterinária
+  aprovado com as linhas em branco: "as assinaturas devem estar automaticamente"): as mesmas
+  três institucionais MAIS a do **responsável** — buscada no banco de pessoas pela identidade
+  (`respEmail`/`criadoPor`, via `assinaturaDeAtoRegistrado`: submeter e entregar são atos dele,
+  registrados) e, sem conta casando, pelo nome declarado. `assinaturasDaAcaoExtensao` monta o
+  conjunto UMA vez para proposta e relatório (a proposta também ganhou a do responsável).
+  O resultado da IC segue para assinatura à mão.
 - **Vereditos da revisão adversarial aplicados** (ago/2026): o CARTÃO do evento reprovado no
   ARCHÉ EV diz a decisão em vez de oferecer "Validar evento e projeto" (que devolveria 400
   sempre); **CPF que não valida NÃO ENTRA nas listas de palestrantes/comissão** do POST em
