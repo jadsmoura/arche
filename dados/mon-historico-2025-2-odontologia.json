@@ -1,189 +1,189 @@
 {
-  "lote": "mon-historico-2025-2-odontologia",
-  "fonte": "MONITORIA 2025.2.xlsx, entregue pela coordenação do curso de Odontologia (ago/2026)",
-  "curso": "odontologia",
-  "ciclo": "2025/2",
-  "edital": "02/2025",
-  "vigencia": {
-    "inicio": "2025-08-01",
-    "fim": "2025-12-31"
+ "lote": "mon-historico-2025-2-odontologia",
+ "fonte": "MONITORIA 2025.2.xlsx (planilha CORRIGIDA pela coordenação de Odontologia, ago/2026)",
+ "curso": "odontologia",
+ "ciclo": "2025/2",
+ "edital": "02/2025",
+ "vigencia": {
+  "inicio": "2025-08-01",
+  "fim": "2025-12-31"
+ },
+ "observacao": "Ciclo conduzido fora do ARCHÉ. A planilha do curso não traz CPF nem e-mail: a âncora é a MATRÍCULA, com o nome completo como segunda chave. Edital 02/2025, publicado em 18/08/2025 pela DIAC, ainda como FACEG. O ciclo ENCERRA depois de 05/09/2025, e o timbre segue a data de encerramento: sai UNIEGO. Substitui a transcrição anterior: a coordenação apontou dados errados e reenviou a planilha corrigida em ago/2026.",
+ "registros": [
+  {
+   "matricula": "G2320285",
+   "aluno": "Ana Luisa Oliveira Vieira",
+   "disciplina": "Dentística Operatória",
+   "orientador": "Eliene Soares Pimentel",
+   "horas": 40
   },
-  "observacao": "Ciclo conduzido fora do ARCHÉ. A planilha do curso não traz CPF nem e-mail: a âncora é a MATRÍCULA, com o nome completo como segunda chave. Edital 02/2025, publicado em 18/08/2025 pela DIAC, ainda como FACEG. O ciclo ENCERRA depois de 05/09/2025, e o timbre segue a data de encerramento: sai UNIEGO.",
-  "registros": [
-    {
-      "aluno": "Ana Luisa Oliveira Vieira",
-      "matricula": "G2320285",
-      "orientador": "Eliene Soares Pimentel",
-      "disciplina": "Dentística Operatória",
-      "horas": 40
-    },
-    {
-      "aluno": "Larissa Ribeiro Santos",
-      "matricula": "G2320114",
-      "orientador": "Eliene Soares Pimentel",
-      "disciplina": "Dentística Operatória",
-      "horas": 40
-    },
-    {
-      "aluno": "Rafaela Stephany Damas da Silva",
-      "matricula": "G2320237",
-      "orientador": "Eliene Soares Pimentel",
-      "disciplina": "Dentística Operatória",
-      "horas": 40
-    },
-    {
-      "aluno": "Gabriella Barbosa Rodrigues",
-      "matricula": "G2110239",
-      "orientador": "Eliene Soares Pimentel",
-      "disciplina": "Dentística Operatória",
-      "horas": 40
-    },
-    {
-      "aluno": "Bruna Alves Vieira",
-      "matricula": "G2110017",
-      "orientador": "Eliene Soares Pimentel",
-      "disciplina": "Endodontia Operatória",
-      "horas": 40
-    },
-    {
-      "aluno": "Kamille Vitória Cardoso Lima",
-      "matricula": "G2210260",
-      "orientador": "Eliene Soares Pimentel",
-      "disciplina": "Endodontia Operatória",
-      "horas": 40
-    },
-    {
-      "aluno": "Stefane Fernandes de Oliveira",
-      "matricula": "G2210193",
-      "orientador": "Eliene Soares Pimentel",
-      "disciplina": "Endodontia Operatória",
-      "horas": 40
-    },
-    {
-      "aluno": "Bruna Eloisa Ferreira Barbosa",
-      "matricula": "G2310005",
-      "orientador": "Eliene Soares Pimentel",
-      "disciplina": "Endodontia Terapêutica e Clínica",
-      "horas": 40
-    },
-    {
-      "aluno": "Kamilly Victória Andrade Souza",
-      "matricula": "G2310282",
-      "orientador": "Eliene Soares Pimentel",
-      "disciplina": "Endodontia Terapêutica e Clínica",
-      "horas": 40
-    },
-    {
-      "aluno": "Jennifer Magalhães Sirqueira",
-      "matricula": "G2320059",
-      "orientador": "José Mateus dos Santos Júnior",
-      "disciplina": "Diagnóstico Básico",
-      "horas": 40
-    },
-    {
-      "aluno": "Camila Costa dos Santos",
-      "matricula": "G2320165",
-      "orientador": "José Mateus dos Santos Júnior",
-      "disciplina": "Diagnóstico Básico",
-      "horas": 40
-    },
-    {
-      "aluno": "Kaique Richard Neres Cardoso",
-      "matricula": "G2410458",
-      "orientador": "José Mateus dos Santos Júnior",
-      "disciplina": "Diagnóstico Básico",
-      "horas": 40
-    },
-    {
-      "aluno": "Alice dos Santos Pinheiro Mendes",
-      "matricula": "G2310307",
-      "orientador": "Paulo José Figueredo Júnior",
-      "disciplina": "Clínica Integrada de Assistência em Atenção Básica",
-      "horas": 40
-    },
-    {
-      "aluno": "Kamille Vitória Cardoso Lima",
-      "matricula": "G2210260",
-      "orientador": "Paulo José Figueredo Júnior",
-      "disciplina": "Periodontia Básica",
-      "horas": 40
-    },
-    {
-      "aluno": "Maria Fernanda Neves França",
-      "matricula": "G2110071",
-      "orientador": "Paulo José Figueredo Júnior",
-      "disciplina": "Periodontia Básica",
-      "horas": 40
-    },
-    {
-      "aluno": "Kaique Richard Neres Cardoso",
-      "matricula": "G2410458",
-      "orientador": "Paulo José Figueredo Júnior",
-      "disciplina": "Periodontia Básica",
-      "horas": 40
-    },
-    {
-      "aluno": "Amanda Santos",
-      "matricula": "G2410216",
-      "orientador": "Paulo José Figueredo Júnior",
-      "disciplina": "Periodontia Básica",
-      "horas": 40
-    },
-    {
-      "aluno": "Bruna Alves Vieira",
-      "matricula": "G2110017",
-      "orientador": "Carolina Vansan Martins da Silva",
-      "disciplina": "Odontologia Pediátrica e Ortodontia Preventiva",
-      "horas": 40
-    },
-    {
-      "aluno": "Isabela Martins Cristino",
-      "matricula": "G2110116",
-      "orientador": "Carolina Vansan Martins da Silva",
-      "disciplina": "Odontologia Pediátrica e Ortodontia Preventiva",
-      "horas": 40
-    },
-    {
-      "aluno": "Maria Eduarda Serafim Teixeira",
-      "matricula": "G2310402",
-      "orientador": "Bruno Hebert da Silva",
-      "disciplina": "Prótese Total Removível",
-      "horas": 40
-    },
-    {
-      "aluno": "Kamilly Victória Andrade Souza",
-      "matricula": "G2310282",
-      "orientador": "Bruno Hebert da Silva",
-      "disciplina": "Prótese Total Removível",
-      "horas": 40
-    },
-    {
-      "aluno": "Jennifer Jamylle Medeiros Loiola",
-      "matricula": "G2410076",
-      "orientador": "Camila Cardoso",
-      "disciplina": "Agressão e Defesa",
-      "horas": 40
-    },
-    {
-      "aluno": "Maria Eduarda Oliveira Gomes",
-      "matricula": "G2410199",
-      "orientador": "Camila Cardoso",
-      "disciplina": "Agressão e Defesa",
-      "horas": 40
-    },
-    {
-      "aluno": "Maria Eduarda Ribeiro da Silva",
-      "matricula": "G2410057",
-      "orientador": "Camila Cardoso",
-      "disciplina": "Morfofisiologia Cabeça e Pescoço",
-      "horas": 40
-    },
-    {
-      "aluno": "Kaique Richard Neres Cardoso",
-      "matricula": "G2410458",
-      "orientador": "Camila Cardoso",
-      "disciplina": "Morfofisiologia Cabeça e Pescoço",
-      "horas": 40
-    }
-  ]
+  {
+   "matricula": "G2320114",
+   "aluno": "Larissa Ribeiro Santos",
+   "disciplina": "Dentística Operatória",
+   "orientador": "Eliene Soares Pimentel",
+   "horas": 40
+  },
+  {
+   "matricula": "G2320237",
+   "aluno": "Rafaela Stephany Damas da Silva",
+   "disciplina": "Dentística Operatória",
+   "orientador": "Eliene Soares Pimentel",
+   "horas": 40
+  },
+  {
+   "matricula": "G2110239",
+   "aluno": "Gabriella Barbosa Rodrigues",
+   "disciplina": "Dentística Operatória",
+   "orientador": "Eliene Soares Pimentel",
+   "horas": 40
+  },
+  {
+   "matricula": "G2110017",
+   "aluno": "Bruna Alves Vieira",
+   "disciplina": "Endodontia Operatória",
+   "orientador": "Eliene Soares Pimentel",
+   "horas": 40
+  },
+  {
+   "matricula": "G2210260",
+   "aluno": "Kamille Vitória Cardoso Lima",
+   "disciplina": "Endodontia Operatória",
+   "orientador": "Eliene Soares Pimentel",
+   "horas": 40
+  },
+  {
+   "matricula": "G2210193",
+   "aluno": "Stefane Fernandes de Oliveira",
+   "disciplina": "Endodontia Operatória",
+   "orientador": "Eliene Soares Pimentel",
+   "horas": 40
+  },
+  {
+   "matricula": "G2310005",
+   "aluno": "Bruna Eloisa Ferreira Barbosa",
+   "disciplina": "Endodontia Terapêutica e Clínica",
+   "orientador": "Eliene Soares Pimentel",
+   "horas": 40
+  },
+  {
+   "matricula": "G2310282",
+   "aluno": "Kamilly Victória Andrade Souza",
+   "disciplina": "Endodontia Terapêutica e Clínica",
+   "orientador": "Eliene Soares Pimentel",
+   "horas": 40
+  },
+  {
+   "matricula": "G2320059",
+   "aluno": "Jennifer Magalhães Sirqueira",
+   "disciplina": "Diagnóstico Básico",
+   "orientador": "José Mateus dos Santos Júnior",
+   "horas": 40
+  },
+  {
+   "matricula": "G2320165",
+   "aluno": "Camila Costa dos Santos",
+   "disciplina": "Diagnóstico Básico",
+   "orientador": "José Mateus dos Santos Júnior",
+   "horas": 40
+  },
+  {
+   "matricula": "G2410458",
+   "aluno": "Kaique Richard Neres Cardoso",
+   "disciplina": "Diagnóstico Básico",
+   "orientador": "José Mateus dos Santos Júnior",
+   "horas": 40
+  },
+  {
+   "matricula": "G2310307",
+   "aluno": "Alice dos Santos Pinheiro Mendes",
+   "disciplina": "Clínica Integrada de Assistência em Atenção Básica",
+   "orientador": "Paulo José Figueredo Júnior",
+   "horas": 40
+  },
+  {
+   "matricula": "G2210260",
+   "aluno": "Kamille Vitória Cardoso Lima",
+   "disciplina": "Periodontia Básica",
+   "orientador": "Paulo José Figueredo Júnior",
+   "horas": 40
+  },
+  {
+   "matricula": "G2110071",
+   "aluno": "Maria Fernanda Neves França",
+   "disciplina": "Periodontia Básica",
+   "orientador": "Paulo José Figueredo Júnior",
+   "horas": 40
+  },
+  {
+   "matricula": "G2410458",
+   "aluno": "Kaique Richard Neres Cardoso",
+   "disciplina": "Periodontia Básica",
+   "orientador": "Paulo José Figueredo Júnior",
+   "horas": 40
+  },
+  {
+   "matricula": "G2410216",
+   "aluno": "Amanda Santos",
+   "disciplina": "Periodontia Básica",
+   "orientador": "Paulo José Figueredo Júnior",
+   "horas": 40
+  },
+  {
+   "matricula": "G2110017",
+   "aluno": "Bruna Alves Vieira",
+   "disciplina": "Odontologia Pediátrica e Ortodontia Preventiva",
+   "orientador": "Carolina Vansan Martins da Silva",
+   "horas": 40
+  },
+  {
+   "matricula": "G2110116",
+   "aluno": "Isabela Martins Cristino",
+   "disciplina": "Odontologia Pediátrica e Ortodontia Preventiva",
+   "orientador": "Carolina Vansan Martins da Silva",
+   "horas": 40
+  },
+  {
+   "matricula": "G2310402",
+   "aluno": "Maria Eduarda Serafim Teixeira",
+   "disciplina": "Prótese Total Removível",
+   "orientador": "Bruno Hebert da Silva",
+   "horas": 40
+  },
+  {
+   "matricula": "G2310282",
+   "aluno": "Kamilly Victória Andrade Souza",
+   "disciplina": "Prótese Total Removível",
+   "orientador": "Bruno Hebert da Silva",
+   "horas": 40
+  },
+  {
+   "matricula": "G2410076",
+   "aluno": "Jennifer Jamylle Medeiros Loiola",
+   "disciplina": "Agressão e Defesa",
+   "orientador": "Camila Cardoso",
+   "horas": 40
+  },
+  {
+   "matricula": "G2410199",
+   "aluno": "Maria Eduarda Oliveira Gomes",
+   "disciplina": "Agressão e Defesa",
+   "orientador": "Camila Cardoso",
+   "horas": 40
+  },
+  {
+   "matricula": "G2410057",
+   "aluno": "Maria Eduarda Ribeiro da Silva",
+   "disciplina": "Morfofisiologia Cabeça e Pescoço",
+   "orientador": "Camila Cardoso",
+   "horas": 40
+  },
+  {
+   "matricula": "G2410458",
+   "aluno": "Kaique Richard Neres Cardoso",
+   "disciplina": "Morfofisiologia Cabeça e Pescoço",
+   "orientador": "Camila Cardoso",
+   "horas": 40
+  }
+ ]
 }
