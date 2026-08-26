@@ -1135,7 +1135,7 @@ app.get("/api/publico/ic/resultado.pdf", async (req, res) => {
     // o público baixa a fase que a PROPPEX publicou: preliminar ou final
     const buffer = await gerarResultadoEditalPdf({
       edital: numero === EDITAL.numero ? EDITAL : { numero }, projetos, emitidoPor: "",
-      fase: pub.fase || "final",
+      fase: pub.fase || "final", assinaturas: await assinaturasParaPdf(),
     });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(numero)}.pdf"`);
@@ -1158,7 +1158,8 @@ app.get("/api/publico/ic/em/resultado.pdf", async (req, res) => {
       return res.status(404).send("O resultado deste edital ainda não foi publicado.");
     const bolsistas = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo);
     const { gerarResultadoEMPdf } = await import("./lib/pdf.js");
-    const buffer = await gerarResultadoEMPdf({ turma, bolsistas, emitidoPor: "", fase: pub.fase || "final" });
+    const buffer = await gerarResultadoEMPdf({ turma, bolsistas, emitidoPor: "",
+      fase: pub.fase || "final", assinaturas: await assinaturasParaPdf() });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(turma.edital)}.pdf"`);
     res.send(buffer);
@@ -1871,7 +1872,8 @@ app.get("/api/avaliacao/producao.pdf", async (req, res) => {
     let dossie;
     try { dossie = JSON.parse(bruto); } catch { return res.status(500).send("O dossiê gravado não pôde ser lido."); }
     const { gerarProducaoDocentePdf } = await import("./lib/pdf.js");
-    const buffer = await gerarProducaoDocentePdf({ curso, cursoNome, dossie });
+    const buffer = await gerarProducaoDocentePdf({ curso, cursoNome, dossie,
+      assinaturas: await assinaturasParaPdf() });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("Content-Disposition", `inline; filename="producao-docente-${curso}.pdf"`);
@@ -5687,7 +5689,8 @@ app.get("/api/monitoria/resultado.pdf", async (req, res) => {
     if (!ed) return res.status(404).send("Edital não encontrado.");
     const { gerarResultadoMonitoriaPdf } = await import("./lib/pdf.js");
     const buf = await gerarResultadoMonitoriaPdf({
-      edital: ed, projetos: await projetosDoResultadoMon(numero), emitidoPor: u.email });
+      edital: ed, projetos: await projetosDoResultadoMon(numero), emitidoPor: u.email,
+      assinaturas: await assinaturasParaPdf() });
     enviarPdfMon(res, buf, `resultado-monitoria-${slug(numero)}.pdf`);
   } catch (e) {
     console.error("Erro no resultado da monitoria:", e);
@@ -5733,7 +5736,8 @@ app.get("/api/publico/monitoria/resultado.pdf", async (req, res) => {
       return res.status(404).send("O resultado deste ciclo ainda não foi publicado.");
     const { gerarResultadoMonitoriaPdf } = await import("./lib/pdf.js");
     const buf = await gerarResultadoMonitoriaPdf({
-      edital: ed, projetos: await projetosDoResultadoMon(numero), emitidoPor: "" });
+      edital: ed, projetos: await projetosDoResultadoMon(numero), emitidoPor: "",
+      assinaturas: await assinaturasParaPdf() });
     enviarPdfMon(res, buf, `resultado-monitoria-${slug(numero)}.pdf`);
   } catch (e) {
     console.error("Erro no resultado público da monitoria:", e);
@@ -6399,7 +6403,7 @@ app.get("/api/publico/monitoria/edital.pdf", async (req, res) => {
     const { gerarEditalMonitoriaPdf } = await import("./lib/pdf.js");
     const buf = await gerarEditalMonitoriaPdf({
       edital: monEditalVigente(), texto: TEXTO_EDITAL_MON, cronograma: MON_CRONOGRAMA,
-      acessos: ACESSOS_MON });
+      acessos: ACESSOS_MON, assinaturas: await assinaturasParaPdf() });
     enviarPdfMon(res, buf, `edital-monitoria-${monEditalVigente().numero.replace("/", "-")}.pdf`);
   } catch (e) {
     console.error("Erro no edital da monitoria:", e);
@@ -6416,7 +6420,11 @@ app.get("/api/monitoria/:id/projeto.pdf", async (req, res) => {
     if (!p || !monPodeVer(p, quem)) return res.status(404).send("Projeto não encontrado.");
     const { gerarProjetoMonitoriaPdf } = await import("./lib/pdf.js");
     const buf = await gerarProjetoMonitoriaPdf(
-      { ...monVisao(p, quem), cargaTotal: monCargaTotal(p) }, { campos: CAMPOS_PLANO_MON });
+      { ...monVisao(p, quem), cargaTotal: monCargaTotal(p) }, { campos: CAMPOS_PLANO_MON,
+        assinaturas: {
+          ...(await assinaturasParaPdf()),
+          orientador: await assinaturaDePessoa(p.orientador?.email, p.orientador?.nome),
+        } });
     enviarPdfMon(res, buf, `projeto-monitoria-${p.protocolo || p.id}.pdf`);
   } catch (e) {
     console.error("Erro no PDF do projeto de monitoria:", e);
@@ -6437,7 +6445,11 @@ app.get("/api/monitoria/:id/ficha.pdf", async (req, res) => {
       : (p.monitores || []).find((x) => x.id === String(req.query.monitor || "")) || p.monitores?.[0];
     if (!m) return res.status(404).send("Monitor não encontrado.");
     const { gerarFichaMonitoriaPdf } = await import("./lib/pdf.js");
-    enviarPdfMon(res, await gerarFichaMonitoriaPdf(p, m, { campos: CAMPOS_PLANO_MON }),
+    enviarPdfMon(res, await gerarFichaMonitoriaPdf(p, m, { campos: CAMPOS_PLANO_MON,
+      // a imagem só entra com a declaração FIRMADA no sistema — é o ato
+      // registrado que ela afirma; ficha sem declaração sai para assinar à mão
+      assinaturas: m?.declaracao?.aceita
+        ? { monitor: await assinaturaDePessoa(m.email, m.nome) } : {} }),
       `ficha-monitoria-${p.protocolo || p.id}.pdf`);
   } catch (e) {
     console.error("Erro no PDF da ficha de monitoria:", e);
@@ -6462,7 +6474,14 @@ app.get("/api/monitoria/:id/relatorio.pdf", async (req, res) => {
     const visto = papel === "monitor"
       ? { ...m, relatorio: { ...m.relatorio, avaliacao: null } } : m;
     enviarPdfMon(res, await gerarRelatorioMonitoriaPdf(
-      { ...p, cargaTotal: monCargaTotal(p, m) }, visto, { criterios: papel === "monitor" ? [] : CRITERIOS_MONITOR }),
+      { ...p, cargaTotal: monCargaTotal(p, m) }, visto, { criterios: papel === "monitor" ? [] : CRITERIOS_MONITOR,
+        // cada imagem afirma um ato registrado: o monitor assina o relatório
+        // que ENVIOU; a orientação, o que VALIDOU
+        assinaturas: {
+          ...(m.relatorio?.enviadoEm ? { monitor: await assinaturaDePessoa(m.email, m.nome) } : {}),
+          ...(m.relatorio?.validadoEm
+            ? { orientador: await assinaturaDePessoa(p.orientador?.email, p.orientador?.nome) } : {}),
+        } }),
     `relatorio-monitoria-${p.protocolo || p.id}.pdf`);
   } catch (e) {
     console.error("Erro no PDF do relatório de monitoria:", e);
@@ -6684,7 +6703,8 @@ app.get("/api/atas/dossie.pdf", async (req, res) => {
     const dossie = dossieConformidade(atas, { curso });
 
     const { gerarDossieConformidadePdf } = await import("./lib/pdf.js");
-    const buffer = await gerarDossieConformidadePdf({ dossie, emitidoPor: u.nome || u.email });
+    const buffer = await gerarDossieConformidadePdf({ dossie, emitidoPor: u.nome || u.email,
+      assinaturas: await assinaturasParaPdf() });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition",
       `inline; filename="dossie-conformidade-${slug(curso || "institucional")}.pdf"`);
@@ -7771,7 +7791,7 @@ app.get("/api/ic/resultado.pdf", async (req, res) => {
     const { gerarResultadoEditalPdf } = await import("./lib/pdf.js");
     const buffer = await gerarResultadoEditalPdf({
       edital: numero === EDITAL.numero ? EDITAL : { numero },
-      projetos, emitidoPor: u.email, fase,
+      projetos, emitidoPor: u.email, fase, assinaturas: await assinaturasParaPdf(),
     });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(numero)}.pdf"`);
@@ -7995,6 +8015,10 @@ const QUEM_ASSINA = {
      assinatura da coordenação da ação — curso livre é da Extensão, o resto
      é da Ação Comunitária — ao lado do pró-reitor e do reitor. */
   coordextensao: "Coordenador de Extensão", coordacao: "Coordenação de Ação Comunitária",
+  /* A coordenação de Pesquisa e Inovação entrou em ago/2026, quando TODOS os
+     documentos passaram a sair com as assinaturas do banco: ela assina o
+     resultado dos editais de IC e do ICEM. */
+  coordpesquisa: "Coordenador de Pesquisa e Inovação",
 };
 
 async function lerAssinaturas() {
@@ -8712,6 +8736,13 @@ async function assinaturasDaAcaoExtensao(acao) {
     coordenacao: /curso/i.test(String(acao.proposta?.classificacao || ""))
       ? banco.coordextensao : banco.coordacao,
   };
+}
+
+/** A assinatura de UMA pessoa para documento de ato registrado: pela
+    identidade (e-mail) e, sem conta casando, pelo nome declarado. */
+async function assinaturaDePessoa(email, nome) {
+  return (email ? await assinaturaDeAtoRegistrado(email) : null)
+    || (nome ? await assinaturaDoBancoPorNome(nome) : null);
 }
 
 /** A assinatura do banco pelo NOME (a melhor: titular vence terceiro). */
@@ -9458,7 +9489,8 @@ app.get("/api/ic/em/resultado.pdf", async (req, res) => {
       : (pub.fase || "final");
     const bolsistas = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo);
     const { gerarResultadoEMPdf } = await import("./lib/pdf.js");
-    const buffer = await gerarResultadoEMPdf({ turma, bolsistas, emitidoPor: u.email, fase });
+    const buffer = await gerarResultadoEMPdf({ turma, bolsistas, emitidoPor: u.email, fase,
+      assinaturas: await assinaturasParaPdf() });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(turma.edital)}.pdf"`);
     res.send(buffer);
@@ -13106,7 +13138,8 @@ app.get("/api/relatorios/semestral.pdf", async (req, res) => {
     const { gerarRelatorioSemestralPdf } = await import("./lib/pdf.js");
     const { marcaEm } = await import("./lib/marca.js");
     const buf = await gerarRelatorioSemestralPdf({
-      setor, periodo, panorama, emitidoPor: u.email, marca: marcaEm(periodo.fim) });
+      setor, periodo, panorama, emitidoPor: u.email, marca: marcaEm(periodo.fim),
+      assinaturas: await assinaturasParaPdf() });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition",
       `inline; filename="relatorio-${setor.chave}-${periodo.chave.replace("/", "-")}.pdf"`);

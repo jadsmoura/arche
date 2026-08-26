@@ -963,7 +963,20 @@ public/
   (`respEmail`/`criadoPor`, via `assinaturaDeAtoRegistrado`: submeter e entregar são atos dele,
   registrados) e, sem conta casando, pelo nome declarado. `assinaturasDaAcaoExtensao` monta o
   conjunto UMA vez para proposta e relatório (a proposta também ganhou a do responsável).
-  O resultado da IC segue para assinatura à mão.
+- **TODO documento gerado sai com as assinaturas do banco** (pedido do dono, ago/2026:
+  "todos os documentos gerados que possuírem usuários com assinatura cadastrada devem ter suas
+  respectivas assinaturas — atas, relatórios, projetos, etc."): `blocoAssinaturas` passou a
+  aceitar imagens como a régua, e os geradores que saíam só com a linha receberam o banco —
+  resultados (IC, ICEM e monitoria), edital da monitoria, dossiê de conformidade das atas,
+  relatório semestral por setor, relatório de produção docente e os três anexos da monitoria.
+  Nos anexos, **cada imagem afirma um ato registrado**: no projeto assinam orientador (pelo
+  banco de pessoas, `assinaturaDePessoa` = identidade → nome) e pró-reitor; na ficha, o monitor
+  **só com a declaração firmada no sistema**; no relatório, o monitor se ENVIOU e a orientação
+  se VALIDOU. `coordpesquisa` entrou no `QUEM_ASSINA` (assina os resultados de IC/ICEM). As
+  exceções são deliberadas: os **termos de compromisso** continuam com as linhas de aluno e
+  orientador em branco — o termo é o PRÓPRIO ato, assinado na cerimônia, não o registro de um
+  (pró-reitor e reitor já saíam digitalizados nas vias digitais) — e a **lista de presença**
+  das atas existe justamente para colher assinatura à caneta na reunião.
 - **Vereditos da revisão adversarial aplicados** (ago/2026): o CARTÃO do evento reprovado no
   ARCHÉ EV diz a decisão em vez de oferecer "Validar evento e projeto" (que devolveria 400
   sempre); **CPF que não valida NÃO ENTRA nas listas de palestrantes/comissão** do POST em
