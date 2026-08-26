@@ -430,6 +430,17 @@
     quemSou()
       .then(function (me) {
         var esconder;
+        /* A joaninha do feedback (pedido do dono, ago/2026): só para quem
+           está LOGADO — o relato diz quem mandou, e o visitante das páginas
+           públicas não é o público do botão. Carregada aqui para nenhuma
+           página precisar de tag própria. */
+        if (me && me.email && !document.getElementById("arche-fb")
+            && !document.querySelector('script[src^="/assets/arche-feedback.js"]')) {
+          var fb = document.createElement("script");
+          fb.src = "/assets/arche-feedback.js";
+          fb.defer = true;
+          document.head.appendChild(fb);
+        }
         /* Seu Curso (ago/2026): o cartão é da coordenação de CURSO (o
            /api/me diz quais ela coordena) e do gestor geral — para o resto
            do portal ele seria uma porta que não abre. */

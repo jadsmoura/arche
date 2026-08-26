@@ -525,6 +525,53 @@ app.post("/api/favoritos", async (req, res) => {
   res.json({ ok: true, favoritos: lista });
 });
 
+/* -------------------- FEEDBACK (a joaninha do canto) --------------------
+   (pedido do dono, ago/2026: "um ícone de reportar bug ou sugestão, algo
+   discreto que fique fixo na página"): o botão flutuante manda o relato
+   para cá — problema ou sugestão, com a página em que a pessoa estava. O
+   relato vai por E-MAIL à PROPPEX (fire-and-forget) e fica GUARDADO em
+   sys-feedback-v1 (chave interna, teto 300): e-mail que falha não perde o
+   relato, e o gestor geral relê tudo em GET /api/feedback. Só usuário
+   LOGADO relata — o formulário diz quem mandou, e relato anônimo numa rota
+   pública viraria caixa de spam. */
+const FEEDBACK_KEY = "sys-feedback-v1";
+const feedbackRecentes = new Map();   // e-mail → timestamp do último envio
+app.post("/api/feedback", async (req, res) => {
+  try {
+    const u = await usuarioDe(req);
+    if (!u) return res.status(401).json({ error: "Faça login para enviar." });
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    const texto = String(req.body?.texto || "").trim().slice(0, 2000);
+    if (texto.length < 5) return res.status(400).json({ error: "Escreva o que aconteceu (ou a sua ideia)." });
+    const tipo = req.body?.tipo === "sugestao" ? "sugestao" : "bug";
+    const pagina = String(req.body?.pagina || "").slice(0, 300);
+    // um relato a cada 30 s por conta: o duplo clique não vira dois e-mails
+    const antes = feedbackRecentes.get(u.email) || 0;
+    if (Date.now() - antes < 30000) return res.status(429).json({ error: "Calma — o relato anterior acabou de sair. Espere meio minuto." });
+    feedbackRecentes.set(u.email, Date.now());
+    const perfil = (await carregarPerfis())[u.email] || {};
+    const registro = {
+      tipo, texto, pagina, email: u.email, nome: perfil.nome || u.nome || "",
+      em: new Date().toISOString(),
+    };
+    const lista = JSON.parse((await storage.get(FEEDBACK_KEY)) || "[]");
+    lista.unshift(registro);
+    await storage.set(FEEDBACK_KEY, JSON.stringify(lista.slice(0, 300)));
+    // o e-mail avisa; a gravação acima é o que garante que nada se perde
+    import("./lib/mailer.js")
+      .then(({ enviarEmail, emailFeedback }) => enviarEmail(emailFeedback(registro)))
+      .catch((e) => console.error("[feedback] e-mail não enviado:", e.message));
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Erro no feedback:", e);
+    res.status(500).json({ error: "Não foi possível enviar agora." });
+  }
+});
+app.get("/api/feedback", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  res.json({ relatos: JSON.parse((await storage.get(FEEDBACK_KEY)) || "[]") });
+});
+
 // Ficha do usuário vinculada à conta (a chave é o e-mail da sessão).
 // Campos livres são limitados no tamanho para não inflar o estado, que é
 // regravado por inteiro a cada gravação.

@@ -588,6 +588,17 @@ public/
   em análise/a homologar e reservas de espaço aguardando decisão. O recorte é por
   `modulosDe`: o gestor geral vê tudo; o coordenador, só os módulos que coordena; quem
   não gere nada não vê o sino. A rota só devolve contagens, nomes e links — nada sigiloso.
+- **A JOANINHA DO FEEDBACK** (`public/assets/arche-feedback.js` + `POST/GET /api/feedback`,
+  pedido do dono ago/2026: "um ícone de reportar bug ou sugestão, algo discreto que fique fixo
+  na página, um botãozinho engraçado que reagisse ao passar o mouse"): o 🐞 flutuante no canto
+  inferior direito — adormecido (meio cinza), no hover acorda, balança (`prefers-reduced-motion`
+  respeitado) e estende o balão "Achou um problema? Tem uma ideia?". O clique abre o
+  mini-formulário (🐞 Problema | 💡 Sugestão) e o relato vai com **quem mandou e a página** —
+  e-mail à PROPPEX (`FEEDBACK_EMAIL`, padrão jadsonbelem@gmail.com, fire-and-forget) e cópia
+  em `sys-feedback-v1` (teto 300; e-mail que falha não perde o relato; o gestor geral relê em
+  `GET /api/feedback`). Quem o carrega é o **arche-nav**, só para quem está LOGADO — nenhuma
+  página precisa de tag própria, e relato anônimo seria caixa de spam. Freio de 1 relato/30 s
+  por conta. O "Ver como" não relata (a guarda de `?como=` recusa a escrita).
 - **Envios automáticos de e-mail** (`lib/avisos.js` + guia "Envios automáticos" em `/usuarios/`,
   `GET/POST /api/avisos`, só gestor geral — pedido do dono ago/2026): o mesmo aviso é informação
   ou ruído conforme a época — no pico da indicação de bolsistas, um e-mail a cada movimento da IC
