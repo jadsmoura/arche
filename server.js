@@ -525,6 +525,81 @@ app.post("/api/favoritos", async (req, res) => {
   res.json({ ok: true, favoritos: lista });
 });
 
+/* ===================== A CÓPIA DIÁRIA DO SISTEMA ========================
+   (pedido do dono, ago/2026): até aqui o ARCHÉ não tinha backup nenhum. O
+   que parecia backup — o `_estado.json` no Drive — é um arquivo ÚNICO,
+   reescrito centenas de vezes por dia: na hora do aperto ninguém acha "como
+   estava na terça", e restaurar não é uma operação que exista.
+
+   Agora, uma vez por dia, o estado inteiro é copiado para um arquivo COM A
+   DATA NO NOME, na pasta `_backups`. Trinta dias de histórico: restaurar
+   vira escolher o dia. É UMA escrita por dia (o estado tem ~1 MB), contra as
+   centenas que a gravação normal já faz — não é ela que pesa na franquia.
+
+   Três cuidados: roda de hora em hora mas só AGE se o dia ainda não tem
+   cópia (deploy no meio da tarde não gera uma segunda); é
+   fire-and-forget, porque backup que derruba o sistema é pior que backup
+   nenhum; e guarda TUDO — inclusive as chaves internas (auth-*, sys-*, ic-*),
+   que são justamente as que não saem pelo /api/estado e que ninguém
+   conseguiria recuperar de outro jeito. */
+const BACKUP_PREFIXO = "_backups";
+const BACKUP_KEY = "sys-backups-v1";     // o registro das cópias (chave interna)
+const BACKUP_DIAS = 30;
+async function backupDoDia() {
+  const hoje = new Date().toISOString().slice(0, 10);       // AAAA-MM-DD
+  const registro = JSON.parse((await storage.get(BACKUP_KEY)) || "[]");
+  // o dia já tem cópia? (a varredura é horária; a cópia é uma por dia)
+  if (registro.some((b) => b?.dia === hoje)) return null;
+
+  const chaves = await storage.list();
+  const dump = {};
+  for (const c of chaves) dump[c] = await storage.get(c);
+  const buffer = Buffer.from(JSON.stringify({
+    gerado: new Date().toISOString(), chaves: chaves.length, estado: dump,
+  }), "utf8");
+  const salvo = await files.save({
+    buffer, originalName: `arche-sistema-${hoje}.json`,
+    contentType: "application/json", prefix: BACKUP_PREFIXO,
+  });
+  registro.push({ dia: hoje, fileId: salvo.fileId, nome: salvo.name,
+    bytes: buffer.length, chaves: chaves.length, em: new Date().toISOString() });
+  console.log(`[backup] cópia de ${hoje}: ${chaves.length} chaves, ${Math.round(buffer.length / 1024)} KB`);
+
+  /* Passados os 30 dias, a mais velha sai — senão o histórico cresce para
+     sempre num Drive que é do dono, não do sistema. A que não puder ser
+     apagada continua no registro, para não virar arquivo órfão esquecido. */
+  const sobra = registro.length - BACKUP_DIAS;
+  const mantidas = [];
+  for (const [i, b] of registro.entries()) {
+    if (i < sobra && await files.remove?.(b.fileId).catch(() => false)) continue;
+    mantidas.push(b);
+  }
+  await storage.set(BACKUP_KEY, JSON.stringify(mantidas));
+  return salvo;
+}
+
+/* O gestor geral baixa a cópia do dia sem esperar a varredura — é o botão
+   que transforma "existe backup" em "eu tenho o backup na mão". */
+app.get("/api/backup/agora", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  try {
+    const chaves = await storage.list();
+    const dump = {};
+    for (const c of chaves) dump[c] = await storage.get(c);
+    const corpo = JSON.stringify({
+      gerado: new Date().toISOString(), chaves: chaves.length, estado: dump,
+    });
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Disposition",
+      `attachment; filename="arche-sistema-${new Date().toISOString().slice(0, 10)}.json"`);
+    res.end(corpo);
+  } catch (e) {
+    console.error("Erro no backup sob demanda:", e);
+    res.status(500).send("Não foi possível gerar a cópia agora.");
+  }
+});
+
 /* -------------------- FEEDBACK (a joaninha do canto) --------------------
    (pedido do dono, ago/2026: "um ícone de reportar bug ou sugestão, algo
    discreto que fique fixo na página"): o botão flutuante manda o relato
@@ -14177,4 +14252,8 @@ app.listen(port, () => {
   // meio) volta pela mesma varredura horária — uma vez por relatório
   setTimeout(() => varrerAvisosAP().catch((e) => console.error("[avisos-ap]", e.message)), 75_000).unref();
   setInterval(() => varrerAvisosAP().catch((e) => console.error("[avisos-ap]", e.message)), 60 * 60 * 1000).unref();
+
+  // a cópia DATADA do sistema, uma por dia (ver backupDoDia)
+  setTimeout(() => backupDoDia().catch((e) => console.error("[backup]", e.message)), 90_000).unref();
+  setInterval(() => backupDoDia().catch((e) => console.error("[backup]", e.message)), 60 * 60 * 1000).unref();
 });

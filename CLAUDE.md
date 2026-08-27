@@ -605,6 +605,21 @@ public/
   `GET /api/feedback`). Quem o carrega é o **arche-nav**, só para quem está LOGADO — nenhuma
   página precisa de tag própria, e relato anônimo seria caixa de spam. Freio de 1 relato/30 s
   por conta. O "Ver como" não relata (a guarda de `?como=` recusa a escrita).
+- **A CÓPIA DIÁRIA DO SISTEMA** (`backupDoDia` + `GET /api/backup/agora`, chave `sys-backups-v1`,
+  pedido do dono ago/2026): até aqui o ARCHÉ **não tinha backup nenhum**. O que parecia backup — o
+  `_estado.json` no Drive — é um arquivo ÚNICO reescrito centenas de vezes por dia: o Drive guarda
+  versões por 30 dias, mas achar "como estava na terça" entre centenas de reescritas de um arquivo
+  de máquina não é uma operação que alguém consiga fazer no aperto. Agora, **uma vez por dia**, o
+  estado inteiro vai para um arquivo COM A DATA NO NOME em `_backups/` — restaurar vira escolher o
+  dia. Guarda **tudo**, inclusive as chaves internas (`auth-*`, `sys-*`, `ic-*`), que são as que não
+  saem pelo `/api/estado` e que ninguém recuperaria de outro jeito. A varredura é horária mas só AGE
+  se o dia ainda não tem cópia (deploy à tarde não gera uma segunda), é fire-and-forget (backup que
+  derruba o sistema é pior que backup nenhum) e o registro em `sys-backups-v1` é o que sabe o que já
+  existe — os backends de arquivo não têm listagem. Passados **30 dias** a mais velha sai (`files.remove`,
+  acrescentado aos três backends só para isto: nenhum fluxo do portal apaga anexo — o ✕ do portfólio
+  tira a REFERÊNCIA e deixa o arquivo onde está). Custo: UMA escrita por dia (~1 MB) contra as
+  centenas que a gravação normal já faz. O gestor geral baixa a cópia do momento em
+  `GET /api/backup/agora`, que é o que transforma "existe backup" em "tenho o backup na mão".
 - **Envios automáticos de e-mail** (`lib/avisos.js` + guia "Envios automáticos" em `/usuarios/`,
   `GET/POST /api/avisos`, só gestor geral — pedido do dono ago/2026): o mesmo aviso é informação
   ou ruído conforme a época — no pico da indicação de bolsistas, um e-mail a cada movimento da IC
