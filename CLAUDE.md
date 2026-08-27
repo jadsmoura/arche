@@ -605,6 +605,19 @@ public/
   `GET /api/feedback`). Quem o carrega é o **arche-nav**, só para quem está LOGADO — nenhuma
   página precisa de tag própria, e relato anônimo seria caixa de spam. Freio de 1 relato/30 s
   por conta. O "Ver como" não relata (a guarda de `?como=` recusa a escrita).
+- **O REPOSITÓRIO DOCUMENTAL** (`REPO` + `arquivarDocumento` no server, decisão do dono ago/2026:
+  "crie um diretório 'Repositório Documental' e ali dentro salve os arquivos; inclua certificados,
+  projetos, atas, relatórios — todo doc criado, gerado ou submetido"): TUDO o que é documento passa
+  a viver sob **uma pasta só**, com a divisão por setor que a PROPPEX já usa (`Atas/`, `Extensão/`,
+  `Iniciação Científica/`, `Monitoria/`, `Aulas Práticas/`, `Espaços/`, `Avaliação Institucional/`,
+  `Certificados/`, `Relatórios/`, `Assinaturas/`). Fora dela fica só `_backups`, que não é documento
+  — é o retrato da caderneta. E entrou no repositório o que **nem era arquivado**: certificados (IC,
+  monitoria, evento/ação), relatório de aula prática, semestral por setor e do AP, produção docente,
+  resultados publicados (IC, ICEM, monitoria), edital da monitoria e os três anexos do programa. O
+  arquivamento é **fire-and-forget** (o documento já foi entregue a quem pediu; falha ao arquivar não
+  derruba download) e usa `nomeFixo`. Duas regras de conteúdo: o relatório do monitor só se arquiva na
+  versão COMPLETA (a que ele baixa sai sem a avaliação que não pode ler), e prévia da gestão não entra
+  — resultado só quando publicado.
 - **NO DRIVE VALE A VERSÃO MAIS ATUAL** (`nomeFixo` em lib/files.js, decisão do dono ago/2026:
   "eu queria manter no meu Drive a versão mais atual de todos; se uma ata foi corrigida, para mim
   vale só a última"): o Drive do dono é o ESPELHO do acervo vigente, não o histórico do sistema.

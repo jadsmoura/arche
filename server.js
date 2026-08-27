@@ -542,7 +542,35 @@ app.post("/api/favoritos", async (req, res) => {
    nenhum; e guarda TUDO — inclusive as chaves internas (auth-*, sys-*, ic-*),
    que são justamente as que não saem pelo /api/estado e que ninguém
    conseguiria recuperar de outro jeito. */
+/* ===================== O REPOSITÓRIO DOCUMENTAL =========================
+   (decisão do dono, ago/2026: "crie um diretório 'Repositório Documental' e
+   ali dentro salve os arquivos; manter ali somente a versão atual — inclua
+   certificados, projetos, atas, relatórios, todo doc criado, gerado ou
+   submetido no sistema").
+
+   TUDO o que é documento passa a viver sob esta pasta, com a divisão por
+   setor que a pró-reitoria já usa. O que NÃO entra aqui é a cópia diária do
+   sistema (`_backups`), que não é documento — é o retrato da caderneta.
+
+   Documento GERADO (ata, relatório, certificado, resultado) entra com
+   `nomeFixo`: a versão nova SUBSTITUI a anterior, e a pasta mostra sempre a
+   que vale. Documento SUBMETIDO por gente (foto, comprovante, ofício) entra
+   com nome único: cada um é um documento distinto, não versão do outro. */
+const REPO = "Repositório Documental";
 const BACKUP_PREFIXO = "_backups";
+
+/**
+ * Arquiva no Repositório Documental um documento GERADO pelo sistema —
+ * certificado, relatório, resultado, anexo de edital. É fire-and-forget: o
+ * documento já foi entregue a quem pediu, e uma falha ao arquivar não pode
+ * derrubar o download. `nomeFixo` faz a versão nova substituir a anterior,
+ * que é o que o dono pediu: na pasta dele vale a versão atual.
+ */
+function arquivarDocumento({ buffer, nome, pasta }) {
+  if (!buffer?.length || !nome || !pasta) return;
+  files.save({ buffer, originalName: nome, prefix: `${REPO}/${pasta}`, nomeFixo: true })
+    .catch((e) => console.error(`[repositório] ${pasta}/${nome}:`, e.message));
+}
 const BACKUP_KEY = "sys-backups-v1";     // o registro das cópias (chave interna)
 const BACKUP_DIAS = 30;
 async function backupDoDia() {
@@ -773,7 +801,7 @@ app.post("/api/perfil/foto", upload.single("file"), async (req, res) => {
     const data = await files.save({
       buffer: req.file.buffer,
       originalName: `foto-${slug(u.email)}.${ext}`,
-      prefix: `perfis/${slug(u.email)}`,
+      prefix: `${REPO}/Assinaturas/${slug(u.email)}`,
     });
     const perfis = await carregarPerfis();
     perfis[u.email] = { ...(perfis[u.email] || {}), email: u.email, foto: data.link,
@@ -1262,6 +1290,8 @@ app.get("/api/publico/ic/resultado.pdf", async (req, res) => {
       edital: numero === EDITAL.numero ? EDITAL : { numero }, projetos, emitidoPor: "",
       fase: pub.fase || "final", assinaturas: await assinaturasParaPdf(),
     });
+    arquivarDocumento({ buffer, pasta: "Iniciação Científica/Resultados",
+      nome: `resultado-${slug(numero)}-${slug(pub.fase || "final")}.pdf` });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(numero)}.pdf"`);
     res.send(buffer);
@@ -1285,6 +1315,8 @@ app.get("/api/publico/ic/em/resultado.pdf", async (req, res) => {
     const { gerarResultadoEMPdf } = await import("./lib/pdf.js");
     const buffer = await gerarResultadoEMPdf({ turma, bolsistas, emitidoPor: "",
       fase: pub.fase || "final", assinaturas: await assinaturasParaPdf() });
+    arquivarDocumento({ buffer, pasta: "Iniciação Científica/Resultados",
+      nome: `resultado-icem-${slug(turma.edital)}-${slug(pub.fase || "final")}.pdf` });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(turma.edital)}.pdf"`);
     res.send(buffer);
@@ -1999,6 +2031,8 @@ app.get("/api/avaliacao/producao.pdf", async (req, res) => {
     const { gerarProducaoDocentePdf } = await import("./lib/pdf.js");
     const buffer = await gerarProducaoDocentePdf({ curso, cursoNome, dossie,
       assinaturas: await assinaturasParaPdf() });
+    arquivarDocumento({ buffer, pasta: `Avaliação Institucional/Produção Docente`,
+      nome: `producao-docente-${slug(curso)}.pdf` });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("Content-Disposition", `inline; filename="producao-docente-${curso}.pdf"`);
@@ -2029,7 +2063,7 @@ app.post("/api/drive/upload", upload.single("file"), async (req, res) => {
     const originalName = codigo ? `${codigo}_${req.file.originalname}` : req.file.originalname;
     res.json(await files.save({
       buffer: req.file.buffer, originalName,
-      prefix: `dossie/${cursoFrom(req)}/${professor}/${categoria}`,
+      prefix: `${REPO}/Avaliação Institucional/Dossiê Docente/${cursoFrom(req)}/${professor}/${categoria}`,
     }));
   } catch (error) {
     console.error("Erro no upload do dossiê:", error);
@@ -2045,7 +2079,7 @@ app.post("/api/drive/upload-avaliacao", upload.single("file"), async (req, res) 
     const originalName = `Indicador-${indicador}_Criterio-${criterio}_${req.file.originalname}`;
     res.json(await files.save({
       buffer: req.file.buffer, originalName,
-      prefix: `avaliacao/${cursoFrom(req)}/indicador-${slug(indicador)}`,
+      prefix: `${REPO}/Avaliação Institucional/Indicadores/${cursoFrom(req)}/indicador-${slug(indicador)}`,
     }));
   } catch (error) {
     console.error("Erro no upload da avaliação:", error);
@@ -2063,7 +2097,7 @@ app.post("/api/drive/upload-doc-institucional", upload.single("file"), async (re
       : req.file.originalname;
     const data = await files.save({
       buffer: req.file.buffer, originalName,
-      prefix: `docs-institucionais/${cursoFrom(req)}/${section}`,
+      prefix: `${REPO}/Avaliação Institucional/Documentos Institucionais/${cursoFrom(req)}/${section}`,
     });
     res.json({
       ...data, name: provided || req.file.originalname,
@@ -2992,7 +3026,7 @@ app.post("/api/extensao/notificar", async (req, res) => {
       anexos = [{ nome: nomePdf, tipo: "application/pdf", conteudo: pdf }];
       files.save({
         buffer: pdf, originalName: nomePdf,
-        prefix: `extensao/${slug(acao.curso || "geral")}/propostas`,
+        prefix: `${REPO}/Extensão/${slug(acao.curso || "geral")}/propostas`,
       }).catch((e) => console.error("Falha ao arquivar PDF da proposta no Drive:", e.message));
     } catch (e) {
       console.error("Falha ao gerar PDF da proposta:", e.message);
@@ -3082,7 +3116,7 @@ app.post("/api/extensao/anexo", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "Ação registrada — anexos travados" });
     const data = await files.save({
       buffer: req.file.buffer, originalName: req.file.originalname,
-      prefix: `extensao/${slug(pre.curso || "geral")}/${slug(pre.numeroAcao || pre.id)}/portfolio`,
+      prefix: `${REPO}/Extensão/${slug(pre.curso || "geral")}/${slug(pre.numeroAcao || pre.id)}/portfólio`,
     });
     const anexo = { ...data, tipo: req.file.mimetype || "",
       enviadoEm: new Date().toISOString(), enviadoPor: u.email };
@@ -3229,7 +3263,7 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
          mudou está registrado na própria ação. */
       await files.save({
         buffer, originalName: nome, nomeFixo: true,
-        prefix: `extensao/${slug(acao.curso || "geral")}/${slug(acao.numeroAcao || acao.id)}`,
+        prefix: `${REPO}/Extensão/${slug(acao.curso || "geral")}/${slug(acao.numeroAcao || acao.id)}`,
       });
     } catch (e) {
       console.error("Falha ao arquivar export no Drive:", e.message);
@@ -3768,7 +3802,7 @@ async function guardarArte(valor, { acao, nome }) {
   const data = await files.save({
     buffer: arte.buffer,
     originalName: `${nome}.${extensaoDe(arte.tipo)}`,
-    prefix: `extensao/${slug(acao.curso || "geral")}/${slug(acao.numeroAcao || acao.id)}/evento`,
+    prefix: `${REPO}/Extensão/${slug(acao.curso || "geral")}/${slug(acao.numeroAcao || acao.id)}/evento`,
   });
   return { fileId: data.fileId, tipo: arte.tipo, bytes: arte.buffer.length,
     em: new Date().toISOString() };
@@ -5263,7 +5297,7 @@ app.post("/api/espacos/oficio", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "O arquivo passa de 10 MB." });
     const data = await files.save({
       buffer: req.file.buffer, originalName: req.file.originalname,
-      prefix: `espacos/oficios/${hojeLocalISO().slice(0, 4)}`,
+      prefix: `${REPO}/Espaços/Ofícios/${hojeLocalISO().slice(0, 4)}`,
     });
     res.json({ ok: true, oficio: { ...data, nome: req.file.originalname,
       tipo: req.file.mimetype, tamanho: req.file.size,
@@ -5771,6 +5805,8 @@ app.get("/api/monitoria/historico/certificado.pdf", async (req, res) => {
       codigo: codigoCert({ tipo: cert.tipo, projetoId: cert.id, pessoa: cert.pessoa }),
       assinaturas: await assinaturasParaPdf(),
     });
+    arquivarDocumento({ buffer: buf, pasta: `Certificados/Monitoria/${cert.ciclo.replace("/", "-")}`,
+      nome: `${slug(cert.pessoa || "monitor")}-${slug(cert.tipo || "certificado")}.pdf` });
     enviarPdfMon(res, buf, `certificado-monitoria-${cert.ciclo.replace("/", "-")}.pdf`);
   } catch (e) {
     console.error("Erro no certificado do arquivo da monitoria:", e);
@@ -5799,6 +5835,8 @@ app.get("/api/monitoria/certificado.pdf", async (req, res) => {
       ...cert, codigo: codigoCert({ tipo: cert.tipo, projetoId: cert.projetoId, pessoa: cert.pessoa }),
       assinaturas: await assinaturasParaPdf(),
     });
+    arquivarDocumento({ buffer: buf, pasta: `Certificados/Monitoria/${slug(cert.ciclo || "sem-ciclo")}`,
+      nome: `${slug(cert.pessoa || "monitor")}-${slug(cert.tipo || "certificado")}.pdf` });
     enviarPdfMon(res, buf, `certificado-monitoria-${cert.numero || cert.projetoId}.pdf`);
   } catch (e) {
     console.error("Erro no certificado de monitoria:", e);
@@ -5868,6 +5906,8 @@ app.get("/api/publico/monitoria/resultado.pdf", async (req, res) => {
     const buf = await gerarResultadoMonitoriaPdf({
       edital: ed, projetos: await projetosDoResultadoMon(numero), emitidoPor: "",
       assinaturas: await assinaturasParaPdf() });
+    arquivarDocumento({ buffer: buf, pasta: "Monitoria/Resultados",
+      nome: `resultado-${slug(numero)}.pdf` });
     enviarPdfMon(res, buf, `resultado-monitoria-${slug(numero)}.pdf`);
   } catch (e) {
     console.error("Erro no resultado público da monitoria:", e);
@@ -6393,7 +6433,7 @@ app.post("/api/monitoria/anexo", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "O arquivo passa de 8 MB." });
     const data = await files.save({
       buffer: req.file.buffer, originalName: req.file.originalname,
-      prefix: `monitoria/${hojeLocalISO().slice(0, 4)}`,
+      prefix: `${REPO}/Monitoria/${hojeLocalISO().slice(0, 4)}`,
     });
     res.json({ ok: true, anexo: { ...data, nome: req.file.originalname,
       tipo: req.file.mimetype, tamanho: req.file.size, enviadoEm: new Date().toISOString() } });
@@ -6534,6 +6574,8 @@ app.get("/api/publico/monitoria/edital.pdf", async (req, res) => {
     const buf = await gerarEditalMonitoriaPdf({
       edital: monEditalVigente(), texto: TEXTO_EDITAL_MON, cronograma: MON_CRONOGRAMA,
       acessos: ACESSOS_MON, assinaturas: await assinaturasParaPdf() });
+    arquivarDocumento({ buffer: buf, pasta: "Monitoria/Editais",
+      nome: `edital-${monEditalVigente().numero.replace("/", "-")}.pdf` });
     enviarPdfMon(res, buf, `edital-monitoria-${monEditalVigente().numero.replace("/", "-")}.pdf`);
   } catch (e) {
     console.error("Erro no edital da monitoria:", e);
@@ -6555,6 +6597,8 @@ app.get("/api/monitoria/:id/projeto.pdf", async (req, res) => {
           ...(await assinaturasParaPdf()),
           orientador: await assinaturaDePessoa(p.orientador?.email, p.orientador?.nome),
         } });
+    arquivarDocumento({ buffer: buf, pasta: `Monitoria/${slug(p.ciclo || "sem-ciclo")}/${slug(p.protocolo || p.id)}`,
+      nome: `anexo-I-projeto.pdf` });
     enviarPdfMon(res, buf, `projeto-monitoria-${p.protocolo || p.id}.pdf`);
   } catch (e) {
     console.error("Erro no PDF do projeto de monitoria:", e);
@@ -6575,12 +6619,14 @@ app.get("/api/monitoria/:id/ficha.pdf", async (req, res) => {
       : (p.monitores || []).find((x) => x.id === String(req.query.monitor || "")) || p.monitores?.[0];
     if (!m) return res.status(404).send("Monitor não encontrado.");
     const { gerarFichaMonitoriaPdf } = await import("./lib/pdf.js");
-    enviarPdfMon(res, await gerarFichaMonitoriaPdf(p, m, { campos: CAMPOS_PLANO_MON,
+    const bufFicha = await gerarFichaMonitoriaPdf(p, m, { campos: CAMPOS_PLANO_MON,
       // a imagem só entra com a declaração FIRMADA no sistema — é o ato
       // registrado que ela afirma; ficha sem declaração sai para assinar à mão
       assinaturas: m?.declaracao?.aceita
-        ? { monitor: await assinaturaDePessoa(m.email, m.nome) } : {} }),
-      `ficha-monitoria-${p.protocolo || p.id}.pdf`);
+        ? { monitor: await assinaturaDePessoa(m.email, m.nome) } : {} });
+    arquivarDocumento({ buffer: bufFicha, pasta: `Monitoria/${slug(p.ciclo || "sem-ciclo")}/${slug(p.protocolo || p.id)}`,
+      nome: `anexo-II-ficha-${slug(m.nome || m.id)}.pdf` });
+    enviarPdfMon(res, bufFicha, `ficha-monitoria-${p.protocolo || p.id}.pdf`);
   } catch (e) {
     console.error("Erro no PDF da ficha de monitoria:", e);
     res.status(500).send("Não foi possível gerar o documento.");
@@ -6603,7 +6649,7 @@ app.get("/api/monitoria/:id/relatorio.pdf", async (req, res) => {
     // o monitor não lê a avaliação que levou — o documento dele sai sem ela
     const visto = papel === "monitor"
       ? { ...m, relatorio: { ...m.relatorio, avaliacao: null } } : m;
-    enviarPdfMon(res, await gerarRelatorioMonitoriaPdf(
+    const bufRel = await gerarRelatorioMonitoriaPdf(
       { ...p, cargaTotal: monCargaTotal(p, m) }, visto, { criterios: papel === "monitor" ? [] : CRITERIOS_MONITOR,
         // cada imagem afirma um ato registrado: o monitor assina o relatório
         // que ENVIOU; a orientação, o que VALIDOU
@@ -6611,8 +6657,14 @@ app.get("/api/monitoria/:id/relatorio.pdf", async (req, res) => {
           ...(m.relatorio?.enviadoEm ? { monitor: await assinaturaDePessoa(m.email, m.nome) } : {}),
           ...(m.relatorio?.validadoEm
             ? { orientador: await assinaturaDePessoa(p.orientador?.email, p.orientador?.nome) } : {}),
-        } }),
-    `relatorio-monitoria-${p.protocolo || p.id}.pdf`);
+        } });
+    /* Arquiva só a versão COMPLETA: a que o monitor baixa sai sem a avaliação
+       que ele não pode ler, e é o documento inteiro que vale como registro. */
+    if (papel !== "monitor") {
+      arquivarDocumento({ buffer: bufRel, pasta: `Monitoria/${slug(p.ciclo || "sem-ciclo")}/${slug(p.protocolo || p.id)}`,
+        nome: `anexo-III-relatorio-${slug(m.nome || m.id)}.pdf` });
+    }
+    enviarPdfMon(res, bufRel, `relatorio-monitoria-${p.protocolo || p.id}.pdf`);
   } catch (e) {
     console.error("Erro no PDF do relatório de monitoria:", e);
     res.status(500).send("Não foi possível gerar o documento.");
@@ -6639,7 +6691,7 @@ const ATAS_META = {
 function pastaDaAta(ata) {
   const orgao = slug(orgaoDe(ata.orgao)?.sigla || "geral");
   const raiz = ata.curso ? slug(ata.curso) : "institucional";
-  return `atas/${raiz}/${orgao}/${ata.ano || "sem-ano"}`;
+  return `${REPO}/Atas/${raiz}/${orgao}/${ata.ano || "sem-ano"}`;
 }
 
 async function lerAtas() {
@@ -8944,6 +8996,8 @@ app.get("/api/ic/certificado.pdf", async (req, res) => {
     if (!cert) return res.status(404).send("Certificado não encontrado para a sua conta.");
     const { gerarCertificadoPdf } = await import("./lib/pdf.js");
     const buffer = await gerarCertificadoPdf({ ...cert, assinaturas: await assinaturasParaPdf() });
+    arquivarDocumento({ buffer, pasta: `Certificados/Iniciação Científica/${slug(cert.edital || cert.ciclo || "sem-edital")}`,
+      nome: `${slug(cert.pessoa || "participante")}-${slug(cert.tipo || "certificado")}.pdf` });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition",
       `inline; filename="certificado-${cert.tipo}-${slug(cert.numero || cert.edital)}.pdf"`);
@@ -12048,7 +12102,7 @@ app.post("/api/ic/:id/relatorio/:rid/anexo", upload.single("file"), async (req, 
 
     const arquivo = await files.save({
       buffer: req.file.buffer, originalName: req.file.originalname,
-      prefix: `ic/${slug(p.curso || "geral")}/${slug(p.numero || p.id)}`,
+      prefix: `${REPO}/Iniciação Científica/${slug(p.curso || "geral")}/${slug(p.numero || p.id)}`,
     });
     const r = await comProjetos((projetos) => {
       const i = projetos.findIndex((x) => x.id === req.params.id);
@@ -12752,7 +12806,7 @@ app.post("/api/praticas/:id/foto", upload.single("file"), async (req, res) => {
     // sobe ao Drive FORA da fila (é lento e não altera o estado)
     const data = await files.save({
       buffer: req.file.buffer, originalName: req.file.originalname,
-      prefix: `praticas/${slug(pre.curso || "geral")}/${pre.semestre.replace("/", "-")}/${slug(pre.protocolo || pre.id)}`,
+      prefix: `${REPO}/Aulas Práticas/${slug(pre.curso || "geral")}/${pre.semestre.replace("/", "-")}/${slug(pre.protocolo || pre.id)}`,
     });
     const foto = normalizarFotoAP({ ...data, tipo: req.file.mimetype, tamanho: req.file.size });
     const r = await comPraticas((lista) => {
@@ -12954,6 +13008,8 @@ app.get("/api/praticas/semestral.pdf", async (req, res) => {
       emitidoPor: u.email,
     });
     res.setHeader("Content-Type", "application/pdf");
+    arquivarDocumento({ buffer: buf, pasta: `Relatórios/Aulas Práticas/${semestre.replace("/", "-")}`,
+      nome: `relatorio-semestral${curso ? `-${slug(curso)}` : "-todos-os-cursos"}.pdf` });
     res.setHeader("Content-Disposition",
       `inline; filename="aulas-praticas-${semestre.replace("/", "-")}${curso ? `-${slug(curso)}` : ""}.pdf"`);
     res.end(buf);
@@ -13014,6 +13070,9 @@ app.get("/api/praticas/:id/pdf", async (req, res) => {
       },
     });
     res.setHeader("Content-Type", "application/pdf");
+    arquivarDocumento({ buffer: buf,
+      pasta: `Aulas Práticas/${slug(p.curso || "geral")}/${String(p.semestre || "").replace("/", "-")}/${slug(p.protocolo || p.id)}`,
+      nome: `relatorio-${slug(p.protocolo || p.id)}.pdf` });
     res.setHeader("Content-Disposition", `inline; filename="aula-pratica-${slug(p.protocolo || p.id)}.pdf"`);
     res.end(buf);
   } catch (e) {
@@ -13275,6 +13334,8 @@ app.get("/api/relatorios/semestral.pdf", async (req, res) => {
     const buf = await gerarRelatorioSemestralPdf({
       setor, periodo, panorama, emitidoPor: u.email, marca: marcaEm(periodo.fim),
       assinaturas: await assinaturasParaPdf() });
+    arquivarDocumento({ buffer: buf, pasta: `Relatórios/${slug(setor.chave)}`,
+      nome: `relatorio-semestral-${String(periodo.chave).replace("/", "-")}.pdf` });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition",
       `inline; filename="relatorio-${setor.chave}-${periodo.chave.replace("/", "-")}.pdf"`);
@@ -13819,6 +13880,9 @@ app.get("/api/extensao/:id/certificado.pdf", async (req, res) => {
     }, {});
     if (!cert) return res.status(404).send("Esta pessoa não tem certificado nesta ação.");
     const buf = await pdfDoCertificadoEvento(a, cert);
+    arquivarDocumento({ buffer: buf,
+      pasta: `Certificados/Extensão/${slug(a.numeroAcao || a.id)}`,
+      nome: nomeArquivoCert(cert) });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${nomeArquivoCert(cert)}"`);
     res.end(buf);
