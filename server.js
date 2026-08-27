@@ -13320,7 +13320,34 @@ app.get(/^\/eventos\/[a-z0-9-]+\/?$/, (_req, res) =>
 app.get(["/arche/avaliacao/firebase-config.js", "/arche/dossie/firebase-config.js"], (_req, res) =>
   res.sendFile(path.join(PUBLIC, "arche", "firebase-config.js")));
 
-app.use(express.static(PUBLIC));
+/* ---------------- CACHE DO ESTÁTICO NA BORDA (Cloudflare) ----------------
+   (pedido do dono, ago/2026, na otimização da franquia do Render): o site já
+   está atrás da Cloudflare, mas o express.static mandava `max-age=0` — e a
+   Cloudflare obedece ao cabeçalho da origem: TODO logo, CSS e JS aparecia
+   como cf-cache-status DYNAMIC e saía da franquia a cada visita. A régua,
+   por tipo de arquivo:
+   - imagem, fonte e ícone: 1 dia — logotipos e timbres quase nunca mudam;
+   - PDF publicado (editais e resultados em public/): 7 dias — documento
+     arquivado não muda (o gerado sob demanda continua em rota /api, que a
+     Cloudflare não cacheia, e os exports já saem com no-store);
+   - JS e CSS: 5 minutos — não são fingerprinted, e um deploy precisa chegar
+     rápido; 5 min bastam para a borda absorver a rajada (o QR no telão, o
+     laboratório inteiro abrindo junto), que é quando a franquia sangra;
+   - HTML: continua max-age=0 — o portal muda a cada deploy, e a Cloudflare
+     não cacheia HTML por padrão de todo jeito.
+   O ETag continua: expirado o prazo, o navegador revalida e recebe 304. */
+const CACHE_ESTATICO = [
+  [/\.(png|jpe?g|gif|webp|svg|ico|woff2?|ttf)$/i, "public, max-age=86400"],
+  [/\.pdf$/i, "public, max-age=604800"],
+  [/\.(js|css)$/i, "public, max-age=300"],
+];
+app.use(express.static(PUBLIC, {
+  setHeaders(res, arquivo) {
+    for (const [re, valor] of CACHE_ESTATICO) {
+      if (re.test(arquivo)) { res.setHeader("Cache-Control", valor); return; }
+    }
+  },
+}));
 
 /* --------------------- ENCERRAMENTO E TAREFAS DE FUNDO ------------------- */
 // Rede de segurança: no Express 4, uma promessa rejeitada dentro de um handler
