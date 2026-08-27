@@ -744,6 +744,9 @@ async function enviarCodigoPorEmail(email, codigo) {
   }
   const { enviarEmail } = await import("./lib/mailer.js");
   await enviarEmail({
+    // exato: o código da conta X chega na caixa de X — a tradução da conta
+    // pessoal para a institucional trancaria a conta pessoal do lado de fora
+    exato: true,
     para: email,
     assunto: `${codigo} é o seu código de acesso ao ARCHÉ`,
     corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:480px">

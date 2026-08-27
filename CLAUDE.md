@@ -447,7 +447,13 @@ public/
   com os **mesmos privilégios**. A identidade ACADÊMICA do pró-reitor (projetos que orienta,
   certificados) vive na conta **institucional** — a pessoal é só de gestão
   (`identidadeInstitucionalDoProReitor` gravou o e-mail do UNIEGO nos projetos dele, o que
-  também encerra o casamento por nome na conta pessoal).
+  também encerra o casamento por nome na conta pessoal). E a conta pessoal **não recebe
+  e-mail do sistema** (pedido do dono, ago/2026): `destinatariosFinais` no mailer traduz
+  jadsonbelem@gmail.com → jadson.moura@uniego.edu.br em TODO envio — venha do resumo da
+  cobrança, dos avisos ou de registro antigo com o endereço pessoal gravado. Duas exceções:
+  o REMETENTE (`MAIL_FROM_ADDR` é a conta autenticada no Gmail; trocá-lo quebraria o envio)
+  e o **código de acesso do login** (`exato: true`) — o código da conta X chega na caixa de
+  X, senão a conta pessoal não entraria mais.
 - **O SEU CURSO tem barra LATERAL e a navegação por SELEÇÃO** (revisão do dono, ago/2026):
   barra lateral no molde dos demais módulos (ARCHÉ SC), com a **lista suspensa de cursos** no
   topo — o coordenador alterna entre os seus; o gestor vê todos MAIS **"🏛 Institucional"**.
@@ -594,7 +600,7 @@ public/
   inferior direito — adormecido (meio cinza), no hover acorda, balança (`prefers-reduced-motion`
   respeitado) e estende o balão "Achou um problema? Tem uma ideia?". O clique abre o
   mini-formulário (🐞 Problema | 💡 Sugestão) e o relato vai com **quem mandou e a página** —
-  e-mail à PROPPEX (`FEEDBACK_EMAIL`, padrão jadsonbelem@gmail.com, fire-and-forget) e cópia
+  e-mail à PROPPEX (`FEEDBACK_EMAIL`, padrão jadson.moura@uniego.edu.br, fire-and-forget) e cópia
   em `sys-feedback-v1` (teto 300; e-mail que falha não perde o relato; o gestor geral relê em
   `GET /api/feedback`). Quem o carrega é o **arche-nav**, só para quem está LOGADO — nenhuma
   página precisa de tag própria, e relato anônimo seria caixa de spam. Freio de 1 relato/30 s
