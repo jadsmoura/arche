@@ -610,7 +610,12 @@ public/
   projetos, atas, relatórios — todo doc criado, gerado ou submetido"): TUDO o que é documento passa
   a viver sob **uma pasta só**, com a divisão por setor que a PROPPEX já usa (`Atas/`, `Extensão/`,
   `Iniciação Científica/`, `Monitoria/`, `Aulas Práticas/`, `Espaços/`, `Avaliação Institucional/`,
-  `Certificados/`, `Relatórios/`, `Assinaturas/`). Fora dela fica só `_backups`, que não é documento
+  `Certificados/`, `Relatórios/`, `Assinaturas/`), e com **ano ou semestre na pasta** (pedido do
+  dono ago/2026), no padrão **curso → período → documento**: `Extensão/<curso>/<ano>/<nº>`,
+  `Iniciação Científica/<curso>/<ano>/<protocolo>`, `Aulas Práticas/<curso>/<semestre>/<protocolo>`,
+  `Relatórios/<setor>/<semestre>`. O ano sai do PRÓPRIO protocolo (`anoDaPasta`: EXT-2026-001 já o
+  carrega), com a data do registro como alternativa — pasta sem ano seria pior que ano aproximado.
+  Fora dela fica só `_backups`, que não é documento
   — é o retrato da caderneta. E entrou no repositório o que **nem era arquivado**: certificados (IC,
   monitoria, evento/ação), relatório de aula prática, semestral por setor e do AP, produção docente,
   resultados publicados (IC, ICEM, monitoria), edital da monitoria e os três anexos do programa. O

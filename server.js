@@ -557,6 +557,18 @@ app.post("/api/favoritos", async (req, res) => {
    que vale. Documento SUBMETIDO por gente (foto, comprovante, ofício) entra
    com nome único: cada um é um documento distinto, não versão do outro. */
 const REPO = "Repositório Documental";
+/** O ano que organiza a pasta (pedido do dono, ago/2026: "inclua a pasta ano
+    e semestre, onde for o caso"): sai do PRÓPRIO protocolo — EXT-2026-001,
+    IC-2026-004 já carregam o ano —, com a data do registro como alternativa
+    e o ano corrente como último recurso: pasta sem ano seria pior que ano
+    aproximado. Onde o setor trabalha por SEMESTRE (aulas práticas,
+    monitoria, relatórios), o que entra é o ciclo (2026-1), não o ano. */
+const anoDaPasta = (codigo, data) => {
+  const m = String(codigo || "").match(/(20\d{2})/);
+  if (m) return m[1];
+  const d = String(data || "").match(/(20\d{2})/);
+  return d ? d[1] : String(new Date().getFullYear());
+};
 const BACKUP_PREFIXO = "_backups";
 
 /**
@@ -1290,7 +1302,7 @@ app.get("/api/publico/ic/resultado.pdf", async (req, res) => {
       edital: numero === EDITAL.numero ? EDITAL : { numero }, projetos, emitidoPor: "",
       fase: pub.fase || "final", assinaturas: await assinaturasParaPdf(),
     });
-    arquivarDocumento({ buffer, pasta: "Iniciação Científica/Resultados",
+    arquivarDocumento({ buffer, pasta: `Iniciação Científica/Resultados/${anoDaPasta(numero)}`,
       nome: `resultado-${slug(numero)}-${slug(pub.fase || "final")}.pdf` });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(numero)}.pdf"`);
@@ -1315,7 +1327,7 @@ app.get("/api/publico/ic/em/resultado.pdf", async (req, res) => {
     const { gerarResultadoEMPdf } = await import("./lib/pdf.js");
     const buffer = await gerarResultadoEMPdf({ turma, bolsistas, emitidoPor: "",
       fase: pub.fase || "final", assinaturas: await assinaturasParaPdf() });
-    arquivarDocumento({ buffer, pasta: "Iniciação Científica/Resultados",
+    arquivarDocumento({ buffer, pasta: `Iniciação Científica/Resultados/${anoDaPasta(turma.edital, turma.ciclo)}`,
       nome: `resultado-icem-${slug(turma.edital)}-${slug(pub.fase || "final")}.pdf` });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(turma.edital)}.pdf"`);
@@ -3026,7 +3038,7 @@ app.post("/api/extensao/notificar", async (req, res) => {
       anexos = [{ nome: nomePdf, tipo: "application/pdf", conteudo: pdf }];
       files.save({
         buffer: pdf, originalName: nomePdf,
-        prefix: `${REPO}/Extensão/${slug(acao.curso || "geral")}/propostas`,
+        prefix: `${REPO}/Extensão/${slug(acao.curso || "geral")}/${anoDaPasta(acao.numeroAcao, acao.proposta?.periodoFim || acao.criadoEm)}/propostas`,
       }).catch((e) => console.error("Falha ao arquivar PDF da proposta no Drive:", e.message));
     } catch (e) {
       console.error("Falha ao gerar PDF da proposta:", e.message);
@@ -3116,7 +3128,7 @@ app.post("/api/extensao/anexo", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "Ação registrada — anexos travados" });
     const data = await files.save({
       buffer: req.file.buffer, originalName: req.file.originalname,
-      prefix: `${REPO}/Extensão/${slug(pre.curso || "geral")}/${slug(pre.numeroAcao || pre.id)}/portfólio`,
+      prefix: `${REPO}/Extensão/${slug(pre.curso || "geral")}/${anoDaPasta(pre.numeroAcao, pre.proposta?.periodoFim || pre.criadoEm)}/${slug(pre.numeroAcao || pre.id)}/portfólio`,
     });
     const anexo = { ...data, tipo: req.file.mimetype || "",
       enviadoEm: new Date().toISOString(), enviadoPor: u.email };
@@ -3263,7 +3275,7 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
          mudou está registrado na própria ação. */
       await files.save({
         buffer, originalName: nome, nomeFixo: true,
-        prefix: `${REPO}/Extensão/${slug(acao.curso || "geral")}/${slug(acao.numeroAcao || acao.id)}`,
+        prefix: `${REPO}/Extensão/${slug(acao.curso || "geral")}/${anoDaPasta(acao.numeroAcao, acao.proposta?.periodoFim || acao.criadoEm)}/${slug(acao.numeroAcao || acao.id)}`,
       });
     } catch (e) {
       console.error("Falha ao arquivar export no Drive:", e.message);
@@ -3802,7 +3814,7 @@ async function guardarArte(valor, { acao, nome }) {
   const data = await files.save({
     buffer: arte.buffer,
     originalName: `${nome}.${extensaoDe(arte.tipo)}`,
-    prefix: `${REPO}/Extensão/${slug(acao.curso || "geral")}/${slug(acao.numeroAcao || acao.id)}/evento`,
+    prefix: `${REPO}/Extensão/${slug(acao.curso || "geral")}/${anoDaPasta(acao.numeroAcao, acao.proposta?.periodoFim || acao.criadoEm)}/${slug(acao.numeroAcao || acao.id)}/evento`,
   });
   return { fileId: data.fileId, tipo: arte.tipo, bytes: arte.buffer.length,
     em: new Date().toISOString() };
@@ -5906,7 +5918,7 @@ app.get("/api/publico/monitoria/resultado.pdf", async (req, res) => {
     const buf = await gerarResultadoMonitoriaPdf({
       edital: ed, projetos: await projetosDoResultadoMon(numero), emitidoPor: "",
       assinaturas: await assinaturasParaPdf() });
-    arquivarDocumento({ buffer: buf, pasta: "Monitoria/Resultados",
+    arquivarDocumento({ buffer: buf, pasta: `Monitoria/Resultados/${anoDaPasta(numero)}`,
       nome: `resultado-${slug(numero)}.pdf` });
     enviarPdfMon(res, buf, `resultado-monitoria-${slug(numero)}.pdf`);
   } catch (e) {
@@ -6574,7 +6586,7 @@ app.get("/api/publico/monitoria/edital.pdf", async (req, res) => {
     const buf = await gerarEditalMonitoriaPdf({
       edital: monEditalVigente(), texto: TEXTO_EDITAL_MON, cronograma: MON_CRONOGRAMA,
       acessos: ACESSOS_MON, assinaturas: await assinaturasParaPdf() });
-    arquivarDocumento({ buffer: buf, pasta: "Monitoria/Editais",
+    arquivarDocumento({ buffer: buf, pasta: `Monitoria/Editais/${anoDaPasta(monEditalVigente().numero)}`,
       nome: `edital-${monEditalVigente().numero.replace("/", "-")}.pdf` });
     enviarPdfMon(res, buf, `edital-monitoria-${monEditalVigente().numero.replace("/", "-")}.pdf`);
   } catch (e) {
@@ -12102,7 +12114,7 @@ app.post("/api/ic/:id/relatorio/:rid/anexo", upload.single("file"), async (req, 
 
     const arquivo = await files.save({
       buffer: req.file.buffer, originalName: req.file.originalname,
-      prefix: `${REPO}/Iniciação Científica/${slug(p.curso || "geral")}/${slug(p.numero || p.id)}`,
+      prefix: `${REPO}/Iniciação Científica/${slug(p.curso || "geral")}/${anoDaPasta(p.numero, p.ciclo || p.criadoEm)}/${slug(p.numero || p.id)}`,
     });
     const r = await comProjetos((projetos) => {
       const i = projetos.findIndex((x) => x.id === req.params.id);
@@ -13334,8 +13346,8 @@ app.get("/api/relatorios/semestral.pdf", async (req, res) => {
     const buf = await gerarRelatorioSemestralPdf({
       setor, periodo, panorama, emitidoPor: u.email, marca: marcaEm(periodo.fim),
       assinaturas: await assinaturasParaPdf() });
-    arquivarDocumento({ buffer: buf, pasta: `Relatórios/${slug(setor.chave)}`,
-      nome: `relatorio-semestral-${String(periodo.chave).replace("/", "-")}.pdf` });
+    arquivarDocumento({ buffer: buf, pasta: `Relatórios/${slug(setor.chave)}/${String(periodo.chave).replace("/", "-")}`,
+      nome: "relatorio-semestral.pdf" });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition",
       `inline; filename="relatorio-${setor.chave}-${periodo.chave.replace("/", "-")}.pdf"`);
@@ -13881,7 +13893,7 @@ app.get("/api/extensao/:id/certificado.pdf", async (req, res) => {
     if (!cert) return res.status(404).send("Esta pessoa não tem certificado nesta ação.");
     const buf = await pdfDoCertificadoEvento(a, cert);
     arquivarDocumento({ buffer: buf,
-      pasta: `Certificados/Extensão/${slug(a.numeroAcao || a.id)}`,
+      pasta: `Certificados/Extensão/${anoDaPasta(a.numeroAcao, a.proposta?.periodoFim)}/${slug(a.numeroAcao || a.id)}`,
       nome: nomeArquivoCert(cert) });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${nomeArquivoCert(cert)}"`);
