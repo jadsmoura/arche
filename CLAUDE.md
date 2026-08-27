@@ -605,6 +605,19 @@ public/
   `GET /api/feedback`). Quem o carrega é o **arche-nav**, só para quem está LOGADO — nenhuma
   página precisa de tag própria, e relato anônimo seria caixa de spam. Freio de 1 relato/30 s
   por conta. O "Ver como" não relata (a guarda de `?como=` recusa a escrita).
+- **NO DRIVE VALE A VERSÃO MAIS ATUAL** (`nomeFixo` em lib/files.js, decisão do dono ago/2026:
+  "eu queria manter no meu Drive a versão mais atual de todos; se uma ata foi corrigida, para mim
+  vale só a última"): o Drive do dono é o ESPELHO do acervo vigente, não o histórico do sistema.
+  Os dois lugares que geravam VERSÕES do mesmo documento passaram a substituir em vez de acumular:
+  o **export da Extensão** (o nome não leva mais data e hora — antes, cada clique em "gerar PDF" de
+  um relatório já entregue deixava mais uma cópia datada na pasta) e a **ata retificada** (o nome é
+  o do número da ata, sem o sufixo `-retificada-N`). No Drive o arquivo é ATUALIZADO no lugar: o id
+  não muda (link já dado continua valendo) e o próprio Drive guarda as versões anteriores por 30
+  dias — o histórico não se perde, só sai da frente. O ato da retificação continua registrado no
+  histórico da ata, que é onde ele prova. `nomeFixo` vale SÓ para documento gerado pelo sistema:
+  **anexo enviado por gente nunca passa por ali** — cada foto e cada comprovante é documento
+  DISTINTO, não versão, e continua entrando com nome único. As cópias datadas que já existem no
+  Drive ficam onde estão (apagar documento do dono não é ato do sistema).
 - **A CÓPIA DIÁRIA DO SISTEMA** (`backupDoDia` + `GET /api/backup/agora`, chave `sys-backups-v1`,
   pedido do dono ago/2026): até aqui o ARCHÉ **não tinha backup nenhum**. O que parecia backup — o
   `_estado.json` no Drive — é um arquivo ÚNICO reescrito centenas de vezes por dia: o Drive guarda

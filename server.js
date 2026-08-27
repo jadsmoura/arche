@@ -3220,10 +3220,15 @@ app.get("/api/extensao/export/:tipo/:id", async (req, res) => {
        relatório entregue, sim, e a proposta e o registro também. */
     const ehRascunho = tipo === "pdf" && !acao.relatorio?.entregueEm;
     if (!ehRascunho) try {
-      const ts = new Date().toISOString().slice(0, 16).replace("T", "_").replace(":", "h");
-      const nomeArq = nome.replace(/(\.[a-z]+)$/i, `_${ts}$1`);
+      /* NOME FIXO (decisão do dono, ago/2026: "no meu Drive vale só a versão
+         mais atual"): o nome não leva mais data e hora, e a geração seguinte
+         SUBSTITUI a anterior. Antes, cada clique em "gerar PDF" de um
+         relatório já entregue deixava mais uma cópia datada na pasta — dez
+         conferências viravam dez arquivos do mesmo documento. O histórico não
+         se perde: o Drive guarda as versões do arquivo por 30 dias, e o que
+         mudou está registrado na própria ação. */
       await files.save({
-        buffer, originalName: nomeArq,
+        buffer, originalName: nome, nomeFixo: true,
         prefix: `extensao/${slug(acao.curso || "geral")}/${slug(acao.numeroAcao || acao.id)}`,
       });
     } catch (e) {
@@ -7239,12 +7244,17 @@ app.post("/api/atas/:id/registrar", async (req, res) => {
 
     const { gerarAtaPdf } = await import("./lib/pdf.js");
     const pdfBuffer = await gerarAtaPdf(ata, { assinaturas: await imagensDaFolhaDaAta(ata) });
-    const nomePdf = `${slug(ata.numero || ata.id)}${retificacao ? `-retificada-${versao}` : ""}.pdf`;
+    /* A ata corrigida SUBSTITUI a anterior na pasta (decisão do dono,
+       ago/2026): o nome é o do número da ata, sem sufixo de retificação —
+       para quem abre a pasta, vale a versão vigente. As versões anteriores
+       ficam no histórico do Drive (30 dias) e o ato da retificação continua
+       registrado no histórico da própria ata, que é onde ele prova. */
+    const nomePdf = `${slug(ata.numero || ata.id)}.pdf`;
     const pasta = pastaDaAta(ata);
 
     let arquivo = null;
     try {
-      arquivo = await files.save({ buffer: pdfBuffer, originalName: nomePdf, prefix: pasta });
+      arquivo = await files.save({ buffer: pdfBuffer, originalName: nomePdf, prefix: pasta, nomeFixo: true });
     } catch (e) {
       console.error("Falha ao arquivar a ata no Drive:", e.message);
     }
