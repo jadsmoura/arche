@@ -623,6 +623,27 @@ public/
   derruba download) e usa `nomeFixo`. Duas regras de conteúdo: o relatório do monitor só se arquiva na
   versão COMPLETA (a que ele baixa sai sem a avaliação que não pode ler), e prévia da gestão não entra
   — resultado só quando publicado.
+- **O ACERVO ANTIGO SE MUDA PARA O REPOSITÓRIO** (`migrarParaRepositorio`/`fundirPasta` +
+  `POST /api/repositorio/migrar` + o card no `/diagnostico/`, ago/2026): a estrutura nova vale para
+  o que se grava DAQUI EM DIANTE; o que já estava enviado continuava nas pastas antigas, e apagá-las
+  quebraria o link de todo comprovante, ata e foto já guardados. A saída é **mover** — no Drive o
+  arquivo mantém a identidade, os links do sistema continuam abrindo, e a pasta antiga fica vazia
+  para o dono apagar. Move-se a PASTA inteira, não arquivo por arquivo: é uma chamada de API por
+  pasta em vez de milhares, que teriam milhares de chances de falhar pela metade. Duas passadas — as
+  pastas de topo entram no repositório com o nome novo, e depois a pasta de cada ação e de cada
+  projeto desce para o ANO. Três decisões que a rotina carrega: (1) **funde em vez de renomear**
+  quando o destino já existe, que é o caso de produção (o repositório vem recebendo os documentos
+  novos desde que a estrutura entrou no ar) — renomear a antiga para o mesmo nome deixaria duas
+  pastas irmãs chamadas "Atas", coisa que o Drive permite e que faria a busca por nome achar uma
+  delas só, com metade do acervo invisível; (2) arquivo de mesmo nome **não se sobrepõe** — o do
+  destino é a versão atual, que é o que o dono pediu guardar, e o antigo fica para trás, nomeado na
+  lista do que se pode apagar; e (3) a pasta encalhada FORA do ano (a ação que recebeu documento
+  novo depois) também se funde, senão ficaria onde ninguém iria procurá-la. Roda em **SIMULAÇÃO por
+  padrão** — nada se move sem alguém ter visto a lista —, é **idempotente** (rodar de novo sobre um
+  acervo já migrado não move nada) e devolve as **sobras**: as pastas antigas e quantos arquivos
+  ainda têm dentro. O sistema **não as apaga**: apagar em nome de alguém o acervo inteiro é o tipo
+  de ato que se confere antes. A lista de sobras só aparece DEPOIS de executar — na simulação as
+  pastas ainda têm tudo dentro, e dizê-las prontas para apagar seria falso.
 - **NO DRIVE VALE A VERSÃO MAIS ATUAL** (`nomeFixo` em lib/files.js, decisão do dono ago/2026:
   "eu queria manter no meu Drive a versão mais atual de todos; se uma ata foi corrigida, para mim
   vale só a última"): o Drive do dono é o ESPELHO do acervo vigente, não o histórico do sistema.

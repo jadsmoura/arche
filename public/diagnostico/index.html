@@ -129,6 +129,8 @@
   .ba-warn{background:var(--warn-soft);color:var(--warn);border:1px solid #f0e0bd}
   .ba-err{background:var(--err-soft);color:var(--err);border:1px solid #eed6d3}
   .ba-ok{background:var(--ok-soft);color:var(--ok);border:1px solid #cfeeda}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;
+    background:var(--wash);color:var(--brand);padding:1px 5px;border-radius:5px}
 
   /* -------------------------------- listas ------------------------------ */
   .item{display:flex;align-items:center;gap:14px;padding:15px 18px;background:#fff;border:1px solid var(--line);
@@ -357,7 +359,72 @@ function render(d) {
         <button class="bt bt-ghost" onclick="zerar()">Zerar e recomeçar a medição</button>
         <button class="bt bt-ghost" onclick="carregar()">Atualizar</button>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">Repositório Documental</div>
+      <div class="card-s">Levar o acervo já enviado para dentro da pasta única, no Drive.</div>
+      <div class="kv">Os documentos gravados <b>daqui em diante</b> já entram no Repositório
+        Documental, organizados por setor, curso e ano. O que foi enviado ANTES continua nas
+        pastas antigas — e apagá-las quebraria o link de todo comprovante, ata e foto já
+        guardados. A saída é <b>mover</b>.</div>
+      <div class="kv">Mover no Drive não quebra nada: o arquivo mantém a identidade e os links
+        do sistema continuam abrindo. Onde a pasta nova já existe, as duas se <b>fundem</b>; e
+        documento cuja versão atual já está no destino <b>não é sobreposto</b> pelo antigo.</div>
+      <div class="kv">Simule primeiro — a simulação não move nada e mostra a lista inteira.</div>
+      <div class="exp">
+        <button class="bt bt-ghost" onclick="migrar(false)">Simular a migração</button>
+        <button class="bt bt-ghost" onclick="migrar(true)">Executar a migração</button>
+      </div>
+      <div id="repo"></div>
     </div>`;
+}
+
+/* A migração do acervo para o Repositório Documental. Simulada por padrão;
+   executar pede confirmação, porque é o acervo inteiro que muda de lugar. */
+async function migrar(executar) {
+  if (executar && !confirm("Mover para o Repositório Documental todos os documentos já enviados?\n\n" +
+    "Os arquivos mantêm a identidade e os links continuam abrindo. As pastas antigas ficam para trás, " +
+    "e a lista do que se pode apagar aparece ao final.")) return;
+  const alvo = $("repo");
+  alvo.innerHTML = `<div class="kv">${executar ? "Movendo" : "Simulando"}… isto pode levar alguns minutos.</div>`;
+  try {
+    const r = await fetch("/api/repositorio/migrar", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(executar ? { executar: true } : {}),
+    });
+    const j = await r.json();
+    if (!r.ok || j.erro) throw new Error(j.error || j.erro || "Falha na migração.");
+    const passos = j.passos || [], sobras = j.sobras || [];
+    const dupl = passos.filter((p) => p.tipo === "duplicado").length;
+    alvo.innerHTML = `
+      <div class="banner ${j.simulado ? "ba-warn" : "ba-ok"}" style="margin-top:12px">
+        ${j.simulado
+          ? `Simulação: <b>${passos.length}</b> movimento(s) seriam feitos. Nada foi movido.`
+          : `Migração concluída: <b>${passos.length}</b> movimento(s).`}
+        ${dupl ? ` ${dupl} documento(s) ficaram onde estavam porque a versão atual já está no destino.` : ""}
+      </div>
+      ${passos.length ? `<div class="kv" style="margin-top:10px"><b>Movimentos</b></div>` +
+        passos.map((p) => `<div class="kv" style="font-size:12px">${
+          p.tipo === "duplicado"
+            ? `• já existe versão atual no destino: <code>${esc(p.de)}</code>`
+            : `• ${esc(p.de)} → <code>${esc(p.para)}</code>${
+                p.movidos !== undefined ? ` (fusão: ${p.movidos} movido[s])` : ""}`
+        }</div>`).join("") : ""}
+      ${j.simulado
+        ? `<div class="kv" style="margin-top:12px">A lista do que se pode apagar sai
+            <b>depois de executar</b>: agora as pastas antigas ainda têm tudo dentro, e dizer
+            que estão prontas para apagar seria falso.</div>`
+        : sobras.length
+          ? `<div class="kv" style="margin-top:12px"><b>O que o senhor pode apagar no Drive</b>
+              — as pastas antigas, depois de conferir:</div>` +
+            sobras.map((s) => `<div class="kv" style="font-size:12px">• <code>${esc(s.pasta)}</code> —
+              ${s.arquivos ? `ainda com <b>${s.arquivos}</b> arquivo(s): são versões que o
+                destino já tinha mais novas. Confira antes de apagar.` : "vazia"}</div>`).join("")
+          : `<div class="kv" style="margin-top:12px">Nenhuma pasta antiga sobrou.</div>`}`;
+  } catch (e) {
+    alvo.innerHTML = `<div class="banner ba-err" style="margin-top:12px">${esc(e.message)}</div>`;
+  }
 }
 
 async function zerar() {

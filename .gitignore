@@ -18,3 +18,8 @@ removidos-dossie-psicologia.json
 # Pacote do registro no INPI: é grande e se reconstrói igual a partir do
 # commit (scripts/pacote-inpi.mjs). O que se versiona é o HASH, não o pacote.
 docs/inpi/arche-codigo-fonte-*.txt
+
+# Forja de cookie de sessão para TESTE LOCAL — não se versiona: é ferramenta
+# de banco de trabalho, e uma ferramenta de forjar sessão no repositório é
+# convite a que alguém a aponte para produção.
+forjar.mjs

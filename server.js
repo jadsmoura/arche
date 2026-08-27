@@ -571,6 +571,171 @@ const anoDaPasta = (codigo, data) => {
 };
 const BACKUP_PREFIXO = "_backups";
 
+/* ============ MIGRAÇÃO DO ACERVO PARA O REPOSITÓRIO DOCUMENTAL ==========
+   (pedido do dono, ago/2026): a mudança de estrutura vale para o que se
+   grava DAQUI EM DIANTE — o acervo que já existe continua nas pastas antigas,
+   e apagá-las quebraria o link de todo comprovante, ata e foto já enviados.
+   A saída é MOVER, não apagar.
+
+   Move-se a PASTA inteira, não arquivo por arquivo: no Drive o id de tudo o
+   que está dentro NÃO muda, então nenhum link se perde — e é uma chamada de
+   API por pasta em vez de milhares, que teriam milhares de chances de falhar
+   pela metade.
+
+   Duas passadas: a primeira leva as pastas de topo para dentro do
+   repositório com o nome novo; a segunda desce a pasta de cada ação e de
+   cada projeto para dentro do ANO, que é a organização que o dono pediu.
+   Tudo roda em SIMULAÇÃO por padrão: nada se move sem alguém ter visto a
+   lista antes.
+
+   A primeira passada FUNDE em vez de renomear, e a razão é de produção: o
+   Repositório Documental já vem recebendo os documentos novos desde que a
+   estrutura entrou no ar, então a pasta de destino EXISTE. Renomear a antiga
+   para o mesmo nome deixaria duas pastas irmãs chamadas "Atas" — o Drive
+   permite, e a busca por nome passaria a achar uma delas só, com metade do
+   acervo invisível. Existindo o destino, mescla-se nível a nível; arquivo de
+   mesmo nome NÃO se sobrepõe (o de lá é o atual, que é o que o dono pediu
+   guardar) e fica para trás, na lista do que se pode apagar. */
+const MIGRACAO_REPO = [
+  { de: "atas", para: "Atas" },
+  { de: "extensao", para: "Extensão", porAno: "curso" },
+  { de: "ic", para: "Iniciação Científica", porAno: "curso" },
+  { de: "praticas", para: "Aulas Práticas" },
+  { de: "monitoria", para: "Monitoria" },
+  { de: "espacos", para: "Espaços" },
+  { de: "perfis", para: "Assinaturas" },
+  { de: "dossie", para: "Avaliação Institucional/Dossiê Docente" },
+  { de: "avaliacao", para: "Avaliação Institucional/Indicadores" },
+  { de: "docs-institucionais", para: "Avaliação Institucional/Documentos Institucionais" },
+];
+
+/* Funde o conteúdo de uma pasta na outra, nível a nível. Só se chama quando o
+   destino JÁ EXISTE — se não existisse, mover a pasta inteira seria uma
+   chamada de API em vez de milhares. Devolve quantos itens moveu e quantos
+   ficaram para trás por já haver arquivo de mesmo nome no destino. */
+async function fundirPasta(origem, destino, passos, simular) {
+  let movidos = 0, mantidos = 0;
+  const jaLa = new Map((await files.arquivos(destino)).map((f) => [f.nome, f]));
+  for (const f of await files.arquivos(origem)) {
+    if (jaLa.has(f.nome)) {                  // o de lá é a versão atual
+      mantidos++;
+      passos.push({ tipo: "duplicado", de: `${origem.join("/")}/${f.nome}` });
+      continue;
+    }
+    if (!simular) await files.moverPasta(f.id, destino, f.nome);
+    movidos++;
+  }
+  const subsDestino = new Set((await files.subpastas(destino)).map((s) => s.nome));
+  for (const sub of await files.subpastas(origem)) {
+    if (subsDestino.has(sub.nome)) {         // existe dos dois lados: desce mais um nível
+      const r = await fundirPasta([...origem, sub.nome], [...destino, sub.nome], passos, simular);
+      movidos += r.movidos; mantidos += r.mantidos;
+    } else {
+      if (!simular) await files.moverPasta(sub.id, destino, sub.nome);
+      movidos++;
+    }
+  }
+  return { movidos, mantidos };
+}
+
+async function migrarParaRepositorio({ simular = true } = {}) {
+  if (!files.acharPasta || !files.moverPasta || !files.arquivos) {
+    return { erro: "Este backend de arquivos não sabe mover pastas." };
+  }
+  const passos = [];
+  for (const item of MIGRACAO_REPO) {
+    const id = await files.acharPasta([item.de]);
+    if (!id) continue;                       // pasta que nunca existiu
+    const partes = item.para.split("/");
+    const destino = [REPO, ...partes];
+    const jaExiste = await files.acharPasta(destino);
+    if (jaExiste) {
+      const r = await fundirPasta([item.de], destino, passos, simular);
+      passos.push({ tipo: "fusão", de: item.de, para: destino.join("/"),
+        movidos: r.movidos, mantidos: r.mantidos });
+    } else {
+      passos.push({ tipo: "pasta", de: item.de, para: destino.join("/"),
+        arquivosNaRaiz: await files.contarArquivos([item.de]),
+        subpastas: (await files.subpastas([item.de])).length });
+      /* moverPasta recebe a pasta PAI do destino e o nome que a pasta passa
+         a ter — não o caminho completo, que a poria dentro de si mesma. */
+      if (!simular) await files.moverPasta(id, [REPO, ...partes.slice(0, -1)], partes.at(-1));
+    }
+  }
+
+  /* Segunda passada: dentro de Extensão/<curso> e Iniciação Científica/<curso>
+     as pastas de ação/projeto descem para o ANO (EXT-2026-001 → 2026/EXT-2026-001).
+     Só depois da primeira passada — é lá que elas estão agora. */
+  for (const item of MIGRACAO_REPO.filter((x) => x.porAno === "curso")) {
+    /* SIMULANDO, a pasta ainda está no lugar antigo — é de lá que se lê para
+       a lista mostrar o quadro completo; EXECUTANDO, ela já foi movida. */
+    const base = simular ? [item.de] : [REPO, ...item.para.split("/")];
+    for (const curso of await files.subpastas(base)) {
+      for (const pasta of await files.subpastas([...base, curso.nome])) {
+        /* Pasta de ANO já está no lugar; `propostas` fica onde está — ela
+           junta anos diferentes, e enfiá-la num ano só seria escrever no
+           caminho uma data que metade do que está lá dentro desmente. */
+        if (/^\d{4}$/.test(pasta.nome) || pasta.nome === "propostas") continue;
+        const ano = anoDaPasta(pasta.nome);
+        const alvo = [...base, curso.nome, ano];
+        /* O ano já tem uma pasta com este nome (a ação recebeu documento novo
+           depois que a estrutura entrou no ar): funde, em vez de criar uma
+           irmã de mesmo nome — ou de deixar a antiga encalhada FORA do ano,
+           que é onde ninguém iria procurá-la. */
+        if ((await files.subpastas(alvo)).some((s) => s.nome === pasta.nome)) {
+          const r = await fundirPasta([...base, curso.nome, pasta.nome],
+            [...alvo, pasta.nome], passos, simular);
+          passos.push({ tipo: "fusão", de: `${item.para}/${curso.nome}/${pasta.nome}`,
+            para: `${item.para}/${curso.nome}/${ano}/${pasta.nome}`,
+            movidos: r.movidos, mantidos: r.mantidos });
+          continue;
+        }
+        passos.push({ tipo: "ano", de: `${item.para}/${curso.nome}/${pasta.nome}`,
+          para: `${item.para}/${curso.nome}/${ano}/${pasta.nome}` });
+        if (!simular) await files.moverPasta(pasta.id, alvo, pasta.nome);
+      }
+    }
+  }
+
+  /* O que sobrou para o dono apagar — foi ele quem pediu a lista ("depois me
+     liste o que preciso apagar"). São as pastas antigas: quase todas ficam
+     VAZIAS (a mudança foi de endereço, não de conteúdo), e as que ainda
+     têm arquivo têm exatamente o que a fusão deixou para trás por já existir
+     versão atual no destino. O sistema não as apaga sozinho: apagar em nome
+     de alguém o acervo inteiro é o tipo de ato que se confere antes. */
+  const sobras = [];
+  for (const item of MIGRACAO_REPO) {
+    if (!(await files.acharPasta([item.de]))) continue;
+    sobras.push({ pasta: item.de, arquivos: await contarFundo([item.de]) });
+  }
+  return { simulado: simular, passos, total: passos.length, sobras };
+}
+
+/** Quantos arquivos há na pasta e em tudo abaixo dela (a rasa não bastaria:
+    a pasta antiga só é segura de apagar se estiver vazia até o fim). */
+async function contarFundo(partes, nivel = 0) {
+  if (nivel > 8) return 0;                   // acervo é raso; laço não fica de pé
+  let n = (await files.arquivos(partes)).length;
+  for (const sub of await files.subpastas(partes)) {
+    n += await contarFundo([...partes, sub.nome], nivel + 1);
+  }
+  return n;
+}
+
+/** A migração do acervo — só gestor geral, e SIMULADA por padrão. */
+app.post("/api/repositorio/migrar", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  try {
+    const simular = req.body?.executar !== true;
+    const r = await migrarParaRepositorio({ simular });
+    if (!simular) console.log(`[repositório] migração executada por ${g.email}: ${r.total} passos`);
+    res.json(r);
+  } catch (e) {
+    console.error("Erro na migração do repositório:", e);
+    res.status(500).json({ error: "Não foi possível migrar agora: " + e.message });
+  }
+});
+
 /**
  * Arquiva no Repositório Documental um documento GERADO pelo sistema —
  * certificado, relatório, resultado, anexo de edital. É fire-and-forget: o
