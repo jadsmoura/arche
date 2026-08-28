@@ -19,6 +19,12 @@ relatório, uma lista, um card, uma foto e uma divulgação atenderem ao edital 
 idêntico aqui. Isso é isometria entre etapas, não economia de texto — se o card
 sem horário derruba o documento na ação social, derruba no evento técnico.
 
+> **Régua alterada pela diretoria em 28/08/2026.** Na lista de presença a
+> **assinatura do participante deixou de ser exigência** (D1) e **um sobrenome
+> basta** como identificação (D2); no relatório valem a rubrica e a assinatura
+> eletrônica. E **documento não inserido zera o evento** (D3) — ver
+> `criterios_internos.md`.
+
 **Duas diferenças, e só duas:**
 
 1. **O item 5.9.12 NÃO se aplica.** Ele é da ação social, e é ele que admite a
@@ -26,6 +32,8 @@ sem horário derruba o documento na ação social, derruba no evento técnico.
    **participantes do evento** — quem assistiu à palestra, ao dia de campo, ao
    workshop. Lista composta apenas pela equipe organizadora, num evento técnico,
    não comprova público: é o caso de "Não", e a justificativa deve dizer isso.
+   Isso vale independentemente de haver ou não assinatura: o que falta ali é o
+   público, não a rubrica.
 
 2. **A declaração do Senar (5.9.8.2 V)** continua substituindo a lista, agora nos
    eventos **Dia de Campo** realizados pelo Senar/AR-GO (além de Campo Saúde e

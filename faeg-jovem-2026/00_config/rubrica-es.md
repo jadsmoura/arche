@@ -11,6 +11,12 @@ integralmente a rubrica da 1ª Ação Social (`rubrica-1as.md`) quanto ao que fa
 cada documento atender ao edital. Repetir a régua aqui seria criar uma segunda
 versão dela, e duas versões acabam divergindo.
 
+> **Régua alterada pela diretoria em 28/08/2026.** Na lista de presença a
+> **assinatura do participante deixou de ser exigência** (D1) e **um sobrenome
+> basta** como identificação (D2); no relatório valem a rubrica e a assinatura
+> eletrônica. E **documento não inserido zera o evento** (D3) — ver
+> `criterios_internos.md`.
+
 **Uma diferença, e é decisiva:**
 
 **O item 5.9.12 NÃO se aplica.** Ele é da ação social, e é ele que admite a lista
@@ -19,7 +25,8 @@ assinada apenas pelos membros do grupo. No evento de saúde a lista é do
 pressão, assistiu à palestra. Lista composta só pela equipe organizadora não
 comprova o evento: é caso de "Não", e a justificativa deve dizer isso
 expressamente, porque na etapa anterior a mesma situação foi aceita e a diferença
-precisa estar escrita.
+precisa estar escrita. Isso vale independentemente de haver ou não assinatura: o
+que falta ali é o público, não a rubrica.
 
 **A declaração do Senar (5.9.8.2 V)** substitui a lista no **Campo Saúde**
 realizado pelo Senar/AR-GO.

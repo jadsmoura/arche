@@ -31,14 +31,22 @@ realização (5.9.8.3 I)" sustenta.
 branco ou rasurado, ou quando a descrição não cobre os blocos exigidos (por
 exemplo, relatório que só diz o nome da ação e a data).
 
-Assinatura digitalizada da rubrica manuscrita **conta como manual**. O que o
-edital recusa é assinatura de outro tipo — fonte cursiva digitada, imagem de
-assinatura de terceiro, carimbo sem rubrica.
+Valem a **rubrica** (ainda que abreviada), a rubrica manuscrita digitalizada e a
+**assinatura eletrônica** — gov.br ou certificado ICP-Brasil (decisão D2).
 
 ## 2. LISTA DE PRESENÇA — item 5.9.8.2
 
-**Sim** quando traz cabeçalho preenchido, assinaturas dos próprios participantes
-e, por participante, **nome completo e telefone**.
+> **Régua alterada pela diretoria em 28/08/2026 (decisões D1 e D2).** A assinatura
+> do participante **não é mais exigência**, e um **sobrenome basta** como
+> identificação. Confere-se o conteúdo da lista — as pessoas relacionadas —, não a
+> existência de rubrica manuscrita.
+
+**Sim** quando traz cabeçalho preenchido e, por participante, **identificação
+(nome, ainda que só o sobrenome) e telefone**.
+
+O que **deixou de derrubar** o documento: lista digitada com letra uniforme em
+todas as linhas; lista sem rubrica manuscrita de ninguém; lista aparentemente
+passada a limpo; linha com nome abreviado ou só sobrenome, que passa a contar.
 
 Duas equivalências previstas no edital:
 
@@ -48,9 +56,9 @@ Duas equivalências previstas no edital:
 - **Declaração do Senar/AR-GO** (5.9.8.2 V) substitui a lista nos eventos Campo
   Saúde, Festival de Receitas e Dia de Campo realizados pelo Senar.
 
-**Não** quando a lista vem em branco, quando é a mesma lista de outro evento,
-quando está visivelmente passada a limpo (letra uniforme em todas as linhas), ou
-quando falta a coluna de telefone em todas as linhas.
+**Não** quando a lista vem **inteiramente em branco** — ali não há conteúdo a
+conferir, e isso não é questão de assinatura —, quando é a lista de **outro
+evento**, ou quando **nenhuma** linha traz telefone.
 
 Lista com telefone faltando em **algumas** linhas não derruba o documento: o
 edital manda desconsiderar a linha na contagem, não invalidar a lista.
@@ -103,6 +111,20 @@ justificativa que não foi possível abrir, e julgue pelo que o campo traz.
 - **Classificação do tipo de evento**: se a ação não parecer social (5.9.5), não
   marque Não nos cinco itens — registre a observação e leve à coordenação
   (item 5.9.7).
-- **Pendência P1**: enquanto a coordenação não decidir se documento faltante zera
-  o item ou o evento inteiro, cada item é respondido por si. A soma é
-  consequência, não decisão do avaliador.
+- **A soma dos pontos**: cada item é respondido por si; a soma é consequência,
+  não decisão do avaliador. Ver a seção seguinte.
+
+## Como se somam os pontos (decisão D3, de 28/08/2026)
+
+**Documento NÃO INSERIDO zera o evento.** Deixando o grupo de anexar o link, o
+card, o relatório ou a lista de presença, a pontuação do evento inteiro é zero, e
+a justificativa **explica o motivo da zeragem**. É a resolução da antiga pendência
+P1 para o caso da ausência.
+
+**Documento inserido e irregular perde os pontos dele** — é o que a decisão D4 diz
+do card sem horário ("não tem ponto"). O alcance exato dessa distinção é a
+**pendência P7**, ainda aberta: até haver resposta, o item perde os seus pontos e
+o evento conserva os demais.
+
+**Documento que a plataforma não entrega não é documento não inserido.** O grupo
+anexou; quem falha é o servidor. Esses itens ficam pendentes, nunca zerados.

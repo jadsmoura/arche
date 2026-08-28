@@ -125,4 +125,87 @@ usuário, aponte o item do edital em conflito e pergunte como proceder.
 
 ## Decisões registradas
 
-(vazio)
+### D1 — A lista de presença não precisa estar assinada
+
+Decidido por: Diretoria do Concurso
+Data: 2026-08-28
+Origem: orientação repassada à Banca 01
+
+Decisão: a assinatura do participante **deixa de ser exigência** do item 5.9.8.2.
+A lista se confere pelo conteúdo — as pessoas relacionadas —, não pela existência
+de rubrica manuscrita.
+
+Efeito no cálculo: cai a hipótese de "Não" por lista passada a limpo, por letras
+iguais ou por lista digitada sem assinatura. Lista preenchida por digitação passa
+a atender. Segue valendo o "Não" da lista **inteiramente em branco** — ali não há
+conteúdo nenhum a conferir, não é questão de assinatura.
+Aplica-se a: todas as equipes, em todas as etapas. **Reprocessar** o que foi
+decidido pela régua anterior.
+
+### D2 — Sobrenome basta na lista; rubrica e assinatura eletrônica bastam no relatório
+
+Decidido por: Diretoria do Concurso
+Data: 2026-08-28
+Origem: orientação repassada à Banca 01
+
+Decisão: na **lista de presença**, um sobrenome vale como identificação completa
+do participante. No **relatório**, valem a rubrica e a assinatura eletrônica.
+
+Efeito no cálculo: linha com nome abreviado ou só sobrenome passa a contar. No
+relatório, confirma o que a régua já praticava (rubrica manuscrita, gov.br e
+certificado ICP-Brasil).
+Aplica-se a: todas as equipes, em todas as etapas.
+
+### D3 — Documento não inserido zera a pontuação do evento
+
+Decidido por: Diretoria do Concurso
+Data: 2026-08-28
+Origem: orientação repassada à Banca 01
+
+Decisão: quando o grupo **não insere** o link, o card, o relatório ou a lista de
+presença, a pontuação do evento é **zerada**, e o motivo da zeragem deve ficar
+explicado.
+
+Efeito no cálculo: **resolve a pendência P1** para o caso da ausência — prevalece
+a segunda parte do item 5.9.11 ("obrigatoriamente todos devem ser enviados para
+que o evento seja válido"). A zeragem incide sobre o EVENTO, não sobre o item.
+Aplica-se a: todas as equipes, em todas as etapas.
+
+**Documento que a plataforma não entrega não é documento não inserido.** Nos
+quatro casos de erro 500 do CDN (lista de Goiás, relatório de Padre Bernardo,
+relatório de Itajá e card de Montividiu do Norte) o grupo inseriu; quem falha é o
+servidor. Esses itens seguem pendentes, e não zerados — ver
+`pendencias-plataforma.md`.
+
+### D4 — Card sem qualquer das informações do 5.9.8.3 não pontua
+
+Decidido por: Diretoria do Concurso
+Data: 2026-08-28
+Origem: orientação repassada à Banca 01, com o exemplo do card de Vianópolis
+
+Decisão: o item 5.9.8.3 I se lê ao pé da letra. O card deve trazer nome do
+evento, local, data, horário, palestrantes quando houver e a logomarca oficial do
+grupo; nas ações com arrecadação, também data de início e término da arrecadação,
+local e horário de recebimento. Faltando qualquer uma, **não há ponto**.
+
+Efeito no cálculo: confirma a régua que a banca vinha aplicando, inclusive no
+caso citado (campanha de arrecadação de Vianópolis, card sem horário).
+Aplica-se a: todas as equipes, em todas as etapas.
+
+---
+
+## Pendência aberta por esta rodada
+
+### P7 — A zeragem da D3 alcança o documento INCOMPLETO?
+
+A D3 trata do documento **não inserido**. A D4 trata do card **inserido e
+incompleto** e diz "não tem ponto" — leitura natural: o card perde os seus pontos,
+e o evento conserva os demais.
+
+Se a intenção for outra — documento que não atende equivale a documento não
+inserido, e portanto zera o evento —, o efeito é grande: na 1ª Ação Social, as 31
+equipes com card irregular passariam de 8 para **0 pontos**.
+
+Enquanto não houver resposta, o cálculo segue a leitura natural (o item perde os
+seus pontos) e as equipes afetadas ficam marcadas na saída. As respostas Sim/Não
+de cada item **não mudam** com essa definição — muda só a soma.

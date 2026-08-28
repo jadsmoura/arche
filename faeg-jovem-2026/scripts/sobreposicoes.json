@@ -1,9 +1,16 @@
 {
-  "goias": {
-    "lista": {
-      "resposta": "Pendente",
-      "justificativa": "DECISÃO DO AVALIADOR, NÃO LANÇAR AINDA. A ação é um Festival de Receitas — um dos eventos em que o item 5.9.8.2 V admite a Declaração do Senar/AR-GO no lugar da lista de presença —, e foi exatamente esse o documento anexado pelo grupo ('Declaração Faeg Jovem - FRC Goias.pdf'). O arquivo, porém, NÃO É ENTREGUE pelo servidor de documentos (erro 500), de modo que cabeçalho, conteúdo e assinatura não puderam ser conferidos. Marcar 'Não' retiraria 2 pontos de quem anexou o documento certo; marcar 'Sim' afirmaria a conformidade de um documento que ninguém leu. Encaminhamento: pedir ao Senar/AR-GO a recuperação do arquivo (ou o reenvio pela equipe) e, conferida a declaração, lançar 'Sim'.",
-      "revisado": "pendência da plataforma — o avaliador manteve o item em aberto; ver pendencias-plataforma.md"
-    }
+ "goias": {
+  "lista": {
+   "resposta": "Pendente",
+   "justificativa": "DECISÃO DO AVALIADOR, NÃO LANÇAR AINDA. A ação é um Festival de Receitas — um dos eventos em que o item 5.9.8.2 V admite a Declaração do Senar/AR-GO no lugar da lista de presença —, e foi exatamente esse o documento anexado pelo grupo ('Declaração Faeg Jovem - FRC Goias.pdf'). O arquivo, porém, NÃO É ENTREGUE pelo servidor de documentos (erro 500), de modo que cabeçalho, conteúdo e assinatura não puderam ser conferidos. Marcar 'Não' retiraria 2 pontos de quem anexou o documento certo; marcar 'Sim' afirmaria a conformidade de um documento que ninguém leu. Encaminhamento: pedir ao Senar/AR-GO a recuperação do arquivo (ou o reenvio pela equipe) e, conferida a declaração, lançar 'Sim'.",
+   "revisado": "pendência da plataforma — o avaliador manteve o item em aberto; ver pendencias-plataforma.md"
   }
+ },
+ "mutunopolis": {
+  "lista": {
+   "resposta": "Sim",
+   "justificativa": "A lista traz cabeçalho completo e, nas 11 linhas preenchidas, nome e telefone de cada participante, atendendo ao item 5.9.8.2. O documento foi preenchido por digitação e não traz rubrica manuscrita — o que, pela decisão da diretoria de 28/08/2026 (D1), deixou de ser exigência: a lista se confere pelo conteúdo, não pela assinatura.",
+   "revisado": "revisto pela decisão D1 da diretoria — a assinatura deixou de ser exigida"
+  }
+ }
 }
