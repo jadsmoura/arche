@@ -11,7 +11,10 @@ const {
 } = require('docx')
 
 const BASE = __dirname
-const DIR_AVAL = path.join(BASE, 'avaliacoes')
+const DIR_CONS = path.join(BASE, 'consolidado')
+const DIR_AVAL = fs.existsSync(DIR_CONS) && fs.readdirSync(DIR_CONS).some(f => f.endsWith('.json'))
+  ? DIR_CONS
+  : path.join(BASE, 'avaliacoes')
 const SAIDA = process.argv[2] || path.join(BASE, 'Avaliacao_1a_Acao_Social_Banca01.docx')
 const DATA_GERACAO = process.argv[3] || '28/08/2026'
 
@@ -82,7 +85,7 @@ const avaliacoes = lista(DIR_AVAL).map(f => {
 })
 
 const nRevistos = avaliacoes.reduce((n, a) => n + a.itens.filter(i => i.revisado).length, 0)
-console.log(`camadas aplicadas: ${Object.keys(verif).length} equipes com veredito, ${Object.keys(reaval).length} com reavaliação, ${nRevistos} itens revistos`)
+console.log(`fonte: ${path.basename(DIR_AVAL)}/ · ${Object.keys(verif).length} equipes com veredito em disco, ${Object.keys(reaval).length} com reavaliação, ${nRevistos} itens revistos`)
 
 // ordena pelo nome da equipe, como na plataforma
 avaliacoes.sort((a, b) => {

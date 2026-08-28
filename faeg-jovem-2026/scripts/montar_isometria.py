@@ -11,25 +11,13 @@ CRITERIOS = [
 
 so = sys.argv[1:] or None   # opcional: rodar só alguns critérios
 
-def verif(slug):
-    p = f'verificacoes/{slug}.json'
-    return (json.load(open(p))['vereditos'] if os.path.exists(p) else [])
-
+FONTE = 'consolidado' if glob.glob('consolidado/*.json') else 'avaliacoes'
 regs = []
-for a in sorted(glob.glob('avaliacoes/*.json')):
+for a in sorted(glob.glob(f'{FONTE}/*.json')):
     d = json.load(open(a))
-    v = verif(d['slug'])
-    itens = {}
-    for it in d['itens']:
-        resp, just = it['resposta'], it['justificativa']
-        ver = next((x for x in v if x.get('id') == it['id']), None)
-        if resp == 'Não' and ver:
-            if ver.get('mantem_nao') is False:
-                resp, just = 'Sim', ver.get('razao') or just
-            elif ver.get('justificativa_corrigida'):
-                just = ver['justificativa_corrigida']
-        itens[it['id']] = (resp, just)
+    itens = {it['id']: (it['resposta'], it['justificativa']) for it in d['itens']}
     regs.append((d['slug'], itens))
+print(f'fonte: {FONTE}/ ({len(regs)} equipes)')
 
 os.makedirs('isometria', exist_ok=True)
 BASE = os.getcwd()
@@ -53,7 +41,7 @@ obs_path = os.path.join(BASE, 'isometria', 'observacoes.txt')
 n_obs = 0
 with open(obs_path, 'w') as fh:
     fh.write('# Observações registradas pelos avaliadores, por equipe\n\n')
-    for a in sorted(glob.glob('avaliacoes/*.json')):
+    for a in sorted(glob.glob(f'{FONTE}/*.json')):
         d = json.load(open(a))
         o = (d.get('observacoes') or '').strip()
         if not o: continue
