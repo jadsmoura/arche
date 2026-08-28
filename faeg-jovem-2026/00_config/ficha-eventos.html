@@ -1,0 +1,895 @@
+<title>Ficha do Avaliador Faeg Jovem</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap">
+
+<style>
+  :root {
+    --ground: #f4f3ec;
+    --surface: #ffffff;
+    --surface-2: #eceade;
+    --line: #dcd9c9;
+    --line-soft: #e8e5d8;
+    --ink: #1b1e19;
+    --muted: #6a6d60;
+    --accent: #1e4034;
+    --accent-soft: #e2ece5;
+    --accent-line: #b9cfc1;
+    --ok: #2f6a44;
+    --ok-bg: #e4efe6;
+    --warn: #9a6708;
+    --warn-bg: #f6eddb;
+    --bad: #93331f;
+    --bad-bg: #f6e5df;
+    --shadow: 0 1px 2px rgba(27, 30, 25, .06), 0 8px 24px -18px rgba(27, 30, 25, .5);
+
+    --f-display: "Bitter", Georgia, "Times New Roman", serif;
+    --f-body: "Source Sans 3", "Segoe UI", Helvetica, Arial, sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #141613;
+      --surface: #1c201b;
+      --surface-2: #232823;
+      --line: #333a32;
+      --line-soft: #272d27;
+      --ink: #e9e8df;
+      --muted: #9a9d90;
+      --accent: #8ec4a4;
+      --accent-soft: #1f2b24;
+      --accent-line: #37503f;
+      --ok: #7fbd92;
+      --ok-bg: #1d2b21;
+      --warn: #d5a24a;
+      --warn-bg: #2e2617;
+      --bad: #d98b74;
+      --bad-bg: #2f1e19;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px -20px rgba(0, 0, 0, .9);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #141613;
+    --surface: #1c201b;
+    --surface-2: #232823;
+    --line: #333a32;
+    --line-soft: #272d27;
+    --ink: #e9e8df;
+    --muted: #9a9d90;
+    --accent: #8ec4a4;
+    --accent-soft: #1f2b24;
+    --accent-line: #37503f;
+    --ok: #7fbd92;
+    --ok-bg: #1d2b21;
+    --warn: #d5a24a;
+    --warn-bg: #2e2617;
+    --bad: #d98b74;
+    --bad-bg: #2f1e19;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px -20px rgba(0, 0, 0, .9);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: 2.25rem 1.25rem 5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+  }
+
+  /* ---------- cabeçalho ---------- */
+
+  .top { display: flex; flex-direction: column; gap: .75rem; }
+
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: .7rem;
+    font-weight: 500;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: clamp(1.75rem, 1.2rem + 2vw, 2.6rem);
+    line-height: 1.12;
+    letter-spacing: -.015em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .lede {
+    margin: 0;
+    max-width: 60ch;
+    color: var(--muted);
+    font-size: 1.05rem;
+  }
+
+  .lote {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: .25rem;
+  }
+
+  .lote span {
+    font-family: var(--f-mono);
+    font-size: .8rem;
+    font-weight: 500;
+    padding: .3rem .6rem;
+    border: 1px solid var(--accent-line);
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 2px;
+  }
+
+  /* ---------- seções ---------- */
+
+  section { display: flex; flex-direction: column; gap: 1rem; }
+
+  h2 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 1.4rem;
+    letter-spacing: -.01em;
+    margin: 0;
+    padding-bottom: .5rem;
+    border-bottom: 2px solid var(--accent);
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 1.05rem;
+    margin: 0;
+  }
+
+  p { margin: 0; max-width: 68ch; }
+  .note { color: var(--muted); font-size: .93rem; }
+
+  /* ---------- calculadora ---------- */
+
+  .calc {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .calc-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 1rem 1.25rem;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+  }
+
+  fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
+  legend { padding: 0; }
+
+  .lbl {
+    font-family: var(--f-mono);
+    font-size: .68rem;
+    font-weight: 500;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .seg { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 2px; overflow: hidden; }
+
+  .seg button {
+    font-family: var(--f-body);
+    font-size: .9rem;
+    font-weight: 600;
+    padding: .4rem .85rem;
+    border: 0;
+    border-right: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--ground); }
+  .seg button:hover:not([aria-pressed="true"]) { background: var(--surface-2); color: var(--ink); }
+
+  .num { display: flex; align-items: center; gap: .5rem; }
+
+  input[type="number"] {
+    font-family: var(--f-mono);
+    font-size: .95rem;
+    font-variant-numeric: tabular-nums;
+    width: 5.5rem;
+    padding: .35rem .5rem;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    background: var(--surface);
+    color: var(--ink);
+  }
+
+  .check { display: flex; align-items: center; gap: .45rem; font-size: .93rem; cursor: pointer; }
+  .check input { accent-color: var(--accent); width: 1rem; height: 1rem; }
+
+  /* linhas de documento */
+
+  .doc {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: .5rem 1.25rem;
+    align-items: start;
+    padding: .9rem 1.25rem;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .doc:last-of-type { border-bottom: 0; }
+
+  .doc-id { display: flex; flex-direction: column; gap: .15rem; }
+  .doc-id strong { font-weight: 600; font-size: 1rem; }
+  .doc-id code {
+    font-family: var(--f-mono);
+    font-size: .74rem;
+    color: var(--muted);
+    letter-spacing: .02em;
+  }
+
+  .states { display: flex; flex-wrap: wrap; gap: .35rem; }
+
+  .states button {
+    font-family: var(--f-body);
+    font-size: .82rem;
+    font-weight: 600;
+    padding: .3rem .6rem;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .states button:hover { border-color: var(--muted); color: var(--ink); }
+  .states button[aria-pressed="true"][data-state="ok"]   { background: var(--ok-bg);   color: var(--ok);   border-color: var(--ok); }
+  .states button[aria-pressed="true"][data-state="just"] { background: var(--ok-bg);   color: var(--ok);   border-color: var(--ok); }
+  .states button[aria-pressed="true"][data-state="pend"] { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+  .states button[aria-pressed="true"][data-state="nao"]  { background: var(--bad-bg);  color: var(--bad);  border-color: var(--bad); }
+
+  .motivo {
+    grid-column: 1 / -1;
+    font-family: var(--f-body);
+    font-size: .9rem;
+    width: 100%;
+    padding: .4rem .55rem;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+  .motivo::placeholder { color: var(--muted); }
+
+  /* resultado */
+
+  .resultado {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border-top: 1px solid var(--line);
+  }
+
+  .cel { background: var(--surface-2); padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: .2rem; }
+  .cel .lbl { margin-bottom: .1rem; }
+  .cel .val {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 2rem;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .cel .sub { font-size: .85rem; color: var(--muted); }
+  .cel.destaque .val { color: var(--accent); }
+  .cel.alerta { background: var(--warn-bg); }
+  .cel.alerta .val { color: var(--warn); }
+
+  .barra {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    align-items: center;
+    padding: .85rem 1.25rem;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  .btn {
+    font-family: var(--f-body);
+    font-size: .88rem;
+    font-weight: 600;
+    padding: .45rem .9rem;
+    border: 1px solid var(--accent);
+    border-radius: 2px;
+    background: var(--accent);
+    color: var(--ground);
+    cursor: pointer;
+  }
+  .btn.ghost { background: transparent; color: var(--accent); }
+  .btn:hover { filter: brightness(1.08); }
+
+  .registro {
+    font-family: var(--f-mono);
+    font-size: .82rem;
+    line-height: 1.5;
+    width: 100%;
+    min-height: 7rem;
+    padding: .7rem .8rem;
+    border: 1px solid var(--line);
+    border-top: 0;
+    background: var(--surface-2);
+    color: var(--ink);
+    resize: vertical;
+  }
+
+  /* ---------- exigências ---------- */
+
+  .cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 2px;
+    padding: 1.1rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+  }
+
+  .card code {
+    font-family: var(--f-mono);
+    font-size: .72rem;
+    letter-spacing: .06em;
+    color: var(--muted);
+  }
+
+  ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: .35rem; }
+  li { font-size: .95rem; }
+  li::marker { color: var(--accent); }
+
+  .perde {
+    margin-top: .2rem;
+    padding-top: .6rem;
+    border-top: 1px dashed var(--line);
+    font-size: .88rem;
+    color: var(--muted);
+  }
+  .perde b { color: var(--bad); font-weight: 600; }
+
+  /* ---------- tabelas ---------- */
+
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 2px; background: var(--surface); }
+
+  table { border-collapse: collapse; width: 100%; font-size: .93rem; }
+  caption { text-align: left; padding: .75rem 1rem; color: var(--muted); font-size: .88rem; border-bottom: 1px solid var(--line); }
+  th, td { padding: .55rem .85rem; text-align: left; border-bottom: 1px solid var(--line-soft); }
+  th {
+    font-family: var(--f-mono);
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  td.n { font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tr.total td { font-weight: 700; background: var(--surface-2); }
+
+  /* ---------- pendências ---------- */
+
+  .pend {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn);
+    border-radius: 2px;
+    padding: 1.1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: .7rem;
+  }
+  .pend h3 { color: var(--warn); }
+  .pend .item { display: flex; gap: .7rem; align-items: baseline; }
+  .pend .tag {
+    font-family: var(--f-mono);
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--warn);
+    border: 1px solid var(--warn);
+    padding: .05rem .35rem;
+    border-radius: 2px;
+    flex: none;
+  }
+
+  .aviso {
+    border-left: 3px solid var(--bad);
+    background: var(--bad-bg);
+    padding: .9rem 1.1rem;
+    border-radius: 2px;
+    font-size: .95rem;
+  }
+  .aviso strong { color: var(--bad); }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 1.25rem;
+    color: var(--muted);
+    font-size: .88rem;
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+  }
+
+  @media (max-width: 34rem) {
+    .doc { grid-template-columns: 1fr; }
+    .calc-head { gap: 1rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="top">
+    <div class="eyebrow">Concurso Faeg Jovem · 8ª Edição/2026 · Etapa Regional · Banca 01</div>
+    <h1>Ficha de conferência dos eventos</h1>
+    <p class="lede">A régua da Atividade 4, documento a documento, com o item do edital de cada exigência. Mesma régua para todas as equipes — o que muda entre elas é o que está no documento.</p>
+    <div class="lote">
+      <span>1º envio · até 28/05</span>
+      <span>1ET</span>
+      <span>1ES</span>
+      <span>2ES</span>
+      <span>1AS</span>
+      <span>avaliar até 31/08</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>Conferir um evento</h2>
+    <p class="note">Marque o estado de cada documento; a pontuação sai nas duas leituras possíveis do item 5.9.11 — a que este trabalho ainda precisa ver decidida. Nada é gravado: ao trocar de evento, use <em>Limpar</em>.</p>
+
+    <div class="calc">
+      <div class="calc-head">
+        <fieldset>
+          <legend class="lbl">Tipo do evento</legend>
+          <div class="seg" id="tipo">
+            <button type="button" data-tipo="tecnico" aria-pressed="true">Técnico</button>
+            <button type="button" data-tipo="saude" aria-pressed="false">Saúde</button>
+            <button type="button" data-tipo="social" aria-pressed="false">Ação social</button>
+          </div>
+        </fieldset>
+
+        <fieldset id="box-publico">
+          <legend class="lbl">Público (bonificação só do técnico)</legend>
+          <div class="num">
+            <label class="check" style="gap:.4rem">
+              <span class="note">assinaturas válidas</span>
+              <input type="number" id="assinaturas" min="0" step="1" value="0">
+            </label>
+            <label class="check" style="gap:.4rem">
+              <span class="note">menores no rodapé</span>
+              <input type="number" id="menores" min="0" step="1" value="0">
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset id="box-bonus">
+          <legend class="lbl">Características</legend>
+          <div class="num" style="gap:1rem">
+            <label class="check"><input type="checkbox" id="independente"> sem recursos do Senar</label>
+            <label class="check"><input type="checkbox" id="doisdias"> 2 dias ou mais</label>
+          </div>
+        </fieldset>
+      </div>
+
+      <div id="docs"></div>
+
+      <div class="resultado">
+        <div class="cel destaque">
+          <span class="lbl">Leitura proporcional</span>
+          <span class="val" id="v-prop">0</span>
+          <span class="sub" id="s-prop">perde só o ponto do documento</span>
+        </div>
+        <div class="cel">
+          <span class="lbl">Leitura de invalidação</span>
+          <span class="val" id="v-inval">0</span>
+          <span class="sub">documento faltando zera o evento</span>
+        </div>
+        <div class="cel" id="cel-publico">
+          <span class="lbl">Público contado</span>
+          <span class="val" id="v-pub">0</span>
+          <span class="sub" id="s-pub">só assinaturas válidas</span>
+        </div>
+      </div>
+
+      <div class="barra">
+        <button class="btn" type="button" id="gerar">Gerar registro da avaliação</button>
+        <button class="btn ghost" type="button" id="limpar">Limpar</button>
+        <span class="note" id="aviso-copia"></span>
+      </div>
+      <textarea class="registro" id="registro" readonly placeholder="O registro aparece aqui, com o item do edital de cada recusa — é ele que sustenta a resposta ao recurso em outubro."></textarea>
+    </div>
+  </section>
+
+  <section>
+    <h2>O que cada documento precisa trazer</h2>
+    <div class="cards">
+
+      <article class="card">
+        <code>5.9.8.1 · Anexo I, sem modificação (5.9.9)</code>
+        <h3>Relatório do evento</h3>
+        <ul>
+          <li>Cabeçalho inteiro preenchido, sem rasura e sem recorte.</li>
+          <li>Descreve objetivos, participação do grupo, ações realizadas, público, parcerias e palestrantes quando houver.</li>
+          <li>Assinatura do coordenador do grupo em uma de três formas: manual, certificado digital ou gov.br.</li>
+        </ul>
+        <p class="perde"><b>Perde os pontos</b> se faltar um dos blocos descritivos, se o cabeçalho vier incompleto ou rasurado, ou se a assinatura for de outro tipo — imagem colada, fonte cursiva digitada, rubrica de terceiro.</p>
+      </article>
+
+      <article class="card">
+        <code>5.9.8.2</code>
+        <h3>Lista de presença</h3>
+        <ul>
+          <li>Cabeçalho inteiro preenchido, sem rasura e sem recorte.</li>
+          <li>Assinada pelo próprio participante — sem passar a limpo, sem letras iguais.</li>
+          <li>Nome completo <em>e</em> telefone: linha sem telefone não conta no somatório.</li>
+          <li>Uma lista por evento, qualquer que seja o número de dias; assinatura duplicada sai da contagem.</li>
+          <li>Menores não são identificados: o responsável pela instituição atesta o número deles no rodapé, com carimbo ou gov.br.</li>
+        </ul>
+        <p class="perde"><b>Não se cobra lista</b> no Campo Saúde, no Festival de Receitas e no Dia de Campo realizados pelo Senar/AR-GO — ali vale a declaração de participação com o número de presentes (V). Na <b>ação social</b>, valem as assinaturas dos envolvidos: membros do grupo, recebedores e parceiros (5.9.12).</p>
+      </article>
+
+      <article class="card">
+        <code>5.9.8.3</code>
+        <h3>Card de divulgação</h3>
+        <ul>
+          <li>Nome do evento, local de realização, data e horário.</li>
+          <li>Nome dos palestrantes, quando houver.</li>
+          <li>Logomarca oficial do grupo Faeg Jovem fornecida pelo Senar Goiás.</li>
+        </ul>
+        <p class="perde">Em ação com arrecadação de itens, o card ainda precisa trazer <b>data de início e término da arrecadação, local e horário de recebimento</b>. A ausência de qualquer uma dessas informações derruba o documento.</p>
+      </article>
+
+      <article class="card">
+        <code>5.9.8.4 · redação alterada pela Retificação nº 01</code>
+        <h3>Fotos</h3>
+        <ul>
+          <li>Representativas do evento, com data, hora e localização.</li>
+          <li>Evento de mais de um dia exige fotos de todos os dias.</li>
+        </ul>
+        <p class="perde">O texto original pede <b>endereço completo do local</b>; a Retificação nº 01 passou a exigir <b>coordenadas geográficas</b>, dispensando as ações anteriores. A Retificação nº 01 não está no acervo — confirme a redação vigente antes de recusar por esse motivo. Foto que passou por aplicativo de mensagem chega sem metadado: confira o carimbo na própria imagem.</p>
+      </article>
+
+      <article class="card">
+        <code>5.9.8.5</code>
+        <h3>Divulgação em redes sociais</h3>
+        <ul>
+          <li>Um link de publicação no perfil de Instagram do grupo.</li>
+          <li>A publicação relata o evento e traz fotos da execução.</li>
+        </ul>
+        <p class="perde">Link para o <b>card de anúncio</b>, publicado antes do evento, não é relato de execução — e é o caso mais comum de documento entregue que não atende.</p>
+      </article>
+
+      <article class="card">
+        <code>Retificação nº 02, itens III a IX</code>
+        <h3>Eventos com menores</h3>
+        <ul>
+          <li>Fotos e divulgação podem ser flexibilizadas: imagens coletivas, ângulo aberto, foco na atividade, desfoque, distância.</li>
+          <li>Não sendo possível o registro, o grupo apresenta justificativa formal <em>no relatório</em> do evento.</li>
+          <li>A comprovação pode vir por declaração institucional assinada e carimbada, anexada ao relatório.</li>
+        </ul>
+        <p class="perde">Ausência <b>justificada</b> não implica prejuízo na pontuação (item VII) — é o que o estado <em>Justificada</em> aplica na conferência acima. Havendo menor identificado, exige-se o Termo de Consentimento Parental do Anexo I.</p>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>Antes de pontuar</h2>
+    <div class="cards">
+      <article class="card">
+        <code>5.9.13 · 5.9.1</code>
+        <h3>Presencial e dentro da janela</h3>
+        <p>Só evento presencial pontua. A data precisa cair entre <strong>03/09/2025 e 27/08/2026</strong>.</p>
+      </article>
+      <article class="card">
+        <code>5.9.2 · 5.9.3 · 5.9.5 · 5.9.4</code>
+        <h3>O tipo está certo?</h3>
+        <p>Técnico é dia de campo, palestra, workshop, seminário, congresso, simpósio, plantio com contextualização técnica e temas de liderança, empreendedorismo e sucessão ligados ao agronegócio. Saúde é o ligado à temática vigente e seus subtemas. Ação social é arrecadação, doação, projeto educacional ou cultural em comunidade carente, cavalgada, evento culinário. <strong>Só entrega de material gráfico não é evento</strong>, ainda que o panfleto traga informação técnica.</p>
+      </article>
+      <article class="card">
+        <code>Quadro 1</code>
+        <h3>Programas do Senar têm tipo fixo</h3>
+        <p>Dia de Campo Senar Mais, Encontro de Produtores Assistidos ATeG e Semana Senar são <strong>técnicos</strong>. Campo Saúde é <strong>saúde</strong>. Festival de Receitas do Campo é <strong>ação social</strong>. Evento fora do quadro é tratado pontualmente pela coordenação (5.9.7).</p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2>As tabelas</h2>
+
+    <div class="scroll">
+      <table>
+        <caption>Tabela 1 — pontuação por documento. Cada documento vale cheio ou zero; a unidade da penalidade é o documento, não o defeito.</caption>
+        <thead>
+          <tr><th>Tipo</th><th>Relatório</th><th>Lista</th><th>Card</th><th>Fotos</th><th>Divulgação</th><th>Base</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Técnico</td><td class="n">3</td><td class="n">3</td><td class="n">3</td><td class="n">3</td><td class="n">3</td><td class="n"><strong>15</strong></td></tr>
+          <tr><td>Saúde</td><td class="n">3</td><td class="n">3</td><td class="n">3</td><td class="n">3</td><td class="n">3</td><td class="n"><strong>15</strong></td></tr>
+          <tr><td>Ação social</td><td class="n">2</td><td class="n">2</td><td class="n">2</td><td class="n">2</td><td class="n">2</td><td class="n"><strong>10</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <caption>Tabela 2 — bonificação, <strong>só evento técnico</strong> (5.9.15). As faixas de público somam entre si: 100 presentes rendem +15.</caption>
+        <thead>
+          <tr><th>Condição</th><th>Bônus</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Público ≥ 30</td><td class="n">+5</td></tr>
+          <tr><td>Público ≥ 60</td><td class="n">+5</td></tr>
+          <tr><td>Público ≥ 100</td><td class="n">+5</td></tr>
+          <tr><td>Independência — realizado sem recursos do Senar/AR-GO</td><td class="n">+5</td></tr>
+          <tr><td>Duração de 2 dias consecutivos ou mais</td><td class="n">+5</td></tr>
+          <tr class="total"><td>Teto do técnico independente</td><td class="n">40</td></tr>
+          <tr class="total"><td>Teto do técnico dependente</td><td class="n">35</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="note">Evento de saúde e ação social não recebem bonificação nenhuma — nem por público, nem por duração, nem por independência.</p>
+  </section>
+
+  <section>
+    <h2>O que ainda depende da coordenação</h2>
+
+    <div class="aviso">
+      <strong>Enquanto a P1 estiver aberta, marque o evento em vez de fechá-lo.</strong> Critério novo aplicado só às equipes restantes destrói a isometria: se a orientação vier depois, é preciso reavaliar todas as equipes já pontuadas.
+    </div>
+
+    <div class="pend">
+      <h3>Quatro perguntas para a reunião</h3>
+      <div class="item"><span class="tag">P1</span><p>Documento faltante faz perder os pontos <em>dele</em>, ou invalida o evento inteiro? O item 5.9.11 diz as duas coisas na mesma frase. Um técnico com 120 presentes, independente, sem o card: <strong>37 pontos</strong> por uma leitura, <strong>zero</strong> pela outra.</p></div>
+      <div class="item"><span class="tag">P3</span><p>Qual a data de publicação da Retificação nº 02? Ela decide quais eventos com menores entram na flexibilização (item VIII). A cópia distribuída não traz data no texto; o metadado do PDF indica 15/05/2026, mas metadado não é publicação.</p></div>
+      <div class="item"><span class="tag">P4</span><p>Os menores atestados no rodapé da lista entram na contagem de público para a bonificação do técnico? Muda a faixa de bônus, e evento em escola é o formato mais comum no tema saúde.</p></div>
+      <div class="item"><span class="tag">P8</span><p>ES é <strong>Evento de Saúde</strong> e AS é <strong>Ação Social</strong>? A composição dos lotes do item 8.2 indica que sim, e os rótulos por extenso da mensagem parecem trocados. Saúde vale 15, social vale 10, e só o técnico bonifica.</p></div>
+    </div>
+  </section>
+
+  <footer>
+    <p><strong>Dado pessoal não sai daqui.</strong> As listas trazem nome completo e telefone; o Anexo I da Retificação nº 02 traz CPF, RG e data de nascimento de menores. Trabalhe com contagens — "47 assinaturas válidas, 6 menores atestados" — e, para apontar um problema, use o número da linha, nunca o nome.</p>
+    <p>Fonte: Edital da Etapa Regional do Concurso Faeg Jovem 8ª Edição/2026, Comunicado nº 01/2026 e Retificação nº 02/2026. A Retificação nº 01 não foi conferida — não está no acervo.</p>
+  </footer>
+
+</div>
+
+<script>
+  var DOCS = [
+    { id: "relatorio",  nome: "Relatório do evento",       item: "5.9.8.1", just: false },
+    { id: "lista",      nome: "Lista de presença",         item: "5.9.8.2", just: false },
+    { id: "card",       nome: "Card de divulgação",        item: "5.9.8.3", just: false },
+    { id: "fotos",      nome: "Fotos",                     item: "5.9.8.4", just: true  },
+    { id: "divulgacao", nome: "Divulgação em redes sociais", item: "5.9.8.5", just: true }
+  ];
+
+  var ESTADOS = [
+    { k: "ok",   r: "Atende" },
+    { k: "pend", r: "Em dúvida" },
+    { k: "nao",  r: "Não atende" },
+    { k: "just", r: "Justificada (Ret. 02)" }
+  ];
+
+  var estado = {};
+  var motivos = {};
+  var tipo = "tecnico";
+
+  var elDocs = document.getElementById("docs");
+  var elTipo = document.getElementById("tipo");
+  var elReg = document.getElementById("registro");
+  var elAviso = document.getElementById("aviso-copia");
+
+  function pontoPorDoc() { return tipo === "social" ? 2 : 3; }
+
+  function montarDocs() {
+    elDocs.innerHTML = "";
+    DOCS.forEach(function (d) {
+      var linha = document.createElement("div");
+      linha.className = "doc";
+
+      var ident = document.createElement("div");
+      ident.className = "doc-id";
+      var nome = document.createElement("strong");
+      nome.textContent = d.nome;
+      var cod = document.createElement("code");
+      cod.textContent = "item " + d.item + " · " + pontoPorDoc() + " pontos";
+      ident.appendChild(nome);
+      ident.appendChild(cod);
+
+      var botoes = document.createElement("div");
+      botoes.className = "states";
+      ESTADOS.forEach(function (e) {
+        if (e.k === "just" && !d.just) return;
+        var b = document.createElement("button");
+        b.type = "button";
+        b.dataset.state = e.k;
+        b.textContent = e.r;
+        b.setAttribute("aria-pressed", estado[d.id] === e.k ? "true" : "false");
+        b.addEventListener("click", function () {
+          estado[d.id] = estado[d.id] === e.k ? null : e.k;
+          montarDocs();
+          calcular();
+        });
+        botoes.appendChild(b);
+      });
+
+      linha.appendChild(ident);
+      linha.appendChild(botoes);
+
+      if (estado[d.id] === "nao" || estado[d.id] === "pend") {
+        var mot = document.createElement("input");
+        mot.type = "text";
+        mot.className = "motivo";
+        mot.placeholder = "O que faltava — ex.: card sem horário de realização";
+        mot.value = motivos[d.id] || "";
+        mot.addEventListener("input", function () { motivos[d.id] = mot.value; });
+        linha.appendChild(mot);
+      }
+
+      elDocs.appendChild(linha);
+    });
+  }
+
+  function publico() {
+    var a = parseInt(document.getElementById("assinaturas").value, 10) || 0;
+    var m = parseInt(document.getElementById("menores").value, 10) || 0;
+    return { assinaturas: a, menores: m, total: a + m };
+  }
+
+  function bonus() {
+    if (tipo !== "tecnico") return { pontos: 0, itens: [] };
+    var p = publico().total, itens = [], soma = 0;
+    if (p >= 30)  { soma += 5; itens.push("público ≥ 30"); }
+    if (p >= 60)  { soma += 5; itens.push("público ≥ 60"); }
+    if (p >= 100) { soma += 5; itens.push("público ≥ 100"); }
+    if (document.getElementById("independente").checked) { soma += 5; itens.push("independência"); }
+    if (document.getElementById("doisdias").checked)     { soma += 5; itens.push("2 dias ou mais"); }
+    return { pontos: soma, itens: itens };
+  }
+
+  function calcular() {
+    var vale = pontoPorDoc();
+    var b = bonus();
+    var base = 0, faltando = 0, emDuvida = 0;
+
+    DOCS.forEach(function (d) {
+      var e = estado[d.id];
+      if (e === "ok" || e === "just") base += vale;
+      else if (e === "nao") faltando++;
+      else if (e === "pend") emDuvida++;
+      else faltando++;
+    });
+
+    var prop = base + b.pontos;
+    var inval = faltando > 0 ? 0 : base + b.pontos;
+
+    document.getElementById("v-prop").textContent = prop;
+    document.getElementById("v-inval").textContent = inval;
+
+    var sub = faltando === 0
+      ? "documentação completa — as duas leituras coincidem"
+      : faltando + (faltando === 1 ? " documento não atende" : " documentos não atendem");
+    if (emDuvida > 0) sub += " · " + emDuvida + " em dúvida";
+    document.getElementById("s-prop").textContent = sub;
+
+    var pb = publico();
+    document.getElementById("v-pub").textContent = tipo === "tecnico" ? pb.total : "—";
+    document.getElementById("s-pub").textContent = tipo !== "tecnico"
+      ? "só o técnico bonifica"
+      : (pb.menores > 0
+          ? pb.assinaturas + " assinaturas + " + pb.menores + " menores · P4 em aberto"
+          : "só assinaturas válidas");
+    document.getElementById("cel-publico").classList.toggle("alerta", tipo === "tecnico" && pb.menores > 0);
+
+    var mostraBonus = tipo === "tecnico";
+    document.getElementById("box-publico").style.display = mostraBonus ? "" : "none";
+    document.getElementById("box-bonus").style.display = mostraBonus ? "" : "none";
+  }
+
+  function gerarRegistro() {
+    var vale = pontoPorDoc();
+    var b = bonus();
+    var rotulo = { tecnico: "Evento técnico", saude: "Evento de saúde", social: "Ação social" }[tipo];
+    var l = [rotulo + " — conferência documental (Atividade 4)", ""];
+
+    DOCS.forEach(function (d) {
+      var e = estado[d.id] || "nao";
+      var marca = { ok: "atende", just: "ausência justificada (Ret. 02, VII)", pend: "EM DÚVIDA", nao: "NÃO ATENDE" }[e];
+      var ganho = (e === "ok" || e === "just") ? vale : 0;
+      var linha = "- " + d.nome + " (" + d.item + "): " + marca + " — " + ganho + "/" + vale;
+      if ((e === "nao" || e === "pend") && motivos[d.id]) linha += ". " + motivos[d.id];
+      l.push(linha);
+    });
+
+    if (tipo === "tecnico") {
+      var pb = publico();
+      l.push("");
+      l.push("Público contado: " + pb.total + (pb.menores > 0 ? " (" + pb.assinaturas + " assinaturas válidas + " + pb.menores + " menores atestados no rodapé — ver P4)" : " assinaturas válidas"));
+      l.push("Bonificação: " + (b.itens.length ? b.itens.join(", ") + " = +" + b.pontos : "nenhuma"));
+    }
+
+    var faltando = DOCS.filter(function (d) { return estado[d.id] !== "ok" && estado[d.id] !== "just"; }).length;
+    l.push("");
+    l.push("Pontuação pela leitura proporcional: " + (document.getElementById("v-prop").textContent));
+    l.push("Pontuação pela leitura de invalidação: " + (document.getElementById("v-inval").textContent));
+    if (faltando > 0) l.push("PENDENTE P1 — as duas leituras do item 5.9.11 divergem neste evento.");
+
+    elReg.value = l.join("\n");
+  }
+
+  elTipo.addEventListener("click", function (ev) {
+    var b = ev.target.closest("button");
+    if (!b) return;
+    tipo = b.dataset.tipo;
+    Array.prototype.forEach.call(elTipo.querySelectorAll("button"), function (x) {
+      x.setAttribute("aria-pressed", x === b ? "true" : "false");
+    });
+    montarDocs();
+    calcular();
+  });
+
+  ["assinaturas", "menores", "independente", "doisdias"].forEach(function (id) {
+    document.getElementById(id).addEventListener("input", calcular);
+  });
+
+  document.getElementById("gerar").addEventListener("click", function () {
+    gerarRegistro();
+    elReg.focus();
+    elReg.select();
+    elAviso.textContent = "Registro pronto e selecionado — copie com Ctrl+C.";
+  });
+
+  document.getElementById("limpar").addEventListener("click", function () {
+    estado = {};
+    motivos = {};
+    document.getElementById("assinaturas").value = 0;
+    document.getElementById("menores").value = 0;
+    document.getElementById("independente").checked = false;
+    document.getElementById("doisdias").checked = false;
+    elReg.value = "";
+    elAviso.textContent = "";
+    montarDocs();
+    calcular();
+  });
+
+  montarDocs();
+  calcular();
+</script>
