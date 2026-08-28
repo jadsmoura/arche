@@ -1,0 +1,251 @@
+<meta charset="utf-8">
+<title>Kit Gráfico</title>
+<style>
+:root{
+  --senar-escuro:#00604E; --senar-claro:#36D75E; --senar-profundo:#00402F;
+  --terra:#7A4B23; --creme:#F4F1E8; --tinta:#12211C;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#20262b;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#e6ebef;padding:32px}
+h1{font-size:22px;font-weight:800;letter-spacing:-.2px;margin-bottom:6px}
+.intro{max-width:900px;color:#a8b4bd;font-size:14px;line-height:1.6;margin-bottom:8px}
+.intro code{background:#2c343b;padding:1px 5px;border-radius:4px;font-size:12.5px}
+.aviso{max-width:900px;background:#2c343b;border-left:3px solid var(--senar-claro);
+  padding:12px 16px;border-radius:0 6px 6px 0;font-size:13.5px;line-height:1.6;color:#c3ced6;margin:16px 0 28px}
+.rot{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#8b98a2;margin:30px 0 8px}
+.wrap{overflow-x:auto;padding-bottom:6px}
+
+/* ---- artboard 1920x1080 reduzido a 50% para caber na tela ---- */
+.board{width:960px;height:540px;position:relative;overflow:hidden;border-radius:6px;
+  background:#111;flex:0 0 auto;box-shadow:0 2px 14px rgba(0,0,0,.4)}
+.board *{font-family:"Figtree",system-ui,sans-serif}
+.safe{position:absolute;inset:54px 96px;pointer-events:none}
+.ph{position:absolute;inset:0;display:grid;place-items:center;color:#5d6a63;font-size:15px;
+  letter-spacing:.05em;text-transform:uppercase;
+  background:repeating-linear-gradient(45deg,#1b241f,#1b241f 14px,#212b25 14px,#212b25 28px)}
+
+/* faixa inferior padrão das cartelas de passo */
+.passo{position:absolute;left:0;bottom:0;width:100%;padding:34px 96px 40px;
+  background:linear-gradient(to top,rgba(0,26,19,.94) 0%,rgba(0,26,19,.82) 55%,transparent 100%)}
+.passo .num{display:inline-flex;align-items:center;gap:12px;background:var(--senar-claro);
+  color:#00301F;font-weight:900;font-size:19px;letter-spacing:.11em;padding:8px 18px;border-radius:4px}
+.passo h2{color:#fff;font-size:47px;font-weight:800;letter-spacing:-.8px;margin-top:16px;line-height:1}
+.passo .sub{color:var(--senar-claro);font-size:22px;font-weight:600;margin-top:12px}
+.chips{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+.chip{background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.22);color:#fff;
+  padding:7px 15px;border-radius:100px;font-size:17px;font-weight:600}
+
+/* selo lateral */
+.selo{position:absolute;right:96px;top:54px;background:rgba(0,48,31,.93);
+  border-left:5px solid var(--senar-claro);border-radius:0 8px 8px 0;padding:20px 24px;min-width:290px}
+.selo .t{color:var(--senar-claro);font-size:15px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}
+.selo ul{list-style:none;margin-top:13px}
+.selo li{color:#fff;font-size:19px;font-weight:600;padding:5px 0 5px 28px;position:relative}
+.selo li::before{content:"✓";position:absolute;left:0;color:var(--senar-claro);font-weight:900}
+
+/* alerta de segurança */
+.alerta{position:absolute;left:96px;bottom:210px;display:flex;align-items:center;gap:14px;
+  background:#B8460E;color:#fff;padding:14px 22px;border-radius:6px;font-size:21px;font-weight:700}
+.alerta span:first-child{font-size:27px}
+
+/* diagnóstico ✓ / ✕ */
+.diag{position:absolute;inset:0;display:flex;align-items:flex-end;gap:20px;padding:0 96px 46px}
+.card{flex:1;padding:24px 26px;border-radius:8px;backdrop-filter:blur(2px)}
+.card.ok{background:rgba(0,64,47,.93);border:2px solid var(--senar-claro)}
+.card.no{background:rgba(102,32,12,.93);border:2px solid #E8703A}
+.card .ic{font-size:38px;line-height:1}
+.card .tx{color:#fff;font-size:25px;font-weight:700;margin-top:10px;line-height:1.25}
+.card .mi{font-size:18px;margin-top:7px;font-weight:500}
+.card.ok .mi{color:var(--senar-claro)} .card.no .mi{color:#F0A57F}
+
+/* infográfico de diluição */
+.dil{position:absolute;left:96px;bottom:46px;background:rgba(0,26,19,.94);
+  border-radius:10px;padding:26px 34px;display:flex;align-items:center;gap:26px}
+.dil .a{color:var(--senar-claro);font-size:44px;font-weight:900;line-height:1}
+.dil .a small{display:block;color:#fff;font-size:16px;font-weight:600;letter-spacing:.05em;margin-top:5px}
+.dil .x{color:rgba(255,255,255,.4);font-size:34px;font-weight:300}
+.dil .r{color:#fff;font-size:20px;font-weight:700;border-left:1px solid rgba(255,255,255,.25);padding-left:26px}
+
+/* contador de dias */
+.cont{position:absolute;inset:0;display:grid;place-items:center}
+.cont .box{background:rgba(0,26,19,.88);padding:38px 62px;border-radius:12px;text-align:center}
+.cont .n{color:var(--senar-claro);font-size:82px;font-weight:900;line-height:1;letter-spacing:-2px}
+.cont .l{color:#fff;font-size:22px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-top:12px}
+
+/* abertura */
+.abre{position:absolute;left:96px;bottom:96px}
+.abre .kick{color:var(--senar-claro);font-size:19px;font-weight:800;letter-spacing:.19em;text-transform:uppercase}
+.abre h1{color:#fff;font-size:66px;font-weight:900;letter-spacing:-1.6px;line-height:1.03;margin:16px 0 0;max-width:14ch}
+.abre .rule{width:96px;height:4px;background:var(--senar-claro);margin:24px 0 16px}
+.abre .kicker2{color:rgba(255,255,255,.86);font-size:23px;font-weight:500;letter-spacing:.03em}
+
+/* lower third */
+.lt{position:absolute;left:96px;bottom:110px;background:rgba(0,26,19,.93);
+  border-left:5px solid var(--senar-claro);padding:18px 26px;border-radius:0 6px 6px 0;max-width:760px}
+.lt .t{color:var(--senar-claro);font-size:15px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+.lt .d{color:#fff;font-size:25px;font-weight:600;margin-top:9px;line-height:1.35}
+
+/* chamada Senar */
+.cta{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,42,31,.95) 30%,transparent 100%);
+  display:flex;flex-direction:column;justify-content:flex-end;padding:0 96px 58px}
+.cta .h{color:#fff;font-size:38px;font-weight:800;letter-spacing:-.5px;margin-bottom:22px}
+.cta .row{display:flex;gap:14px}
+.cta .p{flex:1;background:var(--senar-claro);color:#00301F;text-align:center;
+  padding:18px 8px;border-radius:7px;font-size:24px;font-weight:900;letter-spacing:.04em}
+.cta .p.b{background:rgba(255,255,255,.14);color:#fff;border:1.5px solid rgba(255,255,255,.3)}
+.cta .tag{color:var(--senar-claro);font-size:19px;font-weight:700;letter-spacing:.1em;margin-top:20px;text-transform:uppercase}
+
+/* assinatura final */
+.fim{position:absolute;inset:0;background:var(--senar-escuro);display:grid;place-items:center;text-align:center}
+.fim img{width:430px;display:block;margin:0 auto}
+.fim .ass{color:#fff;font-size:29px;font-weight:800;letter-spacing:.29em;text-transform:uppercase;margin-top:34px}
+.fim .rule{width:150px;height:3px;background:var(--senar-claro);margin:30px auto 0}
+.fim .fonte{position:absolute;bottom:34px;left:0;right:0;color:rgba(255,255,255,.6);font-size:14px;letter-spacing:.03em}
+.pal{display:flex;gap:12px;margin-top:10px;flex-wrap:wrap}
+.sw{width:150px;border-radius:6px;overflow:hidden;background:#2c343b;font-size:11.5px}
+.sw i{display:block;height:52px}
+.sw b{display:block;padding:7px 9px 2px;font-weight:700;font-size:12px}
+.sw span{display:block;padding:0 9px 8px;color:#93a0a9}
+</style>
+
+<h1>Kit gráfico — Captura de Microrganismos Eficientes</h1>
+<p class="intro">As 12 cartelas do vídeo, desenhadas em <b>1920×1080</b> e exibidas aqui a 50%.
+Cores extraídas do próprio logo enviado: <code>#00604E</code> e <code>#36D75E</code>.
+A área hachurada é onde entra a imagem — o grafismo é o que fica por cima dela.</p>
+
+<div class="aviso"><b>Como exportar.</b> Abra este arquivo no navegador, use a captura de tela
+do sistema em cada cartela e recorte, ou imprima em PDF. Para sair em 1920×1080 de verdade,
+troque no CSS <code>.board{width:960px;height:540px}</code> por
+<code>width:1920px;height:1080px</code> e dobre os valores de <code>.safe</code> — o resto é
+proporcional. Na edição, aplique cada cartela com <b>fade de 8 quadros</b> na entrada e na saída.</p>
+
+<div class="rot">Paleta</div>
+<div class="pal">
+  <div class="sw"><i style="background:#00604E"></i><b>#00604E</b><span>Verde-escuro Senar</span></div>
+  <div class="sw"><i style="background:#36D75E"></i><b>#36D75E</b><span>Verde-claro Senar</span></div>
+  <div class="sw"><i style="background:#00402F"></i><b>#00402F</b><span>Fundo de faixa</span></div>
+  <div class="sw"><i style="background:#B8460E"></i><b>#B8460E</b><span>Alerta de segurança</span></div>
+  <div class="sw"><i style="background:#F4F1E8"></i><b>#F4F1E8</b><span>Creme (texto claro)</span></div>
+</div>
+
+<div class="rot">01 · Abertura — 00:03 a 00:07</div>
+<div class="wrap"><div class="board">
+  <div class="ph">imagem: mão afastando a serrapilheira</div>
+  <div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(0,26,19,.86) 0%,rgba(0,26,19,.35) 62%,transparent 100%)"></div>
+  <div class="abre">
+    <div class="kick">Manual em vídeo · passo a passo</div>
+    <h1>Captura de Microrganismos Eficientes</h1>
+    <div class="rule"></div>
+    <div class="kicker2">Bioinsumo feito na sua própria mata</div>
+  </div>
+</div></div>
+
+<div class="rot">02 · Lower third — o que é o EM — 00:10 a 00:16</div>
+<div class="wrap"><div class="board">
+  <div class="ph">imagem: punhado de solo de mata</div>
+  <div class="lt"><div class="t">O que é o EM</div>
+    <div class="d">Leveduras · actinomicetos · bactérias láticas · bactérias fotossintéticas</div></div>
+</div></div>
+
+<div class="rot">03 · Passo 1 — 00:17 a 00:29</div>
+<div class="wrap"><div class="board">
+  <div class="ph">imagem: arroz espalhado na bandeja</div>
+  <div class="passo"><div class="num">PASSO 1</div><h2>O arroz</h2>
+    <div class="chips"><div class="chip">700 g cozido</div><div class="chip">sem sal</div>
+      <div class="chip">frio</div><div class="chip">camada fina</div></div></div>
+</div></div>
+
+<div class="rot">04 · Passo 2 — 00:29 a 00:37</div>
+<div class="wrap"><div class="board">
+  <div class="ph">imagem: tela sendo esticada sobre a bandeja</div>
+  <div class="passo"><div class="num">PASSO 2</div><h2>A tela</h2>
+    <div class="sub">Deixa o microrganismo passar · barra inseto e bicho</div></div>
+</div></div>
+
+<div class="rot">05 · Passo 3 + selo de EPI — 00:37 a 00:53</div>
+<div class="wrap"><div class="board">
+  <div class="ph">imagem: bandeja assentada na borda da mata</div>
+  <div class="selo"><div class="t">EPI obrigatório</div>
+    <ul><li>Botina de cano alto</li><li>Calça comprida</li><li>Manga longa</li>
+      <li>Chapéu de aba larga</li><li>Luvas</li></ul></div>
+  <div class="passo"><div class="num">PASSO 3</div><h2>Na mata</h2>
+    <div class="sub">Afaste a serrapilheira · apoie a bandeja · devolva as folhas por cima</div></div>
+</div></div>
+
+<div class="rot">06 · Passo 4 + contador — 00:53 a 01:02</div>
+<div class="wrap"><div class="board">
+  <div class="ph">imagem: passagem de tempo no mesmo enquadramento</div>
+  <div class="cont"><div class="box"><div class="n">10 a 15</div><div class="l">dias na mata</div></div></div>
+</div></div>
+<div class="wrap" style="margin-top:10px"><div class="board">
+  <div class="ph">imagem: arroz colorido pelas colônias</div>
+  <div class="passo"><div class="num">PASSO 4</div><h2>A colheita</h2>
+    <div class="sub">Quanto mais diversificada a mata, mais cores no arroz</div></div>
+</div></div>
+
+<div class="rot">07 · Passo 5 — 01:02 a 01:16</div>
+<div class="wrap"><div class="board">
+  <div class="ph">imagem: garrafas, melaço e água na bancada</div>
+  <div class="passo"><div class="num">PASSO 5</div><h2>A ativação</h2>
+    <div class="chips"><div class="chip">5 garrafas de 2 L</div><div class="chip">200 mL de melaço em cada</div>
+      <div class="chip">água sem cloro</div><div class="chip">24 h destampada</div></div></div>
+</div></div>
+
+<div class="rot">08 · Passo 6 + alerta de segurança — 01:16 a 01:29</div>
+<div class="wrap"><div class="board">
+  <div class="ph">imagem: garrafa apertada, ar retirado, tampa fechando</div>
+  <div class="alerta"><span>⚠</span><span>Solte o gás com a garrafa longe do rosto</span></div>
+  <div class="passo"><div class="num">PASSO 6</div><h2>A fermentação</h2>
+    <div class="sub">Sem ar · na sombra · 10 a 20 dias · sangrar o gás a cada 2 dias</div></div>
+</div></div>
+
+<div class="rot">09 · Diagnóstico — 01:29 a 01:38</div>
+<div class="wrap"><div class="board">
+  <div class="ph">imagem: garrafa alaranjada contra a luz</div>
+  <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,20,14,.8) 22%,transparent 62%)"></div>
+  <div class="diag">
+    <div class="card ok"><div class="ic">✓</div><div class="tx">Alaranjado e cheiro doce</div>
+      <div class="mi">Pode usar · dura até 1 ano em lugar fresco</div></div>
+    <div class="card no"><div class="ic">✕</div><div class="tx">Mau cheiro</div>
+      <div class="mi">Não use · descarte e recomece</div></div>
+  </div>
+</div></div>
+
+<div class="rot">10 · Diluição de uso — 01:38 a 01:46</div>
+<div class="wrap"><div class="board">
+  <div class="ph">imagem: regador na leira ao fim da tarde</div>
+  <div class="dil">
+    <div class="a">1 L<small>DE EM</small></div>
+    <div class="x">para</div>
+    <div class="a">1.000 L<small>DE ÁGUA</small></div>
+    <div class="r">= EM/solo<br><span style="font-weight:500;font-size:17px;color:rgba(255,255,255,.8)">cedinho ou no fim da tarde</span></div>
+  </div>
+</div></div>
+
+<div class="rot">11 · Chamada Senar Goiás — 01:46 a 01:56</div>
+<div class="wrap"><div class="board">
+  <div class="ph">imagem: turma de produtores em campo com o instrutor</div>
+  <div class="cta">
+    <div class="h">Bioinsumos na prática, com quem entende</div>
+    <div class="row"><div class="p">CURSOS</div><div class="p b">TREINAMENTOS</div><div class="p b">CONSULTORIA</div></div>
+    <div class="tag">Senar Goiás</div>
+  </div>
+</div></div>
+
+<div class="rot">12 · Assinatura final — 01:56 a 02:00</div>
+<div class="wrap"><div class="board">
+  <div class="fim">
+    <div>
+      <img src="assets/senar-goias.png" alt="Senar Goiás">
+      <div class="rule"></div>
+      <div class="ass">A maior escola da terra</div>
+    </div>
+    <div class="fonte">Fonte técnica: Caderno dos Microrganismos Eficientes (EM), 3ª ed., 2020 — UFV / Depto. de Fitotecnia</div>
+  </div>
+</div></div>
+
+<div class="aviso" style="margin-top:34px"><b>Sobre a cartela 12.</b> O logo entra em
+<i>fade</i> com leve escala (100% → 104% em 1,5 s) e segura estático por 2 s. Use o arquivo
+oficial em <code>assets/senar-goias.png</code>, sem recolorir, sem distorcer e sem aplicar
+sombra — respeite a área de proteção da marca. É o único logo que aparece no vídeo: o
+edital veda referência a <i>outras</i> instituições e empresas (item 5.4).</div>
