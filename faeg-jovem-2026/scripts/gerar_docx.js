@@ -32,11 +32,57 @@ const PERGUNTAS = [
 const corpus = JSON.parse(fs.readFileSync(path.join(BASE, 'corpus_77.json'), 'utf8'))
 const porSlug = Object.fromEntries(corpus.map(g => [g.slug, g]))
 
-const avaliacoes = fs.readdirSync(DIR_AVAL).filter(f => f.endsWith('.json')).map(f => {
+const DIR_VERIF = path.join(BASE, 'verificacoes')
+const DIR_REAVAL = path.join(BASE, 'reavaliacoes')
+
+function leJson(p) { try { return JSON.parse(fs.readFileSync(p, 'utf8')) } catch (e) { return null } }
+function lista(dir) { try { return fs.readdirSync(dir).filter(f => f.endsWith('.json')) } catch (e) { return [] } }
+
+// camada 2 — vereditos da refutação de cada "Não"
+const verif = {}
+lista(DIR_VERIF).forEach(f => {
+  const d = leJson(path.join(DIR_VERIF, f))
+  if (d && d.slug) verif[d.slug] = d.vereditos || []
+})
+
+// camada 3 — reavaliações vindas do passe de isometria
+const reaval = {}
+lista(DIR_REAVAL).forEach(f => {
+  const d = leJson(path.join(DIR_REAVAL, f))
+  if (d && d.slug && d.id) (reaval[d.slug] = reaval[d.slug] || {})[d.id] = d
+})
+
+// camada 4 — sobreposições manuais do avaliador (pendências da plataforma)
+const sobre = leJson(path.join(BASE, 'sobreposicoes.json')) || {}
+
+const avaliacoes = lista(DIR_AVAL).map(f => {
   const d = JSON.parse(fs.readFileSync(path.join(DIR_AVAL, f), 'utf8'))
   d.slug = d.slug || path.basename(f, '.json')
+
+  // precedência: reavaliação (isometria) > veredito da refutação > primeira passada
+  d.itens = (d.itens || []).map(it => {
+    const v = (verif[d.slug] || []).find(x => x.id === it.id)
+    let out = { ...it }
+    if (it.resposta === 'Não' && v) {
+      if (v.mantem_nao === false) {
+        out = { ...out, resposta: 'Sim', justificativa: v.razao || out.justificativa, revisado: 'revertido para Sim na verificação' }
+      } else if (v.justificativa_corrigida && v.justificativa_corrigida.trim()) {
+        out = { ...out, justificativa: v.justificativa_corrigida, revisado: 'justificativa ajustada na verificação' }
+      }
+    }
+    const r = (reaval[d.slug] || {})[it.id]
+    if (r && r.mudou) {
+      out = { ...out, resposta: r.resposta, justificativa: r.justificativa, revisado: 'revisto no passe de isometria' }
+    }
+    const so = ((sobre[d.slug] || {})[it.id])
+    if (so) out = { ...out, ...so, revisado: so.revisado || 'sobreposto pelo avaliador' }
+    return out
+  })
   return d
 })
+
+const nRevistos = avaliacoes.reduce((n, a) => n + a.itens.filter(i => i.revisado).length, 0)
+console.log(`camadas aplicadas: ${Object.keys(verif).length} equipes com veredito, ${Object.keys(reaval).length} com reavaliação, ${nRevistos} itens revistos`)
 
 // ordena pelo nome da equipe, como na plataforma
 avaliacoes.sort((a, b) => {
@@ -91,9 +137,13 @@ function fichaDados(g) {
   })
 }
 
+const AMARELO = '8A6100'
+
 function blocoItem(perg, item) {
   const resp = item ? item.resposta : '—'
   const sim = resp === 'Sim'
+  const pend = resp === 'Pendente'
+  const cor = pend ? AMARELO : (sim ? VERDE : VERMELHO)
   const filhos = []
 
   filhos.push(new Paragraph({
@@ -105,8 +155,8 @@ function blocoItem(perg, item) {
     spacing: { after: 60 },
     children: [
       txt('Resposta:  ', { bold: true, size: 19 }),
-      txt(resp.toUpperCase(), { bold: true, size: 22, color: sim ? VERDE : VERMELHO }),
-      txt(`     (item ${perg.item} do edital · ${sim ? '2' : '0'} de 2 pontos)`, { size: 16, color: CINZA }),
+      txt(resp.toUpperCase(), { bold: true, size: 22, color: cor }),
+      txt(`     (item ${perg.item} do edital · ${pend ? 'não lançar antes de resolver' : (sim ? '2' : '0') + ' de 2 pontos'})`, { size: 16, color: CINZA }),
     ],
   }))
 
@@ -193,6 +243,7 @@ avaliacoes.forEach((a, idx) => {
   const g = porSlug[a.slug]
   const nome = (g && g.nome) || a.slug
   const pontos = a.itens.filter(i => i.resposta === 'Sim').length * 2
+  const temPendente = a.itens.some(i => i.resposta === 'Pendente')
 
   filhos.push(new Paragraph({
     spacing: { after: 40 },
@@ -205,7 +256,8 @@ avaliacoes.forEach((a, idx) => {
     children: [
       txt((g && g.login) || '', { size: 16, color: CINZA }),
       txt('\t', {}),
-      txt(`${pontos} de 10 pontos`, { bold: true, size: 20, color: pontos === 10 ? VERDE : VERMELHO }),
+      txt(temPendente ? `${pontos} de 10 pontos + 1 item pendente` : `${pontos} de 10 pontos`,
+        { bold: true, size: 20, color: temPendente ? AMARELO : (pontos === 10 ? VERDE : VERMELHO) }),
     ],
     tabStops: [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX }],
   }))
@@ -254,11 +306,12 @@ avaliacoes.forEach(a => {
   const cels = [celula([new Paragraph({ children: [txt((g && g.nome) || a.slug, { size: 15 })] })], largR[0])]
   PERGUNTAS.forEach((p, i) => {
     const it = a.itens.find(x => x.id === p.id)
-    const sim = it && it.resposta === 'Sim'
+    const r = it ? it.resposta : '—'
+    const sim = r === 'Sim', pnd = r === 'Pendente'
     cels.push(celula([new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [txt(sim ? 'Sim' : 'Não', { size: 15, bold: !sim, color: sim ? VERDE : VERMELHO })],
-    })], largR[i + 1], { fundo: sim ? undefined : 'FBE9E5' }))
+      children: [txt(pnd ? 'Pend.' : (sim ? 'Sim' : 'Não'), { size: 15, bold: !sim, color: pnd ? AMARELO : (sim ? VERDE : VERMELHO) })],
+    })], largR[i + 1], { fundo: sim ? undefined : (pnd ? 'FBF3DF' : 'FBE9E5') }))
   })
   cels.push(celula([new Paragraph({
     alignment: AlignmentType.CENTER,
