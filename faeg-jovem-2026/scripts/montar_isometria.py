@@ -48,7 +48,21 @@ for cid, rot, item in CRITERIOS:
         fh.write('\n'.join(linhas) + '\n')
     saida['criterios'].append({'id': cid, 'rotulo': rot, 'item': item, 'arquivo': caminho, 'n': len(linhas)})
 
+# arquivo das observações, para a fase de anomalias
+obs_path = os.path.join(BASE, 'isometria', 'observacoes.txt')
+n_obs = 0
+with open(obs_path, 'w') as fh:
+    fh.write('# Observações registradas pelos avaliadores, por equipe\n\n')
+    for a in sorted(glob.glob('avaliacoes/*.json')):
+        d = json.load(open(a))
+        o = (d.get('observacoes') or '').strip()
+        if not o: continue
+        n_obs += 1
+        fh.write(f'## {d["slug"]}\n{o}\n\n')
+saida['observacoes'] = obs_path
+
 json.dump(saida, open('args_isometria.json', 'w'), ensure_ascii=False)
 for c in saida['criterios']:
     print(f"  {c['id']}: {c['n']} decisões -> {c['arquivo']}")
+print(f'  observações: {n_obs} equipes -> {obs_path} ({os.path.getsize(obs_path)//1024} KB)')
 print('args:', len(json.dumps(saida)), 'bytes')

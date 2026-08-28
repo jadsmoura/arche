@@ -4,6 +4,7 @@ export const meta = {
   phases: [
     { title: 'Isometria', detail: 'um agente por critério, revendo as 173 decisões daquele critério' },
     { title: 'Reavaliar', detail: 'reabre a equipe apontada e decide com a prova à vista' },
+    { title: 'Anomalias', detail: 'lê as observações das 173 equipes e separa o que a coordenação precisa decidir' },
   ],
 }
 
@@ -98,7 +99,52 @@ Ao terminar, grave o resultado com Write em ${SAIDA}/${s.slug}__${s.criterio.id}
   { label: `reaval:${s.slug}/${s.criterio.id}`, phase: 'Reavaliar', schema: ESQUEMA_REAVALIACAO }
 )))
 
+phase('Anomalias')
+
+const ESQUEMA_ANOMALIAS = {
+  type: 'object',
+  required: ['grupos', 'sintese'],
+  properties: {
+    sintese: { type: 'string', description: 'Em português: o quadro geral do que os avaliadores levantaram' },
+    grupos: {
+      type: 'array',
+      description: 'Anomalias agrupadas por natureza, da mais grave para a menos',
+      items: {
+        type: 'object',
+        required: ['tema', 'gravidade', 'equipes', 'descricao', 'encaminhamento'],
+        properties: {
+          tema: { type: 'string' },
+          gravidade: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+          equipes: { type: 'array', items: { type: 'string' }, description: 'slugs' },
+          descricao: { type: 'string', description: 'Em português: o que se repete nesses casos' },
+          encaminhamento: { type: 'string', description: 'Em português: o que a coordenação precisa decidir ou fazer' },
+        },
+      },
+    },
+  },
+}
+
+const anomalias = await agent(
+  `Você organiza, para a coordenação do Concurso Faeg Jovem, o que os avaliadores da Banca 01 anotaram fora das cinco respostas da 1ª Ação Social. ESCREVA EM PORTUGUÊS DO BRASIL.
+
+Leia com Read o arquivo ${args.observacoes} — ele traz, por equipe, o campo "observações" de cada avaliação. São anotações que NÃO alteraram as respostas, mas que alguém precisa ver.
+
+Agrupe por NATUREZA, não por equipe, e ordene da mais grave para a menos. O que interessa à coordenação:
+- documentação que aponta para OUTRO evento ou outra data (item 5.9.11);
+- ação cuja natureza não é claramente social e cai no item 5.9.7 (evento fora do Quadro 1, tratado pontualmente pela coordenação);
+- evento realizado fora da janela de 03/09/2025 a 28/05/2026;
+- divergência entre o público declarado no formulário e o comprovado nos documentos;
+- falhas da plataforma (arquivo que não abre) — nunca falha da equipe;
+- defeitos de forma repetidos que talvez mereçam orientação às equipes no próximo ciclo.
+
+Descarte o que for elogio ou constatação de que está tudo coerente: a coordenação não precisa ler que 90 equipes estão em ordem. Se um tema tiver muitas equipes, diga quantas e liste os slugs.
+
+Gravidade "alta" é o que pode mudar pontuação ou exigir decisão antes do resultado preliminar de 09/10.`,
+  { label: 'anomalias', phase: 'Anomalias', schema: ESQUEMA_ANOMALIAS }
+)
+
 return {
   isometria: validos.map((a, i) => ({ criterio: CRITERIOS[i].id, diagnostico: a.diagnostico, suspeitas: (a.suspeitas || []).length })),
   reavaliadas: reavaliadas.filter(Boolean),
+  anomalias,
 }
