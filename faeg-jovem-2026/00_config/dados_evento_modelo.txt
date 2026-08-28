@@ -1,0 +1,25 @@
+# Modelo de dados.txt - copiar para dentro de cada pasta de evento.
+# Uma linha por campo, formato "chave: valor". Linhas com # sao ignoradas.
+
+tipo: tecnico
+titulo: Dia de Campo sobre Saude do Solo
+municipio: Goianesia
+local: Fazenda Boa Vista, Zona Rural
+data_inicio: 2026-04-18
+data_fim: 2026-04-18
+participantes: 63
+independente: sim
+menores_presentes: nao
+autorizacao_imagem_menores: nao_se_aplica
+programa_senar:
+envio: 1
+observacoes:
+
+# tipo ................. tecnico | saude | social
+# data_inicio/data_fim . AAAA-MM-DD, iguais em evento de um dia
+# participantes ........ inteiro: assinaturas validas + menores atestados no rodape
+# independente ......... sim se realizado sem recursos do Senar/AR-GO
+# menores_presentes .... sim | nao
+# autorizacao_imagem_menores ... sim | nao | nao_se_aplica
+# programa_senar ....... vazio, ou nome do programa do Quadro 1
+# envio ................ 1 (ate 28/05/2026) ou 2 (ate 27/08/2026)
