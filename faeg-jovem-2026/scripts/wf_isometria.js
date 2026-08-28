@@ -57,9 +57,7 @@ const achados = await parallel(CRITERIOS.map(crit => () => agent(
 Critério sob análise: **${crit.rotulo}** (item ${crit.item} do edital).
 Régua que deveria valer: leia ${RUBRICA}.
 
-Abaixo, as decisões deste critério em todas as equipes, no formato "slug | resposta | justificativa":
-
-${crit.linhas}
+As ${crit.n} decisões deste critério, em todas as equipes, estão em ${crit.arquivo} — LEIA esse arquivo inteiro com Read. O formato de cada linha é "slug | resposta | justificativa".
 
 Procure RÉGUA TORTA, não erro isolado:
 - equipes reprovadas por um defeito que passou em outras;
