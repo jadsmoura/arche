@@ -25,9 +25,9 @@ const VERMELHO = '9A2A16'
 const CINZA = '595959'
 const LINHA = 'BFBFBF'
 
-const ROTULO_ETAPA = { '77': 'PRIMEIRO EVENTO SOCIAL', '76': 'PRIMEIRO EVENTO DE SAÚDE', '79': 'SEGUNDO EVENTO DE SAÚDE', '82': 'PRIMEIRO EVENTO TÉCNICO' }
-const VALOR_DOC = { '77': 2, '76': 3, '79': 3, '82': 3 }
-const NOME_ETAPA = { '77': 'PRIMEIRA AÇÃO SOCIAL', '76': 'PRIMEIRO EVENTO DE SAÚDE', '79': 'SEGUNDO EVENTO DE SAÚDE', '82': 'PRIMEIRO EVENTO TÉCNICO' }
+const ROTULO_ETAPA = { '77': 'PRIMEIRO EVENTO SOCIAL', '78': 'SEGUNDA AÇÃO SOCIAL', '76': 'PRIMEIRO EVENTO DE SAÚDE', '79': 'SEGUNDO EVENTO DE SAÚDE', '82': 'PRIMEIRO EVENTO TÉCNICO' }
+const VALOR_DOC = { '77': 2, '78': 2, '76': 3, '79': 3, '82': 3 }
+const NOME_ETAPA = { '77': 'PRIMEIRA AÇÃO SOCIAL', '78': 'SEGUNDA AÇÃO SOCIAL', '76': 'PRIMEIRO EVENTO DE SAÚDE', '79': 'SEGUNDO EVENTO DE SAÚDE', '82': 'PRIMEIRO EVENTO TÉCNICO' }
 
 const RE = ROTULO_ETAPA[ETAPA]
 const VD = VALOR_DOC[ETAPA]
@@ -83,6 +83,12 @@ const avaliacoes = lista(DIR_AVAL).map(f => {
 
   // precedência: reavaliação (isometria) > veredito da refutação > primeira passada
   d.itens = (d.itens || []).map(it => {
+    // "Nao" sem til é a MESMA resposta que "Não": normalizar na entrada evita
+    // que o item escape da contagem, da cor da linha e da refutação.
+    const r0 = (it.resposta || '').trim()
+    if (/^n[aã]o$/i.test(r0)) it = { ...it, resposta: 'Não' }
+    else if (/^sim$/i.test(r0)) it = { ...it, resposta: 'Sim' }
+    else if (/^pendente$/i.test(r0)) it = { ...it, resposta: 'Pendente' }
     const v = (verif[d.slug] || []).find(x => x.id === it.id)
     let out = { ...it }
     if (it.resposta === 'Não' && v) {
