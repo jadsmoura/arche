@@ -39,6 +39,13 @@ sem horário derruba o documento na ação social, derruba no evento técnico.
    eventos **Dia de Campo** realizados pelo Senar/AR-GO (além de Campo Saúde e
    Festival de Receitas, que não são técnicos).
 
+## A janela de realização
+
+O evento vale se ocorreu entre **03/09/2025 e 28/05/2026** — o corte é o do
+evento técnico, e é MAIS CURTO que o da 2ª Ação Social, que vai até 27/08/2026.
+Data fora dessa janela não se resolve reprovando item: é observação à
+coordenação.
+
 ## Antes de tudo: é evento técnico?
 
 O item 5.9.2 define o que conta: **dia de campo, palestra, workshop, seminário,
