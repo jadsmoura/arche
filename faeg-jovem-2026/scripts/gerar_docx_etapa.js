@@ -70,6 +70,11 @@ lista(DIR_REAVAL).forEach(f => {
 })
 
 // camada 4 — sobreposições manuais do avaliador (pendências da plataforma)
+// Quando o consolidado JÁ traz o texto final (caso do que foi lançado na
+// plataforma), as camadas 2 e 3 só marcam que houve revisão — não reescrevem
+// a justificativa, senão o documento passaria a divergir do que está lançado.
+const SO_MARCA = process.env.TEXTO_FINAL === '1'
+
 const sobre = (leJson(path.join(BASE, 'sobreposicoes' + (ETAPA === '77' ? '' : ETAPA) + '.json')) || {})
 
 const avaliacoes = lista(DIR_AVAL).map(f => {
@@ -82,14 +87,17 @@ const avaliacoes = lista(DIR_AVAL).map(f => {
     let out = { ...it }
     if (it.resposta === 'Não' && v) {
       if (v.mantem_nao === false) {
-        out = { ...out, resposta: 'Sim', justificativa: v.razao || out.justificativa, revisado: 'revertido para Sim na verificação' }
+        out = { ...out, resposta: 'Sim', revisado: 'revertido para Sim na verificação' }
+        if (!SO_MARCA) out.justificativa = v.razao || out.justificativa
       } else if (v.justificativa_corrigida && v.justificativa_corrigida.trim()) {
-        out = { ...out, justificativa: v.justificativa_corrigida, revisado: 'justificativa ajustada na verificação' }
+        out = { ...out, revisado: 'justificativa ajustada na verificação' }
+        if (!SO_MARCA) out.justificativa = v.justificativa_corrigida
       }
     }
     const r = (reaval[d.slug] || {})[it.id]
     if (r && r.mudou) {
-      out = { ...out, resposta: r.resposta, justificativa: r.justificativa, revisado: 'revisto no passe de isometria' }
+      out = { ...out, resposta: r.resposta, revisado: 'revisto no passe de isometria' }
+      if (!SO_MARCA) out.justificativa = r.justificativa
     }
     const so = ((sobre[d.slug] || {})[it.id])
     if (so) out = { ...out, ...so, revisado: so.revisado || 'sobreposto pelo avaliador' }
