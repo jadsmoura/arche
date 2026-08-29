@@ -201,6 +201,81 @@ function blocoItem(perg, item) {
   return filhos
 }
 
+// Quadro de avaliação: uma linha por critério — critério | resposta | justificativa
+const CURTO = {
+  relatorio: 'Relatório', lista: 'Lista de presença', card: 'Card de divulgação',
+  fotos: 'Fotos', divulgacao: 'Divulgação em redes sociais',
+  publico30: 'Público ≥ 30', publico60: 'Público ≥ 60', publico100: 'Público ≥ 100',
+  independencia: 'Independência', duracao: 'Duração ≥ 2 dias',
+}
+
+function quadroItens(a) {
+  const larg = [2600, 1100, 5660]
+  const cab = new TableRow({
+    tableHeader: true,
+    children: [
+      celula([new Paragraph({ children: [txt('Critério', { bold: true, size: 18 })] })], larg[0], { fundo: 'E8EDF5' }),
+      celula([new Paragraph({ alignment: AlignmentType.CENTER, children: [txt('Resposta', { bold: true, size: 18 })] })], larg[1], { fundo: 'E8EDF5' }),
+      celula([new Paragraph({ children: [txt('Justificativa', { bold: true, size: 18 })] })], larg[2], { fundo: 'E8EDF5' }),
+    ],
+  })
+
+  const linhas = PERGUNTAS.map(p => {
+    const item = a.itens.find(x => x.id === p.id)
+    const resp = item ? item.resposta : '—'
+    const sim = resp === 'Sim'
+    const pend = resp === 'Pendente'
+    const cor = pend ? AMARELO : (sim ? VERDE : VERMELHO)
+
+    const cCriterio = [
+      new Paragraph({ spacing: { after: 20 }, children: [txt(CURTO[p.id] || p.rotulo, { bold: true, size: 18, color: AZUL })] }),
+      new Paragraph({ children: [txt(`item ${p.item} · ${p.valor} ${p.valor === 1 ? 'ponto' : 'pontos'}`, { size: 14, color: CINZA })] }),
+    ]
+
+    const cResposta = [
+      new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 20 },
+        children: [txt(resp.toUpperCase(), { bold: true, size: 20, color: cor })] }),
+      new Paragraph({ alignment: AlignmentType.CENTER,
+        children: [txt(pend ? 'não lançar' : `${sim ? p.valor : 0} de ${p.valor}`, { size: 14, color: CINZA })] }),
+    ]
+
+    const cJust = [new Paragraph({
+      alignment: AlignmentType.JUSTIFIED,
+      children: [txt(item ? item.justificativa : 'Não avaliado.', { size: 17 })],
+    })]
+    if (item && item.revisado) {
+      cJust.push(new Paragraph({ spacing: { before: 40 },
+        children: [txt(`[${item.revisado}]`, { size: 14, italics: true, color: CINZA })] }))
+    }
+    if (item && item.confianca === 'baixa') {
+      cJust.push(new Paragraph({ spacing: { before: 40 },
+        children: [txt('[confiança baixa — conferir antes de lançar]', { size: 14, italics: true, color: VERMELHO })] }))
+    }
+
+    return new TableRow({
+      children: [
+        celula(cCriterio, larg[0], { fundo: sim ? undefined : (pend ? 'FBF3DF' : 'FBE9E5') }),
+        celula(cResposta, larg[1], { fundo: sim ? undefined : (pend ? 'FBF3DF' : 'FBE9E5') }),
+        celula(cJust, larg[2]),
+      ],
+    })
+  })
+
+  return new Table({
+    columnWidths: larg,
+    width: { size: larg.reduce((x, y) => x + y, 0), type: WidthType.DXA },
+    borders: {
+      top: { style: BorderStyle.SINGLE, size: 2, color: LINHA },
+      bottom: { style: BorderStyle.SINGLE, size: 2, color: LINHA },
+      left: { style: BorderStyle.SINGLE, size: 2, color: LINHA },
+      right: { style: BorderStyle.SINGLE, size: 2, color: LINHA },
+      insideHorizontal: { style: BorderStyle.SINGLE, size: 2, color: LINHA },
+      insideVertical: { style: BorderStyle.SINGLE, size: 2, color: LINHA },
+    },
+    rows: [cab].concat(linhas),
+  })
+}
+
 const filhos = []
 
 // ---------------- capa ----------------
@@ -281,10 +356,8 @@ avaliacoes.forEach((a, idx) => {
 
   filhos.push(fichaDados(g))
 
-  PERGUNTAS.forEach(p => {
-    const it = a.itens.find(x => x.id === p.id)
-    blocoItem(p, it).forEach(f => filhos.push(f))
-  })
+  filhos.push(new Paragraph({ spacing: { before: 200 }, children: [] }))
+  filhos.push(quadroItens(a))
 
   if (a.observacoes && a.observacoes.trim()) {
     filhos.push(new Paragraph({
