@@ -14,6 +14,9 @@ MAPAS = {
  '79': {2598:'relatorio',2604:'lista',2599:'card',2600:'fotos',2602:'instagram',2601:'nome_acao',
         2603:'beneficiados',2605:'participantes',2606:'data_inicio',2607:'data_fim',2611:'hora_inicio',
         2610:'hora_fim',2608:'local',2609:'municipio'},
+ '78': {2588:'relatorio',2594:'lista',2590:'card',2595:'fotos',2584:'instagram',2592:'nome_acao',
+        2596:'beneficiados',2591:'participantes',2593:'data_inicio',2587:'data_fim',2585:'hora_inicio',
+        2589:'hora_fim',2597:'local',2586:'municipio'},
 }
 MAPA = MAPAS[ETAPA]
 

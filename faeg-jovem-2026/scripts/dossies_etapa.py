@@ -4,8 +4,14 @@ import json, os, re, sys, collections
 ETAPA = sys.argv[1]
 BASE = os.getcwd()
 MAX_FOTOS_VER = 8
-TIPO = {'82': 'tecnico', '76': 'saude', '79': 'saude', '77': 'social'}[ETAPA]
+TIPO = {'82': 'tecnico', '76': 'saude', '79': 'saude', '77': 'social', '78': 'social'}[ETAPA]
 c = json.load(open(f'corpus_{ETAPA}.json'))
+MOSAICO = {}
+_mp = f'mosaicos_vista{ETAPA}.json'
+if os.path.exists(_mp):
+    MOSAICO = json.load(open(_mp))
+MAX_FOLHAS_FOTOS = 2   # 4 fotos por folha: cobre as 8 que a régua manda abrir
+
 DOS = f'dossies{ETAPA}'
 os.makedirs(DOS, exist_ok=True)
 
@@ -54,6 +60,9 @@ for g in c:
     for campo, titulo in [('relatorio','Relatório do evento'), ('lista','Lista de presença'),
                           ('card','Card de divulgação'), ('fotos','Fotos do evento')]:
         itens = g['arquivos'].get(campo, [])
+        folhas = (MOSAICO.get(g['slug']) or {}).get(campo) or []
+        if campo == 'fotos':
+            folhas = folhas[:MAX_FOLHAS_FOTOS]
         L.append(f"\n## {titulo}\n")
         L.append(f"Arquivos anexados: **{len(itens)}**\n")
         mostrados = 0
@@ -69,10 +78,12 @@ for g in c:
                     L.append("```\n" + txt[:6000] + ("\n[...cortado...]" if len(txt) > 6000 else "") + "\n```")
                     if it.get('paginas_img'):
                         L.append("  - **A transcrição NÃO mostra assinatura, carimbo nem selo gov.br** — são imagem. Abra as páginas:")
-                        for p in it['paginas_img']: ver.append(p); L.append(f"  - `{os.path.join(BASE,p)}`")
+                        if not folhas:
+                            for p in it['paginas_img']: ver.append(p); L.append(f"  - `{os.path.join(BASE,p)}`")
                 else:
                     L.append(f"- `{it['nome']}` — PDF **digitalizado**. Páginas em imagem — leia todas:")
-                    for p in it.get('paginas_img', []): ver.append(p); L.append(f"  - `{os.path.join(BASE,p)}`")
+                    if not folhas:
+                        for p in it.get('paginas_img', []): ver.append(p); L.append(f"  - `{os.path.join(BASE,p)}`")
                     if not it.get('paginas_img'): L.append("  - (não foi possível rasterizar)")
             elif it.get('img'):
                 if campo == 'fotos':
@@ -81,15 +92,25 @@ for g in c:
                     if ex.get('DateTimeOriginal'): m.append('data EXIF ' + ex['DateTimeOriginal'])
                     if ex.get('GPS'): m.append('GPS ' + ex['GPS'])
                     suf = (' — ' + '; '.join(m)) if m else ' — sem EXIF (típico de imagem que passou por aplicativo de mensagem)'
-                    if mostrados < MAX_FOTOS_VER:
+                    if folhas:
+                        L.append(f"- `{it['nome']}`{suf}")
+                    elif mostrados < MAX_FOTOS_VER:
                         ver.append(it['img']); mostrados += 1
                         L.append(f"- `{it['nome']}`{suf}\n  - `{os.path.join(BASE,it['img'])}`")
                     else:
                         L.append(f"- `{it['nome']}`{suf} (não aberta: além das {MAX_FOTOS_VER} primeiras)")
+                elif folhas:
+                    L.append(f"- `{it['nome']}`")
                 else:
                     ver.append(it['img']); L.append(f"- `{it['nome']}`\n  - `{os.path.join(BASE,it['img'])}`")
             else:
                 L.append(f"- `{it['nome']}` — formato não legível ({it.get('ext') or 'sem extensão'})")
+
+        if folhas:
+            n = len(folhas)
+            L.append(f"\n**ABRA {'a folha' if n == 1 else 'as ' + str(n) + ' folhas'} abaixo — {'é' if n == 1 else 'são'} a imagem do que foi anexado:**")
+            for f in folhas:
+                ver.append(f); L.append(f"  - `{os.path.join(BASE, f)}`")
 
     caminho = os.path.join(DOS, g['slug'] + '.md')
     open(caminho, 'w').write('\n'.join(L))

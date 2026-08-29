@@ -74,7 +74,9 @@ ESCREVA TUDO EM PORTUGUÊS DO BRASIL — justificativas, evidências e observaç
 
 ANTES DE QUALQUER COISA, leia a rubrica em ${CFG.rubrica}. Ela remete à rubrica da 1ª Ação Social em /home/user/arche/faeg-jovem-2026/00_config/rubrica-1as.md para as exigências dos cinco documentos — LEIA AS DUAS. A régua é a mesma das 173 equipes já avaliadas na ação social, com as diferenças que a rubrica desta etapa aponta; não invente critério próprio, não aperte nem afrouxe.
 
-A diferença que mais engana: o item 5.9.12, que na AÇÃO SOCIAL admite a lista assinada só pelos membros do grupo, NÃO vale nesta etapa. Aqui a lista é do público atendido.
+${CFG.tipo === 'social'
+  ? 'Esta é uma AÇÃO SOCIAL: o item 5.9.12 VALE aqui — a lista pode estar assinada pelos próprios envolvidos (membros do grupo, pessoas atendidas ou parceiros), e lista composta só por integrantes do grupo NÃO é defeito.'
+  : 'A diferença que mais engana: o item 5.9.12, que na AÇÃO SOCIAL admite a lista assinada só pelos membros do grupo, NÃO vale nesta etapa. Aqui a lista é do público atendido.'}
 
 Depois leia o dossiê da equipe, que traz o que o grupo declarou no formulário e o caminho de cada documento anexado.
 
@@ -132,7 +134,9 @@ Refute quando: o documento atende e o avaliador não viu; a exigência apontada 
 
 Numa bonificação de público, refute se a contagem do outro avaliador estiver errada — reconte as linhas você mesmo.
 
-Mantenha o "Não" quando o descumprimento é real e verificável na imagem. Cuidado com o inverso: o item 5.9.12 é da AÇÃO SOCIAL e não socorre lista sem público nesta etapa.
+Mantenha o "Não" quando o descumprimento é real e verificável na imagem. ${CFG.tipo === 'social'
+  ? 'Lembre que o item 5.9.12 vale nesta etapa: lista assinada pelos próprios envolvidos, ainda que só pelo grupo, atende ao edital.'
+  : 'Cuidado com o inverso: o item 5.9.12 é da AÇÃO SOCIAL e não socorre lista sem público nesta etapa.'}
 
 Na dúvida, refute — o edital pune documentação divergente, não documentação imperfeita.`,
       { label: `verif:${eq.slug}`, phase: 'Verificar', schema: ESQUEMA_VERIFICACAO }
