@@ -395,8 +395,16 @@ filhos.push(new Paragraph({
   children: [txt('Quadro-resumo', { bold: true, size: 28, color: AZUL })],
 }))
 
-const largR = [3560, 1000, 1000, 1000, 1000, 1000, 800]
-const cab = ['Equipe', 'Rel.', 'Lista', 'Card', 'Fotos', 'Divulg.', 'Pontos']
+// Nas etapas com bonificação (10 itens) o quadro-resumo não cabe coluna a coluna:
+// os cinco documentos ficam em coluna, e as cinco bonificações viram uma contagem.
+const DOCS = PERGUNTAS.slice(0, 5)
+const BONIF = PERGUNTAS.slice(5)
+const largR = BONIF.length
+  ? [3060, 900, 900, 900, 900, 900, 1000, 800]
+  : [3560, 1000, 1000, 1000, 1000, 1000, 800]
+const cab = ['Equipe', 'Rel.', 'Lista', 'Card', 'Fotos', 'Divulg.']
+  .concat(BONIF.length ? ['Bonif.'] : [])
+  .concat(['Pontos'])
 const linhasResumo = [new TableRow({
   tableHeader: true,
   children: cab.map((c, i) => celula(
@@ -408,7 +416,7 @@ avaliacoes.forEach(a => {
   const g = porSlug[a.slug]
   const pontos = a.itens.filter(i => i.resposta === 'Sim').reduce((n, i) => n + (PERGUNTAS.find(p => p.id === i.id)?.valor || 0), 0)
   const cels = [celula([new Paragraph({ children: [txt((g && g.nome) || a.slug, { size: 15 })] })], largR[0])]
-  PERGUNTAS.forEach((p, i) => {
+  DOCS.forEach((p, i) => {
     const it = a.itens.find(x => x.id === p.id)
     const r = it ? it.resposta : '—'
     const sim = r === 'Sim', pnd = r === 'Pendente'
@@ -417,10 +425,17 @@ avaliacoes.forEach(a => {
       children: [txt(pnd ? 'Pend.' : (sim ? 'Sim' : 'Não'), { size: 15, bold: !sim, color: pnd ? AMARELO : (sim ? VERDE : VERMELHO) })],
     })], largR[i + 1], { fundo: sim ? undefined : (pnd ? 'FBF3DF' : 'FBE9E5') }))
   })
+  if (BONIF.length) {
+    const ganhas = BONIF.filter(p => (a.itens.find(x => x.id === p.id) || {}).resposta === 'Sim').length
+    cels.push(celula([new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [txt(`${ganhas} de ${BONIF.length}`, { size: 15, color: ganhas ? VERDE : CINZA })],
+    })], largR[6], { fundo: ganhas ? undefined : 'F2F2F2' }))
+  }
   cels.push(celula([new Paragraph({
     alignment: AlignmentType.CENTER,
     children: [txt(String(pontos), { size: 15, bold: true, color: pontos === TETO ? VERDE : VERMELHO })],
-  })], largR[6]))
+  })], largR[largR.length - 1]))
   linhasResumo.push(new TableRow({ children: cels }))
 })
 
