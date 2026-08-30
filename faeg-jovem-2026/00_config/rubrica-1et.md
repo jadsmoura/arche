@@ -98,22 +98,36 @@ desconsiderando assinatura duplicada.
 
 ### Independência — item 5.9.15
 
-Sim quando o evento foi realizado **sem quaisquer recursos do Sistema Faeg/Senar**.
+**Régua revista pela diretoria em 30/08/2026 (decisão D6).** A pergunta é uma
+só: **o Senar custeou o evento?** A bonificação premia quem realizou com
+recursos próprios.
 
-O formulário traz a **declaração da própria equipe** (campo Sim/Não). Ela é o
-ponto de partida, não a prova. Confira contra o que os documentos mostram:
+**Logomarca não é custeio.** Logo do Senar, do Sistema Faeg ou do Sindicato
+Rural no card, no telão, num banner ou num post **NÃO derruba a independência**.
+É prática comum de divulgação e fortalecimento de marca, e o grupo é do próprio
+programa — exibir a marca é o que se espera dele. Um "Não" apoiado só em
+logomarca reprova por aquilo que o edital estimula, e foi assim que 76 decisões
+precisaram ser refeitas nesta etapa.
 
-- Evento do **Quadro 1** (Dia de Campo Senar Mais, ATeG, Semana Senar) é do
-  Senar por definição — **não é independente**, ainda que a equipe declare que sim.
-- **Declaração do Senar** anexada no lugar da lista indica evento do Senar.
-- **Logomarca do Senar, do Sistema Faeg ou do Sindicato Rural** no card, ou
-  palestrante técnico do Senar/ATeG no relatório, indicam apoio institucional.
-- A **logomarca do próprio Faeg Jovem** não descaracteriza a independência: o
-  grupo é do programa, e o edital exige essa logomarca no card (5.9.8.3).
+**O que derruba** é indício de que o Senar bancou:
 
-Contradição entre a declaração e os documentos: **prevalecem os documentos**, e a
-justificativa aponta a peça que a contradiz. Sem indício em contrário, a
-declaração da equipe vale.
+- **palestrante ou instrutor de uniforme do Senar nas fotos** — é o sinal mais
+  seguro: instrutor uniformizado é instrutor pago pelo Senar. Marque "Não" e
+  escreva na justificativa que o evento foi **custeado** pelo Senar;
+- **evento do Quadro 1** (Dia de Campo Senar Mais, Encontro de Produtores
+  Assistidos ATeG, Semana Senar, Senar+): é programa do Senar por definição,
+  ainda que a equipe declare independência;
+- **declaração do Senar no lugar da lista** (5.9.8.2 V), que é o Senar
+  atestando a ação como sua;
+- estrutura do Senar a serviço do evento — tenda, estande, van, material
+  didático do programa —, quando as fotos mostram que ela sustentou a atividade,
+  e não apenas apareceu.
+
+**A logomarca do próprio Faeg Jovem nunca descaracteriza nada** — o edital a
+EXIGE no card.
+
+Na dúvida entre divulgação e custeio, **vale a declaração da equipe**: prevalece
+"Sim". O ônus é de quem afirma o custeio, e o que o prova é a foto, não a arte.
 
 ### Duração ≥ 2 dias consecutivos
 
