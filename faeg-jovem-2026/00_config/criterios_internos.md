@@ -211,6 +211,50 @@ Aplica-se a: todas as equipes, em todas as etapas.
 
 ---
 
+### D5 — Menores só entram na contagem quando a instituição atestou
+
+**Decidida em:** 30/08/2026 · **Aplicada em:** 1º Evento Técnico (etapa 82)
+
+Registro em P4, acima. Conferidas folha a folha as 105 listas cuja faixa dependia
+do rodapé de menores: 79 com atestado válido, 26 sem. A régua não mudou a nota de
+167 das 169 equipes, porque nas listas sem assinatura o campo do número de menores
+também está em branco — não havia menor sendo somado. Perderam faixa
+'saopatricio' (3 faixas, 15 pontos) e 'taquaral' (1 faixa, 5 pontos).
+
+Em 30/08 'saopatricio' foi reexaminado numa segunda leitura: a assinatura do rodapé
+traz nome por extenso e legível, e não rubrica isolada — o que a põe ENTRE as duas
+hipóteses da régua, porque segue sem cargo, sem instituição nomeada e atesta de uma
+vez os menores de três escolas distintas (350). O "Não" foi **mantido**, para não
+romper a régua aplicada a 'taquaral' e às outras 103 listas, e o caso foi levado à
+coordenação no documento de anomalias: são 15 pontos numa equipe só, e a decisão é
+de quem fixou a régua, não de quem a aplica.
+
+### D6 — Logomarca não é custeio: a independência se decide pelo uniforme de quem ministra
+
+**Decidida em:** 30/08/2026 · **Aplicada em:** 1º Evento Técnico (etapa 82)
+
+A régua anterior tratava a logomarca do Senar, do Sistema Faeg ou do Sindicato Rural
+— no card, no telão, num banner ou num post — como indício de que o Senar bancou o
+evento. É comum e esperado que essas marcas apareçam: o que a equipe faz ali é
+divulgação e fortalecimento de marca, que o próprio programa estimula. Negar a
+bonificação por isso punia a equipe pelo que se espera dela.
+
+A pergunta passou a ser uma só: **o Senar custeou o evento?** O teste principal está
+nas fotos — **se quem ministra veste uniforme do Senar (colete de campo, jaleco, polo
+institucional), o Senar custeou**: marque "Não" e escreva "custeado" na justificativa.
+Caso contrário, a independência se sustenta. Continuam derrubando a bonificação o
+evento do Quadro 1, a declaração do Senar no lugar da lista de presença e a estrutura
+do programa sustentando a atividade (tenda, estande, van, material didático). Na
+dúvida entre divulgação e custeio, prevalece a declaração da equipe.
+
+As 96 negativas de independência da etapa foram reabertas uma a uma, com as fotos
+ampliadas: **57 revertidas para "Sim"** (5 pontos cada) e **39 mantidas**, agora por
+indício concreto de custeio. Um achado se repetiu e explica boa parte dos enganos
+anteriores: a polo verde com "Faeg Jovem" no peito esquerdo e "SENAR" no direito é o
+**uniforme da própria equipe concorrente**, não roupa de instrutor.
+
+O texto da régua está em `rubrica-1et.md`, seção "Independência — item 5.9.15".
+
 ## Pendência aberta por esta rodada
 
 ### P7 — A zeragem da D3 alcança o documento INCOMPLETO?
