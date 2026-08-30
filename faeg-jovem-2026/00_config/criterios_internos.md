@@ -66,7 +66,24 @@ data provisória está quase três meses adiantada. O efeito é grande: com cort
 15/05, os do primeiro lote de envio (até 28/05) ficam quase todos de fora. Não
 altere `DATA_RETIFICACAO_02` no script antes da confirmação do Senar/AR-GO.
 
-### P4 — Contagem de público quando há menores na lista
+### P4 — RESOLVIDA pela diretoria em 30/08/2026 (decisão D5)
+
+**Os menores só entram na contagem de público quando o responsável pela
+instituição atestou a lista de presença.** Vale como atestado a assinatura
+manuscrita no campo do responsável, o carimbo da instituição ou o selo gov.br;
+campo inteiramente em branco não vale, ainda que o número de menores esteja
+escrito. A assinatura do coordenador do GRUPO não serve — quem atesta é a
+instituição que recebeu o evento.
+
+Conferência feita nas 105 equipes do 1º Evento Técnico cuja faixa dependia
+disso: **79 com atestado assinado, 26 sem**. A decisão **não alterou nenhuma
+pontuação**, porque nas 26 sem assinatura o campo de menores está em branco
+também — não havia menor sendo somado. A régua já vinha sendo aplicada de fato
+antes de estar escrita.
+
+O texto original da pendência fica abaixo, como registro do que se decidiu.
+
+### P4 (texto original) — Contagem de público quando há menores na lista
 
 O item 5.9.8.2 IV manda que menores não sejam identificados na lista; o número
 deles é atestado no rodapé pelo responsável da instituição. Para a bonificação

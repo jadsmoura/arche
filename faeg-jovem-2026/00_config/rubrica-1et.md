@@ -79,10 +79,14 @@ desconsiderando assinatura duplicada.
   justificativa registra os dois números. Bonificação é ponto; ponto se dá sobre
   o que está comprovado.
 - **Menores atestados no rodapé** pelo responsável da instituição (5.9.8.2 IV):
-  entram na contagem — a bonificação mede alcance, e o menor esteve presente.
-  Esta é a **pendência P4**, ainda sem decisão da coordenação: **some**, marque a
-  faixa correspondente e **registre a composição** ("47 assinaturas + 6 menores
-  atestados = 53"), para que a decisão possa ser refeita sem reabrir o documento.
+  entram na contagem — a bonificação mede alcance, e o menor esteve presente —,
+  **mas só quando o atestado está assinado** (decisão D5 da diretoria,
+  30/08/2026). Vale assinatura manuscrita no campo do responsável, carimbo da
+  instituição ou selo gov.br. **Campo em branco não vale, ainda que o número
+  esteja escrito**, e a assinatura do coordenador do GRUPO não serve: quem
+  atesta é a instituição que recebeu o evento. Somado o atestado válido,
+  **registre a composição** na justificativa ("47 identificados + 6 menores
+  atestados = 53"), que é o que sustenta o recurso.
 - Se a lista foi substituída pela **declaração do Senar**, vale o número de
   presentes que ela atesta.
 - Lista ilegível ou não conferível: marque as faixas que o documento sustenta e
