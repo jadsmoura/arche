@@ -134,6 +134,11 @@
   details.quadro[open]>summary .seta{transform:rotate(180deg)}
   details.quadro>.rolo,details.quadro>.muted{padding:6px 12px 10px}
   .muted{color:var(--muted);font-size:12.5px;font-weight:400}
+  /* selo de "há coisa por gravar" — fica ao lado do botão que grava, não no
+     alto da página: é onde a pessoa está olhando quando digita */
+  .selo-sujo{align-self:center;font-size:12px;color:var(--muted)}
+  .selo-sujo.on{color:#a8730f;font-weight:700}
+  .selo-sujo.on::before{content:"● "}
   .kv{margin:4px 0;font-size:13.5px;color:var(--ink-soft)}
   .kv b{color:var(--ink);font-weight:600}
 
@@ -707,7 +712,56 @@ async function verComo(email) {
   nav(vale.includes(SECAO) ? SECAO : (vale[0] || "painel"));
 }
 
+/* ---------------------- O QUE FOI DIGITADO NÃO SE PERDE -----------------
+   Relato de um professor (ago/2026): "os alunos que preenchi para o projeto
+   de IC não estão ficando salvos". Estavam sendo perdidos ANTES de sair da
+   tela: a ficha do projeto tem quase quatro mil pixels de altura, o quadro
+   de alunos fica no meio dela e o único "Salvar" ficava no ÚLTIMO card, duas
+   telas de rolagem abaixo — passando por pendências, seleção, avaliação e
+   relatórios. Quem indicava os alunos e mudava de guia (ou fechava a aba)
+   levava o trabalho embora, e nada avisava.
+
+   Não se resolve com gravação automática, como nas atas: aqui salvar DISPARA
+   O CONVITE POR E-MAIL ao aluno indicado, e um e-mail a cada poucos segundos
+   sairia para endereços digitados pela metade. A saída é a outra: o ato de
+   salvar passa a existir JUNTO do quadro em que se trabalha, o selo diz que
+   há coisa por gravar, e sair com alterações pendentes avisa — no fechar da
+   aba e na navegação entre guias, que é por onde a perda realmente acontecia. */
+let SUJO = false;
+function marcarSujo() {
+  if (SUJO) return;
+  SUJO = true;
+  document.querySelectorAll(".selo-sujo").forEach((s) => { s.textContent = "alterações não salvas"; s.classList.add("on"); });
+}
+function limparSujo() {
+  SUJO = false;
+  document.querySelectorAll(".selo-sujo").forEach((s) => { s.textContent = "tudo salvo"; s.classList.remove("on"); });
+}
+/* Qualquer digitação dentro do editor suja o projeto. É um ouvinte só, na
+   captura: os campos são redesenhados o tempo todo (addAluno, addEtapa), e
+   um ouvinte por campo escaparia justamente nas linhas novas. */
+for (const ev of ["input", "change"]) {
+  document.addEventListener(ev, (e) => {
+    if (!ATUAL) return;
+    const v = e.target?.closest?.("#v-projeto, #v-submissao");
+    if (v) marcarSujo();
+  }, true);
+}
+window.addEventListener("beforeunload", (e) => {
+  if (!SUJO) return;
+  e.preventDefault(); e.returnValue = "";
+});
+/** Deixar o que está aberto: pergunta antes, quando há coisa por gravar. */
+function podeSair() {
+  if (!SUJO) return true;
+  if (!confirm("Há alterações que ainda não foram salvas neste projeto — inclusive os alunos indicados.\n\n"
+    + "Sair sem salvar? O que foi digitado será perdido.")) return false;
+  limparSujo();
+  return true;
+}
+
 function nav(secao, modo) {
+  if (secao !== SECAO && !podeSair()) return;
   SECAO = secao;
   // a inclusão manual vale só para o formulário aberto por ela
   MANUAL = secao === "submissao" && modo === "manual";
@@ -760,12 +814,15 @@ async function carregar() {
 }
 
 async function abrir(id) {
+  // abrir outro projeto abandona o que está na tela: pergunta antes
+  if (!podeSair()) return;
   try {
     // guarda de onde se veio, para o "Retornar" voltar à lista certa —
     // salvar reabre o projeto (SECAO já é "projeto") e a origem não muda
     if (SECAO && SECAO !== "projeto" && SECAO !== "submissao") ORIGEM_LISTA = SECAO;
     const r = await api("/api/ic/" + id);
     ATUAL = r.projeto; PODE = r;
+    limparSujo();                  // o que está na tela é o que veio do servidor
     // NP/CL/total vem ao lado do projeto (derivado, não gravado)
     if (r.classificacao !== undefined) ATUAL.classificacao = r.classificacao;
     nav("projeto");
@@ -3755,7 +3812,13 @@ function renderEditor(alvo) {
         <thead><tr><th style="width:22%">Nome</th><th style="width:22%">E-mail</th><th style="width:16%">Telefone</th><th style="width:18%">Curso</th><th>Período</th><th>Bolsista</th><th></th></tr></thead>
         <tbody id="tb-alunos"></tbody>
       </table></div>
-      ${ger ? `<div class="exp"><button class="bt bt-sec" onclick="addAluno()">＋ Indicar aluno</button></div>` : ""}
+      ${ger ? `<div class="exp">
+        <button class="bt bt-sec" onclick="addAluno()">＋ Indicar aluno</button>
+        <button class="bt bt-pri" onclick="salvar()">Salvar a indicação</button>
+        <span class="selo-sujo"></span>
+      </div>
+      <div class="muted" style="margin-top:8px;font-size:12px">Indicar não basta: os alunos só
+        entram no projeto — e só recebem o convite por e-mail — <b>depois de salvar</b>.</div>` : ""}
     </div>`}
 
     ${renderIndicacaoBolsista(p, ger)}
@@ -3769,7 +3832,11 @@ function renderEditor(alvo) {
         <thead><tr><th style="width:34%">Atividade</th><th>Responsável</th><th>Mês inicial</th><th>Mês final</th><th>Situação</th><th></th></tr></thead>
         <tbody id="tb-etapas"></tbody>
       </table></div>
-      ${ger ? `<div class="exp"><button class="bt bt-sec" onclick="addEtapa()">＋ Adicionar atividade</button></div>` : ""}
+      ${ger ? `<div class="exp">
+        <button class="bt bt-sec" onclick="addEtapa()">＋ Adicionar atividade</button>
+        <button class="bt bt-pri" onclick="salvar()">Salvar o cronograma</button>
+        <span class="selo-sujo"></span>
+      </div>` : ""}
     </div>
 
     ${p.id ? renderPendencias(p) : ""}
@@ -4992,9 +5059,13 @@ async function salvar() {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ATUAL),
     });
     ATUAL = r.projeto;
+    limparSujo();                  // gravado: o selo volta a dizer a verdade
     await carregar(); montarSidebar();
     if (SECAO === "submissao") { nav("projeto"); await abrir(ATUAL.id); }
-    aviso("Projeto salvo.");
+    // dizer QUANTOS alunos ficaram gravados é o que fecha o relato de
+    // ago/2026: "salvo" sozinho não distingue o que entrou do que se perdeu
+    const n = (ATUAL.alunos || []).length;
+    aviso(n ? `Projeto salvo — ${n} aluno(s) indicado(s).` : "Projeto salvo.");
   } catch (e) { aviso(e.message, "err"); }
 }
 
@@ -5006,6 +5077,7 @@ async function submeter() {
     } else {
       await api("/api/ic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ATUAL) });
     }
+    limparSujo();                  // o que estava na tela já foi gravado acima
     if (!confirm("Submeter o projeto à avaliação da PROPPEX? Depois disso a proposta fica fechada para edição.")) return;
     const r = await api(`/api/ic/${ATUAL.id}/submeter`, { method: "POST" });
     await carregar(); montarSidebar(); await abrir(r.projeto.id);

@@ -1705,6 +1705,23 @@ public/
   projetos CONCLUÍDOS — com `modalidadeHistorica` (PIBIC/FACEG etc., que não se
   recalcula pelo catálogo atual) e os bolsistas nomeados quando a fonte os traz.
   Concluído não tem prazo correndo (`prazosRelatorios` só vale para `aprovado`).
+- **O QUE FOI DIGITADO NA FICHA DO PROJETO NÃO SE PERDE** (`SUJO`/`podeSair`/`selo-sujo` na SPA
+  da IC, relato de um professor ago/2026: "os alunos que preenchi para o projeto de IC não estão
+  ficando salvos"). Não estavam sendo perdidos na gravação — a gravação funciona, conferida ponta
+  a ponta: eram perdidos ANTES de sair da tela. A ficha do projeto tem quase quatro mil pixels de
+  altura, o quadro de alunos fica no MEIO dela e o único "Salvar" ficava no ÚLTIMO card, **duas
+  telas de rolagem abaixo** — passando por pendências, seleção, avaliação e relatórios. Quem
+  indicava os alunos e mudava de guia (ou fechava a aba) levava o trabalho embora, e **nada
+  avisava**. O card ainda dizia "ao salvar o projeto, o aluno recebe um e-mail", com o botão
+  invisível dali. A correção **não é gravação automática**, como nas atas: aqui salvar DISPARA O
+  CONVITE ao aluno indicado, e um e-mail a cada poucos segundos sairia para endereços digitados
+  pela metade. São três coisas: o ato de salvar passa a existir **junto do quadro** ("Salvar a
+  indicação" e "Salvar o cronograma", a 46 px do que se digita, contra os 1.786 px de antes), um
+  **selo** ao lado do botão diz que há coisa por gravar, e **sair com alteração pendente pergunta**
+  — no fechar da aba (`beforeunload`) e na navegação entre guias (`nav`/`abrir`), que é por onde a
+  perda realmente acontecia; recusando, a tela FICA e nada se perde. O aviso de sucesso passa a
+  dizer **quantos alunos ficaram gravados**: "salvo" sozinho não distingue o que entrou do que a
+  régua descartou (aluno sem nome e sem e-mail não entra).
 - **Depois da aprovação, o quadro de alunos só CRESCE pela tela da orientação**
   (decisão do dono, ago/2026, no ramo de execução do POST /api/ic): indicar aluno novo
   segue livre, mas **remover** aluno — ou trocar o e-mail de quem já foi indicado, que
