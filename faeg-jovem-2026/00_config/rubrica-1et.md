@@ -84,7 +84,11 @@ desconsiderando assinatura duplicada.
   30/08/2026). Vale assinatura manuscrita no campo do responsável, carimbo da
   instituição ou selo gov.br. **Campo em branco não vale, ainda que o número
   esteja escrito**, e a assinatura do coordenador do GRUPO não serve: quem
-  atesta é a instituição que recebeu o evento. Somado o atestado válido,
+  atesta é a instituição que recebeu o evento. E uma **rubrica sozinha**, sem
+  nada que diga quem assinou nem por qual instituição, **não vale**: ela
+  identifica um traço, não uma competência — ao passo que assinatura
+  acompanhada de nome e cargo declarados vale, ainda que sem carimbo.
+  Somado o atestado válido,
   **registre a composição** na justificativa ("47 identificados + 6 menores
   atestados = 53"), que é o que sustenta o recurso.
 - Se a lista foi substituída pela **declaração do Senar**, vale o número de
