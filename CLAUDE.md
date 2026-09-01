@@ -531,6 +531,23 @@ public/
   submissor; ele acessa pelo próprio e-mail, sem senha definida por ninguém. Papéis e senha
   ficam na outra aba, de propósito. O **curso é gravado pelo NOME** nos dois lugares: duas
   grafias fariam a pessoa não conseguir salvar o próprio perfil depois de editada.
+- **QUEM JÁ ESTÁ ENTRADO NÃO PRECISA ENTRAR DE NOVO** (`/entrar/`, relato de uma bolsista do
+  ICEM ago/2026: "quando eu clico em preencher, ele não me coloca no lugar correto; eu não acho
+  a aba de estudante"): TODO e-mail do ARCHÉ manda para `/entrar/?next=<destino>`, e o `next` só
+  era usado DEPOIS de um login — a página nunca perguntava se já havia sessão. Quem tinha o
+  portal aberto no celular (o caso comum: o e-mail se lê no mesmo aparelho) clicava no botão e
+  caía numa tela de **"Entrar"**, sem nada que a levasse ao relatório que o e-mail pedia. O
+  destino estava a um clique e não havia clique nenhum. Agora, **havendo `next` no endereço**, a
+  tela confere `/api/me` e vai direto ao destino; sem `next`, ela continua sendo a tela de
+  entrada (é assim que se troca de conta). O `next` passou a ser **saneado**: só caminho do
+  próprio portal (`/algo`, nunca `//` nem `https://`) — sem isso, um link forjado usaria a nossa
+  tela de entrada para despachar quem confia nela para fora. E o TEXTO da tela mudou, porque
+  para ela dizia o contrário do que devia: "Acesso aos setores de **gestão** da PROPPEX", o
+  exemplo `nome@uniego.edu.br` e o rodapé "demais aguardam aprovação da PROPPEX" — uma estudante
+  do ensino médio com e-mail escolar lia ali que estava no lugar errado, e o rodapé ainda estava
+  **desatualizado** (desde ago/2026 toda conta nova é aprovada no primeiro acesso). O setor em
+  si estava certo o tempo todo: a guia se chama "Ensino Médio", como o e-mail diz, e o perfil
+  `em` a enxerga no celular e no computador.
 - **Perfil incompleto barra a entrada nos setores** (`faltaNoPerfil` em lib/auth.js, decisão
   do dono em ago/2026): quem tem campo faltando é levado ao `/perfil/` com
   `?completar=1&next=…` antes de entrar em qualquer setor protegido, e a tela mostra a etapa

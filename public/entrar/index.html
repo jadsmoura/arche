@@ -80,11 +80,14 @@
   <!-- etapa 1 · e-mail -->
   <section id="et-email">
     <h1>Entrar</h1>
-    <p class="sub">Acesso aos setores de gestão da PROPPEX<br>(Pesquisa · Extensão · Inovação)</p>
+    <!-- A tela dizia "acesso aos setores de GESTÃO da PROPPEX": quem entra
+         por aqui é também o professor, o bolsista de IC e o estudante do
+         ICEM — para eles, aquilo dizia "você está no lugar errado". -->
+    <p class="sub">Portal da PROPPEX / UNIEGO<br>Professores, estudantes e equipes.</p>
     <form id="f-email" novalidate>
       <label for="email">Seu e-mail</label>
       <input type="email" id="email" name="username" autocomplete="username" required
-        placeholder="nome@uniego.edu.br" aria-describedby="err-email">
+        placeholder="voce@exemplo.com" aria-describedby="err-email">
       <p class="erro-campo" id="err-email" role="alert"></p>
       <button class="bt bt-pri bt-bloco" id="bt-continuar" type="submit">Continuar</button>
     </form>
@@ -167,13 +170,38 @@
     <img class="p" src="/assets/logo-proppex.png" alt="PROPPEX">
   </div>
 </div>
-<div class="rodape">Contas @uniego.edu.br entram automaticamente · demais aguardam aprovação da PROPPEX</div>
+<div class="rodape">Entre com o e-mail que a PROPPEX usou para falar com você — institucional, escolar ou pessoal.</div>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
-const NEXT = q.get("next") || "/";
+/* O destino vem do endereço, então ele é texto que o visitante escolhe: só
+   passa CAMINHO do próprio portal ("/pesquisa/ic/"). Sem isto, um link
+   `?next=https://outro-site` usaria a nossa tela de entrada para despachar
+   quem confia nela para fora — e "//" também sai do site, apesar da barra. */
+function destinoSeguro(v) {
+  const s = String(v || "");
+  return /^\/(?!\/)/.test(s) ? s : "/";
+}
+const NEXT = destinoSeguro(q.get("next"));
 let EMAIL = "", REDEFININDO = false;
+
+/* QUEM JÁ ESTÁ ENTRADO NÃO PRECISA ENTRAR DE NOVO (relato de uma bolsista do
+   ICEM, ago/2026: "quando eu clico em preencher, ele não me coloca no lugar
+   correto"). Todo e-mail do ARCHÉ manda para cá com o destino no endereço
+   (`?next=`), mas o `next` só era usado DEPOIS de um login — quem já tinha a
+   sessão aberta no celular clicava no botão do e-mail e caía numa tela de
+   "Entrar", sem nada que a levasse ao relatório que o e-mail pedia. E a tela
+   diz, para quem chegou ali, que o acesso é "aos setores de gestão da
+   PROPPEX": a aluna concluiu que estava no lugar errado, que é a leitura
+   certa do que estava escrito.
+   Só vale quando o endereço TRAZ destino: entrar em /entrar/ sem `next` é
+   pedir a tela de entrada (para trocar de conta, por exemplo), e aí ela fica. */
+if (q.get("next")) {
+  fetch("/api/me").then((r) => (r.ok ? r.json() : null)).then((me) => {
+    if (me && me.email) location.replace(NEXT);
+  }).catch(() => { /* sem resposta, fica na tela de entrada: é o seguro */ });
+}
 
 // Conta fora do @uniego.edu.br nasce pendente. Mas quem já submeteu projeto
 // pelo formulário do edital não precisa esperar: o projeto o reconhece pelo
@@ -235,7 +263,7 @@ $("f-email").addEventListener("submit", async (ev) => {
   ev.preventDefault(); limpaAviso();
   const email = $("email").value.trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
-    return erroCampo("email", "Digite um e-mail válido, como nome@uniego.edu.br.");
+    return erroCampo("email", "Digite um e-mail válido, como voce@exemplo.com.");
   erroCampo("email", "");
   const bt = $("bt-continuar"); ocupado(bt, "Verificando…");
   try {
