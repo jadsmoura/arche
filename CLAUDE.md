@@ -548,6 +548,20 @@ public/
   **desatualizado** (desde ago/2026 toda conta nova é aprovada no primeiro acesso). O setor em
   si estava certo o tempo todo: a guia se chama "Ensino Médio", como o e-mail diz, e o perfil
   `em` a enxerga no celular e no computador.
+- **O LINK DO E-MAIL NOMINAL DIZ PARA QUE CONTA ELE É** (`linkEntrada` em lib/mailer.js + o
+  `conta=` no `/entrar/`, segunda metade do mesmo relato, ago/2026: corrigido o `next`, a aluna
+  voltou dizendo "segue do mesmo jeito" — e o print mostrava o **Painel** com "orientação" no
+  canto). Ela estava entrada com OUTRA conta: a pessoal do Google, no celular, em vez da escolar
+  que o ICEM conhece. `souBolsistaEM` não a reconhecia, `perfilIC` caía no `orientador` do fim da
+  função (docente sem projeto, que **pode submeter**) e o setor lhe mostrava o painel do
+  professor — sem a guia que o e-mail mandava abrir, e sem nenhuma pista do que havia acontecido.
+  O texto dos e-mails sempre disse "entre com ESTE e-mail", mas o link não dizia nada ao portal,
+  e o `next` recém-corrigido passou a despachá-la em silêncio para o lugar errado. Agora o link
+  dos e-mails NOMINAIS (convite e chamada do ICEM, convite do monitor) leva `conta=<e-mail>`: se
+  bate com a sessão, entra direto; **divergindo, a tela pergunta** — nomeia as duas contas, diz
+  que é por isso que a página não abre no lugar certo, e oferece "Entrar como <a do link>"
+  (que sai pela rota e RECARREGA o mesmo endereço, para o destino não se perder) e "Continuar
+  como estou". Quem decide é a pessoa, com os dois nomes à vista.
 - **Perfil incompleto barra a entrada nos setores** (`faltaNoPerfil` em lib/auth.js, decisão
   do dono em ago/2026): quem tem campo faltando é levado ao `/perfil/` com
   `?completar=1&next=…` antes de entrar em qualquer setor protegido, e a tela mostra a etapa

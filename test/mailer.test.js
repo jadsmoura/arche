@@ -2,7 +2,8 @@
    o passe na carteira digital (schema.org EventReservation). */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { emailInscricaoEvento, destinatariosFinais, listaPara } from "../lib/mailer.js";
+import { emailInscricaoEvento, destinatariosFinais, listaPara, linkEntrada,
+  emailChamadaRelatorioEM, emailConviteEM, emailConviteMonitor } from "../lib/mailer.js";
 
 const acao = {
   curso: "Agronomia",
@@ -98,4 +99,35 @@ test("os demais endereços passam intactos", () => {
 
 test("listaPara segue validando e normalizando como sempre", () => {
   assert.deepEqual(listaPara([" A@b.co ", "quebra\ninjecao@x.co", null]), ["a@b.co"]);
+});
+
+/* O link de e-mail NOMINAL leva a conta a que se destina (ago/2026): sem
+   isso, quem estava entrado com outra conta no celular chegava ao setor como
+   outra pessoa, e a guia que o e-mail mandava abrir não existia para ela. */
+test("o link de entrada leva o destino E a conta a que o e-mail se destina", () => {
+  const u = new URL(linkEntrada("https://arche.app.br", "/pesquisa/ic/", "Ana@Escola.COM "));
+  assert.equal(u.pathname, "/entrar/");
+  assert.equal(u.searchParams.get("next"), "/pesquisa/ic/");
+  assert.equal(u.searchParams.get("conta"), "ana@escola.com");   // normalizada
+});
+
+test("sem e-mail, o link segue só com o destino (nada de conta vazia)", () => {
+  const u = new URL(linkEntrada("https://arche.app.br", "/monitoria/", ""));
+  assert.equal(u.searchParams.get("next"), "/monitoria/");
+  assert.equal(u.searchParams.has("conta"), false);
+});
+
+test("os e-mails nominais do ICEM e da monitoria carregam a conta no botão", () => {
+  const b = { nome: "Ana", email: "ana.camargo10@aluno.educa.go.gov.br" };
+  const turma = { ciclo: "2025/2026", encerrada: true, edital: "02/2025" };
+  for (const html of [
+    emailChamadaRelatorioEM(b, turma).corpoHtml,
+    emailConviteEM(b, turma).corpoHtml,
+    emailConviteMonitor({ disciplina: "Anatomia" }, b).corpoHtml,
+  ]) {
+    const link = (html.match(/href="([^"]*\/entrar\/[^"]*)"/) || [])[1];
+    assert.ok(link, "o e-mail precisa levar ao /entrar/");
+    assert.match(link, /conta=ana\.camargo10/);
+    assert.match(link, /next=/);
+  }
 });

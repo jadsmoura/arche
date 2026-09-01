@@ -27,7 +27,11 @@
   .bt-pri{color:#fff;background:linear-gradient(160deg,var(--brand-2),var(--brand));box-shadow:0 6px 16px -8px var(--brand)}
   .bt-pri:hover{filter:brightness(1.08)}
   .bt[aria-busy="true"]{opacity:.75;cursor:wait}
-  .aviso{border-radius:10px;padding:12px 14px;font-size:13.5px;margin-bottom:16px;text-align:left}
+  /* e-mail é palavra longa e sem espaço: sem isto ele atravessa a caixa no
+     celular, que é justamente onde este aviso mais aparece */
+  .aviso{border-radius:10px;padding:12px 14px;font-size:13.5px;margin-bottom:16px;text-align:left;
+    overflow-wrap:anywhere}
+  .aviso .bt{width:100%;justify-content:center;text-align:center}
   .a-warn{background:var(--warn-soft);color:var(--warn);border:1px solid #ffe0b2}
   .a-ok{background:var(--ok-soft);color:var(--ok);border:1px solid #c8e6c9}
   .a-err{background:var(--err-soft);color:var(--err);border:1px solid #ffcdd2}
@@ -196,10 +200,41 @@ let EMAIL = "", REDEFININDO = false;
    PROPPEX": a aluna concluiu que estava no lugar errado, que é a leitura
    certa do que estava escrito.
    Só vale quando o endereço TRAZ destino: entrar em /entrar/ sem `next` é
-   pedir a tela de entrada (para trocar de conta, por exemplo), e aí ela fica. */
+   pedir a tela de entrada (para trocar de conta, por exemplo), e aí ela fica.
+
+   E há o caso que veio depois (a mesma bolsista, ago/2026): ela estava
+   entrada com OUTRA conta — a pessoal do Google, no celular, em vez da
+   escolar que o ICEM conhece. Levá-la direto ao destino seria pior que a
+   tela de login: o setor a receberia como docente sem projeto, com o painel
+   do professor e sem a guia que o e-mail mandou abrir. Por isso o e-mail
+   nominal manda também `conta=`: divergindo, a tela PERGUNTA em vez de
+   despachar — e o "sair" leva de volta a este mesmo link, sem o destino se
+   perder no caminho. */
+const CONTA = String(q.get("conta") || "").trim().toLowerCase();
+const escapa = (s) => String(s ?? "").replace(/[&<>"]/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 if (q.get("next")) {
   fetch("/api/me").then((r) => (r.ok ? r.json() : null)).then((me) => {
-    if (me && me.email) location.replace(NEXT);
+    const eu = String(me && me.email || "").toLowerCase();
+    if (!eu) return;                                  // sem sessão: a tela de entrada é a certa
+    if (!CONTA || eu === CONTA) { location.replace(NEXT); return; }
+    // entrada com OUTRA conta: quem decide é ela, com os dois nomes à vista
+    aviso("warn", `Este link é para <b>${escapa(CONTA)}</b>, mas você está no portal como`
+      + ` <b>${escapa(eu)}</b>. É por isso que a página não abre no lugar certo.`
+      + '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'
+      + '<button class="bt bt-pri" id="bt-trocar-conta" type="button">'
+      + `Entrar como ${escapa(CONTA)}</button>`
+      + `<a class="bt" style="text-decoration:none" href="${escapa(NEXT)}">Continuar como estou</a>`
+      + "</div>");
+    /* Sair pela rota e RECARREGAR este mesmo endereço: sem sessão, a tela de
+       entrada aparece com o destino e a conta ainda no endereço, e o login
+       seguinte termina no relatório que o e-mail pediu. O GET /auth/sair
+       levaria ao portal e o destino se perderia no caminho. */
+    $("bt-trocar-conta").addEventListener("click", () => {
+      fetch("/auth/sair", { method: "POST" })
+        .then(() => location.reload())
+        .catch(() => location.reload());
+    });
   }).catch(() => { /* sem resposta, fica na tela de entrada: é o seguro */ });
 }
 
