@@ -74,8 +74,11 @@ zera o evento.
   no campo do responsável, carimbo da instituição ou selo gov.br. **Campo em
   branco não vale**, ainda que o número esteja escrito; a assinatura do
   coordenador do GRUPO não serve; **rubrica sozinha**, sem nome nem instituição,
-  não vale; **assinatura com nome e cargo declarados vale**, ainda que sem
-  carimbo.
+  não vale. **Vale a assinatura com nome e cargo declarados** e **vale também a
+  assinatura com o nome por extenso e legível, ainda que sem cargo e sem
+  carimbo** — decisão da coordenação de 31/08/2026, ao validar São Patrício no
+  1º Evento Técnico. O que não vale é o traço de fluxo do qual não se extrai
+  nome nenhum (o caso de Taquaral).
 - **Duração ≥ 2 dias.** Dois dias **consecutivos**, comprovados. Procure a data
   nas quatro formas (carimbo, EXIF, cena, nome do arquivo) antes de negar.
 - **Independência (D6) — logomarca NÃO é custeio.** A pergunta é uma só: **o
