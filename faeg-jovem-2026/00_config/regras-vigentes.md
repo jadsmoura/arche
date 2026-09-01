@@ -11,6 +11,11 @@ Onde este arquivo e uma rubrica antiga divergirem, **vale este**.
 - **Relatório (5.9.8.1).** Modelo do Anexo I, cabeçalho preenchido e relato do
   evento. **A assinatura do coordenador é requisito**: vale manuscrita, rubrica,
   selo gov.br ou certificado digital (D2).
+  **NUNCA conclua pela ausência de assinatura a partir da transcrição do texto:
+  ela não captura o selo gov.br nem a assinatura manuscrita digitalizada. Abra a
+  IMAGEM da folha — e, em `.docx`, as imagens embutidas e o pacote XML — antes de
+  afirmar que não há assinatura.** Já foram evitadas quatro zeragens indevidas por
+  esse caminho (Niquelândia, Nova Roma, Cabeceiras, Baliza e Bela Vista de Goiás).
   **Relatório sem NENHUMA forma de assinatura ZERA a pontuação do evento**
   (decisão da coordenação, 31/08/2026): todos os itens daquele evento ficam em
   "Não", e a justificativa dos demais diz que sem relatório válido a ação não
