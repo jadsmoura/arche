@@ -56,6 +56,7 @@ import {
   normalizarProjeto as normalizarProjetoMon, normalizarRelatorio as normalizarRelatorioMon,
   papelNoProjeto as monPapel, podeVer as monPodeVer, podeEditar as monPodeEditar,
   podeSubmeter as monPodeSubmeter, podeDecidir as monPodeDecidir,
+  decisaoSobreProjetoProprio as monDecisaoPropria, souOrientadorDo as monSouOrientador,
   podeValidarRelatorio as monPodeValidar, podeHomologar as monPodeHomologar,
   monitorDe as monMonitorDe, visaoDoProjeto as monVisao, resumir as monResumir,
   panorama as monPanorama, pendenciasDoCiclo as monPendencias,
@@ -6375,8 +6376,15 @@ app.post("/api/monitoria/:id/decidir", async (req, res) => {
       if (!monPodeDecidir(p, quem))
         return { erro: [403, "A decisão é da PROPPEX, e só sobre projeto que está na fila."], gravar: false };
       p.status = { aprovar: "aprovado", devolver: "devolvido", reprovar: "reprovado" }[decisao];
-      p.apreciacao = { em: new Date().toISOString(), por: u.email, decisao, parecer };
-      monAnotar(p, { acao: `Projeto ${MON_ROTULO_STATUS[p.status].toLowerCase()}`, por: u.email, detalhe: parecer });
+      /* Coordenador de curso também leciona, e decide sobre o próprio projeto
+         (decisão do dono, ago/2026). O ato não se esconde: fica marcado aqui e
+         no histórico, que é o que o torna defensável depois — a mesma regra
+         do `atoDeGestao` no ARCHÉ IC. */
+      const proprio = monDecisaoPropria(p, quem);
+      p.apreciacao = { em: new Date().toISOString(), por: u.email, decisao, parecer,
+        ...(proprio ? { sobreProjetoProprio: true } : {}) };
+      monAnotar(p, { acao: `Projeto ${MON_ROTULO_STATUS[p.status].toLowerCase()}`
+        + (proprio ? " — sobre projeto próprio" : ""), por: u.email, detalhe: parecer });
       return { ok: true, projeto: p };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });

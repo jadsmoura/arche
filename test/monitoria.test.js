@@ -14,6 +14,7 @@ import {
   MIN_FOTOS_MONITORIA, fotosDoRelatorio, faltamFotosMon,
   cicloCorrente, editalVigente, editalDoCiclo, cicloSemEdital, normalizarProjeto as normProj,
   coordenaOCurso, papelNoProjeto as papelMon, podeHomologar as podeHomologarMon,
+  souOrientadorDo, decisaoSobreProjetoProprio,
 } from "../lib/monitoria.js";
 
 const CPF_A = "52998224725";   // válidos
@@ -510,4 +511,79 @@ test("projeto sem curso não cai na mão de coordenador nenhum", () => {
   const talita = { email: "t@uniego.edu.br", gestao: false, cursos: ["enfermagem", ""] };
   assert.equal(coordenaOCurso(semCurso, talita), false,
     "curso vazio não casa com curso vazio — seria alcance sobre o que não se sabe de quem é");
+});
+
+/* ---------------- COORDENADOR QUE TAMBÉM LECIONA (ago/2026) --------------
+   Relato do dono: "um coordenador está tentando submeter o projeto de
+   monitoria, mas como docente, e o sistema está travando". `papelNoProjeto`
+   devolve UM papel só e a gestão vence — então quem coordena o curso virava
+   "gestao" no PRÓPRIO projeto, e `podeSubmeter`, que exigia exatamente
+   "orientador", recusava. Coordenar não apaga a autoria. */
+const COORD = { email: "coord@uniego.edu.br", cursos: ["enfermagem"], gestao: false };
+const projetoDela = () => normalizarProjeto({
+  curso: "enfermagem", disciplina: "Anatomia", status: "rascunho",
+  criadoPor: COORD.email, orientador: { nome: "Coord", email: COORD.email },
+});
+
+test("no projeto dela, o papel é gestão — mas a autoria continua sendo dela", () => {
+  const p = projetoDela();
+  assert.equal(papelNoProjeto(p, COORD), "gestao");
+  assert.equal(souOrientadorDo(p, COORD), true);
+});
+
+test("a coordenação SUBMETE o próprio projeto (era o que travava)", () => {
+  assert.equal(podeSubmeter(projetoDela(), COORD), true);
+});
+
+test("mas ninguém submete projeto alheio, nem quem coordena o curso", () => {
+  const doOutro = normalizarProjeto({
+    curso: "enfermagem", disciplina: "Fisiologia", status: "rascunho",
+    criadoPor: "outro@uniego.edu.br", orientador: { nome: "Outro", email: "outro@uniego.edu.br" },
+  });
+  assert.equal(papelNoProjeto(doOutro, COORD), "gestao");   // ela ALCANÇA o projeto
+  assert.equal(souOrientadorDo(doOutro, COORD), false);
+  assert.equal(podeSubmeter(doOutro, COORD), false);        // submeter, não
+});
+
+test("a janela continua valendo: submetido não se submete de novo", () => {
+  const p = projetoDela(); p.status = "submetido";
+  assert.equal(podeSubmeter(p, COORD), false);
+});
+
+test("no modo coordenação ela decide o próprio projeto — e o ato fica marcado", () => {
+  const p = projetoDela(); p.status = "submetido";
+  assert.equal(podeDecidir(p, COORD), true);
+  assert.equal(decisaoSobreProjetoProprio(p, COORD), true);
+});
+
+test("decisão sobre projeto de OUTRO não sai marcada como própria", () => {
+  const doOutro = normalizarProjeto({
+    curso: "enfermagem", disciplina: "Fisiologia",
+    criadoPor: "outro@uniego.edu.br", orientador: { nome: "Outro", email: "outro@uniego.edu.br" },
+  });
+  doOutro.status = "submetido";          // é a fila que abre a decisão
+  assert.equal(podeDecidir(doOutro, COORD), true);
+  assert.equal(decisaoSobreProjetoProprio(doOutro, COORD), false);
+});
+
+test("o resumo diz à tela quais projetos são DELA (é o que separa os dois modos)", () => {
+  const meu = resumir(projetoDela(), COORD);
+  assert.equal(meu.souOrientador, true);
+  assert.equal(meu.papel, "gestao");
+  const alheio = resumir(normalizarProjeto({
+    curso: "enfermagem", disciplina: "Fisiologia", status: "submetido",
+    criadoPor: "outro@uniego.edu.br", orientador: { nome: "Outro", email: "outro@uniego.edu.br" },
+  }), COORD);
+  assert.equal(alheio.souOrientador, false);
+});
+
+test("professor sem coordenação segue exatamente como antes", () => {
+  const prof = { email: "prof@uniego.edu.br", cursos: [], gestao: false };
+  const dele = normalizarProjeto({
+    curso: "enfermagem", disciplina: "Anatomia", status: "rascunho",
+    criadoPor: prof.email, orientador: { nome: "Prof", email: prof.email },
+  });
+  assert.equal(papelNoProjeto(dele, prof), "orientador");
+  assert.equal(podeSubmeter(dele, prof), true);
+  assert.equal(podeDecidir(dele, prof), false);      // decidir nunca foi dele
 });

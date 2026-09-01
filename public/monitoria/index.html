@@ -34,6 +34,14 @@
   .side-marca b{color:var(--accent);font-weight:800}
   .side-nav{padding:14px 12px;flex:1;overflow-y:auto}
   .side-lab{font-size:10px;letter-spacing:.16em;color:rgba(255,255,255,.35);font-weight:600;padding:8px 12px 6px}
+  /* seletor de modo (docente × coordenação) — dois botões numa cápsula, no
+     pé do menu: é decisão de lente, não item de navegação */
+  .modo-cx{display:flex;gap:4px;margin:0 12px;background:rgba(255,255,255,.07);
+    border-radius:10px;padding:3px}
+  .modo-bt{flex:1;border:0;background:none;color:rgba(255,255,255,.6);font:inherit;font-size:12px;
+    font-weight:700;padding:7px 4px;border-radius:8px;cursor:pointer;transition:.15s}
+  .modo-bt:hover{color:#fff}
+  .modo-bt.on{background:rgba(255,255,255,.16);color:#fff}
   .side-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:8px;cursor:pointer;
     margin-bottom:2px;font-size:13.5px;font-weight:500;background:transparent;color:rgba(255,255,255,.62);
     border-left:3px solid transparent;border-right:0;border-top:0;border-bottom:0;width:100%;text-align:left;
@@ -274,6 +282,10 @@
     <div class="side-nav">
       <div class="side-lab">MONITORIA ACADÊMICA</div>
       <div id="menu"></div>
+      <!-- Quem coordena o curso também leciona: o seletor diz por quais olhos
+           a pessoa está olhando o setor agora. Só se desenha para quem tem os
+           dois papéis. -->
+      <div id="modo"></div>
     </div>
     <div class="side-pe">
       <div class="av" id="av">··</div>
@@ -337,6 +349,63 @@ let PROJ = null;       // projeto aberto (GET /api/monitoria/:id)
 let SECAO = "painel";
 let RASCUNHO = null;   // projeto em edição no formulário
 
+/* ------------------------------ MODO ------------------------------------
+   DOCENTE × COORDENAÇÃO (pedido do dono, ago/2026: "um coordenador está
+   tentando submeter o projeto de monitoria, mas como docente, e o sistema
+   está travando; permita aos coordenadores migrar entre modo docente e modo
+   coordenador").
+
+   Coordenar o curso e lecionar nele são a mesma pessoa, e o setor mostrava
+   só um dos dois: o coordenador via a lista do curso inteiro e nem
+   encontrava os projetos que ele mesmo escreveu no meio dela. O modo é uma
+   LENTE, não uma permissão — quem barra continua sendo o servidor, e trocar
+   de modo não dá nem tira nada. Em DOCENTE o setor mostra o que é dele; em
+   COORDENAÇÃO, o que o curso submeteu. Fica na aba (`sessionStorage`): é
+   preferência de quem está olhando, e some quando a aba fecha. */
+const MODO_CHAVE = "arche-mon-modo";
+let MODO = sessionStorage.getItem(MODO_CHAVE) || "docente";
+/** Tem os dois chapéus? (o seletor não se desenha para quem tem um só) */
+const temDoisPapeis = () => !!(DADOS && (DADOS.gestao || DADOS.gestaoPlena)
+  && DADOS.perfil?.funcao !== "aluno");
+const modoCoord = () => temDoisPapeis() && MODO === "coordenacao";
+/* "Estou olhando como gestão AGORA?" — é esta a pergunta que as telas fazem.
+   Quem tem um papel só responde como sempre respondeu; quem tem os dois
+   responde pelo MODO. Uma função só, para as telas não divergirem entre si. */
+const olhoDeGestao = () => !!(DADOS?.gestao && (!temDoisPapeis() || modoCoord()));
+function trocarModo(m) {
+  MODO = m;
+  sessionStorage.setItem(MODO_CHAVE, m);
+  PROJ = null;
+  // o Painel e a lista mudam de recorte; quem estava numa guia que o outro
+  // modo não tem volta ao Painel, em vez de ficar numa tela vazia
+  if (!SECOES().some((s) => s.k === SECAO)) SECAO = "painel";
+  render(); window.scrollTo(0, 0);
+}
+/* O rodapé da barra diz o MODO, não o cargo (senão a tela afirmaria
+   "Coordenação de curso" enquanto mostra os projetos que a pessoa escreveu
+   como docente). Repintado a cada troca — por isso não vive no `carregar`. */
+function pintarPapel() {
+  if (!DADOS || !$("euPapel")) return;
+  $("euPapel").textContent = temDoisPapeis()
+    ? (modoCoord() ? (DADOS.gestaoPlena ? "PROPPEX" : "Coordenação de curso") : "Docente")
+    : (DADOS.gestaoPlena ? "PROPPEX"
+      : DADOS.cursosCoordenados?.length ? "Coordenação de curso"
+      : (DADOS.perfil?.funcao === "aluno" ? "Estudante" : "Docente"));
+}
+
+function pintarModo() {
+  const el = $("modo");
+  if (!el) return;
+  if (!temDoisPapeis()) { el.innerHTML = ""; return; }
+  const bt = (k, rot, dica) => `<button class="modo-bt${MODO === k ? " on" : ""}"
+    title="${dica}" onclick="trocarModo('${k}')">${rot}</button>`;
+  el.innerHTML = `<div class="side-lab" style="margin-top:14px">VOCÊ ESTÁ COMO</div>
+    <div class="modo-cx">
+      ${bt("docente", "Docente", "Os projetos que você escreve e orienta")}
+      ${bt("coordenacao", "Coordenação", "Os projetos do seu curso, para analisar e homologar")}
+    </div>`;
+}
+
 const META = () => DADOS?.meta || {};
 const cursoNome = (slug) => (META().cursos || []).find((c) => c.slug === slug)?.nome || slug || "—";
 const selo = (st) => `<span class="badge b-${esc(st)}">${esc((META().rotuloStatus || {})[st] || st)}</span>`;
@@ -349,9 +418,7 @@ async function carregar() {
   DADOS = await r.json();
   const nome = DADOS.perfil?.nome || DADOS.eu || "";
   $("euNome").textContent = nome.split(" ").slice(0, 2).join(" ") || "—";
-  $("euPapel").textContent = DADOS.gestaoPlena ? "PROPPEX"
-    : DADOS.cursosCoordenados?.length ? "Coordenação de curso"
-    : (DADOS.perfil?.funcao === "aluno" ? "Estudante" : "Docente");
+  pintarPapel();
   $("av").textContent = nome.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "··";
   render();
 }
@@ -370,16 +437,27 @@ const SECOES = () => {
      vazia é o mesmo que não existir.
      Vale para a gestão E para a coordenação de curso, que já tinha a rota e
      nunca via o bloco — não conseguia conferir o arquivo do próprio curso. */
-  if (DADOS?.gestao || DADOS?.cursosCoordenados?.length) s.push({ k: "arquivo", rot: "Arquivo" });
+  /* O Arquivo é ferramenta de quem coordena; no modo docente ele sai da
+     barra, como sai a lista do curso inteiro. */
+  const temAlcance = !!(DADOS?.gestao || DADOS?.cursosCoordenados?.length);
+  if (modoCoord() || (temAlcance && !temDoisPapeis())) s.push({ k: "arquivo", rot: "Arquivo" });
   s.push({ k: "edital", rot: "Edital e documentos" });
   return s;
 };
 const souMonitor = () => (DADOS?.projetos || []).some((p) => p.papel === "monitor");
-const meusProjetos = () => DADOS?.projetos || [];
+/* No modo DOCENTE a lista é a DELE — os projetos que escreveu (e os em que é
+   monitor, se for o caso). No modo COORDENAÇÃO, tudo o que o alcance dele
+   já entregava. Quem tem um papel só não passa por aqui: vê o de sempre. */
+const meusProjetos = () => {
+  const todos = DADOS?.projetos || [];
+  if (!temDoisPapeis() || modoCoord()) return todos;
+  return todos.filter((p) => p.souOrientador || p.papel === "monitor");
+};
 
 function menu() {
   $("menu").innerHTML = SECOES().map((s) => `<button class="side-item${s.k === SECAO ? " on" : ""}"
     onclick="ir('${s.k}')"><span>${s.rot}</span></button>`).join("");
+  pintarModo(); pintarPapel();
 }
 function ir(k) { SECAO = k; PROJ = null; render(); window.scrollTo(0, 0); }
 
@@ -412,7 +490,7 @@ function render() {
 function painel() {
   const p = DADOS.panorama;
   const meus = meusProjetos();
-  if (!DADOS.gestao) {
+  if (!olhoDeGestao()) {
     const bloco = meus.length
       ? meus.map(cartaoProjeto).join("")
       : `<div class="vazio">Você ainda não tem projeto de monitoria neste ciclo.</div>`;
@@ -1078,7 +1156,7 @@ function relatorios() {
   if (!lista.length) return `<div class="card"><div class="vazio">Nenhum projeto em execução.</div></div>`;
   const rot = { "": "não iniciado", rascunho: "não enviado", enviado: "aguardando a orientação",
     devolvido: "devolvido ao monitor", validado: "aguardando a PROPPEX", homologado: "homologado" };
-  return `${DADOS.gestao ? `<div class="exp" style="margin-bottom:16px">
+  return `${olhoDeGestao() ? `<div class="exp" style="margin-bottom:16px">
       <button class="bt bt-sec" onclick="chamarRelatorios()">📣 Chamar quem está pendente</button>
       <span class="muted" style="align-self:center">A cobrança automática já sai toda semana, a partir de
         ${META().cobranca?.diasAntes || 30} dias antes do prazo (${dataBR(META().prazos?.relatorio)}) —
@@ -1134,14 +1212,14 @@ async function carregarCertificados() {
       <a class="pdf" href="${esc(c.link || `/api/monitoria/certificado.pdf?projeto=${encodeURIComponent(c.projetoId)}&tipo=${encodeURIComponent(c.tipo)}`)}"
         target="_blank">baixar PDF</a></div>`).join("")
       : `<div class="vazio">Nenhum certificado ainda. Eles aparecem aqui quando o projeto é concluído.</div>`}
-  </div>${DADOS.gestao || DADOS.cursosCoordenados?.length
+  </div>${olhoDeGestao()
     ? `<div class="card" id="cert-arq"><div class="card-t">Certificados do arquivo</div>
         <div class="card-s">Os semestres migrados das planilhas das coordenações. Aqui a gestão
           <b>abre o documento</b> para conferir como ele ficou; quem tem direito a ele o encontra
           sozinho, pela matrícula. Quem ainda não foi encontrado no portal está na guia
           <b>Arquivo</b>.</div>
         <div class="vazio">Carregando…</div></div>` : ""}`;
-  if (DADOS.gestao || DADOS.cursosCoordenados?.length) carregarCertArquivo();
+  if (olhoDeGestao()) carregarCertArquivo();
 }
 
 /* ===================== CERTIFICADOS DO ARQUIVO =========================

@@ -2562,6 +2562,27 @@ public/
   relatório vai; trocá-lo seria mudar de fila), e o **coordenador de curso não tem módulo em
   `modulosDe`** — por isso a saída rápida do `/api/alertas` consulta também o cadastro do AP, senão
   ele ficaria sem sino.
+- **COORDENADOR TAMBÉM LECIONA: modo DOCENTE × modo COORDENAÇÃO** (`souOrientadorDo` e
+  `decisaoSobreProjetoProprio` em lib/monitoria.js + o seletor `MODO` na SPA, pedido do dono
+  ago/2026: "um coordenador está tentando submeter o projeto de monitoria, mas como docente, e o
+  sistema está travando; permita aos coordenadores migrar entre modo docente e modo coordenador").
+  `papelNoProjeto` devolve UM papel só e a **gestão vence** — então quem coordena o curso virava
+  `gestao` no PRÓPRIO projeto, e `podeSubmeter`, que exigia exatamente `orientador`, recusava com
+  "só o professor orientador submete". Ele podia escrever o projeto e não tinha como enviá-lo.
+  **Coordenar o curso não apaga a autoria de quem escreveu**: a pergunta da AUTORIA saiu para
+  `souOrientadorDo` (identidade, não cargo) e é ela que `podeSubmeter` passa a olhar — a janela
+  continua valendo (só enquanto o projeto está aberto) e **ninguém submete projeto alheio**, nem
+  quem coordena o curso. **No modo coordenação ele decide o próprio pedido** (decisão do dono; é a
+  mesma régua do `atoDeGestao` no ARCHÉ IC — recusar travaria o curso inteiro quando quem coordena
+  também leciona, que é o caso comum), e o ato **fica marcado**: `sobreProjetoProprio` na
+  apreciação e "— sobre projeto próprio" no histórico, que é o que o torna defensável depois. O
+  **MODO é uma LENTE, não uma permissão** — trocar não dá nem tira nada, quem barra segue sendo o
+  servidor: em DOCENTE o setor mostra os projetos que a pessoa escreveu (e some a guia Arquivo);
+  em COORDENAÇÃO, os do curso, com a análise e a homologação. O seletor só se desenha para quem
+  tem os DOIS papéis, vive na aba (`sessionStorage`) e o rodapé da barra diz o modo, não o cargo —
+  senão a tela afirmaria "Coordenação de curso" enquanto mostra o que ela escreveu como docente.
+  `souOrientador` viaja no `resumir` e na `visaoDoProjeto` porque `papel` sozinho não distingue
+  "meu projeto" de "projeto do meu curso" quando a mesma pessoa acumula os dois.
 - **A coordenação de curso alcança a MONITORIA do curso dela** (`coordenaOCurso` em
   lib/monitoria.js + `quemMonAsync` no server, decisão do dono ago/2026): coordenador de curso é a
   mesma pessoa nos dois módulos, e por isso a lista vem do MESMO cadastro do ARCHÉ AP
