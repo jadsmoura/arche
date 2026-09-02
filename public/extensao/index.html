@@ -155,6 +155,24 @@
   .item:hover{border-color:var(--brand-3);box-shadow:0 2px 10px -4px rgba(28,55,66,.18)}
   .item .nm{font-weight:600;flex:1;min-width:0;font-size:14px;color:var(--ink)}
   .item .cs{color:var(--muted);font-size:12.5px;font-weight:400;margin-top:2px}
+  /* Blocos por SITUAÇÃO, recolhíveis (pedido do dono, ago/2026) — o mesmo
+     desenho do arquivo de atas, para o portal não ter dois jeitos de agrupar
+     uma lista. O que está encerrado nasce fechado; o que espera alguém, aberto. */
+  details.grupo{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
+  details.grupo>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;
+    padding:14px 18px;font-weight:600;font-size:14px;color:var(--ink);user-select:none;transition:background .15s}
+  details.grupo>summary::-webkit-details-marker{display:none}
+  details.grupo>summary:hover{background:var(--wash)}
+  details.grupo>summary .qt{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--brand-3);
+    background:var(--wash);border:1px solid var(--line);border-radius:20px;padding:3px 10px;white-space:nowrap}
+  details.grupo>summary .seta{font-size:10px;color:var(--muted);transition:transform .2s}
+  details.grupo[open]>summary .seta{transform:rotate(180deg)}
+  /* a bolinha da situação: a mesma cor do selo, para o bloco se reconhecer de longe */
+  details.grupo>summary .pt{width:9px;height:9px;border-radius:50%;flex:none;background:var(--brand-3)}
+  details.grupo .corpo{padding:4px 14px 12px;border-top:1px solid var(--line)}
+  details.grupo .corpo .item{border:0;border-bottom:1px solid var(--line);border-radius:0;margin:0;background:none;padding:13px 6px}
+  details.grupo .corpo .item:last-child{border-bottom:0}
+  details.grupo .corpo .item:hover{box-shadow:none;background:var(--wash)}
   .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:18px}
   .stat .s{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
   .stat .s b{font-family:Sora,sans-serif;font-size:22px;display:block;color:var(--ink);line-height:1.1}
@@ -839,6 +857,38 @@ const ETAPA_ROTULO = {preenchimento:"Em preenchimento", "aguardando-validacao":"
   reprovada:"Reprovada"};
 const diasEntre=(iso)=>Math.round((new Date(iso+"T12:00:00Z")-new Date(hojeISO()+"T12:00:00Z"))/86400000);
 
+/* ------------------- A LISTA SE AGRUPA POR SITUAÇÃO ---------------------
+   Pedido do dono, ago/2026: "gostaria de separar as propostas em categorias,
+   e permitir expandir e recolher essas listas. Como finalizadas, aguardando
+   validação, etc". A lista era uma fileira só, misturando o que espera
+   decisão com o que já se encerrou — e a etapa de cada ação só se lia no
+   selo, do lado direito, uma linha por vez.
+
+   Cada bloco é uma ETAPA do vocabulário único (lib/situacao.js), na mesma
+   ordem dos contadores do alto: o que se lê no cartão é o que se lê no
+   bloco. O que ESPERA alguém nasce aberto; o que já se encerrou nasce
+   fechado — é o que faz caber na tela um acervo que cresce a cada ciclo.
+
+   E a escolha de cada um FICA (localStorage, por guia): quem trabalha o dia
+   inteiro na guia Relatórios não reabre os mesmos blocos a cada filtro. */
+const ETAPA_COR = {preenchimento:"#94a3b8","aguardando-validacao":"var(--warn)",
+  validado:"var(--brand-3)","aguardando-encerramento":"var(--warn)",
+  "encerramento-em-validacao":"var(--warn)",encerrado:"var(--ok)",reprovada:"var(--err)"};
+/* Nasce fechado o que não espera mais ninguém: encerrado e reprovada são
+   arquivo, e são justamente os que mais crescem com o tempo. */
+const ETAPA_FECHADA = new Set(["encerrado","reprovada"]);
+const chaveGrupo=(etapa)=>`arche-ex-grupo-${SECAO}-${etapa}`;
+function grupoAberto(etapa,filtrando){
+  // filtrando por situação, o bloco que sobrou abre: esconder o resultado da
+  // busca atrás de um clique seria devolver menos do que se pediu
+  if(filtrando) return true;
+  const g=localStorage.getItem(chaveGrupo(etapa));
+  return g===null ? !ETAPA_FECHADA.has(etapa) : g==="1";
+}
+function alternarGrupo(etapa,el){
+  try{ localStorage.setItem(chaveGrupo(etapa), el.open?"1":"0"); }catch{ /* aba privada */ }
+}
+
 /* Panorama do setor (pedido do dono, ago/2026): as ações por CURSO, por
    CLASSIFICAÇÃO e por CICLO, mais os números do recorte — calculado do que
    a tela já carregou, sem rota nova. As barras são de UMA COR só (a mesma
@@ -1447,8 +1497,9 @@ async function enviarProposta(){
 function montarFiltros(){
   $("l-curso").innerHTML = '<option value="">Todos os cursos</option>'+CURSOS.map(c=>`<option>${c}</option>`).join("");
   montarAnos();
-  // trocar o filtro é começar outra lista: volta à primeira página
-  const refiltrar = () => { ArchePag.zerar("ex-acoes"); renderLista(); };
+  // a lista se agrupa por situação em blocos recolhíveis, e por isso não se
+  // pagina (ver renderLista): trocar o filtro é só redesenhar
+  const refiltrar = () => renderLista();
   $("l-curso").onchange = refiltrar; $("l-status").onchange = refiltrar;
   $("l-ano").onchange = refiltrar;
   if ($("l-pub")) $("l-pub").onchange = refiltrar;
@@ -1526,10 +1577,8 @@ function renderLista(){
         || (b.criadoEm||"").localeCompare(a.criadoEm||"")
       : (b.criadoEm||"").localeCompare(a.criadoEm||""));
   $("devedores").innerHTML = SECAO==="relatorios" ? quemDeveRelatorio(universo, fa) : "";
-  // a lista de ações cresce a cada ciclo: paginada, com o tamanho na conta
-  // de quem olha (assets/arche-paginacao.js)
-  const pag = ArchePag.recorte("ex-acoes", list, renderLista);
-  $("lista").innerHTML = list.length ? pag.barra + pag.itens.map(a=>{
+
+  const cartao=(a)=>{
     const s=statusReal(a), atraso=atrasoRelatorio(a);
     return `<div class="item" onclick="nav('detalhe','${a.id}')">
       <div class="nm">${esc(a.proposta.nomeAtividade)}
@@ -1538,7 +1587,31 @@ function renderLista(){
         ${acoesRapidas(a,s)}</div>
       ${atraso?`<span style="font-size:11.5px;font-weight:700;color:var(--warn);white-space:nowrap;margin-right:8px">${atraso} dia${atraso===1?"":"s"} de atraso</span>`:""}
       ${selo(a)}</div>`;
-  }).join("") : '<div class="card muted">Nenhuma proposta encontrada com esses filtros.</div>';
+  };
+  /* Um bloco por ETAPA, na ordem dos contadores do alto. A lista NÃO se
+     pagina por cima do agrupamento: cortar antes de agrupar faria o número
+     do cabeçalho contar só o que caiu na página, e contador que mente é pior
+     que lista longa (é a mesma decisão do arquivo de atas). Quem responde ao
+     tamanho aqui é o bloco recolhido. */
+  const grupos={};
+  for(const a of list){ const e=sit(a).etapa; (grupos[e]=grupos[e]||[]).push(a); }
+  const ordem = ETAPAS_KPI.map(([k])=>k).filter(k=>grupos[k]);
+  // etapa que não está nos contadores desta guia (não deve acontecer, mas
+  // some-la seria esconder ação sem dizer a ninguém)
+  for(const k of Object.keys(grupos)) if(!ordem.includes(k)) ordem.push(k);
+  $("lista").innerHTML = list.length
+    ? ordem.map(k=>{
+        const itens=grupos[k];
+        return `<details class="grupo"${grupoAberto(k,!!fs)?" open":""}
+          ontoggle="alternarGrupo('${k}',this)">
+          <summary><span class="pt" style="background:${ETAPA_COR[k]||"var(--brand-3)"}"></span>
+            ${esc(ETAPA_ROTULO[k]||k)}
+            <span class="qt">${itens.length} ${itens.length===1?"ação":"ações"}</span>
+            <span class="seta">▼</span></summary>
+          <div class="corpo">${itens.map(cartao).join("")}</div>
+        </details>`;
+      }).join("")
+    : '<div class="card muted">Nenhuma proposta encontrada com esses filtros.</div>';
 }
 
 /* Quem deve relatório, por professor. A cobrança automática já manda o

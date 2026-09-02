@@ -1013,6 +1013,20 @@ public/
   começo"**, que escreve o que é FATO (quando, onde, carga horária, quantos participantes) e
   para no ponto em que a pessoa continua — o juízo sobre o que a ação alcançou é dela, e é
   isso que a PROPPEX lê.
+- **A LISTA DE PROPOSTAS SE AGRUPA POR SITUAÇÃO, em blocos recolhíveis** (pedido do dono,
+  ago/2026: "gostaria de separar as propostas em categorias, e permitir expandir e recolher essas
+  listas — como finalizadas, aguardando validação, etc"): a guia era uma fileira só, misturando o
+  que espera decisão com o que já se encerrou, e a etapa de cada ação só se lia no selo do lado
+  direito, uma linha por vez. Cada bloco é uma ETAPA do vocabulário único (lib/situacao.js), **na
+  mesma ordem dos contadores do alto** — o que se lê no cartão é o que se lê no bloco. O que
+  ESPERA alguém nasce **aberto**; **encerrado e reprovada nascem fechados**, que é o que faz caber
+  na tela um acervo que cresce a cada ciclo (são justamente os dois que mais crescem). A escolha
+  de cada um FICA (localStorage, por guia): quem trabalha o dia inteiro na guia Relatórios não
+  reabre os mesmos blocos a cada filtro; e **filtrando por situação o bloco que sobrou abre**,
+  porque esconder o resultado da busca atrás de um clique seria devolver menos do que se pediu.
+  A lista **deixou de ser paginada**: cortar antes de agrupar faria o número do cabeçalho contar
+  só o que caiu na página, e contador que mente é pior que lista longa — é a MESMA decisão já
+  tomada no arquivo de atas, e quem responde ao tamanho aqui é o bloco recolhido.
 - **A PROPOSTA É O DOCUMENTO SIMPLES DO PROFESSOR, e a análise tem TRÊS SAÍDAS** (pedido do
   dono, ago/2026: "devem haver duas etapas — Propostas e Relatórios; a proposta é um documento
   mais simples, só com o que o professor preenche"). O formulário de Nova proposta perdeu os
@@ -1078,6 +1092,19 @@ public/
   (`respEmail`/`criadoPor`, via `assinaturaDeAtoRegistrado`: submeter e entregar são atos dele,
   registrados) e, sem conta casando, pelo nome declarado. `assinaturasDaAcaoExtensao` monta o
   conjunto UMA vez para proposta e relatório (a proposta também ganhou a do responsável).
+- **A ASSINATURA SE APOIA NA LINHA, e não em cima do texto** (`espacoDaAssinatura` e
+  `assinaturaSobreLinha` em lib/pdf.js, achado do dono ago/2026: "abri um projeto de extensão
+  aprovado e as assinaturas estão sobrepostas"). Estavam mesmo — em cima do "Goianésia, … de
+  2026." e do nome do responsável. A imagem mora ENTRE o texto anterior e a linha, e havia **duas
+  contas diferentes para a mesma distância**: o espaço era aberto com `moveDown(2.6)`, que depende
+  do corpo da fonte em uso e dava cerca de 30 pontos, enquanto a imagem era desenhada **42 pontos
+  acima da linha** — ela subia uns 12 pontos para dentro do que já estava escrito. E o mesmo par
+  de contas estava copiado em **cinco lugares** do arquivo. Agora é UMA conta só, em pontos, e a
+  mesma serve para reservar o espaço e para posicionar a imagem: assim as duas não podem voltar a
+  discordar. O `quebra` de cada bloco também subiu, senão a régua com imagem cairia na página
+  seguinte com a assinatura em cima do timbre (era por isso que, na proposta aprovada, as três
+  institucionais sumiam na página 2). A **folha de assinaturas da ATA não passa por aqui**: ela
+  tem implementação própria, que já reservava o espaço certo (`desenharImagem`), e não foi tocada.
 - **TODO documento gerado sai com as assinaturas do banco** (pedido do dono, ago/2026:
   "todos os documentos gerados que possuírem usuários com assinatura cadastrada devem ter suas
   respectivas assinaturas — atas, relatórios, projetos, etc."): `blocoAssinaturas` passou a
