@@ -118,7 +118,8 @@
   .b-rascunho{background:#eceff3;color:var(--muted)}
   .b-enviado{background:var(--warn-soft);color:var(--warn)}
   .b-validado{background:var(--ok-soft);color:var(--ok)}
-  .b-devolvido{background:var(--err-soft);color:var(--err)}
+  .b-devolvido{background:var(--warn-soft);color:var(--warn)}
+  .b-reprovado{background:var(--err-soft);color:var(--err)}
   .banner{border-radius:10px;padding:13px 15px;margin-bottom:14px;font-size:13.5px;font-weight:500}
   .ba-warn{background:var(--warn-soft);color:var(--warn);border:1px solid #f0e0bd}
   .ba-err{background:var(--err-soft);color:var(--err);border:1px solid #eed6d3}
@@ -223,8 +224,8 @@ const icone = (d) => `<svg width="17" height="17" viewBox="0 0 24 24" fill="none
 const SECOES = [
   { k: "painel", rot: "Painel do semestre", ic: IC.painel, gestao: true, tit: "Painel do semestre",
     sub: "Quantos relatórios vieram, que disciplinas ficaram sem registro e de quem cobrar." },
-  { k: "relatorios", rot: "Relatórios", ic: IC.lista, tit: "Relatórios de aula prática",
-    sub: "As aulas registradas — com filtro por semestre, disciplina, professor e situação." },
+  { k: "relatorios", rot: "Relatórios", ic: IC.lista, tit: "Relatórios do semestre",
+    sub: "Aulas práticas e atividades de extensão curricular — com filtro por semestre, tipo, disciplina, professor e situação." },
   { k: "nova", rot: "Registrar aula prática", ic: IC.nova, tit: "Registrar aula prática",
     sub: "Depois da aula: o objetivo, o local, as atividades e as fotos da prática." },
   { k: "cadastro", rot: "Professores e Disciplinas", ic: IC.cadastro, gestao: true,
@@ -246,7 +247,11 @@ function nav(k) {
   const s = SECOES.find((x) => x.k === k) || SECOES[1];
   SECAO = s.k;
   $("crumb").textContent = s.rot;
-  $("titulo").textContent = s.tit;
+  /* O título da tela de registro segue o TIPO escolhido: a mesma view serve
+     aos dois documentos, e dizer "aula prática" sobre o formulário da
+     extensão curricular seria a tela mentindo sobre o que se está fazendo. */
+  $("titulo").textContent = (s.k === "nova" && typeof ehExt === "function" && ehExt())
+    ? "Registrar extensão curricular" : s.tit;
   $("subtitulo").textContent = s.sub;
   montarMenu();
   const desenha = { painel: renderPainel, relatorios: renderRelatorios, nova: renderNova,
@@ -314,6 +319,27 @@ function renderPainel() {
       <div class="kpi"><div class="l">Devolvidos</div><div class="v">${p.devolvidos}</div>
         <div class="d">esperando correção do professor</div></div>
     </div>
+    ${(p.extensaoCurricular?.total || 0) ? `<div class="card">
+      <div class="card-t">Extensão curricular no semestre</div>
+      <div class="card-s">As atividades de extensão que são <b>componente curricular</b> das
+        disciplinas (Resolução CNE/CES nº 7/2018). Elas <b>não emitem certificado</b> — a carga
+        horária é do próprio curso — e contam à parte das aulas práticas. As horas só entram depois
+        que a coordenação valida: atividade não validada não comprova carga horária.</div>
+      <div class="kpis" style="margin-bottom:0">
+        <div class="kpi"><div class="l">Atividades relatadas</div>
+          <div class="v">${p.extensaoCurricular.total}</div>
+          <div class="d">${p.extensaoCurricular.validados} validada(s) · ${p.extensaoCurricular.enviados} aguardando</div></div>
+        <div class="kpi"><div class="l">Horas curricularizadas</div>
+          <div class="v">${p.extensaoCurricular.horas}</div>
+          <div class="d">só das atividades validadas</div></div>
+        <div class="kpi"><div class="l">Acadêmicos envolvidos</div>
+          <div class="v">${p.extensaoCurricular.academicos}</div>
+          <div class="d">nas atividades validadas</div></div>
+        <div class="kpi"><div class="l">Disciplinas alcançadas</div>
+          <div class="v">${p.extensaoCurricular.disciplinas}</div>
+          <div class="d">com ao menos uma atividade</div></div>
+      </div>
+    </div>` : ""}
     <div class="duplo">
       <div class="card">
         <div class="card-t">Professores sem nenhum registro</div>
@@ -358,6 +384,7 @@ const nomeCurso = (slug) => (D.catalogoCursos || []).find((c) => c.slug === slug
 function renderRelatorios() {
   const lista = (D.relatorios || []).filter((r) =>
     (!F.semestre || r.semestre === F.semestre)
+    && (!F.tipo || (r.tipo || "pratica") === F.tipo)
     && (!F.disciplina || r.disciplina === F.disciplina)
     && (!F.professor || (r.professor?.email || "") === F.professor)
     && (!F.status || r.status === F.status))
@@ -379,13 +406,22 @@ function renderRelatorios() {
           <option value="">Professor(a): todos</option>
           ${professores.map(([e, n]) => `<option value="${esc(e)}" ${F.professor === e ? "selected" : ""}>${esc(n)}</option>`).join("")}
         </select>` : "<span></span>"}
+        <select onchange="F.tipo=this.value;ArchePag.zerar('ap-relatorios');nav('relatorios')">
+          <option value="">Tipo: todos</option>
+          ${(D.tipos || []).map((t) => `<option value="${esc(t.codigo)}" ${F.tipo === t.codigo ? "selected" : ""}>${esc(t.nome)}</option>`).join("")}
+        </select>
         <select onchange="F.status=this.value;ArchePag.zerar('ap-relatorios');nav('relatorios')">
           <option value="">Situação: todas</option>
           ${Object.entries(ROT).map(([k, v]) => `<option value="${k}" ${F.status === k ? "selected" : ""}>${esc(v)}</option>`).join("")}
         </select>
       </div>
       <div class="exp">
-        <button class="bt bt-pri" onclick="novoRelatorio()">＋ Registrar aula prática</button>
+        <button class="bt bt-pri" onclick="novoRelatorio('pratica')">＋ Registrar aula prática</button>
+        <!-- A extensão curricular entrou aqui em ago/2026 (pedido da PROAC): é
+             componente curricular da disciplina, não certifica à parte, e o
+             fluxo de que ela precisa é o que este módulo já faz. -->
+        <button class="bt bt-sec" onclick="novoRelatorio('extensao')"
+          title="A atividade de extensão que é componente curricular da disciplina">＋ Registrar extensão curricular</button>
         ${ehCoord() ? `<a class="bt bt-sec" target="_blank" rel="noopener"
           href="/api/praticas/semestral.pdf?semestre=${encodeURIComponent(F.semestre)}">📄 Relatório semestral</a>` : ""}
       </div>
@@ -413,9 +449,14 @@ function cartao(r) {
           · ${(r.fotos || []).length} foto(s)${r.foraDoCadastro
             ? ' · <span style="color:#a75a0b;font-weight:600">disciplina fora do cadastro (registro retroativo)</span>' : ""}</div>
       </div>
-      <span class="badge b-${esc(r.status)}">${esc(ROT[r.status] || r.status)}</span>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <span class="badge b-${esc(r.status)}">${esc(ROT[r.status] || r.status)}</span>
+        ${(r.tipo || "pratica") === "extensao" ? `<span class="badge"
+          style="background:var(--roxo-soft);color:var(--roxo)">Extensão curricular</span>` : ""}
+      </div>
     </div>
-    ${r.parecer?.comentario ? `<div class="banner ${r.status === "devolvido" ? "ba-err" : "ba-ok"}"
+    ${r.parecer?.comentario ? `<div class="banner ${
+      r.status === "reprovado" ? "ba-err" : r.status === "validado" ? "ba-ok" : "ba-warn"}"
       style="margin:8px 0 0;width:100%"><b>${esc(r.parecer.nome || r.parecer.por || "Coordenação")}:</b>
       ${esc(r.parecer.comentario)}</div>` : ""}
     <div class="exp">
@@ -426,7 +467,11 @@ function cartao(r) {
             href="/api/praticas/${encodeURIComponent(r.id)}/pdf">📄 PDF</a>` : ""}
       ${r.status === "enviado" && ehCoord() && !meu
         ? `<button class="bt bt-ok bt-xs" onclick="decidir('${esc(r.id)}','validado')">✓ Validar</button>
-           <button class="bt bt-err bt-xs" onclick="decidir('${esc(r.id)}','devolvido')">↩ Devolver</button>` : ""}
+           <button class="bt bt-sec bt-xs" onclick="decidir('${esc(r.id)}','devolvido')">↩ Devolver</button>
+           <button class="bt bt-err bt-xs" onclick="decidir('${esc(r.id)}','reprovado')">✕ Reprovar</button>` : ""}
+      ${["validado", "reprovado"].includes(r.status) && D.gestao
+        ? `<button class="bt bt-ghost bt-xs" title="A PROAC e a PROPPEX reabrem um processo encerrado quando há irregularidade"
+            onclick="reabrir('${esc(r.id)}')">↺ Reabrir processo</button>` : ""}
       ${r.status === "rascunho" && meu
         ? `<button class="bt bt-ghost bt-xs" onclick="apagar('${esc(r.id)}')">🗑 Apagar</button>` : ""}
     </div>
@@ -434,8 +479,18 @@ function cartao(r) {
 }
 
 /* ===================== FORMULÁRIO DA AULA PRÁTICA ====================== */
-function novoRelatorio() { EDIT = null; nav("nova"); }
-function editar(id) { EDIT = (D.relatorios || []).find((r) => r.id === id) || null; nav("nova"); }
+/* O TIPO se escolhe ao CRIAR e não muda depois: é ele que decide os campos
+   cobrados, o título do documento e a coluna em que a atividade conta. */
+let TIPO_NOVO = "pratica";
+function novoRelatorio(tipo) { TIPO_NOVO = tipo || "pratica"; EDIT = null; nav("nova"); }
+function editar(id) {
+  EDIT = (D.relatorios || []).find((r) => r.id === id) || null;
+  TIPO_NOVO = EDIT?.tipo || "pratica";
+  nav("nova");
+}
+const tipoAtual = () => (EDIT ? (EDIT.tipo || "pratica") : TIPO_NOVO);
+const camposDoTipo = () => (D.camposPorTipo?.[tipoAtual()] || D.campos || []);
+const ehExt = () => tipoAtual() === "extensao";
 
 function renderNova() {
   const r = EDIT || {};
@@ -488,25 +543,69 @@ function renderNova() {
       // "melhorar com IA" nos dois campos longos (pedido do dono, ago/2026):
       // o assistente é o MESMO das atas (assets/arche-ia.js) — só reescreve o
       // que o professor digitou, e sem chave de IA nenhum botão aparece
-      return `<div style="grid-column:1/-1"><label>${esc(c.rotulo)} *</label>
+      return `<div style="grid-column:1/-1"><label>${esc(c.rotulo)}${c.obrigatorio === false ? "" : " *"}</label>
         <textarea id="f-${c.campo}" data-ia="praticas.${esc(c.campo)}"
           placeholder="${esc(c.ajuda)}">${esc(v)}</textarea>
         <div class="ajuda">${esc(c.ajuda)}</div></div>`;
     }
-    return `<div><label>${esc(c.rotulo)} *</label>
+    if (c.tipo === "numero") {
+      return `<div><label>${esc(c.rotulo)}${c.obrigatorio ? " *" : ""}</label>
+        <input type="number" min="0" step="1" id="f-${c.campo}" value="${v === 0 ? "" : esc(v)}">
+        <div class="ajuda">${esc(c.ajuda)}</div></div>`;
+    }
+    if (c.tipo === "escolha") {
+      return `<div><label>${esc(c.rotulo)}${c.obrigatorio ? " *" : ""}</label>
+        <select id="f-${c.campo}">
+          <option value="">Selecione…</option>
+          ${(c.opcoes || []).map((o) => `<option value="${esc(o.codigo)}" ${v === o.codigo ? "selected" : ""}>${esc(o.nome)}</option>`).join("")}
+        </select><div class="ajuda">${esc(c.ajuda)}</div></div>`;
+    }
+    if (c.tipo === "marcar") {
+      const marcados = Array.isArray(r[c.campo]) ? r[c.campo] : [];
+      return `<div style="grid-column:1/-1"><label>${esc(c.rotulo)}${c.obrigatorio ? " *" : ""}</label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px 18px;margin:4px 0 2px">
+          ${(c.opcoes || []).map((o) => `<label style="display:flex;gap:6px;align-items:center;font-weight:500;
+            text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--ink)">
+            <input type="checkbox" style="width:16px;height:16px;margin:0" data-marcar="${esc(c.campo)}"
+              value="${esc(o)}" ${marcados.includes(o) ? "checked" : ""}> ${esc(o)}</label>`).join("")}
+        </div><div class="ajuda">${esc(c.ajuda)}</div></div>`;
+    }
+    return `<div><label>${esc(c.rotulo)}${c.obrigatorio === false ? "" : " *"}</label>
       <input id="f-${c.campo}" value="${esc(v)}" placeholder="${esc(c.ajuda)}">
       <div class="ajuda">${esc(c.ajuda)}</div></div>`;
   };
   const fotos = r.fotos || [];
+  const evid = r.evidencias || [];
+  /* Na extensão curricular o formulário se agrupa nas SEÇÕES do modelo da
+     PROAC — é como o documento vai sair e como quem preenche já conhece o
+     roteiro. Na aula prática, que tem cinco campos, agrupar seria ruído. */
+  const campos = camposDoTipo();
+  // na ordem do modelo (1, 2, 3…), não na ordem em que os campos aparecem no
+  // catálogo: o roteiro impresso é o que quem preenche já conhece
+  const corpo = ehExt()
+    ? [...new Set(campos.map((c) => c.secao || ""))]
+      .sort((a, b) => (parseInt(a, 10) || 99) - (parseInt(b, 10) || 99))
+      .map((sec) => `
+      ${sec ? `<div style="grid-column:1/-1;margin-top:6px">
+        <div style="font-family:Sora,sans-serif;font-weight:700;font-size:13px;color:var(--brand-2)">${esc(sec)}</div>
+      </div>` : ""}
+      ${campos.filter((c) => (c.secao || "") === sec).map(campo).join("")}`).join("")
+    : campos.map(campo).join("");
   return `
     <div class="card">
-      <div class="card-t">${r.id ? "Editar o relatório" : "Nova aula prática"}</div>
-      <div class="card-s">${r.protocolo ? `Protocolo ${esc(r.protocolo)} · ` : ""}Todos os campos são
-        obrigatórios, e o registro fotográfico também: são <b>${D.minFotos} fotos</b>, que é o que
-        comprova a realização da aula.</div>
+      <div class="card-t">${r.id ? "Editar o relatório" : (ehExt() ? "Nova atividade de extensão curricular" : "Nova aula prática")}</div>
+      <div class="card-s">${r.protocolo ? `Protocolo ${esc(r.protocolo)} · ` : ""}${ehExt()
+        ? `Este é o <b>Relatório de Curricularização da Extensão</b>, no modelo da PROAC — enxuto:
+           saíram as seções de impacto na formação, reflexão crítica e alinhamento ao PPC, e as
+           tabelas viraram campos. A atividade é <b>componente curricular da disciplina</b> e por
+           isso <b>não emite certificado</b>: a carga horária é do próprio curso.
+           Os campos marcados com <b>*</b> são obrigatórios, e o registro fotográfico também:
+           são <b>${D.minFotos} fotos</b>, que é o que comprova a realização.`
+        : `Todos os campos são obrigatórios, e o registro fotográfico também: são
+           <b>${D.minFotos} fotos</b>, que é o que comprova a realização da aula.`}</div>
       ${aviso}
       <div id="f-alerta"></div>
-      <div class="grid2">${(D.campos || []).map(campo).join("")}</div>
+      <div class="grid2">${corpo}</div>
       <div class="exp">
         <button class="bt bt-pri" onclick="salvar(false)">💾 Salvar rascunho</button>
         ${r.id ? `<button class="bt bt-ok" onclick="salvar(true)">✓ Enviar à coordenação</button>` : ""}
@@ -516,7 +615,7 @@ function renderNova() {
       </div>
     </div>
     ${r.id ? `<div class="card">
-      <div class="card-t">Fotos da prática — ${fotos.length} de ${D.minFotos}</div>
+      <div class="card-t">${ehExt() ? "Registros fotográficos" : "Fotos da prática"} — ${fotos.length} de ${D.minFotos}</div>
       <div class="card-s">O registro fotográfico entra no PDF do relatório, ao final. As imagens são
         reduzidas no seu navegador antes de subir.</div>
       <input type="file" id="f-foto" accept="image/*" multiple onchange="subirFotos()">
@@ -525,7 +624,21 @@ function renderNova() {
         <button class="rm" title="Remover" onclick="removerFoto('${esc(f.fileId)}')">✕</button>
         <div class="cap">${esc(f.nome || "foto")}</div></div>`).join("")
         || '<div class="vazio">Nenhuma foto ainda.</div>'}</div>
-    </div>` : `<div class="card"><div class="muted">Salve o rascunho para anexar as fotos.</div></div>`}`;
+    </div>
+    <div class="card">
+      <div class="card-t">Evidências e anexos — ${evid.length}</div>
+      <div class="card-s">O que não é foto: lista de presença, folder, cartilha, material produzido,
+        avaliação da comunidade. <b>Nunca obrigatórias</b> — quem comprova a realização é a foto. No
+        PDF elas saem como LINK: o arquivo já está no sistema, e carregá-lo junto deixaria o
+        documento muitas vezes maior.</div>
+      <input type="file" id="f-evid" multiple onchange="subirEvidencias()">
+      <div style="margin-top:10px">${evid.map((f) => `<div class="item">
+        <div class="nm">${esc(f.nome || "anexo")}
+          <div class="cs">${f.tamanho ? `${Math.round(f.tamanho / 1024)} KB` : ""}</div></div>
+        <a class="bt bt-ghost bt-xs" target="_blank" rel="noopener" href="${esc(f.link || "")}">abrir</a>
+        <button class="bt bt-err bt-xs" onclick="removerFoto('${esc(f.fileId)}')">✕</button>
+      </div>`).join("") || '<div class="vazio">Nenhuma evidência anexada.</div>'}</div>
+    </div>` : `<div class="card"><div class="muted">Salve o rascunho para anexar as fotos e as evidências.</div></div>`}`;
 }
 
 function modoManualDisc(v) {
@@ -534,8 +647,15 @@ function modoManualDisc(v) {
 }
 
 function corpoDoForm() {
-  const b = { id: EDIT?.id || "" };
-  for (const c of D.campos || []) b[c.campo] = ($(`f-${c.campo}`) || {}).value || "";
+  const b = { id: EDIT?.id || "", tipo: tipoAtual() };
+  for (const c of camposDoTipo()) {
+    if (c.tipo === "marcar") {
+      b[c.campo] = [...document.querySelectorAll(`[data-marcar="${c.campo}"]`)]
+        .filter((i) => i.checked).map((i) => i.value);
+      continue;
+    }
+    b[c.campo] = ($(`f-${c.campo}`) || {}).value || "";
+  }
   // disciplina digitada à mão (semestre anterior): vai com o curso escolhido
   if (b.disciplina === "__manual") {
     b.disciplina = ($("f-disciplina-manual") || {}).value || "";
@@ -607,13 +727,34 @@ async function subirFotos() {
   nav("nova");
 }
 
+/* As evidências sobem SEM redução e sem exigir imagem: são documentos (a
+   lista de presença digitalizada, o folder em PDF, a cartilha). A rota é a
+   mesma da foto — o que a separa é o campo. */
+async function subirEvidencias() {
+  const inp = $("f-evid");
+  const arquivos = [...(inp.files || [])];
+  if (!arquivos.length || !EDIT?.id) return;
+  inp.disabled = true;
+  for (const f of arquivos) {
+    const fd = new FormData(); fd.append("file", f); fd.append("campo", "evidencia");
+    const r = await fetch(`/api/praticas/${encodeURIComponent(EDIT.id)}/foto`, { method: "POST", body: fd });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { alert(j.error || "Não foi possível anexar."); break; }
+    EDIT.evidencias = j.evidencias;
+  }
+  inp.disabled = false; inp.value = "";
+  await carregar();
+  EDIT = (D.relatorios || []).find((x) => x.id === EDIT.id) || EDIT;
+  nav("nova");
+}
+
 async function removerFoto(fileId) {
   if (!EDIT?.id) return;
   const r = await fetch(`/api/praticas/${encodeURIComponent(EDIT.id)}/foto/${encodeURIComponent(fileId)}`,
     { method: "DELETE" });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { alert(j.error || "Não foi possível remover."); return; }
-  EDIT.fotos = j.fotos;
+  EDIT.fotos = j.fotos; EDIT.evidencias = j.evidencias;
   await carregar();
   EDIT = (D.relatorios || []).find((x) => x.id === EDIT.id) || EDIT;
   nav("nova");
@@ -631,12 +772,35 @@ async function decidir(id, decisao) {
   if (decisao === "devolvido") {
     comentario = prompt("O que precisa ser corrigido? (o professor lê este texto)") || "";
     if (!comentario.trim()) return;
+  } else if (decisao === "reprovado") {
+    // reprovar encerra o processo: sem motivo, não há o que o explique
+    comentario = prompt("Motivo da reprovação (o professor lê este texto, e ele fica no registro):") || "";
+    if (!comentario.trim()) return;
   } else {
     comentario = prompt("Observação da coordenação (opcional):") || "";
   }
   const r = await fetch(`/api/praticas/${encodeURIComponent(id)}/validar`, { method: "POST",
     headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decisao, comentario }) });
   if (!r.ok) { alert((await r.json().catch(() => ({}))).error || "Não foi possível registrar."); return; }
+  await carregar();
+}
+
+/* REABRIR: da PROAC e da PROPPEX, com os mesmos poderes. Não decide — devolve
+   o relatório ao ponto em que a decisão ainda pode ser tomada, e o processo
+   continua terminando na coordenação do curso. */
+async function reabrir(id) {
+  const r0 = (D.relatorios || []).find((x) => x.id === id);
+  const para = confirm(`Reabrir o processo de "${r0?.disciplina || ""}".\n\n`
+    + "OK — volta para a COORDENAÇÃO decidir de novo (a irregularidade está na decisão).\n"
+    + "Cancelar — escolher devolver ao PROFESSOR (a irregularidade está no relatório).")
+    ? "enviado"
+    : (confirm("Devolver ao PROFESSOR para corrigir o relatório?") ? "devolvido" : "");
+  if (!para) return;
+  const motivo = prompt("Motivo da reabertura (fica no histórico do processo e vai ao professor):") || "";
+  if (!motivo.trim()) return;
+  const r = await fetch(`/api/praticas/${encodeURIComponent(id)}/reabrir`, { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ para, motivo }) });
+  if (!r.ok) { alert((await r.json().catch(() => ({}))).error || "Não foi possível reabrir."); return; }
   await carregar();
 }
 

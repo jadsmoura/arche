@@ -2644,6 +2644,46 @@ public/
   que correu aqui**, porque o arquivo não tem relatório nem homologação no sistema; e cada
   linha dele sai com **"arquivo" no lugar do protocolo**, mais uma NOTA no alto do documento
   dizendo de onde vieram — número que ninguém sabe explicar é pior que número menor.
+- **EXTENSÃO CURRICULAR: o segundo documento do ARCHÉ AP** (`TIPOS`/`CAMPOS_EXTENSAO`/
+  `podeReabrir` em lib/praticas.js, pedido da PROAC ago/2026): a ação de extensão
+  **curricularizada** é componente curricular de uma disciplina — quem participa cumpre carga
+  horária do próprio curso, que já consta do histórico —, e por isso ela **NÃO emite
+  certificado** (`acaoCertificavel` a recusa, dizendo por quê e para onde ir). Mas o professor
+  precisa registrar o que fez, com fotos e evidências, e alguém precisa validar. O fluxo pedido
+  é o que este módulo já faz — professor registra → coordenação do curso decide → **termina
+  nela** —, então a extensão curricular entrou aqui como um **TIPO** de relatório, não como
+  módulo novo: um módulo à parte duplicaria o cadastro de professores e disciplinas, a equipe de
+  coordenação, o fluxo, o PDF e a cobrança, e cinco cópias acabam divergindo. Série de protocolo
+  própria (**EC-AAAA-NNN**), pasta própria no Repositório e coluna própria em todo painel — a
+  hora de extensão não se soma a "aulas práticas relatadas", que passaria a significar outra coisa.
+  **A DECISÃO tem três saídas** — validar, devolver e **reprovar** (novo; devolvido volta editável,
+  reprovado encerra) —, e as duas últimas exigem o motivo por escrito. **A PROAC e a PROPPEX
+  decidem NO LUGAR da coordenação** (o ato fica marcado no parecer e no histórico: quem lê o
+  documento meses depois precisa saber que ali não foi a coordenação do curso que assinou) e
+  **reabrem** o processo encerrado (`POST /api/praticas/:id/reabrir`, motivo obrigatório) —
+  ambas com os mesmos poderes. Reabrir **não decide**: devolve o relatório ao ponto em que a
+  decisão ainda cabe, e quem reabre escolhe para onde — `enviado` recoloca na fila da coordenação
+  (a irregularidade está na DECISÃO), `devolvido` volta ao professor (está no RELATÓRIO). O
+  processo **continua terminando no coordenador**, que é a regra do módulo e não muda por isto.
+- **OS CAMPOS SAEM DO MODELO DA PROAC, cortado** (o dono, ago/2026, lendo o "Relatório Final de
+  Curricularização da Extensão": "está muito poluído e com perguntas demais, isso dificulta a
+  experiência do usuário — removeria os campos 7, 11 e 12 e simplificaria do 3 ao 10"). **Saíram
+  inteiras** a 7 (impacto na formação acadêmica), a 11 (reflexão crítica) e a 12 (quadro de
+  alinhamento ao PPC): as três pediam ensaio sobre o que as outras já dizem. **Simplificadas**: a
+  3 era uma tabela de três objetivos com "alcançado/parcialmente/não" em cada linha e virou o
+  objetivo (que o formulário já pedia) mais UMA escolha para o conjunto; a 4 eram quatro etapas em
+  tabela mais um resumo e ficou o texto das atividades, que é o resumo; a 6 tinha número, perfil,
+  seis caixas e um texto, e ficou público + quantos + texto; a 8 era uma tabela de seis
+  indicadores, e cinco já são campos da ficha; a 9 e a 10 viraram texto **opcional**, como o
+  próprio modelo diz ("quando aplicável"); e a 13 virou lista de marcar, porque ali ela é catálogo
+  e não redação. Restaram **12 campos, 4 opcionais**, contra 14 seções e 5 tabelas — e o
+  formulário se **agrupa nas seções do modelo, na ordem dele**, que é o roteiro que quem preenche
+  já conhece. O PDF sai no timbre da PROAC com as **quatro assinaturas** do modelo: responsável,
+  coordenação do curso, Coordenação de Gestão Acadêmica e Pró-Reitora Acadêmica — as duas
+  institucionais vindas do banco (`coordgestao` entrou em `QUEM_ASSINA`, e o card se desenha do
+  catálogo, então o campo nasceu sozinho). As **evidências** (lista de presença, folder, cartilha)
+  entram pela mesma rota das fotos, com `campo=evidencia`, nunca são obrigatórias — quem comprova
+  a realização é a foto — e saem no PDF como **LINK**, não embutidas.
 - **ARCHÉ AP — Aulas Práticas** (`lib/praticas.js` + `public/praticas/` + rotas
   `/api/praticas/*`, pedido de coordenadores de curso ago/2026): o professor dá a aula prática e,
   depois dela, registra o que aconteceu — **disciplina, objetivo, local, data, atividades e as

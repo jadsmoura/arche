@@ -16,6 +16,8 @@ import {
   professoresDoSemestre, disciplinasDoSemestre, minhasDisciplinas, cursoDoProfessor,
   filtrar, panorama, ehSegunda, semanaAnterior, pendenciasCobranca,
   PAPEIS_COORDENACAO, coordenacaoDoCurso,
+  TIPOS, tipoDe, ehExtensao, camposDo, CAMPOS_EXTENSAO, DECISOES, ENCERRADO,
+  podeReabrir, decisaoNoLugarDaCoordenacao, PRODUTOS_EXTENSAO,
 } from "../lib/praticas.js";
 
 const CADASTRO = {
@@ -285,4 +287,100 @@ test("cobra-se quem não registrou a semana — e quem deixou rascunho aberto", 
 
   // quem não tem disciplina cadastrada não é cobrado: não há do que cobrá-lo
   assert.deepEqual(pendenciasCobranca([], {}, { hoje: "2026-08-24" }), []);
+});
+
+/* ==================== EXTENSÃO CURRICULAR (ago/2026) ====================
+   Pedido da PROAC: a ação curricularizada é componente curricular da
+   disciplina — não certifica à parte —, mas o professor precisa registrar o
+   que fez e alguém precisa validar. O fluxo é o deste módulo, e por isso ela
+   entrou como um TIPO de relatório. */
+
+const EXT = (over = {}) => normalizarRelatorio({
+  tipo: "extensao", disciplina: "Saúde Coletiva", data: "2026-08-20", local: "Escola",
+  objetivo: "o".repeat(40), atividades: "a".repeat(40),
+  chDisciplina: 80, cargaHoraria: 20, academicos: 30,
+  resumo: "r".repeat(200), situacaoObjetivos: "alcancados",
+  participacaoDiscente: "p".repeat(60), publico: "Alunos do 5º ano",
+  pessoasAtendidas: 180, impacto: "i".repeat(60),
+  produtos: ["Lista de presença", "inventado"],
+  ...over,
+}, { base: { curso: "enfermagem", fotos: [{ nome: "1" }, { nome: "2" }, { nome: "3" }],
+  professor: { email: "prof@uniego.edu.br" }, ...(over.base || {}) } });
+
+test("o tipo se fixa e escolhe o catálogo de campos", () => {
+  assert.deepEqual(TIPOS.map((t) => t.codigo), ["pratica", "extensao"]);
+  assert.equal(tipoDe("lixo").codigo, "pratica", "tipo desconhecido é aula prática");
+  // relatório antigo não tem `tipo`: é aula prática, que é o que o módulo era
+  assert.equal(tipoDe(undefined).codigo, "pratica");
+  assert.equal(camposDo("pratica").length, CAMPOS_RELATORIO.length);
+  assert.equal(camposDo("extensao").length, CAMPOS_RELATORIO.length + CAMPOS_EXTENSAO.length);
+  // o tipo não muda depois: quem manda é a base
+  const r = normalizarRelatorio({ tipo: "pratica" }, { base: { tipo: "extensao" } });
+  assert.equal(r.tipo, "extensao");
+  assert.ok(ehExtensao(r));
+});
+
+test("as três seções que o dono cortou não voltam pelo catálogo", () => {
+  const campos = camposDo("extensao").map((c) => c.campo).join(" ");
+  for (const fora of ["formacao", "reflexao", "competencia", "ppcQuadro"]) {
+    assert.equal(campos.includes(fora), false, `${fora} saiu do modelo (seções 7, 11 e 12)`);
+  }
+  // e os rótulos dos campos comuns mudam de nome na extensão
+  const objetivo = camposDo("extensao").find((c) => c.campo === "objetivo");
+  assert.match(objetivo.rotulo, /Objetivos previstos/);
+});
+
+test("a régua do envio cobra o que a extensão curricular precisa comprovar", () => {
+  assert.deepEqual(faltaNoRelatorio(EXT()), [], "completa, não falta nada");
+  // número zerado é falta: sem carga horária não há hora curricularizada
+  assert.match(faltaNoRelatorio(EXT({ cargaHoraria: 0 }))[0], /Carga horária extensionista/);
+  assert.match(faltaNoRelatorio(EXT({ pessoasAtendidas: 0 }))[0], /Pessoas atendidas/);
+  // os opcionais não travam
+  assert.deepEqual(faltaNoRelatorio(EXT({ valorSocial: "", avaliacaoComunidade: "", produtos: [] })), []);
+  // e a mesma régua não cobra os campos da extensão numa aula prática
+  const pratica = normalizarRelatorio({ disciplina: "Semiologia", data: "2026-08-20",
+    local: "Lab", objetivo: "o".repeat(40), atividades: "a".repeat(40) },
+  { base: { curso: "enfermagem", fotos: [{}, {}, {}] } });
+  assert.deepEqual(faltaNoRelatorio(pratica), []);
+});
+
+test("produto fora do catálogo não entra", () => {
+  assert.deepEqual(EXT().produtos, ["Lista de presença"]);
+  assert.ok(PRODUTOS_EXTENSAO.includes("Registros fotográficos"));
+});
+
+test("reprovar é fim de linha; reabrir é da PROAC e da PROPPEX", () => {
+  assert.deepEqual(DECISOES, ["validado", "devolvido", "reprovado"]);
+  assert.ok(STATUS.includes("reprovado"));
+  const gestao = { email: "proac@uniego.edu.br", gestao: true, cursos: [] };
+  const coord = { email: "coord@uniego.edu.br", gestao: false, cursos: ["enfermagem"] };
+  const prof = { email: "prof@uniego.edu.br", gestao: false, cursos: [] };
+
+  const reprovado = EXT({ base: { status: "reprovado" } });
+  reprovado.status = "reprovado";
+  assert.ok(ENCERRADO(reprovado));
+  assert.ok(podeReabrir(reprovado, gestao), "a PROAC/PROPPEX reabre");
+  assert.equal(podeReabrir(reprovado, coord), false, "a coordenação do curso não reabre");
+  assert.equal(podeReabrir(reprovado, prof), false, "o professor não reabre o próprio");
+  // e não se reabre o que não terminou
+  const enviado = EXT(); enviado.status = "enviado";
+  assert.equal(podeReabrir(enviado, gestao), false);
+
+  // decidir NO LUGAR da coordenação fica marcado; a coordenação do curso não
+  assert.ok(decisaoNoLugarDaCoordenacao(enviado, gestao));
+  assert.equal(decisaoNoLugarDaCoordenacao(enviado, { ...gestao, cursos: ["enfermagem"] }), false);
+});
+
+test("o panorama separa as aulas práticas da extensão curricular", () => {
+  const val = EXT(); val.status = "validado"; val.semestre = "2026/2";
+  const env = EXT({ cargaHoraria: 5 }); env.status = "enviado"; env.semestre = "2026/2";
+  const aula = normalizarRelatorio({ disciplina: "Semiologia", data: "2026-08-20", local: "Lab",
+    objetivo: "o".repeat(40), atividades: "a".repeat(40) }, { base: { curso: "enfermagem" } });
+  aula.status = "validado";
+  const p = panorama([val, env, aula], CADASTRO, { semestre: "2026/2" });
+  assert.equal(p.entregues, 1, "só a aula prática conta nos números das aulas");
+  assert.equal(p.extensaoCurricular.total, 2);
+  assert.equal(p.extensaoCurricular.validados, 1);
+  // a hora só conta depois de validada: atividade não validada não comprova
+  assert.equal(p.extensaoCurricular.horas, 20);
 });

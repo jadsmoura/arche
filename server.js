@@ -171,6 +171,10 @@ import {
 import {
   AP_KEY, AP_CADASTRO_KEY, AP_EQUIPE_KEY,
   CAMPOS_RELATORIO as AP_CAMPOS, MIN_FOTOS as AP_MIN_FOTOS, MAX_FOTOS as AP_MAX_FOTOS,
+  MAX_EVIDENCIAS as AP_MAX_EVID, TIPOS as AP_TIPOS, tipoDe as apTipoDe, camposDo as apCamposDo,
+  ROTULO_STATUS as AP_ROTULO_STATUS,
+  DECISOES as AP_DECISOES, podeReabrir as apPodeReabrir,
+  decisaoNoLugarDaCoordenacao as apDecisaoNoLugar, ehExtensao as apEhExtensao,
   ENTREGUE as AP_ENTREGUE,
   normalizarRelatorio as normalizarRelatorioAP, normalizarFoto as normalizarFotoAP,
   normalizarCadastro as normalizarCadastroAP, normalizarEquipe as normalizarEquipeAP,
@@ -8433,7 +8437,7 @@ const ASSINATURAS_KEY = "sys-assinaturas-v1";
 const CARGO_NO_PDF = {
   proreitor: "proReitor", reitor: "reitor", proacademica: "proReitoraAcademica",
   coordextensao: "coordExtensao", coordacao: "coordAcaoComunitaria",
-  coordpesquisa: "coordPesquisa",
+  coordpesquisa: "coordPesquisa", coordgestao: "coordGestaoAcademica",
 };
 
 const ONDE_ASSINA = {
@@ -8443,6 +8447,7 @@ const ONDE_ASSINA = {
   coordextensao: "proposta aprovada de curso livre (Extensão)",
   coordacao: "proposta aprovada das demais ações de extensão",
   coordpesquisa: "resultado dos editais de IC e do ICEM",
+  coordgestao: "relatório de curricularização da extensão",
 };
 
 const QUEM_ASSINA = {
@@ -8457,6 +8462,10 @@ const QUEM_ASSINA = {
      documentos passaram a sair com as assinaturas do banco: ela assina o
      resultado dos editais de IC e do ICEM. */
   coordpesquisa: "Coordenador de Pesquisa e Inovação",
+  /* A Coordenação de Gestão Acadêmica entrou em ago/2026 com o relatório de
+     curricularização da extensão: é ela que assina o modelo da PROAC, ao
+     lado da pró-reitora acadêmica. */
+  coordgestao: "Coordenadora de Gestão Acadêmica",
 };
 
 async function lerAssinaturas() {
@@ -13006,15 +13015,20 @@ function comPraticas(fn) {
   return proxima;
 }
 
-/** Protocolo AP-AAAA-NNN, emitido no envio e nunca repetido. */
-async function novoProtocoloAP() {
+/** Protocolo AP-AAAA-NNN (aula prática) ou EC-AAAA-NNN (extensão curricular),
+    emitido no envio e nunca repetido. São DUAS séries: os dois documentos vão
+    a lugares diferentes e se contam à parte, e um protocolo que não diz de
+    qual deles se trata obriga a abrir o registro para saber. */
+async function novoProtocoloAP(tipo = "pratica") {
+  const ext = apTipoDe(tipo).codigo === "extensao";
   const ano = Number(hojeLocalISO().slice(0, 4));
   const raw = await storage.get("ap-config-v1");
   let cfg = raw ? JSON.parse(raw) : { ano, seq: 0 };
-  if (cfg.ano !== ano) cfg = { ano, seq: 0 };
-  cfg.seq++;
+  if (cfg.ano !== ano) cfg = { ano, seq: 0, seqEc: 0 };
+  const chave = ext ? "seqEc" : "seq";
+  cfg[chave] = (Number(cfg[chave]) || 0) + 1;
   await storage.set("ap-config-v1", JSON.stringify(cfg));
-  return `AP-${ano}-${String(cfg.seq).padStart(3, "0")}`;
+  return `${ext ? "EC" : "AP"}-${ano}-${String(cfg[chave]).padStart(3, "0")}`;
 }
 
 /** Quem é a pessoa DENTRO do módulo: junta a sessão com o cadastro dele. */
@@ -13205,6 +13219,10 @@ app.get("/api/praticas", async (req, res) => {
       semestre, semestres, semestreCorrente: semestreCorrente(),
       catalogoCursos: CURSOS.map((c) => ({ slug: c.slug, nome: c.nome })),
       campos: AP_CAMPOS, minFotos: AP_MIN_FOTOS, papeisCoordenacao: AP_PAPEIS_COORD,
+      // os dois tipos de relatório e os campos de cada um: a tela desenha o
+      // formulário DAQUI, e é o mesmo catálogo que o servidor confere
+      tipos: AP_TIPOS, camposPorTipo: Object.fromEntries(AP_TIPOS.map((t) => [t.codigo, apCamposDo(t.codigo)])),
+      maxEvidencias: AP_MAX_EVID,
       relatorios: meus,
       // o professor recebe as SUAS disciplinas do semestre — é a lista que o
       // formulário oferece; a coordenação recebe o cadastro do que gere
@@ -13301,6 +13319,9 @@ app.post("/api/praticas", async (req, res) => {
         const novo = normalizarRelatorioAP(b, { base: {
           id: `ap-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
           curso: cursoNovo,
+          // o TIPO se fixa aqui e não muda depois: é ele que escolhe os
+          // campos cobrados e a coluna em que a atividade conta
+          tipo: apTipoDe(b.tipo).codigo,
           // a marca é do servidor: disciplina que não está no cadastro do
           // semestre entrou à mão, e a coordenação precisa ver isso
           foraDoCadastro: !minhas.some((d) => d.disciplina === String(b.disciplina || "").trim()),
@@ -13351,7 +13372,7 @@ app.post("/api/praticas/:id/enviar", async (req, res) => {
       // a régua é UMA só, e é a mesma da tela: diz TUDO o que falta de uma vez
       const falta = apFalta(p, { hoje: hojeLocalISO() });
       if (falta.length) return { erro: [400, falta.join(" · ")], gravar: false, falta };
-      if (!p.protocolo) p.protocolo = await novoProtocoloAP();
+      if (!p.protocolo) p.protocolo = await novoProtocoloAP(p.tipo);
       p.status = "enviado";
       p.enviadoEm = new Date().toISOString();
       p.parecer = null;                       // reenvio limpa o parecer anterior
@@ -13376,12 +13397,15 @@ app.post("/api/praticas/:id/validar", async (req, res) => {
     if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
     const quem = await quemAP(u);
     const decisao = String(req.body?.decisao || "");
-    if (!["validado", "devolvido"].includes(decisao))
+    if (!AP_DECISOES.includes(decisao))
       return res.status(400).json({ error: "Decisão inválida." });
     const comentario = String(req.body?.comentario || "").trim().slice(0, 2000);
-    // devolver sem dizer o que corrigir devolve o problema, não a solução
+    // devolver sem dizer o que corrigir devolve o problema, não a solução —
+    // e reprovar sem motivo encerra o processo sem nada que o explique
     if (decisao === "devolvido" && !comentario)
       return res.status(400).json({ error: "Escreva o que precisa ser corrigido — é o que o professor vai ler." });
+    if (decisao === "reprovado" && !comentario)
+      return res.status(400).json({ error: "Escreva o motivo da reprovação — é o registro da decisão e o que o professor vai ler." });
     const perfil = (await carregarPerfis())[u.email] || {};
     const r = await comPraticas((lista) => {
       const p = lista.find((x) => x.id === req.params.id);
@@ -13391,10 +13415,20 @@ app.post("/api/praticas/:id/validar", async (req, res) => {
           ? "Só se valida relatório enviado."
           : "A validação é da coordenação do curso — e ninguém valida o próprio relatório."], gravar: false };
       }
+      /* A PROAC e a PROPPEX decidem NO LUGAR da coordenação do curso (pedido
+         da PROAC, ago/2026) — e o ato fica marcado, no parecer e no
+         histórico: quem lê o documento meses depois precisa saber que ali
+         não foi a coordenação do curso que assinou. O processo continua
+         terminando no coordenador: não há degrau depois deste. */
+      const noLugar = apDecisaoNoLugar(p, quem);
       p.status = decisao;
       p.parecer = { decisao, comentario, por: u.email,
-        nome: perfil.nome || u.nome || "", em: new Date().toISOString() };
-      apAnotar(p, { acao: decisao === "validado" ? "Relatório validado" : "Relatório devolvido",
+        nome: perfil.nome || u.nome || "", em: new Date().toISOString(),
+        ...(noLugar ? { noLugarDaCoordenacao: true } : {}) };
+      apAnotar(p, {
+        acao: { validado: "Relatório validado", devolvido: "Relatório devolvido",
+          reprovado: "Relatório reprovado" }[decisao]
+          + (noLugar ? " — pela PROAC/PROPPEX, no lugar da coordenação do curso" : ""),
         por: u.email, detalhe: comentario.slice(0, 200) });
       return { relatorio: p };
     });
@@ -13407,6 +13441,62 @@ app.post("/api/praticas/:id/validar", async (req, res) => {
   }
 });
 
+/** POST /api/praticas/:id/reabrir — a PROAC e a PROPPEX desfazem a decisão.
+
+    Pedido da PROAC (ago/2026): "ambos podem reabrir processos caso notem
+    irregularidades". Reabrir NÃO decide — devolve o relatório ao ponto do
+    fluxo em que a decisão ainda pode ser tomada, e o processo continua
+    terminando na COORDENAÇÃO do curso. Para onde ele volta é escolha de quem
+    reabre, porque são dois problemas diferentes: `enviado` recoloca o
+    relatório na fila da coordenação (a irregularidade está na DECISÃO),
+    `devolvido` o devolve ao professor (a irregularidade está no RELATÓRIO).
+    O motivo é obrigatório: desfazer um ato registrado sem dizer por quê
+    deixaria o histórico sem o que explica a reabertura. */
+app.post("/api/praticas/:id/reabrir", async (req, res) => {
+  try {
+    const u = await sessaoAP(req, res);
+    if (!u) return;
+    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+    const quem = await quemAP(u);
+    const para = String(req.body?.para || "enviado");
+    if (!["enviado", "devolvido"].includes(para))
+      return res.status(400).json({ error: "Escolha para onde o relatório volta: coordenação ou professor." });
+    const motivo = String(req.body?.motivo || "").trim().slice(0, 2000);
+    if (!motivo)
+      return res.status(400).json({ error: "Escreva o motivo da reabertura — é o que fica no histórico do processo." });
+    const perfil = (await carregarPerfis())[u.email] || {};
+    const r = await comPraticas((lista) => {
+      const p = lista.find((x) => x.id === req.params.id);
+      if (!p || !apPodeVer(p, quem)) return { erro: [404, "Relatório não encontrado."], gravar: false };
+      if (!apPodeReabrir(p, quem)) {
+        return { erro: [403, ["validado", "reprovado"].includes(p.status)
+          ? "Reabrir é da PROAC e da PROPPEX."
+          : "Este processo não está encerrado — não há o que reabrir."], gravar: false };
+      }
+      const anterior = p.status;
+      p.status = para;
+      // o parecer anterior fica no histórico do relatório, não no campo
+      // vigente: ele não vale mais, e mantê-lo faria a tela mostrar uma
+      // decisão que foi desfeita
+      p.parecer = { decisao: "reaberto", comentario: motivo, por: u.email,
+        nome: perfil.nome || u.nome || "", em: new Date().toISOString(),
+        reabertoDe: anterior, para };
+      apAnotar(p, {
+        acao: `Processo reaberto (estava ${AP_ROTULO_STATUS[anterior] || anterior}) — volta para `
+          + (para === "enviado" ? "a coordenação do curso" : "o professor"),
+        por: u.email, detalhe: motivo.slice(0, 200),
+      });
+      return { relatorio: p };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    avisarPraticas(r.relatorio, "reaberto").catch(() => {});
+    res.json({ ok: true, relatorio: apVisao(r.relatorio, quem) });
+  } catch (e) {
+    console.error("Erro ao reabrir o relatório:", e);
+    res.status(500).json({ error: "Não foi possível reabrir." });
+  }
+});
+
 /** POST /api/praticas/:id/foto — o registro fotográfico, pela rota própria.
     A imagem NUNCA viaja no corpo do formulário: vai ao Drive e no registro
     fica só a referência (a mesma regra do portfólio e das artes do evento). */
@@ -13415,33 +13505,46 @@ app.post("/api/praticas/:id/foto", upload.single("file"), async (req, res) => {
     const u = await sessaoAP(req, res);
     if (!u) return;
     if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
-    if (!req.file) return res.status(400).json({ error: "Nenhuma imagem enviada." });
-    if (!/^image\//.test(req.file.mimetype || ""))
+    if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado." });
+    /* Duas listas na MESMA rota: a FOTO, que comprova a realização e tem
+       mínimo, e a EVIDÊNCIA, que é o documento anexo do modelo da PROAC
+       (lista de presença, folder, cartilha, avaliação da comunidade) e nunca
+       é obrigatória. A foto continua tendo de ser imagem; a evidência aceita
+       também PDF e documento — é o que o modelo chama de anexo. */
+    const evidencia = String(req.body?.campo || "") === "evidencia";
+    if (!evidencia && !/^image\//.test(req.file.mimetype || ""))
       return res.status(400).json({ error: "O registro é fotográfico — envie uma imagem." });
     if (req.file.size > 8 * 1024 * 1024)
-      return res.status(400).json({ error: "Imagem muito grande — até 8 MB." });
+      return res.status(400).json({ error: "Arquivo muito grande — até 8 MB." });
     const quem = await quemAP(u);
     const pre = (await lerPraticas()).find((x) => x.id === req.params.id);
     if (!pre || !apPodeVer(pre, quem)) return res.status(404).json({ error: "Relatório não encontrado." });
     if (!apPodeEditar(pre, quem)) return res.status(403).json({ error: "Este relatório não está aberto." });
-    if ((pre.fotos || []).length >= AP_MAX_FOTOS)
-      return res.status(400).json({ error: `Até ${AP_MAX_FOTOS} fotos por relatório.` });
+    const cheia = evidencia
+      ? (pre.evidencias || []).length >= AP_MAX_EVID
+      : (pre.fotos || []).length >= AP_MAX_FOTOS;
+    if (cheia) {
+      return res.status(400).json({ error: evidencia
+        ? `Até ${AP_MAX_EVID} evidências por relatório.` : `Até ${AP_MAX_FOTOS} fotos por relatório.` });
+    }
     // sobe ao Drive FORA da fila (é lento e não altera o estado)
     const data = await files.save({
       buffer: req.file.buffer, originalName: req.file.originalname,
-      prefix: `${REPO}/Aulas Práticas/${slug(pre.curso || "geral")}/${pre.semestre.replace("/", "-")}/${slug(pre.protocolo || pre.id)}`,
+      prefix: `${REPO}/${apEhExtensao(pre) ? "Extensão Curricular" : "Aulas Práticas"}/${slug(pre.curso || "geral")}/${pre.semestre.replace("/", "-")}/${slug(pre.protocolo || pre.id)}`,
     });
-    const foto = normalizarFotoAP({ ...data, tipo: req.file.mimetype, tamanho: req.file.size });
+    const anexo = normalizarFotoAP({ ...data, tipo: req.file.mimetype, tamanho: req.file.size });
     const r = await comPraticas((lista) => {
       const p = lista.find((x) => x.id === req.params.id);
       if (!p) return { erro: [404, "Relatório não encontrado."], gravar: false };
       if (!apPodeEditar(p, quem)) return { erro: [403, "Este relatório não está aberto."], gravar: false };
-      p.fotos = [...(p.fotos || []), foto].slice(0, AP_MAX_FOTOS);
+      if (evidencia) p.evidencias = [...(p.evidencias || []), anexo].slice(0, AP_MAX_EVID);
+      else p.fotos = [...(p.fotos || []), anexo].slice(0, AP_MAX_FOTOS);
       p.atualizadoEm = new Date().toISOString();
-      return { fotos: p.fotos, relatorio: p };
+      return { fotos: p.fotos, evidencias: p.evidencias, relatorio: p };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-    res.json({ ok: true, fotos: r.fotos, falta: apFalta(r.relatorio, { hoje: hojeLocalISO() }) });
+    res.json({ ok: true, fotos: r.fotos, evidencias: r.evidencias,
+      falta: apFalta(r.relatorio, { hoje: hojeLocalISO() }) });
   } catch (e) {
     console.error("Erro ao anexar a foto da aula prática:", e);
     res.status(500).json({ error: "Não foi possível anexar a foto." });
@@ -13459,12 +13562,16 @@ app.delete("/api/praticas/:id/foto/:fileId", async (req, res) => {
       const p = lista.find((x) => x.id === req.params.id);
       if (!p || !apPodeVer(p, quem)) return { erro: [404, "Relatório não encontrado."], gravar: false };
       if (!apPodeEditar(p, quem)) return { erro: [403, "Este relatório não está aberto."], gravar: false };
+      // a mesma rota tira das duas listas: o id do arquivo é único, e
+      // procurar nas duas evita uma segunda rota que faria a mesma coisa
       p.fotos = (p.fotos || []).filter((f) => f.fileId !== req.params.fileId);
+      p.evidencias = (p.evidencias || []).filter((f) => f.fileId !== req.params.fileId);
       p.atualizadoEm = new Date().toISOString();
-      return { fotos: p.fotos, relatorio: p };
+      return { fotos: p.fotos, evidencias: p.evidencias, relatorio: p };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-    res.json({ ok: true, fotos: r.fotos, falta: apFalta(r.relatorio, { hoje: hojeLocalISO() }) });
+    res.json({ ok: true, fotos: r.fotos, evidencias: r.evidencias,
+      falta: apFalta(r.relatorio, { hoje: hojeLocalISO() }) });
   } catch (e) {
     console.error("Erro ao remover a foto:", e);
     res.status(500).json({ error: "Não foi possível remover." });
@@ -13690,13 +13797,17 @@ app.get("/api/praticas/:id/pdf", async (req, res) => {
         // ainda não se validou seria o documento afirmar um ato que não houve
         ...(p.status === "validado" && coordEmail
           ? { coordenador: await assinaturaDeAtoRegistrado(coordEmail) } : {}),
+        // as duas institucionais do modelo da PROAC, do banco de assinaturas
+        ...(apEhExtensao(p) ? await assinaturasParaPdf() : {}),
       },
     });
     res.setHeader("Content-Type", "application/pdf");
+    const pasta = apEhExtensao(p) ? "Extensão Curricular" : "Aulas Práticas";
     arquivarDocumento({ buffer: buf,
-      pasta: `Aulas Práticas/${slug(p.curso || "geral")}/${String(p.semestre || "").replace("/", "-")}/${slug(p.protocolo || p.id)}`,
+      pasta: `${pasta}/${slug(p.curso || "geral")}/${String(p.semestre || "").replace("/", "-")}/${slug(p.protocolo || p.id)}`,
       nome: `relatorio-${slug(p.protocolo || p.id)}.pdf` });
-    res.setHeader("Content-Disposition", `inline; filename="aula-pratica-${slug(p.protocolo || p.id)}.pdf"`);
+    res.setHeader("Content-Disposition",
+      `inline; filename="${apEhExtensao(p) ? "extensao-curricular" : "aula-pratica"}-${slug(p.protocolo || p.id)}.pdf"`);
     res.end(buf);
   } catch (e) {
     console.error("Erro no PDF da aula prática:", e);
@@ -13732,10 +13843,11 @@ async function avisarPraticas(r, evento) {
       ["Professor(a)", r.professor?.nome || r.professor?.email],
       ["Curso", cursoDe(r.curso)?.nome || r.curso],
       ["Disciplina", r.disciplina],
-      ["Data da aula", r.data],
+      [apEhExtensao(r) ? "Data da atividade" : "Data da aula", r.data],
       ["Local", r.local],
       ["Protocolo", r.protocolo],
     ];
+    if (apEhExtensao(r)) linhas.unshift(["Tipo", "Atividade de extensão curricular"]);
     if (evento === "enviado") {
       const destinos = await destinatariosDaCoordenacaoAP(r.curso);
       if (!destinos.length) {
@@ -13744,7 +13856,7 @@ async function avisarPraticas(r, evento) {
       }
       for (const para of destinos) {
         await enviarAviso("ap-relatorio-enviado", emailMovimentacaoPratica({
-          para, assunto: `Relatório de aula prática para validar — ${r.disciplina}`,
+          para, assunto: `${apEhExtensao(r) ? "Relatório de extensão curricular" : "Relatório de aula prática"} para validar — ${r.disciplina}`,
           titulo: "Um relatório aguarda a sua validação", linhas }));
       }
       console.log(`[praticas] ${r.protocolo || r.id}: aviso de envio a ${destinos.join(", ")}`);
@@ -13758,13 +13870,22 @@ async function avisarPraticas(r, evento) {
     }
     const para = r.professor?.email;
     if (!para) return;
-    const validado = evento === "validado";
+    /* Quatro desfechos, e cada um diz uma coisa diferente a quem registrou.
+       O reaberto é o mais importante de nomear: o professor viu o relatório
+       validado e vai reencontrá-lo em aberto — sem o e-mail, ele descobre
+       por acaso, se descobrir. */
+    const texto = {
+      validado: ["Relatório validado", "A coordenação validou o seu relatório", "Observação"],
+      devolvido: ["Relatório devolvido", "A coordenação devolveu o seu relatório", "O que corrigir"],
+      reprovado: ["Relatório reprovado", "A coordenação reprovou o seu relatório", "Motivo"],
+      reaberto: ["Processo reaberto", "A PROAC/PROPPEX reabriu este processo", "Motivo da reabertura"],
+    }[evento] || ["Relatório atualizado", "Houve uma decisão sobre o seu relatório", "Observação"];
     await enviarAviso("ap-relatorio-decidido", emailMovimentacaoPratica({
       para,
-      assunto: validado ? `Relatório validado — ${r.disciplina}` : `Relatório devolvido — ${r.disciplina}`,
-      titulo: validado ? "A coordenação validou o seu relatório" : "A coordenação devolveu o seu relatório",
+      assunto: `${texto[0]} — ${r.disciplina}`,
+      titulo: texto[1],
       linhas: [...linhas, ["Coordenação", r.parecer?.nome || r.parecer?.por || ""],
-        [validado ? "Observação" : "O que corrigir", r.parecer?.comentario || ""]],
+        [texto[2], r.parecer?.comentario || ""]],
     }));
   } catch (e) {
     console.error("[praticas] aviso por e-mail não enviado:", e.message);
