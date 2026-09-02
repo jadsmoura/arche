@@ -32,6 +32,7 @@ import {
   SITUACOES_ETAPA, TIPOS_RELATORIO, CRITERIOS, RECOMENDACOES, normalizarProjeto, validarProjeto,
   numerar as numerarProjeto, projetoQueJaTemOAluno, motivoAlunoJaIndicado, anotar as anotarProjeto, resumir as resumirProjeto,
   papelNoProjeto, podeVerProjeto, podeEditarProjeto, podeGerirExecucao, podeAvaliar,
+  propostaFechada, camposDaPropostaAlterados,
   podeEnviarRelatorio, podeValidarRelatorio, cronogramaDe, relatoriosDe, relatoriosPendentes,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto, notaFinal,
   participaDeAlgum, vincularPorCpf, modalidadeEfetiva as modalidadeEfetivaIC,
@@ -10842,9 +10843,18 @@ app.post("/api/ic", async (req, res) => {
           },
         };
       }
+      /* Corrigir o texto de uma proposta JÁ SUBMETIDA é ato da gestão, e o
+         histórico precisa dizer o que mudou (pedido do dono, ago/2026): num
+         documento que o parecerista já leu, "editou a proposta" não explica
+         nada meses depois. A conta é sobre o que EFETIVAMENTE mudou — salvar
+         a ficha sem tocar no texto não vira correção. */
+      const corrigidos = base && propostaFechada(base)
+        ? camposDaPropostaAlterados(base, projeto) : [];
       projeto = anotarProjeto(projeto, {
         quem: u.email,
-        oQue: base ? "editou a proposta"
+        oQue: corrigidos.length
+          ? `corrigiu o texto da proposta já submetida (${corrigidos.join(", ")})`
+          : base ? "editou a proposta"
           : manual ? `incluiu o projeto manualmente em nome de ${projeto.orientador?.nome || projeto.orientador?.email || "quem orienta"}`
           : "abriu o projeto",
       });

@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import {
   MODALIDADES, STATUS, CRITERIOS, numeroProjeto, proximoSequencial, numerar,
   normalizarProjeto, validarProjeto, papelNoProjeto, podeVerProjeto, podeEditarProjeto,
+  propostaFechada, camposDaPropostaAlterados,
   podeGerirExecucao, podeAvaliar, podeEnviarRelatorio, podeValidarRelatorio,
   cronogramaDe, etapaAtrasada, relatoriosDe, relatoriosPendentes, resumir, anotar,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto,
@@ -1172,4 +1173,25 @@ test("sem e-mail e sem CPF ninguém é travado — nome não é chave", () => {
   assert.match(m, /IC-2026-001/);
   assert.match(m, /Prof\. A/);
   assert.match(m, /UM projeto por ciclo/);
+});
+
+/* --------- CORREÇÃO DE TEXTO EM PROPOSTA JÁ SUBMETIDA (gestão) --------- */
+test("propostaFechada distingue o que ainda está em edição", () => {
+  assert.equal(propostaFechada({ status: "rascunho" }), false);
+  assert.equal(propostaFechada({ status: "devolvido" }), false, "devolvido volta a ser editável");
+  assert.equal(propostaFechada({}), false, "sem status é rascunho");
+  for (const s of ["submetido", "aprovado", "concluido", "encerrado", "reprovado"])
+    assert.equal(propostaFechada({ status: s }), true, s);
+});
+
+test("a correção nomeia os campos que mudaram — e só eles", () => {
+  const base = { titulo: "Titulo", resumo: "R", objetivos: "O", curso: "enf", alunos: [{ nome: "Ana" }] };
+  assert.deepEqual(camposDaPropostaAlterados(base, base), [], "salvar sem mexer no texto não é correção");
+  // mexer nos alunos ou no cronograma não é correção de TEXTO da proposta
+  assert.deepEqual(camposDaPropostaAlterados(base, { ...base, alunos: [] }), []);
+  assert.deepEqual(
+    camposDaPropostaAlterados(base, { ...base, titulo: "Título", resumo: "R2" }),
+    ["título", "resumo"]);
+  assert.deepEqual(camposDaPropostaAlterados(base, { ...base, curso: "odo" }), ["curso"]);
+  assert.deepEqual(camposDaPropostaAlterados(null, base), [], "projeto novo não corrige nada");
 });

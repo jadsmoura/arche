@@ -370,6 +370,23 @@ let FILTRO = { status: "", curso: "", linha: "", grupo: "", q: "", edital: "", t
 // (pedido fora do prazo deferido pela pró-reitoria). Vale só para o formulário
 // aberto agora — some assim que o projeto é salvo ou a tela troca.
 let MANUAL = false;
+/* CORRIGIR O TEXTO DE UMA PROPOSTA JÁ SUBMETIDA (pedido do dono, ago/2026:
+   "o coordenador identificou alguns erros no texto dos projetos; ele gostaria
+   de poder editar metadados como título, resumo, etc. — coloque essa opção
+   somente para os gestores").
+
+   A gestão já podia gravar: `podeEditarProjeto` sempre lhe devolveu `true`, e
+   o POST aceitava. O que não existia era o ATO — a ficha de um projeto em
+   execução abria com os campos soltos, sem nada dizendo que ali se estava
+   mexendo num documento já submetido, e a gravação entrava no histórico como
+   "editou a proposta", igual à do rascunho. Quem coordena não sabia que podia;
+   quem passava por ali podia reescrever a proposta aprovada sem perceber.
+
+   Agora a proposta fechada nasce TRAVADA para todos, e a gestão a destrava
+   por um botão, um projeto por vez (esta variável). O que a torna defensável
+   depois é o registro: o servidor compara o texto com o que estava gravado e
+   anota no histórico a correção, NOMEANDO os campos que mudaram. */
+let CORRIGIR = "";
 // o ciclo (edital) escolhido na guia Projetos — um por vez, começa no vigente
 let CICLO_SEL = "";
 // quadros de classificação expandidos (chave: ciclo|rótulo) — começa tudo
@@ -834,6 +851,24 @@ async function abrir(id) {
     $("subtitulo").textContent = ATUAL.titulo || "";
     renderEditor("v-projeto");
   } catch (e) { aviso(e.message, "err"); }
+}
+
+/* Destravar a proposta fechada para correção — só a gestão chega aqui (o
+   botão só se desenha com `podeEditar`, e o servidor recusa os demais). Vale
+   para ESTE projeto: sair dele volta a travar, senão a ficha seguinte abriria
+   aberta sem ninguém ter pedido. */
+function corrigirTexto(id) {
+  CORRIGIR = id;
+  renderEditor(SECAO === "submissao" ? "v-submissao" : "v-projeto");
+  aviso("Proposta destravada para correção. O que mudar fica registrado no histórico do projeto.", "ok");
+  window.scrollTo(0, 0);
+}
+/** Desistir da correção: recarrega o texto como está gravado no servidor. */
+async function cancelarCorrecao(id) {
+  if (SUJO && !confirm("Descartar as correções que ainda não foram salvas e recarregar o texto gravado?")) return;
+  limparSujo();
+  CORRIGIR = "";
+  await abrir(id);
 }
 
 function novoProjeto() {
@@ -3876,7 +3911,14 @@ function sub(campo, chave, valor) { ATUAL[campo] = { ...(ATUAL[campo] || {}), [c
 function campo(k, v) { ATUAL[k] = v; }
 
 function renderEditor(alvo) {
-  const p = ATUAL, ed = PODE.podeEditar, ger = PODE.podeGerir || ed;
+  const p = ATUAL;
+  // proposta FECHADA: já saiu do rascunho — está em avaliação, em execução ou
+  // encerrada. Para a orientação ela é intocável (o servidor recusa); para a
+  // gestão, abre só pelo botão de correção, um projeto por vez.
+  const fechada = !!p.id && !["rascunho", "devolvido"].includes(p.status || "rascunho");
+  const corrigindo = !!p.id && CORRIGIR === p.id;
+  const ed = PODE.podeEditar && (!fechada || corrigindo);
+  const ger = PODE.podeGerir || ed;
   const ro = ed ? "" : "disabled";
   const roGer = ger ? "" : "disabled";
   const novo = !p.id;
@@ -3919,8 +3961,25 @@ function renderEditor(alvo) {
       <b>Parecer da coordenação (${fmtDH(p.avaliacao.em)}):</b> ${esc(p.avaliacao.parecer || "aprovado sem ressalvas")}</div>` : ""}
 
     <div class="card">
-      <div class="card-t">Proposta</div>
-      <div class="card-s">${ed ? "Enquanto for rascunho ou devolvido, tudo aqui pode mudar." : "Proposta fechada — o projeto já está em avaliação ou em execução."}</div>
+      <div class="card-t">Proposta
+        ${fechada && corrigindo ? '<span class="badge b-devolvido">em correção pela gestão</span>' : ""}</div>
+      <div class="card-s">${!fechada ? "Enquanto for rascunho ou devolvido, tudo aqui pode mudar."
+        : corrigindo ? "Correção de texto num documento já submetido: o que mudar fica registrado no histórico do projeto, com o nome de quem corrigiu."
+        : "Proposta fechada — o projeto já está em avaliação ou em execução."}</div>
+      ${fechada && PODE.podeEditar ? (corrigindo ? `<div class="banner ba-warn" style="margin-top:8px">
+        <b>Você está corrigindo o texto de uma proposta já submetida.</b>
+        Isto existe para o erro de digitação e o trecho trocado que a coordenação encontra na leitura —
+        não para reescrever a proposta que foi avaliada. Ao salvar, o histórico do projeto registra
+        <b>quais campos mudaram</b> e quem os alterou.
+        <div class="exp" style="margin-top:8px">
+          <button class="bt bt-pri" onclick="salvar()">Salvar a correção</button>
+          <button class="bt bt-ghost" onclick="cancelarCorrecao('${esc(p.id)}')">Cancelar e recarregar o texto gravado</button>
+          <span class="selo-sujo"></span>
+        </div></div>`
+        : `<div class="exp" style="margin-top:8px">
+        <button class="bt bt-sec" onclick="corrigirTexto('${esc(p.id)}')">✏ Corrigir o texto da proposta</button>
+        <span class="muted" style="align-self:center">Só a gestão corrige documento já submetido — e a correção fica no histórico.</span>
+      </div>`) : ""}
 
       <label>Título do projeto *</label>
       <input ${ro} value="${esc(p.titulo || "")}" oninput="campo('titulo',this.value)" placeholder="Título como aparecerá no protocolo">
@@ -5319,6 +5378,9 @@ async function abrirRelatorio(projetoId, tipo) {
 
 /* ------------------------------- ações --------------------------------- */
 async function salvar() {
+  // a correção da proposta fechada é um ATO: gravada, ela se fecha — a ficha
+  // volta a travar, senão ficaria destravada pelo resto da visita
+  const corrigia = !!ATUAL?.id && CORRIGIR === ATUAL.id;
   try {
     const r = await api("/api/ic", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ATUAL),
@@ -5327,6 +5389,12 @@ async function salvar() {
     limparSujo();                  // gravado: o selo volta a dizer a verdade
     await carregar(); montarSidebar();
     if (SECAO === "submissao") { nav("projeto"); await abrir(ATUAL.id); }
+    if (corrigia) {
+      CORRIGIR = "";
+      renderEditor("v-projeto");
+      $("subtitulo").textContent = ATUAL.titulo || "";
+      return aviso("Correção salva — o histórico do projeto registra o que mudou.");
+    }
     // dizer QUANTOS alunos ficaram gravados é o que fecha o relato de
     // ago/2026: "salvo" sozinho não distingue o que entrou do que se perdeu
     const n = (ATUAL.alunos || []).length;

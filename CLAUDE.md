@@ -2195,6 +2195,23 @@ public/
   aluno sem e-mail (não conseguirá enviar relatório), planilha de produção em branco,
   CEP/CEUA sem protocolo. O formulário do edital não coletou e-mail nem CPF dos alunos —
   por isso `validarProjeto` aceita aluno identificado só por nome e matrícula.
+- **A GESTÃO CORRIGE O TEXTO DA PROPOSTA JÁ SUBMETIDA, e a correção fica no histórico**
+  (`propostaFechada`/`camposDaPropostaAlterados` em lib/ic.js + `CORRIGIR` na SPA, pedido do
+  dono ago/2026: "o coordenador identificou alguns erros no texto dos projetos; ele gostaria de
+  poder editar metadados como título, resumo, etc. — coloque essa opção somente para os
+  gestores"). A gestão **já podia** gravar: `podeEditarProjeto` sempre lhe devolveu `true` e o
+  POST aceitava. O que não existia era o ATO — a ficha de um projeto em execução abria com os
+  campos soltos, sem nada dizendo que ali se mexia num documento já submetido, e a gravação
+  entrava no histórico como "editou a proposta", igual à do rascunho: quem coordena não sabia
+  que podia, e quem passasse por ali reescreveria a proposta aprovada sem perceber. Agora a
+  proposta **fechada** (fora de `rascunho`/`devolvido`) nasce TRAVADA para todos, e a gestão a
+  destrava por um botão — **um projeto por vez**, e sair dele volta a travar, senão a ficha
+  seguinte abriria aberta sem ninguém ter pedido. O que torna o ato defensável meses depois é o
+  registro: o servidor compara o texto com o que estava gravado e anota **quais campos mudaram**
+  ("corrigiu o texto da proposta já submetida (título, resumo)") — num documento que o
+  parecerista já leu, "editou a proposta" não explica nada. Salvar sem tocar no texto **não**
+  vira correção, e mexer nos alunos ou no cronograma também não: a régua é só dos campos da
+  PROPOSTA. Para a orientação nada muda — a proposta segue fechada, como sempre esteve.
 - **Inclusão manual pela coordenação** (`inclusaoManual`): quando a pró-reitoria defere um
   pedido de inclusão fora do prazo, a gestão abre o projeto **em nome de quem orienta** —
   o dono é o professor (é na conta dele que aparece e é ele quem toca), a coordenação só
