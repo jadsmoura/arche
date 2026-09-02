@@ -1906,6 +1906,20 @@ public/
   a caixa do formulário não manda. A GESTÃO segue com a mão livre (edita pelo ramo
   geral). A tela espelha a regra: sem ×, e-mail e caixa travados nos já indicados
   ("via substituição" no lugar).
+- **UM PROJETO POR ACADÊMICO** (`projetoQueJaTemOAluno` em lib/ic.js, pedido do dono ago/2026:
+  "não permita que mais de um professor indique o mesmo aluno; se ele já tiver sido indicado, trava
+  para outra indicação"). O caso que dói é a BOLSA — duas concessões à mesma pessoa, pagas em
+  duplicidade —, mas a trava é da INDICAÇÃO inteira: bolsista num projeto e voluntário noutro
+  seriam dois termos, dois cronogramas e dois relatórios da mesma pessoa no mesmo ciclo. Três
+  recortes a tornam justa: vale **por CICLO** (quem foi bolsista em 2025 pode ser indicado em 2026
+  — a trava não é condenação perpétua); **rascunho e reprovado não prendem** (um ainda não foi
+  submetido, o outro não existe mais); e a identidade é **e-mail OU CPF**, nunca o nome — dois
+  homônimos travariam um ao outro, e aqui o falso positivo impede uma indicação legítima. A régua
+  roda nos DOIS ramos do POST (orientação e gestão, e também no projeto novo da inclusão manual) e
+  na **aprovação da substituição**, que é justamente onde entra aluno novo. Vale para TODOS,
+  inclusive o gestor geral: a mensagem nomeia o projeto e a orientação em que o aluno já está, que
+  é o que permite desfazer o outro vínculo antes. A tela ANTECIPA a recusa na própria linha do
+  quadro (`jaIndicadoNoCiclo`), para o professor não descobrir no erro do salvar.
 - **A CAIXA "BOLSISTA" SAIU DA INDICAÇÃO** (`bolsistaPelaConcessao` no server + a etiqueta
   em `desenharAlunos`, dúvida de um professor ago/2026: ao indicar o aluno aparecia uma
   caixa de marcar "Bolsista" — e a atribuição não é dele). Nunca foi: a marca **acompanha a

@@ -4033,7 +4033,9 @@ function renderEditor(alvo) {
           ? `este projeto tem <b>${esc(fomentoNome(p.fomento.tipo))}</b>, então quem for indicado entra como <b>bolsista</b>`
           : "este projeto não tem bolsa concedida, então quem for indicado entra como <b>voluntário(a)</b>"}.
         Quem concede é a PROPPEX, na guia Bolsas.${META.gestao ? ""
-          : " Para trocar ou remover um aluno já indicado, use a <b>Substituição de bolsista</b> logo abaixo."}</div>
+          : " Para trocar ou remover um aluno já indicado, use a <b>Substituição de bolsista</b> logo abaixo."}
+        <br><b>Cada acadêmico participa de UM projeto por ciclo</b>: quem já foi indicado noutro
+        projeto deste edital não entra aqui — a orientação do outro projeto precisa liberá-lo antes.</div>
       <div class="rolo"><table class="pt">
         <thead><tr><th style="width:22%">Nome</th><th style="width:22%">E-mail</th><th style="width:16%">Telefone</th><th style="width:18%">Curso</th><th>Período</th><th>Bolsista/voluntário</th><th></th></tr></thead>
         <tbody id="tb-alunos"></tbody>
@@ -4118,7 +4120,17 @@ function desenharAlunos() {
       <td>${ger && !fixo ? `<button class="rm" title="remover" onclick="ATUAL.alunos.splice(${i},1);desenharAlunos();desenharEtapas()">×</button>`
         : (fixo ? `<span class="muted" title="Para trocar o bolsista, use a Substituição de bolsista — a coordenação aprova" style="font-size:11px">via substituição</span>` : "")}</td>
     </tr>${!a.email ? `<tr><td colspan="7" class="muted" style="border-top:0;padding-top:0">
-      ⚠ sem e-mail não há convite: ${esc(a.nome || "este aluno")} não entra no sistema</td></tr>` : ""}`;
+      ⚠ sem e-mail não há convite: ${esc(a.nome || "este aluno")} não entra no sistema</td></tr>` : ""}
+    ${(() => {
+      /* A trava do servidor, dita ANTES do clique: com a lista de projetos já
+         carregada, a tela sabe apontar em qual deles o aluno está — e é isso
+         que evita o professor descobrir no erro do salvar. */
+      const outro = jaIndicadoNoCiclo(a, ATUAL);
+      return outro ? `<tr><td colspan="7" style="border-top:0;padding-top:0;color:var(--err);font-size:12px">
+        ✕ ${esc(a.nome || a.email)} já consta no projeto <b>${esc(outro.numero || "")}</b>
+        (${esc(outro.orientador?.nome || outro.orientador?.email || "outra orientação")}) —
+        cada acadêmico participa de um projeto por ciclo. Salvar vai recusar.</td></tr>` : "";
+    })()}`;
   }).join("")
     || `<tr><td colspan="7" class="muted">Nenhum aluno indicado ainda.</td></tr>`;
 }
@@ -4126,6 +4138,22 @@ function desenharAlunos() {
    bolsa concedida, voluntário se não há. É a mesma conta que o servidor faz
    ao gravar (e que a guia Bolsas refaz em todos ao conceder ou desfazer):
    aqui ela existe só para a linha aparecer certa antes de salvar. */
+/* O aluno já está noutro projeto do MESMO ciclo? A régua é a do servidor
+   (lib/ic.js): e-mail OU CPF, projeto que não seja rascunho nem reprovado, e
+   nunca o próprio projeto. Aqui ela só ANTECIPA a recusa — quem barra é o
+   servidor, que vê a base inteira; a lista da tela é o recorte de quem olha. */
+function jaIndicadoNoCiclo(aluno, projeto) {
+  const email = String(aluno?.email || "").trim().toLowerCase();
+  const cpf = String(aluno?.cpf || "").replace(/\D/g, "");
+  if (!email && !cpf) return null;
+  const ciclo = projeto?.edital || META.edital?.numero;
+  return (PROJETOS || []).find((p) => p.id !== projeto?.id
+    && !["rascunho", "reprovado"].includes(p.status)
+    && (p.edital || META.edital?.numero) === ciclo
+    && (p.alunos || []).some((x) => (email && String(x.email || "").toLowerCase() === email)
+      || (cpf && String(x.cpf || "").replace(/\D/g, "") === cpf))) || null;
+}
+
 function addAluno() {
   const comBolsa = !!(ATUAL.fomento && ATUAL.fomento.tipo && ATUAL.fomento.tipo !== "voluntario");
   ATUAL.alunos = [...(ATUAL.alunos || []), { nome: "", email: "", telefone: "",

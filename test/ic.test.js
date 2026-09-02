@@ -14,6 +14,7 @@ import {
   janelaContestacao, podeContestar, PRAZO_CONTESTACAO_DIAS, atoDeGestao,
   idadeEm, faltaNoCadastroDoBolsista, cadastroDoBolsistaCompleto,
   pedidoEncerramentoPendente, encerramentoAceito, ROTULO_STATUS,
+  projetoQueJaTemOAluno, motivoAlunoJaIndicado,
 } from "../lib/ic.js";
 
 /* -------------------------------- fixtura ------------------------------- */
@@ -1128,4 +1129,47 @@ test("encerramento: projeto encerrado não tem prazo de relatório correndo", ()
   });
   assert.equal(prazosRelatorios(p, "2027-03-01"), null,
     "sem prazo: encerrado não entra na cobrança nem aparece atrasado");
+});
+
+/* --------------- UM PROJETO POR ACADÊMICO (ago/2026) --------------------
+   Pedido do dono: "não permita que mais de um professor indique o mesmo
+   aluno". O que estes testes protegem são os três recortes que tornam a trava
+   justa — o ciclo, o projeto que não prende (rascunho e reprovado) e a
+   identidade por e-mail OU CPF, nunca por nome. */
+const BASE_DUP = [
+  { id: "a", numero: "IC-2026-001", titulo: "Solos", status: "aprovado", edital: "01/2026",
+    orientador: { nome: "Prof. A" }, alunos: [{ nome: "Ana", email: "ana@x.com", cpf: "111.444.777-35" }] },
+  { id: "b", numero: "IC-2026-002", titulo: "Águas", status: "reprovado", edital: "01/2026",
+    alunos: [{ nome: "Bia", email: "bia@x.com" }] },
+  { id: "c", numero: "IC-2026-003", titulo: "Ideia", status: "rascunho", edital: "01/2026",
+    alunos: [{ nome: "Caio", email: "caio@x.com" }] },
+  { id: "d", numero: "IC-2025-009", titulo: "Antiga", status: "concluido", edital: "01/2025",
+    alunos: [{ nome: "Dora", email: "dora@x.com" }] },
+];
+const onde = (aluno, opc) => projetoQueJaTemOAluno(BASE_DUP, aluno, { edital: "01/2026", ...opc })?.numero || null;
+
+test("o aluno já indicado trava a segunda indicação — por e-mail e por CPF", () => {
+  assert.equal(onde({ email: "ana@x.com" }), "IC-2026-001");
+  // o CPF pega quem tenta com outro e-mail: é a chave forte do setor
+  assert.equal(onde({ email: "outro@x.com", cpf: "11144477735" }), "IC-2026-001");
+  // e não trava contra si mesmo: regravar o próprio projeto tem de passar
+  assert.equal(onde({ email: "ana@x.com" }, { exceto: "a" }), null);
+});
+
+test("rascunho e reprovado não prendem ninguém; e a trava é por CICLO", () => {
+  assert.equal(onde({ email: "bia@x.com" }), null, "projeto reprovado não existe mais");
+  assert.equal(onde({ email: "caio@x.com" }), null, "rascunho ainda não foi submetido");
+  assert.equal(onde({ email: "dora@x.com" }), null, "bolsista de 2025 pode voltar em 2026");
+  // sem o recorte de ciclo, o de 2025 apareceria
+  assert.equal(projetoQueJaTemOAluno(BASE_DUP, { email: "dora@x.com" }, {})?.numero, "IC-2025-009");
+});
+
+test("sem e-mail e sem CPF ninguém é travado — nome não é chave", () => {
+  assert.equal(onde({ nome: "Ana" }), null);
+  assert.equal(onde({}), null);
+  // a mensagem diz ONDE ele está: é isso que permite desfazer o outro vínculo
+  const m = motivoAlunoJaIndicado({ nome: "Ana" }, BASE_DUP[0]);
+  assert.match(m, /IC-2026-001/);
+  assert.match(m, /Prof\. A/);
+  assert.match(m, /UM projeto por ciclo/);
 });

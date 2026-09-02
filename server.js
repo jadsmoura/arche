@@ -30,7 +30,7 @@ import {
 import {
   IC_KEY, MODALIDADES as IC_MODALIDADES, STATUS as IC_STATUS, ROTULO_STATUS as IC_ROTULO_STATUS,
   SITUACOES_ETAPA, TIPOS_RELATORIO, CRITERIOS, RECOMENDACOES, normalizarProjeto, validarProjeto,
-  numerar as numerarProjeto, anotar as anotarProjeto, resumir as resumirProjeto,
+  numerar as numerarProjeto, projetoQueJaTemOAluno, motivoAlunoJaIndicado, anotar as anotarProjeto, resumir as resumirProjeto,
   papelNoProjeto, podeVerProjeto, podeEditarProjeto, podeGerirExecucao, podeAvaliar,
   podeEnviarRelatorio, podeValidarRelatorio, cronogramaDe, relatoriosDe, relatoriosPendentes,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto, notaFinal,
@@ -10775,6 +10775,16 @@ app.post("/api/ic", async (req, res) => {
         // rota própria. O formulário da orientação nunca os altera — nem os
         // apaga sem querer ao salvar a indicação (ela não recebe os valores).
         const doBase = (email) => (base.alunos || []).find((a) => a.email && a.email === email);
+        /* UM PROJETO POR ACADÊMICO (pedido do dono, ago/2026): o aluno que já
+           foi indicado noutro projeto do mesmo ciclo trava aqui — a bolsa é
+           exclusiva, e dois planos de trabalho para a mesma pessoa não são o
+           que o edital prevê. A conferência é sobre os alunos NOVOS: quem já
+           está neste projeto não trava contra si mesmo. */
+        for (const a of p.alunos) {
+          if (antigos.has(chaveAluno(a))) continue;
+          const outro = projetoQueJaTemOAluno(projetos, a, { exceto: p.id, edital: p.edital });
+          if (outro) return { erro: [409, motivoAlunoJaIndicado(a, outro)], gravar: false };
+        }
         p.alunos = p.alunos.map((a) => {
           const antes = antigos.get(chaveAluno(a));
           if (!antes) {
@@ -10799,6 +10809,17 @@ app.post("/api/ic", async (req, res) => {
       // o mesmo cuidado da execução: o formulário da orientação (ou da
       // coordenação, na inclusão manual) não escreve nem apaga o que é do
       // aluno — RG, endereço, vínculo e conta são dele
+      /* A mesma trava do ramo da orientação, e também no projeto NOVO (a
+         inclusão manual pode já vir com aluno): a gestão não põe o acadêmico
+         em dois projetos do mesmo ciclo. A mensagem diz ONDE ele já está, que
+         é o que ela precisa para desfazer o outro vínculo. */
+      const constavaAntes = (email) => !!base
+        && (base.alunos || []).some((a) => a.email && a.email === email);
+      for (const a of projeto.alunos || []) {
+        if (constavaAntes(a.email)) continue;
+        const outro = projetoQueJaTemOAluno(projetos, a, { exceto: projeto.id, edital: projeto.edital });
+        if (outro) return { erro: [409, motivoAlunoJaIndicado(a, outro)], gravar: false };
+      }
       if (base) {
         const doBase = (email) => (base.alunos || []).find((a) => a.email && a.email === email);
         projeto.alunos = (projeto.alunos || []).map((a) => {
@@ -11127,6 +11148,12 @@ app.post("/api/ic/:id/substituicao/:sid", async (req, res) => {
 
     let alunos = p.alunos || [];
     if (decisao === "aprovada") {
+      /* A trava do "um projeto por acadêmico" vale também aqui: a
+         substituição é justamente onde entra um aluno NOVO, e aprová-la sem
+         conferir seria o caminho mais curto para a mesma pessoa em dois
+         projetos do ciclo. */
+      const outro = projetoQueJaTemOAluno(projetos, pedido.novo, { exceto: p.id, edital: p.edital });
+      if (outro) return { erro: [409, motivoAlunoJaIndicado(pedido.novo, outro)], gravar: false };
       // o casamento espelha o do PEDIDO (e-mail OU nome — achado de ago/2026:
       // exigir os dois deixava o substituído no projeto se ele corrigisse o
       // próprio nome entre o pedido e a decisão); e-mail, quando há, decide
