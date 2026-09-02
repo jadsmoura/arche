@@ -75,8 +75,24 @@
      dono, ago/2026, na mesma limpeza do layout): cada setor é UMA linha fina —
      nome, contagem e o resumo do que espera, cortado na largura — e a linha
      abre o setor. A amostra de nomes/e-mails saiu: o detalhe se lê lá dentro. */
-  #painel-demandas{display:none}
-  body.arche-logado #painel-demandas.tem{display:block}
+  #painel-demandas,#painel-meu{display:none}
+  body.arche-logado #painel-demandas.tem,body.arche-logado #painel-meu.tem{display:block}
+  /* a fila DA PESSOA: uma linha por pendência, com o setor à esquerda e o
+     atalho à direita. O urgente ganha a barra vermelha — é o que ela precisa
+     distinguir de relance entre um "envie o relatório" e um "prazo vencido". */
+  .mp-linha{display:flex;align-items:center;gap:10px;padding:9px 13px;transition:.13s;
+    border:1px solid #eef2f4;border-radius:11px;background:#fcfdfe;font-size:12.5px;
+    border-left:3px solid var(--wash2)}
+  a.mp-linha:hover{background:var(--wash);border-color:var(--wash2)}
+  .mp-linha.urg{border-left-color:#c0392b}
+  .mp-linha .st{flex:none;font-size:11px;font-weight:700;color:var(--brand-3);
+    background:var(--wash);border-radius:20px;padding:2px 8px;white-space:nowrap}
+  .mp-linha .tx{font-family:Sora,sans-serif;font-weight:700;font-size:13px;color:var(--ink)}
+  .mp-linha .det{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+  /* no celular a linha quebra em três; a seta iria sozinha para uma quarta,
+     e ela não acrescenta nada — a linha inteira já é o botão */
+  @media (max-width:640px){.mp-linha{flex-wrap:wrap}.mp-linha .det{flex-basis:100%}
+    .mp-linha .ls-seta{display:none}}
   .dm-tot{font-size:11.5px;font-weight:700;color:#fff;background:var(--brand);
     border-radius:20px;padding:2px 10px;flex:none}
   /* o cabeçalho do painel de demandas é BOTÃO: recolhe e expande a lista */
@@ -214,6 +230,16 @@
        procurar. As contagens vêm de /api/alertas — a mesma fonte do sino do
        topo, com o mesmo recorte por módulo: quem não gere setor nenhum não
        recebe nada e o bloco não se desenha. -->
+  <!-- ============ O QUE VOCÊ PRECISA FAZER (achado do dono, ago/2026:
+       "alguns alunos de ensino médio estão entrando pelo sistema e caindo em
+       uma página vazia; coloca na página principal do usuário os itens que ele
+       precisa fazer, algum atalho? por exemplo, relatórios, indicação").
+       O painel de demandas abaixo é da GESTÃO — o que espera decisão nos
+       setores que ela gere. Este é de TODA pessoa logada: a fila DELA, com o
+       atalho que leva até onde se resolve. Vem de /api/minhas-pendencias; sem
+       pendência, não se desenha. -->
+  <div id="painel-meu"></div>
+
   <div id="painel-demandas"></div>
 
   <!-- ============ FAVORITOS (decisão do dono, ago/2026, junto com o layout
@@ -531,7 +557,33 @@ const ORDEM_SETOR = ["Acessos", "Extensão", "Eventos", "Pesquisa · IC", "Monit
 const escP = (t) => String(t ?? "").replace(/[&<>"]/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+/* A FILA DE CADA PESSOA (achado do dono, ago/2026). O painel de demandas
+   logo abaixo é da gestão; este é de quem quer que esteja logado — o
+   professor com um bolsista por indicar, a estudante do ICEM que precisa
+   escolher o projeto, o monitor com o relatório a enviar. Cada linha LEVA ao
+   lugar de resolver: uma lista de avisos sem link seria a mesma parede.
+   Sem pendência, não se desenha — painel vazio na página inicial é ruído. */
 if (!VER_PUBLICO) {
+  fetch("/api/minhas-pendencias").then((r) => (r.ok ? r.json() : { pendencias: [] })).then((j) => {
+    const lista = j.pendencias || [];
+    if (!lista.length) return;
+    const seta = '<span class="ls-seta" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>';
+    const cx = document.getElementById("painel-meu");
+    cx.innerHTML = `
+      <div class="painel-setores" style="margin-bottom:26px">
+        <p class="ps-tit">O que você precisa fazer <span class="dm-tot">${lista.length}</span></p>
+        <p class="ps-sub">O que o portal está esperando de você — a linha leva ao lugar de resolver.</p>
+        <div class="dm-linhas">
+          ${lista.map((i) => `<a class="mp-linha${i.urgente ? " urg" : ""}" href="${escP(i.link)}">
+            <span class="st">${escP(i.setor)}</span>
+            <span class="tx">${escP(i.texto)}</span>
+            <span class="det">${escP(i.detalhe || "")}</span>
+            ${seta}</a>`).join("")}
+        </div>
+      </div>`;
+    cx.classList.add("tem");
+  }).catch(() => { /* sem a fila: a página inicial segue como sempre */ });
+
   fetch("/api/alertas").then((r) => (r.ok ? r.json() : { alertas: [] })).then((j) => {
     const lista = j.alertas || [];
     if (!lista.length) return;

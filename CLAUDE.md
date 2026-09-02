@@ -651,6 +651,28 @@ public/
   diz se vale a pena abrir. O CSS precisa de `.dm-linhas[hidden]{display:none}`: o atributo
   `hidden` apaga pelo estilo do navegador, e a regra de classe (`display:flex`) vence dele — sem a
   linha, o painel recolhia no atributo e continuava na tela.
+- **O QUE VOCÊ PRECISA FAZER — a fila de CADA PESSOA na página inicial** (`lib/pendencias.js` +
+  `GET /api/minhas-pendencias` + `#painel-meu` em public/index.html, achado do dono ago/2026:
+  "alguns alunos de ensino médio estão entrando pelo sistema e caindo em uma página vazia;
+  coloca na página principal do usuário os itens que ele precisa fazer, algum atalho? por
+  exemplo, relatórios, indicação"). O painel de demandas logo abaixo é da **GESTÃO** — o que
+  espera decisão nos setores que ela gere, recortado por `modulosDe`. Este é de **toda pessoa
+  logada**: o professor com um bolsista por indicar, a estudante do ICEM que precisa escolher o
+  projeto, o monitor com o relatório a enviar. A informação sempre existiu; morava dentro de
+  cada setor, atrás de dois cliques, e por isso só chegava a quem já sabia procurá-la.
+  Três regras que o módulo carrega: **é pendência, não notícia** — só entra o que espera um ATO
+  DA PESSOA (o relatório entregue que aguarda a PROPPEX fica de fora: seria uma fila que não
+  anda); **cada linha LEVA ao lugar de resolver** (lista de avisos sem link é a mesma parede); e
+  **nada aqui concede nada** — é apresentação, quem barra segue sendo o servidor de cada setor.
+  O que cobre: perfil incompleto (a primeira de todas — é ela que barra a entrada nos setores),
+  IC (indicação pendente, relatório do aluno a validar, relatório a enviar e o cadastro do
+  contrato), ICEM (escolher projeto, relatório e dados bancários), monitoria (ficha do monitor,
+  relatório e avaliação da orientação), Extensão (proposta devolvida e relatório final pendente)
+  e o ARCHÉ AC (relatório devolvido). Dois cuidados que a régua carrega: o relatório só se cobra
+  **depois que a janela ABRE** (cobrar em setembro o que abre em julho seria angústia sem nada a
+  fazer, e o servidor recusaria o envio), e o **cadastro do bolsista sai UMA vez**, com a união
+  do que falta — ele é da pessoa, não do projeto. `lib/pendencias.js` é PURO: quem lê as bases é
+  o servidor, e cada função recebe o que a pessoa já pode ver.
 - **Demandas abertas na página inicial** (pedido do dono, ago/2026): antes dos cartões dos
   setores, a gestão vê **o que espera decisão**, agrupado por setor, com o atalho para o lugar
   onde a decisão acontece — a pró-reitoria abre o portal para saber ONDE entrar, não para

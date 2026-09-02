@@ -67,7 +67,7 @@ import {
   cargaHorariaTotal as monCargaTotal, anotar as monAnotar,
   submissaoAberta as monSubmissaoAberta, certificadosDe as certificadosMonitoria,
   COBRANCA as MON_COBRANCA, cobrancaAberta as cobrancaAbertaMon,
-  diasParaRelatorio as diasParaRelatorioMon,
+  diasParaRelatorio as diasParaRelatorioMon, monitorCadastrado,
 } from "./lib/monitoria.js";
 import {
   normalizarLote as normalizarLoteMon, certificadosHistoricos as certificadosHistoricosMon,
@@ -103,6 +103,10 @@ import {
   eventoEncerrado, podeEncerrar, programacaoDoCertificado, situacaoEncerramento,
 } from "./lib/certificadosEx.js";
 import { situacaoDaAcao } from "./lib/situacao.js";
+import {
+  pendenciasDoPerfil, pendenciasIC, pendenciasICEM, pendenciasMonitoria,
+  pendenciasExtensao, pendenciasAC, ordenar as ordenarPendencias,
+} from "./lib/pendencias.js";
 import { limparColagem, limparProfundo, temColagemSuja } from "./lib/texto.js";
 import {
   TURMAS_EM, BOLSAS_EM, bolsaEmDe, turmaDe as turmaEmDe, turmaVigente as turmaEmVigente,
@@ -1445,6 +1449,67 @@ const ALERTAS_VISTOS_KEY = "sys-alertas-vistos-v1";
 async function lerAlertasVistos() {
   try { return JSON.parse((await storage.get(ALERTAS_VISTOS_KEY)) || "{}") || {}; } catch { return {}; }
 }
+
+/* O QUE VOCÊ PRECISA FAZER — a fila de CADA PESSOA, na página inicial
+   (achado do dono, ago/2026: "alguns alunos de ensino médio estão entrando
+   pelo sistema e caindo em uma página vazia; coloca na página principal do
+   usuário os itens que ele precisa fazer, algum atalho? por exemplo,
+   relatórios, indicação").
+
+   O painel "O que espera você" existia só para a GESTÃO, montado do sino e
+   recortado por `modulosDe`. Quem não gere setor nenhum — o professor que
+   orienta uma IC, a bolsista do ensino médio, o monitor — via a mesma parede
+   de cartões, sem nada dizendo que havia um relatório vencendo ou um bolsista
+   por indicar. A informação existia; morava dentro de cada setor, e por isso
+   só chegava a quem já sabia procurá-la.
+
+   A régua está em lib/pendencias.js (módulo puro); aqui se leem as bases e se
+   entrega a cada função o que a pessoa JÁ pode ver. Nada disto concede nada:
+   é apresentação — quem barra segue sendo o servidor de cada setor. */
+app.get("/api/minhas-pendencias", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "não autenticado" });
+    const perfil = (await carregarPerfis())[u.email] || {};
+    const cpf = perfil.cpf || "";
+    const quem = { email: u.email, cpf };
+    const hoje = hojeLocalISO();
+    const itens = [];
+
+    itens.push(...pendenciasDoPerfil(await faltaNoPerfilDe(u, perfil)));
+
+    const projetos = await lerProjetos();
+    itens.push(...pendenciasIC(projetos, quem, {
+      hoje,
+      prazosDe: (p) => prazosRelatorios(p, hoje),
+      pendentesDe: (p) => relatoriosPendentes(p),
+      faltaNoCadastroDe: (a) => faltaNoCadastroDoBolsista(a),
+    }));
+
+    const meusEM = registrosEMDe(await lerBolsistasEM(), u.email, cpf)
+      .map((b) => ({ ...b, faltaNoCadastro: faltaDadosBancariosEM(b) }));
+    itens.push(...pendenciasICEM(meusEM, { turmaDe: turmaEmDe, exigidosDe: relatoriosExigidos }));
+
+    itens.push(...pendenciasMonitoria(await lerMonitorias(), quem, { cadastrado: monitorCadastrado }));
+
+    // a Extensão é do RESPONSÁVEL: só as ações dele — a lista da gestão é
+    // outra pergunta, e ela já tem o painel de demandas
+    const minhasAcoes = (await lerAcoes()).filter((a) =>
+      String(a.criadoPor || "").toLowerCase() === String(u.email).toLowerCase()
+      || String(a.proposta?.respEmail || "").toLowerCase() === String(u.email).toLowerCase());
+    itens.push(...pendenciasExtensao(minhasAcoes, {
+      devePendencia: (a) => situacaoDaAcao(a, hoje).relatorioPendente,
+    }));
+
+    itens.push(...pendenciasAC(await lerPraticas(), quem));
+
+    const fila = ordenarPendencias(itens);
+    res.json({ pendencias: fila, total: fila.length });
+  } catch (e) {
+    console.error("Erro nas pendências pessoais:", e);
+    res.status(500).json({ error: "Falha ao montar as suas pendências" });
+  }
+});
 
 /** POST /api/alertas/visto — marca (ou desmarca) o que já foi visto. */
 app.post("/api/alertas/visto", async (req, res) => {
