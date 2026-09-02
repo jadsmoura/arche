@@ -2258,7 +2258,8 @@ function exportarProjetos(formato) {
 
 function limparFiltros() {
   FILTRO = { status: "", curso: "", linha: "", grupo: "", q: "", titulacao: "", bolsa: "",
-    edital: META.edital?.numero || "__todos" };
+    alunos: "", edital: META.edital?.numero || "__todos" };
+  ArchePag.zerar("ic-projetos");
   renderGestao();
 }
 
@@ -2283,12 +2284,19 @@ function renderGestao() {
       || (FILTRO.bolsa === "sem"
         ? ["aprovado", "concluido"].includes(p.status) && (!p.fomento || p.fomento.tipo === "voluntario")
         : p.fomento?.tipo === FILTRO.bolsa)) &&
+    /* QUEM AINDA NÃO INDICOU ALUNO (pedido do dono, ago/2026: "estou tentando
+       passar os projetos para ver quais ainda não têm alunos indicados").
+       Era procurar linha a linha em quarenta projetos — a informação já estava
+       em cada uma ("sem aluno indicado"), faltava poder recortar por ela. */
+    (!FILTRO.alunos
+      || (FILTRO.alunos === "sem" ? !(p.alunos || []).length : !!(p.alunos || []).length)) &&
     (!FILTRO.q || `${p.numero || ""} ${p.titulo} ${p.orientador?.nome || ""} ${(p.alunos || []).map((a) => a.nome).join(" ")}`
       .toLowerCase().includes(FILTRO.q.toLowerCase())));
 
   // filtro ativo = qualquer recorte além do padrão (o ciclo vigente é o padrão)
   const filtroAtivo = FILTRO.status || FILTRO.curso || FILTRO.linha || FILTRO.grupo
-    || FILTRO.titulacao || FILTRO.bolsa || FILTRO.q || FILTRO.edital !== (META.edital?.numero || "__todos");
+    || FILTRO.titulacao || FILTRO.bolsa || FILTRO.alunos || FILTRO.q
+    || FILTRO.edital !== (META.edital?.numero || "__todos");
 
   $("v-gestao").innerHTML = `
     <div class="acoes-lista">
@@ -2343,6 +2351,11 @@ function renderGestao() {
         <option value="cnpq" ${FILTRO.bolsa === "cnpq" ? "selected" : ""}>Com bolsa CNPq</option>
         <option value="uniego" ${FILTRO.bolsa === "uniego" ? "selected" : ""}>Com bolsa UNIEGO</option>
         <option value="sem" ${FILTRO.bolsa === "sem" ? "selected" : ""}>Sem bolsa (voluntários e submissão livre)</option>
+      </select>
+      <select onchange="FILTRO.alunos=this.value;ArchePag.zerar('ic-projetos');renderGestao()" title="Se o projeto já tem bolsista ou voluntário indicado">
+        <option value="">Alunos: todos</option>
+        <option value="sem" ${FILTRO.alunos === "sem" ? "selected" : ""}>Sem aluno indicado</option>
+        <option value="com" ${FILTRO.alunos === "com" ? "selected" : ""}>Com aluno indicado</option>
       </select>
       ${filtroAtivo ? `<button class="bt bt-ghost" onclick="limparFiltros()" title="Volta ao ciclo vigente, sem recortes">✕ Limpar filtros</button>` : ""}
     </div>

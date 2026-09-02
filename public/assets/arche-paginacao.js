@@ -135,7 +135,16 @@
     var st = ler(chave);
     // lista curta não pede barra: sobre sete linhas ela é só ruído
     if (p.total <= TAMANHOS[0] && st.tam >= TAMANHOS[0]) return "";
-    var c = JSON.stringify(chave);
+    /* A chave vai para dentro de um atributo HTML com aspas DUPLAS, então ela
+       precisa entrar entre aspas SIMPLES. Com `JSON.stringify` ela saía
+       aspeada em duplas — `onclick="ArchePag.ir("ic-projetos",2)"` —, e a
+       primeira aspa da chave FECHAVA o atributo: o navegador recebia
+       `ArchePag.ir(` e recusava com "Unexpected end of input". O clique não
+       fazia nada, em TODAS as listas paginadas do portal (achado do dono,
+       ago/2026: "estou tentando passar os projetos… e está travado").
+       As chaves são literais escritos no código, mas a barra é gerada — uma
+       aspa simples numa chave futura repetiria o defeito do outro lado. */
+    var c = "'" + String(chave).replace(/\\/g, "\\\\").replace(/'/g, "\\'") + "'";
     var bt = function (rot, alvo, ativo, off) {
       return '<button ' + (off ? "disabled" : "") + (ativo ? ' class="on"' : "")
         + ' onclick="ArchePag.ir(' + c + ',' + alvo + ')">' + rot + "</button>";

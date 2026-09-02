@@ -2921,6 +2921,22 @@ public/
   ter uma régua por página. **Nunca resolva lista longa com corte mudo** (`slice(0, N)`,
   "mostrando os primeiros N"): esconder registros sem dar como chegar até eles é pior que a lista
   longa que se queria evitar.
+- **A PAGINAÇÃO ESTAVA TRAVADA EM TODO O PORTAL** (`arche-paginacao.js`, achado do dono ago/2026:
+  "estou tentando passar os projetos… e está travado"). A barra é gerada como HTML, e a chave da
+  lista ia para dentro do atributo por `JSON.stringify` — ou seja, **entre aspas duplas, dentro de
+  um atributo já delimitado por aspas duplas**: `onclick="ArchePag.ir("ic-projetos",2)"`. A
+  primeira aspa da chave FECHAVA o atributo, o navegador recebia `ArchePag.ir(` e recusava com
+  *Unexpected end of input* — o clique não fazia nada. Valia para as **dez listas** que usam o
+  componente (usuários, projetos da IC, inscritos de evento, agendamentos, arquivo da monitoria,
+  relatórios do AP, banco de assinaturas): trocar de página e trocar o "Mostrar" eram botões
+  mortos, e a barra continuava dizendo "1–20 de 40" como se nada tivesse acontecido. A chave passa
+  a entrar entre aspas SIMPLES, escapada — as chaves de hoje são literais do código, mas a barra é
+  gerada, e uma aspa numa chave futura repetiria o defeito pelo outro lado.
+- **QUEM AINDA NÃO INDICOU ALUNO** (filtro "Alunos" na guia Gestão da IC, pedido do dono ago/2026:
+  "estou tentando passar os projetos para ver quais ainda não têm alunos indicados"): a informação
+  já estava em cada linha ("sem aluno indicado"), e procurá-la significava percorrer quarenta
+  projetos com o olho. O recorte é **sem aluno indicado · com aluno indicado**, ao lado dos demais
+  filtros, e entra no "✕ Limpar filtros" como os outros.
 - **Paginação das listas** (`public/assets/arche-paginacao.js`, pedido do dono ago/2026:
   "sempre que aparecem listas estão muito longas; gostaria daqueles filtros de mostrar 10, 20, 50,
   100"): uma barra só, compartilhada — **Mostrando 1–20 de 137 · Mostrar [20] · ‹ 1 2 3 ›** — em
