@@ -9642,6 +9642,24 @@ app.get("/api/ic/em", async (req, res) => {
    projeto que vai acompanhar (e troca quando quiser) e entrega o relatório
    final por aqui; nas turmas encerradas, a entrega FORMALIZA a conclusão.
    A coordenação continua conduzindo: cada movimento avisa pesquisa@. */
+/* AS DUAS RÉGUAS DO ICEM, lado a lado (decisão do dono, ago/2026).
+
+   O bolsista acompanha PESQUISA: na PRIMEIRA escolha, Iniciação Científica e
+   Inovação Tecnológica — a bancada e o laboratório, que é o que o programa
+   existe para lhe mostrar. No PEDIDO de alteração, as três linhas do edital,
+   Iniciação à Extensão inclusive: aí ele já viveu um projeto e sabe o que
+   quer conhecer.
+
+   Ficam juntas de propósito: são a mesma pergunta feita em dois momentos, e
+   separá-las pelo arquivo faria alguém mudar uma e esquecer a outra. Cada
+   uma vale nos DOIS lados — monta o cardápio da tela e confere na gravação —,
+   senão o estudante poderia escolher o que a tela não ofereceu. */
+const LINHAS_ACOMPANHAVEIS_EM = ["ic", "it"];
+/* O PEDIDO de alteração oferece as TRÊS linhas do edital: quem pede a troca
+   já viveu um projeto e sabe o que quer conhecer (decisão do dono, ago/2026:
+   "uma lista dos projetos vigentes de IC/IT/Ex do ano"). */
+const LINHAS_PEDIDO_EM = ["ic", "it", "ie"];
+
 app.get("/api/ic/em/meu", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
@@ -9660,6 +9678,8 @@ app.get("/api/ic/em/meu", async (req, res) => {
         turma: minha,
         bolsa: bolsaEmDe(b.bolsa) || null,
         projetoAtual: projetoAtualEM(b), trajetoria: b.trajetoria,
+        // os pedidos de alteração DELE — o pendente e os já decididos
+        pedidosProjeto: b.pedidosProjeto || [],
         relatorios: b.relatorios, conint: b.conint,
         // a turma vigente entrega parcial e final; as antigas, só o final
         exigidos: relatoriosExigidos(minha),
@@ -9669,15 +9689,142 @@ app.get("/api/ic/em/meu", async (req, res) => {
     // o questionário de avaliação do programa, que vai junto do relatório
     avaliacaoModelo: { escala: ESCALA_AVALIACAO_EM, criterios: CRITERIOS_AVALIACAO_EM, recomendacoes: RECOMENDACAO_EM },
     cursosUniego: CURSOS.map((c) => c.nome),
-    // o cardápio da escolha: os projetos EM EXECUÇÃO da graduação — título,
-    // curso e orientação, nada além (o registro completo é do projeto)
+    /* O cardápio da escolha: os projetos EM EXECUÇÃO da graduação — título,
+       curso e orientação, nada além (o registro completo é do projeto).
+       Só as linhas IC e IT (decisão do dono, ago/2026: "os projetos devem
+       ser aqueles do ciclo do IC e IT, que eles irão acompanhar"): a
+       Iniciação à Extensão é ação de extensão, não a bancada de pesquisa que
+       o ICEM existe para o estudante conhecer.
+       Quando o ciclo da graduação ainda está em avaliação, esta lista vem
+       VAZIA — e a tela precisa dizer por quê, em vez de mostrar um seletor
+       sem opções (é o caso do 01/2026 em set/2026). */
     escolha: podeEscolher ? {
-      projetos: projetos.filter((p) => p.status === "aprovado")
-        .map((p) => ({ id: p.id, numero: p.numero, titulo: p.titulo,
+      projetos: projetos.filter((p) => p.status === "aprovado"
+        && LINHAS_ACOMPANHAVEIS_EM.includes(String(p.linha || "").toLowerCase()))
+        .map((p) => ({ id: p.id, numero: p.numero, titulo: p.titulo, linha: p.linha,
+          curso: nomeCurso(p.curso), orientador: p.orientador?.nome || "" }))
+        .sort((a, b) => a.curso.localeCompare(b.curso, "pt-BR") || a.titulo.localeCompare(b.titulo, "pt-BR")),
+      // por que a lista pode estar vazia — a tela mostra isto ao estudante
+      emAvaliacao: projetos.filter((p) => p.status === "submetido"
+        && LINHAS_ACOMPANHAVEIS_EM.includes(String(p.linha || "").toLowerCase())).length,
+      /* O cardápio do PEDIDO de alteração é mais largo: as TRÊS linhas do
+         edital (IC, IT e Iniciação à Extensão). Quem pede a troca já viveu
+         um projeto e sabe o que quer conhecer. */
+      paraTrocar: projetos.filter((p) => p.status === "aprovado"
+        && LINHAS_PEDIDO_EM.includes(String(p.linha || "").toLowerCase()))
+        .map((p) => ({ id: p.id, numero: p.numero, titulo: p.titulo, linha: p.linha,
           curso: nomeCurso(p.curso), orientador: p.orientador?.nome || "" }))
         .sort((a, b) => a.curso.localeCompare(b.curso, "pt-BR") || a.titulo.localeCompare(b.titulo, "pt-BR")),
     } : null,
   });
+});
+
+/* ------------- PEDIDO DE ALTERAÇÃO DE PROJETO (ICEM) --------------------
+   Pedido do dono (ago/2026): "no painel do bolsista de ensino médio, inclua
+   uma sessão de Solicitar alteração de Projeto, onde aparece uma lista dos
+   projetos vigentes de IC/IT/Ex do ano, para ele escolher; essa solicitação
+   vai ao proppex para aprovação".
+
+   A PRIMEIRA escolha continua sendo do estudante — é o que o e-mail do
+   resultado pede que ele faça. A MUDANÇA vira pedido, porque quem o
+   apresenta ao orientador é a coordenação.
+
+   Uma diferença deliberada entre as duas listas: a escolha inicial oferece
+   IC e IT (a bancada de pesquisa, que é o que o programa existe para
+   mostrar); o pedido de alteração oferece as TRÊS linhas do edital —
+   incluindo a Iniciação à Extensão —, porque aí o estudante já viveu um
+   projeto e sabe o que quer conhecer. As duas réguas ficam lado a lado,
+   nomeadas, para ninguém precisar adivinhar por que diferem (as duas vivem
+   juntas, mais acima: LINHAS_ACOMPANHAVEIS_EM e LINHAS_PEDIDO_EM). */
+
+/** POST /api/ic/em/meu/pedido-projeto — o estudante pede a alteração. */
+app.post("/api/ic/em/meu/pedido-projeto", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const alvoId = String(req.body?.projetoId || "").trim();
+  const motivo = String(req.body?.motivo || "").trim().slice(0, 2000);
+  if (!alvoId) return res.status(400).json({ error: "Escolha o projeto que você quer passar a acompanhar." });
+  if (motivo.length < 15)
+    return res.status(400).json({ error: "Escreva o motivo do pedido — é o que a coordenação lê para decidir." });
+  const alvo = (await lerProjetos()).find((p) => p.id === alvoId);
+  if (!alvo) return res.status(404).json({ error: "Projeto não encontrado" });
+  if (alvo.status !== "aprovado") return res.status(400).json({ error: "Este projeto não está em execução." });
+  if (!LINHAS_PEDIDO_EM.includes(String(alvo.linha || "").toLowerCase()))
+    return res.status(400).json({ error: "Escolha um projeto de Iniciação Científica, Inovação Tecnológica ou Iniciação à Extensão." });
+
+  const r = await comBolsistasEM((lista) => {
+    const i = lista.findIndex((x) => x.id === String(req.body?.id || "")
+      && x.email === String(u.email).toLowerCase());
+    if (i < 0) return { erro: [404, "Registro do ICEM não encontrado para a sua conta"], gravar: false };
+    const b = lista[i];
+    if (turmaEmDe(b.turma)?.encerrada) return { erro: [400, "A sua turma já encerrou — a trajetória fica como está."], gravar: false };
+    if (b.situacao !== "ativo") return { erro: [400, "O seu registro não está ativo — fale com a coordenação de pesquisa."], gravar: false };
+    const atual = projetoAtualEM(b);
+    if (!atual) return { erro: [400, "Você ainda não acompanha nenhum projeto: escolha o primeiro ali em cima."], gravar: false };
+    if (atual.projetoId === alvo.id) return { erro: [400, "Este já é o projeto que você acompanha."], gravar: false };
+    // um pedido por vez: dois pendentes fariam a coordenação decidir duas
+    // vezes a mesma coisa, e o segundo desmentiria o primeiro
+    if ((b.pedidosProjeto || []).some((x) => x.situacao === "pendente"))
+      return { erro: [400, "Você já tem um pedido aguardando a coordenação de pesquisa."], gravar: false };
+    const pedido = {
+      id: `ped-${Math.random().toString(36).slice(2, 10)}`,
+      projetoId: alvo.id, numero: alvo.numero || "", titulo: alvo.titulo || "",
+      orientador: alvo.orientador?.nome || "", curso: alvo.curso || "", linha: alvo.linha || "",
+      motivo, em: new Date().toISOString(), por: u.email, situacao: "pendente", decisao: null,
+    };
+    let novo = { ...b, pedidosProjeto: [...(b.pedidosProjeto || []), pedido] };
+    novo = anotarEM(novo, { quem: u.email,
+      oQue: `pediu para trocar para ${alvo.numero || alvo.titulo}` });
+    lista[i] = novo;
+    return { bolsista: novo, pedido };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  avisarPesquisa(`ICEM: ${r.bolsista.nome} pediu alteração de projeto`, [
+    ["Bolsista", `${r.bolsista.nome} (turma ${r.bolsista.turma})`],
+    ["Projeto pedido", `${r.pedido.numero || ""} ${r.pedido.titulo}`.trim()],
+    ["Orientação", r.pedido.orientador || "—"],
+    ["Motivo", r.pedido.motivo],
+  ], "Pedido de alteração de projeto no ICEM");
+  res.json({ ok: true, bolsista: r.bolsista });
+});
+
+/** POST /api/ic/em/:id/pedido-projeto/:pid — a PROPPEX decide. */
+app.post("/api/ic/em/:id/pedido-projeto/:pid", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "A decisão é da coordenação de pesquisa" });
+  const decisao = String(req.body?.decisao || "");
+  const parecer = String(req.body?.parecer || "").trim().slice(0, 2000);
+  if (!["aprovado", "recusado"].includes(decisao))
+    return res.status(400).json({ error: "Decisão inválida: aprovado ou recusado" });
+  if (decisao === "recusado" && !parecer)
+    return res.status(400).json({ error: "Recusar exige o motivo — é o que o estudante lê." });
+
+  const r = await comBolsistasEM((lista) => {
+    const i = lista.findIndex((x) => x.id === req.params.id);
+    if (i < 0) return { erro: [404, "Bolsista não encontrado"], gravar: false };
+    const b = lista[i];
+    const p = (b.pedidosProjeto || []).find((x) => x.id === req.params.pid);
+    if (!p) return { erro: [404, "Pedido não encontrado"], gravar: false };
+    if (p.situacao !== "pendente") return { erro: [400, "Este pedido já foi decidido."], gravar: false };
+    const agora = new Date().toISOString();
+    const pedidos = (b.pedidosProjeto || []).map((x) => (x.id === p.id
+      ? { ...x, situacao: decisao, decisao: { em: agora, por: u.email, parecer } } : x));
+    let novo = { ...b, pedidosProjeto: pedidos };
+    // aprovado, a trajetória muda AQUI: é a decisão que a move, e é ela que
+    // fecha o acompanhamento anterior com a data de hoje
+    if (decisao === "aprovado") {
+      novo = trocarProjeto(novo, { projetoId: p.projetoId, numero: p.numero,
+        titulo: p.titulo, orientador: p.orientador });
+    }
+    novo = anotarEM(novo, { quem: u.email,
+      oQue: `${decisao === "aprovado" ? "aprovou" : "recusou"} a alteração para ${p.numero || p.titulo}`
+        + (parecer ? ` — ${parecer}` : "") });
+    lista[i] = novo;
+    return { bolsista: novo, pedido: p };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, bolsista: r.bolsista });
 });
 
 /* O bolsista escolhe (ou troca) o projeto que acompanha — só na turma
@@ -9690,6 +9837,8 @@ app.post("/api/ic/em/meu/projeto", async (req, res) => {
   const alvo = (await lerProjetos()).find((p) => p.id === alvoId);
   if (!alvo) return res.status(404).json({ error: "Projeto não encontrado" });
   if (alvo.status !== "aprovado") return res.status(400).json({ error: "Este projeto não está em execução." });
+  if (!LINHAS_ACOMPANHAVEIS_EM.includes(String(alvo.linha || "").toLowerCase()))
+    return res.status(400).json({ error: "O ICEM acompanha projetos de Iniciação Científica e de Inovação Tecnológica." });
   const r = await comBolsistasEM((lista) => {
     const i = lista.findIndex((x) => x.id === String(req.body?.id || "")
       && x.email === String(u.email).toLowerCase());
@@ -9698,6 +9847,13 @@ app.post("/api/ic/em/meu/projeto", async (req, res) => {
     if (turmaEmDe(b.turma)?.encerrada) return { erro: [400, "A sua turma já encerrou — a trajetória fica como está."], gravar: false };
     if (b.situacao !== "ativo") return { erro: [400, "O seu registro não está ativo — fale com a coordenação de pesquisa."], gravar: false };
     if (projetoAtualEM(b)?.projetoId === alvo.id) return { erro: [400, "Você já acompanha este projeto."], gravar: false };
+    /* A PRIMEIRA escolha é do estudante; TROCAR passa pela PROPPEX (decisão
+       do dono, ago/2026, revendo o "troca quando quiser"). Quem apresenta o
+       estudante ao orientador é a coordenação — uma troca silenciosa
+       deixaria o professor antigo esperando alguém que não vem. */
+    if (projetoAtualEM(b))
+      return { erro: [400, "Você já acompanha um projeto: para mudar, use "
+        + "\"Solicitar alteração de projeto\" — a coordenação de pesquisa aprova."], gravar: false };
     let novo = trocarProjeto(b, { projetoId: alvo.id, numero: alvo.numero,
       titulo: alvo.titulo, orientador: alvo.orientador?.nome || "" });
     novo = anotarEM(novo, { quem: u.email, oQue: `escolheu acompanhar ${alvo.numero || alvo.titulo}` });
@@ -9877,6 +10033,57 @@ app.get("/api/ic/em/resultado.pdf", async (req, res) => {
 /* Publicar (ou recolher) o resultado do ICEM — só a gestão, com as mesmas
    duas fases da graduação. fase: null recolhe; a data de cada fase fica em
    `desde`, para republicar não reiniciar relógio nenhum. */
+/* O RESULTADO FINAL do ICEM avisa quem foi selecionado (pedido do dono,
+   ago/2026): "após o proppex definir qual tipo de bolsa e publicar o
+   resultado final, faça o aluno receber um e-mail com a comunicação e um
+   botão para escolher qual projeto".
+
+   Três cuidados, os mesmos do aviso de certificados: o envio é SEQUENCIAL e
+   fire-and-forget (e-mail que falha não desfaz a publicação); a marca por
+   turma impede que republicar reenvie tudo — quem for incluído depois recebe
+   só o dele; e a resposta devolve quantos foram avisados e quantos ficaram
+   SEM e-mail no cadastro, que é o tamanho do buraco que a coordenação
+   precisa conhecer. Desligado é quem saiu do programa: não se avisa. */
+const AVISOS_RESULTADO_EM_KEY = "sys-ic-em-avisos-resultado-v1";
+
+async function avisarResultadoEM(turma) {
+  const base = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
+  const lista = (await lerBolsistasEM()).filter(
+    (b) => b.turma === turma.ciclo && b.situacao !== "desligado");
+  let ja = new Set();
+  try {
+    const reg = JSON.parse((await storage.get(AVISOS_RESULTADO_EM_KEY)) || "{}");
+    ja = new Set(reg[turma.edital]?.emails || []);
+  } catch { /* sem registro legível, avisa a turma toda */ }
+
+  const semEmail = lista.filter((b) => !String(b.email || "").trim()).length;
+  const fila = lista.filter((b) => {
+    const e = String(b.email || "").trim().toLowerCase();
+    return e && !ja.has(e);
+  });
+  if (!fila.length) return { enviados: 0, semEmail, jaAvisados: ja.size };
+
+  const { emailResultadoEM } = await import("./lib/mailer.js");
+  const enviados = [];
+  for (const b of fila) {
+    try {
+      await enviarAviso("em-resultado",
+        emailResultadoEM(b, turma, { baseUrl: base, bolsa: bolsaEmDe(b.bolsa) }));
+      enviados.push(String(b.email).trim().toLowerCase());
+    } catch (e) {
+      console.error(`[ic-em] aviso de resultado não enviado a ${b.email}:`, e.message);
+    }
+  }
+  try {
+    const reg = JSON.parse((await storage.get(AVISOS_RESULTADO_EM_KEY)) || "{}");
+    reg[turma.edital] = { em: new Date().toISOString(),
+      emails: [...new Set([...(reg[turma.edital]?.emails || []), ...enviados])] };
+    await storage.set(AVISOS_RESULTADO_EM_KEY, JSON.stringify(reg));
+    await storage.flush?.();
+  } catch (e) { console.error("[ic-em] marca do aviso de resultado:", e.message); }
+  return { enviados: enviados.length, semEmail, jaAvisados: ja.size };
+}
+
 app.post("/api/ic/em/resultado/publicar", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
@@ -9902,7 +10109,10 @@ app.post("/api/ic/em/resultado/publicar", async (req, res) => {
   await storage.set(RESULTADO_EM_PUB_KEY, JSON.stringify(pub));
   await storage.flush?.();
   console.log(`[ic-em] resultado ${turma.edital} ${fase ? `publicado (${fase})` : "recolhido"} por ${u.email}`);
-  res.json({ ok: true, edital: turma.edital, fase });
+  // publicado o FINAL, cada selecionado recebe a comunicação com a bolsa e o
+  // botão para escolher o projeto (pedido do dono, ago/2026)
+  const aviso = fase === "final" ? await avisarResultadoEM(turma) : null;
+  res.json({ ok: true, edital: turma.edital, fase, ...(aviso ? { aviso } : {}) });
 });
 
 /* O convite por e-mail, turma a turma (gestão): criar o usuário e — turma

@@ -152,3 +152,45 @@ test("a avaliação do programa acompanha o relatório: 7 perguntas 0–5 + reco
   assert.equal(ruim.criterios.escola, 3);
   assert.equal(ruim.recomendaria, "", "recomendação fora da lista não entra");
 });
+
+/* ---------- PEDIDO DE ALTERAÇÃO DE PROJETO (ago/2026) --------------------
+   A primeira escolha é do estudante; a TROCA passa pela PROPPEX. O registro
+   guarda os pedidos — inclusive os recusados, que são o que explica depois
+   por que a trajetória não mudou. */
+test("o registro guarda os pedidos de alteração, com a decisão", () => {
+  const b = normalizarBolsistaEM({
+    nome: "Lara", turma: "2026/2027", email: "lara@escola.com",
+    pedidosProjeto: [
+      { projetoId: "p1", numero: "IC-2026-004", titulo: "Clínica-escola",
+        motivo: "Quero conhecer a odontologia.", situacao: "pendente" },
+      { projetoId: "p2", numero: "IC-2026-009", titulo: "Outro",
+        situacao: "recusado", decisao: { por: "coord@uniego.edu.br", parecer: "Fora do perfil." } },
+    ],
+  });
+  assert.equal(b.pedidosProjeto.length, 2);
+  assert.equal(b.pedidosProjeto[0].situacao, "pendente");
+  assert.equal(b.pedidosProjeto[1].decisao.parecer, "Fora do perfil.");
+  assert.ok(b.pedidosProjeto[0].id, "o pedido nasce com id");
+});
+
+test("pedido sem projeto não entra, e situação desconhecida vira pendente", () => {
+  const b = normalizarBolsistaEM({
+    nome: "Lara", turma: "2026/2027",
+    pedidosProjeto: [{ motivo: "sem projeto" }, { projetoId: "p3", situacao: "inventada" }],
+  });
+  assert.equal(b.pedidosProjeto.length, 1);
+  assert.equal(b.pedidosProjeto[0].situacao, "pendente");
+});
+
+test("aprovar a troca fecha o acompanhamento anterior e abre o novo", () => {
+  const hoje = "2026-09-10";
+  const antes = normalizarBolsistaEM({
+    nome: "Lara", turma: "2026/2027",
+    trajetoria: [{ projetoId: "p1", numero: "IC-2026-001", titulo: "Primeiro", de: "2026-09-01", ate: "" }],
+  });
+  const depois = trocarProjeto(antes, { projetoId: "p9", numero: "IC-2026-004", titulo: "Novo" }, { hoje });
+  assert.equal(depois.trajetoria.length, 2);
+  assert.equal(depois.trajetoria[0].ate, hoje, "o anterior fecha na data da decisão");
+  assert.equal(depois.trajetoria[1].ate, "", "o novo fica em curso");
+  assert.equal(depois.trajetoria[1].numero, "IC-2026-004");
+});

@@ -1558,6 +1558,50 @@ public/
   finais, o projeto passa a concluído. A tela de Cronograma reúne **todos os projetos
   num só lugar**. Não há guia de bolsas nem de comunicação — a bolsa é um campo do
   aluno indicado.
+- **O RESULTADO FINAL DO ICEM AVISA QUEM FOI SELECIONADO** (`emailResultadoEM` + `avisarResultadoEM`,
+  aviso `em-resultado`, pedido do dono ago/2026: "após o proppex definir qual tipo de bolsa e
+  publicar o resultado final, faça o aluno receber um e-mail com a comunicação e um botão para
+  escolher qual projeto"). Publicado o **final**, sai um e-mail por bolsista ATIVO da turma
+  dizendo **qual bolsa** foi concedida (nome e valor — é a primeira pergunta de quem abre) e
+  levando ao botão que abre a guia dele. Os cuidados são os do aviso de certificados: envio
+  sequencial e fire-and-forget (e-mail que falha não desfaz a publicação), marca por turma
+  (`sys-ic-em-avisos-resultado-v1`) para republicar não reenviar tudo — quem entrar depois recebe
+  só o dele —, e a resposta devolve **quantos foram avisados e quantos ficaram sem e-mail** no
+  cadastro. Desligado não recebe. O link leva `conta=` (a correção do `/entrar/`): o bolsista lê
+  isto no celular, onde costuma estar entrado com a conta pessoal em vez da escolar.
+- **AS DUAS RÉGUAS DO PROJETO QUE O ICEM ACOMPANHA** (`LINHAS_ACOMPANHAVEIS_EM` e
+  `LINHAS_PEDIDO_EM` no server, decisões do dono ago/2026): na **primeira escolha**, o cardápio é
+  de **IC e IT** ("os projetos devem ser aqueles do ciclo do IC e IT") — a bancada e o
+  laboratório, que é o que o programa existe para mostrar; no **pedido de alteração**, são as
+  **três linhas** do edital, Iniciação à Extensão inclusive ("uma lista dos projetos vigentes de
+  IC/IT/Ex do ano"), porque aí ele já viveu um projeto e sabe o que quer conhecer. As duas ficam
+  lado a lado no arquivo — separá-las faria alguém mudar uma e esquecer a outra — e cada uma vale
+  nos DOIS lados: monta o cardápio da tela e confere na gravação, senão o estudante escolheria o
+  que a tela não ofereceu. Quando o ciclo da graduação ainda está em avaliação a lista vem VAZIA,
+  e a tela **diz por quê** (quantos projetos estão em avaliação) em vez de mostrar um seletor sem
+  opções.
+- **TROCAR DE PROJETO É UM PEDIDO À PROPPEX** (`pedidosProjeto` em lib/em.js +
+  `POST /api/ic/em/meu/pedido-projeto` e `/:id/pedido-projeto/:pid`, decisão do dono ago/2026,
+  **revendo o "troca quando quiser"** da primeira versão): a PRIMEIRA escolha continua sendo do
+  estudante — é o que o e-mail do resultado pede que ele faça —, mas a MUDANÇA vai à coordenação.
+  A razão é de processo: quem o apresenta ao orientador é a coordenação, e uma troca silenciosa
+  deixaria o professor antigo esperando alguém que não vem e o novo sem saber que vai receber
+  alguém. O painel do estudante ganha a seção **"Solicitar alteração de projeto"** (projeto +
+  motivo, mín. 15 caracteres), **um pedido por vez** (dois pendentes fariam a coordenação decidir
+  duas vezes a mesma coisa), e a ficha do bolsista na guia da gestão ganha o pedido com **Aprovar
+  / Recusar** — recusar exige o motivo, que é o que o estudante lê. Aprovado, é a DECISÃO que move
+  a trajetória: fecha o acompanhamento anterior na data de hoje e abre o novo. Os pedidos ficam no
+  registro, **inclusive os recusados** — são eles que explicam depois por que a trajetória não
+  mudou. E a escolha direta some da tela de quem já tem projeto: o servidor a recusa, e um botão
+  que sempre falha é armadilha.
+- **OS BOTÕES DE PUBLICAR FICAM ONDE OS DOIS PROCESSOS ESTÃO LADO A LADO** (guia Editais e
+  Resultados, achado do dono ago/2026: "por que no edital de IC não aparece publicar resultado
+  final para o IC, só aparece para o EM?"). Não era regra nenhuma bloqueando: os do **ICEM**
+  sempre estiveram na guia Editais, e os da **graduação** só no Painel — o mesmo ato em dois
+  lugares, e quem olhava o card via um e não o outro. A régua é a MESMA do Painel (todos os
+  projetos do ciclo avaliados, ou uma fase já publicada); o que muda é que agora ela também se
+  cumpre ali, e **diz o que falta** quando não se cumpre ("falta avaliar 29 de 33 projetos"), em
+  vez de simplesmente não desenhar botão nenhum.
 - **O setor pelos olhos do ALUNO** (decisão do dono, ago/2026): indicado, ele recebe o
   convite por e-mail e encontra **duas guias suas** — **Projetos** (onde ele está:
   orientação, vigência, prazos dos relatórios) e **Bolsa** (o cadastro do contrato).

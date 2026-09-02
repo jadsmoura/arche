@@ -1135,6 +1135,23 @@ async function renderEM() {
       `<option value="${esc(p.id)}" ${pa?.projetoId === p.id ? "selected" : ""}>${esc(cursoNome(p.curso))} · ${esc(p.titulo.slice(0, 70))}${p.titulo.length > 70 ? "…" : ""}</option>`).join("");
   };
 
+  /* O PEDIDO DE ALTERAÇÃO DE PROJETO, na ficha do bolsista (pedido do dono,
+     ago/2026): a decisão é da coordenação de pesquisa, e ela decide onde já
+     está olhando o estudante — sem outra tela para procurar. Recusar exige o
+     motivo: é o que ele lê. */
+  const pedidoTrocaGestao = (b) => {
+    const p = (b.pedidosProjeto || []).find((x) => x.situacao === "pendente");
+    if (!p) return "";
+    return `<div class="banner ba-warn" style="margin-top:8px">
+      <b>Pedido de alteração de projeto.</b> Quer passar a acompanhar
+      <b>${esc(p.numero || "")} ${esc(p.titulo.slice(0, 80))}</b>${p.orientador ? ` · orientação de ${esc(p.orientador)}` : ""}${p.curso ? ` · ${esc(cursoNome(p.curso))}` : ""}.
+      <div class="kv" style="margin-top:6px">Motivo: ${esc(p.motivo)}</div>
+      <div class="exp" style="margin-top:8px;gap:6px">
+        <button class="bt bt-ok" onclick="emDecidirPedido('${esc(b.id)}','${esc(p.id)}','aprovado')">✓ Aprovar a troca</button>
+        <button class="bt bt-err" onclick="emDecidirPedido('${esc(b.id)}','${esc(p.id)}','recusado')">Recusar</button>
+      </div></div>`;
+  };
+
   const cartao = (b) => {
     const pa = atual(b);
     const passados = (b.trajetoria || []).filter((e) => e.ate);
@@ -1188,6 +1205,7 @@ async function renderEM() {
             || '<div class="kv muted">Cadastro ainda vazio.</div>'}
         </div>
       </details>
+      ${pedidoTrocaGestao(b)}
       <div class="exp" style="margin-top:8px;gap:6px">
         <button class="bt bt-ghost" onclick="emConint('${esc(b.id)}',${b.conint?.participou ? "false" : "true"})">
           ${b.conint?.participou ? "✓ CONINT — desfazer" : "Participou do CONINT"}</button>
@@ -1250,6 +1268,18 @@ async function emAcao(caminho, corpo, msg) {
     if (msg) aviso(msg);
   } catch (e) { aviso(e.message, "err"); EM = null; renderEM(); }
 }
+/* A decisão da coordenação sobre o pedido de troca. Recusar pede o motivo —
+   é o que o estudante lê na guia dele; aprovar move a trajetória no servidor. */
+async function emDecidirPedido(id, pid, decisao) {
+  let parecer = "";
+  if (decisao === "recusado") {
+    parecer = (prompt("Recusar a alteração de projeto — escreva o motivo (o estudante lê):") || "").trim();
+    if (!parecer) return;
+  } else if (!confirm("Aprovar a troca de projeto? O acompanhamento anterior é encerrado hoje e a trajetória guarda os dois.")) return;
+  return emAcao(`/api/ic/em/${id}/pedido-projeto/${pid}`, { decisao, parecer },
+    decisao === "aprovado" ? "Troca aprovada — a trajetória foi atualizada." : "Pedido recusado.");
+}
+
 const emBolsa = (id, bolsa) => emAcao(`/api/ic/em/${id}/bolsa`, { bolsa },
   bolsa ? "Bolsa atribuída." : "Bolsa desfeita.");
 const emProjeto = (id, projetoId) => emAcao(`/api/ic/em/${id}/projeto`, { projetoId },
@@ -1734,7 +1764,10 @@ async function renderMeuEM() {
           Escolha abaixo o curso e o projeto de pesquisa que quer acompanhar — a coordenação
           de pesquisa apresenta você ao orientador.</div>` : ""}
 
-      ${vigente && escolha.length ? `<div class="grid2" style="align-items:end;margin-top:8px">
+      ${/* A escolha DIRETA é só a PRIMEIRA: quem já acompanha um projeto troca
+             pelo pedido logo abaixo, e o servidor recusa a troca direta — o
+             seletor aqui seria um botão que sempre falha. */
+        vigente && !r.projetoAtual && escolha.length ? `<div class="grid2" style="align-items:end;margin-top:8px">
         <div><label>Curso</label>
           <select onchange="FILTRO_CURSO_EM=this.value;renderMeuEM()">
             <option value="">Todos os cursos</option>
@@ -1747,10 +1780,23 @@ async function renderMeuEM() {
           </select></div>
       </div>
       <div class="exp" style="margin-top:8px">
-        <button class="bt bt-pri" onclick="meuEmEscolher('${esc(r.id)}')">
-          ${r.projetoAtual ? "Trocar para o projeto escolhido" : "Acompanhar este projeto"}</button>
-        <span class="muted" style="align-self:center">Pode trocar quando quiser — a trajetória guarda por onde você passou.</span>
+        <button class="bt bt-pri" onclick="meuEmEscolher('${esc(r.id)}')">Acompanhar este projeto</button>
+        <span class="muted" style="align-self:center">Depois, para mudar, é só pedir logo abaixo — a coordenação aprova.</span>
+      </div>`
+      /* Lista vazia não é um seletor sem opções: é uma informação. O ICEM
+         acompanha os projetos de IC e IT em EXECUÇÃO, e enquanto o ciclo da
+         graduação está em avaliação não há o que escolher — o estudante
+         precisa saber que não é ele que está fazendo algo errado. */
+      : vigente && !r.projetoAtual ? `<div class="banner ba-info" style="margin-top:8px">
+        <b>Os projetos ainda não estão disponíveis para escolha.</b>
+        ${MEU_EM.escolha?.emAvaliacao
+          ? `Os ${MEU_EM.escolha.emAvaliacao} projetos deste ciclo estão em avaliação pela PROPPEX.
+             Assim que o resultado da graduação sair, eles aparecem aqui e você escolhe o seu —
+             você recebe um aviso por e-mail.`
+          : "Assim que os projetos de Iniciação Científica e Inovação Tecnológica do ciclo entrarem em execução, eles aparecem aqui."}
       </div>` : ""}
+
+      ${blocoPedidoProjetoEM(r)}
 
       ${(r.trajetoria || []).filter((e) => e.ate).length ? `<details style="margin-top:8px">
         <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">Sua trajetória</summary>
@@ -1808,6 +1854,74 @@ async function renderMeuEM() {
     || '<div class="card"><div class="vazio">Nenhum registro do ICEM ligado à sua conta.</div></div>';
 }
 let FILTRO_CURSO_EM = "";
+/* SOLICITAR ALTERAÇÃO DE PROJETO (pedido do dono, ago/2026). Só aparece
+   para quem JÁ acompanha um projeto: sem projeto, o que vale é a escolha
+   direta ali em cima. A lista traz as TRÊS linhas do edital em execução
+   (IC, IT e Iniciação à Extensão) — o servidor a monta em `paraTrocar`.
+   Havendo pedido PENDENTE, o formulário dá lugar ao estado dele: dois
+   pedidos ao mesmo tempo fariam a coordenação decidir duas vezes. */
+const LINHA_ROT_EM = { ic: "Iniciação Científica", it: "Inovação Tecnológica", ie: "Iniciação à Extensão" };
+function blocoPedidoProjetoEM(r) {
+  // a mesma régua do bloco da escolha, logo acima: turma em curso e registro ativo
+  const vigente = !r.turma?.encerrada && r.situacao === "ativo";
+  if (!vigente || !r.projetoAtual) return "";
+  const pedidos = r.pedidosProjeto || [];
+  const pendente = pedidos.find((x) => x.situacao === "pendente");
+  const decididos = pedidos.filter((x) => x.situacao !== "pendente").slice(-3).reverse();
+  const lista = (MEU_EM.escolha?.paraTrocar || []).filter((p) => p.id !== r.projetoAtual.projetoId);
+
+  const historico = decididos.length ? `<details style="margin-top:8px">
+    <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">Pedidos anteriores</summary>
+    ${decididos.map((x) => `<div class="kv muted">• ${esc(x.numero || "")} ${esc(x.titulo.slice(0, 60))} —
+      <b>${x.situacao === "aprovado" ? "aprovado" : "recusado"}</b>${x.decisao?.parecer
+        ? `: ${esc(x.decisao.parecer)}` : ""}</div>`).join("")}
+  </details>` : "";
+
+  if (pendente) {
+    return `<div class="card" style="margin-top:10px">
+      <div class="card-t">Solicitar alteração de projeto</div>
+      <div class="banner ba-warn" style="margin-top:6px">
+        <b>Seu pedido está com a coordenação de pesquisa.</b>
+        Você pediu para passar a acompanhar <b>${esc(pendente.numero || "")} ${esc(pendente.titulo.slice(0, 90))}</b>${pendente.orientador ? ` · orientação de ${esc(pendente.orientador)}` : ""}.
+        Enquanto ela não decide, você segue no projeto atual.
+      </div>${historico}</div>`;
+  }
+  return `<div class="card" style="margin-top:10px">
+    <div class="card-t">Solicitar alteração de projeto</div>
+    <div class="card-s">Quer conhecer outra pesquisa? Escolha o projeto e conte o porquê — quem
+      decide é a coordenação de pesquisa, que apresenta você à nova orientação.</div>
+    ${lista.length ? `
+      <div><label>Projeto que você quer passar a acompanhar</label>
+        <select id="emped-projeto-${esc(r.id)}">
+          <option value="">— escolha o projeto —</option>
+          ${lista.map((p) => `<option value="${esc(p.id)}">${esc(p.curso)} · ${esc(p.titulo.slice(0, 70))}${p.titulo.length > 70 ? "…" : ""} — ${esc(p.orientador)} · ${esc(LINHA_ROT_EM[p.linha] || p.linha || "")}</option>`).join("")}
+        </select></div>
+      <div style="margin-top:8px"><label>Por que você quer trocar?</label>
+        <textarea id="emped-motivo-${esc(r.id)}" rows="3"
+          placeholder="Conte o que te levou a querer acompanhar outro projeto — é o que a coordenação lê para decidir."></textarea></div>
+      <div class="exp" style="margin-top:8px">
+        <button class="bt bt-pri" onclick="meuEmPedirTroca('${esc(r.id)}')">Enviar o pedido à coordenação</button>
+      </div>`
+      : `<div class="banner ba-info" style="margin-top:6px">Não há outros projetos em execução
+         para escolher no momento.</div>`}
+    ${historico}</div>`;
+}
+
+async function meuEmPedirTroca(id) {
+  const sel = $("emped-projeto-" + id);
+  const mot = $("emped-motivo-" + id);
+  if (!sel || !sel.value) return aviso("Escolha o projeto na lista.", "err");
+  if (!mot || mot.value.trim().length < 15)
+    return aviso("Escreva o motivo do pedido — é o que a coordenação lê para decidir.", "err");
+  try {
+    await api("/api/ic/em/meu/pedido-projeto", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, projetoId: sel.value, motivo: mot.value.trim() }) });
+    MEU_EM = null; await renderMeuEM();
+    aviso("Pedido enviado — a coordenação de pesquisa vai analisar.");
+  } catch (e) { aviso(e.message, "err"); }
+}
+
 async function meuEmEscolher(id) {
   const sel = $("meuem-projeto-" + id);
   if (!sel || !sel.value) return aviso("Escolha o projeto na lista.", "err");
@@ -3212,6 +3326,29 @@ function renderEditais() {
   const anos = [...new Set([...grads, ...ems].map((e) => anoDoEdital(e.numero)))]
     .filter(Boolean).sort((a, b) => b - a);
 
+  /* OS BOTÕES DE PUBLICAR FICAM ONDE OS DOIS PROCESSOS ESTÃO LADO A LADO
+     (achado do dono, ago/2026: "por que no edital de IC não aparece publicar
+     resultado final para o IC, só aparece para o EM?"). Não era regra
+     nenhuma bloqueando: os do ICEM sempre estiveram aqui, e os da graduação
+     só no Painel — o mesmo ato em dois lugares, e quem olhava o card via um
+     e não o outro. A régua é a MESMA do Painel (todos os projetos do ciclo
+     avaliados, ou uma fase já publicada); o que muda é que agora ela também
+     se cumpre aqui, e DIZ o que falta quando não se cumpre. */
+  const publicarGrad = (e) => {
+    const doCiclo = PROJETOS.filter((p) => (p.edital || META.edital?.numero) === e.numero
+      && p.status !== "rascunho" && p.status !== "devolvido");
+    const avaliados = doCiclo.filter((p) => ["aprovado", "reprovado", "concluido"].includes(p.status));
+    const completo = doCiclo.length > 0 && avaliados.length === doCiclo.length;
+    const fase = e.resultadoFase || null;
+    if (!completo && !fase) {
+      return `<span class="muted" style="align-self:center;font-size:12.5px">Para publicar,
+        falta avaliar ${doCiclo.length - avaliados.length} de ${doCiclo.length} projeto(s) —
+        <a href="#" onclick="nav('classificacao');return false">guia Projetos</a>.</span>`;
+    }
+    return `${!fase ? `<button class="bt bt-pri" onclick="publicarResultado('${esc(e.numero)}','preliminar')">📢 Publicar preliminar</button>` : ""}
+      ${fase !== "final" ? `<button class="bt ${fase === "preliminar" ? "bt-pri" : "bt-sec"}" onclick="publicarResultado('${esc(e.numero)}','final')">🏁 Publicar final</button>` : ""}`;
+  };
+
   const blocoGrad = (e) => `<div style="border-top:1px solid var(--linha);padding:14px 0 6px;margin-top:12px">
     <div style="font-weight:700">Edital ${esc(e.numero)} — Graduação (IC · IT · IE)
       ${e.vigente ? ' <span class="badge b-aprovado">vigente</span>' : ""}</div>
@@ -3230,13 +3367,14 @@ function renderEditais() {
           title="Só a gestão baixa: prévia do resultado preliminar (só os aprovados, sem bolsas)">🔍 Prévia preliminar</a>
         <a class="bt bt-ghost" href="/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}&fase=final" target="_blank" rel="noopener"
           title="Só a gestão baixa: prévia do resultado final (com as bolsas)">🔍 Prévia final</a>
+        ${publicarGrad(e)}
         ${e.resultadoPublicado ? `<button class="bt bt-sec" onclick="publicarResultado('${esc(e.numero)}', null)">Recolher publicação</button>` : ""}` : ""}
     </div>
     <div class="muted" style="margin-top:8px">${e.resultadoFase === "preliminar"
       ? `Resultado preliminar publicado — só os projetos aprovados. O resultado final, com a bolsa concedida, sai depois da distribuição das bolsas.`
       : e.resultadoPublicado
         ? `O resultado sai sempre com os dados de agora — emitido na hora.`
-        : `O resultado será divulgado pela PROPPEX quando o ciclo de avaliações terminar.${META.gestao ? " A publicação (preliminar e final) se faz no Painel." : ""}`}${META.gestao ? ` A lista dos projetos está na guia
+        : `O resultado será divulgado pela PROPPEX quando o ciclo de avaliações terminar.${META.gestao ? " A publicação (preliminar e final) se faz aqui ou no Painel — são os mesmos botões." : ""}`}${META.gestao ? ` A lista dos projetos está na guia
       <a href="#" onclick="nav('classificacao');return false">Projetos</a>.` : ""}</div>
   </div>`;
 
