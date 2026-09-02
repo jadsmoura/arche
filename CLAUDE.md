@@ -1990,6 +1990,21 @@ public/
   aluno recebe o lembrete de enviar/corrigir e a orientação, o de validar — um e-mail
   por pessoa com todos os itens dela, espaçados 7 dias
   (`sys-ic-cobranca-relatorios-v1`), varridos de hora em hora junto com a Extensão.
+- **A FOLHA DE PAGAMENTO DO MÊS** (`GET /api/ic/pagamento.xlsx`, botão na guia Bolsistas —
+  pedido do dono ago/2026: "preciso de um botão de emissão de lista de bolsistas UNIEGO, com
+  dados bancários e pessoais, de graduação e de EM, para eu enviar para pgto todo mês"): UMA
+  planilha com os dois programas juntos, porque é UM pagamento por mês — separá-los faria a
+  pró-reitoria somar à mão. Só as bolsas do **UNIEGO**: a do CNPq é paga pela agência e o
+  voluntário não recebe. Duas decisões que a folha carrega: (1) só quem está **EM EXECUÇÃO** —
+  na graduação, projeto `aprovado` (o `concluido` fechou o ciclo), e no ICEM, bolsista `ativo`
+  da turma; sem essa régua a lista traria os **62 bolsistas UNIEGO de 2022 a 2026 de uma vez**,
+  e alguém pagaria bolsa de um ciclo encerrado há três anos; (2) **duas abas** — "Para
+  pagamento", com quem tem nome, CPF, banco, agência, conta e Pix, e "Pendentes", com quem falta
+  dado e **o que** falta. Uma lista só ou seria enviada com linhas impagáveis, ou faria a
+  coordenação conferir setenta linhas à mão; e ninguém some da planilha — quem não pode ser pago
+  aparece nomeado, para ser cobrado. A aba de pagamento fecha com o **total**, que é o número
+  que se confere antes de enviar, e o arquivo é arquivado no Repositório Documental
+  (`Iniciação Científica/Folha de pagamento/<ano>`).
 - **Exportação individual do bolsista** (`GET /api/ic/bolsistas.xlsx?aluno=<e-mail|CPF>`):
   a mesma planilha, recortada a uma pessoa — botão "Exportar dados do aluno" no cartão da
   guia Bolsistas (gestão), ao lado do quadro "Dados do aluno" com o cadastro do contrato.

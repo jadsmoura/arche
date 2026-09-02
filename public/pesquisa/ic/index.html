@@ -2679,6 +2679,12 @@ function renderBolsistas() {
         <a class="bt bt-ghost" href="/api/ic/bolsistas.xlsx?edital=${encodeURIComponent(ciclo)}"
           title="Uma linha por bolsista, com CPF, contato e dados bancários — para montar os contratos">
           📇 Bolsistas para contrato (Excel)</a>
+        <!-- A FOLHA DO MÊS (pedido do dono, ago/2026): graduação e ICEM juntos,
+             só as bolsas do UNIEGO, com os dados que o financeiro precisa. É
+             um pagamento por mês, então é uma planilha só. -->
+        <a class="bt bt-pri" href="/api/ic/pagamento.xlsx?edital=${encodeURIComponent(ciclo)}"
+          title="Bolsas do UNIEGO em execução — graduação e Ensino Médio juntos, com banco, agência, conta e Pix. Duas abas: para pagamento e pendentes.">
+          💰 Folha de pagamento do mês (Excel)</a>
         <a class="bt bt-ghost" href="/api/ic/termos.pdf?tipo=bolsista&edital=${encodeURIComponent(ciclo)}" target="_blank" rel="noopener"
           title="Modelo institucional, uma folha por aluno — para imprimir e assinar na cerimônia">
           📝 Termos dos bolsistas (PDF)</a>

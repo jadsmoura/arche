@@ -9264,6 +9264,149 @@ app.get("/api/ic/producao-anterior", async (req, res) => {
  * sistema. Uma linha por bolsista de projeto aprovado com bolsa. Dados
  * bancários de aluno: só a gestão baixa.
  */
+/* ======================= A FOLHA DE PAGAMENTO ===========================
+   Pedido do dono (ago/2026): "preciso de um botão de emissão de lista de
+   bolsistas UNIEGO, com dados bancários e pessoais, de graduação e de EM,
+   para eu enviar para pgto todo mês".
+
+   É UMA planilha com os dois programas juntos, porque é UM pagamento por
+   mês — separá-los faria a pró-reitoria montar a soma à mão. Só as bolsas
+   do UNIEGO: as do CNPq são pagas pela agência, e o voluntário não recebe.
+
+   Duas decisões que a folha carrega:
+
+   1. Só quem está EM EXECUÇÃO. Na graduação, projeto `aprovado` — o
+      `concluido` encerrou o ciclo e não se paga mais. Sem esta régua a lista
+      traria os 62 bolsistas UNIEGO de 2022 a 2026 de uma vez, e alguém
+      pagaria bolsa de um ciclo encerrado há três anos. No ICEM, bolsista
+      `ativo` da turma escolhida.
+
+   2. Duas ABAS: "Para pagamento", com quem tem tudo o que o setor financeiro
+      precisa (nome, CPF, banco, agência, conta e Pix), e "Pendentes", com
+      quem falta dado e O QUE falta. Uma lista só, misturando os dois, ou
+      seria enviada com linhas impagáveis, ou faria a coordenação conferir
+      setenta linhas à mão. Ninguém some da planilha: quem não pode ser pago
+      aparece na segunda aba, nomeado, para ser cobrado. */
+const VALOR_BOLSA_UNIEGO = 350;      // item 4.4 do edital da graduação
+const FALTA_PARA_PAGAR = (a) => [
+  !String(a.nome || "").trim() && "nome",
+  !soDigitos(a.cpf) && "CPF",
+  !String(a.banco || "").trim() && "banco",
+  !String(a.agencia || "").trim() && "agência",
+  !String(a.conta || "").trim() && "conta",
+  !String(a.pix || "").trim() && "Pix",
+].filter(Boolean);
+
+app.get("/api/ic/pagamento.xlsx", async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    if (!gereIC(u)) return res.status(403).send("Somente a coordenação de pesquisa emite a folha de pagamento.");
+    const numero = String(req.query.edital || EDITAL.numero).trim();
+    const turmaEM = String(req.query.turma || turmaEmVigente()?.ciclo || "").trim();
+    // mês de referência: o de hoje, salvo se a coordenação pedir outro
+    const mes = /^\d{4}-\d{2}$/.test(String(req.query.mes || ""))
+      ? String(req.query.mes) : hojeLocalISO().slice(0, 7);
+    const [ano, m] = mes.split("-");
+    const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
+      "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+    const mesExtenso = `${MESES[Number(m) - 1] || m}/${ano}`;
+
+    const linhas = [];
+    // --- graduação: projetos EM EXECUÇÃO com bolsa do UNIEGO ---
+    for (const p of await lerProjetos()) {
+      if (String(p.edital || EDITAL.numero) !== numero) continue;
+      if (p.status !== "aprovado") continue;
+      if (p.fomento?.tipo !== "uniego") continue;
+      for (const a of p.alunos || []) {
+        if (!a.bolsista) continue;
+        linhas.push({
+          programa: "Graduação (IC/IT/IE)",
+          nome: a.nome || "", cpf: formatarCpf(a.cpf) || "",
+          banco: a.banco || "", agencia: a.agencia || "", conta: a.conta || "", pix: a.pix || "",
+          valor: VALOR_BOLSA_UNIEGO,
+          vinculo: a.curso || cursoDe(p.curso)?.nome || p.curso || "",
+          referencia: `${p.numero || ""} — ${p.titulo || ""}`.trim(),
+          orientacao: p.orientador?.nome || p.orientador?.email || "",
+          contato: [a.email || "", a.telefone || ""].filter(Boolean).join(" · "),
+          falta: FALTA_PARA_PAGAR(a),
+        });
+      }
+    }
+    // --- ICEM: bolsistas ATIVOS da turma, com bolsa do UNIEGO ---
+    const bolsaEM = bolsaEmDe("uniego");
+    for (const b of await lerBolsistasEM()) {
+      if (turmaEM && b.turma !== turmaEM) continue;
+      if (b.situacao !== "ativo" || b.bolsa !== "uniego") continue;
+      const proj = projetoAtualEM(b);
+      linhas.push({
+        programa: "Ensino Médio (ICEM)",
+        nome: b.nome || "", cpf: formatarCpf(b.cpf) || "",
+        banco: b.banco || "", agencia: b.agencia || "", conta: b.conta || "", pix: b.pix || "",
+        valor: bolsaEM?.valor ?? 150,
+        vinculo: b.escola || "",
+        referencia: proj ? `${proj.numero || ""} — ${proj.titulo || ""}`.trim() : "(sem projeto definido)",
+        orientacao: proj?.orientador || "",
+        contato: [b.email || "", b.telefone || ""].filter(Boolean).join(" · "),
+        falta: FALTA_PARA_PAGAR(b),
+      });
+    }
+
+    const prontos = linhas.filter((x) => !x.falta.length);
+    const pendentes = linhas.filter((x) => x.falta.length);
+    const brl = (n) => `R$ ${Number(n || 0).toFixed(2).replace(".", ",")}`;
+
+    const { default: ExcelJS } = await import("exceljs");
+    const wb = new ExcelJS.Workbook();
+    const COLS = [
+      { header: "Programa", key: "programa", width: 22 },
+      { header: "Nome completo", key: "nome", width: 34 },
+      { header: "CPF", key: "cpf", width: 16 },
+      { header: "Banco", key: "banco", width: 20 },
+      { header: "Agência", key: "agencia", width: 12 },
+      { header: "Conta", key: "conta", width: 18 },
+      { header: "Pix", key: "pix", width: 26 },
+      { header: "Valor da bolsa", key: "valorTxt", width: 14 },
+      { header: "Curso / Escola", key: "vinculo", width: 24 },
+      { header: "Projeto", key: "referencia", width: 46 },
+      { header: "Orientação", key: "orientacao", width: 30 },
+      { header: "Contato", key: "contato", width: 34 },
+    ];
+    const montar = (ws, itens, extras = []) => {
+      ws.columns = [...COLS, ...extras];
+      ws.getRow(1).font = { bold: true };
+      for (const x of itens) ws.addRow({ ...x, valorTxt: brl(x.valor), pendencia: x.falta.join("; ") });
+      ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: ws.columns.length } };
+      ws.views = [{ state: "frozen", ySplit: 1 }];
+    };
+
+    const ws1 = wb.addWorksheet("Para pagamento");
+    montar(ws1, prontos);
+    // o total fecha a lista: é o número que a pró-reitoria confere antes de enviar
+    const total = prontos.reduce((s, x) => s + Number(x.valor || 0), 0);
+    ws1.addRow({});
+    const linhaTotal = ws1.addRow({ nome: `TOTAL — ${prontos.length} bolsista(s)`, valorTxt: brl(total) });
+    linhaTotal.font = { bold: true };
+
+    const ws2 = wb.addWorksheet("Pendentes");
+    montar(ws2, pendentes, [{ header: "O que falta no cadastro", key: "pendencia", width: 40 }]);
+    if (!pendentes.length) ws2.addRow({ nome: "Nenhuma pendência — todos os bolsistas estão prontos para pagamento." });
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const nome = `bolsas-uniego-${mes}.xlsx`;
+    arquivarDocumento({ buffer: Buffer.from(buffer), nome,
+      pasta: `Iniciação Científica/Folha de pagamento/${ano}` });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${nome}"`);
+    res.setHeader("Cache-Control", "no-store");
+    console.log(`[ic] folha de pagamento ${mesExtenso}: ${prontos.length} pronto(s), ${pendentes.length} pendente(s)`);
+    res.end(Buffer.from(buffer));
+  } catch (e) {
+    console.error("Erro na folha de pagamento:", e);
+    res.status(500).send("Não foi possível gerar a folha de pagamento.");
+  }
+});
+
 app.get("/api/ic/bolsistas.xlsx", async (req, res) => {
   try {
     const u = await sessaoIC(req, res);
