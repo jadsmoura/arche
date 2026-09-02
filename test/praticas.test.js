@@ -17,7 +17,7 @@ import {
   filtrar, panorama, ehSegunda, semanaAnterior, pendenciasCobranca,
   PAPEIS_COORDENACAO, coordenacaoDoCurso,
   TIPOS, tipoDe, ehExtensao, camposDo, CAMPOS_EXTENSAO, DECISOES, ENCERRADO,
-  podeReabrir, decisaoNoLugarDaCoordenacao, PRODUTOS_EXTENSAO,
+  podeReabrir, decisaoNoLugarDaCoordenacao, ODS, rotuloOds,
 } from "../lib/praticas.js";
 
 const CADASTRO = {
@@ -299,10 +299,10 @@ const EXT = (over = {}) => normalizarRelatorio({
   tipo: "extensao", disciplina: "Saúde Coletiva", data: "2026-08-20", local: "Escola",
   objetivo: "o".repeat(40), atividades: "a".repeat(40),
   chDisciplina: 80, cargaHoraria: 20, academicos: 30,
-  resumo: "r".repeat(200), situacaoObjetivos: "alcancados",
+  resumo: "r".repeat(200),
   participacaoDiscente: "p".repeat(60), publico: "Alunos do 5º ano",
   pessoasAtendidas: 180, impacto: "i".repeat(60),
-  produtos: ["Lista de presença", "inventado"],
+  ods: ["3", "4", "99"],
   ...over,
 }, { base: { curso: "enfermagem", fotos: [{ nome: "1" }, { nome: "2" }, { nome: "3" }],
   professor: { email: "prof@uniego.edu.br" }, ...(over.base || {}) } });
@@ -336,7 +336,7 @@ test("a régua do envio cobra o que a extensão curricular precisa comprovar", (
   assert.match(faltaNoRelatorio(EXT({ cargaHoraria: 0 }))[0], /Carga horária extensionista/);
   assert.match(faltaNoRelatorio(EXT({ pessoasAtendidas: 0 }))[0], /Pessoas atendidas/);
   // os opcionais não travam
-  assert.deepEqual(faltaNoRelatorio(EXT({ valorSocial: "", avaliacaoComunidade: "", produtos: [] })), []);
+  assert.deepEqual(faltaNoRelatorio(EXT({ valorSocial: "", avaliacaoComunidade: "", ods: [] })), []);
   // e a mesma régua não cobra os campos da extensão numa aula prática
   const pratica = normalizarRelatorio({ disciplina: "Semiologia", data: "2026-08-20",
     local: "Lab", objetivo: "o".repeat(40), atividades: "a".repeat(40) },
@@ -344,9 +344,14 @@ test("a régua do envio cobra o que a extensão curricular precisa comprovar", (
   assert.deepEqual(faltaNoRelatorio(pratica), []);
 });
 
-test("produto fora do catálogo não entra", () => {
-  assert.deepEqual(EXT().produtos, ["Lista de presença"]);
-  assert.ok(PRODUTOS_EXTENSAO.includes("Registros fotográficos"));
+test("os ODS são os 17 da Agenda 2030, e grava-se o número", () => {
+  assert.equal(ODS.length, 17);
+  assert.equal(ODS[2].nome, "Saúde e bem-estar");
+  assert.deepEqual(EXT().ods, ["3", "4"], "número fora do catálogo não entra");
+  assert.equal(rotuloOds("4"), "ODS 4 — Educação de qualidade");
+  assert.equal(rotuloOds("99"), "");
+  // marcar ODS é opcional: a atividade pode não mapear nenhum
+  assert.deepEqual(faltaNoRelatorio(EXT({ ods: [] })), []);
 });
 
 test("reprovar é fim de linha; reabrir é da PROAC e da PROPPEX", () => {

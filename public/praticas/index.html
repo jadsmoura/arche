@@ -499,7 +499,9 @@ function renderEC() {
         faz aqui é <b>registrar e validar</b>: o professor relata, a coordenação do curso decide
         (valida, devolve ou reprova), e o processo termina nela. A PROAC e a PROPPEX decidem no
         lugar da coordenação e reabrem o processo se houver irregularidade.
-        A proposta e a aprovação da ação continuam no <b>ARCHÉ EX</b>.</div>
+        <br>Não confundir com as <b>ações de extensão do ARCHÉ EX</b>: compartilham a palavra
+        "extensão" e são outra coisa — lá é a ação institucional, com proposta, aprovação e
+        certificado; aqui é a carga horária de extensão de uma disciplina.</div>
     </div>
     ${e && e.total ? `<div class="kpis">
       <div class="kpi"><div class="l">Atividades no semestre</div><div class="v">${e.total}</div>
@@ -631,12 +633,16 @@ function renderNova() {
     }
     if (c.tipo === "marcar") {
       const marcados = Array.isArray(r[c.campo]) ? r[c.campo] : [];
+      // a opção pode ser texto ou {codigo, nome} — nos ODS grava-se o número
+      const val = (o) => (typeof o === "string" ? o : o.codigo);
+      const rot = (o) => (typeof o === "string" ? o
+        : (c.campo === "ods" ? `ODS ${o.codigo} — ${o.nome}` : o.nome));
       return `<div style="grid-column:1/-1"><label>${esc(c.rotulo)}${c.obrigatorio ? " *" : ""}</label>
-        <div style="display:flex;flex-wrap:wrap;gap:8px 18px;margin:4px 0 2px">
-          ${(c.opcoes || []).map((o) => `<label style="display:flex;gap:6px;align-items:center;font-weight:500;
-            text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--ink)">
-            <input type="checkbox" style="width:16px;height:16px;margin:0" data-marcar="${esc(c.campo)}"
-              value="${esc(o)}" ${marcados.includes(o) ? "checked" : ""}> ${esc(o)}</label>`).join("")}
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:7px 16px;margin:4px 0 2px">
+          ${(c.opcoes || []).map((o) => `<label style="display:flex;gap:7px;align-items:flex-start;font-weight:500;
+            text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--ink);line-height:1.35">
+            <input type="checkbox" style="width:16px;height:16px;margin:1px 0 0;flex:none" data-marcar="${esc(c.campo)}"
+              value="${esc(val(o))}" ${marcados.includes(val(o)) ? "checked" : ""}> ${esc(rot(o))}</label>`).join("")}
         </div><div class="ajuda">${esc(c.ajuda)}</div></div>`;
     }
     return `<div><label>${esc(c.rotulo)}${c.obrigatorio === false ? "" : " *"}</label>
@@ -695,11 +701,13 @@ function renderNova() {
         || '<div class="vazio">Nenhuma foto ainda.</div>'}</div>
     </div>
     <div class="card">
-      <div class="card-t">Evidências e anexos — ${evid.length}</div>
-      <div class="card-s">O que não é foto: lista de presença, folder, cartilha, material produzido,
-        avaliação da comunidade. <b>Nunca obrigatórias</b> — quem comprova a realização é a foto. No
-        PDF elas saem como LINK: o arquivo já está no sistema, e carregá-lo junto deixaria o
-        documento muitas vezes maior.</div>
+      <div class="card-t">Documentos anexados — ${evid.length}</div>
+      <div class="card-s">Tudo o que <b>não é foto</b> — PDF, Word, planilha, imagem de documento:
+        ${ehExt() ? "lista de presença, folder, cartilha, material produzido, avaliação da comunidade"
+          : "plano de aula, roteiro do laboratório, lista de presença, ficha de campo"}.
+        <b>Nunca obrigatórios</b>: quem comprova a realização é a foto. Eles saem no PDF como
+        <b>link</b> — o arquivo já está no sistema com endereço próprio, e carregá-lo junto
+        deixaria o documento muitas vezes maior. Até 8 MB cada.</div>
       <input type="file" id="f-evid" multiple onchange="subirEvidencias()">
       <div style="margin-top:10px">${evid.map((f) => `<div class="item">
         <div class="nm">${esc(f.nome || "anexo")}
