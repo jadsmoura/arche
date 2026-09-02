@@ -29,9 +29,18 @@
   .painel-setores::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;
     background:linear-gradient(90deg,var(--brand) 0%,var(--accent-deep) 100%)}
   .painel-setores.fav::before{background:linear-gradient(90deg,var(--accent-deep) 0%,var(--accent) 100%)}
-  .ps-cab{padding:16px 6px 12px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  /* O TÍTULO DO GRUPO tem destaque (pedido do dono, ago/2026): ele é a
+     divisão que a barra do topo também faz — Ensino, Pesquisa, Extensão,
+     Serviços —, e no eyebrow de 11px em versalete ele desaparecia ao lado da
+     própria descrição. Vira título de verdade: Sora, 17px, cor de marca, com
+     a descrição embaixo em vez de ao lado. */
+  .ps-cab{padding:15px 6px 13px;display:flex;flex-direction:column;gap:3px}
+  .ps-cab .ps-tit{font-family:Sora,sans-serif;font-weight:700;font-size:17px;color:var(--brand);
+    margin:0;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+  .ps-cab .ps-tit::before{content:"";width:4px;height:17px;border-radius:3px;background:var(--accent);flex:none}
+  .painel-setores.fav .ps-cab .ps-tit::before{background:var(--accent-deep,var(--brand-3))}
   .ps-cab .eyebrow{margin:0}
-  .ps-sub{font-size:12.5px;color:var(--muted);line-height:1.45;margin:0}
+  .ps-sub{font-size:12.5px;color:var(--muted);line-height:1.45;margin:0;padding-left:13px}
   .ps-linhas{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
   .linha-setor{position:relative;display:flex;align-items:center;gap:13px;padding:11px 14px;transition:.13s;
     border:1px solid #eef2f4;border-radius:13px;background:#fcfdfe;color:inherit}
@@ -202,7 +211,7 @@
        o que /api/favoritos devolver. Sem favorito visível, a faixa some. -->
   <div id="grupo-favoritos" class="setor-grupo">
     <div class="painel-setores fav">
-      <div class="ps-cab"><p class="eyebrow">★ OS SEUS FAVORITOS</p>
+      <div class="ps-cab"><p class="ps-tit">★ Os seus favoritos</p>
         <p class="ps-sub">Os setores que você fixou, sempre no alto — a ☆ de cada linha fixa; a ★ tira.</p></div>
       <div class="ps-linhas" id="fav-linhas"></div>
     </div>
@@ -214,17 +223,17 @@
 
   <div class="setor-grupo so-logado" data-grupo="ensino">
     <div class="painel-setores">
-      <div class="ps-cab"><p class="eyebrow">ENSINO</p>
-        <p class="ps-sub">Aulas práticas, monitoria e o painel do curso.</p></div>
+      <div class="ps-cab"><p class="ps-tit">Ensino</p>
+        <p class="ps-sub">Aulas práticas, extensão curricular, monitoria e o painel do curso.</p></div>
       <div class="ps-linhas">
 
       <a class="linha-setor" href="/praticas/" data-setor="/praticas/">
         <span class="ls-ic" aria-hidden="true">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6a2 2 0 0 1 2 2v2H7V5a2 2 0 0 1 2-2z"/><path d="M7 7v11a3 3 0 0 0 3 3h4a3 3 0 0 0 3-3V7"/><path d="M7 13h10"/></svg>
         </span>
-        <span class="ls-tx"><span class="ls-mod">ARCHÉ AP</span>
-          <span class="ls-t">Aulas Práticas</span>
-          <span class="ls-s">Registro · Fotos · Validação</span></span>
+        <span class="ls-tx"><span class="ls-mod">ARCHÉ AC</span>
+          <span class="ls-t">Atividades Curriculares</span>
+          <span class="ls-s">Aulas práticas · Extensão curricular</span></span>
         <button class="pin" type="button" aria-label="Fixar nos favoritos">☆</button>
         <span class="ls-seta" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
       </a>
@@ -259,7 +268,7 @@
 
   <div class="setor-grupo so-logado" data-grupo="pesquisa">
     <div class="painel-setores">
-      <div class="ps-cab"><p class="eyebrow">PESQUISA</p>
+      <div class="ps-cab"><p class="ps-tit">Pesquisa</p>
         <p class="ps-sub">Iniciação Científica, ICEM e a inovação tecnológica.</p></div>
       <div class="ps-linhas">
 
@@ -289,7 +298,7 @@
 
   <div class="setor-grupo so-logado" data-grupo="extensao">
     <div class="painel-setores">
-      <div class="ps-cab"><p class="eyebrow">EXTENSÃO</p>
+      <div class="ps-cab"><p class="ps-tit">Extensão</p>
         <p class="ps-sub">As ações de extensão e a operação dos eventos.</p></div>
       <div class="ps-linhas">
 
@@ -320,7 +329,7 @@
 
   <div class="setor-grupo so-logado" data-grupo="servicos">
     <div class="painel-setores">
-      <div class="ps-cab"><p class="eyebrow">SERVIÇOS</p>
+      <div class="ps-cab"><p class="ps-tit">Serviços</p>
         <p class="ps-sub">O que atravessa todos os setores: reuniões, espaços, relatórios, avaliação — e os seus certificados.</p></div>
       <div class="ps-linhas">
 
@@ -530,7 +539,7 @@ if (!VER_PUBLICO) {
     const cx = document.getElementById("painel-demandas");
     cx.innerHTML = `
       <div class="painel-setores" style="margin-bottom:26px">
-        <div class="ps-cab"><p class="eyebrow">O QUE ESPERA VOCÊ</p><span class="dm-tot">${total}</span>
+        <div class="ps-cab"><p class="ps-tit">O que espera você <span class="dm-tot">${total}</span></p>
           <p class="ps-sub">O que aguarda decisão nos setores que você gere — a linha abre o setor.</p></div>
         <div class="dm-linhas">
           ${ordenados.map((g) => `<a class="dm-linha" href="${escP(g.link)}">

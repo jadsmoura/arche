@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ARCHÉ AP · Aulas Práticas · PROAC / UNIEGO</title>
+<title>ARCHÉ AC · Atividades Curriculares · PROAC / UNIEGO</title>
 <link rel="icon" href="/arche/favicon.svg">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Figtree:wght@400;500;600;700&display=swap');
@@ -153,7 +153,7 @@
   <nav class="side">
     <a class="side-marca" href="/" title="Voltar ao portal">
       <svg width="24" height="24" viewBox="0 0 40 40" aria-hidden="true"><path d="M8 37 L8 20 A12 12 0 0 1 32 20 L32 37" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/><circle cx="20" cy="21" r="4" fill="#71c8e2"/></svg>
-      <span>ARCHÉ <b>AP</b></span>
+      <span>ARCHÉ <b>AC</b></span>
     </a>
     <div class="side-nav">
 
@@ -168,7 +168,7 @@
 
   <div class="conteudo">
     <div class="topbar">
-      <div class="crumb">ARCHÉ AP <span style="color:var(--muted-2)">/</span> <b id="crumb">Painel</b></div>
+      <div class="crumb">ARCHÉ AC <span style="color:var(--muted-2)">/</span> <b id="crumb">Painel</b></div>
       <div class="dir"><span id="vcAlvo"></span><span id="topDir"></span></div>
     </div>
     <div class="area"><div class="limite">
@@ -573,16 +573,41 @@ function renderNova() {
      que valida). No semestre corrente a regra não muda: quem manda é o
      cadastro da coordenação — e o servidor confere pela data da aula. */
   const semCadastro = !minhas.length && !D.gestao;
-  const aviso = semCadastro
-    ? `<div class="banner ba-warn">Você ainda não está no cadastro de <b>${esc(D.semestre)}</b> —
+  /* Na extensão curricular a inclusão é sempre MANUAL: o cadastro do semestre
+     foi feito para as aulas práticas, e a disciplina que curriculariza extensão
+     pode não estar nele. O professor digita a disciplina e ESCOLHE O CURSO — e
+     é esse curso que decide a coordenação que valida. */
+  const aviso = ehExt()
+    ? `<div class="banner ba-info">A disciplina se <b>digita</b> e o <b>curso se escolhe</b>: é o
+        curso que define a <b>coordenação que valida</b> este relatório. Escolha o curso a que a
+        disciplina pertence, mesmo que a atividade tenha acontecido fora dele.</div>`
+    : semCadastro
+      ? `<div class="banner ba-warn">Você ainda não está no cadastro de <b>${esc(D.semestre)}</b> —
         para aulas deste semestre, a coordenação do curso inclui professores e disciplinas na guia
         <b>Professores e Disciplinas</b>. <b>Aula de semestre anterior</b> pode ser registrada aqui
         mesmo: informe a data da aula, digite a disciplina e escolha o curso.</div>`
-    : "";
+      : "";
   const campo = (c) => {
     const v = r[c.campo] || "";
     if (c.tipo === "disciplina") {
       const manual = !!r.id && !!v && !minhas.some((d) => d.disciplina === v);
+      // na extensão curricular não há lista de onde escolher: digita-se a
+      // disciplina e escolhe-se o curso, sempre
+      if (ehExt()) {
+        return `<div style="grid-column:1/-1"><div class="grid2">
+          <div><label>${esc(c.rotulo)} *</label>
+            <input id="f-disciplina-manual" value="${esc(v)}"
+              placeholder="Nome da disciplina, como consta na matriz">
+            <div class="ajuda">${esc(c.ajuda)}</div></div>
+          <div><label>Curso da disciplina *</label>
+            <select id="f-curso-manual" ${r.id && !D.gestao ? "disabled" : ""}>
+              <option value="">Selecione o curso…</option>
+              ${(D.catalogoCursos || []).map((cu) => `<option value="${esc(cu.slug)}"
+                ${r.curso === cu.slug ? "selected" : ""}>${esc(cu.nome)}</option>`).join("")}
+            </select>
+            <div class="ajuda">É o curso que define a coordenação que valida este relatório.</div></div>
+        </div></div>`;
+      }
       return `<div><label>${esc(c.rotulo)} *</label>
         <select id="f-disciplina" onchange="modoManualDisc(this.value)">
           <option value="">Selecione…</option>
@@ -733,8 +758,9 @@ function corpoDoForm() {
     }
     b[c.campo] = ($(`f-${c.campo}`) || {}).value || "";
   }
-  // disciplina digitada à mão (semestre anterior): vai com o curso escolhido
-  if (b.disciplina === "__manual") {
+  // disciplina digitada à mão: vai com o curso escolhido. Na extensão
+  // curricular é sempre assim — não há select de disciplina para ler
+  if (ehExt() || b.disciplina === "__manual") {
     b.disciplina = ($("f-disciplina-manual") || {}).value || "";
     b.curso = ($("f-curso-manual") || {}).value || "";
   }

@@ -36,7 +36,7 @@
   var NAV = [
     { href: "/", rot: "Portal", teste: function (p) { return p === "/" || p === "/index.html"; } },
     { grupo: "Ensino", itens: [
-      { href: "/praticas/", rot: "Aulas Práticas", sub: "Relatórios das aulas práticas · PROAC", teste: em("/praticas") },
+      { href: "/praticas/", rot: "Atividades Curriculares", sub: "Aulas práticas e extensão curricular · PROAC", teste: em("/praticas") },
       { href: "/monitoria/", rot: "Monitoria", sub: "Projetos, monitores e relatórios", teste: em("/monitoria") },
       { href: "/curso/", rot: "Seu Curso", sub: "Coordenações, NDE e Colegiado", teste: em("/curso") },
       CERTIFICADOS,

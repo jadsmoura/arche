@@ -1344,8 +1344,10 @@ app.get("/api/alertas", async (req, res) => {
         const esperando = (await lerPraticas()).filter((r) =>
           r.status === "enviado" && apPodeVer(r, quemAP2));
         if (esperando.length) {
-          alertas.push({ setor: "Aulas Práticas", link: "/praticas/",
-            texto: `${esperando.length} relatório(s) de aula prática aguardando validação`,
+          const ce = esperando.filter((r) => apEhExtensao(r)).length;
+          alertas.push({ setor: "Atividades Curriculares", link: "/praticas/",
+            texto: `${esperando.length} relatório(s) aguardando validação`
+              + (ce ? ` (${ce} de extensão curricular)` : ""),
             detalhe: esperando.slice(0, 6)
               .map((r) => `${r.disciplina} · ${r.professor?.nome || r.professor?.email}`)
               .join(" · ").slice(0, 96),
@@ -13304,15 +13306,26 @@ app.post("/api/praticas", async (req, res) => {
         const minhas = apMinhasDisciplinas(cadastro, semestre, u.email);
         const curso = apCursoDoProfessor(cadastro, semestre, u.email);
         const retroativo = /^\d{4}\/[12]$/.test(semestre) && semestre < semestreCorrente();
-        if (!minhas.length && !quem.gestao && !retroativo) {
+        /* A EXTENSÃO CURRICULAR não depende do cadastro (pedido do dono,
+           ago/2026): o cadastro do semestre foi feito para as AULAS PRÁTICAS,
+           e a disciplina que curriculariza extensão pode não estar nele —
+           inclusive porque a lista de quem deve relatório de CE ainda está
+           sendo levantada por curso. Nela a inclusão é sempre MANUAL: o
+           professor digita a disciplina e ESCOLHE O CURSO, e é esse curso que
+           decide a coordenação que valida. Na aula prática a régua não muda:
+           quem manda é o cadastro, e o registro retroativo é a exceção. */
+        const ehCE = apTipoDe(b.tipo).codigo === "extensao";
+        if (!minhas.length && !quem.gestao && !retroativo && !ehCE) {
           return { erro: [403, `Você ainda não está no cadastro de ${semestre}. `
             + "A coordenação do curso inclui professores e disciplinas na guia "
             + "“Professores e Disciplinas”. Para registrar aula de SEMESTRE "
             + "ANTERIOR, informe no formulário a data da aula daquele semestre "
             + "— o registro retroativo aceita a disciplina digitada à mão."], gravar: false };
         }
-        let cursoNovo = curso || String(b.curso || "").trim();
-        if (!curso && !CURSOS.some((c) => c.slug === cursoNovo)) {
+        // na CE o curso vem SEMPRE do formulário: o do cadastro (das aulas
+        // práticas) pode não ser o da disciplina que curriculariza
+        let cursoNovo = (ehCE ? String(b.curso || "").trim() : "") || curso || String(b.curso || "").trim();
+        if (!CURSOS.some((c) => c.slug === cursoNovo)) {
           return { erro: [400, "Escolha o curso da disciplina: é ele que define a "
             + "coordenação que valida este relatório."], gravar: false };
         }

@@ -77,6 +77,12 @@ public/
 
 - **Gestão de acessos** é da conta, não de um setor: o atalho mora no **perfil** do
   gestor (`/perfil/`), não na barra lateral da Extensão.
+- **O TÍTULO DE CADA GRUPO TEM DESTAQUE** (`ps-tit` em public/index.html, pedido do dono
+  ago/2026): Ensino, Pesquisa, Extensão e Serviços são a divisão que a barra do topo também faz, e
+  no eyebrow de 11px em versalete eles desapareciam ao lado da própria descrição. Viraram título de
+  verdade — Sora 17px, cor de marca, com uma barra de acento à esquerda —, e a descrição desceu
+  para a linha de baixo em vez de ficar ao lado. Vale para os seis painéis, "★ Os seus favoritos" e
+  "O que espera você" inclusive: é o mesmo cabeçalho.
 - **Os setores do portal são PAINÉIS COM LINHAS + FAVORITOS** (layout escolhido pelo dono em
   ago/2026 entre quatro opções montadas em `/prototipos/portal/` — a página tinha 12 cartões
   grandes e ficou "um pouco poluída", mas ícones, siglas e botões agradavam): cada grupo —
@@ -2665,6 +2671,13 @@ public/
   decisão ainda cabe, e quem reabre escolhe para onde — `enviado` recoloca na fila da coordenação
   (a irregularidade está na DECISÃO), `devolvido` volta ao professor (está no RELATÓRIO). O
   processo **continua terminando no coordenador**, que é a regra do módulo e não muda por isto.
+  **NA EXTENSÃO CURRICULAR A INCLUSÃO É SEMPRE MANUAL** (pedido do dono, ago/2026): o cadastro do
+  semestre foi feito para as AULAS PRÁTICAS, e a disciplina que curriculariza extensão pode não
+  estar nele — inclusive porque a lista de quem deve relatório de CE ainda está sendo levantada
+  curso a curso. Então o professor **digita a disciplina** e **escolhe o CURSO**, e é esse curso
+  que decide a coordenação que valida (curso fora do catálogo é 400; o relatório sai marcado
+  `foraDoCadastro`). Na aula prática a régua não muda: quem manda é o cadastro, e o registro
+  retroativo continua sendo a exceção.
   A barra do módulo tem **três grupos** (pedido do dono, ago/2026): *Aulas Práticas* (painel,
   relatórios, registrar), **Curricularização da Extensão** (atividades e registrar) e *Módulo* (o
   cadastro do semestre e a coordenação, que servem aos dois). São processos distintos e listas
@@ -2698,7 +2711,16 @@ public/
   ARCHÉ EX** (decisão do dono, ago/2026): compartilham a palavra "extensão" e são coisas diferentes
   — lá é a ação institucional, com proposta, aprovação e certificado; aqui é a carga horária de
   extensão de uma disciplina.
-- **ARCHÉ AP — Aulas Práticas** (`lib/praticas.js` + `public/praticas/` + rotas
+- **O MÓDULO SE CHAMA ARCHÉ AC — Atividades Curriculares** (decisão do dono, ago/2026): com a
+  extensão curricular dentro, "Aulas Práticas" passou a nomear metade do que o módulo faz. O que
+  une os dois documentos é serem o **registro de uma atividade curricular de uma disciplina**,
+  feito pelo professor e validado pela coordenação do curso — e "atividade curricular" é o
+  vocabulário do PPC e do MEC, que deixa espaço para o que a PROAC vier a pôr no mesmo fluxo. A
+  troca é de FACHADA: mudam o título do módulo, o cartão do portal, o atalho da barra e o rótulo
+  em `/usuarios/`; **ficam** o endereço `/praticas/` (já circula nos e-mails do sistema), as
+  chaves `ap-*`, os protocolos `AP-`/`EC-` (protocolo emitido não se reescreve) e as pastas do
+  Repositório.
+- **ARCHÉ AC — Aulas Práticas e Extensão Curricular** (`lib/praticas.js` + `public/praticas/` + rotas
   `/api/praticas/*`, pedido de coordenadores de curso ago/2026): o professor dá a aula prática e,
   depois dela, registra o que aconteceu — **disciplina, objetivo, local, data, atividades e as
   fotos** (mínimo de **3**, `MIN_FOTOS`: é o registro fotográfico que comprova a aula, a mesma razão
