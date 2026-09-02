@@ -353,7 +353,7 @@ async function faltaNoPerfilDe(u, perfil) {
   const opcoes = { gestorGeral: u?.papel === "gestor" };
   const falta = faltaNoPerfil(perfil, opcoes);
   if (!falta.some((f) => f.campo === "matricula")) return falta;
-  if (!(await souBolsistaEM(u?.email))) return falta;
+  if (!(await souBolsistaEM(u?.email, perfil?.cpf))) return falta;
   return faltaNoPerfil(perfil, { ...opcoes, semMatricula: true });
 }
 
@@ -385,7 +385,7 @@ app.use(async (req, res, next) => {
       && (await lerMonitorias()).some((p) => monPapel(p, { email: u.email, cpf: cpfDele }) === "monitor");
     const convidado = convidadoMon || (req.caminho.startsWith("/pesquisa")
       && (participaDeAlgum(u.email, await lerProjetos(), cpfDele)
-        || await souBolsistaEM(u.email)));
+        || await souBolsistaEM(u.email, cpfDele)));
     if (!convidado) return res.redirect("/entrar?pendente=1");
   }
   // gestão de acessos e diagnóstico de operação são do gestor geral: deixar
@@ -7920,7 +7920,7 @@ async function sessaoIC(req, res) {
   // formulário abre com isso preenchido em vez de pedir CPF duas vezes
   const eu = { ...u, cpf, telefone: meuPerfil.telefone || meuPerfil.whatsapp || "" };
   if (u.papel === "pendente" && !participaDeAlgum(u.email, await lerProjetos(), cpf)
-    && !(await souBolsistaEM(u.email))) {
+    && !(await souBolsistaEM(u.email, cpf))) {
     res.status(403).json({ error: "Seu acesso ainda está pendente de aprovação da PROPPEX" });
     return null;
   }
@@ -8157,7 +8157,7 @@ app.get("/api/ic/meta", async (req, res) => {
     // o que o perfil já sabe da pessoa, para o cadastro do bolsista abrir
     // preenchido (simulando outra pessoa, não vai — seriam dados dela)
     contato: como ? null : { nome: u.nome || "", cpf: u.cpf || "", telefone: u.telefone || "" },
-    perfil: perfilIC(u, projetos, meu, { bolsistaEM: como ? false : await souBolsistaEM(u.email) }),
+    perfil: perfilIC(u, projetos, meu, { bolsistaEM: como ? false : await souBolsistaEM(u.email, u.cpf) }),
     // quem a coordenação pode simular, e por quais olhos está olhando agora
     // os editais (números, contagens e documentos) são de todos; a lista de
     // pessoas para o "ver como" segue só com a coordenação
@@ -9764,17 +9764,55 @@ async function lerBolsistasEM() {
   const raw = await storage.get(EM_KEY);
   return raw ? JSON.parse(raw) : [];
 }
-/** O e-mail é a chave da conta do bolsista EM (decisão do dono, ago/2026):
- *  quem consta em algum registro do ICEM entra no setor e vê a guia dele. */
-async function souBolsistaEM(email) {
+/* A conta do bolsista EM se reconhece por E-MAIL OU CPF (achado do dono,
+   ago/2026: "alguns alunos de ensino médio estão entrando pelo sistema e
+   caindo numa página vazia"). O e-mail era a chave única, e o do registro é
+   o ESCOLAR, que a coordenação transcreveu do termo de compromisso; o
+   estudante entra pelo celular, com a conta pessoal do Google. Sem casar,
+   `perfilIC` o tratava como docente sem projeto e lhe mostrava o painel do
+   professor — vazio, e sem a guia que o e-mail mandava abrir.
+
+   O CPF é a mesma chave forte que o resto do setor já usa para reconhecer
+   quem chega de fora (`papelNoProjeto`, `vincularPorCpf`), é obrigatório no
+   perfil e está no registro do ICEM, vindo do termo. */
+const casaComEM = (b, alvo, digitos) =>
+  (!!alvo && b.email === alvo) || (!!digitos && normalizarCpf(b.cpf) === digitos);
+/* Só CPF VÁLIDO casa: um campo pela metade (ou um dígito trocado) não pode
+   ligar a conta de alguém ao registro de outra pessoa. */
+const cpfDeBusca = (cpf) => (cpfValido(cpf) ? normalizarCpf(cpf) : "");
+async function souBolsistaEM(email, cpf = "") {
   const alvo = String(email || "").trim().toLowerCase();
-  if (!alvo) return false;
-  return (await lerBolsistasEM()).some((b) => b.email === alvo);
+  const digitos = cpfDeBusca(cpf);
+  if (!alvo && !digitos) return false;
+  return (await lerBolsistasEM()).some((b) => casaComEM(b, alvo, digitos));
 }
-const registrosEMDe = (lista, email) => {
+const registrosEMDe = (lista, email, cpf = "") => {
   const alvo = String(email || "").trim().toLowerCase();
-  return alvo ? (lista || []).filter((b) => b.email === alvo) : [];
+  const digitos = cpfDeBusca(cpf);
+  if (!alvo && !digitos) return [];
+  return (lista || []).filter((b) => casaComEM(b, alvo, digitos));
 };
+/* Reconhecido pelo CPF, o e-mail DA CONTA entra no registro — é o mesmo que
+   `vincularPorCpf` faz nos projetos: trocar o vínculo fraco pelo forte, uma
+   vez, em vez de refazer a conta a cada visita. Nunca sobrescreve um e-mail
+   que já esteja lá com o mesmo endereço, e o registro guarda o escolar em
+   `emailAnterior` — é por ele que a coordenação o encontra na planilha. */
+async function adotarEmailNoEM(email, cpf) {
+  const alvo = String(email || "").trim().toLowerCase();
+  const digitos = cpfDeBusca(cpf);
+  if (!alvo || !digitos) return 0;
+  let n = 0;
+  await comBolsistasEM((lista) => {
+    for (const b of lista) {
+      if (normalizarCpf(b.cpf) !== digitos || b.email === alvo) continue;
+      if (b.email) b.emailAnterior = b.email;
+      b.email = alvo;
+      n++;
+    }
+    return { gravar: n > 0 };
+  });
+  return n;
+}
 
 /**
  * Aviso de movimentação à coordenação de pesquisa (pesquisa@uniego.edu.br,
@@ -9958,8 +9996,12 @@ app.get("/api/ic/em/meu", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
   const lista = await lerBolsistasEM();
-  const meus = registrosEMDe(lista, u.email);
-  if (!meus.length) return res.status(403).json({ error: "Nenhum registro do ICEM está ligado a este e-mail." });
+  const meus = registrosEMDe(lista, u.email, u.cpf);
+  if (!meus.length) return res.status(403).json({ error: "Nenhum registro do ICEM está ligado a esta conta." });
+  // reconhecido pelo CPF: o e-mail da conta entra no registro, e da próxima
+  // vez o vínculo já é o forte (sem await: não é a conta que espera por isso)
+  if (!meus.some((b) => b.email === String(u.email || "").toLowerCase()))
+    adotarEmailNoEM(u.email, u.cpf).catch(() => {});
   const projetos = await lerProjetos();
   const nomeCurso = (slug) => (CURSOS.find((c) => c.slug === slug) || {}).nome || slug || "";
   const podeEscolher = meus.some((b) => b.situacao === "ativo" && !turmaEmDe(b.turma)?.encerrada);

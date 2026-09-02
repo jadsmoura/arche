@@ -554,6 +554,19 @@ public/
   **desatualizado** (desde ago/2026 toda conta nova é aprovada no primeiro acesso). O setor em
   si estava certo o tempo todo: a guia se chama "Ensino Médio", como o e-mail diz, e o perfil
   `em` a enxerga no celular e no computador.
+- **O BOLSISTA DO ICEM SE RECONHECE POR E-MAIL OU CPF** (`casaComEM`/`adotarEmailNoEM` no
+  server, achado do dono ago/2026: "alguns alunos de ensino médio estão entrando pelo sistema
+  e caindo em uma página vazia"). O e-mail era a chave ÚNICA, e o do registro é o **escolar**,
+  transcrito do termo de compromisso pela coordenação; o estudante entra pelo celular, com a
+  conta pessoal do Google. Sem casar, `perfilIC` o tratava como docente sem projeto e lhe
+  mostrava o painel do professor — vazio, e sem a guia que o e-mail mandava abrir. O CPF é a
+  mesma chave forte com que o resto do setor reconhece quem chega de fora (`papelNoProjeto`,
+  `vincularPorCpf`), é obrigatório no perfil e está no registro do ICEM, vindo do termo. **Só
+  CPF válido casa** (`cpfDeBusca`): um dígito trocado ligaria a conta de alguém ao registro de
+  outra pessoa. Reconhecido pelo CPF, **o e-mail da conta entra no registro** — é o que
+  `vincularPorCpf` já faz nos projetos: trocar o vínculo fraco pelo forte uma vez, em vez de
+  refazer a conta a cada visita; o escolar fica em `emailAnterior`, que é por onde a
+  coordenação o encontra na planilha.
 - **O LINK DO E-MAIL NOMINAL DIZ PARA QUE CONTA ELE É** (`linkEntrada` em lib/mailer.js + o
   `conta=` no `/entrar/`, segunda metade do mesmo relato, ago/2026: corrigido o `next`, a aluna
   voltou dizendo "segue do mesmo jeito" — e o print mostrava o **Painel** com "orientação" no
@@ -1814,8 +1827,8 @@ public/
   bolsas **12 CNPq (R$ 300) + 12 UNIEGO (R$ 150)** com cota travada na rota, mais
   **voluntário sem cota**. Relatório é **simplificado** (um por turma) + **CONINT** em
   outubro. **O bolsista de EM TEM conta no portal** (decisão do dono, ago/2026, revendo a
-  anterior): a chave é o E-MAIL do registro (`souBolsistaEM` abre o setor até para conta
-  pendente; perfil `em` na SPA → guia "Meu ICEM"). Ele **escolhe o curso e o projeto** que
+  anterior): a chave é o E-MAIL **ou o CPF** do registro (`souBolsistaEM` abre o setor até
+  para conta pendente; perfil `em` na SPA → guia "Meu ICEM"). Ele **escolhe o curso e o projeto** que
   acompanha (`POST /api/ic/em/meu/projeto`, só turma vigente e ativo; troca quando quiser)
   e **entrega os relatórios** (`/api/ic/em/meu/relatorio`): a turma VIGENTE entrega
   **parcial e final**; as ANTIGAS, **só o final** — e a entrega formaliza a conclusão
