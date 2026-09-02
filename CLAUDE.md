@@ -1621,6 +1621,32 @@ public/
   finais, o projeto passa a concluído. A tela de Cronograma reúne **todos os projetos
   num só lugar**. Não há guia de bolsas nem de comunicação — a bolsa é um campo do
   aluno indicado.
+- **OS DADOS BANCÁRIOS DO BOLSISTA DO ICEM SÃO DELE, e o pedido sai no ato da concessão**
+  (`exigeBancoDoBrasil`/`ehBancoDoBrasil`/`faltaDadosBancariosEM` em lib/em.js +
+  `POST /api/ic/em/meu/banco` e `/chamada-banco` + `emailDadosBancariosEM`, aviso
+  `em-dados-bancarios`, pedido do dono ago/2026: "quando o Wagner marca qual bolsa o aluno de
+  EM vai ser contemplado, ele recebe automaticamente um e-mail solicitando os dados bancários?
+  Ou acha melhor um botão pro coordenador solicitar depois que ele indicar todos?"). São os
+  **dois**, e não alternativas: o **automático** sai no `POST /api/ic/em/:id/bolsa` — é quando
+  a exigência nasce, e a atribuição é feita bolsista a bolsista, então cada um recebe o pedido
+  na vez dele (fire-and-forget: e-mail que falha não desfaz a concessão) —, e o **botão**
+  "💳 Cobrar os dados bancários (n)" na guia Ensino Médio é o que fecha a conta, porque e-mail
+  cai em spam e adolescente esquece: a coordenação precisa VER quem falta e reenviar. A marca
+  `sys-ic-em-avisos-banco-v1` é por **bolsista + bolsa** — remarcar a mesma bolsa não reenvia,
+  e remanejar de UNIEGO para CNPq reenvia, porque aí a exigência mudou. O botão usa a **janela
+  de revisão** dos demais chamamentos (destinatários com o que falta em cada um, prévia e
+  mensagem da coordenação) e **força o reenvio**: pelo botão o ato é deliberado.
+  Quem **preenche é o ESTUDANTE**, no bloco "Dados bancários da sua bolsa" da guia dele: conta
+  corrente é o campo que mais custa caro errado — um dígito trocado é um pagamento que não cai
+  e ninguém sabe por quê —, e quem tem o cartão na mão é ele. A rota grava **só os quatro
+  campos da conta** (nome, CPF, escola e bolsa continuam da coordenação) e vale para **todos os
+  registros da pessoa** (quem esteve em duas turmas não digita a conta duas vezes — a mesma
+  decisão do `POST /api/ic/meus-dados` da graduação). **A bolsa do CNPq só é paga em conta do
+  Banco do Brasil**, e isso é régua da GRAVAÇÃO, não recado no e-mail: o estudante digitaria a
+  conta que tem e o erro só apareceria na folha de pagamento; a do UNIEGO aceita qualquer banco,
+  porque quem paga somos nós. `ehBancoDoBrasil` reconhece as grafias e o número (001), e o
+  **voluntário não vê o bloco** — não há bolsa a pagar, e pedir-lhe conta corrente seria cobrar
+  o que não existe.
 - **O RESULTADO FINAL DO ICEM AVISA QUEM FOI SELECIONADO** (`emailResultadoEM` + `avisarResultadoEM`,
   aviso `em-resultado`, pedido do dono ago/2026: "após o proppex definir qual tipo de bolsa e
   publicar o resultado final, faça o aluno receber um e-mail com a comunicação e um botão para
@@ -1855,7 +1881,8 @@ public/
   grava com envio bem-sucedido — sem credencial de e-mail, tenta no próximo deploy).
   O convite manual segue na gestão (`POST /api/ic/em/convidar`, por turma,
   registro em `sys-ic-em-convites-v1`; `emailConviteEM`). Os DADOS continuam digitados
-  pela gestão (bolsa, situacao, cadastro), e o termo (5º modelo em lib/termos.js,
+  pela gestão (bolsa, situacao, cadastro) — **menos a CONTA, que é do bolsista** (ver o
+  parágrafo dos dados bancários abaixo) —, e o termo (5º modelo em lib/termos.js,
   `termoDoAlunoEM`) sai com o **Anexo 01 — autorização do responsável** na página
   seguinte, assinado por aluno, responsável e coordenação de pesquisa (`gerarTermosEMPdf`). As turmas sobem no arranque (`subirTurmasEM`,
   `dados/ic-em-{2025,2026}-turma.json`): a trajetória aponta `origem.lote/id` do projeto

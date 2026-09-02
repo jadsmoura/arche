@@ -109,6 +109,7 @@ import {
   ESCALA_AVALIACAO_EM, CRITERIOS_AVALIACAO_EM, RECOMENDACAO_EM, avaliacaoEMCompleta,
   normalizarBolsistaEM, trocarProjeto, anotarEM, cotasDaTurma, projetoAtual as projetoAtualEM,
   RELATORIOS_EM, CAMPOS_RELATORIO_EM, relatoriosExigidos,
+  exigeBancoDoBrasil, ehBancoDoBrasil, faltaDadosBancariosEM,
 } from "./lib/em.js";
 import {
   duplicidadesPorNome, podeFundir, fundirPerfil, fundirProjeto, fundirAcao, fundirAta, fundirPapeis,
@@ -9955,7 +9956,11 @@ app.get("/api/ic/em", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
   if (!gereIC(u)) return res.status(403).json({ error: "O ICEM é conduzido pela coordenação de pesquisa." });
-  const bolsistas = await lerBolsistasEM();
+  const bolsistas = (await lerBolsistasEM()).map((b) => ({
+    // o que falta na CONTA vem calculado: a guia precisa poder dizer de quem
+    // se está esperando o dado bancário sem refazer a régua no cliente
+    ...b, faltaBanco: faltaDadosBancariosEM(b), exigeBB: exigeBancoDoBrasil(b.bolsa),
+  }));
   res.json({
     bolsistas, turmas: TURMAS_EM, bolsas: BOLSAS_EM,
     cotas: Object.fromEntries(TURMAS_EM.map((t) => [t.ciclo, cotasDaTurma(bolsistas, t.ciclo)])),
@@ -10013,6 +10018,10 @@ app.get("/api/ic/em/meu", async (req, res) => {
         cursoInteresse: b.cursoInteresse, situacao: b.situacao,
         turma: minha,
         bolsa: bolsaEmDe(b.bolsa) || null,
+        // a conta é DELE: volta preenchida para conferir e corrigir, com o
+        // que ainda falta e a exigência do CNPq dita na própria resposta
+        conta: { banco: b.banco || "", agencia: b.agencia || "", conta: b.conta || "", pix: b.pix || "" },
+        faltaBanco: faltaDadosBancariosEM(b), exigeBB: exigeBancoDoBrasil(b.bolsa),
         projetoAtual: projetoAtualEM(b), trajetoria: b.trajetoria,
         // os pedidos de alteração DELE — o pendente e os já decididos
         pedidosProjeto: b.pedidosProjeto || [],
@@ -10090,7 +10099,7 @@ app.post("/api/ic/em/meu/pedido-projeto", async (req, res) => {
 
   const r = await comBolsistasEM((lista) => {
     const i = lista.findIndex((x) => x.id === String(req.body?.id || "")
-      && x.email === String(u.email).toLowerCase());
+      && casaComEM(x, String(u.email).toLowerCase(), cpfDeBusca(u.cpf)));
     if (i < 0) return { erro: [404, "Registro do ICEM não encontrado para a sua conta"], gravar: false };
     const b = lista[i];
     if (turmaEmDe(b.turma)?.encerrada) return { erro: [400, "A sua turma já encerrou — a trajetória fica como está."], gravar: false };
@@ -10177,7 +10186,7 @@ app.post("/api/ic/em/meu/projeto", async (req, res) => {
     return res.status(400).json({ error: "O ICEM acompanha projetos de Iniciação Científica e de Inovação Tecnológica." });
   const r = await comBolsistasEM((lista) => {
     const i = lista.findIndex((x) => x.id === String(req.body?.id || "")
-      && x.email === String(u.email).toLowerCase());
+      && casaComEM(x, String(u.email).toLowerCase(), cpfDeBusca(u.cpf)));
     if (i < 0) return { erro: [404, "Registro do ICEM não encontrado para a sua conta"], gravar: false };
     const b = lista[i];
     if (turmaEmDe(b.turma)?.encerrada) return { erro: [400, "A sua turma já encerrou — a trajetória fica como está."], gravar: false };
@@ -10240,7 +10249,7 @@ app.post("/api/ic/em/meu/relatorio", async (req, res) => {
 
   const r = await comBolsistasEM((lista) => {
     const i = lista.findIndex((x) => x.id === String(b.id || "")
-      && x.email === String(u.email).toLowerCase());
+      && casaComEM(x, String(u.email).toLowerCase(), cpfDeBusca(u.cpf)));
     if (i < 0) return { erro: [404, "Registro do ICEM não encontrado para a sua conta"], gravar: false };
     const reg = lista[i];
     if (reg.situacao === "desligado") return { erro: [400, "Registro desligado — fale com a coordenação de pesquisa."], gravar: false };
@@ -10264,6 +10273,63 @@ app.post("/api/ic/em/meu/relatorio", async (req, res) => {
     ["Curso pretendido", cursoOutro ? `${cursoOutro} (o UNIEGO ainda não tem)` : cursoPretendido],
   ], "Relatório do ICEM entregue");
   res.json({ ok: true, bolsista: r.bolsista });
+});
+
+/* OS DADOS BANCÁRIOS SÃO DIGITADOS PELO PRÓPRIO BOLSISTA (pedido do dono,
+   ago/2026). Até aqui o cadastro do ICEM era todo da coordenação — e conta
+   corrente é o campo que mais custa caro errado: um dígito trocado é um
+   pagamento que não cai e ninguém sabe por quê. Quem tem o cartão na mão é
+   ele. A rota grava SÓ os quatro campos da conta: nome, CPF, escola e bolsa
+   continuam sendo da coordenação, e um formulário do estudante que pudesse
+   reescrevê-los seria outra porta para o mesmo registro. */
+app.post("/api/ic/em/meu/banco", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const b = req.body || {};
+  const conta = {
+    banco: String(b.banco || "").trim().slice(0, 60),
+    agencia: String(b.agencia || "").trim().slice(0, 20),
+    conta: String(b.conta || "").trim().slice(0, 30),
+    pix: String(b.pix || "").trim().slice(0, 120),
+  };
+  const r = await comBolsistasEM((lista) => {
+    /* A conta é DA PESSOA, não da turma — a mesma decisão de
+       `POST /api/ic/meus-dados` na graduação: quem participou de duas turmas
+       não digita o número da conta duas vezes. Por isso a gravação vale para
+       TODOS os registros dele com bolsa a pagar, e não para o primeiro que a
+       busca encontrar. */
+    const meus = lista.map((x, i) => [x, i])
+      .filter(([x]) => casaComEM(x, String(u.email).toLowerCase(), cpfDeBusca(u.cpf)));
+    if (!meus.length) return { erro: [404, "Registro do ICEM não encontrado para a sua conta"], gravar: false };
+    const comBolsa = meus.filter(([x]) => x.bolsa && x.bolsa !== "voluntario");
+    if (!comBolsa.length)
+      return { erro: [400, "A sua participação é voluntária — não há bolsa a pagar, e por isso o ARCHÉ não pede a sua conta bancária."], gravar: false };
+    /* A exigência do BANCO DO BRASIL é do CNPq, não nossa: a agência paga em
+       conta do BB, e uma conta de outro banco simplesmente não recebe. Por
+       isso ela é régua da GRAVAÇÃO, e não recado no e-mail — o estudante
+       digitaria a conta que tem, e o erro só apareceria na folha de pagamento.
+       Tendo ele bolsa do CNPq em qualquer turma, vale a régua mais estrita. */
+    if (comBolsa.some(([x]) => exigeBancoDoBrasil(x.bolsa)) && conta.banco && !ehBancoDoBrasil(conta.banco)) {
+      return { erro: [400, "A bolsa do CNPq é paga obrigatoriamente em conta do Banco do Brasil. "
+        + "Informe uma conta do Banco do Brasil em seu nome — se você ainda não tiver, "
+        + "abra uma conta (o BB tem conta gratuita para menores) e volte aqui."], gravar: false };
+    }
+    for (const [x, i] of comBolsa) {
+      lista[i] = anotarEM({ ...x, ...conta },
+        { quem: u.email, oQue: "informou os próprios dados bancários" });
+    }
+    return { bolsista: lista[comBolsa[0][1]] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  const falta = faltaDadosBancariosEM(r.bolsista);
+  if (!falta.length) {
+    avisarPesquisa(`ICEM: ${r.bolsista.nome} informou os dados bancários`, [
+      ["Bolsista", `${r.bolsista.nome} (turma ${r.bolsista.turma})`],
+      ["Bolsa", bolsaEmDe(r.bolsista.bolsa)?.nome || r.bolsista.bolsa],
+      ["Banco", `${r.bolsista.banco} · ag. ${r.bolsista.agencia} · c/c ${r.bolsista.conta}`],
+    ], "Dados bancários informados pelo bolsista do Ensino Médio");
+  }
+  res.json({ ok: true, bolsista: r.bolsista, falta });
 });
 
 /* A validação do relatório do EM é da PROPPEX (decisão do dono, ago/2026):
@@ -10420,6 +10486,85 @@ async function avisarResultadoEM(turma) {
   return { enviados: enviados.length, semEmail, jaAvisados: ja.size };
 }
 
+/* O PEDIDO DA CONTA AO BOLSISTA (pedido do dono, ago/2026). São DOIS
+   caminhos, e não duas alternativas — foi a pergunta dele: "ele recebe
+   automaticamente um e-mail solicitando os dados bancários? Ou acha melhor um
+   botão pro coordenador solicitar depois que ele indicar todos?".
+
+   · AUTOMÁTICO, no ato de atribuir a bolsa: é quando a exigência nasce, e a
+     atribuição é feita bolsista a bolsista — cada um recebe o pedido na vez
+     dele, em vez de esperar a turma inteira ser marcada. É o mesmo padrão de
+     todo convite nominal do ARCHÉ.
+   · O BOTÃO, na guia Ensino Médio: e-mail cai em spam e adolescente esquece.
+     O que a coordenação precisa é VER quem falta e reenviar — com a janela de
+     revisão dos demais chamamentos (destinatários, prévia e mensagem da
+     coordenação). Sem ele, o automático seria um tiro só.
+
+   A marca é por BOLSISTA + BOLSA: remarcar a mesma bolsa não reenvia, e
+   remanejar de UNIEGO para CNPq reenvia — porque aí a exigência mudou (a do
+   CNPq só é paga em conta do Banco do Brasil). */
+const AVISOS_BANCO_EM_KEY = "sys-ic-em-avisos-banco-v1";
+const marcaBancoEM = (b) => `${b.id}|${b.bolsa}`;
+
+async function pedirDadosBancariosEM(bolsistas, { mensagem = "", forcar = false } = {}) {
+  const base = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
+  let ja = {};
+  try { ja = JSON.parse((await storage.get(AVISOS_BANCO_EM_KEY)) || "{}") || {}; } catch { /* avisa todos */ }
+  const alvo = bolsistas.filter((b) => b.situacao !== "desligado"
+    && faltaDadosBancariosEM(b).length && (forcar || !ja[marcaBancoEM(b)]));
+  const semEmail = alvo.filter((b) => !String(b.email || "").trim()).length;
+  const fila = alvo.filter((b) => String(b.email || "").trim());
+  const { emailDadosBancariosEM } = await import("./lib/mailer.js");
+  const enviados = [];
+  const falhas = [];
+  for (const b of fila) {
+    try {
+      await enviarAviso("em-dados-bancarios", emailDadosBancariosEM(b, turmaEmDe(b.turma) || { ciclo: b.turma }, {
+        baseUrl: base, bolsa: bolsaEmDe(b.bolsa), mensagem,
+        exigeBB: exigeBancoDoBrasil(b.bolsa), lembrete: !!ja[marcaBancoEM(b)],
+      }));
+      enviados.push(b);
+    } catch (e) { falhas.push(`${b.nome || b.email}: ${e.message}`); }
+  }
+  if (enviados.length) {
+    try {
+      const reg = JSON.parse((await storage.get(AVISOS_BANCO_EM_KEY)) || "{}") || {};
+      for (const b of enviados) reg[marcaBancoEM(b)] = new Date().toISOString();
+      await storage.set(AVISOS_BANCO_EM_KEY, JSON.stringify(reg));
+      await storage.flush?.();
+    } catch (e) { console.error("[ic-em] marca do pedido de dados bancários:", e.message); }
+  }
+  return { enviados: enviados.length, semEmail, falhas, fila: fila.map((b) => ({
+    nome: b.nome, email: b.email, bolsa: bolsaEmDe(b.bolsa)?.nome || b.bolsa,
+    falta: faltaDadosBancariosEM(b).join(", ") })) };
+}
+
+/* A chamada manual: quem falta, e o reenvio com a janela de revisão. */
+app.post("/api/ic/em/chamada-banco", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "A chamada é da coordenação de pesquisa." });
+  const turma = String(req.body?.turma || "").trim();
+  const lista = (await lerBolsistasEM()).filter((b) =>
+    (!turma || b.turma === turma) && b.situacao !== "desligado" && faltaDadosBancariosEM(b).length);
+  const quem = lista.map((b) => ({
+    id: b.id, nome: b.nome, email: b.email, turma: b.turma,
+    bolsa: bolsaEmDe(b.bolsa)?.nome || b.bolsa,
+    exigeBB: exigeBancoDoBrasil(b.bolsa), falta: faltaDadosBancariosEM(b),
+  }));
+  if (req.body?.simular) {
+    const { emailDadosBancariosEM } = await import("./lib/mailer.js");
+    const p = lista[0];
+    return res.json({ ok: true, simulacao: true, quem,
+      previewHtml: p ? emailDadosBancariosEM(p, turmaEmDe(p.turma) || { ciclo: p.turma }, {
+        bolsa: bolsaEmDe(p.bolsa), mensagem: String(req.body?.mensagem || ""),
+        exigeBB: exigeBancoDoBrasil(p.bolsa), lembrete: true }).corpoHtml : "" });
+  }
+  // pelo botão o reenvio é DELIBERADO: a marca não segura quem já foi avisado
+  const r = await pedirDadosBancariosEM(lista, { mensagem: String(req.body?.mensagem || ""), forcar: true });
+  res.json({ ok: true, ...r, quem });
+});
+
 app.post("/api/ic/em/resultado/publicar", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
@@ -10572,6 +10717,15 @@ app.post("/api/ic/em/:id/bolsa", async (req, res) => {
     return { bolsista: lista[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  /* Atribuída a bolsa, o estudante recebe o pedido da CONTA (pedido do dono,
+     ago/2026): é neste ato que a exigência nasce, e a atribuição é feita
+     bolsista a bolsista — cada um é avisado na vez dele. Fire-and-forget:
+     e-mail que falha não desfaz a concessão, e a coordenação reenvia pelo
+     botão da guia. */
+  if (bolsa && bolsa !== "voluntario") {
+    pedirDadosBancariosEM([r.bolsista])
+      .catch((e) => console.error("[ic-em] pedido de dados bancários:", e.message));
+  }
   res.json({ ok: true, bolsista: r.bolsista });
 });
 

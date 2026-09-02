@@ -523,7 +523,10 @@ function montarSidebar() {
 
   const ini = (ME?.nome || ME?.email || "?").trim()[0]?.toUpperCase() || "?";
   const foto = ME?.perfil?.foto;
+  // o rodapé diz o que a pessoa É no setor: chamar de "orientação" o bolsista
+  // do ensino médio era a mesma confusão da página vazia, em miniatura
   const papel = META.gestao ? "coordenação"
+    : META.perfil === "em" ? "bolsista do Ensino Médio"
     : ehAluno() ? "aluno de IC" : ehAvaliador() ? "avaliador ad hoc" : "orientação";
   $("rodape-usuario").innerHTML = ME ? `
     <a class="av" href="/perfil/" title="Meu perfil">${foto ? `<img src="${esc(foto)}" alt="">` : esc(ini)}</a>
@@ -1162,6 +1165,9 @@ async function renderEM() {
   const ativos = da.filter((b) => b.situacao !== "desligado");
   const comProjeto = ativos.filter((b) => atual(b));
   const entregues = da.filter((b) => ["entregue", "validado"].includes(b.relatorios?.final?.situacao));
+  // quem tem bolsa a receber e ainda não informou a conta (a régua é do
+  // servidor: `faltaBanco` já vem pronto, com a exigência do BB no CNPq)
+  const semBanco = ativos.filter((b) => (b.faltaBanco || []).length);
 
   // projetos que podem ser acompanhados: os do ciclo da graduação em execução
   const acompanhaveis = PROJETOS.filter((p) => ["aprovado", "concluido"].includes(p.status))
@@ -1241,6 +1247,10 @@ async function renderEM() {
             ["Banco", b.banco], ["Agência", b.agencia], ["Conta", b.conta], ["Pix", b.pix]]
             .filter(([, v]) => v).map(([k, v]) => `<div class="kv muted">• ${k}: <b>${esc(v)}</b></div>`).join("")
             || '<div class="kv muted">Cadastro ainda vazio.</div>'}
+          ${(b.faltaBanco || []).length ? `<div class="kv" style="color:var(--err)">•
+            <b>Falta nos dados bancários:</b> ${esc(b.faltaBanco.join(", "))}
+            ${b.exigeBB ? " — a bolsa do CNPq é paga só em conta do Banco do Brasil" : ""}.
+            O pedido já foi enviado a ele; para reenviar, use “Cobrar os dados bancários”.</div>` : ""}
         </div>
       </details>
       ${pedidoTrocaGestao(b)}
@@ -1271,6 +1281,8 @@ async function renderEM() {
         title="Convite por e-mail: o bolsista cria o usuário e — turma atual — escolhe o projeto; turma encerrada — entrega o relatório final">✉️ Convidar por e-mail</button>` : ""}
       ${da.length ? `<button class="bt bt-sec" onclick="emChamada()"
         title="Vai a TODO bolsista da turma com relatório ainda não validado — mesmo quem já foi convidado">📣 Chamar para os relatórios</button>` : ""}
+      ${semBanco.length ? `<button class="bt bt-sec" onclick="emChamadaBanco()"
+        title="Pede a conta a quem ainda não a informou. O pedido já sai sozinho ao atribuir a bolsa; isto é o reenvio.">💳 Cobrar os dados bancários (${semBanco.length})</button>` : ""}
       <button class="bt bt-ghost" onclick="verModeloRelatorio('em')"
         title="O formulário do relatório, como o estudante o vê">👁 Visualizar relatório (estudante)</button>
     </div>
@@ -1595,6 +1607,43 @@ async function emChamada() {
   } catch (e) { aviso(e.message, "err"); }
 }
 
+/* Cobrar os DADOS BANCÁRIOS de quem ainda não os informou (pedido do dono,
+   ago/2026). O pedido já sai sozinho no ato de atribuir a bolsa; este botão
+   é o que fecha a conta — e-mail cai em spam e adolescente esquece, e a
+   coordenação precisa VER quem falta e reenviar. Pelo botão o reenvio é
+   deliberado: a marca do envio automático não segura ninguém. */
+async function emChamadaBanco() {
+  const simular = (mensagem) => api("/api/ic/em/chamada-banco", { method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ turma: TURMA_EM, simular: true, mensagem }) });
+  try {
+    const s = await simular("");
+    if (!s.quem.length) return aviso("Todos os bolsistas desta turma já informaram os dados bancários.", "ok");
+    janelaEnvio({
+      titulo: `Cobrar os dados bancários — turma ${TURMA_EM}`,
+      itens: s.quem.map((x) => `${x.nome} — ${x.email || "sem e-mail no cadastro"} · ${x.bolsa}`
+        + `${x.exigeBB ? " (CNPq: exige Banco do Brasil)" : ""} · falta: ${x.falta.join(", ")}`),
+      semEmail: s.quem.filter((x) => !x.email).length,
+      observacao: "Cada bolsista recebe o pedido da própria conta, com o aviso de que a bolsa do "
+        + "CNPq é paga obrigatoriamente em conta do Banco do Brasil. Quem já foi avisado recebe de novo.",
+      previewHtml: s.previewHtml,
+      aoAtualizar: async (m) => (await simular(m)).previewHtml,
+      aoEnviar: async (mensagem) => {
+        try {
+          const r = await api("/api/ic/em/chamada-banco", { method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ turma: TURMA_EM, mensagem }) });
+          aviso(`Pedido enviado a ${r.enviados} bolsista(s).`
+            + (r.semEmail ? ` ${r.semEmail} sem e-mail no cadastro.` : "")
+            + (r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""),
+            r.falhas.length ? "err" : undefined);
+          EM = null; await renderEM();
+        } catch (e) { aviso(e.message, "err"); }
+      },
+    });
+  } catch (e) { aviso(e.message, "err"); }
+}
+
 /* ------------------ a guia do BOLSISTA do Ensino Médio ------------------- */
 /* O setor pelos olhos do bolsista EM (decisão do dono, ago/2026): ele
    escolhe o curso e o projeto que quer acompanhar — e troca quando quiser —
@@ -1834,6 +1883,8 @@ async function renderMeuEM() {
           : "Assim que os projetos de Iniciação Científica e Inovação Tecnológica do ciclo entrarem em execução, eles aparecem aqui."}
       </div>` : ""}
 
+      ${blocoBancoEM(r)}
+
       ${blocoPedidoProjetoEM(r)}
 
       ${(r.trajetoria || []).filter((e) => e.ate).length ? `<details style="margin-top:8px">
@@ -1892,6 +1943,64 @@ async function renderMeuEM() {
     || '<div class="card"><div class="vazio">Nenhum registro do ICEM ligado à sua conta.</div></div>';
 }
 let FILTRO_CURSO_EM = "";
+/* OS DADOS BANCÁRIOS, preenchidos pelo PRÓPRIO bolsista (pedido do dono,
+   ago/2026). Conta corrente é o campo que mais custa caro errado — um dígito
+   trocado é um pagamento que não cai e ninguém sabe por quê —, e quem tem o
+   cartão na mão é ele. A exigência do Banco do Brasil no CNPq aparece ANTES
+   de ele digitar: descobri-la só no erro da gravação seria mandá-lo abrir
+   uma conta depois de já ter preenchido tudo. Voluntário não vê o bloco:
+   não há bolsa a pagar. */
+function blocoBancoEM(r) {
+  if (!r.bolsa || r.bolsa.codigo === "voluntario") return "";
+  const c = r.conta || {};
+  const falta = r.faltaBanco || [];
+  const ok = !falta.length;
+  return `<div class="card" style="margin-top:10px">
+    <div class="card-t">Dados bancários da sua bolsa
+      ${ok ? '<span class="badge b-validado">completo</span>'
+        : '<span class="badge b-atrasada">falta preencher</span>'}</div>
+    <div class="card-s">É nesta conta que a <b>${esc(r.bolsa.nome)}</b>${r.bolsa.valor
+      ? ` — R$ ${r.bolsa.valor} mensais` : ""} vai ser paga. A conta precisa estar
+      <b>no seu nome</b>.</div>
+    ${r.exigeBB ? `<div class="banner ba-warn" style="margin-top:8px">
+      <b>Bolsa do CNPq: a conta tem de ser do Banco do Brasil.</b> Quem paga é a agência, e ela
+      deposita só em conta do BB. Se você ainda não tem, abra uma conta no Banco do Brasil
+      (há conta gratuita para menores, com o seu responsável) e volte aqui.</div>`
+      : `<div class="banner ba-info" style="margin-top:8px">
+      A bolsa do UNIEGO é paga em <b>qualquer banco</b> — informe a conta que você já usa.</div>`}
+    ${!ok ? `<div class="kv" style="margin-top:8px;color:var(--err)">Falta: <b>${esc(falta.join(", "))}</b>.</div>` : ""}
+    <div class="grid2" style="margin-top:8px">
+      <div><label>Banco *</label>
+        <input id="emb-banco-${esc(r.id)}" value="${esc(c.banco || "")}"
+          placeholder="${r.exigeBB ? "Banco do Brasil" : "Ex.: Banco do Brasil, Caixa, Nubank…"}"></div>
+      <div><label>Agência *</label>
+        <input id="emb-agencia-${esc(r.id)}" value="${esc(c.agencia || "")}" placeholder="0000-0"></div>
+    </div>
+    <div class="grid2">
+      <div><label>Conta (com o dígito) *</label>
+        <input id="emb-conta-${esc(r.id)}" value="${esc(c.conta || "")}" placeholder="00000-0"></div>
+      <div><label>Chave Pix *</label>
+        <input id="emb-pix-${esc(r.id)}" value="${esc(c.pix || "")}" placeholder="CPF, telefone ou e-mail"></div>
+    </div>
+    <div class="exp" style="margin-top:8px">
+      <button class="bt bt-pri" onclick="meuEmBanco('${esc(r.id)}')">Salvar os meus dados bancários</button>
+      <span class="muted" style="align-self:center">Você pode corrigir depois, se algo mudar.</span>
+    </div>
+  </div>`;
+}
+async function meuEmBanco(id) {
+  const v = (c) => ($(`emb-${c}-${id}`)?.value || "").trim();
+  try {
+    const r = await api("/api/ic/em/meu/banco", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ banco: v("banco"), agencia: v("agencia"), conta: v("conta"), pix: v("pix") }) });
+    MEU_EM = null; await renderMeuEM();
+    aviso(r.falta?.length
+      ? `Dados salvos, mas ainda falta: ${r.falta.join(", ")}.`
+      : "Dados bancários salvos — a coordenação já pode incluir você na folha de pagamento.",
+      r.falta?.length ? "warn" : undefined);
+  } catch (e) { aviso(e.message, "err"); }
+}
 /* SOLICITAR ALTERAÇÃO DE PROJETO (pedido do dono, ago/2026). Só aparece
    para quem JÁ acompanha um projeto: sem projeto, o que vale é a escolha
    direta ali em cima. A lista traz as TRÊS linhas do edital em execução
