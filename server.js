@@ -1248,7 +1248,11 @@ app.get("/api/alertas", async (req, res) => {
       const novos = JSON.parse((await storage.get(CADASTROS_KEY)) || "[]")
         .filter((c) => +new Date(c.quando) > corte14);
       if (novos.length) {
-        alertas.push({ setor: "Acessos", n: novos.length, link: "/usuarios/",
+        /* INFORMATIVO, não decisão (pedido do dono, ago/2026): a aprovação já
+           aconteceu — isto é aviso do que o portal fez, não fila de trabalho.
+           Por isso ele fica fora do painel "O que espera você", que passou a
+           mostrar só o que aguarda uma decisão dela. */
+        alertas.push({ setor: "Acessos", n: novos.length, link: "/usuarios/", info: true,
           texto: `${novos.length} cadastro(s) novo(s) aprovado(s) automaticamente (últimos 14 dias)`,
           detalhe: novos.slice(0, 5).map((c) => c.nome || c.email).join(" · ") });
       }
@@ -1304,7 +1308,11 @@ app.get("/api/alertas", async (req, res) => {
     if (u.modulos.includes("atas")) {
       const atas = await lerAtas();
       const deAtas = gerarAlertas(atas);
-      if (deAtas.length) alertas.push({ setor: "Atas", n: deAtas.length, link: "/atas/",
+      /* Também informativo: quem regulariza o registro é o ÓRGÃO, não a
+         pró-reitoria — ela cobra, e a cobrança não é um clique nesta tela.
+         É estado crônico do acervo, e no painel de decisões ele empurrava
+         para fora o que de fato espera por ela. */
+      if (deAtas.length) alertas.push({ setor: "Atas", n: deAtas.length, link: "/atas/", info: true,
         texto: `${deAtas.length} órgão(s) fora de dia com o registro de atas` });
       // decisão tomada em ata com prazo vencido é o que mais se perde de vista
       const vencidos = encaminhamentos(atas).filter((e) => e.atrasado);
@@ -1345,7 +1353,7 @@ app.get("/api/alertas", async (req, res) => {
           r.status === "enviado" && apPodeVer(r, quemAP2));
         if (esperando.length) {
           const ce = esperando.filter((r) => apEhExtensao(r)).length;
-          alertas.push({ setor: "Atividades Curriculares", link: "/praticas/",
+          alertas.push({ setor: "Atividades Curriculares", n: esperando.length, link: "/praticas/",
             texto: `${esperando.length} relatório(s) aguardando validação`
               + (ce ? ` (${ce} de extensão curricular)` : ""),
             detalhe: esperando.slice(0, 6)
@@ -1361,7 +1369,7 @@ app.get("/api/alertas", async (req, res) => {
          a PROPPEX só descobriria pelo professor que tentou submeter. */
       const semEdital = monCicloSemEdital();
       if (semEdital) {
-        alertas.push({ setor: "Monitoria", link: "/monitoria/",
+        alertas.push({ setor: "Monitoria", n: 1, link: "/monitoria/",
           texto: `O ciclo ${semEdital} começou e ainda não tem edital publicado`,
           detalhe: `O edital vigente é o ${monEditalVigente().numero} (ciclo `
             + `${monEditalVigente().ciclo}). Enquanto o novo não sair, os projetos deste `
@@ -1397,10 +1405,69 @@ app.get("/api/alertas", async (req, res) => {
         texto: `${naProppex} reserva(s) encaminhada(s) para decisão da PROPPEX` });
     }
 
-    res.json({ alertas, total: alertas.reduce((s, a) => s + (a.n || 1), 0) });
+    /* MARCAR COMO VISTO (pedido do dono, ago/2026: "tem coisa ali que está só
+       ocupando espaço"). A marca é do FATO, não do alerta: guarda-se a
+       assinatura (setor + texto COM os números), e por isso o alerta volta
+       sozinho quando o número muda — marcar "58 cadastros novos" como visto
+       não esconde os 60 de amanhã, que são outro fato. A `chave` é o texto
+       com os números apagados: é ela que identifica o TIPO de alerta, para
+       "mostrar de novo" saber o que reabrir. */
+    const vistos = (await lerAlertasVistos())[u.email] || {};
+    for (const a of alertas) {
+      a.chave = chaveDeAlerta(a);
+      a.assinatura = assinaturaDeAlerta(a);
+      a.visto = vistos[a.chave]?.assinatura === a.assinatura;
+    }
+    const abertos = alertas.filter((a) => !a.visto);
+    res.json({
+      alertas: abertos,
+      total: abertos.reduce((s, a) => s + (a.n || 1), 0),
+      // os que a pessoa marcou como vistos: a tela oferece revê-los
+      vistos: alertas.filter((a) => a.visto).length,
+    });
   } catch (e) {
     console.error("Erro nos alertas:", e);
     res.status(500).json({ error: "Falha ao montar os alertas" });
+  }
+});
+
+/* A identidade de um alerta, derivada do próprio texto: a `chave` é o TIPO
+   (números apagados) e a `assinatura` é o FATO (números incluídos). Derivar,
+   em vez de carimbar em cada um dos vinte pontos que empilham alerta, é o que
+   mantém a marca funcionando para o alerta que alguém acrescentar amanhã. */
+const chaveDeAlerta = (a) => `${a.setor}|${String(a.texto || "").replace(/\d+/g, "#")}`.slice(0, 200);
+const assinaturaDeAlerta = (a) => `${a.setor}|${String(a.texto || "")}`.slice(0, 300);
+
+const ALERTAS_VISTOS_KEY = "sys-alertas-vistos-v1";
+async function lerAlertasVistos() {
+  try { return JSON.parse((await storage.get(ALERTAS_VISTOS_KEY)) || "{}") || {}; } catch { return {}; }
+}
+
+/** POST /api/alertas/visto — marca (ou desmarca) o que já foi visto. */
+app.post("/api/alertas/visto", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "não autenticado" });
+    const mapa = await lerAlertasVistos();
+    const meu = mapa[u.email] || {};
+    if (req.body?.limpar) {
+      // "mostrar de novo": some com todas as marcas desta pessoa
+      delete mapa[u.email];
+    } else {
+      const chave = String(req.body?.chave || "").slice(0, 200);
+      const assinatura = String(req.body?.assinatura || "").slice(0, 300);
+      if (!chave || !assinatura) return res.status(400).json({ error: "Alerta não identificado." });
+      meu[chave] = { assinatura, em: new Date().toISOString() };
+      // teto: o registro é conveniência, não histórico
+      const chaves = Object.keys(meu);
+      if (chaves.length > 60) for (const k of chaves.slice(0, chaves.length - 60)) delete meu[k];
+      mapa[u.email] = meu;
+    }
+    await storage.set(ALERTAS_VISTOS_KEY, JSON.stringify(mapa));
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Erro ao marcar o alerta como visto:", e);
+    res.status(500).json({ error: "Não foi possível marcar." });
   }
 });
 

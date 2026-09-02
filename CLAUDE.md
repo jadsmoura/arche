@@ -616,6 +616,26 @@ public/
   indicação de aluno, pedido de substituição, contestação e — no ICEM — escolha/troca de
   projeto e relatório final do bolsista. O aviso leva o essencial e o link do setor,
   nunca nota, parecer ou dado bancário.
+- **O QUE ESPERA VOCÊ: só decisões, e com "✓ visto"** (`info` nos alertas + `sys-alertas-vistos-v1`
+  + `POST /api/alertas/visto`, pedido do dono ago/2026: "só deixe visível demandas em aberto que
+  preciso me atentar — tem coisa ali que está só ocupando espaço"). Duas coisas.
+  (1) O alerta passou a distinguir **decisão** de **informativo**: "58 cadastros novos aprovados
+  automaticamente" é aviso do que o portal FEZ, e "62 órgãos fora de dia com o registro de atas" é
+  estado crônico de um acervo que quem regulariza é o ÓRGÃO — nenhum dos dois espera um clique
+  dela, e juntos empurravam para fora da tela o que espera. Os `info` ficam **no sino**, marcados
+  como informativos, e **fora do painel** da página inicial, que virou a fila de decisões; sem
+  nenhuma decisão pendente o painel não se desenha.
+  (2) **Marcar como visto**: a marca é do FATO, não do tipo de alerta — guarda-se a *assinatura*
+  (setor + texto COM os números), e por isso o alerta **volta sozinho quando o número muda**;
+  marcar "58 cadastros" como visto não esconde os 60 de amanhã. A `chave` (o mesmo texto com os
+  números apagados) identifica o tipo, para o "mostrar de novo" saber o que reabrir. As duas se
+  DERIVAM do próprio alerta, em vez de serem carimbadas nos vinte pontos que empilham alerta — é o
+  que faz a marca já valer para o alerta que alguém acrescentar amanhã. O registro é por pessoa
+  (teto de 60), e a contagem do sino desconta o que foi visto.
+  **E o painel RECOLHE** (mesmo pedido): com dez setores ele empurrava os cartões para fora da
+  tela, e há dias em que a pró-reitoria abre o portal para ir a um setor, não para ver a fila. A
+  escolha fica no `localStorage`, e o TOTAL continua à vista no cabeçalho recolhido — é ele que
+  diz se vale a pena abrir.
 - **Demandas abertas na página inicial** (pedido do dono, ago/2026): antes dos cartões dos
   setores, a gestão vê **o que espera decisão**, agrupado por setor, com o atalho para o lugar
   onde a decisão acontece — a pró-reitoria abre o portal para saber ONDE entrar, não para

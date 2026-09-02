@@ -145,6 +145,18 @@
       ".arche-alertas .tx{font-size:13px;color:#182632;font-weight:600;margin-top:2px}" +
       ".arche-alertas .dt{font-size:11.5px;color:#657179;margin-top:2px}" +
       ".arche-alertas .zero{padding:18px 16px;font-size:13px;color:#657179}" +
+      ".arche-alertas .it-linha{display:flex;align-items:flex-start;gap:6px;padding:0 8px 0 0;" +
+      "border-bottom:1px solid #eef1f4}" +
+      ".arche-alertas .it-linha:last-of-type{border-bottom:0}" +
+      ".arche-alertas .it-linha:hover{background:#e6f5fa}" +
+      ".arche-alertas .it-tx{display:block;flex:1;min-width:0;padding:11px 4px 11px 16px;" +
+      "text-decoration:none;color:inherit}" +
+      ".arche-alertas .it-visto{align-self:center;background:none;border:1px solid #dde4e8;" +
+      "border-radius:8px;color:#657179;cursor:pointer;font-size:13px;line-height:1;padding:6px 8px;flex:none}" +
+      ".arche-alertas .it-visto:hover{background:#fff;color:#3f8a5d;border-color:#cfeeda}" +
+      ".arche-alertas .it-todos{display:block;width:100%;background:#f6f8fa;border:0;border-top:1px solid #eef1f4;" +
+      "padding:10px 16px;font-size:12px;color:#40717e;cursor:pointer;text-align:left;font-weight:600}" +
+      ".arche-alertas .it-todos:hover{background:#e6f5fa}" +
       /* No CELULAR a barra rola na horizontal, em UMA linha (varredura de
          ago/2026): com `flex-wrap:wrap` os 11 atalhos viravam ~4 linhas
          grudadas no topo — cerca de um quinto da tela, em toda rolagem, em
@@ -310,15 +322,37 @@
       painel = document.createElement("div");
       painel.className = "arche-alertas";
       var itens = (dados && dados.alertas) || [];
+      var vistos = (dados && dados.vistos) || 0;
+      /* ✓ VISTO (pedido do dono, ago/2026): a marca é do FATO — guarda-se o
+         texto com os números —, e o alerta volta sozinho quando o número
+         muda. É o que separa "já vi estes 58 cadastros" de "não quero mais
+         saber de cadastro nenhum". */
       painel.innerHTML = '<div class="cab">Alertas da gestão</div>'
-        + (itens.length ? itens.map(function (a) {
-          return '<a class="it" href="' + esc(a.link || "#") + '">'
-            + '<div class="set">' + esc(a.setor || "") + "</div>"
+        + (itens.length ? itens.map(function (a, i) {
+          return '<div class="it it-linha">'
+            + '<a class="it-tx" href="' + esc(a.link || "#") + '">'
+            + '<div class="set">' + esc(a.setor || "") + (a.info ? " · informativo" : "") + "</div>"
             + '<div class="tx">' + esc(a.texto || "") + "</div>"
             + (a.detalhe ? '<div class="dt">' + esc(a.detalhe) + "</div>" : "")
-            + "</a>";
-        }).join("") : '<div class="zero">Tudo em dia — nada aguardando validação ou autorização.</div>');
+            + "</a>"
+            + '<button class="it-visto" type="button" data-i="' + i + '" title="Marcar como visto — volta se o número mudar">✓</button>'
+            + "</div>";
+        }).join("") : '<div class="zero">Tudo em dia — nada aguardando validação ou autorização.</div>')
+        + (vistos ? '<button class="it-todos" type="button">' + (vistos === 1
+          ? "mostrar 1 alerta marcado como visto"
+          : "mostrar os " + vistos + " alertas marcados como vistos") + "</button>" : "");
       document.body.appendChild(painel);
+      painel.querySelectorAll(".it-visto").forEach(function (b) {
+        b.onclick = function (ev) {
+          ev.stopPropagation(); ev.preventDefault();
+          var a = itens[Number(b.dataset.i)];
+          if (!a) return;
+          b.disabled = true;
+          marcar({ chave: a.chave, assinatura: a.assinatura });
+        };
+      });
+      var todos = painel.querySelector(".it-todos");
+      if (todos) todos.onclick = function (ev) { ev.stopPropagation(); marcar({ limpar: true }); };
       setTimeout(function () {
         document.addEventListener("click", function fora(ev) {
           if (painel && !painel.contains(ev.target) && ev.target !== btn) {
@@ -330,18 +364,34 @@
 
     btn.onclick = function (ev) { ev.stopPropagation(); if (painel) fechar(); else abrir(); };
 
-    fetch("/api/alertas")
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (j) {
-        if (!j) return;
-        dados = j;
-        if (j.total > 0) {
-          var q = document.createElement("span");
-          q.className = "qt"; q.textContent = j.total > 99 ? "99+" : String(j.total);
-          btn.appendChild(q);
-        }
-      })
-      .catch(function () {});
+    /* Marcar (ou desmarcar tudo) e RECARREGAR: o painel se redesenha do que o
+       servidor devolve, senão a contagem do sino diria uma coisa e a lista
+       outra. */
+    function marcar(corpo) {
+      fetch("/api/alertas/visto", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(corpo),
+      }).then(function () { return carregar(); }).then(function () { if (painel) abrir(); })
+        .catch(function () {});
+    }
+
+    function carregar() {
+      return fetch("/api/alertas")
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          if (!j) return;
+          dados = j;
+          var velho = btn.querySelector(".qt");
+          if (velho) velho.remove();
+          if (j.total > 0) {
+            var q = document.createElement("span");
+            q.className = "qt"; q.textContent = j.total > 99 ? "99+" : String(j.total);
+            btn.appendChild(q);
+          }
+        })
+        .catch(function () {});
+    }
+    carregar();
   }
 
   function logado(caixa, me) {

@@ -79,6 +79,11 @@
   body.arche-logado #painel-demandas.tem{display:block}
   .dm-tot{font-size:11.5px;font-weight:700;color:#fff;background:var(--brand);
     border-radius:20px;padding:2px 10px;flex:none}
+  /* o cabeçalho do painel de demandas é BOTÃO: recolhe e expande a lista */
+  .dm-cab{width:100%;text-align:left;background:none;border:0;cursor:pointer;font:inherit;color:inherit}
+  .dm-cab:hover .ps-tit{color:var(--brand-2)}
+  .dm-seta{font-size:13px;color:var(--muted);transition:transform .15s;display:inline-block;margin-left:2px}
+  .dm-cab[aria-expanded="false"] .dm-seta{transform:rotate(-90deg)}
   .dm-linhas{display:flex;flex-direction:column;gap:8px}
   .dm-linha{display:flex;align-items:center;gap:10px;padding:8px 13px;transition:.13s;
     border:1px solid #eef2f4;border-radius:11px;background:#fcfdfe;font-size:12.5px}
@@ -525,6 +530,12 @@ if (!VER_PUBLICO) {
     if (!lista.length) return;
     const grupos = new Map();
     for (const a of lista) {
+      /* SÓ O QUE ESPERA DECISÃO (pedido do dono, ago/2026: "tem coisa ali que
+         está só ocupando espaço"): o alerta marcado `info` é aviso do que o
+         portal fez ou estado crônico do acervo — ele continua no SINO, que é
+         onde se lê tudo, mas fora do painel de quem abre a página inicial
+         para saber ONDE entrar. */
+      if (a.info) continue;
       if (!grupos.has(a.setor)) grupos.set(a.setor, { setor: a.setor, link: a.link, n: 0, itens: [] });
       const g = grupos.get(a.setor);
       g.n += Number(a.n) || 0;
@@ -534,20 +545,44 @@ if (!VER_PUBLICO) {
       const ia = ORDEM_SETOR.indexOf(a.setor), ib = ORDEM_SETOR.indexOf(b.setor);
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
     });
+    // sem nenhuma DECISÃO pendente o painel não se desenha: painel vazio na
+    // página inicial é ruído (a mesma regra que já valia para o sino)
+    if (!ordenados.length) return;
     const total = ordenados.reduce((s, g) => s + g.n, 0);
     const seta = '<span class="ls-seta" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>';
     const cx = document.getElementById("painel-demandas");
+    /* O painel RECOLHE (pedido do dono, ago/2026): com dez setores ele empurra
+       os cartões para fora da tela, e há dias em que a pró-reitoria abre o
+       portal para ir a um setor, não para ver a fila. A escolha FICA
+       (localStorage): quem o recolheu não o reabre a cada visita. O total
+       continua à vista no cabeçalho, recolhido ou não — é ele que diz se vale
+       a pena abrir. */
+    const CHAVE_DEM = "arche-demandas-aberto";
+    let aberto = true;
+    try { aberto = localStorage.getItem(CHAVE_DEM) !== "0"; } catch { /* sem storage, abre */ }
     cx.innerHTML = `
       <div class="painel-setores" style="margin-bottom:26px">
-        <div class="ps-cab"><p class="ps-tit">O que espera você <span class="dm-tot">${total}</span></p>
-          <p class="ps-sub">O que aguarda decisão nos setores que você gere — a linha abre o setor.</p></div>
-        <div class="dm-linhas">
+        <button type="button" class="ps-cab dm-cab" id="dm-toggle" aria-expanded="${aberto}"
+          aria-controls="dm-linhas" title="Recolher ou expandir a lista">
+          <p class="ps-tit">O que espera você <span class="dm-tot">${total}</span>
+            <span class="dm-seta" aria-hidden="true">▾</span></p>
+          <p class="ps-sub">O que aguarda decisão nos setores que você gere — a linha abre o setor.</p>
+        </button>
+        <div class="dm-linhas" id="dm-linhas"${aberto ? "" : " hidden"}>
           ${ordenados.map((g) => `<a class="dm-linha" href="${escP(g.link)}">
             <span class="nm">${escP(g.setor)}</span><span class="q">${g.n}</span>
             <span class="det">${escP(g.itens.map((i) => i.texto).join(" · "))}</span>
             ${seta}</a>`).join("")}
         </div>
       </div>`;
+    const bt = document.getElementById("dm-toggle");
+    bt.addEventListener("click", () => {
+      const linhas = document.getElementById("dm-linhas");
+      const abrir = linhas.hidden;
+      linhas.hidden = !abrir;
+      bt.setAttribute("aria-expanded", String(abrir));
+      try { localStorage.setItem(CHAVE_DEM, abrir ? "1" : "0"); } catch { /* ignora */ }
+    });
     cx.classList.add("tem");
   }).catch(() => { /* sem painel: a página inicial segue como sempre */ });
 }
