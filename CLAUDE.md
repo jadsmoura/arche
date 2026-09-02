@@ -2676,20 +2676,28 @@ public/
   experiência do usuário — removeria os campos 7, 11 e 12 e simplificaria do 3 ao 10"). **Saíram
   inteiras** a 7 (impacto na formação acadêmica), a 11 (reflexão crítica) e a 12 (quadro de
   alinhamento ao PPC): as três pediam ensaio sobre o que as outras já dizem. **Simplificadas**: a
-  3 era uma tabela de três objetivos com "alcançado/parcialmente/não" em cada linha e virou o
-  objetivo (que o formulário já pedia) mais UMA escolha para o conjunto; a 4 eram quatro etapas em
+  3 era uma tabela de três objetivos com "alcançado/parcialmente/não" em cada linha e ficou só o
+  objetivo, que o formulário já pedia (a escolha do desfecho saiu numa segunda passada do dono:
+  quem o diz são os resultados descritos no próprio objetivo e no resumo); a 4 eram quatro etapas em
   tabela mais um resumo e ficou o texto das atividades, que é o resumo; a 6 tinha número, perfil,
   seis caixas e um texto, e ficou público + quantos + texto; a 8 era uma tabela de seis
   indicadores, e cinco já são campos da ficha; a 9 e a 10 viraram texto **opcional**, como o
-  próprio modelo diz ("quando aplicável"); e a 13 virou lista de marcar, porque ali ela é catálogo
-  e não redação. Restaram **12 campos, 4 opcionais**, contra 14 seções e 5 tabelas — e o
+  próprio modelo diz ("quando aplicável"); e a 13 (lista de produtos) deu lugar aos **17 ODS da
+  Agenda 2030**, marcáveis — a lista de produtos repetia o que os ANEXOS já mostram (a cartilha e o
+  folder estão lá, em arquivo), enquanto o ODS é a informação que não está em lugar nenhum e que a
+  instituição precisa consolidar; grava-se o NÚMERO, que é como a ONU, o MEC e o PDI se referem a
+  ele. Restaram **11 campos, 3 opcionais**, contra 14 seções e 5 tabelas — e o
   formulário se **agrupa nas seções do modelo, na ordem dele**, que é o roteiro que quem preenche
   já conhece. O PDF sai no timbre da PROAC com as **quatro assinaturas** do modelo: responsável,
   coordenação do curso, Coordenação de Gestão Acadêmica e Pró-Reitora Acadêmica — as duas
   institucionais vindas do banco (`coordgestao` entrou em `QUEM_ASSINA`, e o card se desenha do
-  catálogo, então o campo nasceu sozinho). As **evidências** (lista de presença, folder, cartilha)
-  entram pela mesma rota das fotos, com `campo=evidencia`, nunca são obrigatórias — quem comprova
-  a realização é a foto — e saem no PDF como **LINK**, não embutidas.
+  catálogo, então o campo nasceu sozinho). Os **documentos anexados** (lista de presença, folder,
+  cartilha, plano de aula) entram pela mesma rota das fotos, com `campo=evidencia`, valem para os
+  **dois** tipos de relatório, nunca são obrigatórios — quem comprova a realização é a foto — e
+  saem no PDF como **LINK**, não embutidos. E a atividade **não referencia a ação de extensão do
+  ARCHÉ EX** (decisão do dono, ago/2026): compartilham a palavra "extensão" e são coisas diferentes
+  — lá é a ação institucional, com proposta, aprovação e certificado; aqui é a carga horária de
+  extensão de uma disciplina.
 - **ARCHÉ AP — Aulas Práticas** (`lib/praticas.js` + `public/praticas/` + rotas
   `/api/praticas/*`, pedido de coordenadores de curso ago/2026): o professor dá a aula prática e,
   depois dela, registra o que aconteceu — **disciplina, objetivo, local, data, atividades e as
