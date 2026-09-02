@@ -68,6 +68,28 @@
      abre o setor. A amostra de nomes/e-mails saiu: o detalhe se lê lá dentro. */
   #painel-demandas{display:none}
   body.arche-logado #painel-demandas.tem{display:block}
+  /* ------------- o que VOCÊ precisa fazer (pedido do dono, set/2026) -------
+     O espelho do painel acima: aquele diz à gestão o que espera DECISÃO dela;
+     este diz a cada um o que espera AÇÃO dele. Nasceu de alunos que entravam
+     e encontravam uma página sem nada a fazer — o relatório a enviar e o
+     cadastro a completar estavam a dois cliques de distância, sem placa. Sem
+     pendência a faixa não se desenha, como a de favoritos e a de demandas. */
+  #painel-meu{display:none}
+  body.arche-logado #painel-meu.tem{display:block}
+  .mp-linha{display:flex;align-items:center;gap:10px;padding:9px 13px;transition:.13s;
+    border:1px solid #eef2f4;border-radius:11px;background:#fcfdfe;font-size:12.5px}
+  a.mp-linha:hover{background:var(--wash);border-color:var(--wash2)}
+  .mp-linha .st{flex:none;font-size:10.5px;font-weight:700;color:var(--brand-3);
+    background:var(--wash);border-radius:20px;padding:2px 9px;letter-spacing:.02em}
+  .mp-linha .tx{flex:none;font-family:Sora,sans-serif;font-weight:600;font-size:13px;color:var(--ink)}
+  .mp-linha .det{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    color:var(--muted);font-size:12px}
+  .mp-linha.urg{border-color:#f4d9c8;background:#fffaf6}
+  .mp-linha.urg .st{color:#9a4a12;background:#fdeee2}
+  @media(max-width:640px){
+    .mp-linha{flex-wrap:wrap;gap:6px}
+    .mp-linha .det{flex-basis:100%;white-space:normal}
+  }
   .dm-tot{font-size:11.5px;font-weight:700;color:#fff;background:var(--brand);
     border-radius:20px;padding:2px 10px;flex:none}
   .dm-linhas{display:flex;flex-direction:column;gap:8px}
@@ -193,6 +215,12 @@
        procurar. As contagens vêm de /api/alertas — a mesma fonte do sino do
        topo, com o mesmo recorte por módulo: quem não gere setor nenhum não
        recebe nada e o bloco não se desenha. -->
+  <!-- ============ O QUE VOCÊ PRECISA FAZER: as pendências da própria
+       pessoa (relatório a enviar, cadastro a completar, aluno a indicar).
+       Vem ANTES do painel da gestão porque é o que a pessoa resolve sozinha,
+       e antes dos setores porque é o motivo de ela ter entrado. ============ -->
+  <div id="painel-meu"></div>
+
   <div id="painel-demandas"></div>
 
   <!-- ============ FAVORITOS (decisão do dono, ago/2026, junto com o layout
@@ -510,7 +538,32 @@ const ORDEM_SETOR = ["Acessos", "Extensão", "Eventos", "Pesquisa · IC", "Monit
 const escP = (t) => String(t ?? "").replace(/[&<>"]/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+/* O que a PRÓPRIA pessoa precisa fazer. A rota devolve só o que é dela e só
+   o que ela pode resolver agora; cada linha leva à tela onde se resolve. A
+   faixa aparece só com pendência — e é a primeira coisa da página, porque é
+   o motivo de a pessoa ter entrado. */
 if (!VER_PUBLICO) {
+  fetch("/api/minhas-pendencias").then((r) => (r.ok ? r.json() : { pendencias: [] })).then((j) => {
+    const lista = (j.pendencias || []).slice(0, 12);
+    if (!lista.length) return;
+    const seta = '<span class="ls-seta" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>';
+    const cx = document.getElementById("painel-meu");
+    cx.innerHTML = `
+      <div class="painel-setores" style="margin-bottom:26px">
+        <div class="ps-cab"><p class="eyebrow">O QUE VOCÊ PRECISA FAZER</p>
+          <span class="dm-tot">${lista.length}</span>
+          <p class="ps-sub">Suas pendências — a linha abre a tela onde se resolve.</p></div>
+        <div class="dm-linhas">
+          ${lista.map((x) => `<a class="mp-linha${x.urgente ? " urg" : ""}" href="${escP(x.link)}">
+            <span class="st">${escP(x.setor)}</span>
+            <span class="tx">${escP(x.texto)}</span>
+            <span class="det">${escP(x.detalhe || "")}</span>
+            ${seta}</a>`).join("")}
+        </div>
+      </div>`;
+    cx.classList.add("tem");
+  }).catch(() => { /* sem painel: a página inicial segue como sempre */ });
+
   fetch("/api/alertas").then((r) => (r.ok ? r.json() : { alertas: [] })).then((j) => {
     const lista = j.alertas || [];
     if (!lista.length) return;

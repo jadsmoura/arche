@@ -99,7 +99,7 @@ import {
   caixaCertificado, certificadoDe, certificadosDePessoa, certificadosDaAcao, acaoCertificavel,
   eventoEncerrado, podeEncerrar, programacaoDoCertificado, situacaoEncerramento,
 } from "./lib/certificadosEx.js";
-import { situacaoDaAcao } from "./lib/situacao.js";
+import { situacaoDaAcao, relatorioPendente } from "./lib/situacao.js";
 import { limparColagem, limparProfundo, temColagemSuja } from "./lib/texto.js";
 import {
   TURMAS_EM, BOLSAS_EM, bolsaEmDe, turmaDe as turmaEmDe, turmaVigente as turmaEmVigente,
@@ -1201,6 +1201,186 @@ async function aprovarCadastroNovo(email, nome) {
   notificarPendente(e, nome || e).catch(() => {});
   return "aprovado";
 }
+
+/**
+ * "O que espera você" — as pendências da PRÓPRIA PESSOA, para a página
+ * inicial (pedido do dono, set/2026: alunos entravam e caíam numa página sem
+ * nada a fazer, sem saber por onde começar). É o espelho do sino: aquele diz
+ * à gestão o que espera DECISÃO dela; este diz a cada um o que espera AÇÃO
+ * dele — relatório a enviar, cadastro a completar, aluno a indicar, ficha a
+ * preencher. Três regras: só o que é da pessoa (nada de outra conta), só o
+ * que ela pode resolver agora (prazo aberto), e cada linha leva à tela onde
+ * se resolve. Sem pendência a lista volta vazia e o bloco não se desenha.
+ */
+app.get("/api/minhas-pendencias", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "não autenticado" });
+    const perfis = await carregarPerfis();
+    const perfil = perfis[u.email] || {};
+    const cpf = perfil.cpf || "";
+    const eu = { email: u.email, cpf };
+    const p = [];
+    const push = (setor, texto, link, detalhe = "", urgente = false) =>
+      p.push({ setor, texto, link, detalhe, urgente });
+
+    // 1) O cadastro da própria conta. Vem primeiro porque é ele que barra a
+    //    entrada nos setores — quem tem campo faltando é desviado ao perfil.
+    const falta = await faltaNoPerfilDe(u, perfil);
+    if (falta.length) {
+      push("Seu cadastro", `Complete o seu perfil: ${falta.length} campo(s) a preencher`,
+        "/perfil/?completar=1", falta.map((f) => f.rotulo || f.campo).join(" · "), true);
+    }
+
+    // 2) Iniciação Científica — o que é do ALUNO e o que é da ORIENTAÇÃO.
+    let projetos = [];
+    try { projetos = await lerProjetos(); } catch { projetos = []; }
+    for (const proj of projetos) {
+      const papel = papelNoProjeto(eu, proj);
+      if (!papel || papel === "avaliador") continue;
+      const titulo = (proj.titulo || proj.protocolo || "projeto").slice(0, 60);
+      if (papel === "aluno") {
+        const meu = (proj.alunos || []).find((a) =>
+          (a.email || "").toLowerCase() === u.email.toLowerCase()
+          || (cpf && normalizarCpf(a.cpf || "") === normalizarCpf(cpf)));
+        if (meu && faltaNoCadastroDoBolsista(meu).length) {
+          push("Pesquisa · IC", "Complete os seus dados de bolsista",
+            "/pesquisa/ic/#bolsa", `${faltaNoCadastroDoBolsista(meu).length} campo(s) — ${titulo}`, true);
+        }
+        for (const tipo of ["parcial", "final"]) {
+          const janela = janelaRelatorio(proj, tipo);
+          if (!janela || !janela.aberta) continue;
+          const rel = (proj.relatorios || []).find((r) => r.tipo === tipo
+            && ((r.aluno || "").toLowerCase() === u.email.toLowerCase()
+              || (cpf && normalizarCpf(r.cpf || "") === normalizarCpf(cpf))));
+          const sit = rel?.situacao || "pendente";
+          if (sit === "validado" || sit === "entregue") continue;
+          push("Pesquisa · IC",
+            sit === "devolvido"
+              ? `Relatório ${tipo} devolvido para correção`
+              : `Envie o relatório ${tipo}`,
+            "/pesquisa/ic/#meusprojetos",
+            `${titulo}${janela.vence ? ` — prazo ${dataBR(janela.vence)}` : ""}`,
+            !!janela.vencida || sit === "devolvido");
+        }
+      }
+      if (papel === "orientador") {
+        if (proj.status === "devolvido") {
+          push("Pesquisa · IC", "Proposta devolvida: corrija e reenvie",
+            "/pesquisa/ic/#meusprojetos", titulo, true);
+        }
+        if (proj.status === "aprovado" && !(proj.alunos || []).length) {
+          push("Pesquisa · IC", "Indique o aluno do projeto aprovado",
+            "/pesquisa/ic/#meusprojetos", titulo, true);
+        }
+        const aValidar = (proj.relatorios || []).filter((r) => r.situacao === "entregue").length;
+        if (aValidar) {
+          push("Pesquisa · IC", `${aValidar} relatório(s) do seu aluno aguardando a sua validação`,
+            "/pesquisa/ic/#meusprojetos", titulo, true);
+        }
+      }
+    }
+
+    // 3) ICEM — o bolsista do Ensino Médio escolhe o projeto e entrega o
+    //    relatório da turma dele. É a conta que mais chega sem saber o que fazer.
+    try {
+      const bolsistas = await lerBolsistasEM();
+      const meu = bolsistas.find((b) =>
+        (b.email || "").toLowerCase() === u.email.toLowerCase()
+        || (cpf && normalizarCpf(b.cpf || "") === normalizarCpf(cpf)));
+      if (meu && meu.situacao !== "desligado") {
+        if (!projetoAtualEM(meu)) {
+          push("Pesquisa · ICEM", "Escolha o projeto de pesquisa que você vai acompanhar",
+            "/pesquisa/ic/#meuem", "", true);
+        }
+        for (const tipo of relatoriosExigidos(turmaEmDe(meu.turma))) {
+          const rel = (meu.relatorios || {})[tipo] || {};
+          if (["entregue", "validado"].includes(rel.situacao)) continue;
+          push("Pesquisa · ICEM",
+            rel.situacao === "devolvido"
+              ? `Relatório ${tipo} devolvido para correção`
+              : `Envie o relatório ${tipo}`,
+            "/pesquisa/ic/#meuem", `Turma ${meu.turma || ""}`.trim(), true);
+        }
+      }
+    } catch { /* sem ICEM, sem pendência */ }
+
+    // 4) Monitoria — o monitor preenche a ficha e entrega o relatório; a
+    //    orientação valida o do seu monitor.
+    try {
+      const projs = await lerMonitorias();
+      for (const m of projs) {
+        const papel = monPapel(m, eu);
+        if (!papel || !["monitor", "orientador"].includes(papel)) continue;
+        const nome = (m.disciplina || m.protocolo || "projeto").slice(0, 60);
+        if (papel === "monitor") {
+          const meu = (m.monitores || []).find((x) =>
+            (x.email || "").toLowerCase() === u.email.toLowerCase()
+            || (cpf && normalizarCpf(x.cpf || "") === normalizarCpf(cpf)));
+          if (meu && monFaltaCadastro(meu).length) {
+            push("Monitoria", "Preencha a sua ficha de inscrição",
+              "/monitoria/", `${nome} — sem ela o projeto não segue`, true);
+          }
+          const rel = meu?.relatorio || {};
+          if (m.status === "aprovado" && !["enviado", "validado", "homologado"].includes(rel.status)) {
+            push("Monitoria", rel.status === "devolvido"
+              ? "Relatório devolvido para correção" : "Envie o seu relatório de monitoria",
+              "/monitoria/", nome, rel.status === "devolvido");
+          }
+        }
+        if (papel === "orientador") {
+          const aValidar = (m.monitores || []).filter((x) => x.relatorio?.status === "enviado").length;
+          if (aValidar) {
+            push("Monitoria", `${aValidar} relatório(s) de monitor aguardando a sua validação`,
+              "/monitoria/", nome, true);
+          }
+          if (m.status === "devolvido") {
+            push("Monitoria", "Projeto devolvido: corrija e reenvie", "/monitoria/", nome, true);
+          }
+        }
+      }
+    } catch { /* idem */ }
+
+    // 5) Extensão — o relatório final da ação de quem a submeteu.
+    try {
+      const acoes = await lerAcoes();
+      const minhas = acoes.filter((a) =>
+        (a.criadoPor || "").toLowerCase() === u.email.toLowerCase()
+        || (a.proposta?.respEmail || "").toLowerCase() === u.email.toLowerCase());
+      for (const a of minhas) {
+        const nome = (a.proposta?.nomeAcao || a.numeroAcao || "ação").slice(0, 60);
+        if (a.status === "devolvida") {
+          push("Extensão", "Proposta devolvida: corrija e reenvie",
+            `/extensao/#acao/${a.id}`, nome, true);
+        } else if (relatorioPendente(a)) {
+          push("Extensão", "Entregue o relatório final da ação",
+            `/extensao/#acao/${a.id}`, nome, true);
+        }
+      }
+    } catch { /* idem */ }
+
+    // 6) Aulas práticas — o rascunho que ficou aberto e o devolvido.
+    try {
+      const rels = await lerPraticas();
+      const meus = rels.filter((r) => (r.professor || "").toLowerCase() === u.email.toLowerCase());
+      const devolvidos = meus.filter((r) => r.status === "devolvido").length;
+      const rascunhos = meus.filter((r) => r.status === "rascunho").length;
+      if (devolvidos) {
+        push("Aulas práticas", `${devolvidos} relatório(s) devolvido(s) para correção`,
+          "/praticas/", "", true);
+      }
+      if (rascunhos) {
+        push("Aulas práticas", `${rascunhos} relatório(s) em rascunho, ainda não enviado(s)`,
+          "/praticas/", "");
+      }
+    } catch { /* idem */ }
+
+    res.json({ pendencias: p, total: p.length });
+  } catch (e) {
+    console.error("[minhas-pendencias]", e);
+    res.json({ pendencias: [], total: 0 });   // nunca derruba a página inicial
+  }
+});
 
 /**
  * O sino de alertas do topo: o que espera decisão ou atenção, com o recorte
@@ -11715,7 +11895,13 @@ async function criarPreCadastros() {
       if (!d.nome) continue;
       perfis[email] = {
         nome: d.nome, cpf: porCpf.get(d.cpf) === 1 ? d.cpf : "", curso: d.curso || "",
-        funcao: d.papel === "aluno" ? "" : "professor",
+        /* O aluno também sai com a FUNÇÃO declarada (achado de set/2026, no
+           caso Glenda): deixá-la em branco não poupava ninguém — "função na
+           instituição" é campo obrigatório e a etapa de completar o perfil a
+           cobrava do mesmo jeito —, e enquanto isso a barra do topo o
+           chamava de DOCENTE e o portal lhe oferecia Aulas Práticas e Atas,
+           que não são dele. Com a função certa, o filtro por papel acerta. */
+        funcao: d.papel === "aluno" ? "aluno" : "professor",
         preCadastro: true, criadoEm: new Date().toISOString(),
         criadoPor: "sistema (pré-cadastro a partir dos documentos do edital)",
       };
@@ -11735,6 +11921,46 @@ async function criarPreCadastros() {
     console.error("Falha ao criar os pré-cadastros:", e.message);
   }
 }
+/**
+ * Os pré-cadastros de aluno criados ANTES da correção acima ficaram com a
+ * função em branco, e por isso o portal os tratava como docentes. Esta
+ * passada declara a função de quem é aluno em algum projeto e não é
+ * orientador em nenhum — só nos perfis que o próprio sistema criou e que a
+ * pessoa ainda não reivindicou (preCadastro), para não sobrescrever o que
+ * alguém escolheu sobre si mesmo.
+ */
+async function corrigirFuncaoDosAlunosIC() {
+  const marca = "sys-ic-funcao-aluno-v1";
+  try {
+    if (await storage.get(marca)) return;
+    const projetos = await lerProjetos();
+    const alunos = new Set(); const orientadores = new Set();
+    for (const p of projetos) {
+      const o = String(p.orientador?.email || "").toLowerCase();
+      if (o) orientadores.add(o);
+      for (const a of p.alunos || []) {
+        const e = String(a.email || "").toLowerCase();
+        if (e) alunos.add(e);
+      }
+    }
+    const perfis = await carregarPerfis();
+    let n = 0;
+    for (const e of alunos) {
+      const p = perfis[e];
+      if (!p || !p.preCadastro || orientadores.has(e)) continue;
+      if (String(p.funcao || "").trim()) continue;
+      perfis[e] = { ...p, funcao: "aluno" };
+      n += 1;
+    }
+    if (n) await storage.set(PERFIS_KEY, JSON.stringify(perfis));
+    await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), corrigidos: n }));
+    await storage.flush?.();
+    console.log(`ARCHÉ IC · função declarada em ${n} pré-cadastro(s) de aluno`);
+  } catch (e) {
+    console.error("Falha ao corrigir a função dos alunos:", e.message);
+  }
+}
+
 const cursoNomeDe = (slug) => (CURSOS.find((c) => c.slug === slug) || {}).nome || "";
 
 /**
@@ -14460,6 +14686,7 @@ app.listen(port, () => {
       completarTurmaEM2025, criarPreCadastrosEM, convidarTurmaEM2025,
       chamadaRegularizacao012025,
       propagarCpfOrientadores, identidadeInstitucionalDoProReitor, criarPreCadastros,
+      corrigirFuncaoDosAlunosIC,
       aplicarAvaliacoesTranscritas,
       subirEspacosIniciais,      // catálogo do ARCHÉ ES, uma única vez
       aplicarCoresDosEspacos,    // as etiquetas de cor, no catálogo já gravado
