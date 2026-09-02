@@ -1880,6 +1880,16 @@ public/
   está aberta é o SERVIDOR (`prazoRelatorios.regularizacao`), e é ele que a tela passa a
   consultar; o selo vira "ciclo encerrado · regularização aberta", que é a verdade — o ciclo
   fechou E a entrega está reaberta.
+- **O BOTÃO "LER E VALIDAR" É DA LINHA, NÃO DO PROJETO** (guia Relatórios da SPA da IC, achado
+  do dono ago/2026: "o botão ler e validar não deveria aparecer após eu ter lido e validado,
+  correto?" — correto, e ele ficava). Eram dois defeitos na mesma linha. O botão olhava
+  `p.aValidar`, que conta os relatórios do PROJETO INTEIRO, os dois tipos juntos: com o final
+  esperando, ele aparecia também na linha do **parcial** — e continuava lá depois de o parcial
+  ser validado. E o selo saía de `x.falta` do servidor, que responde "não falta" tanto para o
+  ENTREGUE quanto para o VALIDADO: a linha dizia "entregue" nos dois casos, então **validar não
+  mudava nada na tela**. Agora os dois olham o relatório DAQUELE tipo (`relsDe`/`aValidarDe`,
+  sobre `RELS.relatorios` — a mesma fonte que a guia Bolsistas já usava): o selo distingue
+  "entregue — a validar" de "validado", e o botão só existe onde há o que validar.
 - **UM NOME POR MOMENTO: "Aguardando validação" dizia duas coisas opostas** (`situacaoDaAcao` em
   lib/situacao.js, mesmo relato: "tantos ícones e etapas que estavam em versões anteriores e que
   ficaram que deixa tudo tão confuso"). O selo saía IGUAL para a **proposta** esperando aprovação

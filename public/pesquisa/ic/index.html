@@ -3453,13 +3453,27 @@ function renderRelatoriosGestao() {
   // enviado nada. O ciclo concluído só é "encerrado" quando não há janela
   // de regularização reaberta (caso do final de 01/2025, até out/2026).
   const prazoDe = (p, tipo) => (p.prazoRelatorios?.prazos || []).find((x) => x.tipo === tipo);
+  /* Os relatórios DAQUELE tipo, no projeto — a mesma fonte que a guia
+     Bolsistas já usa. Sem isto a tela só tinha o `falta` do servidor, que
+     responde "não falta" tanto para o ENTREGUE quanto para o VALIDADO: o
+     selo dizia "entregue" nos dois, e validar não mudava nada na linha
+     (achado do dono, ago/2026). */
+  const relsDe = (p, tipo) => (RELS.relatorios || [])
+    .filter((r) => r.projetoId === p.id && r.tipo === tipo);
+  const aValidarDe = (p, tipo) => relsDe(p, tipo).filter((r) => r.situacao === "enviado").length;
   const sitTipo = (p, tipo) => {
     const x = prazoDe(p, tipo);
     if (p.status === "concluido" && !x) return `<span class="badge b-validado">encerrado</span>`;
     if (!x) return `<span class="badge b-rascunho">—</span>`;
     if (!(p.alunos || []).length) return `<span class="badge b-rascunho">sem aluno indicado</span>`;
     if (hoje < x.abre && x.falta) return `<span class="badge b-rascunho">abre em ${fmtBr(x.abre)}</span>`;
-    if (!x.falta) return `<span class="badge b-validado">entregue</span>`;
+    if (!x.falta) {
+      // entregue e validado são coisas diferentes, e o selo passa a dizer qual
+      const n = aValidarDe(p, tipo);
+      return n
+        ? `<span class="badge b-enviado">entregue — a validar${n > 1 ? ` (${n})` : ""}</span>`
+        : `<span class="badge b-validado">validado</span>`;
+    }
     if (x.atrasado) return `<span class="badge b-atrasada">atrasado · venceu ${fmtBr(x.vence)}</span>`;
     return `<span class="badge b-aprovado">a entregar · vence ${fmtBr(x.vence)}</span>`;
   };
@@ -3481,7 +3495,10 @@ function renderRelatoriosGestao() {
               · ${p.relatorios} relatório(s) no sistema${p.aValidar ? ` · ${p.aValidar} a validar` : ""}</div>
           </div>
           ${sitTipo(p, tipo)}
-          ${p.aValidar ? `<button class="bt bt-ok" style="padding:4px 10px"
+          ${/* o botão é DESTA linha: `p.aValidar` conta o projeto inteiro, os
+                dois tipos juntos, e por isso aparecia na linha do parcial
+                porque o FINAL esperava — e continuava lá depois de validado */
+            aValidarDe(p, tipo) ? `<button class="bt bt-ok" style="padding:4px 10px"
             onclick="lerEValidarIC('${esc(p.id)}','${tipo}')">📖 ler e validar</button>` : ""}
         </div>`).join("") || `<div class="vazio">Nenhum projeto em execução neste ciclo.</div>`}
       </div>
