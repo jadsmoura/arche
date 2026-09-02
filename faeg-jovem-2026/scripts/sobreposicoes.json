@@ -1,0 +1,16 @@
+{
+ "goias": {
+  "lista": {
+   "resposta": "Pendente",
+   "justificativa": "Documento inserido pelo grupo, mas não entregue pelo servidor da plataforma (falha do sistema, não da equipe). Item não lançado até a recuperação do arquivo.",
+   "revisado": "pendência da plataforma — o avaliador manteve o item em aberto; ver pendencias-plataforma.md"
+  }
+ },
+ "mutunopolis": {
+  "lista": {
+   "resposta": "Sim",
+   "justificativa": "Lista com cabeçalho completo e, nas 11 linhas, nome e telefone de cada participante (5.9.8.2); digitada, sem rubrica manuscrita, dispensada pela decisão da diretoria de 28/08/2026 (D1).",
+   "revisado": "revisto pela decisão D1 da diretoria — a assinatura deixou de ser exigida"
+  }
+ }
+}

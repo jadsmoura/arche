@@ -1,0 +1,16 @@
+{
+  "joviania": {
+    "card": {
+      "resposta": "Pendente",
+      "justificativa": "Card inserido pelo grupo, mas não entregue pelo servidor da plataforma (erro do CDN). Item não lançado até a recuperação do arquivo.",
+      "revisado": "pendência da plataforma — mesma régua de Goiás (1ª Ação Social) e Padre Bernardo (1º Evento de Saúde)"
+    }
+  },
+  "paranaiguara": {
+    "relatorio": {
+      "resposta": "Pendente",
+      "justificativa": "Relatório inserido pelo grupo, mas não entregue pelo servidor da plataforma (erro do CDN). Item não lançado até a recuperação do arquivo.",
+      "revisado": "pendência da plataforma — mesma régua de Goiás (1ª Ação Social) e Padre Bernardo (1º Evento de Saúde)"
+    }
+  }
+}

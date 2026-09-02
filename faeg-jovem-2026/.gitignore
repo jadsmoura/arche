@@ -1,0 +1,14 @@
+# Material das equipes NÃO entra no repositório.
+# As listas de presença trazem nome completo e telefone, e o Anexo I da
+# Retificação nº 02 traz CPF, RG e data de nascimento de menores (ECA, LGPD,
+# Lei 15.211/2025). Versionar isso publicaria dado pessoal de menor.
+01_equipes/*
+!01_equipes/.gitkeep
+
+# As saídas do validador são só contagens, mas o CSV de conformidade pode
+# carregar títulos de evento e o mapa sigla→pessoa. Fica fora por precaução.
+02_saidas/*
+!02_saidas/.gitkeep
+
+# equipes.csv liga identificador de membro à pessoa (ver estrutura-de-pastas).
+00_config/equipes.csv
