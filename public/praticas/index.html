@@ -156,7 +156,7 @@
       <span>ARCHÉ <b>AP</b></span>
     </a>
     <div class="side-nav">
-      <div class="side-lab">AULAS PRÁTICAS</div>
+
       <div id="menu"></div>
     </div>
     <div class="side-pe">
@@ -221,41 +221,62 @@ const icone = (d) => `<svg width="17" height="17" viewBox="0 0 24 24" fill="none
    professor vê as aulas dele e o formulário. "Relatórios" é onde a
    coordenação valida E onde ela emite o documento do semestre — é lá também
    que fica a assinatura, que o dono pediu junto do relatório. */
+/* Os DOIS documentos do módulo têm grupos próprios na barra (pedido do dono,
+   ago/2026): são processos distintos — a aula prática de uma disciplina e a
+   atividade de extensão que é componente curricular dela —, e misturá-los numa
+   lista só obrigava a filtrar por tipo para achar o que se procura. O que eles
+   partilham (o cadastro do semestre e a coordenação que valida) fica num
+   terceiro grupo, porque é do MÓDULO, não de um dos dois. */
 const SECOES = [
-  { k: "painel", rot: "Painel do semestre", ic: IC.painel, gestao: true, tit: "Painel do semestre",
+  { k: "painel", grupo: "AULAS PRÁTICAS", rot: "Painel do semestre", ic: IC.painel, gestao: true,
+    tit: "Painel do semestre",
     sub: "Quantos relatórios vieram, que disciplinas ficaram sem registro e de quem cobrar." },
-  { k: "relatorios", rot: "Relatórios", ic: IC.lista, tit: "Relatórios do semestre",
-    sub: "Aulas práticas e atividades de extensão curricular — com filtro por semestre, tipo, disciplina, professor e situação." },
-  { k: "nova", rot: "Registrar aula prática", ic: IC.nova, tit: "Registrar aula prática",
+  { k: "relatorios", grupo: "AULAS PRÁTICAS", rot: "Relatórios", ic: IC.lista,
+    tit: "Relatórios de aula prática",
+    sub: "As aulas registradas — com filtro por semestre, disciplina, professor e situação." },
+  { k: "nova", grupo: "AULAS PRÁTICAS", rot: "Registrar aula prática", ic: IC.nova,
+    tit: "Registrar aula prática",
     sub: "Depois da aula: o objetivo, o local, as atividades e as fotos da prática." },
-  { k: "cadastro", rot: "Professores e Disciplinas", ic: IC.cadastro, gestao: true,
+
+  { k: "ec", grupo: "CURRICULARIZAÇÃO DA EXTENSÃO", rot: "Atividades", ic: IC.lista,
+    tit: "Curricularização da Extensão",
+    sub: "As atividades de extensão que são componente curricular das disciplinas — registro, validação e as horas do PPC." },
+  { k: "ecnova", grupo: "CURRICULARIZAÇÃO DA EXTENSÃO", rot: "Registrar atividade", ic: IC.nova,
+    tit: "Registrar extensão curricular",
+    sub: "O relatório no modelo da PROAC: o que foi feito, quem foi atendido, quantas horas e as evidências." },
+
+  { k: "cadastro", grupo: "MÓDULO", rot: "Professores e Disciplinas", ic: IC.cadastro, gestao: true,
     tit: "Professores e Disciplinas", sub: "Quem leciona o quê, semestre a semestre. É esta lista que diz o que falta registrar." },
-  { k: "equipe", rot: "Coordenação", ic: IC.equipe, geral: true, tit: "Coordenação do módulo",
+  { k: "equipe", grupo: "MÓDULO", rot: "Coordenação", ic: IC.equipe, geral: true, tit: "Coordenação do módulo",
     sub: "Quem valida os relatórios de cada curso, e quem é a coordenação pedagógica." },
 ];
 
 function ehCoord() { return !!D && (D.gestao || (D.cursos || []).length > 0); }
 
 function montarMenu() {
-  $("menu").innerHTML = SECOES
-    .filter((s) => (!s.gestao || ehCoord()) && (!s.geral || D.gestao))
-    .map((s) => `<button class="side-item${s.k === SECAO ? " on" : ""}" onclick="nav('${s.k}')">
-      ${icone(s.ic)}${s.rot}</button>`).join("");
+  const visiveis = SECOES.filter((s) => (!s.gestao || ehCoord()) && (!s.geral || D.gestao));
+  let grupo = "";
+  $("menu").innerHTML = visiveis.map((s) => {
+    const cab = s.grupo !== grupo ? `<div class="side-lab">${esc(s.grupo || "")}</div>` : "";
+    grupo = s.grupo;
+    return cab + `<button class="side-item${s.k === SECAO ? " on" : ""}" onclick="nav('${s.k}')">
+      ${icone(s.ic)}${s.rot}</button>`;
+  }).join("");
 }
 
 function nav(k) {
   const s = SECOES.find((x) => x.k === k) || SECOES[1];
   SECAO = s.k;
+  // a guia de registro decide o TIPO: entrar por "Registrar atividade" é
+  // entrar no formulário da extensão curricular, e não há o que escolher
+  if (s.k === "nova") TIPO_NOVO = "pratica";
+  if (s.k === "ecnova") TIPO_NOVO = "extensao";
   $("crumb").textContent = s.rot;
-  /* O título da tela de registro segue o TIPO escolhido: a mesma view serve
-     aos dois documentos, e dizer "aula prática" sobre o formulário da
-     extensão curricular seria a tela mentindo sobre o que se está fazendo. */
-  $("titulo").textContent = (s.k === "nova" && typeof ehExt === "function" && ehExt())
-    ? "Registrar extensão curricular" : s.tit;
+  $("titulo").textContent = s.tit;
   $("subtitulo").textContent = s.sub;
   montarMenu();
   const desenha = { painel: renderPainel, relatorios: renderRelatorios, nova: renderNova,
-    cadastro: renderCadastro, equipe: renderEquipe }[s.k];
+    ec: renderEC, ecnova: renderNova, cadastro: renderCadastro, equipe: renderEquipe }[s.k];
   $("tela").innerHTML = desenha ? desenha() : "";
 }
 
@@ -319,27 +340,6 @@ function renderPainel() {
       <div class="kpi"><div class="l">Devolvidos</div><div class="v">${p.devolvidos}</div>
         <div class="d">esperando correção do professor</div></div>
     </div>
-    ${(p.extensaoCurricular?.total || 0) ? `<div class="card">
-      <div class="card-t">Extensão curricular no semestre</div>
-      <div class="card-s">As atividades de extensão que são <b>componente curricular</b> das
-        disciplinas (Resolução CNE/CES nº 7/2018). Elas <b>não emitem certificado</b> — a carga
-        horária é do próprio curso — e contam à parte das aulas práticas. As horas só entram depois
-        que a coordenação valida: atividade não validada não comprova carga horária.</div>
-      <div class="kpis" style="margin-bottom:0">
-        <div class="kpi"><div class="l">Atividades relatadas</div>
-          <div class="v">${p.extensaoCurricular.total}</div>
-          <div class="d">${p.extensaoCurricular.validados} validada(s) · ${p.extensaoCurricular.enviados} aguardando</div></div>
-        <div class="kpi"><div class="l">Horas curricularizadas</div>
-          <div class="v">${p.extensaoCurricular.horas}</div>
-          <div class="d">só das atividades validadas</div></div>
-        <div class="kpi"><div class="l">Acadêmicos envolvidos</div>
-          <div class="v">${p.extensaoCurricular.academicos}</div>
-          <div class="d">nas atividades validadas</div></div>
-        <div class="kpi"><div class="l">Disciplinas alcançadas</div>
-          <div class="v">${p.extensaoCurricular.disciplinas}</div>
-          <div class="d">com ao menos uma atividade</div></div>
-      </div>
-    </div>` : ""}
     <div class="duplo">
       <div class="card">
         <div class="card-t">Professores sem nenhum registro</div>
@@ -383,8 +383,8 @@ const nomeCurso = (slug) => (D.catalogoCursos || []).find((c) => c.slug === slug
 /* ============================ RELATÓRIOS =============================== */
 function renderRelatorios() {
   const lista = (D.relatorios || []).filter((r) =>
-    (!F.semestre || r.semestre === F.semestre)
-    && (!F.tipo || (r.tipo || "pratica") === F.tipo)
+    (r.tipo || "pratica") === "pratica"
+    && (!F.semestre || r.semestre === F.semestre)
     && (!F.disciplina || r.disciplina === F.disciplina)
     && (!F.professor || (r.professor?.email || "") === F.professor)
     && (!F.status || r.status === F.status))
@@ -406,22 +406,13 @@ function renderRelatorios() {
           <option value="">Professor(a): todos</option>
           ${professores.map(([e, n]) => `<option value="${esc(e)}" ${F.professor === e ? "selected" : ""}>${esc(n)}</option>`).join("")}
         </select>` : "<span></span>"}
-        <select onchange="F.tipo=this.value;ArchePag.zerar('ap-relatorios');nav('relatorios')">
-          <option value="">Tipo: todos</option>
-          ${(D.tipos || []).map((t) => `<option value="${esc(t.codigo)}" ${F.tipo === t.codigo ? "selected" : ""}>${esc(t.nome)}</option>`).join("")}
-        </select>
         <select onchange="F.status=this.value;ArchePag.zerar('ap-relatorios');nav('relatorios')">
           <option value="">Situação: todas</option>
           ${Object.entries(ROT).map(([k, v]) => `<option value="${k}" ${F.status === k ? "selected" : ""}>${esc(v)}</option>`).join("")}
         </select>
       </div>
       <div class="exp">
-        <button class="bt bt-pri" onclick="novoRelatorio('pratica')">＋ Registrar aula prática</button>
-        <!-- A extensão curricular entrou aqui em ago/2026 (pedido da PROAC): é
-             componente curricular da disciplina, não certifica à parte, e o
-             fluxo de que ela precisa é o que este módulo já faz. -->
-        <button class="bt bt-sec" onclick="novoRelatorio('extensao')"
-          title="A atividade de extensão que é componente curricular da disciplina">＋ Registrar extensão curricular</button>
+        <button class="bt bt-pri" onclick="nav('nova')">＋ Registrar aula prática</button>
         ${ehCoord() ? `<a class="bt bt-sec" target="_blank" rel="noopener"
           href="/api/praticas/semestral.pdf?semestre=${encodeURIComponent(F.semestre)}">📄 Relatório semestral</a>` : ""}
       </div>
@@ -451,7 +442,9 @@ function cartao(r) {
       </div>
       <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
         <span class="badge b-${esc(r.status)}">${esc(ROT[r.status] || r.status)}</span>
-        ${(r.tipo || "pratica") === "extensao" ? `<span class="badge"
+        <!-- dentro da guia da curricularização a etiqueta seria ruído: ali
+             TODA linha é extensão curricular -->
+        ${(r.tipo || "pratica") === "extensao" && SECAO !== "ec" ? `<span class="badge"
           style="background:var(--roxo-soft);color:var(--roxo)">Extensão curricular</span>` : ""}
       </div>
     </div>
@@ -478,15 +471,91 @@ function cartao(r) {
   </div>`;
 }
 
+/* ================= CURRICULARIZAÇÃO DA EXTENSÃO ========================
+   Guia própria (pedido do dono, ago/2026). É o outro documento do módulo, e
+   ele responde a outra pergunta: não "quantas aulas práticas o curso deu",
+   mas "quantas horas de extensão a disciplina curricularizou, com quem, e
+   para quem". Por isso os números do alto são os DELE — horas, acadêmicos,
+   pessoas atendidas —, e não os do painel das aulas. */
+function renderEC() {
+  const todas = (D.relatorios || []).filter((r) => (r.tipo || "") === "extensao");
+  const lista = todas.filter((r) =>
+    (!F.semestre || r.semestre === F.semestre)
+    && (!F.disciplina || r.disciplina === F.disciplina)
+    && (!F.professor || (r.professor?.email || "") === F.professor)
+    && (!F.status || r.status === F.status))
+    .sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  const disciplinas = [...new Set(todas.map((r) => r.disciplina).filter(Boolean))].sort();
+  const professores = [...new Map(todas.filter((r) => r.professor?.email)
+    .map((r) => [r.professor.email, r.professor.nome || r.professor.email])).entries()];
+  const fila = lista.filter((r) => r.status === "enviado" && r.podeValidar !== false);
+  const e = D.panorama?.extensaoCurricular;
+  return `
+    <div class="card">
+      <div class="card-t">O que é esta guia</div>
+      <div class="card-s">A atividade de extensão que é <b>componente curricular</b> de uma
+        disciplina (Resolução CNE/CES nº 7/2018). Ela <b>não emite certificado</b> — quem participa
+        cumpre a carga horária do próprio curso, que já consta do histórico —, e por isso o que se
+        faz aqui é <b>registrar e validar</b>: o professor relata, a coordenação do curso decide
+        (valida, devolve ou reprova), e o processo termina nela. A PROAC e a PROPPEX decidem no
+        lugar da coordenação e reabrem o processo se houver irregularidade.
+        A proposta e a aprovação da ação continuam no <b>ARCHÉ EX</b>.</div>
+    </div>
+    ${e && e.total ? `<div class="kpis">
+      <div class="kpi"><div class="l">Atividades no semestre</div><div class="v">${e.total}</div>
+        <div class="d">${e.validados} validada(s) · ${e.enviados} aguardando</div></div>
+      <div class="kpi"><div class="l">Horas curricularizadas</div><div class="v">${e.horas}</div>
+        <div class="d">só das atividades validadas</div></div>
+      <div class="kpi"><div class="l">Acadêmicos envolvidos</div><div class="v">${e.academicos}</div>
+        <div class="d">nas atividades validadas</div></div>
+      <div class="kpi"><div class="l">Disciplinas alcançadas</div><div class="v">${e.disciplinas}</div>
+        <div class="d">com ao menos uma atividade</div></div>
+    </div>` : ""}
+    <div class="card" style="padding:16px 18px">
+      <div class="grid4">
+        ${seletorSemestre()}
+        <select onchange="F.disciplina=this.value;ArchePag.zerar('ap-ec');nav('ec')">
+          <option value="">Disciplina: todas</option>
+          ${disciplinas.map((d) => `<option ${F.disciplina === d ? "selected" : ""}>${esc(d)}</option>`).join("")}
+        </select>
+        ${ehCoord() ? `<select onchange="F.professor=this.value;nav('ec')">
+          <option value="">Professor(a): todos</option>
+          ${professores.map(([em, nm]) => `<option value="${esc(em)}" ${F.professor === em ? "selected" : ""}>${esc(nm)}</option>`).join("")}
+        </select>` : "<span></span>"}
+        <select onchange="F.status=this.value;ArchePag.zerar('ap-ec');nav('ec')">
+          <option value="">Situação: todas</option>
+          ${Object.entries(ROT).map(([k, v]) => `<option value="${k}" ${F.status === k ? "selected" : ""}>${esc(v)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="exp">
+        <button class="bt bt-pri" onclick="nav('ecnova')">＋ Registrar atividade</button>
+      </div>
+    </div>
+    ${ehCoord() && fila.length ? `<div class="banner ba-warn">
+      <b>${fila.length}</b> atividade(s) aguardando a sua validação.</div>` : ""}
+    ${(() => {
+      const pag = ArchePag.recorte("ap-ec", lista, () => nav("ec"));
+      return lista.length ? pag.barra + pag.itens.map(cartao).join("")
+        : `<div class="card"><div class="vazio">Nenhuma atividade de extensão curricular com esses filtros.</div></div>`;
+    })()}`;
+}
+
 /* ===================== FORMULÁRIO DA AULA PRÁTICA ====================== */
 /* O TIPO se escolhe ao CRIAR e não muda depois: é ele que decide os campos
    cobrados, o título do documento e a coluna em que a atividade conta. */
 let TIPO_NOVO = "pratica";
-function novoRelatorio(tipo) { TIPO_NOVO = tipo || "pratica"; EDIT = null; nav("nova"); }
+function novoRelatorio(tipo) {
+  TIPO_NOVO = tipo || "pratica"; EDIT = null;
+  nav(TIPO_NOVO === "extensao" ? "ecnova" : "nova");
+}
+/** A guia do formulário do tipo que está aberto — é para ela que se volta. */
+const guiaDoForm = () => (ehExt() ? "ecnova" : "nova");
 function editar(id) {
   EDIT = (D.relatorios || []).find((r) => r.id === id) || null;
   TIPO_NOVO = EDIT?.tipo || "pratica";
-  nav("nova");
+  // cada documento se edita na guia DELE: abrir a extensão curricular sob
+  // "Aulas Práticas" faria a barra dizer uma coisa e a tela mostrar outra
+  nav(TIPO_NOVO === "extensao" ? "ecnova" : "nova");
 }
 const tipoAtual = () => (EDIT ? (EDIT.tipo || "pratica") : TIPO_NOVO);
 const camposDoTipo = () => (D.camposPorTipo?.[tipoAtual()] || D.campos || []);
@@ -611,7 +680,7 @@ function renderNova() {
         ${r.id ? `<button class="bt bt-ok" onclick="salvar(true)">✓ Enviar à coordenação</button>` : ""}
         ${r.id ? `<a class="bt bt-ghost" target="_blank" rel="noopener"
           href="/api/praticas/${encodeURIComponent(r.id)}/pdf">📄 Conferir o PDF</a>` : ""}
-        <button class="bt bt-ghost" onclick="EDIT=null;nav('relatorios')">Cancelar</button>
+        <button class="bt bt-ghost" onclick="EDIT=null;nav(ehExt() ? 'ec' : 'relatorios')">Cancelar</button>
       </div>
     </div>
     ${r.id ? `<div class="card">
@@ -673,7 +742,7 @@ async function salvar(enviar) {
   if (!enviar) {
     await carregar();
     EDIT = (D.relatorios || []).find((x) => x.id === j.relatorio.id) || j.relatorio;
-    nav("nova");
+    nav(guiaDoForm());
     $("f-alerta").innerHTML = `<div class="banner ba-ok">Rascunho salvo.${
       (j.falta || []).length ? ` Falta: ${esc(j.falta.join(" · "))}` : " Pode enviar à coordenação."}</div>`;
     return;
@@ -724,7 +793,7 @@ async function subirFotos() {
   inp.disabled = false; inp.value = "";
   await carregar();
   EDIT = (D.relatorios || []).find((x) => x.id === EDIT.id) || EDIT;
-  nav("nova");
+  nav(guiaDoForm());
 }
 
 /* As evidências sobem SEM redução e sem exigir imagem: são documentos (a
@@ -745,7 +814,7 @@ async function subirEvidencias() {
   inp.disabled = false; inp.value = "";
   await carregar();
   EDIT = (D.relatorios || []).find((x) => x.id === EDIT.id) || EDIT;
-  nav("nova");
+  nav(guiaDoForm());
 }
 
 async function removerFoto(fileId) {
@@ -757,7 +826,7 @@ async function removerFoto(fileId) {
   EDIT.fotos = j.fotos; EDIT.evidencias = j.evidencias;
   await carregar();
   EDIT = (D.relatorios || []).find((x) => x.id === EDIT.id) || EDIT;
-  nav("nova");
+  nav(guiaDoForm());
 }
 
 async function apagar(id) {

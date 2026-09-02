@@ -2665,6 +2665,12 @@ public/
   decisão ainda cabe, e quem reabre escolhe para onde — `enviado` recoloca na fila da coordenação
   (a irregularidade está na DECISÃO), `devolvido` volta ao professor (está no RELATÓRIO). O
   processo **continua terminando no coordenador**, que é a regra do módulo e não muda por isto.
+  A barra do módulo tem **três grupos** (pedido do dono, ago/2026): *Aulas Práticas* (painel,
+  relatórios, registrar), **Curricularização da Extensão** (atividades e registrar) e *Módulo* (o
+  cadastro do semestre e a coordenação, que servem aos dois). São processos distintos e listas
+  distintas — misturá-los numa só obrigava a filtrar por tipo para achar o que se procura —, e a
+  guia da curricularização abre com os números que são DELA: horas curricularizadas, acadêmicos
+  envolvidos e disciplinas alcançadas, contados só do que a coordenação já validou.
 - **OS CAMPOS SAEM DO MODELO DA PROAC, cortado** (o dono, ago/2026, lendo o "Relatório Final de
   Curricularização da Extensão": "está muito poluído e com perguntas demais, isso dificulta a
   experiência do usuário — removeria os campos 7, 11 e 12 e simplificaria do 3 ao 10"). **Saíram
