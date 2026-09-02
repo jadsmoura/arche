@@ -356,6 +356,8 @@ let META = { cursos: [], modalidades: [], status: [], rotulos: {}, gestao: false
 // todos os grupos que a tela oferece, na ordem em que aparecem
 const gruposConhecidos = () => [...(META.certificados || []), ...(META.informados || [])];
 let PROJETOS = [], ETAPAS = [], RELS = { relatorios: [], pendentes: [] };
+// projetoId → estudantes do ICEM que ACOMPANHAM aquele projeto (só gestão)
+let EM_POR_PROJETO = {};
 let ATUAL = null, PODE = {}, ME = null, SECAO = "painel";
 // contagens de usuários do portal (só gestor geral) — chegam depois do
 // painel desenhado, porque vêm de outra rota; null = ainda não vieram
@@ -809,6 +811,7 @@ async function carregar() {
     api("/api/ic"), api("/api/ic/cronograma"), api("/api/ic/relatorios"),
   ]);
   PROJETOS = lista.projetos || [];
+  EM_POR_PROJETO = lista.emPorProjeto || {};
   ETAPAS = crono.etapas || [];
   RELS = { relatorios: rel.relatorios || [], pendentes: rel.pendentes || [] };
 }
@@ -2136,11 +2139,11 @@ async function renderCertificados() {
    e trocar de reitor não pode depender de um deploy. */
 function renderAssinaturas() {
   const a = CERTS?.assinaturas || {};
-  const cartao = (quem, rotulo, nome, onde) => {
+  const cartao = ({ chave: quem, rotulo, nome, onde }) => {
     const tem = a[quem];
     return `<div class="linha">
       <div class="txt">
-        <div class="p1">${rotulo} — ${esc(nome)} <span class="p2">· ${esc(onde)}</span></div>
+        <div class="p1">${esc(rotulo)}${nome ? ` — ${esc(nome)}` : ""}${onde ? ` <span class="p2">· ${esc(onde)}</span>` : ""}</div>
         <div class="p2">${tem
           ? `enviada em ${fmtDH(tem.em)}${tem.arquivo ? ` · ${esc(tem.arquivo)}` : ""}`
           : "nenhuma imagem enviada — o certificado sai com a linha em branco"}</div>
@@ -2166,15 +2169,7 @@ function renderAssinaturas() {
       acompanha o órgão que concebe o programa — a <b>IC</b> é da PROPPEX; a <b>monitoria</b> é
       ação de ensino, sai no timbre da <b>PROAC</b> e é a Pró-Reitora Acadêmica quem assina, ao
       lado do reitor. Sem imagem, sai a linha em branco e nada quebra.</div>
-    ${cartao("proreitor", "Pró-Reitor", "Dr. Jadson Belem de Moura",
-      "certificados da IC e proposta aprovada da Extensão")}
-    ${cartao("proacademica", "Pró-Reitora Acadêmica", "Dra. Matildes José de Oliveira",
-      "certificados de monitoria")}
-    ${cartao("reitor", "Reitor", "Dr. José Mateus dos Santos", "todos os certificados")}
-    ${cartao("coordextensao", "Coordenador de Extensão", "Thiago Brito Steckelberg",
-      "proposta aprovada de curso livre (Extensão)")}
-    ${cartao("coordacao", "Coordenação de Ação Comunitária", "Dra. Camila Cardoso",
-      "proposta aprovada das demais ações de extensão")}
+    ${(CERTS?.quemAssina || []).map(cartao).join("")}
   </div>`;
 }
 
@@ -2686,8 +2681,13 @@ function renderBolsistas() {
           title="Bolsas do UNIEGO em execução — graduação e Ensino Médio juntos, com banco, agência, conta e Pix. Duas abas: para pagamento e pendentes.">
           💰 Folha de pagamento do mês (Excel)</a>
         <a class="bt bt-ghost" href="/api/ic/termos.pdf?tipo=bolsista&edital=${encodeURIComponent(ciclo)}" target="_blank" rel="noopener"
-          title="Modelo institucional, uma folha por aluno — para imprimir e assinar na cerimônia">
+          title="Modelo institucional, uma folha por bolsista — para imprimir e assinar na cerimônia">
           📝 Termos dos bolsistas (PDF)</a>
+        <!-- O voluntário assina OUTRO modelo (PVIC: 8h semanais, sem bolsa e
+             sem conta bancária), e por isso a pilha é outra. -->
+        <a class="bt bt-ghost" href="/api/ic/termos.pdf?tipo=voluntario&edital=${encodeURIComponent(ciclo)}" target="_blank" rel="noopener"
+          title="Modelo do PVIC — 8 horas semanais, sem bolsa e sem conta bancária no documento">
+          📝 Termos dos voluntários (PDF)</a>
         <a class="bt bt-ghost" href="/api/ic/termos.pdf?tipo=orientador&edital=${encodeURIComponent(ciclo)}" target="_blank" rel="noopener"
           title="Um termo por professor, com os projetos que ele orienta">
           📝 Termos dos orientadores (PDF)</a>
@@ -3168,6 +3168,9 @@ function valorDaColuna(p, col) {
     case "professor": return p.orientador?.nome || p.orientador?.email || "";
     case "titulacao": return NIVEL_TIT[titulacaoCodigo(p.orientador?.titulacao)] || 0;
     case "linha": return linhaNome(p.linha);
+    // o primeiro nome basta para agrupar: quem não indicou ninguém não tem
+    // valor nenhum e cai no fim da lista, junto com os demais
+    case "bolsista": return (p.alunos || [])[0]?.nome || (p.alunos || [])[0]?.email || "";
     case "np": return p.classificacao?.np;
     case "cl": return p.classificacao?.cl;
     case "total": case "posicao": return p.classificacao?.total;
@@ -3211,6 +3214,27 @@ function renderClassificacao() {
       title="Ordenar por ${rot || "posição"}" onclick="ordenarPor('${col}')">${rot}${
       ativo ? ` <span style="color:var(--brand-2)">${ORD_CLASS.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`;
   };
+  /* A coluna "Bolsista/voluntário" (pedido do dono, ago/2026): quem é o aluno
+     daquele projeto — e, por consequência, qual professor ainda NÃO fez a
+     indicação, que é a pergunta que se fazia abrindo projeto por projeto.
+     Vai junto o estudante do ICEM que escolheu acompanhar o projeto: o
+     vínculo é o trecho vigente da trajetória dele, então a alteração deferida
+     pela PROPPEX aparece aqui sozinha. "Sem indicação" só se cobra de projeto
+     APROVADO — antes da aprovação não há o que indicar. */
+  const bolsistasDo = (p) => {
+    const alunos = (p.alunos || []).map((a) => `${esc(a.nome || a.email || "—")}${
+      a.bolsista ? "" : ' <span class="muted">· voluntário(a)</span>'}`);
+    const em = (EM_POR_PROJETO[p.id] || []).map((b) => `<span class="muted">🎓 ${esc(b.nome)} · ICEM${
+      b.turma ? ` ${esc(b.turma)}` : ""}</span>`);
+    if (!alunos.length && !em.length) {
+      return ["aprovado", "concluido"].includes(p.status)
+        ? `<span class="badge" style="background:var(--warn-soft);color:var(--warn)"
+             title="Projeto aprovado sem aluno indicado pela orientação">sem indicação</span>`
+        : '<span class="muted">—</span>';
+    }
+    return [...alunos, ...em].join("<br>");
+  };
+
   const quadro = (rotulo, listaBruta) => {
     const chave = `${CICLO_SEL}|${rotulo}`;
     const lista = aplicarOrdem(listaBruta);
@@ -3219,9 +3243,10 @@ function renderClassificacao() {
       ontoggle="this.open ? QUADROS_ABERTOS.add('${esc(chave)}') : QUADROS_ABERTOS.delete('${esc(chave)}')">
     <summary>${rotulo}<span class="qt">${lista.length} proposta(s)</span><span class="seta">▼</span></summary>
     ${lista.length ? `<div class="rolo"><table class="pt">
-      <thead><tr>${th("", "posicao", "4%")}${th("Protocolo", "numero", "11%")}${th("Título", "titulo", "24%")}
-        ${th("Professor(a)", "professor", "16%")}${th("Titulação", "titulacao", "9%")}${th("Categoria", "linha", "13%")}
-        ${th("NP", "np", "6%")}${th("CL", "cl", "6%")}${th("Total", "total", "6%")}${th("Resultado", "resultado", "11%")}</tr></thead>
+      <thead><tr>${th("", "posicao", "3%")}${th("Protocolo", "numero", "10%")}${th("Título", "titulo", "19%")}
+        ${th("Professor(a)", "professor", "13%")}${th("Bolsista/voluntário", "bolsista", "17%")}
+        ${th("Titulação", "titulacao", "8%")}${th("Categoria", "linha", "10%")}
+        ${th("NP", "np", "5%")}${th("CL", "cl", "5%")}${th("Total", "total", "5%")}${th("Resultado", "resultado", "9%")}</tr></thead>
       <tbody>${lista.map((p) => {
         const comNota = p.classificacao?.total != null;
         if (comNota) pos += 1;
@@ -3232,6 +3257,7 @@ function renderClassificacao() {
           <td><b style="color:var(--brand-2)">${esc(p.numero || "—")}</b></td>
           <td>${esc(p.titulo || "(sem título)")}</td>
           <td>${esc(p.orientador?.nome || p.orientador?.email || "—")}</td>
+          <td>${bolsistasDo(p)}</td>
           <td>${esc(titNome(p.orientador?.titulacao))}</td>
           <td>${esc(linhaNome(p.linha))}</td>
           <td>${p.classificacao?.np ?? "—"}${p.notaDireta ? ' <span class="muted" title="nota atribuída pela coordenação">✎</span>' : ""}</td>
@@ -3314,9 +3340,14 @@ function renderClassificacao() {
     const doutores = ordenarClassificacao(doEdital.filter((p) => ehDoutor(p.orientador?.titulacao)));
     const geral = ordenarClassificacao(doEdital);
     const comNota = doEdital.filter((p) => p.classificacao?.total != null).length;
+    // aprovados que ainda não têm aluno indicado — o número que a coordenação
+    // persegue no fim do ciclo, e que antes só se obtinha contando à mão
+    const semAluno = doEdital.filter((p) => ["aprovado", "concluido"].includes(p.status)
+      && !(p.alunos || []).length).length;
     return filaDecisao(doEdital) + `<div class="card">
       <div class="card-t">Edital ${esc(e.numero)}${e.vigente ? ' <span class="badge b-aprovado">vigente</span>' : ""}</div>
-      <div class="card-s">${doEdital.length} proposta(s) · ${doutores.length} de professores doutores · ${comNota} com nota final.
+      <div class="card-s">${doEdital.length} proposta(s) · ${doutores.length} de professores doutores · ${comNota} com nota final${
+        semAluno ? ` · <b style="color:var(--warn)">${semAluno} aprovado(s) sem aluno indicado</b>` : ""}.
         A nota final soma o projeto (0–100) com o currículo (0–100). Os documentos do processo estão em
         <a href="#" onclick="nav('editais');return false">Editais e Resultados</a>.</div>
       ${quadro("Classificação — professores doutores", doutores)}

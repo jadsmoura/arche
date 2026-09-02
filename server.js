@@ -8095,8 +8095,29 @@ app.get("/api/ic", async (req, res) => {
     gestao: meu.gestao, eu: meu.email,
     projetos: projetos.map((p) => resumirProjeto(p, meu))
       .sort((a, b) => String(b.atualizadoEm || "").localeCompare(String(a.atualizadoEm || ""))),
+    /* Quem do ICEM acompanha cada projeto. É o trecho VIGENTE da trajetória
+       de cada bolsista — por isso o pedido de alteração deferido pela PROPPEX
+       (que fecha o acompanhamento antigo e abre o novo) já se reflete aqui,
+       sem nada a atualizar à parte. Só para a gestão: é ela que precisa saber
+       quais projetos estão recebendo estudante do Ensino Médio. */
+    ...(meu.gestao ? { emPorProjeto: await acompanhamentosEMPorProjeto() } : {}),
   });
 });
+
+/* projetoId → [{nome, turma, bolsa}] dos bolsistas de EM em acompanhamento. */
+async function acompanhamentosEMPorProjeto() {
+  const mapa = {};
+  for (const b of await lerBolsistasEM()) {
+    if (b.situacao !== "ativo") continue;
+    const vigente = (b.trajetoria || []).filter((t) => !t.ate).at(-1);
+    if (!vigente?.projetoId) continue;
+    (mapa[vigente.projetoId] ||= []).push({
+      nome: b.nome || b.email || "—", turma: b.turma || "",
+      bolsa: bolsaEmDe(b.bolsa)?.nome || "",
+    });
+  }
+  return mapa;
+}
 
 // Cronograma de todos os projetos num só lugar (a regra de recorte por
 // pessoa está em lib/ic.js: o aluno só vê o que é dele).
@@ -8219,6 +8240,13 @@ app.get("/api/ic/certificados", async (req, res) => {
       const ass = await lerAssinaturas();
       resp.assinaturas = Object.fromEntries(Object.keys(QUEM_ASSINA)
         .map((k) => [k, ass[k] ? { em: ass[k].em, arquivo: ass[k].arquivo } : null]));
+      /* O card do banco se desenha DESTA lista — cargo, nome e onde a
+         assinatura entra —, em vez de repetir os nomes à mão na tela. */
+      const { ASSINA } = await import("./lib/pdf.js");
+      resp.quemAssina = Object.entries(QUEM_ASSINA).map(([chave, rotulo]) => ({
+        chave, rotulo, onde: ONDE_ASSINA[chave] || "",
+        nome: ASSINA[CARGO_NO_PDF[chave]]?.nome || "",
+      }));
     }
     res.json(resp);
   } catch (e) {
@@ -8379,6 +8407,34 @@ const ASSINATURAS_KEY = "sys-assinaturas-v1";
    reitor; os da IC seguem com o pró-reitor da PROPPEX. As três imagens
    vivem no MESMO registro (`sys-assinaturas-v1`) e no mesmo card da tela:
    um lugar só para trocar quando a reitoria trocar. */
+/* ONDE cada assinatura entra — a frase que o card do banco mostra ao lado do
+   nome. Fica aqui, junto do catálogo, porque a TELA passou a ser desenhada a
+   partir dele: o card era uma lista escrita à mão e ficou para trás quando a
+   coordenação de Pesquisa entrou no catálogo (achado do dono, ago/2026:
+   "aqui falta o campo da assinatura do Wagner"). Ele assinava o resultado da
+   IC e do ICEM, e não havia como enviar a imagem — o documento saía com a
+   linha dele em branco, sem ninguém saber por quê. Catálogo e tela agora são
+   a mesma lista: quem entrar aqui aparece lá. */
+/* A chave da imagem × a chave do catálogo de NOMES em lib/pdf.js (`ASSINA`),
+   que é de onde os documentos imprimem quem assina. A tela lê o MESMO
+   catálogo: trocar de reitor ou de coordenador é mexer num lugar só, e o card
+   acompanha. O módulo do PDF é pesado e só se carrega sob demanda — por isso
+   o nome se busca DENTRO da rota, não no arranque. */
+const CARGO_NO_PDF = {
+  proreitor: "proReitor", reitor: "reitor", proacademica: "proReitoraAcademica",
+  coordextensao: "coordExtensao", coordacao: "coordAcaoComunitaria",
+  coordpesquisa: "coordPesquisa",
+};
+
+const ONDE_ASSINA = {
+  proreitor: "certificados da IC e proposta aprovada da Extensão",
+  reitor: "todos os certificados",
+  proacademica: "certificados de monitoria",
+  coordextensao: "proposta aprovada de curso livre (Extensão)",
+  coordacao: "proposta aprovada das demais ações de extensão",
+  coordpesquisa: "resultado dos editais de IC e do ICEM",
+};
+
 const QUEM_ASSINA = {
   proreitor: "Pró-Reitor", reitor: "Reitor", proacademica: "Pró-Reitora Acadêmica",
   /* As duas coordenações da Extensão entraram em ago/2026 (pedido do dono:
@@ -9528,7 +9584,10 @@ async function projetosComTermo(numero, so = "") {
     && (!so || p.id === so));
 }
 
-const TIPOS_TERMO = ["bolsista", "orientador", "todos"];
+/* "bolsista" e "voluntario" são conjuntos DIFERENTES do mesmo lote — eles
+   assinam modelos diferentes (o PVIC não tem bolsa nem conta bancária), e a
+   coordenação leva cada pilha à cerimônia. "aluno" traz os dois. */
+const TIPOS_TERMO = ["bolsista", "voluntario", "aluno", "orientador", "todos"];
 
 /* O lote da coordenação: uma folha por pessoa, para levar à cerimônia. */
 app.get("/api/ic/termos.pdf", async (req, res) => {
@@ -9578,8 +9637,10 @@ app.get("/api/ic/termo.pdf", async (req, res) => {
     if (papel !== "gestao" && !(await termosPublicados())[numero])
       return res.status(403).send("Os termos deste ciclo ainda não foram publicados pela coordenação.");
 
-    // o aluno leva só o registro dele; a orientação, o termo de orientação
-    const tipo = papel === "aluno" ? "bolsista" : "orientador";
+    // o aluno leva só o registro dele — bolsista ou voluntário, o modelo é
+    // escolhido pelo fomento do projeto ("aluno" não filtra por fomento
+    // justamente para o voluntário não ficar sem a própria via)
+    const tipo = papel === "aluno" ? "aluno" : "orientador";
     const recortado = papel === "aluno"
       ? { ...p, alunos: (p.alunos || []).filter((a) => String(a.email || "").toLowerCase() === String(meu.email || "").toLowerCase()) }
       : p;

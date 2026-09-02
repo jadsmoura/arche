@@ -5,7 +5,8 @@
    voluntário (conta bancária, valor de bolsa). */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { termoDoAluno, termoDoOrientador, HORAS_SEMANAIS, VALOR_CNPQ, mesAno, edicao } from "../lib/termos.js";
+import { termoDoAluno, termoDoOrientador, HORAS_SEMANAIS, VALOR_CNPQ, mesAno, edicao,
+  alunosDoLote, fomentoDoProjeto } from "../lib/termos.js";
 import { MARCAS } from "../lib/marca.js";
 
 const INST = { ...MARCAS.uniego, cidade: "Goianésia" };
@@ -76,4 +77,23 @@ test("mesAno e edicao formatam como o documento escreve", () => {
   assert.equal(mesAno("2026-09-01"), "setembro/2026");
   assert.equal(mesAno(""), "—");
   assert.equal(edicao(VIG), "2026/2027");
+});
+
+/* O lote de termos: bolsistas e voluntários são pilhas DIFERENTES, porque
+   assinam documentos diferentes. O que este teste protege é o voluntário não
+   ficar de fora do lote (o botão só emitia "bolsistas") e não voltar a
+   entrar na pilha errada. */
+test("o lote separa bolsistas de voluntários, e a via individual traz os dois", () => {
+  const comBolsa = { fomento: { tipo: "uniego" }, alunos: [{ nome: "Bolsista" }] };
+  const cnpq = { fomento: { tipo: "cnpq" }, alunos: [{ nome: "Do CNPq" }] };
+  const semBolsa = { fomento: null, alunos: [{ nome: "Voluntária" }, { nome: "" }] };
+  const projetos = [comBolsa, cnpq, semBolsa];
+
+  assert.equal(fomentoDoProjeto(semBolsa), "voluntario", "sem bolsa concedida é voluntário");
+  assert.deepEqual(alunosDoLote(projetos, "bolsista").map((x) => x.a.nome), ["Bolsista", "Do CNPq"]);
+  assert.deepEqual(alunosDoLote(projetos, "voluntario").map((x) => x.a.nome), ["Voluntária"],
+    "aluno sem nome e sem e-mail não vira folha");
+  // é o tipo da via individual: o voluntário precisa baixar a DELE
+  assert.equal(alunosDoLote(projetos, "aluno").length, 3);
+  assert.equal(alunosDoLote(projetos, "orientador").length, 0, "o lote de orientadores não traz aluno");
 });

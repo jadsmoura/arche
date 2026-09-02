@@ -1633,13 +1633,26 @@ public/
   linha pontilhada — o termo se imprime e completa-se à caneta.
 - **Publicação dos termos** (`ic-termos-publicados-v1`, `POST /api/ic/termos/publicar`,
   decisão do dono ago/2026): a gestão emite o **lote** para imprimir quando quiser
-  (`GET /api/ic/termos.pdf?tipo=bolsista|orientador|todos`), mas a **cópia digital de cada
+  (`GET /api/ic/termos.pdf?tipo=bolsista|voluntario|aluno|orientador|todos`), mas a **cópia digital de cada
   um** (`GET /api/ic/termo.pdf?projeto=`) só aparece para aluno e orientação **depois que
   a coordenação publicar** — a solenidade de assinaturas ainda vai ser marcada, e um termo
   circulando antes dela viraria documento assinado fora do ato. Publicar e recolher são um
   clique, na guia Bolsistas e Voluntários. Nas vias digitais entram as **assinaturas
   digitalizadas** do pró-reitor e do reitor (o mesmo `sys-assinaturas-v1` dos
   certificados); a do aluno é a que se colhe na cerimônia.
+- **O VOLUNTÁRIO tem pilha própria no lote** (`alunosDoLote`/`fomentoDoProjeto` em
+  lib/termos.js, achado do dono ago/2026: "acho que não implementamos os termos de
+  voluntários"). O modelo do PVIC estava implementado desde sempre e é fiel à minuta — 8h
+  semanais, sem valor de bolsa, **sem CPF e sem conta bancária no documento** —, e o
+  voluntário saía junto no mesmo PDF. O que faltava era a tela DIZER isso: o único botão se
+  chamava "Termos dos bolsistas", e um voluntário no meio de uma pilha chamada assim não se
+  encontra. Agora são dois botões, porque são duas cerimônias de assinatura de documentos
+  diferentes — e o `tipo` do lote passou a escolher o CONJUNTO (`bolsista` = com bolsa,
+  `voluntario` = sem, `aluno` = os dois). A **via individual** usa `aluno` de propósito: com
+  `bolsista` o voluntário baixava um PDF vazio da própria via. Quem decide o modelo é o
+  **fomento do projeto**, e sem bolsa concedida o padrão é o voluntário — o projeto aprovado
+  sem cota é voluntário, não é projeto sem termo. Lote vazio sai **nomeando o conjunto**
+  ("nenhum termo de voluntário a emitir"): PDF em branco parece documento que falhou.
 - **Quatro acessos na IC** (`papelNoProjeto` em `lib/ic.js`), e três deles nascem do
   próprio projeto — não há cadastro de papel à parte:
   1. **gestão** — pró-reitor e coordenação de pesquisa (gestor geral ou coordenador do
@@ -1721,7 +1734,17 @@ public/
   acadêmica**, que é quem assina os certificados de monitoria) e ficam no estado interno
   (`sys-assinaturas-v1`, base64), NÃO no repositório: em produção o disco é efêmero e
   trocar de reitor não pode exigir um deploy. Sem imagem, sai a linha em branco e nada
-  quebra; os demais documentos seguem para assinatura à mão. A gestão avisa por e-mail, ciclo a ciclo (`POST /api/ic/certificados/avisar`),
+  quebra; os demais documentos seguem para assinatura à mão.
+  **O CARD SE DESENHA DO CATÁLOGO** (`quemAssina` no `GET /api/ic/certificados` +
+  `CARGO_NO_PDF`/`ONDE_ASSINA` no server, achado do dono ago/2026: "aqui falta o campo da
+  assinatura do wagner"). Faltava mesmo: o **coordenador de Pesquisa e Inovação** entrou em
+  `QUEM_ASSINA` quando todos os documentos passaram a sair com as assinaturas do banco — ele
+  assina os resultados dos editais de IC e do ICEM —, e a rota de envio já o aceitava; o que
+  não existia era o campo na tela, porque o card repetia os cinco cargos escritos à mão. Sem
+  campo, não havia como subir a imagem, e os dois resultados saíam com a linha dele em
+  branco. Agora a tela lê a lista que o servidor monta do catálogo (chave, cargo, **nome
+  tirado do `ASSINA` de lib/pdf.js**, e onde aquela assinatura entra): trocar de coordenador
+  é mexer num lugar só, e quem entrar no banco daqui em diante já nasce com campo. A gestão avisa por e-mail, ciclo a ciclo (`POST /api/ic/certificados/avisar`),
   cruzando o nome com os perfis para achar quem dá para avisar. Os bolsistas de **2023, 2024
   e 2025** entraram com CPF, e-mail, telefone e conta pelos **termos de compromisso
   assinados e pelos formulários de indicação** (`dados/ic-edital-01-*-alunos.json`, marcas
@@ -1851,6 +1874,20 @@ public/
   CICLO (edital): cada aluno com as metas do cronograma sob sua responsabilidade, a
   situação dos relatórios frente aos prazos e o andamento do contrato; para a gestão,
   agrupada por orientador.
+- **A CLASSIFICAÇÃO DIZ QUEM É O ALUNO DE CADA PROJETO** (coluna "Bolsista/voluntário" em
+  `renderClassificacao` + `emPorProjeto` no `GET /api/ic`, pedido do dono ago/2026: "pra eu
+  saber quem é o aluno daquele projeto e, por ventura, qual professor ainda não fez a
+  indicação"). A tabela do edital trazia nota, professor e resultado — e, para saber se a
+  indicação tinha sido feita, era abrir projeto por projeto. Agora a coluna traz o aluno
+  (com **"voluntário(a)"** ao lado de quem não é bolsista), e o projeto **aprovado** sem
+  ninguém indicado sai marcado "sem indicação" — só o aprovado: antes da aprovação não há o
+  que indicar, e cobrar de todos transformaria o aviso em ruído. O cabeçalho do edital passa
+  a contar quantos aprovados estão nessa situação, que é o número que a coordenação persegue
+  no fim do ciclo. Vai junto o estudante do **ICEM** que escolheu acompanhar aquele projeto
+  (🎓 nome · turma): o vínculo é o **trecho vigente da trajetória** dele, então a alteração
+  de projeto deferida pela PROPPEX já se reflete aqui sozinha — não há segundo lugar a
+  atualizar. O mapa só sai para a **gestão**, e a ordenação por essa coluna agrupa no fim
+  quem não tem aluno, pela regra que a tabela já seguia ("sem valor vai para o fim").
 - **Editais e Resultados por ANO** (pedido do dono, ago/2026, no setor E na vitrine
   `/ic/`): **um quadro por ano** (2026, 2025…) com os dois processos dentro — o edital
   01/AAAA (graduação) e o 02/AAAA (ICEM), cada um com o edital, o resultado preliminar e
