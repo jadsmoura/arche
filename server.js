@@ -10587,6 +10587,17 @@ app.get("/api/ic/:id", async (req, res) => {
   });
 });
 
+/* Bolsista ou voluntário NÃO é escolha de formulário (dúvida de um professor,
+   ago/2026, diante da caixa "Bolsista" na indicação): acompanha a bolsa
+   concedida ao PROJETO, e quem concede é a PROPPEX, na guia Bolsas — projeto
+   com bolsa indica bolsista, projeto sem bolsa indica voluntário. A conta está
+   aqui, nos dois ramos do POST (orientação e gestão), e a rota do fomento a
+   refaz em TODOS os alunos ao conceder ou desfazer. */
+const bolsistaPelaConcessao = (p) => {
+  const t = String(p?.fomento?.tipo || "");
+  return !!t && t !== "voluntario";
+};
+
 // Cria ou atualiza a proposta. O número só sai na submissão, para que
 // rascunho abandonado não consuma a sequência do ano.
 app.post("/api/ic", async (req, res) => {
@@ -10679,7 +10690,7 @@ app.post("/api/ic", async (req, res) => {
           const antes = antigos.get(chaveAluno(a));
           if (!antes) {
             // aluno novo: a marca de bolsista sai da concessão, não da tela
-            return { ...a, bolsista: !!(base.fomento && base.fomento.tipo !== "voluntario") };
+            return { ...a, bolsista: bolsistaPelaConcessao(base) };
           }
           const dele = { bolsista: !!antes.bolsista };
           for (const c of CAMPOS_DO_ALUNO_PROTEGIDOS) dele[c] = antes[c];
@@ -10703,8 +10714,11 @@ app.post("/api/ic", async (req, res) => {
         const doBase = (email) => (base.alunos || []).find((a) => a.email && a.email === email);
         projeto.alunos = (projeto.alunos || []).map((a) => {
           const antes = doBase(a.email);
-          if (!antes) return a;
-          const dele = {};
+          // aluno NOVO: bolsista ou voluntário sai da bolsa concedida ao
+          // projeto, aqui como no ramo da orientação — a marca acompanha a
+          // concessão (que a guia Bolsas refaz em todos), não a tela
+          if (!antes) return { ...a, bolsista: bolsistaPelaConcessao(base) };
+          const dele = { bolsista: !!antes.bolsista };
           for (const c of CAMPOS_DO_ALUNO_PROTEGIDOS) dele[c] = antes[c];
           return { ...a, ...dele };
         });

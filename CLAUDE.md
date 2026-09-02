@@ -1856,6 +1856,18 @@ public/
   a caixa do formulário não manda. A GESTÃO segue com a mão livre (edita pelo ramo
   geral). A tela espelha a regra: sem ×, e-mail e caixa travados nos já indicados
   ("via substituição" no lugar).
+- **A CAIXA "BOLSISTA" SAIU DA INDICAÇÃO** (`bolsistaPelaConcessao` no server + a etiqueta
+  em `desenharAlunos`, dúvida de um professor ago/2026: ao indicar o aluno aparecia uma
+  caixa de marcar "Bolsista" — e a atribuição não é dele). Nunca foi: a marca **acompanha a
+  bolsa concedida ao PROJETO**, que é ato da PROPPEX na guia Bolsas — projeto com bolsa
+  indica **bolsista**, projeto sem bolsa indica **voluntário**, e a rota do fomento refaz a
+  marca em TODOS os alunos ao conceder ou desfazer. O servidor já ignorava a caixa desde
+  ago/2026; o que restava era a TELA oferecendo uma decisão que não existe — pior que
+  inútil, porque quem a marcava saía achando que tinha concedido bolsa. No lugar dela, uma
+  **etiqueta** que diz o que o aluno é, e o card diz de onde isso vem, nomeando a bolsa
+  daquele projeto. A conta passou a valer nos DOIS ramos do POST (orientação e gestão): o
+  aluno novo herda a concessão, o já indicado preserva o que está gravado — os ciclos
+  transcritos têm projeto com bolsista e voluntário juntos, e recalcular apagaria o registro.
 - **Substituição de bolsista** (`POST /api/ic/:id/substituicao` + decisão da gestão em
   `/:sid`): a orientação SOLICITA a troca — quem sai, o novo aluno (nome, curso,
   período, e-mail, telefone) e o motivo — e a coordenação aprova ou recusa. Aprovada,
