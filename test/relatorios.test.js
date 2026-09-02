@@ -7,6 +7,8 @@ import {
   SETORES_RELATORIO, dentroDoSemestre, panoramaAtas, panoramaEspacos,
   panoramaEventos, panoramaExtensao, panoramaIC, panoramaMonitoria, periodoDe,
   semestreDe, semestresDisponiveis, setorRelatorioDe, setoresDe,
+  panoramaCurricularizacaoSemestre, alcanceDeRelatorios, filtrarPorCurso,
+  cursosDoRegistro, normalizarAcessoRelatorios,
 } from "../lib/relatorios.js";
 
 const CURSOS = [{ slug: "enfermagem", nome: "Enfermagem" }, { slug: "agronomia", nome: "Agronomia" }];
@@ -185,12 +187,100 @@ test("os espaços contam só a reserva CONFIRMADA, e os dias que ela ocupa", () 
 /* ------------------------------- catálogo ------------------------------ */
 
 test("cada setor do relatório aponta para o módulo que o autoriza", () => {
-  assert.equal(SETORES_RELATORIO.length, 7);
+  assert.equal(SETORES_RELATORIO.length, 8);   // + curricularização (ago/2026)
   assert.equal(setorRelatorioDe("monitoria").modulo, "monitoria");
   assert.equal(setorRelatorioDe("praticas").modulo, "praticas");
   assert.equal(setorRelatorioDe("inexistente"), null);
   // o gestor geral relata tudo; o coordenador, só o que coordena
-  assert.equal(setoresDe({ papel: "gestor", modulos: [] }).length, 7);
+  assert.equal(setoresDe({ papel: "gestor", modulos: [] }).length, 8);
   assert.deepEqual(setoresDe({ papel: "aprovado", modulos: ["atas"] }).map((s) => s.chave), ["atas"]);
+  // quem coordena a Extensão abre também a guia da curricularização: ela é
+  // do mesmo módulo — o que a separa é a PERGUNTA, não o dono
+  assert.deepEqual(setoresDe({ papel: "aprovado", modulos: ["extensao"] }).map((s) => s.chave),
+    ["extensao", "curricularizacao"]);
   assert.deepEqual(setoresDe({ papel: "aprovado", modulos: [] }), []);
+});
+
+/* ------------------ curricularização da extensão ----------------------- */
+
+const acaoCur = (over = {}) => ({
+  numeroAcao: "EXT-2026-001", status: "aprovada", curso: "Enfermagem",
+  proposta: {
+    titulo: "Feira de saúde", responsavel: "Profa. A",
+    periodoInicio: "2026-08-10", periodoFim: "2026-08-12",
+    curricularizacao: { vinculada: true, componentes: [
+      { disciplina: "Saúde Coletiva", curso: "", periodo: "5", cargaHoraria: 20, academicos: 38 },
+      { disciplina: "Clínica", curso: "Agronomia", periodo: "8", cargaHoraria: 10, academicos: 12 },
+    ] },
+  },
+  ...over,
+});
+
+test("a curricularização conta só o que COMPROVA, e diz o que ficou de fora", () => {
+  const p = panoramaCurricularizacaoSemestre([
+    acaoCur(),
+    // marcada, mas ainda em análise: não comprova carga horária nenhuma
+    acaoCur({ status: "submetida", numeroAcao: "" }),
+    // fora do semestre
+    acaoCur({ proposta: { ...acaoCur().proposta, periodoInicio: "2026-02-01", periodoFim: "2026-02-02" } }),
+  ], P, { cursos: CURSOS });
+  assert.equal(p.numeros[0].valor, 1, "uma ação comprova");
+  assert.equal(p.numeros[1].valor, 30, "20h + 10h");
+  assert.equal(p.numeros[2].valor, 50);
+  assert.equal(p.numeros[3].valor, 2, "duas disciplinas");
+  assert.match(p.nota, /em análise/, "a que não comprova não some em silêncio");
+  assert.equal(p.itens.length, 1);
+  assert.match(p.itens[0].situacao, /Saúde Coletiva · 5º período · 20h/);
+});
+
+test("recortada a um curso, a curricularização conta só as horas do PPC dele", () => {
+  const p = panoramaCurricularizacaoSemestre([acaoCur()], P, { cursos: CURSOS, recorte: ["agronomia"] });
+  // a ação é de Enfermagem, mas a disciplina curricularizada é de Agronomia:
+  // quem coordena Agronomia vê a ação, e só as 10h que são do PPC dele
+  assert.equal(p.numeros[0].valor, 1);
+  assert.equal(p.numeros[1].valor, 10);
+  assert.equal(p.itens[0].situacao.includes("Saúde Coletiva"), false,
+    "a disciplina do outro curso não entra na linha de quem está recortado");
+});
+
+/* ------------------------- acesso às guias ----------------------------- */
+
+test("o curso se acha pelo SLUG e pelo NOME — a Extensão grava o nome", () => {
+  const cat = [{ slug: "contabeis", nome: "Ciências Contábeis" }, { slug: "enfermagem", nome: "Enfermagem" }];
+  const acoes = [{ curso: "Ciências Contábeis" }, { curso: "Enfermagem" }];
+  assert.deepEqual(filtrarPorCurso("extensao", acoes, ["contabeis"], cat).map((a) => a.curso),
+    ["Ciências Contábeis"], "slug do catálogo casa com o nome gravado");
+  assert.deepEqual(filtrarPorCurso("ic", [{ curso: "enfermagem" }, { curso: "direito" }], ["enfermagem"], cat)
+    .map((a) => a.curso), ["enfermagem"]);
+  // sem recorte, nada se filtra
+  assert.equal(filtrarPorCurso("ic", [{ curso: "x" }], [], cat).length, 1);
+  // a reserva de espaço pertence ao curso pelo ÓRGÃO
+  assert.deepEqual(cursosDoRegistro("espacos", { orgao: "curso-psicologia" }), ["psicologia"]);
+  assert.deepEqual(cursosDoRegistro("espacos", { orgao: "outro" }), []);
+});
+
+test("o alcance soma as três origens, e o mais largo vence", () => {
+  const chaves = (u, opc) => alcanceDeRelatorios(u, opc)
+    .map((s) => `${s.chave}:${s.cursos ? s.cursos.join("+") : "todos"}`);
+  // gestor geral: tudo, sem recorte
+  assert.equal(alcanceDeRelatorios({ email: "g@x", papel: "gestor" }, {}).length, SETORES_RELATORIO.length);
+  // coordenação de curso: todas as guias, recortadas
+  assert.ok(chaves({ email: "c@x", papel: "aprovado", modulos: [] }, { cursosCoordenados: ["enfermagem"] })
+    .every((x) => x.endsWith(":enfermagem")));
+  // coordenação de MÓDULO não recorta — e vence o recorte do curso na guia dela
+  const m = chaves({ email: "d@x", papel: "aprovado", modulos: ["extensao"] }, { cursosCoordenados: ["enfermagem"] });
+  assert.ok(m.includes("extensao:todos"), "a guia do módulo dela sai sem recorte");
+  assert.ok(m.includes("ic:enfermagem"), "as demais seguem recortadas ao curso");
+  // concessão à mão: só as guias concedidas
+  assert.deepEqual(chaves({ email: "m@x", papel: "aprovado", modulos: [] },
+    { acessos: { "m@x": { setores: ["praticas", "curricularizacao"], cursos: [] } } }),
+  ["curricularizacao:todos", "praticas:todos"]);
+  // quem não tem nada não abre nada
+  assert.deepEqual(chaves({ email: "z@x", papel: "aprovado", modulos: [] }, {}), []);
+});
+
+test("a concessão descarta setor e curso que não existem", () => {
+  const r = normalizarAcessoRelatorios({ setores: ["praticas", "inventado", "praticas"], cursos: ["enfermagem", "xpto"] },
+    { cursosValidos: ["enfermagem"] });
+  assert.deepEqual(r, { setores: ["praticas"], cursos: ["enfermagem"] });
 });

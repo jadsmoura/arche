@@ -2885,6 +2885,39 @@ public/
   útil: o ciclo do edital tem a mesma forma do semestre ("2026/2") e, quando gravado, é ele
   que manda. Quem emite é quem **gere** o setor (gestor geral, todos; coordenador, o seu), e a
   tela mostra o panorama ANTES de emitir — documento que se assina não pode ser surpresa.
+- **Guia CURRICULARIZAÇÃO DA EXTENSÃO** (`panoramaCurricularizacaoSemestre` em lib/relatorios.js,
+  pedido do dono ago/2026): a Resolução CNE/CES nº 7/2018 pede 10% da carga horária do curso em
+  extensão, e o avaliador não pergunta quantas ações houve — pergunta QUAL disciplina do PPC cada
+  uma atendeu e quantas horas foram curricularizadas. É pergunta de **ensino**, feita a quem cuida
+  do PPC, e vivia numa linha só do relatório da Extensão ("Horas curricularizadas"). A guia reúne
+  as ações que o professor marcou como vinculadas a disciplina, com **horas por curso, por
+  disciplina e por período da matriz**, e a relação nominal dizendo, em cada ação, qual disciplina
+  de que período com quantas horas e quantos acadêmicos. Conta o que **COMPROVA** — a mesma régua
+  do quadro anual: aprovada, com relatório entregue ou registrada —, e a **nota diz quantas ficaram
+  de fora por ainda estarem em análise, que é o que a coordenação persegue antes do fim do
+  semestre. O componente pode apontar OUTRO curso (a disciplina de Odontologia numa ação de
+  Enfermagem): a ação aparece para os dois, e o recorte por curso vale também **dentro** dela —
+  quem coordena Odontologia soma as horas do PPC dele, não as do vizinho.
+- **ACESSO ÀS GUIAS DE RELATÓRIO, por guia e por curso** (`alcanceDeRelatorios`/`filtrarPorCurso`
+  + `sys-relatorios-acessos-v1` + guia "Acessos às guias", pedido do dono ago/2026: "me dê gestão
+  de acessos a esses módulos — coordenadores devem ter acesso a todos os relatórios de seus
+  cursos; a Matildes da PROAC, aos de ensino e ao de curricularização"). São **duas dimensões**,
+  porque são duas perguntas: QUAIS guias e DE QUE CURSOS. O alcance se soma de três origens e a
+  mais larga vence: o **gestor geral** abre tudo; quem **coordena um módulo** abre a guia do setor
+  dele, sem recorte; quem **coordena um CURSO** (composição institucional + cadastro do AP) abre
+  TODAS as guias, recortadas ao curso — é o recorte que torna seguro dar-lhe tudo. O que faltar se
+  concede à mão no painel, que é do gestor geral e mostra ao lado o que a pessoa **já** alcança
+  pelas regras automáticas (senão ele concederia de novo o que ela tem, ou tiraria dali um acesso
+  que não vem dali e continuaria valendo). O corte é na **BASE**, antes das contas — número,
+  gráfico e relação nominal falam do mesmo conjunto —, e o documento **DIZ que é recortado**: um
+  relatório de um curso só, sem a frase, seria lido como o panorama da instituição. Ele também não
+  se arquiva no lugar do institucional (pasta própria por curso no Repositório). Dois detalhes que
+  o código carrega: o curso vem como **slug** na IC, monitoria, AP, atas e espaços e como **nome**
+  na Extensão, e nem todo slug é o nome slugificado ("contabeis" para "Ciências Contábeis") — daí a
+  comparação passar pelo catálogo; e a reserva de espaço pertence ao curso pelo **órgão**
+  (`curso-<slug>`). O cartão de Relatórios no portal deixou de sair só para quem coordena módulo:
+  `veRelatorios` no `/api/me` o mostra a quem tem qualquer guia — esconder o cartão de quem tem o
+  que emitir é o mesmo erro, ao contrário, de mostrá-lo a quem a rota recusaria.
 - **"Ver como…" em todos os setores** (`public/assets/arche-vercomo.js` + `verComoUsuario` no
   server, ago/2026): o recurso nasceu na IC e passou a valer para Extensão, Eventos, Atas,
   Espaços e Monitoria. A sessão troca o usuário por um **sósia sem gestão** e as MESMAS

@@ -130,9 +130,10 @@ import { classificar as classificarBanda } from "./lib/banda.js";
 import { medir as medirBanda, diagnostico as diagnosticoBanda, zerar as zerarBanda,
   fecharMedicao } from "./lib/medidor.js";
 import {
-  periodoDe, semestresDisponiveis, setorRelatorioDe, setoresDe as setoresDeRelatorio,
+  periodoDe, semestresDisponiveis, setorRelatorioDe, SETORES_RELATORIO,
+  alcanceDeRelatorios, normalizarAcessoRelatorios, filtrarPorCurso,
   panoramaAtas, panoramaEspacos, panoramaEventos, panoramaExtensao, panoramaIC,
-  panoramaMonitoria, panoramaPraticas,
+  panoramaMonitoria, panoramaPraticas, panoramaCurricularizacaoSemestre,
 } from "./lib/relatorios.js";
 import { MIN_FOTOS_RELATORIO, faltamFotos, avisoFotos, fotosDoPortfolio } from "./lib/portfolio.js";
 import { seguro as seguroXlsx } from "./lib/exports.js";
@@ -485,11 +486,20 @@ app.get("/api/me", async (req, res) => {
   const u = await usuarioDe(req, res);
   if (!u) return res.status(401).json({ error: "não autenticado" });
   const perfis = await carregarPerfis();
+  const coordenaCursos = await cursosQueCoordenaDe(u.email);
   res.json({
     ...u, perfil: perfis[u.email] || null, temSenha: await temSenha(storage, u.email),
     // os cursos que a pessoa coordena (composição institucional + cadastro do
     // AP): é o que abre o cartão "Seu Curso" no portal e a página /curso/
-    coordenaCursos: await cursosQueCoordenaDe(u.email),
+    coordenaCursos,
+    /* O cartão de Relatórios não é mais só de quem coordena MÓDULO: a
+       coordenação de CURSO abre todas as guias recortadas ao curso dela, e o
+       painel de acessos concede guias a quem não coordena nada (é o caso da
+       pró-reitoria acadêmica). Sem esta bandeira o cartão ficava escondido de
+       quem passou a ter o que emitir. */
+    veRelatorios: alcanceDeRelatorios(u, {
+      acessos: await lerAcessosRelatorios(), cursosCoordenados: coordenaCursos,
+    }).length > 0,
     // o que falta para o perfil ficar completo — é o que a tela usa para
     // pedir só o que falta, em vez de mandar a pessoa reler o formulário
     perfilFalta: await faltaNoPerfilDe(u, perfis[u.email]),
@@ -13877,26 +13887,60 @@ app.post("/api/praticas/chamada", async (req, res) => {
    coordenador, o seu. As contas vivem em lib/relatorios.js, testáveis; aqui
    ficam a leitura das bases e o transporte.
    ======================================================================== */
-async function montarPanorama(chave, periodo) {
+/* `recorte` são os slugs de curso a que o relatório se limita (null = todos):
+   é o alcance da coordenação de curso, que vê todas as guias mas só o que é
+   do curso dela. O corte é na BASE, antes das contas — assim número, gráfico
+   e relação nominal falam do mesmo conjunto, e não há como um deles escapar. */
+async function montarPanorama(chave, periodo, recorte = null) {
   const cursos = CURSOS;
-  if (chave === "extensao") return panoramaExtensao(await lerAcoes(), periodo, { cursos });
-  if (chave === "eventos") return panoramaEventos(await lerAcoes(), periodo, { cursos });
-  if (chave === "ic") return panoramaIC(await lerProjetos(), periodo, { cursos });
+  const so = (lista) => filtrarPorCurso(chave, lista, recorte, cursos);
+  if (chave === "extensao") return panoramaExtensao(so(await lerAcoes()), periodo, { cursos });
+  if (chave === "curricularizacao") {
+    // o recorte vai também PARA DENTRO: as horas contadas são as do PPC de
+    // quem está olhando, não as de um curso vizinho na mesma ação
+    return panoramaCurricularizacaoSemestre(so(await lerAcoes()), periodo, { cursos, recorte });
+  }
+  if (chave === "eventos") return panoramaEventos(so(await lerAcoes()), periodo, { cursos });
+  if (chave === "ic") return panoramaIC(so(await lerProjetos()), periodo, { cursos });
   // o ARQUIVO entra junto: os semestres anteriores a 2026/2 correram fora do
   // ARCHÉ, e é no relatório que a instituição presta contas deles
   if (chave === "monitoria") {
-    return panoramaMonitoria(await lerMonitorias(), periodo,
-      { cursos, arquivo: projetosDoArquivoMon(historicoMon) });
+    return panoramaMonitoria(so(await lerMonitorias()), periodo,
+      { cursos, arquivo: so(projetosDoArquivoMon(historicoMon)) });
   }
-  if (chave === "atas") return panoramaAtas(await lerAtas(), periodo, { cursos, orgaos: ORGAOS });
-  if (chave === "espacos") return panoramaEspacos(await lerReservas(), periodo, { espacos: await lerEspacos() });
+  if (chave === "atas") return panoramaAtas(so(await lerAtas()), periodo, { cursos, orgaos: ORGAOS });
+  if (chave === "espacos") return panoramaEspacos(so(await lerReservas()), periodo, { espacos: await lerEspacos() });
   // o cadastro do semestre vai junto: é ele que dá o denominador ("12 de 40
   // disciplinas"), e sem ele o número não se interpreta
   if (chave === "praticas") {
-    return panoramaPraticas(await lerPraticas(), periodo, { cursos, cadastro: await lerCadastroAP() });
+    return panoramaPraticas(so(await lerPraticas()), periodo, { cursos, cadastro: await lerCadastroAP() });
   }
   return null;
 }
+
+/* ---------------------- quem abre qual guia ----------------------------
+   O alcance vem de TRÊS lugares que se somam (lib/relatorios.js): o gestor
+   geral, a coordenação de MÓDULO (a guia do setor dela), a coordenação de
+   CURSO (todas as guias, recortadas ao curso) e o que o painel de acessos
+   concedeu à mão. O painel é do gestor geral. */
+const ACESSOS_REL_KEY = "sys-relatorios-acessos-v1";
+async function lerAcessosRelatorios() {
+  try { return JSON.parse((await storage.get(ACESSOS_REL_KEY)) || "{}") || {}; } catch { return {}; }
+}
+async function alcanceDeRelatoriosDe(u) {
+  const [acessos, cursosCoordenados] = await Promise.all([
+    lerAcessosRelatorios(), cursosQueCoordenaDe(u.email),
+  ]);
+  return alcanceDeRelatorios(u, { acessos, cursosCoordenados });
+}
+/* A frase que o documento carrega quando ele NÃO é da instituição inteira:
+   um relatório recortado a um curso, sem dizê-lo, seria lido como se fosse o
+   panorama de todos — e é ele que vai ao conselho e ao avaliador. */
+const notaDoRecorte = (recorte) => (recorte?.length
+  ? `Este relatório está recortado ao(s) curso(s): ${recorte.map((c) => nomeDoCurso(c)).join(", ")}. `
+    + "Ele não representa o total da instituição no semestre."
+  : "");
+const nomeDoCurso = (slug) => CURSOS.find((c) => c.slug === slug)?.nome || slug;
 
 /** GET /api/relatorios — o que a tela precisa: setores que a pessoa pode
     relatar e os semestres oferecidos. */
@@ -13904,9 +13948,14 @@ app.get("/api/relatorios", async (req, res) => {
   try {
     const u = await usuarioDe(req, res);
     if (!u) return res.status(401).json({ error: "Faça login." });
-    const setores = setoresDeRelatorio(u);
+    const setores = (await alcanceDeRelatoriosDe(u)).map((s) => ({
+      ...s, cursosNomes: s.cursos ? s.cursos.map(nomeDoCurso) : null,
+    }));
     if (!setores.length) return res.status(403).json({ error: "A emissão é da gestão dos setores." });
-    res.json({ eu: u.email, setores, semestres: semestresDisponiveis(hojeLocalISO(), 10) });
+    res.json({
+      eu: u.email, setores, semestres: semestresDisponiveis(hojeLocalISO(), 10),
+      gestorGeral: u.papel === "gestor",
+    });
   } catch (e) {
     console.error("Erro ao abrir os relatórios:", e);
     res.status(500).json({ error: "Não foi possível carregar." });
@@ -13922,9 +13971,11 @@ app.get("/api/relatorios/panorama", async (req, res) => {
     const setor = setorRelatorioDe(req.query?.setor);
     const periodo = periodoDe(req.query?.periodo);
     if (!setor || !periodo) return res.status(400).json({ error: "Informe o setor e o semestre." });
-    if (!setoresDeRelatorio(u).some((s) => s.chave === setor.chave))
-      return res.status(403).json({ error: "Você não gere este setor." });
-    res.json({ setor, periodo, panorama: await montarPanorama(setor.chave, periodo) });
+    const meu = (await alcanceDeRelatoriosDe(u)).find((s) => s.chave === setor.chave);
+    if (!meu) return res.status(403).json({ error: "Você não tem acesso a esta guia de relatórios." });
+    const panorama = await montarPanorama(setor.chave, periodo, meu.cursos);
+    if (meu.cursos) panorama.nota = [notaDoRecorte(meu.cursos), panorama.nota].filter(Boolean).join(" ");
+    res.json({ setor, periodo, cursos: meu.cursos, panorama });
   } catch (e) {
     console.error("Erro no panorama semestral:", e);
     res.status(500).json({ error: "Não foi possível montar o panorama." });
@@ -13939,15 +13990,22 @@ app.get("/api/relatorios/semestral.pdf", async (req, res) => {
     const setor = setorRelatorioDe(req.query?.setor);
     const periodo = periodoDe(req.query?.periodo);
     if (!setor || !periodo) return res.status(400).send("Informe o setor e o semestre.");
-    if (!setoresDeRelatorio(u).some((s) => s.chave === setor.chave))
-      return res.status(403).send("Você não gere este setor.");
-    const panorama = await montarPanorama(setor.chave, periodo);
+    const meu = (await alcanceDeRelatoriosDe(u)).find((s) => s.chave === setor.chave);
+    if (!meu) return res.status(403).send("Você não tem acesso a esta guia de relatórios.");
+    const panorama = await montarPanorama(setor.chave, periodo, meu.cursos);
+    // o recorte vai DENTRO do documento: um relatório de um curso só, sem
+    // dizê-lo, seria lido como o panorama da instituição inteira
+    if (meu.cursos) panorama.nota = [notaDoRecorte(meu.cursos), panorama.nota].filter(Boolean).join(" ");
     const { gerarRelatorioSemestralPdf } = await import("./lib/pdf.js");
     const { marcaEm } = await import("./lib/marca.js");
     const buf = await gerarRelatorioSemestralPdf({
       setor, periodo, panorama, emitidoPor: u.email, marca: marcaEm(periodo.fim),
       assinaturas: await assinaturasParaPdf() });
-    arquivarDocumento({ buffer: buf, pasta: `Relatórios/${slug(setor.chave)}/${String(periodo.chave).replace("/", "-")}`,
+    // relatório recortado a um curso NÃO se arquiva no lugar do institucional:
+    // ele responde por menos, e o repositório guarda a versão vigente de cada
+    // documento — sobrepor um pelo outro apagaria o panorama da instituição
+    arquivarDocumento({ buffer: buf,
+      pasta: `Relatórios/${slug(setor.chave)}${meu.cursos ? `/${slug(meu.cursos.join("-"))}` : ""}/${String(periodo.chave).replace("/", "-")}`,
       nome: "relatorio-semestral.pdf" });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition",
@@ -13956,6 +14014,72 @@ app.get("/api/relatorios/semestral.pdf", async (req, res) => {
   } catch (e) {
     console.error("Erro no relatório semestral:", e);
     res.status(500).send("Não foi possível gerar o relatório.");
+  }
+});
+
+/* ------------------------ painel de acessos ----------------------------
+   Só o gestor geral. Ele vê, ao lado do que concedeu à mão, o que cada
+   pessoa JÁ alcança pelas regras automáticas (coordenação de módulo e de
+   curso) — sem isso ele concederia de novo o que a pessoa já tem, ou tiraria
+   um acesso que não vem daqui e continuaria valendo. */
+app.get("/api/relatorios/acessos", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    if (u.papel !== "gestor") return res.status(403).json({ error: "A gestão de acessos é do gestor geral." });
+    const [acessos, base, equipe, inst] = await Promise.all([
+      lerAcessosRelatorios(), contasDoPortal(), lerEquipeAP(), lerInstituicao(),
+    ]);
+    const { conta, usuarios, perfis } = base;
+    const cursosDe = (email) => [...new Set([
+      ...cursosDaPessoa(inst, email), ...apCursosQueCoordena(equipe, email),
+    ])];
+    const pessoas = [...conta.keys()]
+      .map((email) => {
+        const coord = cursosDe(email);
+        const papel = papelDe(email, usuarios);
+        const modulos = modulosDe(email, usuarios);
+        const alvo = { email, papel, modulos };
+        return {
+          email, nome: perfis[email]?.nome || "", papel, modulos,
+          cursosCoordenados: coord.map((s) => ({ slug: s, nome: nomeDoCurso(s) })),
+          concedido: acessos[email] || null,
+          // o alcance final, já com tudo somado: é o que a pessoa vê ao entrar
+          alcance: alcanceDeRelatorios(alvo, { acessos, cursosCoordenados: coord })
+            .map((s) => ({ chave: s.chave, nome: s.nome, cursos: s.cursos })),
+        };
+      })
+      .filter((p) => p.email)
+      .sort((a, b) => (b.alcance.length - a.alcance.length)
+        || String(a.nome || a.email).localeCompare(String(b.nome || b.email), "pt-BR"));
+    res.json({
+      ok: true, setores: SETORES_RELATORIO,
+      cursos: CURSOS.map((c) => ({ slug: c.slug, nome: c.nome })), pessoas,
+    });
+  } catch (e) {
+    console.error("Erro nos acessos dos relatórios:", e);
+    res.status(500).json({ error: "Não foi possível carregar os acessos." });
+  }
+});
+
+/* POST { email, setores: [], cursos: [] } — lista de setores vazia REMOVE a
+   concessão (em vez de gravar um registro que não concede nada). */
+app.post("/api/relatorios/acessos", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    if (u.papel !== "gestor") return res.status(403).json({ error: "A gestão de acessos é do gestor geral." });
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    if (!email.includes("@")) return res.status(400).json({ error: "Informe o e-mail da pessoa." });
+    const limpo = normalizarAcessoRelatorios(req.body, { cursosValidos: CURSOS.map((c) => c.slug) });
+    const acessos = await lerAcessosRelatorios();
+    if (!limpo.setores.length) delete acessos[email];
+    else acessos[email] = { ...limpo, em: new Date().toISOString(), por: u.email };
+    await storage.set(ACESSOS_REL_KEY, JSON.stringify(acessos));
+    res.json({ ok: true, email, concedido: acessos[email] || null });
+  } catch (e) {
+    console.error("Erro ao gravar o acesso aos relatórios:", e);
+    res.status(500).json({ error: "Não foi possível gravar." });
   }
 });
 

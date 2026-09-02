@@ -466,6 +466,15 @@
           esconder = (me.perfil && me.perfil.funcao === "aluno")
             ? ["/atas/", "/inovacao/", "/arche/", "/eventos/gestao/", "/relatorios/", "/praticas/"]
             : ["/arche/", "/relatorios/"];
+          /* ...MENOS quem tem guia de relatório: a coordenação de CURSO abre
+             todas as guias recortadas ao curso dela, e o painel de acessos
+             concede guias a quem não coordena módulo nenhum. Quem diz é o
+             servidor (`veRelatorios` no /api/me) — esconder o cartão de quem
+             tem o que emitir é o mesmo erro, ao contrário, de mostrá-lo a
+             quem a rota recusaria. */
+          if (me.veRelatorios) {
+            esconder = esconder.filter(function (h) { return h !== "/relatorios/"; });
+          }
           if (!coordenaCurso) esconder.push("/curso/");
         }
         OCULTOS = {};
