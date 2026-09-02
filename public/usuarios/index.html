@@ -314,6 +314,7 @@ async function carregarAvisos(){
 function renderAvisos(){
   const hoje=new Date(Date.now()-3*3600*1000).toISOString().slice(0,10);
   const calados=(AVISOS.avisos||[]).filter(a=>!a.ligado).length;
+  const resumidos=(AVISOS.avisos||[]).filter(a=>a.modo==="resumo").length;
   const linha=(a)=>{
     const sel=(v,r)=>`<option value="${v}"${a.estado===v?" selected":""}>${r}</option>`;
     return `<div class="av-linha${a.ligado?"":" av-off"}">
@@ -324,11 +325,14 @@ function renderAvisos(){
         <div class="av-d">${esc(a.texto)}</div>
         <div class="av-d av-se"><b>Se desligar:</b> ${esc(a.seDesligar)}</div>
         ${a.vencido?`<div class="av-d av-ok">O silêncio venceu em ${(a.ate||'').split('-').reverse().join('/')} — voltou a enviar.</div>`
-          :a.estado==="silenciado"&&a.ate?`<div class="av-d av-ok">Silenciado até ${(a.ate||'').split('-').reverse().join('/')}; volta sozinho no dia seguinte.</div>`:""}
+          :a.estado==="silenciado"&&a.ate?`<div class="av-d av-ok">Silenciado até ${(a.ate||'').split('-').reverse().join('/')}; volta sozinho no dia seguinte.</div>`
+          :a.modo==="resumo"?`<div class="av-d av-ok">Não sai na hora: entra na fila e sai <b>uma vez por dia, às 13h</b>, no resumo do setor.</div>`:""}
       </div>
       <div class="av-ctl">
         <select onchange="mudarAviso('${a.codigo}',this.value)">
-          ${sel("ligado","Enviando")}${sel("silenciado","Silenciar até…")}${sel("desligado","Desligado")}
+          ${sel("ligado","Enviando na hora")}
+          ${a.podeResumir?sel("resumo","No resumo das 13h"):""}
+          ${sel("silenciado","Silenciar até…")}${sel("desligado","Desligado")}
         </select>
         ${a.estado==="silenciado"?`<input type="date" min="${hoje}" value="${esc(a.ate||"")}"
           onchange="mudarAviso('${a.codigo}','silenciado',this.value)">`:""}
@@ -339,8 +343,14 @@ function renderAvisos(){
     <div class="card">
       <div class="sec">Envios automáticos de e-mail</div>
       <p class="muted" style="margin:8px 0 0">Tudo o que o ARCHÉ manda sozinho está aqui, por setor.
-        Use <b>Silenciar até</b> quando for questão de época — a pausa se desfaz na data, sem depender
-        de alguém lembrar de religar. ${calados?`<b>${calados}</b> aviso(s) fora do ar agora.`:"Todos ativos."}</p>
+        <b>No resumo das 13h</b> é o meio-termo entre receber tudo e não receber nada: o aviso não sai
+        na hora — entra numa fila e sai <b>uma vez por dia</b>, num e-mail só com tudo o que aconteceu
+        desde o resumo anterior. Vale só para o <b>aviso à gestão</b>: a mensagem que vai a uma pessoa
+        (convite, credencial, devolução com o que corrigir) precisa chegar na hora, porque alguém está
+        parado esperando por ela. Use <b>Silenciar até</b> quando for questão de época — a pausa se
+        desfaz na data, sem depender de alguém lembrar de religar.
+        ${calados?`<b>${calados}</b> aviso(s) fora do ar agora.`:"Todos ativos."}
+        ${resumidos?`<b>${resumidos}</b> no resumo diário.`:""}</p>
       <p class="muted" style="margin:8px 0 0;font-size:12.5px">O código de acesso do login não entra
         aqui de propósito: desligá-lo trancaria todo mundo do lado de fora.</p>
     </div>

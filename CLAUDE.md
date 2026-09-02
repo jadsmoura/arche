@@ -729,11 +729,33 @@ public/
   tira a REFERÊNCIA e deixa o arquivo onde está). Custo: UMA escrita por dia (~1 MB) contra as
   centenas que a gravação normal já faz. O gestor geral baixa a cópia do momento em
   `GET /api/backup/agora`, que é o que transforma "existe backup" em "tenho o backup na mão".
+- **O RESUMO DIÁRIO DAS 13h** (`modoDoAviso`/`AVISOS_FILA_KEY` em lib/avisos.js +
+  `varrerResumoDiario` no server + `emailResumoDiario` no mailer, pedido do dono ago/2026:
+  "estamos recebendo muitos e-mails; é possível um sistema de notificação diário às 13 horas com
+  todas as atualizações das últimas 24 horas?"). O interruptor ganhou uma QUARTA posição — **no
+  resumo das 13h** —, entre receber tudo e não receber nada: o aviso não sai na hora, entra numa
+  fila e sai **uma vez por dia**, num e-mail só, agrupado por setor. A janela é "desde o resumo
+  anterior", não "as últimas 24 horas exatas": se um dia falhar (deploy no meio, sem rede), o que
+  ficou na fila entra no resumo seguinte em vez de se perder.
+  **Vale só para o AVISO À GESTÃO** — `aplicarMudanca` recusa "resumo" em aviso `destino: "pessoa"`.
+  Segurar por até um dia o convite do aluno, a credencial do inscrito ou a devolução com o que
+  corrigir quebraria o processo: quem as espera está parado até elas chegarem. E a régua não é só
+  do código: a **mensagem marcada `pessoal: true` pelo mailer nunca espera o resumo** (achado ao
+  aplicar — o aviso das reservas leva no MESMO código o pedido que vai à responsável e a DECISÃO
+  que volta a quem pediu). O que a fila guarda é o **índice** do fato — setor, hora e assunto —,
+  não o corpo do e-mail: o estado é um arquivo reescrito inteiro a cada gravação, e repetir o
+  conteúdo devolveria pelo corpo o volume que se quis tirar da caixa de entrada; o detalhe está no
+  sistema, a um clique. A varredura é horária como as demais, mas só AGE a partir das 13h e uma vez
+  por dia (marca `sys-avisos-resumo-dia-v1`, gravada ANTES do envio — erro no meio não pode fazer a
+  hora seguinte mandar tudo de novo). Uma migração de arranque (`porAvisosDaGestaoNoResumo`) põe os
+  **9 avisos à gestão** no resumo de uma vez, respeitando o que a gestão já tiver escolhido; aviso
+  novo do catálogo continua nascendo LIGADO.
 - **Envios automáticos de e-mail** (`lib/avisos.js` + guia "Envios automáticos" em `/usuarios/`,
   `GET/POST /api/avisos`, só gestor geral — pedido do dono ago/2026): o mesmo aviso é informação
   ou ruído conforme a época — no pico da indicação de bolsistas, um e-mail a cada movimento da IC
   cansa; fora do ciclo, é ele que faz a pró-reitoria saber que um aluno foi indicado. O
-  interruptor tem **três** posições: **ligado**, **silenciado até uma data** (a pausa que se
+  interruptor tem **quatro** posições: **ligado**, **no resumo das 13h** (só para o aviso à
+  gestão — ver acima), **silenciado até uma data** (a pausa que se
   desfaz sozinha, para o pico não virar um desligamento esquecido) e **desligado**. O catálogo
   tem 22 avisos em 7 setores e cada linha diz **para quem vai** (aviso à gestão × mensagem a uma
   pessoa, com `critico: true` nesta) e **o que se perde ao calá-lo**. Regras: aviso ausente da

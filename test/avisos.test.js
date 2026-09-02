@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import {
   AVISOS, SETORES_AVISO, aplicarMudanca, avisoDe, avisoLigado, avisosDoSetor,
   normalizarConfig, quantosSilenciados, situacaoDosAvisos,
+  modoDoAviso, AVISOS_DA_GESTAO, HORA_RESUMO,
 } from "../lib/avisos.js";
 
 test("o padrão é LIGADO — aviso fora da configuração continua saindo", () => {
@@ -78,4 +79,45 @@ test("o catálogo é completo e cada aviso pertence a um setor que existe", () =
   for (const s of SETORES_AVISO) assert.ok(avisosDoSetor(s.chave).length, `setor sem avisos: ${s.chave}`);
   assert.equal(avisoDe("ic-movimentacao").destino, "gestao");
   assert.equal(avisoDe("ic-convite-aluno").critico, true, "convite é mensagem a uma pessoa");
+});
+
+/* ------------------- O RESUMO DIÁRIO DAS 13h (ago/2026) -----------------
+   Pedido do dono: "estamos recebendo muitos e-mails; é possível um sistema de
+   notificação diário às 13h?". O que estes testes protegem é a fronteira que
+   torna o resumo seguro — a mensagem que vai a UMA PESSOA nunca espera. */
+
+test("o modo diz COMO o aviso sai hoje, e o silêncio vencido volta sozinho", () => {
+  assert.equal(modoDoAviso({}, "ic-movimentacao", "2026-08-20"), "agora");
+  assert.equal(modoDoAviso({ "ic-movimentacao": { estado: "resumo" } }, "ic-movimentacao", "2026-08-20"), "resumo");
+  assert.equal(modoDoAviso({ "ic-movimentacao": { estado: "desligado" } }, "ic-movimentacao", "2026-08-20"), "silencio");
+  const cal = { "ic-movimentacao": { estado: "silenciado", ate: "2026-08-31" } };
+  assert.equal(modoDoAviso(cal, "ic-movimentacao", "2026-08-20"), "silencio");
+  assert.equal(modoDoAviso(cal, "ic-movimentacao", "2026-09-01"), "agora", "silêncio vencido");
+  // "ligado" continua querendo dizer "sai de algum jeito" — inclusive no resumo
+  assert.equal(avisoLigado({ "ic-movimentacao": { estado: "resumo" } }, "ic-movimentacao", "2026-08-20"), true);
+});
+
+test("só o aviso À GESTÃO entra no resumo — a mensagem a uma pessoa nunca espera", () => {
+  assert.equal(aplicarMudanca({}, { codigo: "ic-movimentacao", estado: "resumo" }).erro, undefined);
+  const r = aplicarMudanca({}, { codigo: "ic-convite-aluno", estado: "resumo" });
+  assert.match(r.erro, /precisa chegar na hora/);
+  assert.equal(r.config, undefined, "nada é gravado quando se recusa");
+  // e a tela sabe de quem pode oferecer a opção
+  const sit = situacaoDosAvisos({}, "2026-08-20");
+  assert.equal(sit.find((a) => a.codigo === "ic-movimentacao").podeResumir, true);
+  assert.equal(sit.find((a) => a.codigo === "ic-convite-aluno").podeResumir, false);
+  // a lista dos que a migração de arranque recolhe é exatamente a de gestão
+  assert.deepEqual(AVISOS_DA_GESTAO, AVISOS.filter((a) => a.destino === "gestao").map((a) => a.codigo));
+  assert.ok(AVISOS_DA_GESTAO.length >= 8);
+  assert.equal(AVISOS_DA_GESTAO.some((c) => avisoDe(c).critico), false,
+    "nenhum aviso crítico entra no resumo");
+  assert.equal(HORA_RESUMO, 13);
+});
+
+test("aviso no resumo NÃO conta como silenciado — ele sai, só que uma vez por dia", () => {
+  const cfg = { "ic-movimentacao": { estado: "resumo" } };
+  assert.equal(quantosSilenciados(cfg, "2026-08-20"), 0);
+  assert.equal(situacaoDosAvisos(cfg, "2026-08-20").find((a) => a.codigo === "ic-movimentacao").modo, "resumo");
+  // e o estado sobrevive à normalização (senão a escolha se perderia ao gravar)
+  assert.equal(normalizarConfig(cfg)["ic-movimentacao"].estado, "resumo");
 });

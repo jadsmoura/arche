@@ -93,6 +93,7 @@ import {
 } from "./lib/eventos.js";
 import {
   AVISOS, AVISOS_KEY, SETORES_AVISO, aplicarMudanca as aplicarMudancaAviso,
+  AVISOS_FILA_KEY, HORA_RESUMO, AVISOS_DA_GESTAO, avisoDe, modoDoAviso,
   avisoLigado, normalizarConfig as normalizarAvisos, situacaoDosAvisos,
 } from "./lib/avisos.js";
 import {
@@ -14485,12 +14486,107 @@ async function lerAvisos() {
 /** Manda o e-mail SE o aviso estiver ligado. Devolve `{silenciado:true}` quando não. */
 async function enviarAviso(codigo, mensagem) {
   const cfg = await lerAvisos();
-  if (!avisoLigado(cfg, codigo, hojeLocalISO())) {
+  const modo = modoDoAviso(cfg, codigo, hojeLocalISO());
+  if (modo === "silencio") {
     console.log(`[avisos] ${codigo} está silenciado — e-mail não enviado`);
     return { silenciado: true };
   }
+  /* NO RESUMO DAS 13h: em vez do e-mail agora, uma linha na fila. O que se
+     guarda é o ÍNDICE do fato — setor, hora e assunto —, não o corpo do
+     e-mail: guardar o HTML de cada aviso engordaria o estado (que é um arquivo
+     reescrito inteiro a cada gravação) para repetir no resumo o volume que se
+     quis tirar da caixa de entrada. O detalhe está no sistema. */
+  /* A mensagem marcada como PESSOAL nunca espera o resumo, mesmo que o código
+     esteja nele (achado ao aplicar: o aviso das reservas leva no MESMO código
+     o pedido que vai à responsável e a DECISÃO que volta a quem pediu —
+     segurar a segunda por um dia deixaria a pessoa sem saber se pode contar
+     com o espaço). Quem marca é o mailer, que é quem sabe para quem cada
+     mensagem vai. */
+  if (modo === "resumo" && !mensagem?.pessoal) {
+    await enfileirarNoResumo(codigo, mensagem);
+    return { noResumo: true };
+  }
   const { enviarEmail } = await import("./lib/mailer.js");
   return enviarEmail(mensagem);
+}
+
+/* ---------------------- o resumo diário das 13h ------------------------- */
+const lerFilaResumo = async () => {
+  try { return JSON.parse((await storage.get(AVISOS_FILA_KEY)) || "[]") || []; } catch { return []; }
+};
+
+async function enfileirarNoResumo(codigo, mensagem) {
+  const destinos = [mensagem?.para].flat().filter(Boolean).map((x) => String(x));
+  if (!destinos.length) return;
+  const aviso = avisoDe(codigo);
+  const fila = await lerFilaResumo();
+  for (const para of destinos) {
+    fila.push({
+      para, codigo,
+      setor: SETORES_AVISO.find((x) => x.chave === aviso?.setor)?.rotulo || "Portal",
+      assunto: String(mensagem?.assunto || aviso?.rotulo || "").replace(/^\[[^\]]+\]\s*/, "").slice(0, 200),
+      em: new Date().toISOString(),
+      hora: horaLocalHHMM(),
+    });
+  }
+  // teto de segurança: a fila é de UM dia, e um defeito em laço não pode
+  // encher o estado inteiro
+  await storage.set(AVISOS_FILA_KEY, JSON.stringify(fila.slice(-800)));
+}
+
+/* Sai UMA vez por dia, a partir das 13h de Brasília, com tudo o que entrou na
+   fila desde o resumo anterior. A janela é "desde o último resumo", não "as
+   últimas 24 horas exatas": se um dia falhar (deploy no meio, sem rede), o
+   que ficou na fila entra no resumo seguinte em vez de se perder. */
+const RESUMO_MARCA_KEY = "sys-avisos-resumo-dia-v1";
+async function varrerResumoDiario() {
+  const hoje = hojeLocalISO();
+  const hora = Number(String(horaLocalHHMM()).slice(0, 2));
+  if (!(hora >= HORA_RESUMO)) return;
+  if ((await storage.get(RESUMO_MARCA_KEY)) === hoje) return;
+  const fila = await lerFilaResumo();
+  // marca o dia ANTES de enviar: um erro no meio não pode fazer a varredura
+  // da hora seguinte mandar tudo de novo
+  await storage.set(RESUMO_MARCA_KEY, hoje);
+  if (!fila.length) return;
+  await storage.set(AVISOS_FILA_KEY, "[]");
+  const porCaixa = new Map();
+  for (const i of fila) {
+    if (!porCaixa.has(i.para)) porCaixa.set(i.para, []);
+    porCaixa.get(i.para).push(i);
+  }
+  const { enviarEmail, emailResumoDiario } = await import("./lib/mailer.js");
+  const desde = fila[0]?.em ? `${fila[0].em.slice(8, 10)}/${fila[0].em.slice(5, 7)} ${fila[0].hora || ""}`.trim() : "";
+  for (const [para, itens] of porCaixa) {
+    try {
+      await enviarEmail(emailResumoDiario({ para, itens, desde,
+        baseUrl: (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "") }));
+      console.log(`[resumo] ${para}: ${itens.length} movimentação(ões)`);
+    } catch (e) {
+      console.error(`[resumo] falha ao enviar para ${para}:`, e.message);
+    }
+  }
+}
+
+/* MIGRAÇÃO DE ARRANQUE (mesmo pedido): os avisos À GESTÃO passam a sair no
+   resumo. É o que o dono pediu — "estamos recebendo muitos e-mails" —, e
+   deixá-lo clicar nove interruptores para chegar lá seria entregar a peça e
+   não o resultado. Roda UMA vez: quem trocar depois manda, e um aviso novo do
+   catálogo continua nascendo LIGADO (a regra de "ausente = ligado" não muda).
+   As mensagens a uma PESSOA ficam de fora — elas existem para chegar na hora. */
+async function porAvisosDaGestaoNoResumo() {
+  const MARCA = "sys-avisos-resumo-padrao-v1";
+  if (await storage.get(MARCA)) return;
+  const cfg = await lerAvisos();
+  let mudou = 0;
+  for (const codigo of AVISOS_DA_GESTAO) {
+    if (cfg[codigo]) continue;               // já tem escolha da gestão: respeita
+    cfg[codigo] = { estado: "resumo", ate: "", por: "sistema", em: new Date().toISOString() };
+    mudou++;
+  }
+  await storage.set(AVISOS_KEY, JSON.stringify(normalizarAvisos(cfg)));
+  await storage.set(MARCA, new Date().toISOString());
+  console.log(`[avisos] ${mudou} aviso(s) à gestão passaram ao resumo das ${HORA_RESUMO}h`);
 }
 
 /** GET /api/avisos — o painel. Só gestor geral: é configuração do portal. */
@@ -15230,6 +15326,7 @@ app.listen(port, () => {
       subirEquipeAP,             // a coordenação do ARCHÉ AP, do arquivo em dados/
       subirProfessoresAP,        // e as listas de professores, curso a curso
       migrarCoordenadoresApParaInstituicao, // a dupla do AP vira a composição do curso
+      porAvisosDaGestaoNoResumo, // os avisos à gestão passam ao resumo das 13h
       // SEMPRE por último, e a cada arranque (achado de ago/2026 — o caso
       // Marlana): as migrações acima podem carimbar CPF em projeto que ainda
       // não tem e-mail, e uma vinculação que rodasse só uma vez, antes delas,
@@ -15268,4 +15365,8 @@ app.listen(port, () => {
   // a cópia DATADA do sistema, uma por dia (ver backupDoDia)
   setTimeout(() => backupDoDia().catch((e) => console.error("[backup]", e.message)), 90_000).unref();
   setInterval(() => backupDoDia().catch((e) => console.error("[backup]", e.message)), 60 * 60 * 1000).unref();
+  /* O RESUMO DIÁRIO: a varredura é horária como as demais, mas só AGE a
+     partir das 13h e uma vez por dia (a marca guarda o dia já resumido). */
+  setTimeout(() => varrerResumoDiario().catch((e) => console.error("[resumo]", e.message)), 45_000).unref();
+  setInterval(() => varrerResumoDiario().catch((e) => console.error("[resumo]", e.message)), 60 * 60 * 1000).unref();
 });
