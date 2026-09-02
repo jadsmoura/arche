@@ -1869,6 +1869,29 @@ public/
   bolsista com relatório não validado, sem o filtro de "já convidado" do convite. As
   trajetórias da turma 2025/2026 vêm dos termos (a da Ellisa ficou ilegível no manuscrito
   e ela está sem projeto vinculado — decisão pendente da gestão).
+- **A REGULARIZAÇÃO NÃO PODE FICAR ESCONDIDA ATRÁS DO "CICLO ENCERRADO"** (guia Bolsistas da
+  SPA da IC, achado do dono ago/2026: "algo no fluxo do edital de IC está meio quebrado — sobre
+  os relatórios, validação, finalização de etapa"). O ciclo 01/2025 encerrou sem os relatórios e
+  a entrega REABRIU até 31/10/2026 — mas os projetos seguem `concluido`, e o cartão de cada aluno
+  trocava TUDO por um selo "ciclo encerrado": sem os chips do parcial e do final, sem o prazo,
+  sem o botão de enviar (que ainda exigia `status === "aprovado"`) e sem o "ler e validar" da
+  orientação. Eram **53 projetos**, 24 com aluno indicado, num prazo que está correndo: o aluno
+  não tinha por onde entregar e a orientação não tinha por onde validar. Quem diz se a janela
+  está aberta é o SERVIDOR (`prazoRelatorios.regularizacao`), e é ele que a tela passa a
+  consultar; o selo vira "ciclo encerrado · regularização aberta", que é a verdade — o ciclo
+  fechou E a entrega está reaberta.
+- **UM NOME POR MOMENTO: "Aguardando validação" dizia duas coisas opostas** (`situacaoDaAcao` em
+  lib/situacao.js, mesmo relato: "tantos ícones e etapas que estavam em versões anteriores e que
+  ficaram que deixa tudo tão confuso"). O selo saía IGUAL para a **proposta** esperando aprovação
+  e para o **relatório/encerramento** esperando validação — dois atos de pontas opostas do
+  processo, e é por esse selo que a PROPPEX decide o que fazer ao abrir a lista. Agora o selo diz
+  O QUE espera: "Relatório aguardando validação" (ação sem evento) e "Encerramento aguardando
+  validação" (com evento); a proposta fica com "Aguardando validação", que é o que ela sempre
+  foi. Um teste percorre as seis etapas e **falha se dois rótulos coincidirem** — a régua que
+  faltava para o vocabulário não voltar a colidir. No ARCHÉ IC, pela mesma razão, o relatório
+  entregue deixou de se chamar "enviado" na graduação e "entregue" no ICEM: o código gravado não
+  muda (`enviado` é a chave), o que a tela ESCREVE passa a ser um só e diz o que falta fazer
+  ("entregue — a validar", "devolvido ao aluno").
 - **Relatórios estruturados** (decisão do dono, ago/2026 — catálogos em lib/ic.js): o
   PARCIAL segue o roteiro institucional de 7 seções (`CAMPOS_RELATORIO_PARCIAL`; as 5
   primeiras obrigatórias, mín. 30 caracteres) com comprovantes anexáveis; o FINAL é um

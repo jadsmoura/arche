@@ -2436,12 +2436,23 @@ function renderBolsistas() {
       const r = relDe(tipo);
       const prazo = (p.prazoRelatorios?.prazos || []).find((x) => x.tipo === tipo);
       const aberto = prazo?.abre && hojeISO() >= prazo.abre;
-      const chip = r ? `<span class="badge b-${esc(r.situacao)}">${tipo}: ${esc({ enviado: "enviado", validado: "validado", devolvido: "devolvido" }[r.situacao] || r.situacao)}</span>`
+      /* O ARCHÉ IC dizia "enviado" na graduação e "entregue" no ICEM para o
+         MESMO ato — o aluno entregou o relatório —, e quem lê as duas guias
+         no mesmo dia não sabia se eram estados diferentes. O código gravado
+         não muda (`enviado` é a chave); o que a tela ESCREVE passa a ser um
+         só, e diz o que falta fazer. */
+      const chip = r ? `<span class="badge b-${esc(r.situacao)}">${tipo}: ${esc({ enviado: "entregue — a validar", validado: "validado", devolvido: "devolvido ao aluno" }[r.situacao] || r.situacao)}</span>`
         : prazo?.atrasado ? `<span class="badge b-atrasada">${tipo}: atrasado (venceu ${fmtBr(prazo.vence)})</span>`
           : `<span class="badge b-rascunho">${tipo}: até ${fmtBr(prazo?.vence)}</span>`;
-      // o ALUNO preenche (janela aberta, sem relatório validado/enviado);
-      // o PROFESSOR valida quando há relatório enviado esperando por ele
-      const acao = souEuMesmo && p.status === "aprovado" && aberto && (!r || r.situacao === "devolvido")
+      /* O ALUNO preenche (janela aberta, sem relatório validado/enviado); o
+         PROFESSOR valida quando há relatório enviado esperando por ele.
+         A janela vale TAMBÉM no ciclo em REGULARIZAÇÃO (achado do dono,
+         ago/2026): esses projetos estão `concluido` e mesmo assim têm o
+         parcial e o final reabertos até 31/10 — exigir "aprovado" aqui
+         trancava justamente quem precisa regularizar. Quem diz se a janela
+         está aberta é o SERVIDOR, em `prazoRelatorios`. */
+      const emJanela = p.status === "aprovado" || p.prazoRelatorios?.regularizacao;
+      const acao = souEuMesmo && emJanela && aberto && (!r || r.situacao === "devolvido")
         ? `<button class="bt bt-sec" onclick="abrirRelatorio('${esc(p.id)}','${tipo}')">${r ? "corrigir" : "preencher"} relatório</button>`
         : !META.gestao && !ehAluno() && r?.situacao === "enviado"
           ? `<button class="bt bt-ok" onclick="lerEValidarIC('${esc(p.id)}','${tipo}','${esc(r.id || "")}')">Relatório ${tipo} — ler e validar</button>`
@@ -2462,9 +2473,15 @@ function renderBolsistas() {
       </div>
       <div class="muted" style="margin-bottom:6px">${esc(p.numero || "")} · ${esc(p.titulo || "")}${a.curso ? ` · ${esc(a.curso)}` : ""}${a.periodo ? ` · ${esc(a.periodo)}` : ""}</div>
       <div class="exp" style="gap:6px">
-        ${p.status === "concluido"
+        ${p.status === "concluido" && !p.prazoRelatorios?.regularizacao
           ? '<span class="badge b-validado">ciclo encerrado</span>'
-          : `<span class="badge b-${atrasadas ? "atrasada" : "validado"}">metas: ${feitas}/${metas.length} concluída(s)${atrasadas ? ` · ${atrasadas} atrasada(s)` : ""}</span>
+          /* Ciclo encerrado COM regularização aberta continua mostrando os
+             relatórios e os botões: era aqui que a regularização do 01/2025
+             sumia da tela — o aluno não tinha como enviar e a orientação não
+             tinha como validar, num prazo que está correndo. */
+          : `${p.status === "concluido"
+              ? '<span class="badge b-validado">ciclo encerrado · regularização aberta</span>'
+              : `<span class="badge b-${atrasadas ? "atrasada" : "validado"}">metas: ${feitas}/${metas.length} concluída(s)${atrasadas ? ` · ${atrasadas} atrasada(s)` : ""}</span>`}
         ${rel("parcial")} ${rel("final")}`} ${contrato}
       </div>
       ${META.gestao ? `<details style="margin-top:6px">

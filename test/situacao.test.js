@@ -70,7 +70,9 @@ test("encerramento solicitado: aguardando validação — e o relatório JÁ est
   a.evento.encerramento = { status: "solicitado" };
   const s = situacaoDaAcao(a, HOJE);
   assert.equal(s.etapa, "encerramento-em-validacao");
-  assert.equal(s.rotulo, "Aguardando validação");
+  // diz O QUE espera validação: "Aguardando validação" sozinho é o rótulo da
+  // PROPOSTA, na outra ponta do processo (ver o teste da ambiguidade abaixo)
+  assert.equal(s.rotulo, "Encerramento aguardando validação");
   assert.equal(s.relatorioNoCiclo, true);
   assert.equal(s.relatorioPendente, false);
 });
@@ -141,4 +143,47 @@ test("toda etapa devolvida está no catálogo", () => {
     evento({ numeroAcao: "", status: "reprovada" }),
   ];
   for (const a of casos) assert.ok(ETAPAS.includes(situacaoDaAcao(a, HOJE).etapa));
+});
+
+/* ------------- DOIS MOMENTOS NÃO PODEM TER O MESMO NOME ------------------
+   Achado do dono (ago/2026): "tantos ícones e etapas que estavam em versões
+   anteriores e que ficaram que deixa tudo tão confuso". O caso mais caro era
+   o selo "Aguardando validação", que saía IGUAL para a proposta esperando
+   aprovação e para o relatório esperando encerramento — dois atos de pontas
+   opostas do processo, lidos pela PROPPEX para decidir o que fazer. */
+test("a proposta e o relatório NÃO compartilham o rótulo de espera", () => {
+  const proposta = situacaoDaAcao({ proposta: {} }, HOJE);
+  const semEvento = situacaoDaAcao({
+    numeroAcao: "EXT-2026-001", status: "relatorio-entregue",
+    proposta: { periodoInicio: "2026-01-01", periodoFim: "2026-02-01" },
+    relatorio: { entregueEm: "2026-02-05T12:00:00Z" },
+  }, HOJE);
+  assert.equal(proposta.etapa, "aguardando-validacao");
+  assert.equal(proposta.rotulo, "Aguardando validação");
+  assert.equal(semEvento.etapa, "encerramento-em-validacao");
+  assert.notEqual(semEvento.rotulo, proposta.rotulo);
+  assert.equal(semEvento.rotulo, "Relatório aguardando validação");
+});
+
+test("nenhum rótulo se repete entre etapas diferentes", () => {
+  const casos = [
+    ["preenchimento", { proposta: {} , evento: { slug: "x" } }],
+    ["aguardando-validacao", { proposta: {} }],
+    ["validado", { numeroAcao: "X", proposta: { periodoInicio: "2026-01-01", periodoFim: "2027-01-01" } }],
+    ["aguardando-encerramento", { numeroAcao: "X", proposta: { periodoInicio: "2026-01-01", periodoFim: "2026-02-01" } }],
+    ["encerramento-em-validacao", { numeroAcao: "X", status: "relatorio-entregue",
+      proposta: { periodoInicio: "2026-01-01", periodoFim: "2026-02-01" },
+      relatorio: { entregueEm: "2026-02-05T12:00:00Z" } }],
+    ["encerrado", { numeroAcao: "X", status: "registrada",
+      proposta: { periodoInicio: "2026-01-01", periodoFim: "2026-02-01" } }],
+  ];
+  const porRotulo = new Map();
+  for (const [esperada, acao] of casos) {
+    const s = situacaoDaAcao(acao, HOJE);
+    assert.equal(s.etapa, esperada, `${esperada}: a montagem do caso mudou`);
+    const antes = porRotulo.get(s.rotulo);
+    assert.equal(antes, undefined,
+      `"${s.rotulo}" serve a duas etapas: ${antes} e ${s.etapa}`);
+    porRotulo.set(s.rotulo, s.etapa);
+  }
 });
