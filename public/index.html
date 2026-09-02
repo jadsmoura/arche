@@ -85,6 +85,13 @@
   .dm-seta{font-size:13px;color:var(--muted);transition:transform .15s;display:inline-block;margin-left:2px}
   .dm-cab[aria-expanded="false"] .dm-seta{transform:rotate(-90deg)}
   .dm-linhas{display:flex;flex-direction:column;gap:8px}
+  /* `hidden` só vale se nada declarar display: o atributo apaga pelo estilo do
+     navegador, e uma regra de classe (aqui, o flex acima) vence dele. Sem esta
+     linha o painel "recolhia" no atributo e continuava na tela. */
+  .dm-linhas[hidden]{display:none}
+  /* o anel de foco fica para o teclado: o clique do mouse não precisa dele */
+  .dm-cab:focus{outline:none}
+  .dm-cab:focus-visible{outline:2px solid var(--brand-3);outline-offset:3px;border-radius:10px}
   .dm-linha{display:flex;align-items:center;gap:10px;padding:8px 13px;transition:.13s;
     border:1px solid #eef2f4;border-radius:11px;background:#fcfdfe;font-size:12.5px}
   a.dm-linha:hover{background:var(--wash);border-color:var(--wash2)}

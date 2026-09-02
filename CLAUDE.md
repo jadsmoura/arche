@@ -635,7 +635,9 @@ public/
   **E o painel RECOLHE** (mesmo pedido): com dez setores ele empurrava os cartões para fora da
   tela, e há dias em que a pró-reitoria abre o portal para ir a um setor, não para ver a fila. A
   escolha fica no `localStorage`, e o TOTAL continua à vista no cabeçalho recolhido — é ele que
-  diz se vale a pena abrir.
+  diz se vale a pena abrir. O CSS precisa de `.dm-linhas[hidden]{display:none}`: o atributo
+  `hidden` apaga pelo estilo do navegador, e a regra de classe (`display:flex`) vence dele — sem a
+  linha, o painel recolhia no atributo e continuava na tela.
 - **Demandas abertas na página inicial** (pedido do dono, ago/2026): antes dos cartões dos
   setores, a gestão vê **o que espera decisão**, agrupado por setor, com o atalho para o lugar
   onde a decisão acontece — a pró-reitoria abre o portal para saber ONDE entrar, não para
