@@ -2277,9 +2277,13 @@ public/
 - **Inclusão manual pela coordenação** (`inclusaoManual`): quando a pró-reitoria defere um
   pedido de inclusão fora do prazo, a gestão abre o projeto **em nome de quem orienta** —
   o dono é o professor (é na conta dele que aparece e é ele quem toca), a coordenação só
-  digitou. Exige e-mail **ou** CPF do orientador e um motivo, que fica no histórico e no
-  resultado do edital ("inclusão deferida fora do prazo"). O avaliador ad hoc não vê a
-  marca: ele julga a proposta, não como ela entrou.
+  digitou. Exige e-mail **ou** CPF do orientador e um motivo, que fica no **histórico** do
+  projeto, na **ficha da gestão** (`projetos.pdf`) e na tela de quem coordena. **NÃO sai no
+  resultado publicado** — nem no preliminar, nem no final (correção do dono, ago/2026, revendo
+  a régua que a escondia só no preliminar): o resultado publica MÉRITO, e "inclusão deferida
+  fora do prazo" impresso ao lado do nome de um professor num documento público lê-se como
+  ressalva sobre ele. O avaliador ad hoc também não vê a marca: ele julga a proposta, não como
+  ela entrou.
 - **A coordenação também dá parecer** (`podeDarParecer`): o edital prevê a análise da
   PROPPEX, e ela usa os mesmos sete critérios do ad hoc — sem precisar se designar. O
   parecer entra na média que forma a NP como qualquer outro e fica no mesmo sigilo: a

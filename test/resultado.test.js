@@ -168,15 +168,22 @@ test("proposta sem nota de projeto sai sem nota final, não com zero", async () 
   assert.doesNotMatch(linha, /(^|\s)0(\s|$)/, "nada de nota final 0 para quem não foi avaliado");
 });
 
-test("a inclusão deferida fora do prazo fica dita no documento", async () => {
+/* COMO A PROPOSTA ENTROU NÃO SAI NO RESULTADO (correção do dono, ago/2026,
+   revendo a régua que a escondia só no preliminar): o resultado publica
+   MÉRITO. "Inclusão deferida fora do prazo" é ato interno do processo, e
+   impresso ao lado do nome de um professor num documento público lê-se como
+   ressalva sobre ele. O registro fica no histórico e na ficha da gestão. */
+test("a inclusão deferida fora do prazo NÃO sai no resultado publicado", async () => {
   const { gerarResultadoEditalPdf } = await import("../lib/pdf.js");
-  const buf = await gerarResultadoEditalPdf({
-    edital: EDITAL,
-    projetos: [proj({ inclusaoManual: { por: "proppex@uniego.edu.br", motivo: "deferido pelo pró-reitor" } })],
-  });
-  const t = textoDoPdf(buf).join(" ");
-  assert.match(t, /inclus.o deferida fora do prazo/);
-  assert.doesNotMatch(t, /deferido pelo pr/, "o motivo é interno: no documento basta o fato");
+  const projetos = [proj({ inclusaoManual: { por: "proppex@uniego.edu.br", motivo: "deferido pelo pró-reitor" } })];
+  for (const fase of ["preliminar", "final"]) {
+    const t = textoDoPdf(await gerarResultadoEditalPdf({ edital: EDITAL, fase, projetos })).join(" ");
+    assert.doesNotMatch(t, /inclus.o deferida/, fase);
+    assert.doesNotMatch(t, /deferido pelo pr/, `${fase}: o motivo é interno`);
+    // e a proposta continua no documento, com a linha e a titulação
+    assert.match(t, /IC-2026-001/, fase);
+    assert.match(t, /IC · Doutor/, fase);
+  }
 });
 
 test("edital sem proposta não gera documento mentiroso", async () => {
@@ -226,7 +233,7 @@ test("no preliminar o aprovado sai como 'Aprovada', mesmo já havendo fomento", 
 
 /* Pedido do dono (ago/2026): o preliminar é só os quadros por linha. Os dois
    quadros de mérito repetiriam as mesmas propostas, e a marca de inclusão
-   fora do prazo é assunto do processo, não da divulgação preliminar. */
+   fora do prazo é assunto do processo, não da divulgação — em fase nenhuma. */
 test("o preliminar traz só os quadros por linha, sem mérito e sem a marca de inclusão", async () => {
   const { gerarResultadoEditalPdf } = await import("../lib/pdf.js");
   const projetos = [
@@ -244,12 +251,12 @@ test("o preliminar traz só os quadros por linha, sem mérito e sem a marca de i
   assert.match(prelim, /IC-2026-041/);
   assert.match(prelim, /IC-2026-042/);
 
-  // no FINAL os quadros de mérito também não voltam (pedido do dono,
-  // ago/2026) — o que volta é a marca de inclusão, que é do processo
+  // no FINAL nada disso volta: nem os quadros de mérito, nem a marca de
+  // inclusão (correção do dono, ago/2026 — ela é do processo, não da divulgação)
   const fim = textoDoPdf(await gerarResultadoEditalPdf({ edital: EDITAL, projetos })).join(" ");
   assert.ok(!/professores doutores/.test(fim), "nem no final");
   assert.ok(!/Classifica..o geral/.test(fim), "nem no final");
-  assert.match(fim, /inclus.o deferida fora do prazo/);
+  assert.ok(!/inclus.o deferida/.test(fim), "nem no final");
 });
 
 /* Pedido do dono (ago/2026): o valor da bolsa sai dos documentos de
