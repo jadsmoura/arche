@@ -181,11 +181,6 @@ td b{color:var(--marca);font-weight:600}
 .etapa p:last-child{margin-bottom:0}
 .etapa .quando{font-size:12.5px;color:var(--muted);font-family:"IBM Plex Mono"}
 
-/* ---------- nome ---------- */
-.nomes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:0 0 24px}
-.nome{background:var(--papel);border:1px solid var(--linha);border-radius:12px;padding:16px 18px}
-.nome .n{font-family:Sora;font-size:21px;font-weight:700;color:var(--marca);letter-spacing:-.01em}
-.nome .porque{font-size:13.5px;color:var(--muted);margin-top:6px;line-height:1.5}
 
 .rodape{border-top:1px solid var(--linha);padding-top:22px;margin-top:16px;
   font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 22px}
@@ -210,8 +205,6 @@ td b{color:var(--marca);font-weight:600}
   <a href="#pedido">O que pedimos ao servidor</a>
   <a href="#migracao">Plano de migração</a>
   <a href="#governanca">Governança e acessos</a>
-  <div class="sep"></div>
-  <a href="#nome">Sobre o nome</a>
 </nav>
 
 <main>
@@ -952,66 +945,6 @@ td b{color:var(--marca);font-weight:600}
       A proposta é a divisão acima: <b>a TI é dona do ambiente; a PROPPEX é dona da aplicação.</b>
       É o mesmo arranjo que já funciona hoje, apenas com o servidor dentro de casa.
     </div>
-  </div>
-</section>
-
-<!-- ============================================================ -->
-<section id="nome">
-  <div class="marcador"><span class="num">§ 11</span><h2>Sobre o nome e a replicação</h2></div>
-  <p class="chapeu">Se o sistema for oferecido a outras instituições, o que precisa mudar — e o
-    que, ao contrário do que parece, já está pronto.</p>
-
-  <div class="prosa">
-    <p><b>O nome já é genérico.</b> <i>Arché</i> é grego — origem, princípio, fundamento — e não
-      carrega nada do UNIEGO. Ele funciona como nome de produto tanto quanto qualquer marca
-      construída para isso: é curto, pronunciável, registrável e diz algo verdadeiro sobre o
-      sistema. Trocá-lo por um nome "mais técnico" seria trocar uma marca boa por uma
-      genérica.</p>
-
-    <p><b>O que é específico do UNIEGO não está no nome — está dentro.</b> Se o objetivo for
-      instalar o sistema em outra instituição, o trabalho real é este:</p>
-    <ul>
-      <li>O timbre, o logotipo e o nome da instituição nos documentos</li>
-      <li>Os nomes e cargos de quem assina (reitor, pró-reitores, coordenações)</li>
-      <li>O catálogo de cursos — <em>já editável pelo portal</em></li>
-      <li>Os editais e seus ciclos — <em>já lançáveis pelo portal</em></li>
-      <li>A nomenclatura dos órgãos (PROPPEX, PROAC) e dos colegiados</li>
-      <li>Os endereços de e-mail de cada setor</li>
-    </ul>
-    <p>Boa parte disso já saiu do código e virou configuração ao longo do último ano, justamente
-      porque a operação exigia. O que falta é um passo bem delimitado: transformar as constantes
-      institucionais restantes em um <b>perfil de instituição</b> — e, se houver mais de uma
-      instituição no mesmo servidor, separar os dados por inquilino.</p>
-
-    <div class="nota">
-      <strong>Recomendação.</strong> Manter <b>ARCHÉ</b>. Se em algum momento fizer sentido separar
-      a marca institucional da comercial, o caminho de menor atrito é manter ARCHÉ como o nome do
-      produto e usar a instituição como qualificação — <i>ARCHÉ · UNIEGO</i>, <i>ARCHÉ · [outra
-      instituição]</i> —, exatamente como os módulos já se nomeiam hoje (ARCHÉ IC, ARCHÉ EX,
-      ARCHÉ AT).
-    </div>
-
-    <p>Se ainda assim a preferência for por um nome novo, estes três seguem o mesmo critério —
-      curtos, pronunciáveis em português e espanhol, sem sigla, e com sentido ligado ao que o
-      sistema faz:</p>
-  </div>
-
-  <div class="nomes">
-    <div class="nome"><div class="n">Cátedra</div>
-      <div class="porque">A cadeira do professor, a sede da autoridade acadêmica. Português e
-        espanhol, imediatamente compreensível no mercado de ensino superior da América Latina.</div></div>
-    <div class="nome"><div class="n">Ágora</div>
-      <div class="porque">A praça onde a comunidade delibera. Combina com um portal que reúne
-        colegiados, editais e prestação de contas — mas é um nome bastante disputado.</div></div>
-    <div class="nome"><div class="n">Lastro</div>
-      <div class="porque">O que dá estabilidade e prova. Descreve com precisão o que o sistema faz
-        pela instituição na hora do reconhecimento de curso: dar lastro documental.</div></div>
-  </div>
-
-  <div class="prosa">
-    <p style="color:var(--muted);font-size:14.5px">Nenhum deles supera <i>Arché</i> em significado.
-      A troca só compensa se houver uma razão comercial concreta — um conflito de marca registrada,
-      por exemplo — e não apenas a impressão de que o nome é institucional demais. Ele não é.</p>
   </div>
 </section>
 
