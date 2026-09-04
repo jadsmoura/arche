@@ -1980,12 +1980,40 @@ public/
 - **Depois da aprovação, o quadro de alunos só CRESCE pela tela da orientação**
   (decisão do dono, ago/2026, no ramo de execução do POST /api/ic): indicar aluno novo
   segue livre, mas **remover** aluno — ou trocar o e-mail de quem já foi indicado, que
-  equivale a remover — é ato da **Substituição de bolsista**; e-mail digitado errado se
-  corrige com a PROPPEX. A **marca de bolsista acompanha a concessão do fomento**: nos
-  já indicados ela é preservada da base, e no aluno novo sai da concessão do projeto —
-  a caixa do formulário não manda. A GESTÃO segue com a mão livre (edita pelo ramo
-  geral). A tela espelha a regra: sem ×, e-mail e caixa travados nos já indicados
-  ("via substituição" no lugar).
+  equivale a remover — é ato da **Substituição de bolsista**. A **marca de bolsista
+  acompanha a concessão do fomento**: nos já indicados ela é preservada da base, e no
+  aluno novo sai da concessão do projeto — a caixa do formulário não manda. A GESTÃO
+  segue com a mão livre (edita pelo ramo geral). A tela espelha a regra: sem ×, e-mail
+  e caixa travados nos já indicados ("via substituição" no lugar).
+- **CORRIGIR A INDICAÇÃO É DA ORIENTAÇÃO, e o convite se reenvia**
+  (`POST /api/ic/:id/indicacao` — o antigo `/aluno-email`, que segue valendo como caminho —
+  + `bolsistaEntrou`/`camposDaIndicacaoAlterados` em lib/ic.js, pedido do dono ago/2026:
+  "permita ao orientador editar os dados de indicação do bolsista; alguns erraram e a
+  notificação não chega p aluno"). Quem digita o e-mail do aluno é o professor, e digitar
+  errado é banal — o convite não chega a ninguém, o aluno não entra, não preenche o cadastro
+  e não entrega relatório: o projeto trava numa letra. A correção existia desde ago/2026, e
+  **ninguém a achava**: era só do e-mail, atrás de um lápis de 12px com `class="btn ghost"`
+  — classe que não existe neste SPA, então ele saía sem estilo nenhum — ao lado de um campo
+  cinza. O professor via o campo travado e concluía que o sistema não deixava consertar.
+  Agora a correção cobre **o que a orientação digitou ao indicar** (nome, e-mail, telefone,
+  curso e período), numa janela, com uma **linha de estado por aluno** que responde à única
+  pergunta que ele faz: *o convite chegou?* — "✓ já entrou no sistema" ou "◌ ainda não
+  entrou". E ganhou **✉ Reenviar convite**, que faltava: até aqui o convite só saía quando o
+  aluno era NOVO, então o e-mail que caiu no spam não tinha segunda chance — o professor via
+  o endereço certo na tela, o aluno dizia não ter recebido nada, e não havia botão nenhum
+  entre os dois. O reenvio **não grava nada** (é o mesmo convite, para o mesmo endereço) e
+  por isso não entra no histórico.
+  O que separa **corrigir** de **substituir** é `bolsistaEntrou`: enquanto o aluno não
+  preencheu NADA de seu (`CAMPOS_DO_ALUNO_PROTEGIDOS` — CPF, RG, endereço, conta), o endereço
+  não abriu conta nenhuma e corrigi-lo não tira nada de ninguém; **depois que ele entrou**, o
+  e-mail é a identidade de quem já está no projeto, e só a PROPPEX o troca (os demais campos
+  a orientação segue corrigindo). O telefone fica de fora do sinal de propósito: é o contato
+  que a própria orientação indicou. A **trava de UM PROJETO POR ACADÊMICO vale na correção**,
+  para todos — sem isso, apontar o e-mail para o de alguém já indicado noutro projeto do
+  ciclo passaria ao largo dela. E o histórico diz **quais campos** mudaram, com o e-mail por
+  extenso (`de → para`): num projeto que a PROPPEX audita depois, "corrigiu a indicação"
+  sozinho não explica nada. O sinal `entrou` viaja em `alunosVisiveis` **sem os dados que o
+  provam** — eles continuam saindo em branco para a orientação.
 - **UM PROJETO POR ACADÊMICO** (`projetoQueJaTemOAluno` em lib/ic.js, pedido do dono ago/2026:
   "não permita que mais de um professor indique o mesmo aluno; se ele já tiver sido indicado, trava
   para outra indicação"). O caso que dói é a BOLSA — duas concessões à mesma pessoa, pagas em

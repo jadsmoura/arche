@@ -16,6 +16,7 @@ import {
   idadeEm, faltaNoCadastroDoBolsista, cadastroDoBolsistaCompleto,
   pedidoEncerramentoPendente, encerramentoAceito, ROTULO_STATUS,
   projetoQueJaTemOAluno, motivoAlunoJaIndicado,
+  bolsistaEntrou, camposDaIndicacaoAlterados, alunosVisiveis,
 } from "../lib/ic.js";
 
 /* -------------------------------- fixtura ------------------------------- */
@@ -1194,4 +1195,54 @@ test("a correção nomeia os campos que mudaram — e só eles", () => {
     ["título", "resumo"]);
   assert.deepEqual(camposDaPropostaAlterados(base, { ...base, curso: "odo" }), ["curso"]);
   assert.deepEqual(camposDaPropostaAlterados(null, base), [], "projeto novo não corrige nada");
+});
+
+/* ======================================================================
+   CORRIGIR A INDICAÇÃO (ago/2026)
+
+   O professor digita o e-mail do aluno ao indicá-lo, e digitar errado é
+   banal — quando erra, o convite não chega a ninguém e o aluno fica de
+   fora do próprio projeto. O que separa CORRIGIR de SUBSTITUIR é um sinal
+   só: se o aluno já entrou.
+   ====================================================================== */
+test("bolsistaEntrou distingue quem usou a conta de quem só foi indicado", () => {
+  assert.equal(bolsistaEntrou({ nome: "Tiago", email: "t@x.br" }), false,
+    "indicado e nada mais: o convite pode nem ter chegado");
+  assert.equal(bolsistaEntrou({ nome: "Tiago", telefone: "(62) 9…" }), false,
+    "o telefone é da INDICAÇÃO — quem o digitou foi a orientação, não o aluno");
+  assert.equal(bolsistaEntrou({ rg: "123" }), true, "um campo só já prova a entrada");
+  assert.equal(bolsistaEntrou({ vinculo: "nao" }), true, '"não tenho vínculo" é uma resposta');
+  assert.equal(bolsistaEntrou({ cpf: "  " }), false, "espaço não é resposta");
+  assert.equal(bolsistaEntrou(), false);
+});
+
+test("o histórico da correção diz o que mudou", () => {
+  const a = { nome: "Tiago Ribeiro", email: "t@gmial.com", telefone: "", curso: "Enf", periodo: "5º" };
+  assert.deepEqual(camposDaIndicacaoAlterados(a, { ...a, email: "t@gmail.com" }), ["e-mail"]);
+  assert.deepEqual(camposDaIndicacaoAlterados(a, { ...a, nome: "Tiago R. Silva", periodo: "6º" }),
+    ["nome", "período"]);
+  assert.deepEqual(camposDaIndicacaoAlterados(a, { ...a }), [], "salvar sem mexer não é correção");
+  // o que é do ALUNO não entra: a correção da orientação não o alcança
+  assert.deepEqual(camposDaIndicacaoAlterados(a, { ...a, rg: "123", conta: "9" }), []);
+  assert.deepEqual(camposDaIndicacaoAlterados(null, a), []);
+});
+
+test("a orientação recebe o sinal de que o aluno entrou, sem receber os dados dele", () => {
+  const p = {
+    id: "p1", status: "aprovado", orientador: { email: "prof@uniego.edu.br" },
+    criadoPor: "prof@uniego.edu.br",
+    alunos: [
+      { nome: "Tiago", email: "t@x.br", rg: "123", conta: "9876", telefone: "(62) 9" },
+      { nome: "Maria", email: "m@x.br" },
+    ],
+  };
+  const [tiago, maria] = alunosVisiveis(p, { email: "prof@uniego.edu.br" });
+  assert.equal(tiago.entrou, true, "preencheu o próprio cadastro: entrou");
+  assert.equal(maria.entrou, false, "só foi indicada");
+  // e o sinal chega SEM os dados que o provam
+  assert.equal(tiago.rg, "", "o documento continua sendo do aluno");
+  assert.equal(tiago.conta, "", "a conta bancária também");
+  assert.equal(tiago.telefone, "(62) 9", "o telefone é o contato que ela mesma indicou");
+  // a gestão vê tudo, como sempre
+  assert.equal(alunosVisiveis(p, { email: "reitoria@uniego.edu.br", gestao: true })[0].rg, "123");
 });

@@ -33,6 +33,8 @@ import {
   numerar as numerarProjeto, projetoQueJaTemOAluno, motivoAlunoJaIndicado, anotar as anotarProjeto, resumir as resumirProjeto,
   papelNoProjeto, podeVerProjeto, podeEditarProjeto, podeGerirExecucao, podeAvaliar,
   propostaFechada, camposDaPropostaAlterados,
+  CAMPOS_DO_ALUNO_PROTEGIDOS as IC_CAMPOS_DO_ALUNO_PROTEGIDOS,
+  bolsistaEntrou as icBolsistaEntrou, camposDaIndicacaoAlterados as icCamposDaIndicacaoAlterados,
   podeEnviarRelatorio, podeValidarRelatorio, cronogramaDe, relatoriosDe, relatoriosPendentes,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto, notaFinal,
   participaDeAlgum, vincularPorCpf, modalidadeEfetiva as modalidadeEfetivaIC,
@@ -11490,9 +11492,10 @@ const CAMPOS_DO_ALUNO = {
 /* O que só o aluno escreve. O formulário da orientação não os recebe (ver
    alunosVisiveis) — se o salvamento dela os copiasse do que veio da tela,
    apagaria o RG e a conta de quem já preencheu. O telefone fica de fora de
-   propósito: é o contato que a própria orientação indicou. */
-const CAMPOS_DO_ALUNO_PROTEGIDOS = ["cpf", "rg", "nascimento", "endereco",
-  "vinculo", "vinculoOnde", "banco", "agencia", "conta", "pix"];
+   propósito: é o contato que a própria orientação indicou.
+   A lista mora em lib/ic.js: ela também responde a "o aluno já entrou?"
+   (`bolsistaEntrou`), e duas cópias acabariam divergindo. */
+const CAMPOS_DO_ALUNO_PROTEGIDOS = IC_CAMPOS_DO_ALUNO_PROTEGIDOS;
 function aplicarCadastroDoAluno(aluno, b, cpf) {
   const saida = { ...aluno };
   if (cpf) saida.cpf = cpf;
@@ -11578,14 +11581,16 @@ app.post("/api/ic/:id/meus-dados", async (req, res) => {
  * Substituição. Em qualquer caso a correção fica no histórico: o que mudou
  * a chave de uma conta precisa ser explicável depois.
  */
-app.post("/api/ic/:id/aluno-email", async (req, res) => {
+app.post(["/api/ic/:id/indicacao", "/api/ic/:id/aluno-email"], async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
   const meu = quemIC(u);
   const b = req.body || {};
   const de = String(b.de || "").trim().toLowerCase();
-  const para = String(b.para || "").trim().toLowerCase().slice(0, 160);
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(para))
+  const soReenviar = !!b.reenviar;
+  // `para` é o nome antigo do campo do e-mail; a rota nova manda `email`
+  const paraBruto = String(b.email ?? b.para ?? "").trim().toLowerCase().slice(0, 160);
+  if (!soReenviar && paraBruto && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(paraBruto))
     return res.status(400).json({ error: "Informe um e-mail válido." });
 
   const r = await comProjetos((projetos) => {
@@ -11600,34 +11605,93 @@ app.post("/api/ic/:id/aluno-email", async (req, res) => {
     const j = alunos.findIndex((a) => String(a.email || "").toLowerCase() === de
       || (!de && !a.email && String(a.nome || "").trim().toLowerCase() === String(b.nome || "").trim().toLowerCase()));
     if (j < 0) return { erro: [400, "Não encontrei esse aluno na indicação."], gravar: false };
-    if (String(alunos[j].email || "").toLowerCase() === para)
-      return { erro: [400, "Este já é o e-mail do aluno."], gravar: false };
-    if (alunos.some((a, k) => k !== j && String(a.email || "").toLowerCase() === para))
-      return { erro: [400, "Outro aluno deste projeto já está com esse e-mail."], gravar: false };
+    const antes = alunos[j];
+    const entrou = icBolsistaEntrou(antes);
 
-    // já entrou? então o endereço é a identidade de uma conta em uso
-    const entrou = CAMPOS_DO_ALUNO_PROTEGIDOS.some((c) => String(alunos[j][c] || "").trim());
-    if (entrou && papel !== "gestao") {
-      return { erro: [403, `${alunos[j].nome || "O aluno"} já preencheu o próprio cadastro — o e-mail virou a conta dele. `
-        + "Para corrigir mesmo assim, fale com a PROPPEX; para trocar de bolsista, use a Substituição de bolsista."], gravar: false };
+    /* REENVIAR O CONVITE (pedido do dono, ago/2026: "a notificação não chega
+       p aluno"): nem todo convite que não chega foi para o endereço errado —
+       ele cai no spam, a caixa da escola recusa, o deploy passou no meio do
+       envio. Antes disso, o convite só saía quando o aluno era NOVO: o
+       professor via o e-mail certo na tela, o aluno jurava não ter recebido
+       nada, e não havia botão nenhum entre os dois. O reenvio não muda nada
+       no registro — por isso não grava (`gravar: false`) e nem entra no
+       histórico como correção; é o MESMO convite, para o MESMO endereço. */
+    if (soReenviar) {
+      if (!antes.email)
+        return { erro: [400, `${antes.nome || "Este aluno"} está sem e-mail na indicação: `
+          + "informe o endereço antes de enviar o convite."], gravar: false };
+      if (!["aprovado", "concluido"].includes(p.status))
+        return { erro: [400, "O convite sai depois que o projeto é aprovado."], gravar: false };
+      return { projeto: p, convidar: [antes], gravar: false, reenviado: true };
     }
 
-    const antigo = alunos[j].email || "(sem e-mail)";
-    alunos[j] = { ...alunos[j], email: para };
+    /* CORRIGIR A INDICAÇÃO INTEIRA (pedido do dono, ago/2026: "permita ao
+       orientador editar os dados de indicação do bolsista; alguns erraram").
+       A correção já existia, mas só para o e-mail e atrás de um lápis de
+       12px — o professor via o campo travado e concluía que o sistema não
+       deixava consertar. Agora ela cobre o que a orientação digitou ao
+       indicar: nome, e-mail, telefone, curso e período. O que NÃO cobre é o
+       que é do aluno (CPF, RG, endereço, conta) nem a marca de bolsista, que
+       acompanha a bolsa concedida ao projeto. */
+    const limpo = {
+      nome: String(b.nome ?? antes.nome ?? "").trim().slice(0, 120),
+      email: paraBruto || String(antes.email || ""),
+      telefone: String(b.telefone ?? antes.telefone ?? "").trim().slice(0, 30),
+      curso: String(b.curso ?? antes.curso ?? "").trim().slice(0, 60),
+      periodo: String(b.periodo ?? antes.periodo ?? "").trim().slice(0, 30),
+    };
+    if (!limpo.nome && !limpo.email)
+      return { erro: [400, "A indicação precisa de nome ou e-mail."], gravar: false };
+
+    const trocouEmail = limpo.email !== String(antes.email || "");
+    if (trocouEmail) {
+      if (alunos.some((a, k) => k !== j && String(a.email || "").toLowerCase() === limpo.email))
+        return { erro: [400, "Outro aluno deste projeto já está com esse e-mail."], gravar: false };
+      // já entrou? então o endereço é a identidade de uma conta em uso
+      if (entrou && papel !== "gestao") {
+        return { erro: [403, `${antes.nome || "O aluno"} já entrou no sistema e preencheu dados no próprio cadastro — `
+          + "o e-mail virou a conta dele. Os demais campos você corrige normalmente; para o e-mail, "
+          + "fale com a PROPPEX, e para trocar de bolsista use a Substituição de bolsista."], gravar: false };
+      }
+      /* UM PROJETO POR ACADÊMICO vale também na correção: sem isto, trocar o
+         e-mail para o de alguém já indicado noutro projeto do ciclo passaria
+         ao largo da trava que a indicação tem. */
+      const outro = projetoQueJaTemOAluno(projetos, { ...antes, ...limpo },
+        { exceto: p.id, edital: p.edital });
+      if (outro) return { erro: [409, motivoAlunoJaIndicado(limpo, outro)], gravar: false };
+    }
+
+    const mudou = icCamposDaIndicacaoAlterados(antes, limpo);
+    if (!mudou.length) return { erro: [400, "Nada mudou na indicação."], gravar: false };
+
+    alunos[j] = { ...antes, ...limpo };
+    /* O histórico diz O QUE mudou, e o e-mail sai por extenso: é ele que
+       muda a chave de uma conta, e num projeto que a PROPPEX audita depois
+       "corrigiu a indicação" sozinho não explica nada. */
+    const quemE = alunos[j].nome || antes.nome || "um aluno indicado";
     projetos[i] = anotarProjeto({ ...p, alunos }, {
       quem: u.email,
-      oQue: `corrigiu o e-mail de ${alunos[j].nome || "um aluno indicado"}: ${antigo} → ${para}`,
+      oQue: `corrigiu a indicação de ${quemE} (${mudou.join(", ")})`
+        + (trocouEmail ? `: ${antes.email || "(sem e-mail)"} → ${limpo.email}` : ""),
     });
-    // o convite nunca chegou ao endereço errado; sai agora para o certo
-    return { projeto: projetos[i], convidar: ["aprovado", "concluido"].includes(p.status) ? [alunos[j]] : [] };
+    return {
+      projeto: projetos[i], mudou, trocouEmail,
+      // o convite nunca chegou ao endereço errado; sai agora para o certo
+      convidar: trocouEmail && limpo.email && ["aprovado", "concluido"].includes(p.status)
+        ? [alunos[j]] : [],
+    };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
   if (r.convidar?.length) convidarAlunosIC(r.projeto, r.convidar);
-  avisarPesquisa(`E-mail de aluno corrigido — ${r.projeto.numero || ""}`, [
-    ["Projeto", `${r.projeto.numero || ""} ${r.projeto.titulo || ""}`.trim()],
-    ["Novo e-mail", para],
-  ], "Correção de e-mail na indicação de aluno");
-  res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
+  if (r.reenviado) return res.json({ ok: true, reenviado: true, projeto: verProjeto(u, r.projeto) });
+  if (r.trocouEmail) {
+    avisarPesquisa(`E-mail de aluno corrigido — ${r.projeto.numero || ""}`, [
+      ["Projeto", `${r.projeto.numero || ""} ${r.projeto.titulo || ""}`.trim()],
+      ["Novo e-mail", paraBruto],
+    ], "Correção de e-mail na indicação de aluno");
+  }
+  res.json({ ok: true, mudou: r.mudou, convidou: !!r.convidar?.length,
+    projeto: verProjeto(u, r.projeto) });
 });
 
 /**

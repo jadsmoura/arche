@@ -4292,8 +4292,7 @@ function desenharAlunos() {
     <tr>
       <td><input ${roCampo} value="${esc(a.nome || "")}" oninput="ATUAL.alunos[${i}].nome=this.value"></td>
       <td><div style="display:flex;gap:5px;align-items:center">
-        <input type="email" style="flex:1 1 auto;min-width:0" ${roFixo} ${fixo ? 'title="O e-mail de quem já foi indicado é a chave da conta — para corrigir um erro de digitação, use o ✎ ao lado"' : ""} value="${esc(a.email || "")}" oninput="ATUAL.alunos[${i}].email=this.value;desenharEtapas()">
-        ${ger && fixo ? `<button class="btn ghost" style="flex:none;padding:4px 8px;font-size:12px" title="Corrigir o e-mail digitado errado" onclick="corrigirEmailAluno(${i})">✎</button>` : ""}
+        <input type="email" style="flex:1 1 auto;min-width:0" ${roFixo} ${fixo ? 'title="Este e-mail já foi convidado — use “✎ Corrigir” para consertar um erro de digitação"' : ""} value="${esc(a.email || "")}" oninput="ATUAL.alunos[${i}].email=this.value;desenharEtapas()">
       </div></td>
       <td><input ${roCampo} value="${esc(a.telefone || "")}" oninput="ATUAL.alunos[${i}].telefone=this.value" placeholder="(62) 9…"></td>
       <td><input ${roCampo} value="${esc(a.curso || "")}" oninput="ATUAL.alunos[${i}].curso=this.value"></td>
@@ -4303,7 +4302,26 @@ function desenharAlunos() {
         >${a.bolsista ? "Bolsista" : "Voluntário(a)"}</span></td>
       <td>${ger && !fixo ? `<button class="rm" title="remover" onclick="ATUAL.alunos.splice(${i},1);desenharAlunos();desenharEtapas()">×</button>`
         : (fixo ? `<span class="muted" title="Para trocar o bolsista, use a Substituição de bolsista — a coordenação aprova" style="font-size:11px">via substituição</span>` : "")}</td>
-    </tr>${!a.email ? `<tr><td colspan="7" class="muted" style="border-top:0;padding-top:0">
+    </tr>
+    ${/* A LINHA DE ESTADO DE CADA INDICADO (ago/2026, pedido do dono: "alguns
+          erraram e a notificação não chega p aluno"). A correção existia, mas
+          atrás de um lápis de 12px ao lado de um campo travado — o professor
+          via o campo cinza e concluía que o sistema não deixava consertar. E
+          faltava a resposta à única pergunta que ele faz: o convite chegou?
+          Quem responde é `entrou`, que o servidor manda de propósito (os
+          campos que provam a entrada saem em branco para a orientação). */""}
+    ${ger && fixo ? `<tr><td colspan="7" style="border-top:0;padding-top:0">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px">
+        ${a.entrou
+          ? '<span style="color:var(--ok);font-weight:600">✓ já entrou no sistema</span>'
+          : '<span style="color:#a75a0b;font-weight:600">◌ ainda não entrou — o convite pode não ter chegado</span>'}
+        <button class="bt bt-sec" style="padding:3px 9px;font-size:12px"
+          onclick="corrigirIndicacao(${i})">✎ Corrigir os dados</button>
+        ${a.email ? `<button class="bt bt-ghost" style="padding:3px 9px;font-size:12px"
+          title="Manda o mesmo convite de novo para ${esc(a.email)} — para o caso de ter caído no spam"
+          onclick="reenviarConvite(${i})">✉ Reenviar convite</button>` : ""}
+      </div></td></tr>` : ""}
+    ${!a.email ? `<tr><td colspan="7" class="muted" style="border-top:0;padding-top:0">
       ⚠ sem e-mail não há convite: ${esc(a.nome || "este aluno")} não entra no sistema</td></tr>` : ""}
     ${(() => {
       /* A trava do servidor, dita ANTES do clique: com a lista de projetos já
@@ -4353,21 +4371,73 @@ function addAluno() {
    convite. Depois que ele entrou, o e-mail virou a conta dele e a correção
    é da PROPPEX — a rota diz isso em vez de a tela adivinhar. Trocar de
    bolsista continua sendo a Substituição. */
-async function corrigirEmailAluno(i) {
+async function corrigirIndicacao(i) {
   const a = (ATUAL.alunos || [])[i];
   if (!a) return;
-  const novo = prompt(`Corrigir o e-mail de ${a.nome || "aluno indicado"}.\n\n`
-    + "Use isto só para consertar um endereço digitado errado — para trocar de "
-    + "bolsista, o caminho é a Substituição de bolsista.", a.email || "");
-  if (novo === null) return;
+  const campo = (id, rot, val, extra = "") => `<div style="flex:1 1 200px;min-width:0">
+    <label>${rot}</label><input id="ci-${id}" value="${esc(val || "")}" ${extra}></div>`;
+  abrirJanelaModal("ov-indic", `
+    <div class="ov-cab"><div class="t">Corrigir a indicação</div>
+      <button class="ov-x" onclick="document.getElementById('ov-indic').remove()">×</button></div>
+    <div class="muted" style="font-size:12.5px;margin-bottom:10px">
+      Conserte o que foi digitado errado ao indicar. Para <b>trocar de bolsista</b>, o caminho é
+      a <b>Substituição de bolsista</b> — a coordenação aprova.
+      ${a.entrou ? '<br><b style="color:#a75a0b">Este aluno já entrou no sistema:</b> o e-mail virou a conta dele e só a PROPPEX o troca. Os demais campos você corrige aqui.'
+        : "<br>Trocando o e-mail, o convite é reenviado na hora para o endereço novo."}
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      ${campo("nome", "Nome completo", a.nome)}
+      ${campo("email", "E-mail", a.email, `type="email" ${a.entrou && !META.gestao ? "disabled" : ""}`)}
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+      ${campo("telefone", "Telefone (WhatsApp)", a.telefone)}
+      ${campo("curso", "Curso", a.curso)}
+      ${campo("periodo", "Período", a.periodo)}
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="bt bt-ghost" onclick="document.getElementById('ov-indic').remove()">Cancelar</button>
+      <button class="bt bt-pri" onclick="salvarIndicacao(${i}, this)">Salvar a correção</button>
+    </div>`, { maxWidth: 620 });
+}
+
+async function salvarIndicacao(i, bt) {
+  const a = (ATUAL.alunos || [])[i];
+  if (!a) return;
+  const v = (id) => ($(`ci-${id}`) || {}).value ?? "";
+  bt.disabled = true; bt.textContent = "salvando…";
   try {
-    const r = await api(`/api/ic/${ATUAL.id}/aluno-email`, {
+    const r = await api(`/api/ic/${ATUAL.id}/indicacao`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ de: a.email || "", nome: a.nome || "", para: novo }),
+      body: JSON.stringify({ de: a.email || "", nome: v("nome"), email: v("email"),
+        telefone: v("telefone"), curso: v("curso"), periodo: v("periodo") }),
     });
+    document.getElementById("ov-indic")?.remove();
     ATUAL = r.projeto;
     desenharAlunos(); desenharEtapas();
-    aviso("E-mail corrigido — o convite foi enviado para o endereço novo.");
+    aviso(`Indicação corrigida (${(r.mudou || []).join(", ")})`
+      + (r.convidou ? " — o convite foi reenviado para o endereço novo." : "."));
+  } catch (e) {
+    bt.disabled = false; bt.textContent = "Salvar a correção";
+    aviso(e.message, "erro");
+  }
+}
+
+/* REENVIAR o convite (pedido do dono, ago/2026): nem todo convite que não
+   chega foi para o endereço errado — cai no spam, a caixa da escola recusa,
+   o deploy passa no meio do envio. Antes, o convite só saía quando o aluno
+   era NOVO: o professor via o e-mail certo na tela, o aluno dizia não ter
+   recebido nada, e não havia botão nenhum entre os dois. */
+async function reenviarConvite(i) {
+  const a = (ATUAL.alunos || [])[i];
+  if (!a?.email) return;
+  if (!confirm(`Enviar de novo o convite para ${a.email}?\n\n`
+    + "É o mesmo e-mail de sempre, para o mesmo endereço — nada muda na indicação.")) return;
+  try {
+    await api(`/api/ic/${ATUAL.id}/indicacao`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ de: a.email, reenviar: true }),
+    });
+    aviso(`Convite reenviado para ${a.email}. Peça para conferir também o spam.`);
   } catch (e) { aviso(e.message, "erro"); }
 }
 
