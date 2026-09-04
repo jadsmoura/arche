@@ -105,7 +105,8 @@ import {
 import { situacaoDaAcao } from "./lib/situacao.js";
 import {
   SETORES_EDITAL, normalizarEdital, faltaNoEdital, vigenteDe, aplicarEditais,
-  editaisDoCodigo, numeroSugerido, cicloSugerido, vigenciaSugerida, ETAPAS_MONITORIA,
+  editaisDoCodigo, proximoNumero, orgaoDoSetor, ORGAOS_EDITAL, setorEditalDe, designacaoDoEdital,
+  cicloSugerido, vigenciaSugerida, ETAPAS_MONITORIA,
 } from "./lib/editais.js";
 import {
   pendenciasDoPerfil, pendenciasIC, pendenciasICEM, pendenciasMonitoria,
@@ -1573,6 +1574,22 @@ app.get("/api/publico/ic", async (req, res) => {
       // 2026; os anteriores são da DIAC/FACEG e ficam como foram publicados)
       editaisMonitoria: editaisMonitoriaParaLista({
         publicados: await resultadosMonitoriaPublicados(), ciclosDoArquivo: ciclosDoArquivoMon() }),
+      /* OS EDITAIS DOS DEMAIS SETORES (pedido do dono, ago/2026: "todos os
+         setores podem lançar seus editais, e estes devem aparecer na página
+         de editais"). Os três de cima conduzem um ciclo e têm cartão próprio
+         — com resultado, prazos e o atalho de inscrição; estes são o
+         documento e a vigência, que é o que a chamada tem. Nada de interno
+         sai daqui: número, título, órgão, período e o PDF. */
+      editaisOutros: (await lerEditaisCadastrados())
+        .filter((e) => !["ic", "em", "monitoria"].includes(e.setor))
+        .map((e) => ({
+          numero: e.numero, designacao: designacaoDoEdital(e), ano: e.ano, titulo: e.titulo, setor: e.setor,
+          grupo: setorEditalDe(e.setor)?.grupo || "", sigla: setorEditalDe(e.setor)?.sigla || "",
+          orgao: e.orgao, vigencia: e.vigencia, publicadoEm: e.publicadoEm,
+          documento: e.documento || "", observacao: e.observacao || "",
+          vigente: !e.encerrado,
+        }))
+        .sort((a, b) => (b.ano || 0) - (a.ano || 0) || String(a.numero).localeCompare(String(b.numero))),
       projetos: projetos
         .filter((p) => p.status !== "rascunho")
         .map((p) => {
@@ -8915,7 +8932,10 @@ async function aplicarEditaisNoArranque() {
    o edital pertence — a de `pesquisa` responde pela graduação e pelo ICEM, a
    de `monitoria` pelo programa dela. Coordenar um módulo não abre o edital
    do outro: são processos de setores diferentes. */
-const MODULO_DO_EDITAL = { ic: "pesquisa", em: "pesquisa", monitoria: "monitoria" };
+const MODULO_DO_EDITAL = {
+  ic: "pesquisa", em: "pesquisa", inovacao: "inovacao", monitoria: "monitoria",
+  extensao: "extensao", eventos: "eventos", ensino: "praticas",
+};
 const podeEditalDe = (u, setor) => u?.papel === "gestor"
   || (!!MODULO_DO_EDITAL[setor] && !!u?.modulos?.includes(MODULO_DO_EDITAL[setor]));
 const setoresQuePodeLancar = (u) =>
@@ -8932,18 +8952,22 @@ app.get("/api/editais", async (req, res) => {
     const cadastrados = await lerEditaisCadastrados();
     const ano = Number(hojeLocalISO().slice(0, 4));
     res.json({
-      editais: cadastrados.filter((e) => podeLancar.includes(e.setor)),
+      editais: cadastrados.filter((e) => podeLancar.includes(e.setor))
+        .map((e) => ({ ...e, designacao: designacaoDoEdital(e) })),
       // o acervo já publicado, para a tela mostrar tudo num lugar só — ele
       // NÃO se edita por aqui (vive no código, e é o registro do que foi)
       doCodigo: editaisDoCodigo().filter((e) => podeLancar.includes(e.setor)),
       setores: SETORES_EDITAL.filter((s) => podeLancar.includes(s.codigo)),
       // sugestões para o formulário abrir preenchido — número, ciclo e
       // vigência se deduzem do setor e do ano, e seguem editáveis
+      /* O formulário abre com o ANO CORRENTE e o número que SERÁ emitido —
+         é o próximo da sequência daquele ano. Ele é informativo: quem grava
+         é o servidor, e entre a tela e a gravação outro pode ter lançado. */
       sugestao: Object.fromEntries(SETORES_EDITAL.map((s) => [s.codigo, {
-        numero: numeroSugerido(s.codigo, ano + 1),
-        ciclo: cicloSugerido(s.codigo, ano + 1),
-        vigencia: vigenciaSugerida(s.codigo, ano + 1),
-        ano: ano + 1,
+        numero: proximoNumero(ano, [...cadastrados, ...editaisDoCodigo()], s.orgaoSeq),
+        ciclo: cicloSugerido(s.codigo, ano),
+        vigencia: vigenciaSugerida(s.codigo, ano),
+        ano,
       }])),
       anoCorrente: ano,
       // as etapas do cronograma da monitoria, para o formulário desenhar os
@@ -8965,17 +8989,30 @@ app.post("/api/editais", async (req, res) => {
     const id = String(req.body?.id || "").trim();
     const base = id ? lista.find((x) => x.id === id) : null;
     if (id && !base) return res.status(404).json({ error: "Edital não encontrado no cadastro." });
-    const novo = normalizarEdital(req.body, { base });
+    let novo = normalizarEdital(req.body, { base });
     if (!podeEditalDe(u, novo.setor) || (base && !podeEditalDe(u, base.setor)))
       return res.status(403).json({ error: "O lançamento de editais é da gestão do setor." });
+    /* O NÚMERO É EMITIDO PELO SERVIDOR, na ordem em que os editais são
+       criados (decisão do dono, ago/2026) — a sequência GERAL da instituição,
+       contando o acervo já publicado. Não se digita, pela mesma razão do
+       Número da Ação da Extensão: duas coordenações lançando ao mesmo tempo
+       leriam o mesmo número e emitiriam o mesmo. Editar não renumera: o
+       número já saiu no ofício. */
+    if (!base) {
+      novo = { ...novo,
+        numero: proximoNumero(novo.ano, [...lista, ...editaisDoCodigo()], orgaoDoSetor(novo.setor)) };
+    }
     const falta = faltaNoEdital(novo);
     if (falta.length) return res.status(400).json({ error: `Falta ${falta.join(", ")}.` });
-    /* O NÚMERO é único: dois editais com o mesmo número seriam dois
-       documentos afirmando o mesmo ato, e a vitrine mostraria os dois. O
-       acervo do código conta — é ele que já foi publicado. */
-    const repetido = lista.some((x) => x.id !== novo.id && x.numero === novo.numero)
-      || editaisDoCodigo().some((x) => x.numero === novo.numero && !base);
-    if (repetido) return res.status(409).json({ error: `O edital ${novo.numero} já existe.` });
+    /* A unicidade é POR ÓRGÃO: com as sequências independentes, o "03/2027"
+       da PROPPEX e o da PROAC são dois editais diferentes — recusar o segundo
+       seria fazer uma pró-reitoria pular número por causa da outra, que é
+       justamente o que a decisão do dono desfez. */
+    const orgao = orgaoDoSetor(novo.setor);
+    const repetido = lista.some((x) => x.id !== novo.id && x.numero === novo.numero
+      && orgaoDoSetor(x.setor) === orgao);
+    if (repetido) return res.status(409).json({
+      error: `O edital ${novo.numero} da ${orgao.toUpperCase()} já existe.` });
     if (!base) novo.criadoPor = u.email;
     const i = lista.findIndex((x) => x.id === novo.id);
     if (i >= 0) lista[i] = novo; else lista.push(novo);

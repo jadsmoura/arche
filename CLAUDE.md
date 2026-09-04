@@ -2045,8 +2045,21 @@ public/
   catálogo com órgão e instituição, e o **cronograma de 8 etapas** reescreve `PRAZOS`,
   `VIGENCIA` e `CRONOGRAMA` — **só o edital do ciclo CORRENTE** (`semestreCorrente`), senão um
   edital lançado com meses de antecedência fecharia a submissão do ciclo que está correndo.
-  Cinco regras: o **número é único** (o acervo do código conta) e segue a série do setor
-  (01/02/03 por ano, que é como a vitrine agrupa); **vigente é um só** por setor, e o cadastro
+  **TODO SETOR LANÇA O SEU** (ago/2026): além dos três acima, **Extensão**, **Eventos**,
+  **Inovação** e **Ensino/PROAC** — cada um na guia *Editais* do próprio setor, com o mesmo
+  componente. Os quatro últimos não conduzem ciclo: são o documento e a vigência, que é o que
+  uma chamada tem, e aparecem na **página pública** `/editais` no quadro do ano.
+  **O NÚMERO É EMITIDO PELO SERVIDOR**, na ordem em que os editais são criados — não se digita,
+  pela mesma razão do Número da Ação da Extensão (duas coordenações lançando ao mesmo tempo
+  leriam o mesmo número). E a sequência é **do ÓRGÃO**: "a numeração da PROPPEX e da PROAC devem
+  ser independentes, cada uma com a sua" — são duas pró-reitorias que expedem e assinam os
+  próprios atos. Daí duas consequências que o código carrega: a **unicidade é por órgão** (o
+  "03/2027" da PROPPEX e o da PROAC são dois editais), e por isso o documento passou a se
+  identificar pela **designação completa** (`designacaoDoEdital`: "Edital PROPPEX nº 03/2027") —
+  o número sozinho deixou de identificar. `DOCUMENTOS_EDITAIS`/`RESULTADOS_EDITAIS`, que são
+  chaveados pelo número, ficaram **só com a graduação**: o ICEM guarda o documento na turma e a
+  monitoria no catálogo dela, senão um sobrescreveria o outro.
+  Cinco regras: o **número é único dentro do órgão**; **vigente é um só** por setor, e o cadastro
   **nunca faz o sistema RECUAR** para um ano anterior ao do código; **remover o cadastro devolve
   o código** (o retrato é tirado na primeira aplicação — sem ele, `EDITAL` ficaria mutado para
   sempre); **edital que já tem submissão não se exclui** (os projetos apontam para o número

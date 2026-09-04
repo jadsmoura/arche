@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  SETORES_EDITAL, setorEditalDe, anoDoNumero, numeroSugerido, cicloSugerido,
+  SETORES_EDITAL, setorEditalDe, anoDoNumero, proximoNumero, ordemDoNumero,
+  orgaoDoSetor, ORGAOS_EDITAL, cicloSugerido,
   vigenciaSugerida, normalizarEdital, faltaNoEdital, vigenteDe, mesesEntre,
   aplicarEditais, editaisDoCodigo,
 } from "../lib/editais.js";
@@ -11,11 +12,54 @@ import { EDITAIS_MONITORIA, editalMonitoriaDe } from "../lib/monitoria.js";
 
 const ed = (o) => normalizarEdital(o);
 
-test("os três setores têm série própria — é ela que agrupa a vitrine por ano", () => {
-  assert.deepEqual(SETORES_EDITAL.map((s) => s.serie), ["01", "02", "03"]);
+test("TODO setor lança edital — e os três que conduzem ciclo exigem o ciclo", () => {
+  const cods = SETORES_EDITAL.map((s) => s.codigo);
+  for (const c of ["ic", "em", "monitoria", "inovacao", "extensao", "eventos", "ensino"])
+    assert.ok(cods.includes(c), c);
   assert.equal(setorEditalDe("IC").codigo, "ic");
   assert.equal(setorEditalDe("inexistente"), null);
-  assert.equal(numeroSugerido("monitoria", 2027), "03/2027");
+  // só quem casa com um catálogo do código precisa do ciclo
+  assert.deepEqual(SETORES_EDITAL.filter((s) => s.exigeCiclo).map((s) => s.codigo),
+    ["ic", "em", "monitoria"]);
+});
+
+/* O NÚMERO sai na ORDEM DE CRIAÇÃO, na sequência geral da instituição
+   (decisão do dono, ago/2026) — contando o acervo já publicado. */
+test("o número é o próximo do ANO, contando o acervo já publicado", () => {
+  assert.equal(ordemDoNumero("03/2027"), 3);
+  assert.equal(ordemDoNumero("002/2020"), 2);
+  assert.equal(ordemDoNumero("sem número"), 0);
+  // ano sem nada começa no 01, e a contagem é POR ANO
+  assert.equal(proximoNumero(2030, editaisDoCodigo()), "01/2030");
+  const lista = [
+    { ano: 2030, numero: "01/2030", setor: "ic" },
+    { ano: 2030, numero: "02/2030", setor: "extensao" },
+  ];
+  assert.equal(proximoNumero(2030, lista), "03/2030");
+  assert.equal(proximoNumero(2031, lista), "01/2031", "o ano seguinte recomeça");
+});
+
+/* PROPPEX e PROAC numeram SEPARADO (decisão do dono, ago/2026): são duas
+   pró-reitorias que expedem e assinam os próprios atos, e uma sequência
+   comum faria o número de uma pular por causa do ato da outra. */
+test("a numeração da PROPPEX e a da PROAC são independentes", () => {
+  assert.deepEqual(ORGAOS_EDITAL.map((o) => o.codigo), ["proppex", "proac"]);
+  assert.equal(orgaoDoSetor("ic"), "proppex");
+  assert.equal(orgaoDoSetor("extensao"), "proppex");
+  assert.equal(orgaoDoSetor("monitoria"), "proac");
+  assert.equal(orgaoDoSetor("ensino"), "proac");
+
+  const lista = [
+    { ano: 2030, numero: "01/2030", setor: "ic" },        // PROPPEX
+    { ano: 2030, numero: "02/2030", setor: "eventos" },   // PROPPEX
+    { ano: 2030, numero: "01/2030", setor: "monitoria" }, // PROAC
+  ];
+  assert.equal(proximoNumero(2030, lista, "proppex"), "03/2030");
+  assert.equal(proximoNumero(2030, lista, "proac"), "02/2030",
+    "o ato da PROPPEX não faz o número da PROAC pular");
+  // e o acervo conta dentro do órgão de cada um
+  assert.equal(proximoNumero(2026, editaisDoCodigo(), "proppex"), "03/2026",
+    "2026 tem 01 (graduação) e 02 (ICEM) na PROPPEX");
 });
 
 test("o ano sai do número; o ciclo e a vigência, do vocabulário do setor", () => {
@@ -23,6 +67,7 @@ test("o ano sai do número; o ciclo e a vigência, do vocabulário do setor", ()
   assert.equal(anoDoNumero("sem número"), null);
   assert.equal(cicloSugerido("ic", 2027), "2027/2028");
   assert.equal(cicloSugerido("monitoria", 2027, 2), "2027/2");
+  assert.equal(cicloSugerido("extensao", 2027), "2027", "edital avulso: o ciclo é o ano");
   assert.deepEqual(vigenciaSugerida("ic", 2027), { inicio: "2027-09-01", fim: "2028-08-31" });
   assert.deepEqual(vigenciaSugerida("monitoria", 2027, 2), { inicio: "2027-07-01", fim: "2027-12-31" });
 });
@@ -32,6 +77,10 @@ test("faltaNoEdital diz o que impede o lançamento", () => {
   const bom = ed({ setor: "ic", numero: "01/2027", titulo: "Edital 01/2027", ciclo: "2027/2028",
     vigencia: { inicio: "2027-09-01", fim: "2028-08-31" } });
   assert.deepEqual(faltaNoEdital(bom), []);
+  // o ciclo só é exigido de quem casa com um catálogo do código
+  const avulso = ed({ setor: "extensao", numero: "04/2027", ano: 2027, titulo: "Chamada",
+    vigencia: { inicio: "2027-01-01", fim: "2027-12-31" } });
+  assert.deepEqual(faltaNoEdital(avulso), []);
   // vigência que termina antes de começar é erro nomeado, não silêncio
   const torto = ed({ ...bom, vigencia: { inicio: "2027-09-01", fim: "2027-08-31" } });
   assert.match(faltaNoEdital(torto).join(" "), /termine depois de começar/);
@@ -163,3 +212,30 @@ test("o edital da monitoria do CICLO CORRENTE reescreve os prazos; o futuro, nã
   assert.equal(PRAZOS.submissao, submissaoAntes);
   assert.equal(CRONOGRAMA[0].ate, submissaoAntes);
 });
+
+/* Com sequências independentes, o mesmo número pode existir nas DUAS
+   pró-reitorias — e a sigla do órgão é o que separa os dois documentos. */
+test("a designação nomeia o órgão: o número sozinho deixou de identificar", async () => {
+  const { designacaoDoEdital } = await import("../lib/editais.js");
+  assert.equal(designacaoDoEdital({ setor: "extensao", numero: "03/2027" }), "Edital PROPPEX nº 03/2027");
+  assert.equal(designacaoDoEdital({ setor: "monitoria", numero: "03/2027" }), "Edital PROAC nº 03/2027");
+});
+
+test("o documento da GRADUAÇÃO é o único que entra no catálogo por número", () => {
+  const { DOCUMENTOS_EDITAIS } = requireEdital();
+  aplicarEditais([
+    normalizarEdital({ setor: "ic", numero: "07/2028", ano: 2028, titulo: "grad", ciclo: "2028/2029",
+      vigencia: { inicio: "2028-09-01", fim: "2029-08-31" }, documento: "/api/files/grad" }),
+    // mesma chave, outro órgão: se entrasse aqui, sobrescreveria o da graduação
+    normalizarEdital({ setor: "ensino", numero: "07/2028", ano: 2028, titulo: "proac",
+      vigencia: { inicio: "2028-01-01", fim: "2028-12-31" }, documento: "/api/files/proac" }),
+  ]);
+  assert.equal(DOCUMENTOS_EDITAIS["07/2028"], "/api/files/grad");
+  delete DOCUMENTOS_EDITAIS["07/2028"];
+  aplicarEditais([]);
+});
+function requireEdital() {
+  // o import estático já traz o objeto; a função existe só para deixar o
+  // teste legível ao lado dos demais
+  return { DOCUMENTOS_EDITAIS };
+}

@@ -113,7 +113,7 @@
     const s = setorDe(e.setor);
     return `<div class="ed-lin">
       <span class="ed-tag">${esc(s?.sigla || e.setor)}</span>
-      <span class="ed-nm">Edital ${esc(e.numero)}</span>
+      <span class="ed-nm">${esc(e.designacao || `Edital ${e.numero}`)}</span>
       <span class="ed-sub">${[
         e.ciclo ? `ciclo ${esc(e.ciclo)}` : "",
         e.vigencia?.inicio && e.vigencia?.fim ? `${dBR(e.vigencia.inicio)} a ${dBR(e.vigencia.fim)}` : "",
@@ -158,8 +158,9 @@
         <div><label>Ano *</label>
           <input id="ed-ano" type="number" min="2020" max="2099" value="${esc(e.ano || "")}"
             onchange="ArcheEditais.trocouAno(this.value)"></div>
-        <div><label>Número * <span class="ed-sub">(série ${esc(s?.serie || "")}/AAAA)</span></label>
-          <input id="ed-numero" value="${esc(e.numero || "")}"></div>
+        <div><label>Número <span class="ed-sub">(emitido ao lançar)</span></label>
+          <input id="ed-numero" value="${esc(e.numero || "")}" disabled
+            title="O número sai da sequência da instituição, na ordem em que os editais são criados — como o Número da Ação da Extensão."></div>
       </div>
 
       <label>Título *</label>
@@ -266,7 +267,7 @@
       ...EDITANDO,
       setor: v("ed-setor") || EDITANDO.setor,
       ano: n("ed-ano"),
-      numero: v("ed-numero").trim(),
+      numero: EDITANDO.numero,          // emitido pelo servidor, não digitado
       titulo: v("ed-titulo").trim(),
       orgao: v("ed-orgao").trim(),
       instituicao: v("ed-instituicao").trim(),
@@ -318,7 +319,7 @@
       guardarCampos();
       const sug = DADOS.sugestao?.[codigo] || {};
       const s = setorDe(codigo);
-      EDITANDO = { ...EDITANDO, setor: codigo, numero: sug.numero, ciclo: sug.ciclo,
+      EDITANDO = { ...EDITANDO, setor: codigo, ciclo: sug.ciclo,
         vigencia: { ...(sug.vigencia || {}) }, orgao: s?.orgaoPadrao || EDITANDO.orgao };
       desenhar();
     },
@@ -327,14 +328,13 @@
       const n = Number(ano);
       if (!n) return;
       const s = setorDe(EDITANDO.setor);
-      const serie = s?.serie || "01";
       const semestral = s?.ciclo === "semestral";
+      const livre = s?.ciclo === "livre";
       EDITANDO = {
         ...EDITANDO, ano: n,
-        numero: `${serie}/${n}`,
-        ciclo: semestral ? `${n}/1` : `${n}/${n + 1}`,
-        vigencia: semestral
-          ? { inicio: `${n}-01-01`, fim: `${n}-06-30` }
+        ciclo: semestral ? `${n}/1` : livre ? String(n) : `${n}/${n + 1}`,
+        vigencia: semestral ? { inicio: `${n}-01-01`, fim: `${n}-06-30` }
+          : livre ? { inicio: `${n}-01-01`, fim: `${n}-12-31` }
           : { inicio: `${n}-09-01`, fim: `${n + 1}-08-31` },
       };
       desenhar();

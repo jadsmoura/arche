@@ -102,6 +102,8 @@
 <script>
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const anoDe = (n) => Number(String(n).split("/").pop()) || 0;
+const dBR = (iso) => (String(iso || "").length >= 10
+  ? String(iso).slice(0, 10).split("-").reverse().join("/") : "");
 
 fetch("/api/publico/ic").then(async (r) => {
   const j = await r.json();
@@ -174,24 +176,49 @@ fetch("/api/publico/ic").then(async (r) => {
     </div>
   </div>`;
 
-  // um quadro por ano: o título é o ANO, e dentro dele os dois editais
+  /* O cartão dos editais dos DEMAIS SETORES (pedido do dono, ago/2026). Os
+     três programas acima conduzem um ciclo e por isso têm cartão próprio —
+     com resultado, prazos e o atalho de inscrição. Estes são o documento e a
+     vigência, que é o que uma chamada tem: mostrar prazos e resultados que
+     ela não tem seria desenhar campo vazio. */
+  const cartaoOutro = (e) => `<div style="border-top:1px solid var(--line);padding:16px 0 4px;margin-top:14px">
+    <div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:17px">${esc(e.designacao || `Edital ${e.numero}`)} — ${esc(e.titulo || "")}
+      ${e.vigente ? '<span class="selo b" style="vertical-align:2px">vigente</span>' : ""}</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:3px">${esc(e.grupo || "")}${
+      e.orgao ? ` · ${esc(e.orgao)}` : ""}${e.vigencia?.inicio && e.vigencia?.fim
+        ? ` · vigência de ${dBR(e.vigencia.inicio)} a ${dBR(e.vigencia.fim)}` : ""}</div>
+    ${e.observacao ? `<div style="font-size:13px;color:var(--muted);margin-top:3px">${esc(e.observacao)}</div>` : ""}
+    <div class="exp">
+      ${e.documento
+        ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📜 Edital (PDF)</a>`
+        : '<span style="color:var(--muted);font-size:13px;align-self:center">Documento em publicação.</span>'}
+    </div>
+  </div>`;
+
+  // um quadro por ano: o título é o ANO, e dentro dele os editais daquele ano
   const grads = j.editais || [], ems = j.editaisEM || [], mons = j.editaisMonitoria || [];
+  const outros = j.editaisOutros || [];
   const anos = [...new Set([...grads.map((e) => anoDe(e.numero)), ...ems.map((e) => anoDe(e.numero)),
-    ...mons.map((e) => e.ano)])].filter(Boolean).sort((a, b) => b - a);
+    ...mons.map((e) => e.ano), ...outros.map((e) => e.ano)])].filter(Boolean).sort((a, b) => b - a);
   document.getElementById("conteudo").innerHTML = anos.map((ano) => {
     const g = grads.filter((e) => anoDe(e.numero) === ano);
     const m = ems.filter((e) => anoDe(e.numero) === ano);
     const mo = mons.filter((e) => e.ano === ano);
-    const vigente = [...g, ...m, ...mo].some((e) => e.vigente);
+    const ou = outros.filter((e) => e.ano === ano);
+    const vigente = [...g, ...m, ...mo, ...ou].some((e) => e.vigente);
+    // os grupos que aquele ano teve, sem repetir — é a linha que diz de que
+    // processos o quadro fala
+    const quais = [...new Set([g.length ? "Iniciação Científica" : "", m.length ? "Ensino Médio" : "",
+      mo.length ? "Monitoria Acadêmica" : "", ...ou.map((e) => e.grupo)].filter(Boolean))];
     return `<div class="card" style="padding:24px">
       <div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:22px">${ano}
         ${vigente ? '<span class="selo b" style="vertical-align:3px">ciclo vigente</span>' : ""}</div>
-      <div style="font-size:13px;color:var(--muted);margin-top:3px">Os processos seletivos de ${ano}:
-        ${[g.length ? "Iniciação Científica" : "", m.length ? "Ensino Médio" : "", mo.length ? "Monitoria Acadêmica" : ""]
-          .filter(Boolean).join(" · ")}.</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:3px">Os editais de ${ano}:
+        ${quais.join(" · ")}.</div>
       ${g.map(cartaoGrad).join("")}
       ${m.map(cartaoEM).join("")}
       ${mo.map(cartaoMon).join("")}
+      ${ou.map(cartaoOutro).join("")}
     </div>`;
   }).join("") || '<div class="card"><p style="color:var(--muted)">Nenhum edital publicado ainda.</p></div>';
 }).catch(() => {

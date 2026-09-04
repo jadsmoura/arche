@@ -180,6 +180,7 @@
   </div>
 </div>
 <script src="/assets/arche-paginacao.js"></script>
+<script src="/assets/arche-editais.js"></script>
 <script src="/assets/arche-vercomo.js"></script>
 <script>
 /* "Ver como…": a coordenação abre o setor pelos olhos de quem o usa. O
@@ -249,6 +250,10 @@ const SECOES = [
     tit: "Professores e Disciplinas", sub: "Quem leciona o quê, semestre a semestre. É esta lista que diz o que falta registrar." },
   { k: "equipe", grupo: "MÓDULO", rot: "Coordenação", ic: IC.equipe, geral: true, tit: "Coordenação do módulo",
     sub: "Quem valida os relatórios de cada curso, e quem é a coordenação pedagógica." },
+  // TODO SETOR LANÇA O SEU EDITAL (pedido do dono, ago/2026): os editais da
+  // PROAC, com a numeração própria dela — independente da PROPPEX
+  { k: "editais", grupo: "MÓDULO", rot: "Editais", ic: IC.lista, geral: true, tit: "Editais da PROAC",
+    sub: "As chamadas do ensino: número, vigência e o documento — publicados na página de Editais e Resultados." },
 ];
 
 function ehCoord() { return !!D && (D.gestao || (D.cursos || []).length > 0); }
@@ -278,6 +283,9 @@ function nav(k) {
   const desenha = { painel: renderPainel, relatorios: renderRelatorios, nova: renderNova,
     ec: renderEC, ecnova: renderNova, cadastro: renderCadastro, equipe: renderEquipe }[s.k];
   $("tela").innerHTML = desenha ? desenha() : "";
+  // o cartão de editais é o componente compartilhado: ele se monta no
+  // elemento e some sozinho para quem não pode lançar (quem barra é a rota)
+  if (s.k === "editais") window.ArcheEditais?.montar($("tela"), { setores: ["ensino"] });
 }
 
 async function carregar() {

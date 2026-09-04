@@ -395,6 +395,7 @@
         <!-- ============ COBRANÇAS ============ -->
         <section id="v-cobrancas" class="hide"></section>
         <section id="v-certificados" class="hide"></section>
+        <section id="v-editais" class="hide"></section>
 
         <!-- ============ DETALHE DA AÇÃO ============ -->
         <section id="v-detalhe" class="hide"></section>
@@ -404,6 +405,7 @@
 </div>
 
 <script src="/assets/arche-paginacao.js"></script>
+<script src="/assets/arche-editais.js"></script>
 <script src="/assets/arche-vercomo.js"></script>
 <script>
 /* "Ver como…" (decisão do dono, ago/2026): a gestão abre o setor pelos olhos
@@ -555,6 +557,7 @@ const IC = {
   cobrancas:'<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"></path>',
   acessos:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path>',
   certificados:'<circle cx="12" cy="9" r="6"></circle><path d="M8.5 14.5L7 22l5-3 5 3-1.5-7.5"></path>',
+  editais:'<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"></path><path d="M14 2v5h5M8 13h8M8 17h5"></path>',
 };
 const icone = (p)=>`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 
@@ -571,6 +574,10 @@ const SECOES = [
    sub:"Lembretes enviados aos responsáveis um dia após o encerramento da ação.", gestao:true},
   {k:"certificados", rot:"Certificados",   ic:IC.certificados, tit:"Certificados de eventos",
    sub:"A emissão é feita no sistema de eventos da AEE, que abre em outra janela."},
+  // TODO SETOR LANÇA O SEU EDITAL (pedido do dono, ago/2026): o cartão é o
+  // componente compartilhado, e a guia só existe para quem pode lançar
+  {k:"editais",      rot:"Editais",        ic:IC.editais,      tit:"Editais da Extensão",
+   sub:"As chamadas do setor: número, vigência e o documento — publicados na página de Editais e Resultados.", gestao:true},
 ];
 // A certificação dos eventos de extensão roda FORA do ARCHÉ, no sistema da
 // AEE. A guia não tenta mais embutir a página: o login de lá pede a janela
@@ -682,6 +689,7 @@ function nav(secao, id){
 
   if(secao==="painel"){ renderPainel(); $("v-painel").classList.remove("hide"); }
   else if(secao==="certificados"){ renderCertificados(); $("v-certificados").classList.remove("hide"); }
+  else if(secao==="editais"){ window.ArcheEditais?.montar($("v-editais"),{setores:["extensao"]}); $("v-editais").classList.remove("hide"); }
   else if(secao==="cobrancas"){ renderCobrancas(); $("v-cobrancas").classList.remove("hide"); }
   else if(secao==="nova"){ $("v-nova").classList.remove("hide"); }
   else { renderLista(); $("v-acoes").classList.remove("hide"); }

@@ -321,6 +321,7 @@
         <section id="v-credenciamento" class="hide"></section>
         <section id="v-transmissao" class="hide"></section>
         <section id="v-exportacoes" class="hide"></section>
+        <section id="v-editais" class="hide"></section>
         <section id="v-certificados" class="hide"></section>
       </div>
     </div>
@@ -328,6 +329,7 @@
 </div>
 
 <script src="/assets/arche-paginacao.js"></script>
+<script src="/assets/arche-editais.js"></script>
 <script src="/assets/arche-vercomo.js"></script>
 <script>
 /* "Ver como…" (decisão do dono, ago/2026): a gestão abre o setor pelos olhos
@@ -458,6 +460,7 @@ const IC = {
   credenciamento:'<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h7v7h-7z"></path>',
   transmissao:'<circle cx="12" cy="12" r="2"></circle><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 19.1a10 10 0 0 1 0-14.2M19.1 4.9a10 10 0 0 1 0 14.2"></path>',
   exportacoes:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5M12 15V3"></path>',
+  editais:'<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"></path><path d="M14 2v5h5M8 13h8M8 17h5"></path>',
   acao:'<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><path d="M15 3h6v6M10 14 21 3"></path>',
 };
 const icone = (p)=>`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
@@ -490,6 +493,11 @@ const SECOES = [
      nome que sobrou para o que não coubera nas outras duas. */
   {k:"exportacoes", rot:"Exportações", grupo:"PÓS-EVENTO", ic:IC.exportacoes, evento:true, tit:"Exportações",
    sub:"As planilhas do evento — AEE (geral, por atividade, só presentes) e a lista completa do ARCHÉ."},
+  /* TODO SETOR LANÇA O SEU EDITAL (pedido do dono, ago/2026). A chamada de
+     eventos é do SETOR, não de um evento: por isso `evento:false` — ela vive
+     no painel geral, e não depende de haver um evento escolhido. */
+  {k:"editais", rot:"Editais", grupo:"", ic:IC.editais, evento:false, tit:"Editais de Eventos",
+   sub:"As chamadas do setor: número, vigência e o documento — publicados na página de Editais e Resultados."},
   /* A guia se chama pelo ATO que a abre (pedido do dono, ago/2026): é aqui
      que o coordenador encerra o evento — e o certificado não sai antes disso,
      nem antes de a PROPPEX validar o encerramento. "Certificados" convidava a
@@ -703,6 +711,7 @@ function nav(secao){
   else if(SECAO==="credenciamento") renderCredenciamento(a);
   else if(SECAO==="transmissao") renderTransmissao(a);
   else if(SECAO==="exportacoes") renderExportacoes(a);
+  else if(SECAO==="editais") window.ArcheEditais?.montar($("v-editais"),{setores:["eventos"]});
   else if(SECAO==="certificados") renderCertificados(a);
   alvo.classList.remove("hide");
   if(meta.evento) agendarEvento(a.id);

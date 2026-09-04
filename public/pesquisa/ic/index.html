@@ -3620,7 +3620,7 @@ function renderEditais() {
   // a graduação (01/AAAA) e o ICEM (02/AAAA) se lançam por aqui; a monitoria,
   // no setor dela — cada um onde os documentos daquele processo já vivem
   window.ArcheEditais?.montar($("ed-lancar"), {
-    setores: ["ic", "em"],
+    setores: ["ic", "em", "inovacao"],
     // lançado o edital, o META envelhece (o vigente mudou): recarrega e
     // redesenha, senão a guia continuaria mostrando o ciclo anterior
     aoMudar: async () => { META = await api("/api/ic/meta"); await carregar(); nav("editais"); },
