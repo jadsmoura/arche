@@ -13227,6 +13227,122 @@ app.post("/api/ic/:id/parecer", async (req, res) => {
  * voluntário. É o que define a modalidade efetiva (PIBIC/CNPq, PBIC/UNIEGO,
  * PVIC…) e marca quais alunos são bolsistas. Só a coordenação decide.
  */
+/* ======================================================================
+   O PEDIDO DO CADASTRO AO BOLSISTA DA GRADUAÇÃO (pedido do dono, ago/2026:
+   "o professor alterou o aluno e ele não recebeu o e-mail de solicitação de
+   entrar com dados bancários").
+
+   A graduação não tinha este e-mail. O pedido era um PARÁGRAFO dentro do
+   convite — que sai UMA vez, quando o aluno é indicado, e só traz o bloco
+   quando ele já estava marcado como bolsista naquele instante. Como a
+   indicação costuma vir ANTES da concessão, o aluno recebia o convite de
+   voluntário; e quando a bolsa saía, `POST /fomento` virava a marca de
+   bolsista em todo mundo e **não avisava ninguém**. Ninguém mentiu para o
+   aluno: simplesmente não havia e-mail nenhum a ser enviado.
+
+   O ICEM já resolvia isso desde ago/2026, com as duas pontas: o automático
+   no ato da concessão — é quando a exigência NASCE — e o botão da
+   coordenação, porque e-mail cai em spam e quem fecha a folha precisa VER
+   quem falta. Aqui é o mesmo, para o outro programa.
+
+   A marca é por PROJETO + ALUNO + TIPO de fomento: regravar a mesma bolsa
+   não reenvia, e remanejar de UNIEGO para CNPq reenvia — aí a exigência
+   mudou. Só entra quem tem e-mail e ainda deve algo do cadastro.
+   ====================================================================== */
+const AVISOS_BANCO_IC_KEY = "sys-ic-avisos-banco-v1";
+const marcaBancoIC = (p, a) => `${p.id}|${String(a.email || "").toLowerCase()}|${p.fomento?.tipo || ""}`;
+
+/** Quem, num projeto, ainda deve o cadastro do contrato. */
+function bolsistasSemCadastro(p) {
+  const tipo = String(p?.fomento?.tipo || "");
+  if (!tipo || tipo === "voluntario") return [];      // sem bolsa não há o que pagar
+  return (p.alunos || []).filter((a) => a.bolsista && faltaNoCadastroDoBolsista(a).length);
+}
+
+async function pedirDadosBancariosIC(projeto, alunos, { mensagem = "", forcar = false } = {}) {
+  const base = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
+  let ja = {};
+  try { ja = JSON.parse((await storage.get(AVISOS_BANCO_IC_KEY)) || "{}") || {}; } catch { /* avisa todos */ }
+  const alvo = (alunos || []).filter((a) => forcar || !ja[marcaBancoIC(projeto, a)]);
+  const semEmail = alvo.filter((a) => !String(a.email || "").trim()).length;
+  const fila = alvo.filter((a) => String(a.email || "").trim());
+  if (!fila.length) return { enviados: 0, semEmail, falhas: [], fila: [] };
+  const { emailDadosBancariosIC } = await import("./lib/mailer.js");
+  const enviados = [], falhas = [];
+  for (const a of fila) {
+    try {
+      await enviarAviso("ic-dados-bancarios", emailDadosBancariosIC(a, projeto, {
+        baseUrl: base, fomento: fomentoDe(projeto?.fomento?.tipo), mensagem,
+        falta: faltaNoCadastroDoBolsista(a), lembrete: !!ja[marcaBancoIC(projeto, a)],
+      }));
+      enviados.push(a);
+      console.log(`[ic] pedido de cadastro enviado a ${a.email} (${projeto.numero || projeto.id})`);
+    } catch (e) {
+      falhas.push(`${a.nome || a.email}: ${e.message}`);
+      // sem esta linha a falha some: o disparo automático é fire-and-forget,
+      // e quem manda no ato da concessão não vê a resposta
+      console.error(`[ic] pedido de cadastro a ${a.email} falhou:`, e.message);
+    }
+  }
+  if (enviados.length) {
+    try {
+      const reg = JSON.parse((await storage.get(AVISOS_BANCO_IC_KEY)) || "{}") || {};
+      for (const a of enviados) reg[marcaBancoIC(projeto, a)] = new Date().toISOString();
+      await storage.set(AVISOS_BANCO_IC_KEY, JSON.stringify(reg));
+      await storage.flush?.();
+    } catch (e) { console.error("[ic] marca do pedido de cadastro:", e.message); }
+  }
+  return { enviados: enviados.length, semEmail, falhas,
+    fila: fila.map((a) => ({ nome: a.nome, email: a.email, projeto: projeto.numero,
+      falta: faltaNoCadastroDoBolsista(a).join(", ") })) };
+}
+
+/* A chamada manual: quem falta em TODOS os projetos do ciclo, e o reenvio
+   com a mesma janela de revisão dos demais chamamentos. Pelo botão o ato é
+   deliberado, então ele FORÇA o reenvio — é justamente para o e-mail que
+   caiu no spam que ele existe. */
+app.post("/api/ic/chamada-banco", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "A chamada é da coordenação de pesquisa." });
+  if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
+  const ciclo = String(req.body?.ciclo || "").trim();
+  /* SÓ QUEM ESTÁ EM EXECUÇÃO — é a mesma régua da folha de pagamento
+     (ago/2026): `concluido` fechou o ciclo, e os bolsistas de 2022 a 2025
+     foram transcritos dos resultados publicados, sem contato e sem contrato
+     a preencher. Sem esta linha, um clique mandaria o pedido a noventa
+     pessoas sobre projetos encerrados há três anos. O ciclo estreita mais:
+     a tela sempre manda o que está na tela. */
+  const projetos = (await lerProjetos()).filter((p) =>
+    p.status === "aprovado" && (!ciclo || (p.edital || "") === ciclo));
+  const alvos = projetos
+    .map((p) => ({ projeto: p, alunos: bolsistasSemCadastro(p) }))
+    .filter((x) => x.alunos.length);
+  const lista = alvos.flatMap(({ projeto, alunos }) => alunos.map((a) => ({
+    nome: a.nome, email: a.email, projeto: projeto.numero,
+    bolsa: fomentoDe(projeto.fomento?.tipo)?.nome || "",
+    falta: faltaNoCadastroDoBolsista(a).join(", "),
+  })));
+  if (req.body?.simular) {
+    const { emailDadosBancariosIC } = await import("./lib/mailer.js");
+    const p0 = alvos[0];
+    return res.json({ ok: true, simulacao: true, destinatarios: lista,
+      semEmail: lista.filter((x) => !x.email).length,
+      previewHtml: p0 ? emailDadosBancariosIC(p0.alunos[0], p0.projeto, {
+        fomento: fomentoDe(p0.projeto.fomento?.tipo),
+        mensagem: String(req.body?.mensagem || ""),
+        falta: faltaNoCadastroDoBolsista(p0.alunos[0]),
+      }).corpoHtml : "" });
+  }
+  let enviados = 0, semEmail = 0; const falhas = [];
+  for (const { projeto, alunos } of alvos) {
+    const r = await pedirDadosBancariosIC(projeto, alunos,
+      { mensagem: String(req.body?.mensagem || ""), forcar: true });
+    enviados += r.enviados; semEmail += r.semEmail; falhas.push(...r.falhas);
+  }
+  res.json({ ok: true, enviados, semEmail, falhas, total: lista.length });
+});
+
 app.post("/api/ic/:id/fomento", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
@@ -13262,6 +13378,16 @@ app.post("/api/ic/:id/fomento", async (req, res) => {
     return { projeto: projetos[i] };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  /* A CONCESSÃO PEDE O CADASTRO (ago/2026): é aqui que a exigência nasce —
+     antes disto o aluno era voluntário e não havia conta a informar. Sai um
+     e-mail por bolsista que ainda deve algo, nomeando o que falta.
+     Fire-and-forget: e-mail que falha não desfaz a concessão, e o botão da
+     guia Bolsistas reenvia. */
+  const pedir = bolsistasSemCadastro(r.projeto);
+  if (pedir.length) {
+    pedirDadosBancariosIC(r.projeto, pedir)
+      .catch((e) => console.error("[ic] pedido de cadastro ao bolsista:", e.message));
+  }
   res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
 });
 

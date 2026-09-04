@@ -1582,6 +1582,45 @@ async function icChamada() {
   } catch (e) { aviso(e.message, "err"); }
 }
 
+/* COBRAR O CADASTRO DO BOLSISTA DA GRADUAÇÃO (pedido do dono, ago/2026: "o
+   professor alterou o aluno e ele não recebeu o e-mail de solicitação de
+   entrar com dados bancários"). São as duas pontas, como no ICEM: o pedido
+   automático no ato da concessão — quando a exigência nasce — e este botão,
+   porque e-mail cai em spam e é aqui que a coordenação vê quem falta. Pelo
+   botão o envio é DELIBERADO, então ele força o reenvio. */
+async function icChamadaBanco() {
+  const simular = (mensagem) => api("/api/ic/chamada-banco", { method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ciclo: CICLO_BV, simular: true, mensagem }) });
+  try {
+    const s = await simular("");
+    if (!s.destinatarios.length) return aviso("Nenhum bolsista com cadastro pendente neste ciclo.", "err");
+    janelaEnvio({
+      titulo: `Cobrar o cadastro do bolsista — ${rotuloCiclo(CICLO_BV)}`,
+      itens: s.destinatarios.filter((x) => x.email)
+        .map((x) => `${x.nome || x.email} — ${x.email} · ${x.projeto} · falta: ${x.falta}`),
+      semEmail: s.destinatarios.filter((x) => !x.email).map((x) => x.nome || "(sem nome)"),
+      observacao: "Cada aluno recebe a PRÓPRIA lista do que falta. É o mesmo e-mail que sai "
+        + "sozinho quando a bolsa é concedida — aqui ele vai de novo, para o caso de ter caído no spam.",
+      previewHtml: s.previewHtml,
+      aoAtualizar: async (m) => (await simular(m)).previewHtml,
+      rotuloEnviar: "Enviar o pedido",
+      aoEnviar: async (mensagem) => {
+        try {
+          const r = await api("/api/ic/chamada-banco", { method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ciclo: CICLO_BV, mensagem }) });
+          aviso(`Pedido enviado a ${r.enviados} de ${r.total} bolsista(s).`
+            + (r.semEmail ? ` ${r.semEmail} sem e-mail no cadastro.` : "")
+            + (r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""),
+            r.falhas.length ? "err" : undefined);
+          await carregar();
+        } catch (e) { aviso(e.message, "err"); }
+      },
+    });
+  } catch (e) { aviso(e.message, "err"); }
+}
+
 async function emChamada() {
   const simular = (mensagem) => api("/api/ic/em/chamada-relatorio", { method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -2812,10 +2851,23 @@ function renderBolsistas() {
     } else {
       corpo = comAlunos.flatMap((p) => (p.alunos || []).map((a) => cartaoAluno(p, a))).join("");
     }
+    /* QUEM AINDA DEVE O CADASTRO (ago/2026): o pedido sai sozinho no ato da
+       concessão, mas e-mail cai em spam e o aluno esquece — e quem fecha a
+       folha precisa VER quantos faltam antes de mandar de novo. Conta só
+       bolsista de projeto COM bolsa: voluntário não tem conta a informar. */
+    const devendo = comAlunos.flatMap((p) => {
+      const tipo = String(p.fomento?.tipo || "");
+      if (!tipo || tipo === "voluntario") return [];
+      return (p.alunos || []).filter((a) => a.bolsista
+        && !(a.dadosCompletos ?? cadastroCompletoLocal(a)));
+    });
     return `<div class="card">
       <div class="card-t">Ciclo ${esc(ciclo)}</div>
       <div class="card-s">${totalAlunos} aluno(s) em ${comAlunos.length} projeto(s) em execução.</div>
       ${META.gestao ? `<div class="exp" style="margin-bottom:6px">
+        ${devendo.length ? `<button class="bt bt-sec" onclick="icChamadaBanco()"
+          title="Pede o cadastro do contrato a quem ainda não o completou. O pedido já sai sozinho ao conceder a bolsa; isto é o reenvio, para o e-mail que se perdeu.">
+          💳 Cobrar o cadastro do bolsista (${devendo.length})</button>` : ""}
         <a class="bt bt-ghost" href="/api/ic/bolsistas.xlsx?edital=${encodeURIComponent(ciclo)}"
           title="Uma linha por bolsista, com CPF, contato e dados bancários — para montar os contratos">
           📇 Bolsistas para contrato (Excel)</a>

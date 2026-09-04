@@ -1687,6 +1687,25 @@ public/
   porque quem paga somos nós. `ehBancoDoBrasil` reconhece as grafias e o número (001), e o
   **voluntário não vê o bloco** — não há bolsa a pagar, e pedir-lhe conta corrente seria cobrar
   o que não existe.
+- **A GRADUAÇÃO GANHOU O MESMO PEDIDO** (`emailDadosBancariosIC` + `pedirDadosBancariosIC` +
+  `POST /api/ic/chamada-banco`, aviso `ic-dados-bancarios`, marca `sys-ic-avisos-banco-v1` —
+  achado do dono ago/2026: "o professor alterou o aluno e ele não recebeu o e-mail de
+  solicitação de entrar com dados bancários"). O defeito era anterior à alteração: **a
+  graduação não tinha esse e-mail**. O pedido era um PARÁGRAFO dentro do convite, que sai UMA
+  vez — quando o aluno é indicado — e só traz o bloco quando `a.bolsista` já era verdadeiro
+  naquele instante. Como a indicação vem quase sempre ANTES da concessão, o aluno recebia o
+  convite de voluntário; e quando a bolsa saía, `POST /:id/fomento` virava a marca de bolsista
+  em todo mundo e **não avisava ninguém**. Não havia e-mail a ser enviado — daí o silêncio.
+  Agora são as **duas pontas**, como no ICEM: o **automático no ato da concessão** (é quando a
+  exigência nasce; fire-and-forget — e-mail que falha não desfaz a concessão, e a falha passou
+  a sair no log, senão ela sumiria) e o **botão "💳 Cobrar o cadastro do bolsista (n)"** na guia
+  Bolsistas, porque e-mail cai em spam e quem fecha a folha precisa VER quantos faltam. O
+  e-mail **nomeia o que falta** (`faltaNoCadastroDoBolsista`) em vez de mandar "complete o
+  cadastro". A marca é por **projeto + aluno + tipo de fomento**: regravar a mesma bolsa não
+  reenvia, e remanejar de UNIEGO para CNPq reenvia — aí a exigência mudou; o botão **força** o
+  reenvio, porque ali o ato é deliberado. A chamada cobre **só projeto `aprovado`** (a mesma
+  régua da folha de pagamento): sem isso um clique mandaria o pedido a noventa bolsistas de
+  2022 a 2025, transcritos dos resultados publicados, sobre contratos encerrados há anos.
 - **O RESULTADO FINAL DO ICEM AVISA QUEM FOI SELECIONADO** (`emailResultadoEM` + `avisarResultadoEM`,
   aviso `em-resultado`, pedido do dono ago/2026: "após o proppex definir qual tipo de bolsa e
   publicar o resultado final, faça o aluno receber um e-mail com a comunicação e um botão para
