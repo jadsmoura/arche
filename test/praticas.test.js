@@ -15,6 +15,7 @@ import {
   visaoDoRelatorio, quemNoModulo, coordenaCurso, cursosQueCoordena,
   professoresDoSemestre, disciplinasDoSemestre, minhasDisciplinas, cursoDoProfessor,
   filtrar, panorama, ehSegunda, semanaAnterior, pendenciasCobranca,
+  professoresSemEmail, pendenciasCobrancaExtensao, ehPrimeiroDoMes,
   PAPEIS_COORDENACAO, coordenacaoDoCurso,
   TIPOS, tipoDe, ehExtensao, camposDo, CAMPOS_EXTENSAO, DECISOES, ENCERRADO,
   podeReabrir, decisaoNoLugarDaCoordenacao, ODS, rotuloOds,
@@ -172,8 +173,8 @@ test("o cadastro é por semestre, e recusa o que não se pode cobrar", () => {
     "2026/2": { enfermagem: { professores: [
       { email: "a@x.br", nome: "A", disciplinas: ["X", "X", " Y "] },   // duplicata some
       { email: "a@x.br", nome: "Repetida", disciplinas: ["Z"] },        // a pessoa não entra duas vezes
-      { email: "", nome: "Sem e-mail", disciplinas: ["W"] },            // sem e-mail não há a quem cobrar
       { email: "b@x.br", nome: "", disciplinas: ["K"] },                // sem nome não sai no documento
+      { email: "", nome: "Ana", disciplinas: ["W"] },                   // nome de uma palavra não é chave
     ] }, inexistente: { professores: [{ email: "c@x.br", nome: "C", disciplinas: ["Q"] }] } },
     "2026": { enfermagem: { professores: [{ email: "d@x.br", nome: "D", disciplinas: ["R"] }] } },
   });
@@ -182,6 +183,80 @@ test("o cadastro é por semestre, e recusa o que não se pode cobrar", () => {
   const profs = sujo["2026/2"].enfermagem.professores;
   assert.equal(profs.length, 1);
   assert.deepEqual(profs[0].disciplinas, ["X", "Y"]);
+});
+
+/* A LINHA SEM E-MAIL ENTRA (ago/2026): a relação que a coordenação recebe do
+   sistema acadêmico traz matrícula, nome e disciplinas — recusá-la fazia a
+   lista inteira não entrar, e o denominador dos painéis é a razão de o
+   cadastro existir. O que ela NÃO faz é receber lembrete. */
+test("o professor sem e-mail entra no cadastro, e o nome sozinho não basta", () => {
+  const c = normalizarCadastro({ "2026/2": { enfermagem: { professores: [
+    { nome: "Bruna Povoa Ribeiro", matricula: "11961", disciplinas: ["Enfermagem Cirúrgica"] },
+    { nome: "Ana", disciplinas: ["X"] },                     // uma palavra: não identifica ninguém
+    { nome: "Bruna Povoa Ribeiro", disciplinas: ["Outra"] }, // a mesma pessoa, de novo
+  ] } } });
+  const profs = c["2026/2"].enfermagem.professores;
+  assert.equal(profs.length, 1, "só a que o nome completo identifica, e uma vez só");
+  assert.equal(profs[0].matricula, "11961", "a matrícula fica: é por ela que se acha a conta");
+  assert.deepEqual(professoresSemEmail(c, "2026/2").map((p) => p.nome), ["Bruna Povoa Ribeiro"]);
+  // e ela NÃO é cobrada: não há endereço para onde mandar
+  assert.deepEqual(pendenciasCobrancaExtensao([], c, { hoje: "2026-09-01" }), []);
+});
+
+/* As duas listas são de dois processos, e cada uma é o denominador do SEU
+   painel: contá-las juntas faria "disciplinas sem relatório" mudar de sentido. */
+test("aula prática e extensão curricular são listas separadas", () => {
+  const c = normalizarCadastro({ "2026/2": { enfermagem: { professores: [
+    { email: "sue@x.br", nome: "Sue Christine Siqueira Peclat",
+      disciplinas: ["Manejo clínico"],
+      disciplinasExtensao: ["Manejo clínico", "Educação em Saúde"] },
+    { email: "tam@x.br", nome: "Tamires Mariana Rocha", disciplinas: ["Agressão e defesa"] },
+  ] } } });
+  assert.deepEqual(disciplinasDoSemestre(c, "2026/2", "", "pratica").map((d) => d.disciplina),
+    ["Agressão e defesa", "Manejo clínico"]);
+  assert.deepEqual(disciplinasDoSemestre(c, "2026/2", "", "extensao").map((d) => d.disciplina),
+    ["Educação em Saúde", "Manejo clínico"]);
+  // o padrão continua sendo a aula prática: nenhum chamador antigo muda de resposta
+  assert.deepEqual(disciplinasDoSemestre(c, "2026/2"), disciplinasDoSemestre(c, "2026/2", "", "pratica"));
+  assert.deepEqual(minhasDisciplinas(c, "2026/2", "sue@x.br", "extensao").map((d) => d.disciplina),
+    ["Manejo clínico", "Educação em Saúde"]);
+  // quem não curriculariza extensão não entra no lembrete mensal
+  assert.deepEqual(pendenciasCobrancaExtensao([], c, { hoje: "2026-09-01" }).map((p) => p.email),
+    ["sue@x.br"]);
+});
+
+/* O lembrete mensal NOMEIA o que falta, e cala quando não falta nada. */
+test("o lembrete mensal da extensão nomeia as disciplinas sem relatório", () => {
+  const c = normalizarCadastro({ "2026/2": { enfermagem: { professores: [
+    { email: "sue@x.br", nome: "Sue Peclat",
+      disciplinasExtensao: ["Manejo clínico", "Educação em Saúde"] },
+  ] } } });
+  const entregue = { semestre: "2026/2", tipo: "extensao", status: "enviado",
+    curso: "enfermagem", disciplina: "Manejo clínico", professor: { email: "sue@x.br" } };
+  const [p] = pendenciasCobrancaExtensao([entregue], c, { hoje: "2026-09-01" });
+  assert.deepEqual(p.faltam, ["Educação em Saúde"], "a entregue sai da lista");
+  assert.equal(p.entregues, 1);
+
+  // entregues as duas, ninguém é cobrado
+  const outra = { ...entregue, disciplina: "Educação em Saúde" };
+  assert.deepEqual(pendenciasCobrancaExtensao([entregue, outra], c, { hoje: "2026-09-01" }), []);
+
+  // mas o rascunho aberto volta a cobrar: preencheu e não enviou
+  const rasc = { ...entregue, disciplina: "Educação em Saúde", status: "rascunho" };
+  const [q] = pendenciasCobrancaExtensao([entregue, outra, rasc], c, { hoje: "2026-09-01" });
+  assert.equal(q.rascunhos, 1);
+
+  // e o relatório de OUTRO semestre não conta
+  const velho = { ...entregue, semestre: "2026/1" };
+  assert.deepEqual(pendenciasCobrancaExtensao([velho], c, { hoje: "2026-09-01" })[0].faltam,
+    ["Manejo clínico", "Educação em Saúde"]);
+});
+
+test("o lembrete da extensão só sai no dia 1º", () => {
+  assert.equal(ehPrimeiroDoMes("2026-09-01"), true);
+  assert.equal(ehPrimeiroDoMes("2026-09-02"), false);
+  assert.equal(ehPrimeiroDoMes("2026-12-01"), true);
+  assert.equal(ehPrimeiroDoMes(""), false);
 });
 
 test("o professor vê só as disciplinas DELE, e o curso vem do cadastro", () => {

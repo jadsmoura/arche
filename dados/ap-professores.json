@@ -169,6 +169,102 @@
           ]
         }
       ]
+    },
+    "enfermagem": {
+      "fonte": "Relação enviada pela coordenação de Enfermagem (ago/2026): 'Prática' e 'Curricularização da Extensão', por professor, com a matrícula do docente, o código e a carga horária de cada disciplina.",
+      "observacao": "A relação NÃO traz e-mail — é o que sai do sistema acadêmico. As duas linhas com endereço são as coordenações do curso, que o ARCHÉ já conhece (dados/ap-coordenadores.json). As demais entram só com nome e matrícula: contam no denominador dos painéis e não recebem lembrete até o endereço aparecer — casarProfessoresAP o adota da conta do portal quando a matrícula ou o nome completo encontram UMA candidata, e a guia mostra à coordenação quem ficou pendente. Adivinhar endereço prenderia a disciplina à conta errada.",
+      "professores": [
+        {
+          "nome": "Bruna Povoa Ribeiro",
+          "email": "",
+          "matricula": "11961",
+          "disciplinas": [
+            "Enfermagem Cirúrgica",
+            "Sistematização da Assistência de Enfermagem: Fundamentação do cuidar"
+          ],
+          "disciplinasExtensao": [
+            "Enfermagem em Saúde Mental e Psiquiatria",
+            "Sistematização da Assistência de Enfermagem: Fundamentação do cuidar"
+          ]
+        },
+        {
+          "nome": "Danyelly Rodrigues Machado Azevedo",
+          "email": "",
+          "matricula": "9826",
+          "disciplinas": [
+            "Enfermagem em Doenças transmissíveis e vigilância em Saúde"
+          ],
+          "disciplinasExtensao": [
+            "Enfermagem em Doenças transmissíveis e vigilância em Saúde",
+            "Enfermagem no cuidado as condições crônicas e envelhecimento"
+          ]
+        },
+        {
+          "nome": "Elias Alves de Souza",
+          "email": "",
+          "matricula": "13369",
+          "disciplinas": [
+            "Sistematização da assistência de Enfermagem: Atenção primária a saúde"
+          ],
+          "disciplinasExtensao": [
+            "Sistematização da assistência de Enfermagem: Atenção primária a saúde"
+          ]
+        },
+        {
+          "nome": "Geoeselita Borges Teixeira",
+          "email": "geoselita.teixeira@uniego.edu.br",
+          "matricula": "9013",
+          "disciplinas": [
+            "Enfermagem em Obstetrícia e Neonatologia"
+          ],
+          "disciplinasExtensao": [
+            "Enfermagem em Obstetrícia e Neonatologia",
+            "Enfermagem em Saúde da Mulher"
+          ]
+        },
+        {
+          "nome": "Sue Christine Siqueira Peclat",
+          "email": "",
+          "matricula": "13056",
+          "disciplinas": [
+            "Enfermagem em Saúde da criança e do adolescente: Manejo clínico"
+          ],
+          "disciplinasExtensao": [
+            "Enfermagem em Saúde da criança e do adolescente: Manejo clínico",
+            "Tecnologias da Enfermagem para Educação em Saúde",
+            "Tecnologias do Cuidar e protocolos de Enfermagem"
+          ]
+        },
+        {
+          "nome": "Talita Rodrigues Corredeira Mendes",
+          "email": "talita.mendes@uniego.edu.br",
+          "matricula": "8697",
+          "disciplinas": [
+            "Enfermagem no Cuidado a pacientes críticos"
+          ],
+          "disciplinasExtensao": []
+        },
+        {
+          "nome": "Tamires Mariana Dias Damas Rocha",
+          "email": "",
+          "matricula": "12372",
+          "disciplinas": [
+            "Agressão e defesa",
+            "Metabolismo e reprodução"
+          ],
+          "disciplinasExtensao": []
+        },
+        {
+          "nome": "Isabela Cristina Evangelista Vaz de Araújo",
+          "email": "",
+          "matricula": "11756",
+          "disciplinas": [
+            "Sistematização da assistência de Enfermagem: Intervenções",
+            "Sistematização da assistência de Enfermagem: Processos de segurança do Cuidado"
+          ],
+          "disciplinasExtensao": []
+        }
+      ]
     }
   }
 }

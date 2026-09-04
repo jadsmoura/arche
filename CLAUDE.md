@@ -2898,13 +2898,51 @@ public/
   decisão ainda cabe, e quem reabre escolhe para onde — `enviado` recoloca na fila da coordenação
   (a irregularidade está na DECISÃO), `devolvido` volta ao professor (está no RELATÓRIO). O
   processo **continua terminando no coordenador**, que é a regra do módulo e não muda por isto.
-  **NA EXTENSÃO CURRICULAR A INCLUSÃO É SEMPRE MANUAL** (pedido do dono, ago/2026): o cadastro do
-  semestre foi feito para as AULAS PRÁTICAS, e a disciplina que curriculariza extensão pode não
-  estar nele — inclusive porque a lista de quem deve relatório de CE ainda está sendo levantada
-  curso a curso. Então o professor **digita a disciplina** e **escolhe o CURSO**, e é esse curso
-  que decide a coordenação que valida (curso fora do catálogo é 400; o relatório sai marcado
-  `foraDoCadastro`). Na aula prática a régua não muda: quem manda é o cadastro, e o registro
-  retroativo continua sendo a exceção.
+  **O CADASTRO OFERECE, MAS NUNCA OBRIGA** (`disciplinasExtensao` em lib/praticas.js, pedido do
+  dono ago/2026: "assim como nas aulas práticas, permita ao coordenador incluir disciplinas e
+  professores que precisam submeter relatórios"). Até aqui a inclusão na CE era **sempre manual**,
+  porque o cadastro do semestre fora feito para as AULAS PRÁTICAS e a lista de quem deve relatório
+  de CE ainda estava sendo levantada curso a curso. Agora o cadastro guarda **duas listas por
+  professor** — `disciplinas` (aula prática) e `disciplinasExtensao` — e são duas porque são dois
+  processos: a mesma disciplina pode ter aula prática e não curricularizar extensão, e vice-versa
+  (a relação de Enfermagem traz as duas com interseção parcial). Cada uma é o **denominador do seu
+  painel**: uma lista só faria "disciplinas sem relatório" contar as do outro processo. O
+  formulário passa a **listar** as cadastradas, e a **digitação continua** — a maioria dos cursos
+  ainda não mandou a relação, e exigir o cadastro os trancaria do lado de fora. O **CURSO se
+  escolhe sempre**, e é ele que decide a coordenação que valida (curso fora do catálogo é 400). A
+  marca `foraDoCadastro` passa a comparar com a lista DO TIPO: comparar com a das práticas marcaria
+  como "à mão" justamente a que veio do cadastro — e o rótulo dela muda com o tipo ("registro
+  retroativo" na prática, "digitada à mão" na CE). Na aula prática a régua não muda.
+  **A LINHA SEM E-MAIL ENTRA, e o e-mail se resolve sozinho** (`identificaProfessor`/`chaveDeNome`
+  + `casarProfessoresAP` no server, ago/2026): a relação que a coordenação recebe do sistema
+  acadêmico traz **matrícula, nome e disciplinas — sem contato**, e `normalizarCadastroDoCurso`
+  exigia e-mail: ou a lista inteira não entrava, ou alguém adivinhava vinte endereços, e endereço
+  adivinhado prende a disciplina à conta errada. Sem e-mail a pessoa **conta no denominador** (que
+  é a razão de o cadastro existir) e **não recebe lembrete** — a tela diz isso, nomeando quem. No
+  arranque, `casarProfessoresAP` procura a conta: primeiro pela **matrícula**, a chave forte (a
+  mesma âncora do arquivo da monitoria), depois pelo **nome completo**; **só casa com UMA
+  candidata** — duas contas com o mesmo nome, ou nenhuma, e a linha fica pendente. Nome de uma
+  palavra não é chave, e é ela que também deduplica a linha sem e-mail (o `copiar do semestre
+  anterior` usa a MESMA chave: com a chave só de e-mail, uma linha sem endereço no destino tinha
+  chave `""` e barrava TODAS as sem endereço da origem).
+  **O LEMBRETE DA CE É MENSAL, no dia 1º** (`pendenciasCobrancaExtensao`/`ehPrimeiroDoMes` +
+  `varrerCobrancaExtensaoAP`, aviso `ap-lembrete-extensao`, marca `sys-ap-cobranca-extensao-v1`
+  guardando o MÊS): são dois ritmos. A aula prática acontece toda semana e o relatório é DELA — daí
+  o lembrete de segunda; a curricularização é uma atividade por disciplina no semestre, com o
+  relatório final dela, e um e-mail semanal sobre um documento que só existe depois da ação vira o
+  ruído que faz o professor criar filtro para o remetente — e aí ele deixa de receber também o que
+  importa. Ele **nomeia as disciplinas que faltam** (uma lista diz o que fazer; "você tem
+  pendências" manda procurar), **não afirma atraso** (o sistema sabe quais disciplinas
+  curricularizam, não quando cada atividade está marcada), e **quem entregou tudo não recebe nada**
+  — salvo rascunho aberto, que é o esquecimento mais comum. Na virada de semestre o cadastro novo
+  está vazio e ninguém é cobrado, que é o certo. A coordenação também **chama fora da data**
+  (`POST /api/praticas/chamada` com `tipo: "extensao"`, mesma janela de revisão dos demais
+  chamamentos).
+  **Enfermagem é o primeiro curso com a relação no sistema** (`dados/ap-professores.json`,
+  ago/2026): 8 professores, 11 disciplinas com aula prática e 10 com extensão curricular,
+  transcritas do documento da coordenação. Duas linhas já entram com e-mail — as duas coordenações
+  do curso, que o ARCHÉ conhece de `dados/ap-coordenadores.json`; as demais, só com nome e
+  matrícula.
   A barra do módulo tem **três grupos** (pedido do dono, ago/2026): *Aulas Práticas* (painel,
   relatórios, registrar), **Curricularização da Extensão** (atividades e registrar) e *Módulo* (o
   cadastro do semestre e a coordenação, que servem aos dois). São processos distintos e listas

@@ -446,7 +446,12 @@ function cartao(r) {
           !meu ? ` · ${esc(r.professor?.nome || r.professor?.email || "")}` : ""}</div>
         <div class="cs">${esc(nomeCurso(r.curso))}${r.protocolo ? ` · ${esc(r.protocolo)}` : ""}
           · ${(r.fotos || []).length} foto(s)${r.foraDoCadastro
-            ? ' · <span style="color:#a75a0b;font-weight:600">disciplina fora do cadastro (registro retroativo)</span>' : ""}</div>
+            // a marca é a mesma nos dois tipos, mas quer dizer coisas
+            // diferentes: na aula prática, semestre anterior; na extensão
+            // curricular, disciplina que o cadastro do curso ainda não tem
+            ? ` · <span style="color:#a75a0b;font-weight:600">disciplina fora do cadastro ${
+              (r.tipo || "pratica") === "extensao" ? "(digitada à mão)" : "(registro retroativo)"
+            }</span>` : ""}</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
         <span class="badge b-${esc(r.status)}">${esc(ROT[r.status] || r.status)}</span>
@@ -511,16 +516,46 @@ function renderEC() {
         "extensão" e são outra coisa — lá é a ação institucional, com proposta, aprovação e
         certificado; aqui é a carga horária de extensão de uma disciplina.</div>
     </div>
-    ${e && e.total ? `<div class="kpis">
+    ${e && (e.total || e.cadastradas) ? `<div class="kpis">
       <div class="kpi"><div class="l">Atividades no semestre</div><div class="v">${e.total}</div>
         <div class="d">${e.validados} validada(s) · ${e.enviados} aguardando</div></div>
       <div class="kpi"><div class="l">Horas curricularizadas</div><div class="v">${e.horas}</div>
         <div class="d">só das atividades validadas</div></div>
       <div class="kpi"><div class="l">Acadêmicos envolvidos</div><div class="v">${e.academicos}</div>
         <div class="d">nas atividades validadas</div></div>
-      <div class="kpi"><div class="l">Disciplinas alcançadas</div><div class="v">${e.disciplinas}</div>
-        <div class="d">com ao menos uma atividade</div></div>
+      <div class="kpi"><div class="l">Disciplinas alcançadas</div><div class="v">${e.disciplinas}${
+        e.cadastradas ? `<span class="muted" style="font-size:15px"> de ${e.cadastradas}</span>` : ""}</div>
+        <div class="d">${e.cadastradas ? "das que o cadastro diz curricularizarem" : "com ao menos uma atividade"}</div></div>
     </div>` : ""}
+    ${ehCoord() && e && e.cadastradas ? (() => {
+      /* O DENOMINADOR (ago/2026): "9 atividades" não diz se são todas ou um
+         terço. Com a relação da coordenação no cadastro, a guia passa a
+         responder o mesmo que o painel das práticas — que disciplinas
+         curricularizam extensão neste semestre e quais ainda não têm
+         relatório. Curso que ainda não mandou a relação não desenha o bloco:
+         zero de zero não é informação. */
+      const semRel = e.disciplinasSemRelatorio || [];
+      const semReg = e.professoresSemRegistro || [];
+      return `<div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div><div class="card-t">Quem ainda não registrou</div>
+            <div class="card-s">${e.professoresQueRegistraram} de ${e.professoresCadastrados}
+              professor(es) já registraram atividade neste semestre.</div></div>
+          ${semReg.length ? `<div class="exp" style="margin:0">
+            <button class="bt bt-sec bt-xs" onclick="chamarExtensao()">📣 Chamar por e-mail</button>
+          </div>` : ""}
+        </div>
+        ${semRel.length ? `<div class="lista" style="margin-top:10px">
+          ${semRel.map((d) => `<div class="linha"><div class="txt">
+            <div class="p1">${esc(d.disciplina)}</div>
+            <div class="p2">${esc(nomeCurso(d.curso))}${d.professores?.length
+              ? ` · ${esc(d.professores.join(", "))}` : ""}</div></div></div>`).join("")}
+        </div>` : `<div class="vazio" style="margin-top:10px">Todas as disciplinas cadastradas
+          já têm ao menos uma atividade registrada.</div>`}
+        <div class="ajuda" style="margin-top:8px">O lembrete sai sozinho todo <b>dia 1º</b> para
+          quem tem disciplina sem relatório. Este botão manda agora, fora da data.</div>
+      </div>`;
+    })() : ""}
     <div class="card" style="padding:16px 18px">
       <div class="grid4">
         ${seletorSemestre()}
@@ -581,14 +616,21 @@ function renderNova() {
      que valida). No semestre corrente a regra não muda: quem manda é o
      cadastro da coordenação — e o servidor confere pela data da aula. */
   const semCadastro = !minhas.length && !D.gestao;
-  /* Na extensão curricular a inclusão é sempre MANUAL: o cadastro do semestre
-     foi feito para as aulas práticas, e a disciplina que curriculariza extensão
-     pode não estar nele. O professor digita a disciplina e ESCOLHE O CURSO — e
-     é esse curso que decide a coordenação que valida. */
+  /* Na extensão curricular o cadastro OFERECE, mas nunca OBRIGA (revisão de
+     ago/2026): agora que a coordenação registra também as disciplinas que
+     curricularizam extensão, o formulário passa a listá-las — mas a maioria
+     dos cursos ainda não mandou a relação, e exigir o cadastro os trancaria do
+     lado de fora. A digitação continua ali, e o CURSO se escolhe sempre: é ele
+     que decide a coordenação que valida. */
+  const minhasEC = D.minhasDisciplinasExtensao || [];
   const aviso = ehExt()
-    ? `<div class="banner ba-info">A disciplina se <b>digita</b> e o <b>curso se escolhe</b>: é o
-        curso que define a <b>coordenação que valida</b> este relatório. Escolha o curso a que a
-        disciplina pertence, mesmo que a atividade tenha acontecido fora dele.</div>`
+    ? (minhasEC.length
+      ? `<div class="banner ba-info">A coordenação registrou <b>${minhasEC.length}</b> disciplina(s)
+          sua(s) que curricularizam extensão neste semestre — escolha abaixo, ou digite outra.
+          O <b>curso</b> define a <b>coordenação que valida</b> este relatório.</div>`
+      : `<div class="banner ba-info">A disciplina se <b>digita</b> e o <b>curso se escolhe</b>: é o
+          curso que define a <b>coordenação que valida</b> este relatório. Escolha o curso a que a
+          disciplina pertence, mesmo que a atividade tenha acontecido fora dele.</div>`)
     : semCadastro
       ? `<div class="banner ba-warn">Você ainda não está no cadastro de <b>${esc(D.semestre)}</b> —
         para aulas deste semestre, a coordenação do curso inclui professores e disciplinas na guia
@@ -599,13 +641,25 @@ function renderNova() {
     const v = r[c.campo] || "";
     if (c.tipo === "disciplina") {
       const manual = !!r.id && !!v && !minhas.some((d) => d.disciplina === v);
-      // na extensão curricular não há lista de onde escolher: digita-se a
-      // disciplina e escolhe-se o curso, sempre
+      /* Na extensão curricular o CURSO se escolhe sempre (é ele que decide
+         quem valida) e a disciplina vem de duas fontes: as que a coordenação
+         registrou como curricularizadoras — quando há — e a digitação, que
+         nunca sai, porque a maioria dos cursos ainda não mandou a relação. */
       if (ehExt()) {
+        const naLista = minhasEC.some((d) => d.disciplina === v);
+        const manualEC = !!v && !naLista;
         return `<div style="grid-column:1/-1"><div class="grid2">
           <div><label>${esc(c.rotulo)} *</label>
-            <input id="f-disciplina-manual" value="${esc(v)}"
-              placeholder="Nome da disciplina, como consta na matriz">
+            ${minhasEC.length ? `<select id="f-disciplina-ec" onchange="modoManualEC(this.value)">
+              <option value="">Selecione…</option>
+              ${minhasEC.map((d) => `<option value="${esc(d.disciplina)}" ${naLista && v === d.disciplina ? "selected" : ""}>
+                ${esc(d.disciplina)}</option>`).join("")}
+              <option value="__manual" ${manualEC ? "selected" : ""}>Outra — digitar</option>
+            </select>` : ""}
+            <div id="f-manual-ec" style="${!minhasEC.length || manualEC ? "" : "display:none"};margin-top:${minhasEC.length ? "8px" : "0"}">
+              <input id="f-disciplina-manual" value="${esc(minhasEC.length && naLista ? "" : v)}"
+                placeholder="Nome da disciplina, como consta na matriz">
+            </div>
             <div class="ajuda">${esc(c.ajuda)}</div></div>
           <div><label>Curso da disciplina *</label>
             <select id="f-curso-manual" ${r.id && !D.gestao ? "disabled" : ""}>
@@ -756,6 +810,12 @@ function modoManualDisc(v) {
   if (bloco) bloco.style.display = v === "__manual" ? "" : "none";
 }
 
+/** O mesmo, na extensão curricular: "Outra" abre o campo de digitar. */
+function modoManualEC(v) {
+  const bloco = $("f-manual-ec");
+  if (bloco) bloco.style.display = v === "__manual" ? "" : "none";
+}
+
 function corpoDoForm() {
   const b = { id: EDIT?.id || "", tipo: tipoAtual() };
   for (const c of camposDoTipo()) {
@@ -766,9 +826,15 @@ function corpoDoForm() {
     }
     b[c.campo] = ($(`f-${c.campo}`) || {}).value || "";
   }
-  // disciplina digitada à mão: vai com o curso escolhido. Na extensão
-  // curricular é sempre assim — não há select de disciplina para ler
-  if (ehExt() || b.disciplina === "__manual") {
+  // disciplina digitada à mão: vai com o curso escolhido
+  if (ehExt()) {
+    // na extensão curricular a disciplina vem do seletor das cadastradas
+    // quando ele existe e não está em "Outra"; senão, do campo digitado
+    const sel = ($("f-disciplina-ec") || {}).value;
+    b.disciplina = (sel && sel !== "__manual")
+      ? sel : (($("f-disciplina-manual") || {}).value || "");
+    b.curso = ($("f-curso-manual") || {}).value || "";
+  } else if (b.disciplina === "__manual") {
     b.disciplina = ($("f-disciplina-manual") || {}).value || "";
     b.curso = ($("f-curso-manual") || {}).value || "";
   }
@@ -1008,18 +1074,38 @@ function renderCadastro() {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
           <div><div class="card-t">${esc(c.nome)}</div>
             <div class="card-s">${profs.length} professor(es) · ${
-              profs.reduce((s, p) => s + (p.disciplinas || []).length, 0)} disciplina(s) em ${esc(F.semestre)}</div></div>
+              profs.reduce((s, p) => s + (p.disciplinas || []).length, 0)} disciplina(s) com
+              <b>aula prática</b> · ${
+              profs.reduce((s, p) => s + (p.disciplinasExtensao || []).length, 0)} com
+              <b>extensão curricular</b>, em ${esc(F.semestre)}</div></div>
           <div class="exp" style="margin:0">
             <button class="bt bt-sec bt-xs" onclick="copiarCadastro('${esc(c.slug)}')">⧉ Copiar do semestre anterior</button>
             <button class="bt bt-pri bt-xs" onclick="linhaNova('${esc(c.slug)}')">＋ Incluir professor</button>
           </div>
         </div>
+        ${(() => {
+          const sem = profs.filter((p) => !p.email);
+          return sem.length ? `<div class="banner ba-warn" style="margin:10px 0">
+            <b>${sem.length} sem e-mail</b> — ${esc(sem.map((p) => p.nome).join(", "))}.
+            Elas contam no total de disciplinas do semestre, mas <b>não recebem os lembretes</b>
+            enquanto o endereço não estiver aqui. O portal procura sozinho a conta de cada uma
+            pela matrícula ou pelo nome completo; quem não for encontrado fica assim até alguém
+            digitar o e-mail.</div>` : "";
+        })()}
         <div class="rolo"><table id="tb-${esc(c.slug)}">
-          <thead><tr><th style="width:26%">Nome</th><th style="width:28%">E-mail</th>
-            <th>Disciplinas (uma por linha)</th><th style="width:60px"></th></tr></thead>
+          <thead><tr><th style="width:20%">Nome</th><th style="width:20%">E-mail</th>
+            <th style="width:80px">Matrícula</th>
+            <th>Disciplinas — <b>aula prática</b><br><span class="muted" style="font-weight:400">uma por linha</span></th>
+            <th>Disciplinas — <b>extensão curricular</b><br><span class="muted" style="font-weight:400">uma por linha</span></th>
+            <th style="width:60px"></th></tr></thead>
           <tbody>${profs.map((p, i) => linhaProf(c.slug, p, i)).join("")
-            || `<tr><td colspan="4" class="muted">Ninguém cadastrado neste curso em ${esc(F.semestre)}.</td></tr>`}</tbody>
+            || `<tr><td colspan="6" class="muted">Ninguém cadastrado neste curso em ${esc(F.semestre)}.</td></tr>`}</tbody>
         </table></div>
+        <div class="ajuda" style="margin-top:8px">São <b>duas listas</b> porque são dois processos:
+          a mesma disciplina pode ter aula prática e não curricularizar extensão, e vice-versa.
+          Cada uma é o denominador do seu painel — é ela que transforma “9 relatórios” em
+          “9 de 14”. O <b>e-mail pode ficar em branco</b>: a pessoa entra na conta do semestre e
+          o portal casa com a conta dela depois, pela matrícula ou pelo nome.</div>
         <div class="exp"><button class="bt bt-pri" onclick="salvarCadastro('${esc(c.slug)}')">💾 Salvar ${esc(c.nome)}</button></div>
       </div>`;
     }).join("")}`;
@@ -1028,9 +1114,13 @@ function renderCadastro() {
 function linhaProf(slug, p = {}, i = 0) {
   return `<tr data-linha>
     <td><input value="${esc(p.nome || "")}" data-c="nome" placeholder="Nome completo"></td>
-    <td><input value="${esc(p.email || "")}" data-c="email" placeholder="email@uniego.edu.br" type="email"></td>
+    <td><input value="${esc(p.email || "")}" data-c="email" placeholder="(pode ficar em branco)" type="email">
+      ${p.nome && !p.email ? '<div class="ajuda" style="color:#a75a0b">sem lembrete</div>' : ""}</td>
+    <td><input value="${esc(p.matricula || "")}" data-c="matricula" placeholder="00000"></td>
     <td><textarea data-c="disciplinas" style="min-height:64px"
       placeholder="Anatomia Humana&#10;Fisiologia">${esc((p.disciplinas || []).join("\n"))}</textarea></td>
+    <td><textarea data-c="disciplinasExtensao" style="min-height:64px"
+      placeholder="Saúde da Mulher&#10;Educação em Saúde">${esc((p.disciplinasExtensao || []).join("\n"))}</textarea></td>
     <td><button class="bt bt-ghost bt-xs" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
 }
 
@@ -1042,11 +1132,19 @@ function linhaNova(slug) {
 
 async function salvarCadastro(slug) {
   const linhas = [...document.querySelectorAll(`#tb-${CSS.escape(slug)} tr[data-linha]`)];
+  const porLinha = (tr, campo) => (tr.querySelector(`[data-c="${campo}"]`)?.value || "")
+    .split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   const professores = linhas.map((tr) => ({
     nome: tr.querySelector('[data-c="nome"]').value.trim(),
     email: tr.querySelector('[data-c="email"]').value.trim().toLowerCase(),
-    disciplinas: tr.querySelector('[data-c="disciplinas"]').value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean),
-  })).filter((p) => p.nome && p.email);
+    matricula: (tr.querySelector('[data-c="matricula"]')?.value || "").trim(),
+    disciplinas: porLinha(tr, "disciplinas"),
+    disciplinasExtensao: porLinha(tr, "disciplinasExtensao"),
+    // o e-mail deixou de ser obrigatório (ago/2026): a relação que a
+    // coordenação recebe do sistema acadêmico não o traz, e exigi-lo fazia a
+    // lista inteira não entrar. Sem ele a pessoa não recebe lembrete — e o
+    // aviso amarelo acima da tabela diz isso e quem são.
+  })).filter((p) => p.nome);
   const r = await fetch("/api/praticas/cadastro", { method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ semestre: F.semestre, curso: slug, professores }) });
@@ -1156,26 +1254,44 @@ async function salvarEquipe() {
   await carregar(); nav("equipe");
 }
 
-/* ===================== CHAMADA (a cobrança agora) ====================== */
-async function abrirChamada() {
+/* ===================== CHAMADA (a cobrança agora) ======================
+   A MESMA janela serve aos dois processos, porque é o mesmo ato: ver quem
+   receberá, escrever um recado e mandar. Muda o que se cobra — a aula da
+   semana passada ou a atividade de extensão do semestre — e por isso o texto
+   da caixa e a linha de cada pessoa mudam com ele. */
+let CHAMADA_TIPO = "pratica";
+const chamarExtensao = () => abrirChamada("extensao");
+
+async function abrirChamada(tipo = "pratica") {
+  CHAMADA_TIPO = tipo === "extensao" ? "extensao" : "pratica";
+  const ehEC = CHAMADA_TIPO === "extensao";
   const r = await fetch("/api/praticas/chamada", { method: "POST",
-    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ simular: true }) });
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ simular: true, tipo: CHAMADA_TIPO }) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { alert(j.error || "Não foi possível simular."); return; }
   const lista = j.destinatarios || [];
   const cx = document.createElement("div");
   cx.className = "ov";
   cx.innerHTML = `<div class="modal">
-    <div class="card-t">Chamar quem não registrou</div>
-    <div class="card-s">O mesmo e-mail que sai toda segunda-feira, agora. Vai a
-      <b>${lista.length}</b> professor(es) — os que não enviaram nada da semana passada
-      ou têm rascunho aberto.</div>
+    <div class="card-t">${ehEC ? "Chamar os relatórios de extensão curricular"
+      : "Chamar quem não registrou"}</div>
+    <div class="card-s">${ehEC
+      ? `O mesmo e-mail que sai todo dia 1º, agora. Vai a <b>${lista.length}</b> professor(es) —
+         os que têm disciplina cadastrada com curricularização e ainda sem relatório no semestre,
+         ou rascunho aberto. Quem está no cadastro <b>sem e-mail</b> não recebe.`
+      : `O mesmo e-mail que sai toda segunda-feira, agora. Vai a <b>${lista.length}</b>
+         professor(es) — os que não enviaram nada da semana passada ou têm rascunho aberto.`}</div>
     <label>Mensagem da coordenação (opcional, entra no topo do e-mail)</label>
-    <textarea id="ch-msg" placeholder="Ex.: lembrem-se de anexar as três fotos."></textarea>
+    <textarea id="ch-msg" placeholder="${ehEC
+      ? "Ex.: o relatório precisa das três fotos e da carga horária extensionista."
+      : "Ex.: lembrem-se de anexar as três fotos."}"></textarea>
     <div style="max-height:200px;overflow:auto;margin-top:12px">
       ${lista.map((p) => `<div class="linha"><div class="txt">
         <div class="p1">${esc(p.nome || p.email)}</div>
-        <div class="p2">${esc(p.email)} · ${p.enviados} enviado(s) na semana${
+        <div class="p2">${esc(p.email)} · ${ehEC
+          ? `${(p.faltam || []).length} disciplina(s) sem relatório`
+          : `${p.enviados} enviado(s) na semana`}${
           p.rascunhos ? ` · ${p.rascunhos} rascunho(s)` : ""}</div></div></div>`).join("")
         || '<div class="vazio">Ninguém a chamar. 🎉</div>'}
     </div>
@@ -1190,7 +1306,7 @@ async function enviarChamada(bt) {
   bt.disabled = true; bt.textContent = "enviando…";
   const r = await fetch("/api/praticas/chamada", { method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mensagem: $("ch-msg").value }) });
+    body: JSON.stringify({ mensagem: $("ch-msg").value, tipo: CHAMADA_TIPO }) });
   const j = await r.json().catch(() => ({}));
   document.querySelector(".ov")?.remove();
   alert(r.ok ? `${j.enviados} de ${j.total} lembrete(s) enviado(s).` : (j.error || "Falha no envio."));

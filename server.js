@@ -197,6 +197,8 @@ import {
   professoresDoSemestre as apProfessoresDoSemestre, minhasDisciplinas as apMinhasDisciplinas,
   cursoDoProfessor as apCursoDoProfessor, filtrar as apFiltrar, panorama as apPanorama,
   pendenciasCobranca as apPendenciasCobranca, ehSegunda as apEhSegunda,
+  pendenciasCobrancaExtensao as apPendenciasCobrancaEC, ehPrimeiroDoMes as apEhPrimeiroDoMes,
+  chaveDeNome as apChaveDeNome,
   PAPEIS_COORDENACAO as AP_PAPEIS_COORD, cursosQueCoordena as apCursosQueCoordena,
 } from "./lib/praticas.js";
 
@@ -13804,21 +13806,29 @@ async function subirProfessoresAP() {
       const marca = `sys-ap-prof-${semestre.replace("/", "-")}-${curso}`;
       if (await storage.get(marca)) continue;
       if (!cursoDe(curso)) { console.warn(`[praticas] curso desconhecido no lote: ${curso}`); continue; }
-      const lista = (dados.professores || []).filter((p) => p?.email && p?.nome);
+      /* A LINHA SEM E-MAIL ENTRA (ago/2026): a relação que a coordenação
+         manda traz matrícula, nome e disciplinas — o e-mail não sai do
+         sistema acadêmico. Ela conta no denominador, não recebe lembrete
+         enquanto o endereço não aparecer, e `casarProfessoresAP` o adota
+         depois pela matrícula ou pelo nome. */
+      const lista = (dados.professores || []).filter((p) => p?.nome);
       if (!lista.length) continue;
 
+      const chave = (p) => String(p.email || "").toLowerCase()
+        || `nome:${apChaveDeNome(p.nome)}`;
       cadastro[semestre] = cadastro[semestre] || {};
-      const jaTem = new Set((cadastro[semestre][curso]?.professores || [])
-        .map((p) => String(p.email || "").toLowerCase()));
+      const jaTem = new Set((cadastro[semestre][curso]?.professores || []).map(chave));
       cadastro[semestre][curso] = { professores: [
         ...(cadastro[semestre][curso]?.professores || []),
-        ...lista.filter((p) => !jaTem.has(String(p.email).toLowerCase()))
-          .map((p) => ({ email: String(p.email).toLowerCase(), nome: p.nome,
-            disciplinas: p.disciplinas || [] })),
+        ...lista.filter((p) => !jaTem.has(chave(p)))
+          .map((p) => ({ email: String(p.email || "").toLowerCase(), nome: p.nome,
+            matricula: p.matricula || "",
+            disciplinas: p.disciplinas || [],
+            disciplinasExtensao: p.disciplinasExtensao || [] })),
       ] };
       mexeuCadastro = true;
 
-      for (const p of lista) {
+      for (const p of lista.filter((x) => x.email)) {
         const e = String(p.email).toLowerCase();
         if (!removidos.has(e)) aprovar.push(e);
         const atual = perfis[e] || {};
@@ -13855,6 +13865,53 @@ async function subirProfessoresAP() {
   }
 }
 
+/* O E-MAIL DE QUEM ENTROU SEM ELE (ago/2026, com a relação de Enfermagem): a
+   coordenação manda matrícula, nome e disciplinas — o e-mail não sai do
+   sistema acadêmico, e a pessoa quase sempre JÁ TEM conta no portal. Em vez
+   de pedir vinte endereços que o sistema pode descobrir, o cadastro procura
+   a conta: primeiro pela MATRÍCULA, que é a chave forte (é a mesma âncora do
+   arquivo da monitoria), e depois pelo NOME COMPLETO.
+
+   A regra que torna isso seguro é uma só: **só casa quando há UMA candidata**.
+   Duas contas com o mesmo nome, ou nenhuma, e a linha fica como está — prender
+   a disciplina de alguém à conta de outra pessoa é pior do que uma linha
+   pendente, que a tela mostra e a coordenação resolve digitando o endereço.
+   Roda no arranque e é idempotente: linha que já tem e-mail nunca é tocada. */
+async function casarProfessoresAP() {
+  try {
+    const cadastro = await lerCadastroAP();
+    const perfis = await carregarPerfis();
+    const porMatricula = new Map(), porNome = new Map();
+    for (const [mail, p] of Object.entries(perfis)) {
+      const m = String(p?.matricula || "").trim();
+      if (m) porMatricula.set(m, (porMatricula.get(m) || new Set()).add(mail));
+      const n = apChaveDeNome(p?.nome);
+      if (n) porNome.set(n, (porNome.get(n) || new Set()).add(mail));
+    }
+    const unica = (mapa, chave) => {
+      const s = chave ? mapa.get(chave) : null;
+      return s && s.size === 1 ? [...s][0] : "";
+    };
+    let casados = 0;
+    for (const cursos of Object.values(cadastro)) {
+      for (const dados of Object.values(cursos || {})) {
+        for (const p of dados?.professores || []) {
+          if (p.email || !p.nome) continue;
+          const achado = unica(porMatricula, String(p.matricula || "").trim())
+            || unica(porNome, apChaveDeNome(p.nome));
+          if (achado) { p.email = achado; casados++; }
+        }
+      }
+    }
+    if (!casados) return;
+    await storage.set(AP_CADASTRO_KEY, JSON.stringify(normalizarCadastroAP(cadastro)));
+    await storage.flush?.();
+    console.log(`[praticas] ${casados} professor(es) do cadastro casaram com a conta do portal.`);
+  } catch (e) {
+    console.error("[praticas] não foi possível casar os professores:", e.message);
+  }
+}
+
 /** GET /api/praticas — tudo o que a tela precisa para abrir. */
 app.get("/api/praticas", async (req, res) => {
   try {
@@ -13884,6 +13941,11 @@ app.get("/api/praticas", async (req, res) => {
       // o professor recebe as SUAS disciplinas do semestre — é a lista que o
       // formulário oferece; a coordenação recebe o cadastro do que gere
       minhasDisciplinas: apMinhasDisciplinas(cadastro, semestre, u.email),
+      // as que CURRICULARIZAM extensão: o formulário da CE passa a oferecê-las
+      // (antes só havia digitação, porque não havia cadastro) e continua
+      // aceitando a digitada à mão — a maioria dos cursos ainda não mandou a
+      // relação, e exigir o cadastro os trancaria do lado de fora
+      minhasDisciplinasExtensao: apMinhasDisciplinas(cadastro, semestre, u.email, "extensao"),
       meuCurso: apCursoDoProfessor(cadastro, semestre, u.email),
       ...(quem.gestao || quem.cursos.length
         ? {
@@ -13959,16 +14021,21 @@ app.post("/api/praticas", async (req, res) => {
            coordenação saber que a disciplina não veio do cadastro. */
         const semestre = semestreDe(String(b.data || "")) || semestreCorrente();
         const minhas = apMinhasDisciplinas(cadastro, semestre, u.email);
+        const minhasEC = apMinhasDisciplinas(cadastro, semestre, u.email, "extensao");
         const curso = apCursoDoProfessor(cadastro, semestre, u.email);
         const retroativo = /^\d{4}\/[12]$/.test(semestre) && semestre < semestreCorrente();
         /* A EXTENSÃO CURRICULAR não depende do cadastro (pedido do dono,
            ago/2026): o cadastro do semestre foi feito para as AULAS PRÁTICAS,
            e a disciplina que curriculariza extensão pode não estar nele —
            inclusive porque a lista de quem deve relatório de CE ainda está
-           sendo levantada por curso. Nela a inclusão é sempre MANUAL: o
-           professor digita a disciplina e ESCOLHE O CURSO, e é esse curso que
-           decide a coordenação que valida. Na aula prática a régua não muda:
-           quem manda é o cadastro, e o registro retroativo é a exceção. */
+           sendo levantada por curso. O cadastro OFERECE, mas nunca OBRIGA
+           (ago/2026): quando a coordenação registra as disciplinas que
+           curricularizam extensão, o formulário passa a listá-las — e a
+           digitação continua, senão os cursos que ainda não mandaram a
+           relação ficariam trancados do lado de fora. O CURSO se escolhe
+           sempre, e é ele que decide a coordenação que valida. Na aula
+           prática a régua não muda: quem manda é o cadastro, e o registro
+           retroativo é a exceção. */
         const ehCE = apTipoDe(b.tipo).codigo === "extensao";
         if (!minhas.length && !quem.gestao && !retroativo && !ehCE) {
           return { erro: [403, `Você ainda não está no cadastro de ${semestre}. `
@@ -13990,9 +14057,15 @@ app.post("/api/praticas", async (req, res) => {
           // o TIPO se fixa aqui e não muda depois: é ele que escolhe os
           // campos cobrados e a coluna em que a atividade conta
           tipo: apTipoDe(b.tipo).codigo,
-          // a marca é do servidor: disciplina que não está no cadastro do
-          // semestre entrou à mão, e a coordenação precisa ver isso
-          foraDoCadastro: !minhas.some((d) => d.disciplina === String(b.disciplina || "").trim()),
+          /* A marca é do servidor: disciplina que não está no cadastro do
+             semestre entrou à mão, e a coordenação precisa ver isso. Cada
+             tipo se compara com a SUA lista (ago/2026): antes a CE era
+             sempre manual e a marca saía sempre; agora que a coordenação
+             registra também as disciplinas que curricularizam extensão,
+             comparar com a lista das aulas práticas marcaria como "à mão"
+             justamente a que veio do cadastro. */
+          foraDoCadastro: !(ehCE ? minhasEC : minhas)
+            .some((d) => d.disciplina === String(b.disciplina || "").trim()),
           professor: { email: u.email, nome: perfil.nome || u.nome || "" },
           criadoPor: u.email,
         } });
@@ -14319,11 +14392,16 @@ app.post("/api/praticas/cadastro/copiar", async (req, res) => {
     if (!antes.length)
       return res.status(404).json({ error: `Não há cadastro de ${origem} neste curso para copiar.` });
     cadastro[destino] = cadastro[destino] || {};
-    // não sobrescreve quem já foi incluído no semestre novo
-    const jaTem = new Set((cadastro[destino][curso]?.professores || []).map((p) => String(p.email || "").toLowerCase()));
+    /* Não sobrescreve quem já foi incluído no semestre novo. A chave é a MESMA
+       do cadastro — e-mail quando há, senão o nome (ago/2026): com a chave só
+       de e-mail, UMA linha sem endereço no destino tinha chave "" e barrava
+       TODAS as sem endereço da origem, que hoje é a maioria de uma relação
+       recém-recebida. */
+    const chave = (p) => String(p.email || "").toLowerCase() || `nome:${apChaveDeNome(p.nome)}`;
+    const jaTem = new Set((cadastro[destino][curso]?.professores || []).map(chave));
     cadastro[destino][curso] = { professores: [
       ...(cadastro[destino][curso]?.professores || []),
-      ...antes.filter((p) => !jaTem.has(String(p.email || "").toLowerCase())),
+      ...antes.filter((p) => !jaTem.has(chave(p))),
     ] };
     const limpo = normalizarCadastroAP(cadastro);
     await storage.set(AP_CADASTRO_KEY, JSON.stringify(limpo));
@@ -14619,6 +14697,47 @@ async function varrerCobrancaAP() {
   return { enviadas };
 }
 
+const COBRANCA_EC_KEY = "sys-ap-cobranca-extensao-v1";
+
+/** Um lembrete por professor da extensão curricular. true quando o e-mail saiu. */
+async function enviarCobrancaExtensaoAP(p, mensagem = "") {
+  try {
+    const { emailLembreteExtensaoCurricular } = await import("./lib/mailer.js");
+    await enviarAviso("ap-lembrete-extensao",
+      emailLembreteExtensaoCurricular({ para: p.email, ...p, mensagem }));
+    return true;
+  } catch (e) {
+    console.error("[praticas] lembrete de extensão não enviado a", p.email, e.message);
+    return false;
+  }
+}
+
+/* O LEMBRETE MENSAL DA EXTENSÃO CURRICULAR (pedido do dono, ago/2026). A
+   varredura é horária como as demais, mas o lembrete só sai NO DIA 1º — e uma
+   vez por MÊS por pessoa, pelo registro (a marca guarda o mês, não o dia:
+   assim reiniciar a instância no dia 1º não reenvia, e o mês seguinte reenvia
+   sozinho). Na virada de semestre — 01/01 e 01/07 — o cadastro do semestre
+   novo ainda está vazio e ninguém é cobrado, que é o certo: não há disciplina
+   registrada de que cobrar. */
+async function varrerCobrancaExtensaoAP() {
+  const hoje = hojeLocalISO();
+  if (!apEhPrimeiroDoMes(hoje)) return { enviadas: 0 };
+  const [todos, cadastro] = await Promise.all([lerPraticas(), lerCadastroAP()]);
+  const pendentes = apPendenciasCobrancaEC(todos, cadastro, { hoje });
+  if (!pendentes.length) return { enviadas: 0 };
+  const mes = hoje.slice(0, 7);
+  const registro = JSON.parse((await storage.get(COBRANCA_EC_KEY)) || "{}");
+  let enviadas = 0;
+  for (const p of pendentes) {
+    if (registro[p.email] === mes) continue;
+    if (await enviarCobrancaExtensaoAP(p)) { registro[p.email] = mes; enviadas++; }
+  }
+  await storage.set(COBRANCA_EC_KEY, JSON.stringify(registro));
+  await storage.flush?.();
+  if (enviadas) console.log(`[praticas] lembrete mensal da extensão enviado a ${enviadas} professor(es).`);
+  return { enviadas };
+}
+
 /** GET /api/praticas/:id — a ficha completa. Vem DEPOIS de /panorama e de
     /semestral.pdf: registrada antes, `:id` engoliria as duas. */
 app.get("/api/praticas/:id", async (req, res) => {
@@ -14639,7 +14758,10 @@ app.get("/api/praticas/:id", async (req, res) => {
   }
 });
 
-/** POST /api/praticas/chamada — a cobrança AGORA, além da de segunda-feira. */
+/** POST /api/praticas/chamada — a cobrança AGORA, além da automática.
+    `tipo: "extensao"` cobra os relatórios de curricularização; sem ele, os
+    das aulas práticas. É a mesma janela de revisão dos demais chamamentos: a
+    coordenação vê quem receberá antes de mandar. */
 app.post("/api/praticas/chamada", async (req, res) => {
   try {
     const u = await sessaoAP(req, res);
@@ -14648,13 +14770,17 @@ app.post("/api/praticas/chamada", async (req, res) => {
     const quem = await quemAP(u);
     if (!quem.gestao && !quem.cursos.length)
       return res.status(403).json({ error: "A chamada é da coordenação." });
+    const ehCE = apTipoDe(req.body?.tipo).codigo === "extensao";
     const [todos, cadastro] = await Promise.all([lerPraticas(), lerCadastroAP()]);
-    const pendentes = apPendenciasCobranca(todos, cadastro, { hoje: hojeLocalISO() })
+    const pendentes = (ehCE ? apPendenciasCobrancaEC : apPendenciasCobranca)(
+      todos, cadastro, { hoje: hojeLocalISO() })
       .filter((p) => quem.gestao || quem.cursos.includes(p.curso));
     if (req.body?.simular) return res.json({ ok: true, simulacao: true, destinatarios: pendentes });
     let enviados = 0;
     for (const p of pendentes) {
-      const ok = await enviarCobrancaAP(p, String(req.body?.mensagem || ""));
+      const ok = ehCE
+        ? await enviarCobrancaExtensaoAP(p, String(req.body?.mensagem || ""))
+        : await enviarCobrancaAP(p, String(req.body?.mensagem || ""));
       if (ok) enviados++;
     }
     res.json({ ok: true, enviados, total: pendentes.length });
@@ -15914,6 +16040,7 @@ app.listen(port, () => {
       reorganizarNumeracaoDasAtas, // acervo de atas: número na ordem das sessões
       subirEquipeAP,             // a coordenação do ARCHÉ AP, do arquivo em dados/
       subirProfessoresAP,        // e as listas de professores, curso a curso
+      casarProfessoresAP,        // adota o e-mail de quem entrou só com nome e matrícula
       migrarCoordenadoresApParaInstituicao, // a dupla do AP vira a composição do curso
       porAvisosDaGestaoNoResumo, // os avisos à gestão passam ao resumo das 13h
       // SEMPRE por último, e a cada arranque (achado de ago/2026 — o caso
@@ -15946,6 +16073,11 @@ app.listen(port, () => {
   // SEGUNDA-FEIRA — é a própria função que confere o dia
   setTimeout(() => varrerCobrancaAP().catch((e) => console.error("[cobranca-ap]", e.message)), 60_000).unref();
   setInterval(() => varrerCobrancaAP().catch((e) => console.error("[cobranca-ap]", e.message)), 60 * 60 * 1000).unref();
+  // e a curricularização da extensão, MENSAL — outro ritmo, outro lembrete:
+  // a atividade é uma por disciplina no semestre, e cobrá-la toda semana
+  // seria o ruído que faz o professor filtrar o remetente
+  setTimeout(() => varrerCobrancaExtensaoAP().catch((e) => console.error("[cobranca-ec]", e.message)), 65_000).unref();
+  setInterval(() => varrerCobrancaExtensaoAP().catch((e) => console.error("[cobranca-ec]", e.message)), 60 * 60 * 1000).unref();
   // o aviso de relatório enviado que se perdeu (falha de envio, deploy no
   // meio) volta pela mesma varredura horária — uma vez por relatório
   setTimeout(() => varrerAvisosAP().catch((e) => console.error("[avisos-ap]", e.message)), 75_000).unref();
