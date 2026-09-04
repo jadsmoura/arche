@@ -1,0 +1,1027 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARCHÉ — Apresentação do sistema | PROPPEX · UNIEGO</title>
+<meta name="description" content="Os módulos do ARCHÉ em operação, os documentos que ele emite, a arquitetura atual e o plano de migração para servidor institucional.">
+<!-- A página é PÚBLICA mas NÃO LISTADA: o endereço se manda a quem precisa
+     lê-la. Ela descreve a arquitetura e o arranjo de governança do sistema —
+     assunto interno, que não tem por que aparecer numa busca. -->
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARCHÉ — Apresentação do sistema">
+<meta property="og:description" content="O portal de gestão da PROPPEX/UNIEGO: doze setores em operação, os documentos que emite e o plano de migração para servidor institucional.">
+<meta property="og:site_name" content="ARCHÉ · UNIEGO">
+<link rel="icon" href="/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Figtree:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+</head>
+<body>
+<style>
+/* ===================================================================
+   O documento veste a identidade do PRÓPRIO sistema (CLAUDE.md):
+   Sora nos títulos, Figtree no texto, e a paleta institucional do
+   ARCHÉ. Um dossiê sobre o portal que não se parecesse com ele seria
+   a primeira incoerência que a equipe de TI notaria.
+   =================================================================== */
+:root{
+  --marca:#1c3742; --marca-2:#2d535c; --acento:#40717e; --acento-claro:#71c8e2;
+  --wash:#e6f5fa; --wash-2:#cfe9f2;
+  --fundo:#eef1f4; --papel:#ffffff; --papel-2:#f7f9fb;
+  --texto:#182632; --muted:#657179; --linha:#dde4e8;
+  --ok:#1e7a45; --ok-bg:#e8f6ee; --alerta:#a4600a; --alerta-bg:#fdf3e3;
+  --sombra:0 1px 2px rgba(24,38,50,.05), 0 8px 24px -14px rgba(24,38,50,.22);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --marca:#9fd8e8; --marca-2:#71c8e2; --acento:#71c8e2; --acento-claro:#a8e0f0;
+    --wash:#16303a; --wash-2:#1d3f4c;
+    --fundo:#0d161b; --papel:#131f26; --papel-2:#182831;
+    --texto:#e3ecf1; --muted:#93a5af; --linha:#24363f;
+    --ok:#63c98d; --ok-bg:#173024; --alerta:#e0aa5c; --alerta-bg:#2e2418;
+    --sombra:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -14px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --marca:#9fd8e8; --marca-2:#71c8e2; --acento:#71c8e2; --acento-claro:#a8e0f0;
+  --wash:#16303a; --wash-2:#1d3f4c;
+  --fundo:#0d161b; --papel:#131f26; --papel-2:#182831;
+  --texto:#e3ecf1; --muted:#93a5af; --linha:#24363f;
+  --ok:#63c98d; --ok-bg:#173024; --alerta:#e0aa5c; --alerta-bg:#2e2418;
+  --sombra:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -14px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fundo);color:var(--texto);
+  font-family:Figtree,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:16px;line-height:1.62;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:Sora,Figtree,sans-serif;text-wrap:balance;margin:0}
+a{color:var(--acento);text-underline-offset:2px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--acento-claro);outline-offset:3px;border-radius:4px}
+code,.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace}
+code{font-size:.87em;background:var(--wash);color:var(--marca);padding:1px 5px;border-radius:4px;
+  border:1px solid var(--linha)}
+
+/* ---------- estrutura ---------- */
+.envelope{max-width:1240px;margin:0 auto;padding:0 24px 96px;
+  display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+/* O sumário só existe na tela larga. A regra base vem ANTES da media query:
+   declarada depois, com a mesma especificidade, ela venceria a query e o
+   sumário nunca apareceria — deixando o texto na coluna de 216px. */
+.indice{display:none;position:sticky;top:0;align-self:start;padding:40px 0;
+  max-height:100vh;overflow-y:auto}
+@media (min-width:1120px){
+  .envelope{grid-template-columns:216px minmax(0,1fr);gap:56px;padding-right:32px}
+  .indice{display:block}
+}
+.indice-t{font-family:Sora;font-size:10.5px;font-weight:700;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+.indice a{display:block;padding:5px 0 5px 12px;font-size:13px;color:var(--muted);
+  text-decoration:none;border-left:2px solid var(--linha);line-height:1.35}
+.indice a:hover{color:var(--marca);border-left-color:var(--acento)}
+.indice .sep{height:14px}
+main{min-width:0;padding-top:40px}
+section{margin:0 0 64px;scroll-margin-top:24px}
+.prosa{max-width:68ch}
+.prosa p{margin:0 0 16px}
+.prosa ul{margin:0 0 16px;padding-left:20px}
+.prosa li{margin:0 0 7px}
+
+/* ---------- capa ---------- */
+.capa{border-bottom:3px solid var(--marca);padding:8px 0 34px;margin-bottom:52px}
+.eyebrow{font-family:Sora;font-size:11px;font-weight:600;letter-spacing:.19em;
+  text-transform:uppercase;color:var(--acento);margin:0 0 18px}
+.capa h1{font-size:clamp(38px,6.2vw,62px);font-weight:700;line-height:1.02;letter-spacing:-.025em;
+  color:var(--marca)}
+.capa .sub{font-size:clamp(17px,2.2vw,21px);color:var(--texto);max-width:56ch;margin:16px 0 0;
+  line-height:1.5}
+.capa .meta{display:flex;flex-wrap:wrap;gap:8px 26px;margin-top:26px;font-size:13px;color:var(--muted)}
+.capa .meta b{color:var(--texto);font-weight:600}
+
+/* ---------- títulos de seção ---------- */
+.marcador{display:flex;align-items:baseline;gap:14px;margin:0 0 8px;
+  padding-bottom:10px;border-bottom:1px solid var(--linha)}
+.marcador .num{font-family:"IBM Plex Mono";font-size:12px;font-weight:500;color:var(--acento);
+  flex:none;letter-spacing:.04em}
+.marcador h2{font-size:clamp(23px,3vw,30px);font-weight:600;letter-spacing:-.015em;color:var(--marca)}
+.chapeu{font-size:15px;color:var(--muted);margin:0 0 26px;max-width:64ch}
+
+/* ---------- números ---------- */
+.numeros{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:1px;
+  background:var(--linha);border:1px solid var(--linha);border-radius:12px;overflow:hidden;margin:0 0 30px}
+.numeros div{background:var(--papel);padding:16px 18px}
+/* o número não quebra: "65 mil" em duas linhas empurrava o rótulo e deixava
+   o quadro com uma coluna mais alta que as outras */
+.numeros .v{font-family:Sora;font-size:clamp(21px,2.1vw,26px);font-weight:700;color:var(--marca);
+  line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.numeros .l{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.35}
+
+/* ---------- módulo ---------- */
+.grupo{margin:0 0 14px;padding:22px 0 0;display:flex;align-items:center;gap:12px}
+.grupo h3{font-size:15px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--acento)}
+.grupo .risco{flex:1;height:1px;background:var(--linha)}
+.modulo{background:var(--papel);border:1px solid var(--linha);border-radius:14px;
+  overflow:hidden;margin:0 0 22px;box-shadow:var(--sombra)}
+.mod-cab{display:flex;align-items:flex-start;gap:14px;padding:18px 22px 16px}
+.sigla{flex:none;font-family:"IBM Plex Mono";font-size:11.5px;font-weight:500;letter-spacing:.06em;
+  background:var(--wash);color:var(--marca);border:1px solid var(--wash-2);
+  border-radius:6px;padding:4px 9px;margin-top:2px}
+.mod-cab h4{font-size:19px;font-weight:600;color:var(--marca);letter-spacing:-.01em}
+.mod-cab .pra{font-size:14px;color:var(--muted);margin-top:2px;line-height:1.45}
+.mod-cab .end{font-family:"IBM Plex Mono";font-size:12px;color:var(--acento);margin-top:5px}
+figure{margin:0;background:var(--papel-2);border-top:1px solid var(--linha);
+  border-bottom:1px solid var(--linha)}
+figure img{display:block;width:100%;height:auto}
+figcaption{font-size:12.5px;color:var(--muted);padding:9px 22px;line-height:1.45;
+  border-top:1px solid var(--linha);background:var(--papel)}
+.mod-corpo{display:grid;grid-template-columns:1fr;gap:0}
+@media (min-width:760px){.mod-corpo{grid-template-columns:1.35fr 1fr}}
+.mod-corpo>div{padding:18px 22px 20px}
+@media (min-width:760px){.mod-corpo>div+div{border-left:1px solid var(--linha)}}
+@media (max-width:759px){.mod-corpo>div+div{border-top:1px solid var(--linha)}}
+.mod-corpo h5{font-family:Sora;font-size:10.5px;font-weight:700;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+.mod-corpo ul{margin:0;padding-left:17px;font-size:14.5px}
+.mod-corpo li{margin:0 0 6px;line-height:1.5}
+.mod-corpo li:last-child{margin-bottom:0}
+.produz{list-style:none;padding:0;margin:0;font-size:14px}
+.produz li{margin:0 0 8px;padding-left:20px;position:relative;line-height:1.45}
+.produz li::before{content:"";position:absolute;left:0;top:.52em;width:9px;height:11px;
+  border:1.4px solid var(--acento);border-radius:1px}
+
+/* ---------- destaque ---------- */
+.nota{border-left:3px solid var(--acento);background:var(--papel);padding:16px 20px;
+  border-radius:0 10px 10px 0;margin:0 0 22px;font-size:15px;box-shadow:var(--sombra)}
+.nota strong{color:var(--marca)}
+.nota.firme{border-left-color:var(--marca);background:var(--wash)}
+.nota.atencao{border-left-color:var(--alerta);background:var(--alerta-bg)}
+
+/* ---------- tabelas ---------- */
+.rolo{overflow-x:auto;border:1px solid var(--linha);border-radius:12px;background:var(--papel);
+  margin:0 0 24px;box-shadow:var(--sombra)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:520px}
+th,td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--linha);vertical-align:top}
+th{font-family:Sora;font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);background:var(--papel-2);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.mono,th.mono{font-family:"IBM Plex Mono";font-size:12.5px}
+td b{color:var(--marca);font-weight:600}
+
+/* ---------- etapas da migração ---------- */
+.etapas{list-style:none;padding:0;margin:0;counter-reset:fase}
+.etapa{display:grid;grid-template-columns:auto 1fr;gap:18px;padding:20px 0;
+  border-top:1px solid var(--linha)}
+.etapa:first-child{border-top:0;padding-top:6px}
+.etapa .fase{font-family:"IBM Plex Mono";font-size:12px;font-weight:500;color:var(--papel);
+  background:var(--marca);width:26px;height:26px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;flex:none;margin-top:3px}
+.etapa h4{font-size:17px;font-weight:600;color:var(--marca);margin-bottom:5px}
+.etapa p{margin:0 0 8px;font-size:15px}
+.etapa p:last-child{margin-bottom:0}
+.etapa .quando{font-size:12.5px;color:var(--muted);font-family:"IBM Plex Mono"}
+
+/* ---------- nome ---------- */
+.nomes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:0 0 24px}
+.nome{background:var(--papel);border:1px solid var(--linha);border-radius:12px;padding:16px 18px}
+.nome .n{font-family:Sora;font-size:21px;font-weight:700;color:var(--marca);letter-spacing:-.01em}
+.nome .porque{font-size:13.5px;color:var(--muted);margin-top:6px;line-height:1.5}
+
+.rodape{border-top:1px solid var(--linha);padding-top:22px;margin-top:16px;
+  font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 22px}
+</style>
+
+<div class="envelope">
+<nav class="indice" aria-label="Sumário">
+  <p class="indice-t">Sumário</p>
+  <a href="#resumo">Resumo</a>
+  <a href="#organizacao">Como o portal se organiza</a>
+  <div class="sep"></div>
+  <a href="#ensino">Módulos · Ensino</a>
+  <a href="#pesquisa">Módulos · Pesquisa</a>
+  <a href="#extensao">Módulos · Extensão</a>
+  <a href="#servicos">Módulos · Serviços</a>
+  <a href="#publico">Páginas públicas</a>
+  <div class="sep"></div>
+  <a href="#transversais">Serviços transversais</a>
+  <a href="#documentos">Documentos que ele emite</a>
+  <div class="sep"></div>
+  <a href="#arquitetura">Arquitetura hoje</a>
+  <a href="#pedido">O que pedimos ao servidor</a>
+  <a href="#migracao">Plano de migração</a>
+  <a href="#governanca">Governança e acessos</a>
+  <div class="sep"></div>
+  <a href="#nome">Sobre o nome</a>
+</nav>
+
+<main>
+
+<header class="capa">
+  <p class="eyebrow">PROPPEX · UNIEGO · Dossiê para a Diretoria de TI</p>
+  <h1>ARCHÉ</h1>
+  <p class="sub">O sistema que hoje conduz a pesquisa, a extensão, os eventos, a monitoria, as
+    atas, os espaços e a avaliação institucional do UNIEGO — e o pedido de um espaço para
+    hospedá-lo no servidor da instituição.</p>
+  <div class="meta">
+    <span><b>Em operação</b> · arche.app.br</span>
+    <span><b>12 setores</b> em operação</span>
+    <span><b>Elaborado por</b> Prof. Dr. Jadson Belém de Moura</span>
+    <span><b>Pró-Reitoria</b> PROPPEX</span>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<section id="resumo">
+  <div class="marcador"><span class="num">§ 1</span><h2>Em uma página</h2></div>
+  <p class="chapeu">O que o ARCHÉ é, o que ele já resolve e por que o pedido é de
+    hospedagem — e não de integração.</p>
+
+  <div class="numeros">
+    <div><div class="v">12</div><div class="l">setores em operação</div></div>
+    <div><div class="v">278</div><div class="l">rotas de API</div></div>
+    <div><div class="v">22</div><div class="l">documentos oficiais gerados</div></div>
+    <div><div class="v">691</div><div class="l">testes automatizados</div></div>
+    <div><div class="v">65 mil</div><div class="l">linhas de código próprio</div></div>
+    <div><div class="v">0</div><div class="l">integrações com sistemas da mantenedora</div></div>
+  </div>
+
+  <div class="prosa">
+    <p>O ARCHÉ nasceu para resolver um problema concreto: os processos da Pró-Reitoria de
+      Pós-Graduação, Pesquisa, Extensão e Ação Comunitária corriam em planilhas, formulários
+      avulsos, grupos de WhatsApp e pastas de rede. Editais eram publicados por e-mail,
+      relatórios cobrados um a um, certificados emitidos à mão, atas guardadas em gavetas
+      diferentes de cada colegiado, e a reserva do auditório anotada num caderno na recepção.</p>
+
+    <p>Hoje esses processos correm dentro de um portal único, com fluxo, prazo, protocolo e
+      documento oficial em cada etapa. O sistema está em produção, com uso real e diário
+      da comunidade acadêmica — professores, coordenações, estudantes de graduação e do
+      ensino médio, e a própria pró-reitoria.</p>
+
+    <div class="nota firme">
+      <strong>O pedido, em uma frase:</strong> um espaço no servidor para hospedar e armazenar
+      o que o ARCHÉ gerencia. <strong>Nenhum acesso ao banco de dados acadêmico é
+      necessário</strong> — o sistema tem armazenamento próprio, não lê e não escreve em
+      nenhuma base existente da mantenedora.
+    </div>
+
+    <p>Essa é a característica que torna o pedido simples de avaliar: o ARCHÉ é um sistema
+      <em>fechado sobre si mesmo</em>. Ele guarda o que ele mesmo produz — propostas,
+      relatórios, atas, certificados, comprovantes — e não depende de nenhum outro sistema
+      para funcionar. Migrá-lo para o servidor da instituição significa mudar <em>onde</em>
+      ele roda, não <em>com o que</em> ele conversa.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="organizacao">
+  <div class="marcador"><span class="num">§ 2</span><h2>Como o portal se organiza</h2></div>
+  <p class="chapeu">Uma porta só, com os setores agrupados na mesma divisão que a instituição
+    já usa: Ensino, Pesquisa, Extensão e Serviços.</p>
+
+  <div class="modulo">
+    <figure>
+      <img src="/apresentacao/img/portal.webp" alt="Página inicial do ARCHÉ, com o painel de pendências e os setores agrupados">
+      <figcaption>Página inicial. No alto, <b>o que espera decisão</b> de quem está olhando; abaixo,
+        os setores que aquela pessoa pode usar. Cada usuário vê o portal recortado pelo próprio papel —
+        o estudante não vê os painéis de gestão, e o visitante sem login vê apenas as vitrines públicas.</figcaption>
+    </figure>
+  </div>
+
+  <div class="prosa">
+    <p>Três decisões estruturam o portal inteiro e valem para todos os módulos:</p>
+    <ul>
+      <li><b>Cada pessoa vê a sua fila.</b> A página inicial abre com o que o portal está
+        esperando daquela pessoa — o relatório a enviar, o bolsista a indicar, a proposta
+        devolvida — com o atalho que leva ao lugar de resolver.</li>
+      <li><b>Quem barra é o servidor.</b> Esconder um cartão é apresentação; a permissão é
+        conferida na rota, em cada leitura e cada gravação.</li>
+      <li><b>Todo ato deixa registro.</b> Quem submeteu, quem aprovou, quem devolveu, quem
+        corrigiu e quando — é o que sustenta o documento meses depois, diante de um avaliador
+        do MEC ou de uma auditoria interna.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="ensino">
+  <div class="marcador"><span class="num">§ 3</span><h2>Módulos em operação</h2></div>
+  <p class="chapeu">Doze setores, agrupados como o portal os agrupa. Cada um com o fluxo
+    completo — da submissão ao documento assinado.</p>
+
+  <div class="grupo"><h3>Ensino</h3><div class="risco"></div></div>
+
+  <div class="modulo">
+    <div class="mod-cab">
+      <span class="sigla">ARCHÉ AC</span>
+      <div><h4>Atividades Curriculares</h4>
+        <div class="pra">Aulas práticas e curricularização da extensão — o registro do professor,
+          validado pela coordenação do curso.</div>
+        <div class="end">/praticas/</div></div>
+    </div>
+    <figure><img src="/apresentacao/img/praticas.webp" alt="Painel do módulo de Atividades Curriculares"></figure>
+    <div class="mod-corpo">
+      <div><h5>O que faz</h5><ul>
+        <li>O professor registra a aula prática — disciplina, objetivo, local, atividades e no
+          mínimo três fotos —, e a coordenação do curso valida, devolve ou reprova.</li>
+        <li>Segundo documento no mesmo fluxo: o <b>relatório de curricularização da extensão</b>,
+          com os 17 Objetivos de Desenvolvimento Sustentável marcáveis e anexos de evidência.</li>
+        <li>Cadastro de professores e disciplinas por semestre — é ele que transforma
+          "12 relatórios" em "12 de 47", e diz que disciplina ficou sem registro.</li>
+        <li>Lembrete semanal automático às segundas-feiras para quem tem registro pendente.</li>
+      </ul></div>
+      <div><h5>O que produz</h5><ul class="produz">
+        <li>Relatório de aula prática em PDF timbrado, com as fotos e as assinaturas do professor
+          e da coordenação que validou</li>
+        <li>Relatório de curricularização no modelo da PROAC, com quatro assinaturas</li>
+        <li>Protocolos <code>AP-AAAA-NNN</code> e <code>EC-AAAA-NNN</code></li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="modulo">
+    <div class="mod-cab">
+      <span class="sigla">ARCHÉ MO</span>
+      <div><h4>Monitoria Acadêmica</h4>
+        <div class="pra">O programa de monitoria de ponta a ponta: projeto, inscrição do monitor,
+          análise, execução, relatório e certificado.</div>
+        <div class="end">/monitoria/</div></div>
+    </div>
+    <figure><img src="/apresentacao/img/monitoria.webp" alt="Painel do módulo de Monitoria Acadêmica"></figure>
+    <div class="mod-corpo">
+      <div><h5>O que faz</h5><ul>
+        <li>O professor submete o projeto da disciplina e indica o monitor; o indicado preenche a
+          própria ficha de inscrição e anexa o histórico escolar.</li>
+        <li>Completas as fichas, o projeto vai sozinho à fila da pró-reitoria — análise,
+          aprovação, execução, relatório do monitor, avaliação da orientação e homologação.</li>
+        <li>Cobrança automática do relatório a partir de 30 dias antes do prazo, semanal.</li>
+        <li><b>Arquivo histórico</b> dos semestres que correram fora do sistema: 238 registros
+          de 2023 a 2026, transcritos das planilhas das coordenações, que emitem certificado
+          pelo mesmo gerador.</li>
+      </ul></div>
+      <div><h5>O que produz</h5><ul class="produz">
+        <li>Edital do programa em PDF, gerado pelo próprio sistema</li>
+        <li>Os três anexos preenchidos: projeto, ficha de inscrição e relatório</li>
+        <li>Certificados do monitor (com a carga horária cumprida) e da orientação</li>
+        <li>Resultado do ciclo, por curso, assinado pela PROAC e pela Reitoria</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="modulo">
+    <div class="mod-cab">
+      <span class="sigla">ARCHÉ SC</span>
+      <div><h4>Seu Curso</h4>
+        <div class="pra">O retrato institucional de cada curso — coordenação, pedagógico, NDE e
+          Colegiado — e o catálogo de cursos da instituição.</div>
+        <div class="end">/curso/</div></div>
+    </div>
+    <figure><img src="/apresentacao/img/curso.webp" alt="Painel institucional do módulo Seu Curso"></figure>
+    <div class="mod-corpo">
+      <div><h5>O que faz</h5><ul>
+        <li>Registra quem coordena cada curso e quem é a coordenação pedagógica, e mantém as
+          listas de NDE e Colegiado.</li>
+        <li><b>A interligação é real:</b> gravar a dupla coordenador + pedagógico reconfigura
+          quem valida os relatórios de aula prática daquele curso.</li>
+        <li>Catálogo de cursos editável pela gestão — curso novo entra pelo portal e todos os
+          módulos passam a enxergá-lo, sem depender de alteração no código.</li>
+        <li>Bloco Institucional: reitoria, pró-reitorias e a concentração dos acessos.</li>
+      </ul></div>
+      <div><h5>O que produz</h5><ul class="produz">
+        <li>A composição oficial de cada curso, que alimenta os demais módulos</li>
+        <li>A configuração de quem valida o quê, sem passar por desenvolvimento</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <!-- ---------------- PESQUISA ---------------- -->
+  <div class="grupo" id="pesquisa"><h3>Pesquisa</h3><div class="risco"></div></div>
+
+  <div class="modulo">
+    <div class="mod-cab">
+      <span class="sigla">ARCHÉ IC</span>
+      <div><h4>Iniciação Científica</h4>
+        <div class="pra">O maior módulo do portal: o edital de IC, Inovação Tecnológica e
+          Iniciação à Extensão, da submissão ao certificado.</div>
+        <div class="end">/pesquisa/ic/</div></div>
+    </div>
+    <figure><img src="/apresentacao/img/ic-painel.webp" alt="Painel do ARCHÉ IC com o panorama do ciclo"></figure>
+    <div class="mod-corpo">
+      <div><h5>O que faz</h5><ul>
+        <li>Submissão da proposta, com a planilha oficial de pontuação da produção acadêmica do
+          coordenador (30 itens em 3 blocos, réplica da planilha do edital).</li>
+        <li><b>Avaliação por parecerista ad hoc</b>, com sigilo cruzado: a orientação nunca sabe
+          quem avaliou, e o avaliador não vê o parecer dos colegas nem os nomes dos proponentes.</li>
+        <li>Classificação por nota do projeto + pontuação do currículo, distribuição de bolsas por
+          cota, indicação do bolsista, cronograma por mês, relatórios parcial e final.</li>
+        <li>Contestação de nota com janela de prazo, substituição de bolsista, pedido de
+          encerramento de projeto interrompido.</li>
+        <li>Quatro acessos que nascem do próprio projeto — gestão, orientação, aluno indicado e
+          avaliador ad hoc —, sem cadastro de papel à parte.</li>
+      </ul></div>
+      <div><h5>O que produz</h5><ul class="produz">
+        <li>Edital em PDF, escrito no portal</li>
+        <li>Resultado preliminar e final, em quadros por categoria, assinados</li>
+        <li>Termos de compromisso nos quatro modelos institucionais (CNPq, bolsa institucional,
+          voluntário e orientador)</li>
+        <li>Certificados de bolsista e de orientação, com código de validação</li>
+        <li>Ficha completa de cada projeto e planilha de acompanhamento</li>
+        <li><b>Folha de pagamento mensal</b> das bolsas, com os dados bancários conferidos</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="modulo">
+    <div class="mod-cab">
+      <span class="sigla">ARCHÉ IC</span>
+      <div><h4>Classificação e seleção</h4>
+        <div class="pra">A apuração do edital — nota do projeto, pontuação do currículo e a ordem
+          de mérito, com o bolsista de cada projeto à vista.</div></div>
+    </div>
+    <figure><img src="/apresentacao/img/ic-projetos.webp" alt="Tabela de classificação dos projetos do edital">
+      <figcaption>A classificação do ciclo. A coluna <b>Bolsista/voluntário</b> responde de relance
+        quem já indicou o aluno e quem ainda não — a pergunta que antes exigia abrir projeto por
+        projeto.</figcaption></figure>
+  </div>
+
+  <div class="modulo">
+    <div class="mod-cab">
+      <span class="sigla">ICEM</span>
+      <div><h4>Iniciação Científica no Ensino Médio</h4>
+        <div class="pra">Outro programa, com outra lógica: o bolsista do ensino médio acompanha
+          projetos de pesquisa para conhecer os cursos e a ciência.</div></div>
+    </div>
+    <figure><img src="/apresentacao/img/ic-em.webp" alt="Guia de gestão da turma do ICEM"></figure>
+    <div class="mod-corpo">
+      <div><h5>O que faz</h5><ul>
+        <li>Turmas por edital próprio, com cotas de bolsa travadas e voluntariado sem cota.</li>
+        <li>O estudante escolhe o projeto que vai acompanhar e pede alteração à coordenação —
+          a trajetória fica registrada e nunca se apaga.</li>
+        <li>Relatórios simplificados com questionário de avaliação do programa (7 critérios).</li>
+        <li>Os dados bancários são preenchidos pelo próprio estudante, com a exigência do
+          Banco do Brasil aplicada na gravação quando a bolsa é do CNPq.</li>
+      </ul></div>
+      <div><h5>O que produz</h5><ul class="produz">
+        <li>Termo de compromisso com o Anexo 01 — autorização do responsável</li>
+        <li>Resultado preliminar e final da seleção</li>
+        <li>Planilha da turma para o pedido de pagamento</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="modulo">
+    <div class="mod-cab">
+      <span class="sigla">Editais</span>
+      <div><h4>Lançamento de editais</h4>
+        <div class="pra">Todos os setores publicam os próprios editais pelo portal, numerados pelo
+          servidor, com sequências independentes por pró-reitoria.</div></div>
+    </div>
+    <figure><img src="/apresentacao/img/ic-editais.webp" alt="Tela de lançamento de editais">
+      <figcaption>O edital se escreve no portal e o PDF sai no layout institucional — timbre da
+        pró-reitoria que expede, seções, itens, alíneas, cronograma e assinaturas. Nenhuma linha
+        de código é alterada para abrir o ciclo seguinte.</figcaption></figure>
+  </div>
+
+  <!-- ---------------- EXTENSÃO ---------------- -->
+  <div class="grupo" id="extensao"><h3>Extensão</h3><div class="risco"></div></div>
+
+  <div class="modulo">
+    <div class="mod-cab">
+      <span class="sigla">ARCHÉ EX</span>
+      <div><h4>Extensão</h4>
+        <div class="pra">A ação de extensão do projeto ao registro: proposta, aprovação com
+          numeração oficial, relatório final e certificação.</div>
+        <div class="end">/extensao/</div></div>
+    </div>
+    <figure><img src="/apresentacao/img/extensao.webp" alt="Painel do ARCHÉ EX com as propostas de extensão"></figure>
+    <div class="mod-corpo">
+      <div><h5>O que faz</h5><ul>
+        <li>Proposta com palestrantes e comissão organizadora estruturados — as mesmas listas de
+          onde os certificados saem depois.</li>
+        <li>Análise da pró-reitoria com três saídas: aprovar (emitindo o número oficial),
+          devolver para alterações ou reprovar, sempre com o motivo por escrito.</li>
+        <li><b>Curricularização da extensão:</b> o vínculo da ação com o componente curricular,
+          com carga horária e acadêmicos alcançados — o que a Resolução CNE/CES nº 7/2018 exige.</li>
+        <li>Relatório final com portfólio fotográfico obrigatório e lista de participantes.</li>
+        <li>Cobrança automática do relatório e painel de quem deve o quê.</li>
+      </ul></div>
+      <div><h5>O que produz</h5><ul class="produz">
+        <li>Proposta e relatório final em PDF timbrado, com as assinaturas institucionais</li>
+        <li>Registro de Atividade em <code>.docx</code></li>
+        <li>Planilha de certificados em <code>.xlsx</code></li>
+        <li>Certificados de participante, palestrante e comissão</li>
+        <li>Número oficial <code>EXT-AAAA-NNN</code>, emitido pelo servidor</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="modulo">
+    <div class="mod-cab">
+      <span class="sigla">ARCHÉ EV</span>
+      <div><h4>Eventos</h4>
+        <div class="pra">A sala de operação dos eventos: página pública, inscrição, credenciamento
+          por QR, transmissão e certificados.</div>
+        <div class="end">/eventos/gestao</div></div>
+    </div>
+    <figure><img src="/apresentacao/img/eventos.webp" alt="Painel geral do ARCHÉ EV"></figure>
+    <div class="mod-corpo">
+      <div><h5>O que faz</h5><ul>
+        <li>Assistente de cadastro em quatro passos, que já cria a ação de extensão correspondente.</li>
+        <li><b>Hotsite público</b> por evento, com programação por atividades, palestrantes em
+          banner, blocos configuráveis (anais, submissão de trabalhos, apoio) e mapa.</li>
+        <li>Inscrição online com consentimento LGPD registrado (data e versão do texto), campos
+          extras configuráveis e vagas por atividade.</li>
+        <li><b>Credenciamento por QR</b> num aplicativo de porta, com modo entrada/saída e o
+          monitor identificado por código.</li>
+        <li>Transmissão online com presença por tempo assistido, e mural de comentários moderado.</li>
+      </ul></div>
+      <div><h5>O que produz</h5><ul class="produz">
+        <li>Credencial com QR, enviada por e-mail e adicionável à carteira do celular</li>
+        <li>Listas de presença por atividade e planilhas de exportação</li>
+        <li>Certificados com carga horária real e a programação no verso</li>
+        <li>Números do evento consolidados no relatório final da ação</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <!-- ---------------- SERVIÇOS ---------------- -->
+  <div class="grupo" id="servicos"><h3>Serviços</h3><div class="risco"></div></div>
+
+  <div class="modulo">
+    <div class="mod-cab">
+      <span class="sigla">ARCHÉ AT</span>
+      <div><h4>Atas e Colegiados</h4>
+        <div class="pra">O acervo de atas dos órgãos colegiados, com a pauta que os instrumentos
+          do INEP esperam ver debatida.</div>
+        <div class="end">/atas/</div></div>
+    </div>
+    <figure><img src="/apresentacao/img/atas.webp" alt="Módulo de atas e colegiados"></figure>
+    <div class="mod-corpo">
+      <div><h5>O que faz</h5><ul>
+        <li>Lavratura da ata com pauta, discussão, deliberação, encaminhamentos e lista de presença;
+          numeração automática por órgão, curso e ano.</li>
+        <li><b>Pauta Regulatória:</b> catálogo dos temas que o instrumento do INEP espera de cada
+          órgão, com o ciclo de sessões por semestre e o que já foi cumprido.</li>
+        <li>Busca por conteúdo em todo o acervo, com o trecho e o lugar onde o assunto foi tratado.</li>
+        <li>Retomada de encaminhamentos de sessões anteriores como ponto de pauta.</li>
+        <li>Redação da minuta assistida, com o gerador determinístico como padrão.</li>
+      </ul></div>
+      <div><h5>O que produz</h5><ul class="produz">
+        <li>Ata em PDF timbrado — com o timbre da época, respeitando a transformação
+          FACEG → UNIEGO em setembro de 2025</li>
+        <li>Folha de assinaturas com as assinaturas digitalizadas dos presentes</li>
+        <li><b>Dossiê de conformidade</b> por curso: onde está a ata que comprova cada indicador</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="modulo">
+    <div class="mod-cab">
+      <span class="sigla">ARCHÉ ES</span>
+      <div><h4>Reserva de Espaços</h4>
+        <div class="pra">Auditório, quadra, laboratórios e salas — com trava de conflito de
+          horário e decisão em dois degraus.</div>
+        <div class="end">/espacos/</div></div>
+    </div>
+    <figure><img src="/apresentacao/img/espacos.webp" alt="Agenda de reserva de espaços"></figure>
+    <div class="mod-corpo">
+      <div><h5>O que faz</h5><ul>
+        <li>Espaço confirmado ou bloqueado <b>recusa</b> o pedido — o calendário existe para o
+          engano não chegar à porta.</li>
+        <li>Um pedido leva vários espaços e um período de datas; a ocupação que atravessa a noite
+          é reconhecida como bloco contínuo.</li>
+        <li>Fluxo: solicitação → responsável pela reserva confirma ou encaminha à pró-reitoria.</li>
+        <li>Ofício obrigatório quando o pedido vem de fora da instituição.</li>
+        <li>Agenda mensal aberta a todos os usuários, sem expor contato ou justificativa de ninguém.</li>
+      </ul></div>
+      <div><h5>O que produz</h5><ul class="produz">
+        <li>Protocolo <code>RES-AAAA-NNN</code> e o registro da decisão</li>
+        <li>Relatório de ocupação por espaço — o número que se leva ao conselho</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="modulo">
+    <div class="mod-cab">
+      <span class="sigla">ARCHÉ RE</span>
+      <div><h4>Relatório Semestral</h4>
+        <div class="pra">A pergunta que o avaliador do MEC faz: o que a instituição fez neste
+          semestre, e onde está a prova.</div>
+        <div class="end">/relatorios/</div></div>
+    </div>
+    <figure><img src="/apresentacao/img/relatorios.webp" alt="Módulo de relatórios semestrais por setor"></figure>
+    <div class="mod-corpo">
+      <div><h5>O que faz</h5><ul>
+        <li>Um relatório por setor, por semestre, em três partes: os números, os gráficos de
+          distribuição e a <b>relação nominal</b> de tudo que foi contado.</li>
+        <li>Guia própria de <b>curricularização da extensão</b>, com horas por curso, por
+          disciplina e por período da matriz.</li>
+        <li>Gestão de acessos em duas dimensões: quais guias e de quais cursos — o recorte é
+          aplicado na base, antes das contas, e o documento diz que é recortado.</li>
+      </ul></div>
+      <div><h5>O que produz</h5><ul class="produz">
+        <li>Relatório semestral em PDF, assinado, pronto para a prestação de contas</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="modulo">
+    <div class="mod-cab">
+      <span class="sigla">Certificados</span>
+      <div><h4>Histórico de certificados</h4>
+        <div class="pra">Todos os certificados de uma pessoa num lugar só — eventos, iniciação
+          científica e monitoria.</div>
+        <div class="end">/certificados/</div></div>
+    </div>
+    <figure><img src="/apresentacao/img/certificados.webp" alt="Histórico pessoal de certificados"></figure>
+    <div class="mod-corpo">
+      <div><h5>O que faz</h5><ul>
+        <li>Reúne o que a pessoa tem direito nos três programas, casando por CPF e e-mail.</li>
+        <li>Avisa quem não tem CPF no perfil que o histórico pode estar vindo menor que a verdade.</li>
+        <li>O participante sem conta baixa o dele pela própria credencial do evento.</li>
+      </ul></div>
+      <div><h5>O que produz</h5><ul class="produz">
+        <li>Certificados em PDF paisagem, com o timbre da época e código de validação</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="modulo">
+    <div class="mod-cab">
+      <span class="sigla">ARCHÉ AV</span>
+      <div><h4>Avaliação Institucional</h4>
+        <div class="pra">O dossiê de conformidade que se apresenta ao avaliador do MEC:
+          indicadores, produção docente e documentos institucionais.</div>
+        <div class="end">/arche/</div></div>
+    </div>
+    <figure><img src="/apresentacao/img/avaliacao.webp" alt="Módulo de Avaliação Institucional"></figure>
+    <div class="mod-corpo">
+      <div><h5>O que faz</h5><ul>
+        <li>Um dossiê por curso, com a produção acadêmica de cada docente importada do Lattes,
+          os comprovantes anexados e a titulação.</li>
+        <li>Simulação do <b>Indicador 2.16</b> pela régua do instrumento — 9 produções nos últimos
+          três anos, com a proporção de docentes que a alcança.</li>
+        <li>Justificativa de conceito por indicador, com formatação preservada.</li>
+        <li><b>Acesso do avaliador</b> por link, sem conta e em modo somente-leitura.</li>
+      </ul></div>
+      <div><h5>O que produz</h5><ul class="produz">
+        <li>Relatório de produção docente em PDF, com fotos, quadros e os comprovantes em link</li>
+        <li>O dossiê navegável que o avaliador consulta durante a visita</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="publico">
+  <div class="marcador"><span class="num">§ 4</span><h2>O que é público</h2></div>
+  <p class="chapeu">Parte do portal existe justamente para ser lida sem login — é o que dá
+    transparência ao processo e serve de arquivo para o MEC.</p>
+
+  <div class="modulo">
+    <figure><img src="/apresentacao/img/editais-pub.webp" alt="Página pública de editais e resultados">
+      <figcaption><b>arche.app.br/editais</b> — os editais e resultados de todos os setores,
+        ano a ano, com o documento de cada um. É o endereço que circula em grupos e ofícios.</figcaption></figure>
+  </div>
+
+  <div class="modulo">
+    <figure><img src="/apresentacao/img/hotsite.webp" alt="Página pública de um evento">
+      <figcaption>A página de cada evento, com programação, palestrantes e inscrição online.
+        O QR do credenciamento e a credencial do participante saem daqui.</figcaption></figure>
+  </div>
+
+  <div class="prosa">
+    <div class="nota">
+      <strong>O que nunca sai nas páginas públicas:</strong> CPF, e-mail, telefone, dados
+      bancários, nota, parecer ou lista de inscritos. As rotas públicas devolvem apenas o que
+      é documento público — e o resultado de um processo seletivo só aparece depois do ato de
+      publicação da pró-reitoria.
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="transversais">
+  <div class="marcador"><span class="num">§ 5</span><h2>Serviços transversais</h2></div>
+  <p class="chapeu">O que atravessa todos os módulos e sustenta a operação diária.</p>
+
+  <div class="rolo"><table>
+    <thead><tr><th>Serviço</th><th>O que faz</th></tr></thead>
+    <tbody>
+      <tr><td><b>Repositório Documental</b></td>
+        <td>Todo documento gerado, submetido ou anexado vive sob uma pasta única, com a divisão por
+          setor e o ano ou semestre no caminho — <code>Extensão/&lt;curso&gt;/&lt;ano&gt;/&lt;nº&gt;</code>.
+          É o acervo que se apresenta numa auditoria.</td></tr>
+      <tr><td><b>Banco de assinaturas</b></td>
+        <td>A assinatura digitalizada de cada pessoa, enviada uma vez, entra em todo documento que
+          ela assina. As institucionais (reitor, pró-reitores, coordenações) ficam num só lugar —
+          trocar quem ocupa o cargo não exige alteração de código.</td></tr>
+      <tr><td><b>Cópia diária</b></td>
+        <td>Uma vez por dia, o estado inteiro é copiado para um arquivo com a data no nome; as
+          cópias dos últimos 30 dias ficam disponíveis. Restaurar é escolher o dia.</td></tr>
+      <tr><td><b>Avisos por e-mail</b></td>
+        <td>22 avisos automáticos em 7 setores, cada um com interruptor próprio: ligado,
+          <b>no resumo diário das 13h</b>, silenciado até uma data, ou desligado. Mensagem dirigida
+          a uma pessoa nunca espera o resumo.</td></tr>
+      <tr><td><b>Gestão de acessos</b></td>
+        <td>Quatro papéis (gestor, coordenador, aprovado, pendente) mais coordenação por módulo e
+          por curso. Fusão de cadastros duplicados, senha provisória e encerramento de acesso.</td></tr>
+      <tr><td><b>Diagnóstico de operação</b></td>
+        <td>Medição de banda por origem, com projeção mensal — para onde vão os bytes, e o que
+          poupar. Foi com ele que o consumo caiu a um terço.</td></tr>
+      <tr><td><b>Feedback</b></td>
+        <td>Um botão fixo em todas as páginas para relatar problema ou sugerir melhoria, com a
+          página de origem e o autor — o canal por onde a maior parte das correções chega.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============================================================ -->
+<section id="documentos">
+  <div class="marcador"><span class="num">§ 6</span><h2>Os documentos que ele emite</h2></div>
+  <p class="chapeu">Vinte e dois geradores de documento oficial. Todos com timbre institucional,
+    numeração e as assinaturas do banco — nenhum é montado à mão.</p>
+
+  <div class="modulo">
+    <figure><img src="/apresentacao/img/edital-pdf.webp" alt="Exemplo de edital gerado pelo sistema">
+      <figcaption>Um edital <b>escrito no portal</b> e emitido pelo sistema: timbre da pró-reitoria
+        que expede, caixa do número, seções, itens com alíneas, cronograma em quadro e as
+        assinaturas. O mesmo motor produz atas, relatórios, resultados, termos e certificados.</figcaption></figure>
+  </div>
+
+  <div class="prosa">
+    <p>Essa é a diferença prática que o sistema faz no dia a dia: o documento oficial não é
+      redigido depois, a partir do que aconteceu — ele <b>sai do registro do que aconteceu</b>.
+      O relatório traz os números do próprio evento; o certificado, a carga horária das
+      atividades em que a pessoa teve presença; a ata, a lista de quem esteve presente. Não há
+      transcrição no meio, e por isso não há divergência entre o sistema e o papel.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="arquitetura">
+  <div class="marcador"><span class="num">§ 7</span><h2>Arquitetura hoje</h2></div>
+  <p class="chapeu">Como o sistema é construído, onde ele roda e o que ele consome — a
+    informação que a equipe de TI precisa para dimensionar o espaço.</p>
+
+  <div class="rolo"><table>
+    <thead><tr><th style="width:34%">Camada</th><th>Hoje</th></tr></thead>
+    <tbody>
+      <tr><td><b>Linguagem e runtime</b></td>
+        <td class="mono">Node.js ≥ 20 (LTS), JavaScript ESM. Um único processo.</td></tr>
+      <tr><td><b>Servidor de aplicação</b></td>
+        <td class="mono">Express 4 · 278 rotas HTTP · compressão gzip nativa</td></tr>
+      <tr><td><b>Front-end</b></td>
+        <td>HTML e JavaScript puros, sem framework e sem etapa de build. As páginas são servidas
+          como arquivos estáticos pelo mesmo processo.</td></tr>
+      <tr><td><b>Dependências</b></td>
+        <td class="mono">9 diretas: express, compression, multer, pdfkit, exceljs, docx, qrcode,
+          nanoid, dotenv</td></tr>
+      <tr><td><b>Persistência do estado</b></td>
+        <td>Chave-valor em documentos JSON, com <b>quatro back-ends intercambiáveis</b>:
+          disco local, MySQL/MariaDB, Google Drive ou compatível com S3. Hoje em produção: Google Drive.
+          <b>Tamanho atual do estado: ~1 MB.</b></td></tr>
+      <tr><td><b>Arquivos e anexos</b></td>
+        <td>Três back-ends: disco local, Google Drive ou compatível com S3 (MinIO, Wasabi, AWS).
+          Hoje em produção: Google Drive.</td></tr>
+      <tr><td><b>Autenticação</b></td>
+        <td>Sessão por cookie assinado (HMAC). Entrada por código enviado ao e-mail, por senha, ou
+          por conta Google. Sem armazenamento de senha em texto.</td></tr>
+      <tr><td><b>E-mail</b></td>
+        <td>API do Gmail com conta de serviço. Substituível por SMTP institucional.</td></tr>
+      <tr><td><b>Hospedagem atual</b></td>
+        <td>Render (plano gratuito), com deploy automático a cada envio ao repositório.
+          Domínio próprio <span class="mono">arche.app.br</span>, com TLS.</td></tr>
+      <tr><td><b>Qualidade</b></td>
+        <td class="mono">691 testes automatizados em 38 arquivos, executados a cada alteração</td></tr>
+      <tr><td><b>Código-fonte</b></td>
+        <td>Repositório Git privado, com histórico completo e documentação de cada decisão
+          registrada junto ao código.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="prosa">
+    <div class="nota atencao">
+      <strong>O limite que motiva o pedido.</strong> A hospedagem atual é um plano gratuito: o
+      serviço hiberna após 15 minutos sem acesso (o primeiro visitante espera o retorno), a
+      franquia de banda é limitada, e o disco é efêmero — nada gravado localmente sobrevive a um
+      novo deploy, o que obriga o sistema a manter estado e arquivos fora do servidor. Um espaço
+      no servidor da instituição resolve os três de uma vez.
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="pedido">
+  <div class="marcador"><span class="num">§ 8</span><h2>O que pedimos ao servidor</h2></div>
+  <p class="chapeu">O necessário é modesto — e propositalmente isolado do que já existe.</p>
+
+  <div class="rolo"><table>
+    <thead><tr><th style="width:32%">Item</th><th>Especificação</th></tr></thead>
+    <tbody>
+      <tr><td><b>Ambiente</b></td>
+        <td>Node.js 20 ou superior — em contêiner, máquina virtual ou diretamente no sistema.
+          Sem servidor de aplicação adicional.</td></tr>
+      <tr><td><b>Processador e memória</b></td>
+        <td>2 vCPU e 2 GB de RAM atendem com folga o uso atual. A geração de PDF é o pico de
+          consumo, e é pontual.</td></tr>
+      <tr><td><b>Armazenamento</b></td>
+        <td><b>Este é o item que cresce.</b> Documentos, comprovantes e fotos de portfólio.
+          Estimativa: <b>50 GB no primeiro ano</b>, com crescimento de 20 a 30 GB ao ano.
+          O estado do sistema ocupa ~1 MB.</td></tr>
+      <tr><td><b>Banco de dados</b></td>
+        <td><b>Opcional.</b> Uma base MySQL/MariaDB <b>exclusiva do ARCHÉ</b>, se a TI preferir
+          esse formato ao arquivo em disco. Em qualquer caso, <b>sem acesso a nenhuma base
+          existente da instituição</b>.</td></tr>
+      <tr><td><b>Rede</b></td>
+        <td>Uma porta HTTP interna, publicada por proxy reverso com TLS. Saída para a internet
+          apenas para envio de e-mail.</td></tr>
+      <tr><td><b>Domínio</b></td>
+        <td>Um subdomínio institucional (por exemplo <span class="mono">arche.uniego.edu.br</span>)
+          apontando para o serviço. O domínio atual pode permanecer redirecionando durante a transição.</td></tr>
+      <tr><td><b>Backup</b></td>
+        <td>Inclusão do diretório de dados na rotina de backup do servidor. O sistema já mantém a
+          própria cópia diária dos últimos 30 dias.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="prosa">
+    <div class="nota firme">
+      <strong>Sem integração com os sistemas da mantenedora.</strong> O ARCHÉ não lê nem escreve
+      em nenhuma base acadêmica, financeira ou de RH. Ele não precisa de credencial de sistema
+      algum. O que já existe no servidor permanece intocado — o pedido é de <b>espaço</b>, não de
+      <b>acesso</b>.
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="migracao">
+  <div class="marcador"><span class="num">§ 9</span><h2>Plano de migração</h2></div>
+  <p class="chapeu">A migração é uma troca de configuração, não uma reescrita. O sistema já foi
+    construído com os back-ends de armazenamento intercambiáveis, exatamente para este momento.</p>
+
+  <ol class="etapas">
+    <li class="etapa"><span class="fase">1</span><div>
+      <h4>Provisionamento</h4>
+      <p>A TI cria o espaço, instala o Node.js e define o diretório de dados e o proxy reverso com
+        TLS. Nenhuma configuração específica do ARCHÉ é necessária nesta etapa.</p>
+      <p class="quando">Esforço estimado: algumas horas · sem indisponibilidade</p>
+    </div></li>
+
+    <li class="etapa"><span class="fase">2</span><div>
+      <h4>Instalação e configuração</h4>
+      <p>O código é obtido do repositório e as variáveis de ambiente são definidas — a principal
+        delas escolhe onde o estado e os arquivos ficam:
+        <code>STATE_BACKEND=local</code> (ou <code>mysql</code>) e o diretório de uploads, ou um
+        endpoint compatível com S3 caso a instituição tenha um.</p>
+      <p>O sistema sobe com <code>npm install &amp;&amp; npm start</code>. Não há etapa de compilação.</p>
+      <p class="quando">Esforço estimado: meio dia · sem indisponibilidade</p>
+    </div></li>
+
+    <li class="etapa"><span class="fase">3</span><div>
+      <h4>Transferência do acervo</h4>
+      <p>O estado é um documento JSON (~1 MB) e os arquivos são uma árvore de pastas — a cópia é
+        direta, sem conversão. O sistema já possui a rotina que reorganiza o acervo na estrutura do
+        Repositório Documental, executável em modo de simulação antes de mover qualquer coisa.</p>
+      <p class="quando">Esforço estimado: algumas horas · sem indisponibilidade (o ambiente atual segue no ar)</p>
+    </div></li>
+
+    <li class="etapa"><span class="fase">4</span><div>
+      <h4>Homologação em paralelo</h4>
+      <p>O ambiente novo sobe com uma cópia do acervo e é conferido pela pró-reitoria — telas,
+        documentos gerados, envio de e-mail e credenciamento. Os dois ambientes convivem, e o
+        atual continua sendo o oficial.</p>
+      <p class="quando">Esforço estimado: uma semana de uso conferido</p>
+    </div></li>
+
+    <li class="etapa"><span class="fase">5</span><div>
+      <h4>Virada</h4>
+      <p>Cópia final do acervo, apontamento do domínio para o servidor institucional e
+        encerramento do ambiente atual. O endereço público não muda para quem usa.</p>
+      <p class="quando">Janela estimada: 1 hora, fora do horário de aula</p>
+    </div></li>
+  </ol>
+
+  <div class="prosa">
+    <div class="nota">
+      <strong>Reversível a qualquer momento.</strong> Como os back-ends são intercambiáveis por
+      variável de ambiente, voltar ao ambiente atual é uma troca de configuração — não há ponto
+      sem retorno na migração.
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="governanca">
+  <div class="marcador"><span class="num">§ 10</span><h2>Governança e acessos</h2></div>
+  <p class="chapeu">Quem mexe em quê depois da migração — o ponto que precisa ficar acordado
+    antes, e não descoberto depois.</p>
+
+  <div class="rolo"><table>
+    <thead><tr><th style="width:30%">Responsabilidade</th><th style="width:34%">De quem</th><th>Observação</th></tr></thead>
+    <tbody>
+      <tr><td><b>Infraestrutura</b><br><span style="color:var(--muted);font-size:13px">servidor, rede, TLS, backup do host</span></td>
+        <td>Diretoria de TI</td>
+        <td>Domínio pleno da TI, como em qualquer serviço hospedado.</td></tr>
+      <tr><td><b>Desenvolvimento e evolução</b><br><span style="color:var(--muted);font-size:13px">funcionalidades, correções, novos módulos</span></td>
+        <td>PROPPEX</td>
+        <td>O sistema é desenvolvido continuamente pela pró-reitoria e precisa seguir assim —
+          é isso que permite corrigir na mesma semana o que um professor relata.</td></tr>
+      <tr><td><b>Publicação de versões</b><br><span style="color:var(--muted);font-size:13px">colocar uma alteração no ar</span></td>
+        <td>PROPPEX, por processo automatizado</td>
+        <td>Modelo idêntico ao atual: a alteração é enviada ao repositório e o servidor a publica.
+          A TI define <em>como</em> o processo roda; a PROPPEX define <em>o que</em> vai no ar.</td></tr>
+      <tr><td><b>Dados do sistema</b></td>
+        <td>PROPPEX (conteúdo) · TI (guarda)</td>
+        <td>Base exclusiva do ARCHÉ. Nenhum outro sistema lê ou escreve nela.</td></tr>
+      <tr><td><b>Acessos de usuário</b></td>
+        <td>PROPPEX, pelo próprio portal</td>
+        <td>Papéis, coordenações e encerramento de acesso são administrados pela gestão, sem
+          intervenção técnica.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="prosa">
+    <div class="nota firme">
+      <strong>O requisito que não pode ser negociado sem custo alto:</strong> a autonomia de
+      desenvolvimento. O ARCHÉ evoluiu em ciclos de dias — um professor relata um problema pela
+      manhã, a correção está no ar à tarde. Um modelo em que cada alteração dependa de abertura de
+      chamado e janela de publicação da TI não deixaria o sistema inseguro; deixaria o sistema
+      <em>parado</em>, e o que hoje é resolvido em horas passaria a levar semanas.
+      <br><br>
+      A proposta é a divisão acima: <b>a TI é dona do ambiente; a PROPPEX é dona da aplicação.</b>
+      É o mesmo arranjo que já funciona hoje, apenas com o servidor dentro de casa.
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="nome">
+  <div class="marcador"><span class="num">§ 11</span><h2>Sobre o nome e a replicação</h2></div>
+  <p class="chapeu">Se o sistema for oferecido a outras instituições, o que precisa mudar — e o
+    que, ao contrário do que parece, já está pronto.</p>
+
+  <div class="prosa">
+    <p><b>O nome já é genérico.</b> <i>Arché</i> é grego — origem, princípio, fundamento — e não
+      carrega nada do UNIEGO. Ele funciona como nome de produto tanto quanto qualquer marca
+      construída para isso: é curto, pronunciável, registrável e diz algo verdadeiro sobre o
+      sistema. Trocá-lo por um nome "mais técnico" seria trocar uma marca boa por uma
+      genérica.</p>
+
+    <p><b>O que é específico do UNIEGO não está no nome — está dentro.</b> Se o objetivo for
+      instalar o sistema em outra instituição, o trabalho real é este:</p>
+    <ul>
+      <li>O timbre, o logotipo e o nome da instituição nos documentos</li>
+      <li>Os nomes e cargos de quem assina (reitor, pró-reitores, coordenações)</li>
+      <li>O catálogo de cursos — <em>já editável pelo portal</em></li>
+      <li>Os editais e seus ciclos — <em>já lançáveis pelo portal</em></li>
+      <li>A nomenclatura dos órgãos (PROPPEX, PROAC) e dos colegiados</li>
+      <li>Os endereços de e-mail de cada setor</li>
+    </ul>
+    <p>Boa parte disso já saiu do código e virou configuração ao longo do último ano, justamente
+      porque a operação exigia. O que falta é um passo bem delimitado: transformar as constantes
+      institucionais restantes em um <b>perfil de instituição</b> — e, se houver mais de uma
+      instituição no mesmo servidor, separar os dados por inquilino.</p>
+
+    <div class="nota">
+      <strong>Recomendação.</strong> Manter <b>ARCHÉ</b>. Se em algum momento fizer sentido separar
+      a marca institucional da comercial, o caminho de menor atrito é manter ARCHÉ como o nome do
+      produto e usar a instituição como qualificação — <i>ARCHÉ · UNIEGO</i>, <i>ARCHÉ · [outra
+      instituição]</i> —, exatamente como os módulos já se nomeiam hoje (ARCHÉ IC, ARCHÉ EX,
+      ARCHÉ AT).
+    </div>
+
+    <p>Se ainda assim a preferência for por um nome novo, estes três seguem o mesmo critério —
+      curtos, pronunciáveis em português e espanhol, sem sigla, e com sentido ligado ao que o
+      sistema faz:</p>
+  </div>
+
+  <div class="nomes">
+    <div class="nome"><div class="n">Cátedra</div>
+      <div class="porque">A cadeira do professor, a sede da autoridade acadêmica. Português e
+        espanhol, imediatamente compreensível no mercado de ensino superior da América Latina.</div></div>
+    <div class="nome"><div class="n">Ágora</div>
+      <div class="porque">A praça onde a comunidade delibera. Combina com um portal que reúne
+        colegiados, editais e prestação de contas — mas é um nome bastante disputado.</div></div>
+    <div class="nome"><div class="n">Lastro</div>
+      <div class="porque">O que dá estabilidade e prova. Descreve com precisão o que o sistema faz
+        pela instituição na hora do reconhecimento de curso: dar lastro documental.</div></div>
+  </div>
+
+  <div class="prosa">
+    <p style="color:var(--muted);font-size:14.5px">Nenhum deles supera <i>Arché</i> em significado.
+      A troca só compensa se houver uma razão comercial concreta — um conflito de marca registrada,
+      por exemplo — e não apenas a impressão de que o nome é institucional demais. Ele não é.</p>
+  </div>
+</section>
+
+<div class="rodape">
+  <span>ARCHÉ · Portal de gestão da PROPPEX — UNIEGO</span>
+  <span>Documento elaborado para a Diretoria de TI</span>
+  <span>Prints capturados do sistema em operação</span>
+</div>
+
+</main>
+</div>
+</body>
+</html>

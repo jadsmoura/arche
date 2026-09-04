@@ -73,6 +73,8 @@ public/
   relatorios/        Relatório Semestral por SETOR (só gestão): números, gráficos e a
                      relação nominal — prestação de contas e comprovação ao MEC
   diagnostico/       Para onde vão os bytes (só gestor geral): banda de saída por origem
+  apresentacao/      Dossiê PÚBLICO do sistema (arche.app.br/apresentacao): o que cada
+                     módulo faz, com prints, mais a arquitetura e o plano de migração
   entrar/ perfil/ usuarios/   Login (código por e-mail + Google), perfil, gestão de acessos
 ```
 
@@ -114,6 +116,21 @@ public/
   atalhos dos setores. É filtro de APRESENTAÇÃO — quem barra é o servidor (login nos
   setores, portaria na Avaliação); esconder cartão não é porta. Vale para os cartões
   da página inicial e para os atalhos da barra do topo em todos os setores.
+- **O DOSSIÊ DE APRESENTAÇÃO MORA NO PRÓPRIO ARCHÉ** (`public/apresentacao/`, pedido do dono
+  ago/2026: "talvez hospedar esse dossie no arche como uma demonstração, com um link mais
+  acessível"): a apresentação do sistema — o que cada módulo faz, com prints, mais a
+  arquitetura de hoje e o plano de migração — é o documento que vai ao Reitor e ao setor de TI
+  no pedido de hospedagem, e um link de arquivo avulso envelhece e não diz de onde vem. Em
+  `arche.app.br/apresentacao` ele **É a demonstração**: quem abre já está dentro do sistema que
+  o documento descreve. Página estática, **sem login** (não entra em `AREAS_PROTEGIDAS` — quem
+  a recebe não tem conta) e **`noindex, nofollow`**: é documento de circulação dirigida, não
+  material de divulgação — o endereço se manda a quem se quer, e não se quer que ele apareça na
+  busca ao lado da vitrine de editais. Os prints são **WebP** servidos do próprio portal
+  (`img/`, 18 arquivos, ~660 KB): imagem embutida em base64 multiplicaria o peso da página, e
+  imagem de fora não abriria atrás do proxy de ninguém. O print do **ICEM sai recortado** (52%
+  da altura): a página é pública e aquele painel lista **estudantes do ensino médio — menores,
+  com nome e escola**; o que os demais prints mostram (professores, títulos de projeto,
+  bolsistas de graduação) a instituição já publica na vitrine `/editais`.
 
 ## Regras de negócio essenciais
 
