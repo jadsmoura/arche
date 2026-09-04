@@ -104,6 +104,10 @@ import {
 } from "./lib/certificadosEx.js";
 import { situacaoDaAcao } from "./lib/situacao.js";
 import {
+  SETORES_EDITAL, normalizarEdital, faltaNoEdital, vigenteDe, aplicarEditais,
+  editaisDoCodigo, numeroSugerido, cicloSugerido, vigenciaSugerida, ETAPAS_MONITORIA,
+} from "./lib/editais.js";
+import {
   pendenciasDoPerfil, pendenciasIC, pendenciasICEM, pendenciasMonitoria,
   pendenciasExtensao, pendenciasAC, ordenar as ordenarPendencias,
 } from "./lib/pendencias.js";
@@ -8875,6 +8879,205 @@ async function migrarCoordenadoresApParaInstituicao() {
   console.log(`[curso] coordenadores do AP migrados à composição: ${pessoas} pessoa(s) em ${cursosTocados} curso(s)`);
 }
 
+/* ======================================================================
+   LANÇAR EDITAL PELO PORTAL (pedido do dono, ago/2026: "todos os editais
+   lançamos por aqui; no sistema não tem opção de incluir novos editais —
+   inclua essa opção nos setores").
+
+   Cada edital era uma linha ESCRITA NO CÓDIGO, e abrir o ciclo seguinte
+   exigia deploy. Agora o cadastro vive em `sys-editais-v1` e é aplicado nos
+   catálogos do código (a mesma mutação do catálogo de cursos) — no arranque
+   e a cada gravação. A régua está em lib/editais.js.
+   ====================================================================== */
+const EDITAIS_KEY = "sys-editais-v1";
+
+async function lerEditaisCadastrados() {
+  try {
+    const lista = JSON.parse((await storage.get(EDITAIS_KEY)) || "[]");
+    return Array.isArray(lista) ? lista.map((e) => normalizarEdital(e, { base: e })) : [];
+  } catch { return []; }
+}
+async function salvarEditaisCadastrados(lista) {
+  await storage.set(EDITAIS_KEY, JSON.stringify(lista));
+  await storage.flush?.();
+  aplicarEditais(lista);          // o catálogo do código passa a refletir o cadastro
+}
+/** No arranque: o que estiver cadastrado volta a valer antes de tudo. */
+async function aplicarEditaisNoArranque() {
+  const lista = await lerEditaisCadastrados();
+  if (!lista.length) return;
+  const r = aplicarEditais(lista);
+  console.log(`[editais] cadastro aplicado: ${lista.length} edital(is)`
+    + `${r.ic ? ` · graduação vigente: ${r.ic}` : ""}`);
+}
+
+/* Quem lança edital: o gestor geral, sempre; e a coordenação do MÓDULO a que
+   o edital pertence — a de `pesquisa` responde pela graduação e pelo ICEM, a
+   de `monitoria` pelo programa dela. Coordenar um módulo não abre o edital
+   do outro: são processos de setores diferentes. */
+const MODULO_DO_EDITAL = { ic: "pesquisa", em: "pesquisa", monitoria: "monitoria" };
+const podeEditalDe = (u, setor) => u?.papel === "gestor"
+  || (!!MODULO_DO_EDITAL[setor] && !!u?.modulos?.includes(MODULO_DO_EDITAL[setor]));
+const setoresQuePodeLancar = (u) =>
+  SETORES_EDITAL.filter((s) => podeEditalDe(u, s.codigo)).map((s) => s.codigo);
+
+/** GET /api/editais — o cadastro, o acervo do código e o que a tela precisa. */
+app.get("/api/editais", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    const podeLancar = setoresQuePodeLancar(u);
+    if (!podeLancar.length)
+      return res.status(403).json({ error: "O lançamento de editais é da gestão do setor." });
+    const cadastrados = await lerEditaisCadastrados();
+    const ano = Number(hojeLocalISO().slice(0, 4));
+    res.json({
+      editais: cadastrados.filter((e) => podeLancar.includes(e.setor)),
+      // o acervo já publicado, para a tela mostrar tudo num lugar só — ele
+      // NÃO se edita por aqui (vive no código, e é o registro do que foi)
+      doCodigo: editaisDoCodigo().filter((e) => podeLancar.includes(e.setor)),
+      setores: SETORES_EDITAL.filter((s) => podeLancar.includes(s.codigo)),
+      // sugestões para o formulário abrir preenchido — número, ciclo e
+      // vigência se deduzem do setor e do ano, e seguem editáveis
+      sugestao: Object.fromEntries(SETORES_EDITAL.map((s) => [s.codigo, {
+        numero: numeroSugerido(s.codigo, ano + 1),
+        ciclo: cicloSugerido(s.codigo, ano + 1),
+        vigencia: vigenciaSugerida(s.codigo, ano + 1),
+        ano: ano + 1,
+      }])),
+      anoCorrente: ano,
+      // as etapas do cronograma da monitoria, para o formulário desenhar os
+      // campos na ordem do edital sem repetir a lista no cliente
+      etapasMonitoria: ETAPAS_MONITORIA,
+    });
+  } catch (e) {
+    console.error("Erro ao ler os editais:", e);
+    res.status(500).json({ error: "Falha ao ler os editais" });
+  }
+});
+
+/** POST /api/editais — lança um edital novo ou corrige um já cadastrado. */
+app.post("/api/editais", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    const lista = await lerEditaisCadastrados();
+    const id = String(req.body?.id || "").trim();
+    const base = id ? lista.find((x) => x.id === id) : null;
+    if (id && !base) return res.status(404).json({ error: "Edital não encontrado no cadastro." });
+    const novo = normalizarEdital(req.body, { base });
+    if (!podeEditalDe(u, novo.setor) || (base && !podeEditalDe(u, base.setor)))
+      return res.status(403).json({ error: "O lançamento de editais é da gestão do setor." });
+    const falta = faltaNoEdital(novo);
+    if (falta.length) return res.status(400).json({ error: `Falta ${falta.join(", ")}.` });
+    /* O NÚMERO é único: dois editais com o mesmo número seriam dois
+       documentos afirmando o mesmo ato, e a vitrine mostraria os dois. O
+       acervo do código conta — é ele que já foi publicado. */
+    const repetido = lista.some((x) => x.id !== novo.id && x.numero === novo.numero)
+      || editaisDoCodigo().some((x) => x.numero === novo.numero && !base);
+    if (repetido) return res.status(409).json({ error: `O edital ${novo.numero} já existe.` });
+    if (!base) novo.criadoPor = u.email;
+    const i = lista.findIndex((x) => x.id === novo.id);
+    if (i >= 0) lista[i] = novo; else lista.push(novo);
+    await salvarEditaisCadastrados(lista);
+    res.json({ ok: true, edital: novo, vigente: vigenteDe(lista, novo.setor)?.numero || null });
+  } catch (e) {
+    console.error("Erro ao lançar o edital:", e);
+    res.status(500).json({ error: e.message || "Falha ao lançar o edital" });
+  }
+});
+
+/** POST /api/editais/:id/excluir — só o que foi cadastrado pelo portal. */
+app.post("/api/editais/:id/excluir", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    const lista = await lerEditaisCadastrados();
+    const alvo = lista.find((x) => x.id === req.params.id);
+    if (!alvo) return res.status(404).json({ error: "Edital não encontrado no cadastro." });
+    if (!podeEditalDe(u, alvo.setor))
+      return res.status(403).json({ error: "O lançamento de editais é da gestão do setor." });
+    /* Edital que JÁ TEM projeto submetido não se apaga: os projetos apontam
+       para o número dele, e sem o edital eles ficariam órfãos no meio do
+       ciclo. Para tirá-lo de circulação existe "encerrado". */
+    if (alvo.setor === "ic") {
+      const n = (await lerProjetos()).filter((p) => String(p.edital || "") === alvo.numero).length;
+      if (n) return res.status(400).json({ error: `O edital ${alvo.numero} já tem ${n} projeto(s) submetido(s) — para tirá-lo de circulação, marque-o como encerrado.` });
+    }
+    if (alvo.setor === "em") {
+      const n = (await lerBolsistasEM()).filter((b) => b.turma === alvo.ciclo).length;
+      if (n) return res.status(400).json({ error: `A turma ${alvo.ciclo} já tem ${n} bolsista(s) — para encerrá-la, marque o edital como encerrado.` });
+    }
+    if (alvo.setor === "monitoria") {
+      const n = (await lerMonitorias()).filter((p) => String(p.edital || "") === alvo.numero).length;
+      if (n) return res.status(400).json({ error: `O edital ${alvo.numero} já tem ${n} projeto(s) de monitoria — para encerrá-lo, marque-o como encerrado.` });
+    }
+    const restantes = lista.filter((x) => x.id !== alvo.id);
+    await salvarEditaisCadastrados(restantes);
+    res.json({ ok: true, removido: alvo.numero });
+  } catch (e) {
+    console.error("Erro ao excluir o edital:", e);
+    res.status(500).json({ error: e.message || "Falha ao excluir o edital" });
+  }
+});
+
+/* ENCERRAR (ou reabrir) UM EDITAL DO ACERVO — o único ato que o acervo do
+   CÓDIGO aceita (achado ao lançar o primeiro edital pelo portal, ago/2026:
+   lançada a turma 2027/2028 do ICEM, a 2026/2027 continuava "em curso",
+   porque ela vive no código e o cadastro não tinha como tocá-la — e duas
+   turmas abertas ao mesmo tempo fazem o bolsista novo cair na velha).
+
+   Encerrar CLONA o item do código para o cadastro com a marca, e daí em
+   diante ele passa pela mesma mutação dos demais. O texto histórico não se
+   edita por aqui: o que já foi publicado é registro, não rascunho. */
+app.post("/api/editais/encerrar", async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    const numero = String(req.body?.numero || "").trim();
+    const doCodigo = editaisDoCodigo().find((e) => e.numero === numero);
+    if (!doCodigo) return res.status(404).json({ error: "Edital não encontrado no acervo." });
+    if (!podeEditalDe(u, doCodigo.setor))
+      return res.status(403).json({ error: "O lançamento de editais é da gestão do setor." });
+    const encerrado = req.body?.encerrado !== false;
+    const lista = await lerEditaisCadastrados();
+    const i = lista.findIndex((x) => x.numero === numero);
+    if (i >= 0) lista[i] = { ...lista[i], encerrado, atualizadoEm: new Date().toISOString() };
+    else lista.push(normalizarEdital({ ...doCodigo, encerrado, criadoPor: u.email }));
+    await salvarEditaisCadastrados(lista);
+    res.json({ ok: true, numero, encerrado });
+  } catch (e) {
+    console.error("Erro ao encerrar o edital:", e);
+    res.status(500).json({ error: e.message || "Falha ao encerrar o edital" });
+  }
+});
+
+/* O PDF do edital sobe ANTES de o registro existir (como o ofício da reserva
+   e o portfólio da Extensão): o formulário anexa e grava o caminho. O arquivo
+   é servido por /api/files/*, que é PÚBLICO de propósito — edital é documento
+   público, e a vitrine `/ic/` abre sem login. */
+app.post("/api/editais/documento", upload.single("file"), async (req, res) => {
+  try {
+    const u = await usuarioDe(req, res);
+    if (!u) return res.status(401).json({ error: "Faça login." });
+    if (!setoresQuePodeLancar(u).length)
+      return res.status(403).json({ error: "O lançamento de editais é da gestão do setor." });
+    if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado." });
+    if (!/^application\/pdf$/.test(req.file.mimetype || ""))
+      return res.status(400).json({ error: "O edital se publica em PDF." });
+    if (req.file.size > 20 * 1024 * 1024)
+      return res.status(400).json({ error: "O arquivo passa de 20 MB." });
+    const dados = await files.save({
+      buffer: req.file.buffer, originalName: req.file.originalname,
+      prefix: `${REPO}/Editais/${hojeLocalISO().slice(0, 4)}`,
+    });
+    res.json({ ok: true, documento: dados.link, nome: req.file.originalname });
+  } catch (e) {
+    console.error("Erro no PDF do edital:", e);
+    res.status(500).json({ error: e.message || "Não foi possível anexar o edital." });
+  }
+});
+
 /** O catálogo público de cursos ATIVOS — é dele que as telas montam as
     listas (as três que tinham cópia embutida passaram a buscar aqui). */
 app.get("/api/cursos", (req, res) => {
@@ -15607,6 +15810,8 @@ app.listen(port, () => {
   // uma corre na sua vez, e o que quebrar fica dito no log.
   (async () => {
     for (const etapa of [
+      aplicarEditaisNoArranque,  // os editais lançados pelo portal (antes de tudo:
+                                 // os lotes e as migrações leem EDITAL.numero)
       aplicarInstituicaoNoArranque, // o catálogo de cursos editado pelo gestor
       subirHistoricoMonitoria,   // o arquivo da monitoria: só leitura de disco
       subirLotesIniciais, aplicarAnexosIniciais, zerarAlunosIniciais,

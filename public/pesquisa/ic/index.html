@@ -289,6 +289,7 @@
   }
 </style>
 <script src="/assets/arche-paginacao.js"></script>
+<script src="/assets/arche-editais.js"></script>
 </head>
 <body>
 <div class="app">
@@ -3598,7 +3599,14 @@ function renderEditais() {
     </div>
   </div>`;
 
-  $("v-editais").innerHTML = anos.map((ano) => {
+  /* LANÇAR EDITAL (pedido do dono, ago/2026): o cartão vem do componente
+     compartilhado — é o mesmo formulário do ARCHÉ MO, e duas cópias dele
+     acabariam diferentes. Ele fica no ALTO da guia, que é onde se abre o
+     ciclo seguinte, e some sozinho para quem não pode lançar (a rota recusa,
+     e o componente não desenha nada). */
+  const cxLancar = '<div id="ed-lancar"></div>';
+
+  $("v-editais").innerHTML = cxLancar + anos.map((ano) => {
     const g = grads.filter((e) => anoDoEdital(e.numero) === ano);
     const m = ems.filter((e) => anoDoEdital(e.numero) === ano);
     const vigente = [...g, ...m].some((e) => e.vigente);
@@ -3609,6 +3617,14 @@ function renderEditais() {
       ${m.map(blocoEM).join("")}
     </div>`;
   }).join("") || `<div class="card"><div class="vazio">Nenhum edital registrado ainda.</div></div>`;
+  // a graduação (01/AAAA) e o ICEM (02/AAAA) se lançam por aqui; a monitoria,
+  // no setor dela — cada um onde os documentos daquele processo já vivem
+  window.ArcheEditais?.montar($("ed-lancar"), {
+    setores: ["ic", "em"],
+    // lançado o edital, o META envelhece (o vigente mudou): recarrega e
+    // redesenha, senão a guia continuaria mostrando o ciclo anterior
+    aoMudar: async () => { META = await api("/api/ic/meta"); await carregar(); nav("editais"); },
+  });
 }
 
 /* Publicar (ou recolher) o resultado do ICEM — só a gestão, as mesmas duas

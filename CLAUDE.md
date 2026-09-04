@@ -28,6 +28,7 @@ lib/atas.js          ARCHÉ AT: órgãos, numeração das atas, normalização e
 lib/ic.js            ARCHÉ IC: projetos de IC, cronograma, relatórios e permissões
 lib/cpf.js           CPF: validação, normalização e a chave de vínculo dos importados
 lib/edital.js        Edital 01/2026: modalidades, grupos DGP/CNPq e pontuação docente
+lib/editais.js       Lançar edital pelo portal: o cadastro que MUTA os catálogos do código
 lib/termos.js        Termos de Compromisso da IC: o texto institucional dos 4 modelos
 dados/               Lotes de importação (ic-edital-01-2026.json: as 33 submissões)
 lib/espacos.js       ARCHÉ ES: espaços, conflito de horário, bloqueios e agenda
@@ -2026,6 +2027,40 @@ public/
   de projeto deferida pela PROPPEX já se reflete aqui sozinha — não há segundo lugar a
   atualizar. O mapa só sai para a **gestão**, e a ordenação por essa coluna agrupa no fim
   quem não tem aluno, pela regra que a tabela já seguia ("sem valor vai para o fim").
+- **LANÇAR EDITAL PELO PORTAL** (`lib/editais.js` + `sys-editais-v1` + `/api/editais*` +
+  `public/assets/arche-editais.js`, pedido do dono ago/2026: "todos os editais lançamos por
+  aqui; no sistema não tem opção de incluir novos editais — inclua essa opção nos setores").
+  Cada edital era uma linha **escrita no código** — `EDITAL` (graduação), `TURMAS_EM` (ICEM) e
+  `EDITAIS_MONITORIA` —, e abrir o ciclo seguinte exigia deploy. Publicar edital é ato da
+  PROPPEX, não tarefa de quem programa. A arquitetura é a **mesma do catálogo de cursos**: o
+  edital cadastrado **muta o array/objeto do código** no arranque (`aplicarEditaisNoArranque`,
+  antes de tudo — os lotes leem `EDITAL.numero`) e a cada gravação, em vez de criar uma segunda
+  fonte. É o que faz os vinte lugares que leem `EDITAL.numero`, `turmaVigente()` ou
+  `editalMonitoriaDe()` enxergarem o edital novo sem serem tocados — e o que impede o sistema de
+  ter duas respostas para "qual é o edital vigente?".
+  **O que cada setor recebe**: na **graduação**, o edital vigente assume `EDITAL` inteiro (número,
+  título, vigência, `meses`, janela da produção pontuada e os meses em que cada relatório vence
+  — régua em branco repete a do edital anterior, que é o caso comum); no **ICEM**, o edital É a
+  turma (ciclo, vigência, PDF), e os bolsistas novos entram nela; na **monitoria**, entra no
+  catálogo com órgão e instituição, e o **cronograma de 8 etapas** reescreve `PRAZOS`,
+  `VIGENCIA` e `CRONOGRAMA` — **só o edital do ciclo CORRENTE** (`semestreCorrente`), senão um
+  edital lançado com meses de antecedência fecharia a submissão do ciclo que está correndo.
+  Cinco regras: o **número é único** (o acervo do código conta) e segue a série do setor
+  (01/02/03 por ano, que é como a vitrine agrupa); **vigente é um só** por setor, e o cadastro
+  **nunca faz o sistema RECUAR** para um ano anterior ao do código; **remover o cadastro devolve
+  o código** (o retrato é tirado na primeira aplicação — sem ele, `EDITAL` ficaria mutado para
+  sempre); **edital que já tem submissão não se exclui** (os projetos apontam para o número
+  dele) — para tirá-lo de circulação existe *encerrado*; e o **acervo do código não se edita**,
+  só se **encerra** (`POST /api/editais/encerrar`, que o clona para o cadastro com a marca) —
+  foi o que faltou ao lançar a primeira turma nova do ICEM: a anterior vive no código e as duas
+  ficariam "em curso". Na mesma passada, `turmaVigente()` deixou de pegar a **primeira** turma
+  aberta e passa a pegar a **mais recente** — com duas abertas, o bolsista novo caía na velha.
+  O PDF sobe por `POST /api/editais/documento` e é servido por `/api/files/*`, que é público de
+  propósito. Quem lança: o gestor geral e a coordenação do módulo (`pesquisa` responde por
+  graduação e ICEM; `monitoria`, pelo programa dela). A TELA é **um componente compartilhado**
+  (`ArcheEditais.montar`), montado na guia *Editais e Resultados* do ARCHÉ IC (séries 01 e 02) e
+  na guia *Edital e documentos* do ARCHÉ MO (série 03): é um formulário só, e duas cópias dele
+  acabariam diferentes.
 - **Editais e Resultados por ANO** (pedido do dono, ago/2026, no setor E na vitrine
   `/ic/`): **um quadro por ano** (2026, 2025…) com os dois processos dentro — o edital
   01/AAAA (graduação) e o 02/AAAA (ICEM), cada um com o edital, o resultado preliminar e
@@ -2751,9 +2786,13 @@ public/
   trava o projeto na porta. A gestão tem a chamada manual (`POST /api/monitoria/chamada-relatorio`).
   **Prazos do 03/2026** (definidos pelo dono): submissão 04/09, cadastro do monitor 08/09,
   análise 09/09, resultado 10/09, vigência 14/09 a 12/12, relatório **14/12**, validação
-  18/12, homologação 22/12. Trocar de edital é mexer em `CRONOGRAMA`/`PRAZOS`/`VIGENCIA`.
+  18/12, homologação 22/12. **Trocar de edital se faz pelo portal** (ver "LANÇAR EDITAL PELO
+  PORTAL"): o cronograma do ciclo corrente reescreve `CRONOGRAMA`/`PRAZOS`/`VIGENCIA`.
   Os três anexos saem **preenchidos** em PDF timbrado (projeto, ficha e relatório) — o
   processo corre no ARCHÉ e o PDF é o que se arquiva e se assina.
+  **Trocar de edital deixou de exigir deploy**: o ciclo novo se lança na guia *Edital e
+  documentos* (ver "LANÇAR EDITAL PELO PORTAL"), com as 8 datas do cronograma — só o edital do
+  **ciclo corrente** reescreve `PRAZOS`/`VIGENCIA`/`CRONOGRAMA`.
   **O monitor entra com conta PENDENTE** (exceção na guarda e em `sessaoMon`, como na IC): o
   convite é nominal, e sem isso ele bateria numa parede vinda do próprio e-mail. Ele vê o
   projeto e o **próprio** cadastro — nunca o CPF, o telefone ou o relatório do colega —, e

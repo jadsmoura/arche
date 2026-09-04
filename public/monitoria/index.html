@@ -308,6 +308,7 @@
   </div>
 </div>
 <script src="/assets/arche-paginacao.js"></script>
+<script src="/assets/arche-editais.js"></script>
 <script src="/assets/arche-vercomo.js"></script>
 <script>
 /* "Ver como…" (decisão do dono, ago/2026): a gestão abre o setor pelos olhos
@@ -484,6 +485,14 @@ function render() {
     : `<span>Submissões encerradas em ${dataBR(META().prazos?.submissao)}</span>`;
   const telas = { painel, projetos, minha, relatorios, certificados, arquivo, edital, projeto: telaProjeto, form: telaForm };
   $("tela").innerHTML = (telas[SECAO] || painel)();
+  /* LANÇAR EDITAL (pedido do dono, ago/2026): o mesmo cartão do ARCHÉ IC,
+     recortado à série da monitoria. O componente não desenha nada para quem
+     não pode lançar — quem barra é a rota. */
+  if (SECAO === "edital" && $("ed-lancar")) {
+    window.ArcheEditais?.montar($("ed-lancar"), {
+      setores: ["monitoria"], aoMudar: () => carregar(),
+    });
+  }
 }
 
 /* ================================= PAINEL =============================== */
@@ -1540,6 +1549,7 @@ function edital() {
       <div class="exp"><a class="bt bt-pri" href="/api/publico/monitoria/edital.pdf" target="_blank">Baixar o edital em PDF</a></div>
     </div>
     ${editaisPorAno()}
+    <div id="ed-lancar"></div>
     <div class="card">
       <div class="card-t">Os documentos do processo</div>
       <div class="card-s">Os três anexos do edital saem preenchidos, do que está gravado — o processo
