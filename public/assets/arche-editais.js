@@ -121,8 +121,11 @@
       ${e.encerrado ? '<span class="ed-tag" style="background:#f2f4f6;color:#657179">encerrado</span>'
         : '<span class="ed-tag" style="background:#e8f6ee;color:#1e7a45">vigente</span>'}
       ${e.documento ? `<a class="bt bt-ghost" style="padding:4px 10px;font-size:12px"
-        href="${esc(e.documento)}" target="_blank" rel="noopener">📜 PDF</a>`
-        : '<span class="ed-sub">sem PDF anexado</span>'}
+        href="${esc(e.documento)}" target="_blank" rel="noopener">📜 PDF anexado</a>` : ""}
+      ${e.temTexto ? `<a class="bt bt-ghost" style="padding:4px 10px;font-size:12px"
+        href="/api/publico/editais/${esc(e.id)}/edital.pdf" target="_blank" rel="noopener"
+        title="Gerado pelo ARCHÉ, no layout institucional">📄 Edital (ARCHÉ)</a>` : ""}
+      ${!e.documento && !e.temTexto ? '<span class="ed-sub">sem documento</span>' : ""}
       <span style="flex:1"></span>
       <button class="bt bt-sec" style="padding:4px 10px;font-size:12px"
         onclick="ArcheEditais.editar('${esc(e.id)}')">Editar</button>
@@ -204,6 +207,18 @@
             : "o PDF é o que a comunidade baixa na página pública.")}</span>
       </div>
 
+      <label style="margin-top:10px">Texto do edital
+        <span class="ed-sub">(escrito aqui, o ARCHÉ gera o PDF no layout institucional)</span></label>
+      <textarea id="ed-corpo" rows="12" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px"
+        placeholder="A PROPPEX torna pública a abertura das inscrições…&#10;&#10;1. DAS DISPOSIÇÕES PRELIMINARES&#10;1.1. O presente Edital estabelece…&#10;1.2. Poderão participar:&#10;a) docentes efetivos;&#10;b) coordenações de curso.&#10;2. DOS OBJETIVOS&#10;2.1. …">${esc(e.corpo || "")}</textarea>
+      <div class="ed-sub" style="margin-top:4px">Escreva (ou <b>cole</b>) o edital como ele é redigido —
+        a numeração que você usar é a que sai impressa, o ARCHÉ não renumera nada:
+        <b>1.</b> vira título de seção, <b>1.1.</b> vira item, <b>a)</b> vira alínea e <b>I.</b> vira inciso;
+        o que vier antes da primeira seção é o preâmbulo. Timbre, caixa do número, cronograma e as
+        assinaturas da pró-reitoria entram sozinhos.
+        ${e.id ? `<a href="/api/publico/editais/${esc(e.id)}/edital.pdf" target="_blank" rel="noopener"><b>Ver a prévia em PDF</b></a> — salve antes, para a prévia sair com o que está na tela.`
+          : "Salve o edital para ver a prévia em PDF."}</div>
+
       <label style="margin-top:10px">Observação <span class="ed-sub">(aparece no arquivo do setor)</span></label>
       <input id="ed-obs" value="${esc(e.observacao || "")}"
         placeholder="Ex.: publicado antes da transformação em UNIEGO.">
@@ -276,6 +291,7 @@
       publicadoEm: v("ed-pub"),
       encerrado: v("ed-encerrado") === "1",
       observacao: v("ed-obs").trim(),
+      corpo: document.getElementById("ed-corpo") ? v("ed-corpo") : EDITANDO.corpo,
       producaoDe: document.getElementById("ed-prodde") ? n("ed-prodde") : EDITANDO.producaoDe,
       producaoAte: document.getElementById("ed-prodate") ? n("ed-prodate") : EDITANDO.producaoAte,
       relatorios: document.getElementById("ed-relp")

@@ -2068,8 +2068,25 @@ public/
   foi o que faltou ao lançar a primeira turma nova do ICEM: a anterior vive no código e as duas
   ficariam "em curso". Na mesma passada, `turmaVigente()` deixou de pegar a **primeira** turma
   aberta e passa a pegar a **mais recente** — com duas abertas, o bolsista novo caía na velha.
-  O PDF sobe por `POST /api/editais/documento` e é servido por `/api/files/*`, que é público de
-  propósito. Quem lança: o gestor geral e a coordenação do módulo (`pesquisa` responde por
+  **E O EDITAL PODE SAIR DO PRÓPRIO ARCHÉ** (`analisarTextoEdital` em lib/editais.js +
+  `gerarEditalPdf` em lib/pdf.js + `GET /api/publico/editais/:id/edital.pdf`, pergunta do dono
+  ago/2026: "gosto muito do layout dos docs que você gera, como relatórios e resultados; novos
+  editais podem seguir aquele layout, ou você só consegue se eu enviar aqui no chat?"). Podem, e
+  sem passar por mim: a gestão **escreve (ou cola) o texto** no campo "Texto do edital" e o PDF
+  sai no mesmo desenho dos demais documentos — timbre da pró-reitoria que EXPEDE (PROAC ou
+  PROPPEX, pelo `orgaoSeq`), caixa do número, título em versalete, seções em faixa, itens com
+  alíneas e incisos, cronograma em quadro e as assinaturas do banco. A régua do texto é a do
+  próprio edital, para a coordenação colar o que já redigiu no Word: `1.` vira título de seção,
+  `1.1.` vira item, `a)` alínea, `I.` inciso, e o que vier antes da primeira seção é o
+  preâmbulo. **Nada renumera**: o que sai impresso é o que a pessoa escreveu — renumerar por
+  conta própria faria o PDF divergir do texto que a pró-reitoria aprovou, e é o PDF que circula.
+  A rota é PÚBLICA como o `/api/files/*` dos anexados (edital é documento público, e a vitrine
+  abre sem login), e o documento é arquivado no Repositório (`Editais/<ano>`). Havendo texto, é
+  ele que a vitrine oferece; havendo só o PDF anexado, é o anexado; havendo os dois, os dois
+  aparecem no setor. O ano da vigência sai **por inteiro** (`fmtDataLonga`): `fmtData` corta em
+  dois dígitos, e num edital que vai à comunidade "01/01/27" gera dúvida.
+  O PDF anexado sobe por `POST /api/editais/documento` e é servido por `/api/files/*`, que é
+  público de propósito. Quem lança: o gestor geral e a coordenação do módulo (`pesquisa` responde por
   graduação e ICEM; `monitoria`, pelo programa dela). A TELA é **um componente compartilhado**
   (`ArcheEditais.montar`), montado na guia *Editais e Resultados* do ARCHÉ IC (séries 01 e 02) e
   na guia *Edital e documentos* do ARCHÉ MO (série 03): é um formulário só, e duas cópias dele

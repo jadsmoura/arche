@@ -239,3 +239,62 @@ function requireEdital() {
   // teste legível ao lado dos demais
   return { DOCUMENTOS_EDITAIS };
 }
+
+/* ============ O TEXTO DO EDITAL, ESCRITO NO PORTAL ============
+   A régua existe para a coordenação COLAR o que já redigiu e o documento
+   sair formatado — e para o PDF nunca renumerar o que ela escreveu. */
+test("o texto do edital se lê como o edital é escrito", async () => {
+  const { analisarTextoEdital, temTextoDeEdital } = await import("../lib/editais.js");
+  const r = analisarTextoEdital(`Preâmbulo em duas
+linhas soltas.
+
+1. DAS DISPOSIÇÕES
+1.1. Primeiro item.
+1.2. Segundo item:
+a) alínea um
+b) alínea dois
+2. DOS OBJETIVOS
+2.1. Objetivo.
+I. inciso um
+II. inciso dois`);
+  assert.equal(r.abertura, "Preâmbulo em duas\nlinhas soltas.");
+  assert.equal(r.secoes.length, 2);
+  assert.equal(r.secoes[0].titulo, "1. DAS DISPOSIÇÕES");
+  assert.equal(r.secoes[0].itens.length, 2);
+  assert.equal(r.secoes[0].itens[0].n, "1.1.", "o número é o que a pessoa escreveu");
+  assert.deepEqual(r.secoes[0].itens[1].alineas, ["alínea um", "alínea dois"]);
+  assert.deepEqual(r.secoes[1].itens[0].romanos, ["inciso um", "inciso dois"]);
+  assert.equal(temTextoDeEdital({ corpo: "1. X\n1.1. Y" }), true);
+  assert.equal(temTextoDeEdital({ corpo: "só um parágrafo" }), false, "sem seção não há edital");
+  assert.equal(temTextoDeEdital({}), false);
+});
+
+test("o item de dois níveis vence o título de seção — 1.1. não abre seção", async () => {
+  const { analisarTextoEdital } = await import("../lib/editais.js");
+  const r = analisarTextoEdital("1. TÍTULO\n1.1. item\n1.1.2 subitem");
+  assert.equal(r.secoes.length, 1);
+  assert.deepEqual(r.secoes[0].itens.map((i) => i.n), ["1.1.", "1.1.2."]);
+});
+
+test("linha solta depois de um item continua o parágrafo dele", async () => {
+  const { analisarTextoEdital } = await import("../lib/editais.js");
+  const r = analisarTextoEdital("1. T\n1.1. começo\ncontinuação");
+  assert.equal(r.secoes[0].itens.length, 1);
+  assert.match(r.secoes[0].itens[0].texto, /começo\ncontinuação/);
+});
+
+test("o edital gerado sai em PDF, com o timbre do órgão que expede", async () => {
+  const { gerarEditalPdf } = await import("../lib/pdf.js");
+  const { analisarTextoEdital } = await import("../lib/editais.js");
+  const corpo = analisarTextoEdital("Abertura.\n\n1. DAS DISPOSIÇÕES\n1.1. Item.");
+  for (const orgao of ["proppex", "proac"]) {
+    const buf = await gerarEditalPdf({
+      edital: { numero: "05/2027", titulo: "Chamada", publicadoEm: "2026-12-10",
+        vigencia: { inicio: "2027-01-01", fim: "2027-12-31" } },
+      corpo, orgao,
+      cronograma: [{ etapa: "Submissão", responsavel: "Proponente", ate: "2027-02-28" }],
+    });
+    assert.ok(buf.length > 5000, orgao);
+    assert.equal(buf.subarray(0, 4).toString(), "%PDF", orgao);
+  }
+});

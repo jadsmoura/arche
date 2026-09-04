@@ -106,6 +106,7 @@ import { situacaoDaAcao } from "./lib/situacao.js";
 import {
   SETORES_EDITAL, normalizarEdital, faltaNoEdital, vigenteDe, aplicarEditais,
   editaisDoCodigo, proximoNumero, orgaoDoSetor, ORGAOS_EDITAL, setorEditalDe, designacaoDoEdital,
+  analisarTextoEdital, temTextoDeEdital,
   cicloSugerido, vigenciaSugerida, ETAPAS_MONITORIA,
 } from "./lib/editais.js";
 import {
@@ -1586,7 +1587,8 @@ app.get("/api/publico/ic", async (req, res) => {
           numero: e.numero, designacao: designacaoDoEdital(e), ano: e.ano, titulo: e.titulo, setor: e.setor,
           grupo: setorEditalDe(e.setor)?.grupo || "", sigla: setorEditalDe(e.setor)?.sigla || "",
           orgao: e.orgao, vigencia: e.vigencia, publicadoEm: e.publicadoEm,
-          documento: e.documento || "", observacao: e.observacao || "",
+          documento: e.documento || (temTextoDeEdital(e) ? `/api/publico/editais/${e.id}/edital.pdf` : ""),
+          observacao: e.observacao || "",
           vigente: !e.encerrado,
         }))
         .sort((a, b) => (b.ano || 0) - (a.ano || 0) || String(a.numero).localeCompare(String(b.numero))),
@@ -8953,7 +8955,7 @@ app.get("/api/editais", async (req, res) => {
     const ano = Number(hojeLocalISO().slice(0, 4));
     res.json({
       editais: cadastrados.filter((e) => podeLancar.includes(e.setor))
-        .map((e) => ({ ...e, designacao: designacaoDoEdital(e) })),
+        .map((e) => ({ ...e, designacao: designacaoDoEdital(e), temTexto: temTextoDeEdital(e) })),
       // o acervo já publicado, para a tela mostrar tudo num lugar só — ele
       // NÃO se edita por aqui (vive no código, e é o registro do que foi)
       doCodigo: editaisDoCodigo().filter((e) => podeLancar.includes(e.setor)),
@@ -9086,6 +9088,53 @@ app.post("/api/editais/encerrar", async (req, res) => {
   } catch (e) {
     console.error("Erro ao encerrar o edital:", e);
     res.status(500).json({ error: e.message || "Falha ao encerrar o edital" });
+  }
+});
+
+/* O EDITAL GERADO PELO ARCHÉ (pergunta do dono, ago/2026: "gosto muito do
+   layout dos docs que você gera; novos editais podem seguir aquele layout, ou
+   você só consegue se eu enviar aqui no chat?"). Podem, e sem passar por mim:
+   a gestão ESCREVE o texto no portal — colando o que já redigiu, na numeração
+   do próprio edital — e o PDF sai no mesmo desenho dos demais documentos:
+   timbre da pró-reitoria que expede, caixa do número, seções em faixa,
+   cronograma em quadro e as assinaturas do banco.
+
+   A rota é PÚBLICA de propósito, como o `/api/files/*` dos PDFs anexados:
+   edital é documento público, e a vitrine `/editais` abre sem login. O que
+   ela serve é só o texto do edital — nada do cadastro sai por aqui. */
+async function editalEmPdf(e) {
+  const { gerarEditalPdf } = await import("./lib/pdf.js");
+  const orgao = orgaoDoSetor(e.setor);
+  // a monitoria tem cronograma no cadastro; os demais o escrevem no texto
+  const cronograma = e.setor === "monitoria"
+    ? ETAPAS_MONITORIA.map(([c, rot]) => ({
+      etapa: rot, responsavel: "",
+      ate: c === "vigencia" ? e.vigencia?.fim : e.prazos?.[c],
+    })).filter((x) => x.ate)
+    : [];
+  return gerarEditalPdf({
+    edital: e, corpo: analisarTextoEdital(e.corpo), orgao, cronograma,
+    assinaturas: await lerAssinaturas(),
+  });
+}
+
+app.get("/api/publico/editais/:id/edital.pdf", async (req, res) => {
+  try {
+    const e = (await lerEditaisCadastrados()).find((x) => x.id === req.params.id);
+    if (!e) return res.status(404).send("Edital não encontrado");
+    if (!temTextoDeEdital(e))
+      return res.status(404).send("Este edital não tem texto no ARCHÉ — o documento é o PDF anexado.");
+    const buf = await editalEmPdf(e);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Disposition",
+      `inline; filename="edital-${String(e.numero).replace("/", "-")}.pdf"`);
+    arquivarDocumento({ buffer: buf, nome: `edital-${String(e.numero).replace("/", "-")}.pdf`,
+      pasta: `Editais/${e.ano || hojeLocalISO().slice(0, 4)}` });
+    res.end(buf);
+  } catch (err) {
+    console.error("Erro no PDF do edital:", err);
+    res.status(500).send("Falha ao gerar o edital");
   }
 });
 
