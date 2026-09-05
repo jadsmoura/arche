@@ -3444,6 +3444,76 @@ public/
   chegar até ele. Fica de fora o `/certificados/`, que é o histórico de UMA pessoa (uma dúzia de
   linhas), e as listas de IMPRESSÃO, que existem para sair inteiras no papel.
 
+- **REVISÃO ADVERSARIAL DE SET/2026 — o que ela achou nos setores recém-mexidos e o que mudou**
+  (três agentes em paralelo — editais, IC/ICEM, AP/apresentação — e cada achado confirmado no
+  servidor local antes da correção; os que não se confirmaram ficaram de fora):
+  **Editais.** (1) `documento`/`resultado` eram texto livre e saem como `href` na vitrine PÚBLICA
+  e na guia da gestão — um `javascript:` gravado por um coordenador rodava na sessão de quem
+  clicasse, e um `https://` externo em `resultado` fazia o endereço oficial do resultado da IC
+  redirecionar para fora; `caminhoPublico` em lib/editais.js é uma **lista fechada** (`/api/files/…`
+  e `/ic/docs/…`, sem `..` nem `//`). (2) Lançar o edital seguinte da graduação **movia para ele
+  todos os projetos sem `edital` carimbado** (só os 33 do lote o tinham; `editalDe` lê vazio como
+  "o vigente"): a submissão passa a carimbar `EDITAL.numero`, e `carimbarEditalNosProjetos`
+  (marca `sys-ic-edital-carimbado-v1`, roda ANTES de aplicar o cadastro, para carimbar o edital do
+  CÓDIGO) grava nos já submetidos; a exclusão compara por `editalDe(p)`; e as quatro chamadas de
+  `projetoQueJaTemOAluno` passam `editalDe(p)`. (3) "Encerrar o ciclo" do acervo resolvia **só pelo
+  número**, e o 01/2026 da monitoria batia no 01/2026 da IC — encerrar a monitoria marcava a
+  graduação; a rota recebe `setor`, e sem ele só aceita número único. (4) Na edição, `numero` e
+  `setor` vinham do corpo e a unicidade só olhava o cadastro — renomear para "01/2026" sequestrava
+  `DOCUMENTOS_EDITAIS`/`RESULTADOS_EDITAIS` do acervo; agora vêm da BASE, e o acervo entra no teste
+  de repetido. (5) Só `EDITAL` e o cronograma tinham retrato — `TURMAS_EM`, `EDITAIS_MONITORIA` e os
+  mapas de documentos só cresciam, e excluir a turma recém-lançada a deixava como `turmaVigente()`;
+  `BASE_LISTAS` reconstrói as quatro listas a cada aplicação (mutação no lugar). (6) O cronograma da
+  monitoria podia vir de edital ENCERRADO (`find` pegava o primeiro); filtra `!encerrado` e pega o
+  mais recente. (7) O PDF público gerava e **arquivava no Drive a cada GET anônimo**; agora há cache
+  por `id|atualizadoEm`, `Cache-Control: public, max-age=300`, e o arquivo no Drive sai na GRAVAÇÃO.
+  (8) O multer rodava ANTES da autenticação (50 MB em memória por pedido anônimo) e o tipo era o
+  declarado pelo cliente; `exigeLancadorDeEdital` vem antes, e os primeiros bytes têm de ser
+  `%PDF-`. (9) Sem fila, dois POSTs emitiam o mesmo número e o segundo apagava o primeiro
+  (`comEditais`). (10) O PDF **renumerava** alíneas ("a) b) d)" virava "a) b) c)") e o inciso XIII
+  saía em arábico — contra a regra do módulo; alínea e inciso guardam `{ r, t }` e a linha quebrada
+  da colagem continua a ÚLTIMA alínea, não o item. (11) `/api/editais` entrou em
+  `travarEscritaVerComo`: um POST com `?como=` criou um edital em nome do gestor. (12) O `esc()` do
+  componente não escapava `'` e os ids iam dentro de `onclick='…'`.
+  **IC.** (13) `adotarEmailNoEM` SUBSTITUÍA o e-mail escolar pelo da conta que casou pelo CPF —
+  a bolsista que voltava pela conta da escola caía no painel vazio (o defeito original, na outra
+  conta), e quem gravasse o CPF de alguém no próprio perfil fazia o registro apontar para si e a
+  trancava fora. A adoção passou a ser **aditiva** (`emails[]`; `casaComEM` aceita atual, anterior
+  e a lista), fica no histórico do registro e **avisa a coordenação** (`avisarPesquisa`). (14) A
+  gestão trocando o e-mail de aluno que JÁ ENTROU levava junto CPF, RG, endereço e conta para o
+  titular do endereço novo — que passava a VER e regravar tudo; agora os `CAMPOS_DO_ALUNO_PROTEGIDOS`
+  saem com o aluno, e `gravarCadastroDoAluno` casa por e-mail OU CPF, como `papelNoProjeto`. (15) A
+  orientação gravava CPF de terceiro num aluno NOVO pelo corpo do POST — vínculo silencioso da conta
+  dele, "já consta" para a indicação legítima noutro projeto, `bolsistaEntrou` nascendo verdadeiro;
+  os campos do aluno saem zerados do aluno novo (da gestão, não). (16) Correção e reenvio só em
+  projeto `aprovado` ou em regularização: no concluído de 2024, "corrigir" o e-mail do aluno
+  transcrito mandava convite a um endereço qualquer e o titular herdava o **certificado**. (17)
+  "Reenviar convite" era relé de e-mail sem limite: 1 a cada 10 min por projeto+e-mail. (18) O HTML
+  do convite entrava sem escape (título, nome, orientação). (19) O pedido automático de cadastro no
+  `fomento` só em `aprovado`; `em/chamada-banco` exige turma e recusa turma encerrada; as pendências
+  da página inicial não cobram cadastro de contrato em projeto concluído nem em turma encerrada, e
+  não cobram da orientação o relatório com pedido de encerramento pendente (é da PROPPEX);
+  `/api/minhas-pendencias` recusa conta removida.
+  **AP.** (20) `casarProfessoresAP` adotava QUALQUER conta com o nome ou a matrícula (todo cadastro
+  entra aprovado e o nome é autodeclarado): agora ficam de fora removidos e funções que não lecionam
+  (`aluno`, `em`, `secretaria`), e a adoção fica **marcada** (`emailOrigem: "casamento"`) com aviso
+  na tela pedindo conferência — a função é autodeclarada, então isto estreita, não blinda. (21) A
+  deduplicação **descartava** linhas em silêncio (a mesma pessoa com e sem e-mail; homônimos): agora
+  **funde** as listas, e nome igual com matrículas DIFERENTES são duas pessoas. (22) A chave da
+  disciplina ignora acento, caixa e espaços (`chaveDeDisciplina`) — a cobrança mensal não cessava
+  quando a grafia digitada diferia da cadastrada. (23) O lembrete mensal saía **só no dia 1º**, e
+  no plano free a instância hiberna — o mês inteiro se perdia; passou a "a partir do dia 1º, uma
+  vez por mês" (a marca já guardava o mês). (24) O professor de dois cursos recebe UM lembrete com as
+  disciplinas dos dois. (25) A CE sem cadastro era aberta a QUALQUER conta aprovada — um estudante
+  registrava "extensão curricular" em qualquer curso e caía na fila da coordenação; recusa funções
+  que não lecionam. (26) Cadastro e cópia entraram numa fila (`comCadastroAP`) — duas coordenações
+  salvando juntas perdiam uma à outra; curso fora do catálogo é 400 (respondia `ok:true` sem
+  gravar). (27) Chamada manual com freio de 10 min por conta e mensagem cortada em 2000. (28)
+  `foraDoCadastro` compara disciplina E curso.
+  **Apresentação.** (29) Três prints da página PÚBLICA foram recortados: o das Aulas Práticas nomeava
+  professores reais como "sem nenhum registro", o das Atas dizia "68 urgentes" e nomeava colegiados
+  que nunca registraram ata, e o do Seu Curso mostrava os dois e-mails da gestão.
+
 ## Identidade visual
 
 Paleta (mesma do sistema de Avaliação): fundo `#eef1f4`, marca `#1c3742`, hover `#2d535c`,

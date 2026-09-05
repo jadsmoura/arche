@@ -182,7 +182,44 @@ test("o cadastro é por semestre, e recusa o que não se pode cobrar", () => {
   assert.deepEqual(Object.keys(sujo["2026/2"]), ["enfermagem"], "curso fora do catálogo não entra");
   const profs = sujo["2026/2"].enfermagem.professores;
   assert.equal(profs.length, 1);
-  assert.deepEqual(profs[0].disciplinas, ["X", "Y"]);
+  // a duplicata se FUNDE, não se descarta (revisão de set/2026): a segunda
+  // linha da mesma pessoa somava as disciplinas dela ao sumir em silêncio
+  assert.deepEqual(profs[0].disciplinas, ["X", "Y", "Z"]);
+});
+
+test("homônimos com matrículas diferentes são duas pessoas; a mesma pessoa sem e-mail se funde", () => {
+  const c = normalizarCadastro({ "2026/2": { enfermagem: { professores: [
+    { nome: "Maria Silva Santos", matricula: "111", disciplinas: ["A"] },
+    { nome: "Maria Silva Santos", matricula: "222", disciplinas: ["B"] },   // outra pessoa
+    { nome: "Bruna Povoa Ribeiro", email: "bruna@x.br", disciplinas: ["C"] },
+    { nome: "Bruna Povoa Ribeiro", disciplinasExtensao: ["D"] },           // a mesma, sem e-mail
+  ] } } });
+  const profs = c["2026/2"].enfermagem.professores;
+  assert.equal(profs.filter((p) => p.nome === "Maria Silva Santos").length, 2, "matrículas diferentes");
+  const bruna = profs.filter((p) => p.nome === "Bruna Povoa Ribeiro");
+  assert.equal(bruna.length, 1, "a Bruna é uma só");
+  assert.deepEqual([bruna[0].disciplinas, bruna[0].disciplinasExtensao], [["C"], ["D"]], "as listas se somam");
+  assert.equal(bruna[0].email, "bruna@x.br", "o e-mail que uma linha tinha fica");
+});
+
+test("a chave da disciplina ignora acento, caixa e espaços — a cobrança cessa quando o relatório entra", () => {
+  const c = normalizarCadastro({ "2026/2": { enfermagem: { professores: [
+    { email: "geo@x.br", nome: "Geo Teixeira", disciplinasExtensao: ["Enfermagem em Saúde da Mulher"] },
+  ] } } });
+  const entregue = { semestre: "2026/2", tipo: "extensao", status: "enviado", curso: "enfermagem",
+    disciplina: "enfermagem em  saude da mulher", professor: { email: "geo@x.br" } };
+  assert.deepEqual(pendenciasCobrancaExtensao([entregue], c, { hoje: "2026-09-01" }), [],
+    "grafia diferente da cadastrada não é outra disciplina");
+});
+
+test("o professor de dois cursos recebe UM lembrete, com as disciplinas dos dois", () => {
+  const c = normalizarCadastro({ "2026/2": {
+    enfermagem: { professores: [{ email: "x@x.br", nome: "X Y", disciplinasExtensao: ["A"] }] },
+    odontologia: { professores: [{ email: "x@x.br", nome: "X Y", disciplinasExtensao: ["B"] }] },
+  } });
+  const p = pendenciasCobrancaExtensao([], c, { hoje: "2026-09-01" });
+  assert.equal(p.length, 1);
+  assert.deepEqual(p[0].faltam, ["A", "B"]);
 });
 
 /* A LINHA SEM E-MAIL ENTRA (ago/2026): a relação que a coordenação recebe do

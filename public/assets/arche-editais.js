@@ -16,8 +16,9 @@
    fora deles. Esconder campo não é porta.
    ======================================================================== */
 (function () {
-  const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  // a aspa simples entra no escape: os ids e números vão dentro de onclick='…'
+  const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const dBR = (iso) => (String(iso || "").length >= 10
     ? String(iso).slice(0, 10).split("-").reverse().join("/") : "—");
 
@@ -67,9 +68,10 @@
     /* Encerrar um edital do acervo o CLONA para o cadastro (é assim que a
        marca passa a valer). Ele sai daqui, senão apareceria nas duas listas
        — e a de baixo ofereceria "encerrar" o que já está encerrado. */
-    const jaNoCadastro = new Set(cadastrados.map((e) => e.numero));
+    // SETOR + número: o "01/2026" da IC e o da monitoria são dois editais
+    const jaNoCadastro = new Set(cadastrados.map((e) => `${e.setor}|${e.numero}`));
     const acervo = meus(DADOS.doCodigo)
-      .filter((e) => !jaNoCadastro.has(e.numero))
+      .filter((e) => !jaNoCadastro.has(`${e.setor}|${e.numero}`))
       .sort((a, b) => (b.ano || 0) - (a.ano || 0) || String(a.numero).localeCompare(String(b.numero)));
 
     ALVO.innerHTML = `<style>${CSS}</style>
@@ -98,7 +100,7 @@
                 : '<span class="ed-tag" style="background:#e8f6ee;color:#1e7a45">em curso</span>'}
               <span style="flex:1"></span>
               <button class="bt bt-ghost" style="padding:3px 9px;font-size:11.5px"
-                onclick="ArcheEditais.encerrar('${esc(e.numero)}',${e.encerrado ? "false" : "true"})">
+                onclick="ArcheEditais.encerrar('${esc(e.numero)}','${esc(e.setor)}',${e.encerrado ? "false" : "true"})">
                 ${e.encerrado ? "Reabrir" : "Encerrar o ciclo"}</button>
             </div>`).join("")}
           </div>
@@ -390,14 +392,16 @@
     /* O único ato sobre o acervo do CÓDIGO: encerrar (ou reabrir) o ciclo.
        Sem ele, lançar a turma seguinte deixaria as duas abertas — e o
        bolsista novo cairia na velha. */
-    async encerrar(numero, encerrado) {
+    async encerrar(numero, setor, encerrado) {
+      // compat: a chamada antiga era (numero, encerrado)
+      if (typeof setor === "boolean") { encerrado = setor; setor = ""; }
       if (!confirm(encerrado
         ? `Encerrar o ciclo do edital ${numero}?\n\nEle sai de circulação e passa a aparecer como encerrado. Os registros dele ficam intactos.`
         : `Reabrir o ciclo do edital ${numero}?`)) return;
       try {
         await api("/api/editais/encerrar", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ numero, encerrado }),
+          body: JSON.stringify({ numero, setor, encerrado }),
         });
         DADOS = await api("/api/editais");
         desenhar();

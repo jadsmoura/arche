@@ -262,11 +262,50 @@ II. inciso dois`);
   assert.equal(r.secoes[0].titulo, "1. DAS DISPOSIÇÕES");
   assert.equal(r.secoes[0].itens.length, 2);
   assert.equal(r.secoes[0].itens[0].n, "1.1.", "o número é o que a pessoa escreveu");
-  assert.deepEqual(r.secoes[0].itens[1].alineas, ["alínea um", "alínea dois"]);
-  assert.deepEqual(r.secoes[1].itens[0].romanos, ["inciso um", "inciso dois"]);
+  assert.deepEqual(r.secoes[0].itens[1].alineas,
+    [{ r: "a)", t: "alínea um" }, { r: "b)", t: "alínea dois" }]);
+  assert.deepEqual(r.secoes[1].itens[0].romanos,
+    [{ r: "I.", t: "inciso um" }, { r: "II.", t: "inciso dois" }]);
   assert.equal(temTextoDeEdital({ corpo: "1. X\n1.1. Y" }), true);
   assert.equal(temTextoDeEdital({ corpo: "só um parágrafo" }), false, "sem seção não há edital");
   assert.equal(temTextoDeEdital({}), false);
+});
+
+/* NADA RENUMERA (revisão adversarial, set/2026): a alínea "c" revogada de
+   propósito saía como "c)" no PDF, e o inciso XIII em arábico. O rótulo é o
+   que a pessoa escreveu; e a linha quebrada da colagem continua a ÚLTIMA
+   alínea, não o item — senão a ordem do documento mudava. */
+test("o rótulo da alínea e do inciso é o que a pessoa escreveu, e a linha quebrada continua a alínea", async () => {
+  const { analisarTextoEdital } = await import("../lib/editais.js");
+  const r = analisarTextoEdital(`1. T
+1.1. Item:
+a) primeira
+b) segunda, quebrada
+na colagem
+d) quarta — a c) foi revogada
+XIII. inciso treze`);
+  const it = r.secoes[0].itens[0];
+  assert.deepEqual(it.alineas.map((a) => a.r), ["a)", "b)", "d)"], "d) fica d)");
+  assert.equal(it.alineas[1].t, "segunda, quebrada na colagem", "a continuação gruda na alínea");
+  assert.equal(it.texto, "Item:", "e não volta para o texto do item");
+  assert.deepEqual(it.romanos, [{ r: "XIII.", t: "inciso treze" }]);
+});
+
+/* O CAMINHO DO DOCUMENTO É LISTA FECHADA: `documento`/`resultado` saem como
+   href na vitrine pública, e `javascript:` ou um domínio externo não podem
+   passar pela gravação. */
+test("documento e resultado só aceitam caminho do próprio portal", async () => {
+  const { normalizarEdital, caminhoPublico } = await import("../lib/editais.js");
+  assert.equal(caminhoPublico("/api/files/abc-123"), "/api/files/abc-123");
+  assert.equal(caminhoPublico("/ic/docs/edital-01-2026.pdf"), "/ic/docs/edital-01-2026.pdf");
+  assert.equal(caminhoPublico("javascript:alert(1)"), "");
+  assert.equal(caminhoPublico("https://site-externo.com/x.pdf"), "");
+  assert.equal(caminhoPublico("/api/files/../../etc/passwd"), "");
+  assert.equal(caminhoPublico("//evil.com/x"), "");
+  const e = normalizarEdital({ setor: "extensao", titulo: "x", ano: 2026,
+    documento: "javascript:fetch('/api/usuarios')", resultado: "https://x.y/z" });
+  assert.equal(e.documento, "");
+  assert.equal(e.resultado, "");
 });
 
 test("o item de dois níveis vence o título de seção — 1.1. não abre seção", async () => {

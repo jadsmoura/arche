@@ -1115,7 +1115,10 @@ function linhaProf(slug, p = {}, i = 0) {
   return `<tr data-linha>
     <td><input value="${esc(p.nome || "")}" data-c="nome" placeholder="Nome completo"></td>
     <td><input value="${esc(p.email || "")}" data-c="email" placeholder="(pode ficar em branco)" type="email">
-      ${p.nome && !p.email ? '<div class="ajuda" style="color:#a75a0b">sem lembrete</div>' : ""}</td>
+      ${p.nome && !p.email ? '<div class="ajuda" style="color:#a75a0b">sem lembrete</div>' : ""}
+      ${p.emailOrigem === "casamento" ? `<div class="ajuda" style="color:#a75a0b"
+        title="O portal achou uma conta com esta matrícula ou este nome e adotou o e-mail dela. Se não for a pessoa certa, corrija aqui.">
+        ⚠ e-mail adotado pelo portal — confira</div>` : ""}</td>
     <td><input value="${esc(p.matricula || "")}" data-c="matricula" placeholder="00000"></td>
     <td><textarea data-c="disciplinas" style="min-height:64px"
       placeholder="Anatomia Humana&#10;Fisiologia">${esc((p.disciplinas || []).join("\n"))}</textarea></td>

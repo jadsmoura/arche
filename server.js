@@ -1480,6 +1480,9 @@ app.get("/api/minhas-pendencias", async (req, res) => {
   try {
     const u = await usuarioDe(req, res);
     if (!u) return res.status(401).json({ error: "não autenticado" });
+    // conta encerrada pela PROPPEX não lê mais nada — a mesma régua da guarda
+    // das áreas protegidas (revisão de set/2026)
+    if (await contaRemovida(u.email)) return res.status(403).json({ error: "acesso encerrado", itens: [] });
     const perfil = (await carregarPerfis())[u.email] || {};
     const cpf = perfil.cpf || "";
     const quem = { email: u.email, cpf };
@@ -8939,6 +8942,33 @@ async function aplicarEditaisNoArranque() {
     + `${r.ic ? ` · graduação vigente: ${r.ic}` : ""}`);
 }
 
+/* O CARIMBO DO EDITAL NOS PROJETOS JÁ GRAVADOS (revisão adversarial,
+   set/2026): só os 33 importados do lote traziam `edital: "01/2026"`; todo
+   projeto submetido pela tela em 2026 estava com `edital: ""`, que `editalDe`
+   lê como "o vigente". No dia em que a PROPPEX lançasse o 01/2027 pelo portal,
+   esses projetos mudariam de ciclo na classificação, na vitrine, no resultado
+   e na trava de "um projeto por acadêmico" — e a régua de exclusão do edital
+   contaria zero para eles. Uma passada só: o que está sem carimbo e já saiu do
+   rascunho recebe o edital vigente HOJE, que é o que estava em vigor quando
+   foi submetido. Roda antes de qualquer lançamento pelo portal poder mudá-lo. */
+async function carimbarEditalNosProjetos() {
+  const MARCA = "sys-ic-edital-carimbado-v1";
+  if (await storage.get(MARCA)) return;
+  let n = 0;
+  await comProjetos((projetos) => {
+    for (let i = 0; i < projetos.length; i++) {
+      const p = projetos[i];
+      if (p.status === "rascunho" || String(p.edital || "").trim()) continue;
+      projetos[i] = { ...p, edital: EDITAL.numero };
+      n++;
+    }
+    return { gravar: n > 0 };
+  });
+  await storage.set(MARCA, JSON.stringify({ em: new Date().toISOString(), projetos: n, edital: EDITAL.numero }));
+  await storage.flush?.();
+  if (n) console.log(`[ic] ${n} projeto(s) sem edital carimbados com ${EDITAL.numero}.`);
+}
+
 /* Quem lança edital: o gestor geral, sempre; e a coordenação do MÓDULO a que
    o edital pertence — a de `pesquisa` responde pela graduação e pelo ICEM, a
    de `monitoria` pelo programa dela. Coordenar um módulo não abre o edital
@@ -8991,49 +9021,80 @@ app.get("/api/editais", async (req, res) => {
   }
 });
 
+/* A FILA DO CADASTRO DE EDITAIS (revisão adversarial, set/2026): ler → mutar →
+   gravar sem fila é a mesma corrida que emitia o Número da Ação em dobro na
+   Extensão — dois POSTs lendo a mesma lista emitem o mesmo número, e o
+   segundo `set` apaga o edital do primeiro. Uma fila de promessas basta. */
+let filaEditais = Promise.resolve();
+function comEditais(fn) {
+  const p = filaEditais.then(fn, fn);
+  filaEditais = p.catch(() => {});
+  return p;
+}
+
 /** POST /api/editais — lança um edital novo ou corrige um já cadastrado. */
 app.post("/api/editais", async (req, res) => {
   try {
     const u = await usuarioDe(req, res);
     if (!u) return res.status(401).json({ error: "Faça login." });
-    const lista = await lerEditaisCadastrados();
-    const id = String(req.body?.id || "").trim();
-    const base = id ? lista.find((x) => x.id === id) : null;
-    if (id && !base) return res.status(404).json({ error: "Edital não encontrado no cadastro." });
-    let novo = normalizarEdital(req.body, { base });
-    if (!podeEditalDe(u, novo.setor) || (base && !podeEditalDe(u, base.setor)))
-      return res.status(403).json({ error: "O lançamento de editais é da gestão do setor." });
-    /* O NÚMERO É EMITIDO PELO SERVIDOR, na ordem em que os editais são
-       criados (decisão do dono, ago/2026) — a sequência GERAL da instituição,
-       contando o acervo já publicado. Não se digita, pela mesma razão do
-       Número da Ação da Extensão: duas coordenações lançando ao mesmo tempo
-       leriam o mesmo número e emitiriam o mesmo. Editar não renumera: o
-       número já saiu no ofício. */
-    if (!base) {
-      novo = { ...novo,
-        numero: proximoNumero(novo.ano, [...lista, ...editaisDoCodigo()], orgaoDoSetor(novo.setor)) };
+    const r = await comEditais(async () => {
+      const lista = await lerEditaisCadastrados();
+      const id = String(req.body?.id || "").trim();
+      const base = id ? lista.find((x) => x.id === id) : null;
+      if (id && !base) return { erro: [404, "Edital não encontrado no cadastro."] };
+      let novo = normalizarEdital(req.body, { base });
+      if (!podeEditalDe(u, novo.setor) || (base && !podeEditalDe(u, base.setor)))
+        return { erro: [403, "O lançamento de editais é da gestão do setor."] };
+      /* O NÚMERO É EMITIDO PELO SERVIDOR, na ordem em que os editais são
+         criados (decisão do dono, ago/2026) — a sequência GERAL da instituição,
+         contando o acervo já publicado. Não se digita, pela mesma razão do
+         Número da Ação da Extensão. Editar não renumera: o número já saiu no
+         ofício — e por isso NÚMERO e SETOR da edição vêm da BASE, nunca do
+         corpo (revisão de set/2026: renomear um edital cadastrado para
+         "01/2026" fazia DOCUMENTOS_EDITAIS/RESULTADOS_EDITAIS do acervo
+         apontarem para o documento dele, e trocar o setor levava o número
+         para a sequência da outra pró-reitoria). */
+      if (!base) {
+        novo = { ...novo,
+          numero: proximoNumero(novo.ano, [...lista, ...editaisDoCodigo()], orgaoDoSetor(novo.setor)) };
+      } else {
+        novo = { ...novo, numero: base.numero, setor: base.setor };
+      }
+      const falta = faltaNoEdital(novo);
+      if (falta.length) return { erro: [400, `Falta ${falta.join(", ")}.`] };
+      /* A unicidade é POR ÓRGÃO: com as sequências independentes, o "03/2027"
+         da PROPPEX e o da PROAC são dois editais diferentes. O acervo do
+         código entra na conta — o cadastro não pode reivindicar o número de um
+         edital já publicado. */
+      const orgao = orgaoDoSetor(novo.setor);
+      const repetido = [...lista, ...editaisDoCodigo()].some((x) => x.id !== novo.id
+        && x.numero === novo.numero && orgaoDoSetor(x.setor) === orgao
+        // o clone de "encerrar o acervo" carrega o mesmo número de propósito
+        && !(base && x.doCodigo && x.numero === base.numero));
+      if (repetido) return { erro: [409, `O edital ${novo.numero} da ${orgao.toUpperCase()} já existe.`] };
+      if (!base) novo.criadoPor = u.email;
+      const i = lista.findIndex((x) => x.id === novo.id);
+      if (i >= 0) lista[i] = novo; else lista.push(novo);
+      await salvarEditaisCadastrados(lista);
+      return { novo, lista };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    /* O PDF gerado se ARQUIVA na gravação, não em cada leitura pública (ver a
+       rota do PDF): é aqui que o documento muda. Fire-and-forget. */
+    if (temTextoDeEdital(r.novo)) {
+      editalEmPdf(r.novo).then((buf) => arquivarDocumento({ buffer: buf,
+        nome: `edital-${nomeSeguro(r.novo.numero)}.pdf`,
+        pasta: `Editais/${r.novo.ano || hojeLocalISO().slice(0, 4)}` }))
+        .catch((e) => console.error("[editais] arquivo do PDF:", e.message));
     }
-    const falta = faltaNoEdital(novo);
-    if (falta.length) return res.status(400).json({ error: `Falta ${falta.join(", ")}.` });
-    /* A unicidade é POR ÓRGÃO: com as sequências independentes, o "03/2027"
-       da PROPPEX e o da PROAC são dois editais diferentes — recusar o segundo
-       seria fazer uma pró-reitoria pular número por causa da outra, que é
-       justamente o que a decisão do dono desfez. */
-    const orgao = orgaoDoSetor(novo.setor);
-    const repetido = lista.some((x) => x.id !== novo.id && x.numero === novo.numero
-      && orgaoDoSetor(x.setor) === orgao);
-    if (repetido) return res.status(409).json({
-      error: `O edital ${novo.numero} da ${orgao.toUpperCase()} já existe.` });
-    if (!base) novo.criadoPor = u.email;
-    const i = lista.findIndex((x) => x.id === novo.id);
-    if (i >= 0) lista[i] = novo; else lista.push(novo);
-    await salvarEditaisCadastrados(lista);
-    res.json({ ok: true, edital: novo, vigente: vigenteDe(lista, novo.setor)?.numero || null });
+    res.json({ ok: true, edital: r.novo, vigente: vigenteDe(r.lista, r.novo.setor)?.numero || null });
   } catch (e) {
     console.error("Erro ao lançar o edital:", e);
     res.status(500).json({ error: e.message || "Falha ao lançar o edital" });
   }
 });
+/** O que pode ir num nome de arquivo (e num cabeçalho HTTP). */
+const nomeSeguro = (v) => String(v || "").replace(/[^\w.-]+/g, "-").slice(0, 60) || "edital";
 
 /** POST /api/editais/:id/excluir — só o que foi cadastrado pelo portal. */
 app.post("/api/editais/:id/excluir", async (req, res) => {
@@ -9049,7 +9110,9 @@ app.post("/api/editais/:id/excluir", async (req, res) => {
        para o número dele, e sem o edital eles ficariam órfãos no meio do
        ciclo. Para tirá-lo de circulação existe "encerrado". */
     if (alvo.setor === "ic") {
-      const n = (await lerProjetos()).filter((p) => String(p.edital || "") === alvo.numero).length;
+      // `editalDe`, não `p.edital`: projeto sem carimbo é do edital VIGENTE, e
+      // é justamente esse que o cadastro estaria excluindo
+      const n = (await lerProjetos()).filter((p) => editalDe(p) === alvo.numero).length;
       if (n) return res.status(400).json({ error: `O edital ${alvo.numero} já tem ${n} projeto(s) submetido(s) — para tirá-lo de circulação, marque-o como encerrado.` });
     }
     if (alvo.setor === "em") {
@@ -9083,17 +9146,40 @@ app.post("/api/editais/encerrar", async (req, res) => {
     const u = await usuarioDe(req, res);
     if (!u) return res.status(401).json({ error: "Faça login." });
     const numero = String(req.body?.numero || "").trim();
-    const doCodigo = editaisDoCodigo().find((e) => e.numero === numero);
-    if (!doCodigo) return res.status(404).json({ error: "Edital não encontrado no acervo." });
+    const setor = String(req.body?.setor || "").trim();
+    /* NÚMERO E SETOR, os dois (revisão adversarial, set/2026): o "01/2026" da
+       monitoria e o "01/2026" da IC são editais diferentes, e o `find` só
+       pelo número achava sempre o da IC — "encerrar o ciclo" da monitoria
+       marcava como encerrado o edital vigente da graduação, e o da monitoria
+       nunca podia ser encerrado. Sem `setor` no pedido (tela antiga), só
+       aceita quando o número é único no acervo. */
+    const candidatos = editaisDoCodigo().filter((e) => e.numero === numero && (!setor || e.setor === setor));
+    if (candidatos.length !== 1) {
+      return res.status(candidatos.length ? 400 : 404).json({ error: candidatos.length
+        ? `O número ${numero} existe em mais de um setor — informe o setor.`
+        : "Edital não encontrado no acervo." });
+    }
+    const doCodigo = candidatos[0];
     if (!podeEditalDe(u, doCodigo.setor))
       return res.status(403).json({ error: "O lançamento de editais é da gestão do setor." });
     const encerrado = req.body?.encerrado !== false;
-    const lista = await lerEditaisCadastrados();
-    const i = lista.findIndex((x) => x.numero === numero);
-    if (i >= 0) lista[i] = { ...lista[i], encerrado, atualizadoEm: new Date().toISOString() };
-    else lista.push(normalizarEdital({ ...doCodigo, encerrado, criadoPor: u.email }));
-    await salvarEditaisCadastrados(lista);
-    res.json({ ok: true, numero, encerrado });
+    const r = await comEditais(async () => {
+      const lista = await lerEditaisCadastrados();
+      const i = lista.findIndex((x) => x.numero === numero && x.setor === doCodigo.setor);
+      if (i >= 0) lista[i] = { ...lista[i], encerrado, atualizadoEm: new Date().toISOString() };
+      else {
+        // o clone precisa nascer COMPLETO, senão "Editar → Salvar" nele
+        // recusaria por falta de ciclo/vigência (a IC do acervo não os carrega)
+        const extra = doCodigo.setor === "ic" && !doCodigo.vigencia
+          ? { ciclo: `${EDITAL.vigencia?.inicio?.slice(0, 4)}/${EDITAL.vigencia?.fim?.slice(0, 4)}`,
+            vigencia: { ...EDITAL.vigencia } } : {};
+        lista.push(normalizarEdital({ ...doCodigo, ...extra, encerrado, criadoPor: u.email }));
+      }
+      await salvarEditaisCadastrados(lista);
+      return {};
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, numero, setor: doCodigo.setor, encerrado });
   } catch (e) {
     console.error("Erro ao encerrar o edital:", e);
     res.status(500).json({ error: e.message || "Falha ao encerrar o edital" });
@@ -9127,19 +9213,30 @@ async function editalEmPdf(e) {
   });
 }
 
+/* O PDF gerado fica em CACHE por versão do edital (revisão adversarial,
+   set/2026): a rota é pública e cada GET renderizava um PDF de até 60 mil
+   caracteres E o arquivava no Drive — `files.list` + `files.update` por
+   pedido anônimo, banda de saída e cota da API do Drive nas mãos de quem
+   quisesse repetir a URL. A chave inclui `atualizadoEm`: editado o texto, a
+   entrada antiga simplesmente não é mais achada. O arquivo no Drive sai na
+   GRAVAÇÃO (POST), que é quando o documento muda. */
+const CACHE_PDF_EDITAL = new Map();   // `${id}|${atualizadoEm}` → Buffer
 app.get("/api/publico/editais/:id/edital.pdf", async (req, res) => {
   try {
     const e = (await lerEditaisCadastrados()).find((x) => x.id === req.params.id);
     if (!e) return res.status(404).send("Edital não encontrado");
     if (!temTextoDeEdital(e))
       return res.status(404).send("Este edital não tem texto no ARCHÉ — o documento é o PDF anexado.");
-    const buf = await editalEmPdf(e);
+    const chave = `${e.id}|${e.atualizadoEm}`;
+    let buf = CACHE_PDF_EDITAL.get(chave);
+    if (!buf) {
+      buf = await editalEmPdf(e);
+      if (CACHE_PDF_EDITAL.size > 40) CACHE_PDF_EDITAL.delete(CACHE_PDF_EDITAL.keys().next().value);
+      CACHE_PDF_EDITAL.set(chave, buf);
+    }
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Cache-Control", "no-store");
-    res.setHeader("Content-Disposition",
-      `inline; filename="edital-${String(e.numero).replace("/", "-")}.pdf"`);
-    arquivarDocumento({ buffer: buf, nome: `edital-${String(e.numero).replace("/", "-")}.pdf`,
-      pasta: `Editais/${e.ano || hojeLocalISO().slice(0, 4)}` });
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.setHeader("Content-Disposition", `inline; filename="edital-${nomeSeguro(e.numero)}.pdf"`);
     res.end(buf);
   } catch (err) {
     console.error("Erro no PDF do edital:", err);
@@ -9151,14 +9248,27 @@ app.get("/api/publico/editais/:id/edital.pdf", async (req, res) => {
    e o portfólio da Extensão): o formulário anexa e grava o caminho. O arquivo
    é servido por /api/files/*, que é PÚBLICO de propósito — edital é documento
    público, e a vitrine `/ic/` abre sem login. */
-app.post("/api/editais/documento", upload.single("file"), async (req, res) => {
+/* A AUTENTICAÇÃO VEM ANTES DO MULTER (revisão adversarial, set/2026): com o
+   `upload.single` na frente, um pedido anônimo era inteiramente bufferizado
+   em memória (até 50 MB) ANTES de o servidor responder 401 — meia dúzia em
+   paralelo derruba a instância. E o tipo era o que o cliente DECLARAVA; agora
+   os primeiros bytes têm de ser `%PDF-`. */
+async function exigeLancadorDeEdital(req, res, next) {
   try {
     const u = await usuarioDe(req, res);
     if (!u) return res.status(401).json({ error: "Faça login." });
     if (!setoresQuePodeLancar(u).length)
       return res.status(403).json({ error: "O lançamento de editais é da gestão do setor." });
+    req.lancador = u;
+    next();
+  } catch (e) { res.status(500).json({ error: "Falha na autenticação." }); }
+}
+app.post("/api/editais/documento", exigeLancadorDeEdital, upload.single("file"), async (req, res) => {
+  try {
     if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado." });
-    if (!/^application\/pdf$/.test(req.file.mimetype || ""))
+    const cabeca = req.file.buffer?.subarray(0, 5).toString("latin1") || "";
+    if (!/^application\/pdf$/.test(req.file.mimetype || "") || cabeca !== "%PDF-"
+      || !/\.pdf$/i.test(req.file.originalname || ""))
       return res.status(400).json({ error: "O edital se publica em PDF." });
     if (req.file.size > 20 * 1024 * 1024)
       return res.status(400).json({ error: "O arquivo passa de 20 MB." });
@@ -10139,8 +10249,16 @@ async function lerBolsistasEM() {
    O CPF é a mesma chave forte que o resto do setor já usa para reconhecer
    quem chega de fora (`papelNoProjeto`, `vincularPorCpf`), é obrigatório no
    perfil e está no registro do ICEM, vindo do termo. */
+/* Casa por QUALQUER e-mail que o registro conheça — o atual, o anterior e a
+   lista `emails` (revisão adversarial, set/2026): a adoção do e-mail da conta
+   SUBSTITUÍA o escolar, e a bolsista que voltava a entrar na escola, pela
+   conta escolar, caía no painel do professor vazio — o defeito original, na
+   outra conta. Pior: com o CPF de alguém, um estranho fazia o registro
+   adotar o e-mail DELE e trancava a vítima do lado de fora. */
+const emailsDoRegistroEM = (b) => [b?.email, b?.emailAnterior, ...(Array.isArray(b?.emails) ? b.emails : [])]
+  .map((e) => String(e || "").trim().toLowerCase()).filter(Boolean);
 const casaComEM = (b, alvo, digitos) =>
-  (!!alvo && b.email === alvo) || (!!digitos && normalizarCpf(b.cpf) === digitos);
+  (!!alvo && emailsDoRegistroEM(b).includes(alvo)) || (!!digitos && normalizarCpf(b.cpf) === digitos);
 /* Só CPF VÁLIDO casa: um campo pela metade (ou um dígito trocado) não pode
    ligar a conta de alguém ao registro de outra pessoa. */
 const cpfDeBusca = (cpf) => (cpfValido(cpf) ? normalizarCpf(cpf) : "");
@@ -10161,20 +10279,37 @@ const registrosEMDe = (lista, email, cpf = "") => {
    vez, em vez de refazer a conta a cada visita. Nunca sobrescreve um e-mail
    que já esteja lá com o mesmo endereço, e o registro guarda o escolar em
    `emailAnterior` — é por ele que a coordenação o encontra na planilha. */
+/* A ADOÇÃO É ADITIVA (revisão adversarial, set/2026): o e-mail da conta que
+   casou pelo CPF entra na lista `emails` do registro — o escolar, que a
+   coordenação transcreveu do termo, FICA como `email`. Antes ele era
+   sobrescrito, e isso convertia um casamento em bloqueio: a aluna que voltava
+   pela conta escolar não casava mais, e quem gravasse o CPF dela no próprio
+   perfil fazia o registro apontar para si. O ato fica no histórico do
+   registro e a coordenação é avisada — uma conta nova ligada a um menor é
+   coisa que alguém precisa ver. */
 async function adotarEmailNoEM(email, cpf) {
   const alvo = String(email || "").trim().toLowerCase();
   const digitos = cpfDeBusca(cpf);
   if (!alvo || !digitos) return 0;
-  let n = 0;
+  let n = 0; const tocados = [];
   await comBolsistasEM((lista) => {
-    for (const b of lista) {
-      if (normalizarCpf(b.cpf) !== digitos || b.email === alvo) continue;
-      if (b.email) b.emailAnterior = b.email;
-      b.email = alvo;
-      n++;
+    for (let i = 0; i < lista.length; i++) {
+      const b = lista[i];
+      if (normalizarCpf(b.cpf) !== digitos || emailsDoRegistroEM(b).includes(alvo)) continue;
+      const emails = [...new Set([...(Array.isArray(b.emails) ? b.emails : []), alvo])].slice(0, 5);
+      lista[i] = anotarEM({ ...b, emails, email: b.email || alvo }, {
+        quem: alvo, oQue: `conta ${alvo} passou a ser reconhecida neste registro (casou pelo CPF)`,
+      });
+      tocados.push(lista[i]); n++;
     }
     return { gravar: n > 0 };
   });
+  if (n) {
+    avisarPesquisa(`ICEM: conta nova reconhecida pelo CPF — ${tocados[0]?.nome || ""}`, [
+      ["Bolsista", tocados[0]?.nome || ""], ["Turma", tocados.map((b) => b.turma).join(", ")],
+      ["E-mail do registro", tocados[0]?.email || "—"], ["Conta que entrou", alvo],
+    ], "Conferir se a conta é mesmo do estudante");
+  }
   return n;
 }
 
@@ -10908,8 +11043,15 @@ app.post("/api/ic/em/chamada-banco", async (req, res) => {
   if (!u) return;
   if (!gereIC(u)) return res.status(403).json({ error: "A chamada é da coordenação de pesquisa." });
   const turma = String(req.body?.turma || "").trim();
+  // a turma é obrigatória e não pode estar encerrada (revisão de set/2026):
+  // sem ela a chamada alcançava TODAS as turmas, inclusive a de 2024, cuja
+  // bolsa já foi paga por fora — a tela sempre manda a turma; a rota
+  // precisa exigir o que a tela promete
+  if (!turma) return res.status(400).json({ error: "Informe a turma." });
+  if (turmaEmDe(turma)?.encerrada)
+    return res.status(400).json({ error: `A turma ${turma} está encerrada — não há bolsa a pagar.` });
   const lista = (await lerBolsistasEM()).filter((b) =>
-    (!turma || b.turma === turma) && b.situacao !== "desligado" && faltaDadosBancariosEM(b).length);
+    b.turma === turma && b.situacao !== "desligado" && faltaDadosBancariosEM(b).length);
   const quem = lista.map((b) => ({
     id: b.id, nome: b.nome, email: b.email, turma: b.turma,
     bolsa: bolsaEmDe(b.bolsa)?.nome || b.bolsa,
@@ -11342,14 +11484,23 @@ app.post("/api/ic", async (req, res) => {
            está neste projeto não trava contra si mesmo. */
         for (const a of p.alunos) {
           if (antigos.has(chaveAluno(a))) continue;
-          const outro = projetoQueJaTemOAluno(projetos, a, { exceto: p.id, edital: p.edital });
+          const outro = projetoQueJaTemOAluno(projetos, a, { exceto: p.id, edital: editalDe(p) });
           if (outro) return { erro: [409, motivoAlunoJaIndicado(a, outro)], gravar: false };
         }
         p.alunos = p.alunos.map((a) => {
           const antes = antigos.get(chaveAluno(a));
           if (!antes) {
-            // aluno novo: a marca de bolsista sai da concessão, não da tela
-            return { ...a, bolsista: bolsistaPelaConcessao(base) };
+            /* Aluno novo: a marca de bolsista sai da concessão, não da tela;
+               e o que é DO ALUNO (CPF, RG, conta) NÃO entra pela indicação
+               (revisão adversarial, set/2026) — o formulário não tem o campo,
+               mas o corpo passava, e um CPF de terceiro gravado aqui virava
+               vínculo silencioso da conta dele ao projeto, travava a
+               indicação legítima noutro projeto ("já consta") e fazia
+               `bolsistaEntrou` nascer verdadeiro. O CPF do aluno entra só pela
+               mão dele (gravarCadastroDoAluno) ou por vincularPorCpf. */
+            const limpo = { ...a, bolsista: bolsistaPelaConcessao(base) };
+            for (const c of CAMPOS_DO_ALUNO_PROTEGIDOS) limpo[c] = "";
+            return limpo;
           }
           const dele = { bolsista: !!antes.bolsista };
           for (const c of CAMPOS_DO_ALUNO_PROTEGIDOS) dele[c] = antes[c];
@@ -11377,7 +11528,7 @@ app.post("/api/ic", async (req, res) => {
         && (base.alunos || []).some((a) => a.email && a.email === email);
       for (const a of projeto.alunos || []) {
         if (constavaAntes(a.email)) continue;
-        const outro = projetoQueJaTemOAluno(projetos, a, { exceto: projeto.id, edital: projeto.edital });
+        const outro = projetoQueJaTemOAluno(projetos, a, { exceto: projeto.id, edital: editalDe(projeto) });
         if (outro) return { erro: [409, motivoAlunoJaIndicado(a, outro)], gravar: false };
       }
       if (base) {
@@ -11387,7 +11538,13 @@ app.post("/api/ic", async (req, res) => {
           // aluno NOVO: bolsista ou voluntário sai da bolsa concedida ao
           // projeto, aqui como no ramo da orientação — a marca acompanha a
           // concessão (que a guia Bolsas refaz em todos), não a tela
-          if (!antes) return { ...a, bolsista: bolsistaPelaConcessao(base) };
+          if (!antes) {
+            const limpo = { ...a, bolsista: bolsistaPelaConcessao(base) };
+            // o mesmo da execução: só a GESTÃO grava CPF/RG/conta pela indicação
+            // (é ela que transcreve os lotes); da orientação, nunca
+            if (!meu.gestao) for (const c of CAMPOS_DO_ALUNO_PROTEGIDOS) limpo[c] = "";
+            return limpo;
+          }
           const dele = { bolsista: !!antes.bolsista };
           for (const c of CAMPOS_DO_ALUNO_PROTEGIDOS) dele[c] = antes[c];
           return { ...a, ...dele };
@@ -11450,18 +11607,22 @@ app.post("/api/ic", async (req, res) => {
 async function convidarAlunosIC(projeto, alunos) {
   const base = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
   const link = `${base}/entrar?next=${encodeURIComponent("/pesquisa/ic/")}`;
+  // o nome do aluno, o título e a orientação são texto digitado por gente —
+  // entram escapados (revisão de set/2026: um título com <a href> virava link
+  // no e-mail do aluno)
+  const { escapeHtml: h } = await import("./lib/mailer.js");
   for (const a of alunos) {
     try {
       await enviarAviso("ic-convite-aluno", {
         para: a.email,
         assunto: `[ARCHÉ] Você foi indicado(a) para a Iniciação Científica — ${projeto.numero || "UNIEGO"}`,
         corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:560px">
-          <p>Olá${a.nome ? `, <b>${a.nome}</b>` : ""}!</p>
-          <p>Você foi indicado(a) por <b>${projeto.orientador?.nome || "sua orientação"}</b> como
+          <p>Olá${a.nome ? `, <b>${h(a.nome)}</b>` : ""}!</p>
+          <p>Você foi indicado(a) por <b>${h(projeto.orientador?.nome || "sua orientação")}</b> como
             ${a.bolsista ? "<b>bolsista</b>" : "aluno(a) voluntário(a)"} no projeto:</p>
-          <p style="background:#eef3f5;border-radius:10px;padding:12px 16px"><b>${projeto.titulo || ""}</b><br>
-            ${projeto.numero || ""} · Centro Universitário Evangélico de Goianésia — UNIEGO</p>
-          <p><b>Próximo passo:</b> entre no ARCHÉ com este e-mail (${a.email}) e crie o seu usuário.
+          <p style="background:#eef3f5;border-radius:10px;padding:12px 16px"><b>${h(projeto.titulo || "")}</b><br>
+            ${h(projeto.numero || "")} · Centro Universitário Evangélico de Goianésia — UNIEGO</p>
+          <p><b>Próximo passo:</b> entre no ARCHÉ com este e-mail (${h(a.email)}) e crie o seu usuário.
             Na guia <b>Projetos</b> você acompanha os projetos em que está vinculado(a); na guia
             <b>Bolsa</b> preenche o cadastro que a PROPPEX usa para efetivar o pagamento.</p>
           ${a.bolsista ? `<p style="background:#fff7e6;border-radius:10px;padding:12px 16px">
@@ -11530,7 +11691,13 @@ async function gravarCadastroDoAluno(u, b, res) {
     let tocados = 0;
     for (let i = 0; i < projetos.length; i++) {
       const p = projetos[i];
-      const idx = (p.alunos || []).findIndex((a) => a.email && String(a.email).toLowerCase() === eu);
+      /* E-MAIL OU CPF, como `papelNoProjeto` (revisão de set/2026): o aluno
+         que vê o projeto pelo CPF — depois de a gestão trocar o e-mail da
+         indicação — recebia 403 ao editar o próprio cadastro, porque só o
+         e-mail casava aqui. As duas funções precisam responder igual. */
+      const meuCpf = normalizarCpf(u.cpf || "");
+      const idx = (p.alunos || []).findIndex((a) => (a.email && String(a.email).toLowerCase() === eu)
+        || (meuCpf && normalizarCpf(a.cpf) === meuCpf));
       if (idx < 0) continue;
       const alunos = p.alunos.slice();
       alunos[idx] = aplicarCadastroDoAluno(alunos[idx], b, cpf);
@@ -11586,6 +11753,12 @@ app.post("/api/ic/:id/meus-dados", async (req, res) => {
  * Substituição. Em qualquer caso a correção fica no histórico: o que mudou
  * a chave de uma conta precisa ser explicável depois.
  */
+/* Freio do reenvio (revisão adversarial, set/2026): "Reenviar convite" não
+   grava nada e não tinha limite — era um relé de e-mail institucional para um
+   endereço arbitrário, à vontade. Um reenvio a cada 10 min por projeto+e-mail
+   basta: spam se resolve num clique, não em dez. */
+const REENVIOS_CONVITE = new Map();   // `${projetoId}|${email}` → timestamp
+const PAUSA_REENVIO_MS = 10 * 60 * 1000;
 app.post(["/api/ic/:id/indicacao", "/api/ic/:id/aluno-email"], async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
@@ -11612,6 +11785,14 @@ app.post(["/api/ic/:id/indicacao", "/api/ic/:id/aluno-email"], async (req, res) 
     if (j < 0) return { erro: [400, "Não encontrei esse aluno na indicação."], gravar: false };
     const antes = alunos[j];
     const entrou = icBolsistaEntrou(antes);
+    /* SÓ EM PROJETO EM EXECUÇÃO — ou em ciclo com regularização aberta
+       (revisão adversarial, set/2026): no projeto concluído de 2024, cujo
+       aluno foi transcrito só com o nome, "corrigir" o e-mail mandava o
+       convite de indicação a um endereço qualquer e o titular dele virava
+       aluno do projeto — e passava a receber o CERTIFICADO daquele bolsista. */
+    const regularizando = !!prazosRelatorios(p)?.regularizacao;
+    if (p.status !== "aprovado" && !regularizando)
+      return { erro: [400, "Este projeto não está em execução — a indicação não se corrige nem se reconvida."], gravar: false };
 
     /* REENVIAR O CONVITE (pedido do dono, ago/2026: "a notificação não chega
        p aluno"): nem todo convite que não chega foi para o endereço errado —
@@ -11625,8 +11806,12 @@ app.post(["/api/ic/:id/indicacao", "/api/ic/:id/aluno-email"], async (req, res) 
       if (!antes.email)
         return { erro: [400, `${antes.nome || "Este aluno"} está sem e-mail na indicação: `
           + "informe o endereço antes de enviar o convite."], gravar: false };
-      if (!["aprovado", "concluido"].includes(p.status))
-        return { erro: [400, "O convite sai depois que o projeto é aprovado."], gravar: false };
+      const chaveReenvio = `${p.id}|${String(antes.email).toLowerCase()}`;
+      const ultimo = REENVIOS_CONVITE.get(chaveReenvio) || 0;
+      if (Date.now() - ultimo < PAUSA_REENVIO_MS)
+        return { erro: [429, "O convite acabou de ser reenviado a esse endereço — espere dez minutos "
+          + "(e peça para conferir o spam)."], gravar: false };
+      REENVIOS_CONVITE.set(chaveReenvio, Date.now());
       return { projeto: p, convidar: [antes], gravar: false, reenviado: true };
     }
 
@@ -11662,7 +11847,7 @@ app.post(["/api/ic/:id/indicacao", "/api/ic/:id/aluno-email"], async (req, res) 
          e-mail para o de alguém já indicado noutro projeto do ciclo passaria
          ao largo da trava que a indicação tem. */
       const outro = projetoQueJaTemOAluno(projetos, { ...antes, ...limpo },
-        { exceto: p.id, edital: p.edital });
+        { exceto: p.id, edital: editalDe(p) });
       if (outro) return { erro: [409, motivoAlunoJaIndicado(limpo, outro)], gravar: false };
     }
 
@@ -11670,6 +11855,17 @@ app.post(["/api/ic/:id/indicacao", "/api/ic/:id/aluno-email"], async (req, res) 
     if (!mudou.length) return { erro: [400, "Nada mudou na indicação."], gravar: false };
 
     alunos[j] = { ...antes, ...limpo };
+    /* A GESTÃO TROCANDO O E-MAIL DE QUEM JÁ ENTROU está trocando de PESSOA
+       (revisão adversarial, set/2026): o registro levava junto CPF, RG,
+       endereço e conta bancária do aluno anterior — e o titular do e-mail
+       novo passava a VER tudo isso (alunosVisiveis devolve o registro inteiro
+       a quem casa por e-mail) e a regravar a conta bancária dele. Os campos
+       que são do aluno saem com o aluno: quem entrar pelo endereço novo
+       preenche os próprios. */
+    if (trocouEmail && entrou) {
+      for (const c of CAMPOS_DO_ALUNO_PROTEGIDOS) alunos[j][c] = "";
+      mudou.push("cadastro do aluno anterior removido");
+    }
     /* O histórico diz O QUE mudou, e o e-mail sai por extenso: é ele que
        muda a chave de uma conta, e num projeto que a PROPPEX audita depois
        "corrigiu a indicação" sozinho não explica nada. */
@@ -11783,7 +11979,7 @@ app.post("/api/ic/:id/substituicao/:sid", async (req, res) => {
          substituição é justamente onde entra um aluno NOVO, e aprová-la sem
          conferir seria o caminho mais curto para a mesma pessoa em dois
          projetos do ciclo. */
-      const outro = projetoQueJaTemOAluno(projetos, pedido.novo, { exceto: p.id, edital: p.edital });
+      const outro = projetoQueJaTemOAluno(projetos, pedido.novo, { exceto: p.id, edital: editalDe(p) });
       if (outro) return { erro: [409, motivoAlunoJaIndicado(pedido.novo, outro)], gravar: false };
       // o casamento espelha o do PEDIDO (e-mail OU nome — achado de ago/2026:
       // exigir os dois deixava o substituído no projeto se ele corrigisse o
@@ -11819,6 +12015,13 @@ app.post("/api/ic/:id/submeter", async (req, res) => {
     if (erros.length) return { erro: [400, erros.join(" ")], gravar: false };
     projetos[i] = anotarProjeto(numerarProjeto(projetos, {
       ...projetos[i], status: "submetido", submetidoEm: new Date().toISOString(),
+      /* O EDITAL SE CARIMBA NA SUBMISSÃO (revisão adversarial, set/2026): o
+         projeto nascia com `edital: ""` e `editalDe` o lia como "o vigente" —
+         o que mudava de resposta no dia em que a PROPPEX lançasse o edital
+         seguinte pelo portal: todo projeto de 2026 passaria a constar no ciclo
+         2027 na classificação, na vitrine e no resultado. O edital de um
+         projeto é o que estava em vigor quando ele foi submetido. */
+      edital: String(projetos[i].edital || "").trim() || EDITAL.numero,
       atualizadoEm: new Date().toISOString(),
     }), { quem: u.email, oQue: "submeteu à avaliação" });
     return { projeto: projetos[i] };
@@ -13388,7 +13591,10 @@ app.post("/api/ic/:id/fomento", async (req, res) => {
      e-mail por bolsista que ainda deve algo, nomeando o que falta.
      Fire-and-forget: e-mail que falha não desfaz a concessão, e o botão da
      guia Bolsistas reenvia. */
-  const pedir = bolsistasSemCadastro(r.projeto);
+  // só em projeto EM EXECUÇÃO: ajustar o fomento de um projeto de 2024 para
+  // corrigir o registro não pode mandar "complete o cadastro" a quem terminou
+  // a bolsa há dois anos (revisão de set/2026 — a mesma régua da chamada)
+  const pedir = r.projeto.status === "aprovado" ? bolsistasSemCadastro(r.projeto) : [];
   if (pedir.length) {
     pedirDadosBancariosIC(r.projeto, pedir)
       .catch((e) => console.error("[ic] pedido de cadastro ao bolsista:", e.message));
@@ -14076,8 +14282,21 @@ async function casarProfessoresAP() {
   try {
     const cadastro = await lerCadastroAP();
     const perfis = await carregarPerfis();
+    /* SÓ CONTA QUE PODE SER DE UM PROFESSOR (revisão adversarial, set/2026):
+       todo cadastro novo entra aprovado, e o nome do perfil é digitado pela
+       própria pessoa — qualquer conta com o nome (ou a matrícula) de uma
+       professora da relação seria adotada. Ficam de fora as contas
+       encerradas pela PROPPEX e as funções que não lecionam (aluno, bolsista
+       do ICEM, secretaria). Não elimina o risco de alguém se declarar
+       professor com o nome de outro — por isso a adoção fica MARCADA
+       (`emailOrigem`) e a tela pede conferência. */
+    const usuarios = await carregarUsuarios(storage);
+    const removidos = new Set((usuarios.removidos || []).map((e) => String(e).toLowerCase()));
+    const NAO_LECIONA = new Set(["aluno", "em", "secretaria"]);
     const porMatricula = new Map(), porNome = new Map();
     for (const [mail, p] of Object.entries(perfis)) {
+      if (removidos.has(String(mail).toLowerCase())) continue;
+      if (NAO_LECIONA.has(String(p?.funcao || ""))) continue;
       const m = String(p?.matricula || "").trim();
       if (m) porMatricula.set(m, (porMatricula.get(m) || new Set()).add(mail));
       const n = apChaveDeNome(p?.nome);
@@ -14094,7 +14313,7 @@ async function casarProfessoresAP() {
           if (p.email || !p.nome) continue;
           const achado = unica(porMatricula, String(p.matricula || "").trim())
             || unica(porNome, apChaveDeNome(p.nome));
-          if (achado) { p.email = achado; casados++; }
+          if (achado) { p.email = achado; p.emailOrigem = "casamento"; casados++; }
         }
       }
     }
@@ -14232,6 +14451,18 @@ app.post("/api/praticas", async (req, res) => {
            prática a régua não muda: quem manda é o cadastro, e o registro
            retroativo é a exceção. */
         const ehCE = apTipoDe(b.tipo).codigo === "extensao";
+        /* A CE sem cadastro é de quem LECIONA (revisão adversarial, set/2026):
+           liberar a CE da exigência de cadastro deixava qualquer conta
+           aprovada — um estudante, inclusive — registrar "extensão curricular"
+           em qualquer curso e cair na fila da coordenação daquele curso, com
+           protocolo EC e e-mail de "relatório enviado". A função é
+           autodeclarada, então isto não é porta blindada; mas fecha a que
+           estava escancarada, e o relatório continua passando pela validação. */
+        const NAO_RELATA_CE = new Set(["aluno", "em", "secretaria"]);
+        if (ehCE && !quem.gestao && !minhasEC.length && NAO_RELATA_CE.has(String(perfil.funcao || ""))) {
+          return { erro: [403, "O relatório de extensão curricular é do professor da disciplina. "
+            + "Se você leciona, declare a função no seu perfil."], gravar: false };
+        }
         if (!minhas.length && !quem.gestao && !retroativo && !ehCE) {
           return { erro: [403, `Você ainda não está no cadastro de ${semestre}. `
             + "A coordenação do curso inclui professores e disciplinas na guia "
@@ -14259,8 +14490,10 @@ app.post("/api/praticas", async (req, res) => {
              registra também as disciplinas que curricularizam extensão,
              comparar com a lista das aulas práticas marcaria como "à mão"
              justamente a que veio do cadastro. */
+          // disciplina E curso: a "Agressão e Defesa" de Enfermagem registrada
+          // em Medicina Veterinária não é a do cadastro (revisão de set/2026)
           foraDoCadastro: !(ehCE ? minhasEC : minhas)
-            .some((d) => d.disciplina === String(b.disciplina || "").trim()),
+            .some((d) => d.disciplina === String(b.disciplina || "").trim() && d.curso === cursoNovo),
           professor: { email: u.email, nome: perfil.nome || u.nome || "" },
           criadoPor: u.email,
         } });
@@ -14544,6 +14777,28 @@ app.delete("/api/praticas/:id", async (req, res) => {
    DENOMINADOR do painel: sem a lista, "disciplina sem relatório" não
    existe, e o dashboard vira uma contagem sem régua.
    ---------------------------------------------------------------------- */
+/* A FILA DO CADASTRO (revisão adversarial, set/2026): as duas rotas faziam
+   ler → mutar → gravar sem fila, e a coordenação de Enfermagem e a de Agronomia
+   salvando o cadastro no mesmo segundo — início de semestre — liam o mesmo
+   estado e a segunda gravação devolvia o cadastro SEM o curso da primeira.
+   `fn` recebe o cadastro já lido e devolve `{ gravar }`; a fila grava normalizado. */
+let filaCadastroAP = Promise.resolve();
+function comCadastroAP(fn) {
+  const proxima = filaCadastroAP.then(async () => {
+    const cadastro = await lerCadastroAP();
+    const r = await fn(cadastro);
+    if (r?.gravar !== false) {
+      const limpo = normalizarCadastroAP(cadastro);
+      await storage.set(AP_CADASTRO_KEY, JSON.stringify(limpo));
+      await storage.flush?.();
+      return { ...r, limpo };
+    }
+    return r;
+  });
+  filaCadastroAP = proxima.catch(() => {});
+  return proxima;
+}
+
 app.post("/api/praticas/cadastro", async (req, res) => {
   try {
     const u = await sessaoAP(req, res);
@@ -14553,15 +14808,17 @@ app.post("/api/praticas/cadastro", async (req, res) => {
     const semestre = String(req.body?.semestre || "");
     const curso = String(req.body?.curso || "");
     if (!/^\d{4}\/[12]$/.test(semestre)) return res.status(400).json({ error: "Informe o semestre." });
+    // curso fora do catálogo devolvia `ok:true` sem gravar nada — a
+    // normalização o descartava em silêncio (revisão de set/2026)
+    if (!cursoDe(curso)) return res.status(400).json({ error: "Curso desconhecido." });
     if (!apCoordenaCurso(quem, curso))
       return res.status(403).json({ error: "Você não coordena este curso." });
-    const cadastro = await lerCadastroAP();
-    cadastro[semestre] = cadastro[semestre] || {};
-    cadastro[semestre][curso] = { professores: Array.isArray(req.body?.professores) ? req.body.professores : [] };
-    const limpo = normalizarCadastroAP(cadastro);
-    await storage.set(AP_CADASTRO_KEY, JSON.stringify(limpo));
-    await storage.flush?.();
-    res.json({ ok: true, cadastro: recorteDoCadastroAP(limpo, quem) });
+    const r = await comCadastroAP((cadastro) => {
+      cadastro[semestre] = cadastro[semestre] || {};
+      cadastro[semestre][curso] = { professores: Array.isArray(req.body?.professores) ? req.body.professores : [] };
+      return {};
+    });
+    res.json({ ok: true, cadastro: recorteDoCadastroAP(r.limpo, quem) });
   } catch (e) {
     console.error("Erro ao gravar o cadastro de aulas práticas:", e);
     res.status(500).json({ error: "Não foi possível gravar o cadastro." });
@@ -14580,29 +14837,30 @@ app.post("/api/praticas/cadastro/copiar", async (req, res) => {
     const destino = String(req.body?.semestre || "");
     const curso = String(req.body?.curso || "");
     if (!/^\d{4}\/[12]$/.test(destino)) return res.status(400).json({ error: "Informe o semestre." });
+    if (!cursoDe(curso)) return res.status(400).json({ error: "Curso desconhecido." });
     if (!apCoordenaCurso(quem, curso)) return res.status(403).json({ error: "Você não coordena este curso." });
     const origem = String(req.body?.de || "") || semestreAnterior(destino);
-    const cadastro = await lerCadastroAP();
-    const antes = cadastro[origem]?.[curso]?.professores || [];
-    if (!antes.length)
-      return res.status(404).json({ error: `Não há cadastro de ${origem} neste curso para copiar.` });
-    cadastro[destino] = cadastro[destino] || {};
-    /* Não sobrescreve quem já foi incluído no semestre novo. A chave é a MESMA
-       do cadastro — e-mail quando há, senão o nome (ago/2026): com a chave só
-       de e-mail, UMA linha sem endereço no destino tinha chave "" e barrava
-       TODAS as sem endereço da origem, que hoje é a maioria de uma relação
-       recém-recebida. */
-    const chave = (p) => String(p.email || "").toLowerCase() || `nome:${apChaveDeNome(p.nome)}`;
-    const jaTem = new Set((cadastro[destino][curso]?.professores || []).map(chave));
-    cadastro[destino][curso] = { professores: [
-      ...(cadastro[destino][curso]?.professores || []),
-      ...antes.filter((p) => !jaTem.has(chave(p))),
-    ] };
-    const limpo = normalizarCadastroAP(cadastro);
-    await storage.set(AP_CADASTRO_KEY, JSON.stringify(limpo));
-    await storage.flush?.();
-    res.json({ ok: true, copiados: antes.length, de: origem,
-      cadastro: recorteDoCadastroAP(limpo, quem) });
+    const r = await comCadastroAP((cadastro) => {
+      const antes = cadastro[origem]?.[curso]?.professores || [];
+      if (!antes.length)
+        return { erro: [404, `Não há cadastro de ${origem} neste curso para copiar.`], gravar: false };
+      cadastro[destino] = cadastro[destino] || {};
+      /* Não sobrescreve quem já foi incluído no semestre novo. A chave é a MESMA
+         do cadastro — e-mail quando há, senão o nome (ago/2026): com a chave só
+         de e-mail, UMA linha sem endereço no destino tinha chave "" e barrava
+         TODAS as sem endereço da origem. (A normalização funde o que sobrar
+         em duplicidade, em vez de descartar.) */
+      const chave = (p) => String(p.email || "").toLowerCase() || `nome:${apChaveDeNome(p.nome)}`;
+      const jaTem = new Set((cadastro[destino][curso]?.professores || []).map(chave));
+      cadastro[destino][curso] = { professores: [
+        ...(cadastro[destino][curso]?.professores || []),
+        ...antes.filter((p) => !jaTem.has(chave(p))),
+      ] };
+      return { copiados: antes.length };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, copiados: r.copiados, de: origem,
+      cadastro: recorteDoCadastroAP(r.limpo, quem) });
   } catch (e) {
     console.error("Erro ao copiar o cadastro:", e);
     res.status(500).json({ error: "Não foi possível copiar." });
@@ -14916,7 +15174,12 @@ async function enviarCobrancaExtensaoAP(p, mensagem = "") {
    registrada de que cobrar. */
 async function varrerCobrancaExtensaoAP() {
   const hoje = hojeLocalISO();
-  if (!apEhPrimeiroDoMes(hoje)) return { enviadas: 0 };
+  /* "A partir do dia 1º", não "só no dia 1º" (revisão adversarial, set/2026):
+     no plano free a instância hiberna, e se ninguém acessar o portal no dia
+     1º nenhum timer dispara — o lembrete do mês inteiro se perdia. A marca já
+     guarda o MÊS por pessoa, então basta deixar a varredura agir em qualquer
+     dia: quem ainda não foi lembrado neste mês recebe na primeira hora em que
+     o servidor estiver de pé. */
   const [todos, cadastro] = await Promise.all([lerPraticas(), lerCadastroAP()]);
   const pendentes = apPendenciasCobrancaEC(todos, cadastro, { hoje });
   if (!pendentes.length) return { enviadas: 0 };
@@ -14953,6 +15216,7 @@ app.get("/api/praticas/:id", async (req, res) => {
   }
 });
 
+const FREIO_CHAMADA_AP = new Map();   // `${email}|ap|ec` → timestamp do último envio
 /** POST /api/praticas/chamada — a cobrança AGORA, além da automática.
     `tipo: "extensao"` cobra os relatórios de curricularização; sem ele, os
     das aulas práticas. É a mesma janela de revisão dos demais chamamentos: a
@@ -14969,13 +15233,23 @@ app.post("/api/praticas/chamada", async (req, res) => {
     const [todos, cadastro] = await Promise.all([lerPraticas(), lerCadastroAP()]);
     const pendentes = (ehCE ? apPendenciasCobrancaEC : apPendenciasCobranca)(
       todos, cadastro, { hoje: hojeLocalISO() })
-      .filter((p) => quem.gestao || quem.cursos.includes(p.curso));
+      // o professor de dois cursos aparece uma vez por curso; a coordenação
+      // enxerga só os cursos dela, e a mesma pessoa não recebe dois e-mails
+      .filter((p) => quem.gestao || (p.cursos || [p.curso]).some((c) => quem.cursos.includes(c)));
     if (req.body?.simular) return res.json({ ok: true, simulacao: true, destinatarios: pendentes });
+    /* Freio da chamada manual (revisão adversarial, set/2026): cada clique
+       mandava um e-mail a cada professor, sem intervalo — dez cliques, dez
+       e-mails a cada um. Um envio por conta a cada 10 minutos, por tipo. */
+    const chaveFreio = `${u.email}|${ehCE ? "ec" : "ap"}`;
+    if (Date.now() - (FREIO_CHAMADA_AP.get(chaveFreio) || 0) < 10 * 60 * 1000)
+      return res.status(429).json({ error: "A chamada acabou de sair — espere dez minutos antes de repetir." });
+    FREIO_CHAMADA_AP.set(chaveFreio, Date.now());
+    const mensagem = String(req.body?.mensagem || "").slice(0, 2000);
     let enviados = 0;
     for (const p of pendentes) {
       const ok = ehCE
-        ? await enviarCobrancaExtensaoAP(p, String(req.body?.mensagem || ""))
-        : await enviarCobrancaAP(p, String(req.body?.mensagem || ""));
+        ? await enviarCobrancaExtensaoAP(p, mensagem)
+        : await enviarCobrancaAP(p, mensagem);
       if (ok) enviados++;
     }
     res.json({ ok: true, enviados, total: pendentes.length });
@@ -16217,6 +16491,11 @@ app.listen(port, () => {
   // uma corre na sua vez, e o que quebrar fica dito no log.
   (async () => {
     for (const etapa of [
+      carimbarEditalNosProjetos, // ANTES do cadastro de editais: o carimbo é o
+                                 // edital do CÓDIGO (01/2026), sob o qual esses
+                                 // projetos foram submetidos — depois de
+                                 // aplicado o cadastro, EDITAL.numero pode já
+                                 // ser o do ciclo seguinte
       aplicarEditaisNoArranque,  // os editais lançados pelo portal (antes de tudo:
                                  // os lotes e as migrações leem EDITAL.numero)
       aplicarInstituicaoNoArranque, // o catálogo de cursos editado pelo gestor
