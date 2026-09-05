@@ -2531,7 +2531,12 @@ function travarEscritaVerComo(prefixo) {
     next();
   });
 }
-["/api/extensao", "/api/atas", "/api/espacos", "/api/monitoria", "/api/praticas"]
+/* /api/editais entrou na lista na revisão de ago/2026: o componente de
+   lançar edital mora DENTRO das SPAs que têm "Ver como" (IC, Extensão,
+   Eventos, Monitoria, AP), e o `?como=` que a tela instala no fetch chegava
+   à rota — que autorizava pelo usuário REAL e gravava. Provado: um POST com
+   `?como=` criou o edital 03/2026 em nome do gestor. */
+["/api/extensao", "/api/atas", "/api/espacos", "/api/monitoria", "/api/praticas", "/api/editais"]
   .forEach(travarEscritaVerComo);
 
 /**
