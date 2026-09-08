@@ -2318,67 +2318,24 @@ async function renderCertificados() {
         sistema encontra a sua participação.</div></div>`}`;
 }
 
-/* Só o gestor geral: a assinatura digitalizada que sai NO CERTIFICADO. Fica
-   guardada no sistema (não no repositório) — em produção o disco é efêmero,
-   e trocar de reitor não pode depender de um deploy. */
+/* As ASSINATURAS INSTITUCIONAIS (pró-reitor, reitor, pró-reitora acadêmica,
+   coordenações) deixaram de se enviar por aqui (set/2026: o administrativo se
+   concentra no Seu Curso e no banco de assinaturas). O card que vivia nesta
+   guia era uma cópia do bloco "Institucionais" de /assinaturas/, que chama a
+   MESMA rota — duas telas para a mesma imagem acabam divergindo. Fica o
+   atalho, no lugar em que a gestão procurava. */
 function renderAssinaturas() {
   const a = CERTS?.assinaturas || {};
-  const cartao = ({ chave: quem, rotulo, nome, onde }) => {
-    const tem = a[quem];
-    return `<div class="linha">
-      <div class="txt">
-        <div class="p1">${esc(rotulo)}${nome ? ` — ${esc(nome)}` : ""}${onde ? ` <span class="p2">· ${esc(onde)}</span>` : ""}</div>
-        <div class="p2">${tem
-          ? `enviada em ${fmtDH(tem.em)}${tem.arquivo ? ` · ${esc(tem.arquivo)}` : ""}`
-          : "nenhuma imagem enviada — o certificado sai com a linha em branco"}</div>
-      </div>
-      ${tem ? `<img src="/api/ic/assinatura/${quem}?t=${Date.now()}" alt="assinatura"
-        style="height:38px;max-width:150px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px">` : ""}
-      <label class="bt bt-sec" style="cursor:pointer;margin:0">
-        ${tem ? "Trocar" : "Enviar"} imagem
-        <input type="file" accept="image/png,image/jpeg" style="display:none"
-          onchange="enviarAssinatura('${quem}', this)">
-      </label>
-      ${tem ? `<button class="bt bt-err" onclick="removerAssinatura('${quem}')">✕</button>` : ""}
-    </div>`;
-  };
+  const lista = CERTS?.quemAssina || [];
+  const com = lista.filter((q) => a[q.chave]).length;
   return `<div class="card">
     <div class="card-t">Assinaturas do certificado</div>
-    <div class="card-s">A imagem entra sobre a linha nos certificados e, desde ago/2026, na
-      <b>proposta APROVADA da Extensão</b> (pedido do dono: ao aprovar, as assinaturas do banco
-      são inseridas no PDF); relatório e resultado continuam saindo para assinatura à mão. Use
-      <b>PNG com fundo transparente</b> e traço escuro (JPG funciona, mas o retângulo branco
-      aparece). Até 2 MB.
-      <br>Este card é o <b>banco de assinaturas institucional</b> do portal: quem assina
-      acompanha o órgão que concebe o programa — a <b>IC</b> é da PROPPEX; a <b>monitoria</b> é
-      ação de ensino, sai no timbre da <b>PROAC</b> e é a Pró-Reitora Acadêmica quem assina, ao
-      lado do reitor. Sem imagem, sai a linha em branco e nada quebra.</div>
-    ${(CERTS?.quemAssina || []).map(cartao).join("")}
+    <div class="card-s">${com} de ${lista.length} assinatura(s) institucional(is) no banco —
+      ${lista.filter((q) => !a[q.chave]).map((q) => esc(q.rotulo)).join(", ") || "todas enviadas"}
+      ${com < lista.length ? "sem imagem (o documento sai com a linha em branco)." : "."}
+      Enviar, trocar e remover é no <a href="/assinaturas/"><b>banco de assinaturas</b></a>, a
+      página única das assinaturas do portal.</div>
   </div>`;
-}
-
-async function enviarAssinatura(quem, input) {
-  const file = input.files?.[0];
-  if (!file) return;
-  const fd = new FormData();
-  fd.append("file", file); fd.append("quem", quem);
-  try {
-    const r = await fetch("/api/ic/assinatura", { method: "POST", body: fd });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || `Falha (${r.status})`);
-    await renderCertificados();
-    aviso("Assinatura enviada. Baixe um certificado para conferir como ficou.");
-  } catch (e) { aviso(e.message, "err"); }
-  input.value = "";
-}
-
-async function removerAssinatura(quem) {
-  if (!confirm("Remover esta assinatura? O certificado volta a sair com a linha em branco.")) return;
-  try {
-    await api(`/api/ic/assinatura/${quem}`, { method: "DELETE" });
-    await renderCertificados();
-    aviso("Assinatura removida.");
-  } catch (e) { aviso(e.message, "err"); }
 }
 
 /* Só a gestão: avisar por e-mail, ciclo a ciclo, que os certificados saíram. */

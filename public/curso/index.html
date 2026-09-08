@@ -121,6 +121,10 @@ async function carregar(){
     return;
   }
   D=j;
+  // #relatorios, #cursos, #reitoria, #acessos: os atalhos dos outros módulos
+  // caem direto na guia institucional que nomeiam
+  const alvo=(location.hash||"").replace("#","");
+  if(!SEL && D.gestorGeral && ["relatorios","cursos","reitoria","acessos"].includes(alvo)){ SEL=INST; VIEW=alvo; }
   if(!SEL) SEL = D.gestorGeral ? INST : (D.meus[0]||"");
   if(SEL!==INST && !D.meus.includes(SEL)) SEL = D.meus[0]||"";
   if(SEL!==INST) COMP=JSON.parse(JSON.stringify(D.cursos[SEL]||{}));
@@ -149,7 +153,8 @@ function trocarSelecao(v){
 /* o menu da lateral obedece à seleção: institucional tem as três entradas da
    gestão; um curso tem os dois painéis dele */
 function itensDoMenu(){
-  if(SEL===INST) return [["reitoria","🏛 Reitoria"],["cursos","📚 Cursos"],["acessos","👥 Usuários e acessos"]];
+  if(SEL===INST) return [["reitoria","🏛 Reitoria"],["cursos","📚 Cursos"],["acessos","👥 Usuários e acessos"],
+    ["relatorios","📄 Acessos aos relatórios"]];
   return [["dados","📌 Dados do curso"],["membros","🧑‍🏫 NDE e Colegiado"]];
 }
 
@@ -165,6 +170,7 @@ function render(){
     VIEW==="reitoria"?vReitoria() :
     VIEW==="cursos"?vCursos() :
     VIEW==="acessos"?vAcessos() :
+    VIEW==="relatorios"?vRelatorios() :
     VIEW==="membros"?vMembros() : vDados();
 }
 
@@ -173,7 +179,7 @@ function pessoaCampos(chave,rotulo,trava){
   const p=COMP[chave]||{};
   return `<div class="card">
     <div class="card-t">${esc(rotulo)}</div>
-    ${trava?'<div class="card-s">Quem nomeia o coordenador do curso é o gestor geral — a coordenação edita o restante do painel.</div>':""}
+    ${trava?'<div class="card-s">Quem nomeia o coordenador do curso é o gestor geral (e a PROAC, pela coordenação do módulo Atividades Curriculares) — a coordenação edita o restante do painel.</div>':""}
     <div class="duo">
       <div><label>Nome completo</label>
         <input id="${chave}-nome" value="${esc(p.nome||"")}" ${trava?"disabled":""} placeholder="Nome como consta nos documentos"></div>
@@ -189,8 +195,9 @@ function vDados(){
     ? `<div class="muted" style="font-size:12.3px">Última gravação: ${new Date(COMP.atualizadoEm).toLocaleString("pt-BR")}${COMP.por?` por ${esc(COMP.por)}`:""}</div>` : "";
   return `<div class="banner ba-info"><b>${esc(nomeCurso(SEL))}</b> — o retrato institucional do curso.
       A dupla coordenador + pedagógico passa, no mesmo ato da gravação, a validar as aulas práticas e a
-      alcançar a monitoria do curso.</div>
-    ${pessoaCampos("coordenador","Coordenador(a) do curso",!D.gestorGeral)}
+      extensão curricular do ARCHÉ AC, a alcançar a monitoria do curso e a Avaliação Institucional dele.
+      É aqui que a coordenação se nomeia — a guia que existia no ARCHÉ AC aponta para cá.</div>
+    ${pessoaCampos("coordenador","Coordenador(a) do curso",!D.editaTodos)}
     ${pessoaCampos("pedagogico","Coordenador(a) pedagógico(a)",false)}
     <div class="card">
       <div id="p-msg"></div>
@@ -382,13 +389,14 @@ function vCursos(){
       e projetos gravados com ele: <b>desativar</b> o tira dos formulários novos e o histórico
       continua legível.</div>
     <div id="c-msg"></div>
-    <table class="tabela"><tr><th>Curso</th><th>Sigla</th><th>Coordenação</th><th>Situação</th><th></th></tr>
+    <table class="tabela"><tr><th>Curso</th><th>Sigla</th><th>Coordenação</th><th>Pedagógico(a)</th><th>Situação</th><th></th></tr>
       ${D.catalogo.map(c=>{
         const comp=D.cursos[c.slug]||{};
         return `<tr>
         <td>${esc(c.nome)}${c.extra?' <span class="muted" style="font-size:11.5px">(incluído pela gestão)</span>':""}</td>
         <td>${esc(c.sigla||"")}</td>
         <td class="muted" style="font-size:12.3px">${esc(comp.coordenador?.nome||"—")}</td>
+        <td class="muted" style="font-size:12.3px">${comp.pedagogico?.nome?esc(comp.pedagogico.nome):'<span style="color:var(--warn)">sem pedagógico</span>'}</td>
         <td><span class="selo ${c.ativo?"s-on":"s-off"}">${c.ativo?"ativo":"desativado"}</span></td>
         <td style="white-space:nowrap">
           <button class="bt bt-xs" onclick="trocarSelecao('${esc(c.slug)}')">abrir painel</button>
@@ -444,7 +452,9 @@ function vAcessos(){
     <div class="card-t">Usuários e acessos</div>
     <div class="card-s">A gestão de contas, papéis e funções do portal — concentrada aqui. Os painéis
       completos abrem na página de Gestão de acessos (o endereço de sempre); os atos rápidos da
-      gestão estão na guia <b>Reitoria</b>.</div>
+      gestão estão na guia <b>Reitoria</b>, e quem abre cada guia de relatório, em
+      <b>Acessos aos relatórios</b>. A coordenação de cada curso se nomeia no painel do curso
+      (guia <b>Cursos</b> → abrir painel).</div>
     <div class="atalhos">
       <a class="atalho" href="/usuarios/"><b>👥 Usuários cadastrados</b><br>
         <span class="muted">Quem está no portal, função na instituição, curso, setores que usa —
@@ -457,9 +467,98 @@ function vAcessos(){
         desligar.</span></a>
       <a class="atalho" href="/assinaturas/"><b>🖋 Banco de assinaturas</b><br>
         <span class="muted">As assinaturas digitalizadas, vinculadas às pessoas, com as
-        duplicidades apontadas.</span></a>
+        duplicidades apontadas — e as institucionais (pró-reitor, reitor, pró-reitora acadêmica,
+        coordenações), que saem nos certificados e nos resultados.</span></a>
     </div>
   </div>`;
+}
+
+/* ================ institucional · Acessos aos relatórios ================
+   Veio da guia "Acessos às guias" do ARCHÉ RE (pedido do dono, set/2026:
+   concentrar aqui o que é administrativo). Duas dimensões — QUAIS guias e DE
+   QUE CURSOS —, e o painel mostra ao lado o que a pessoa JÁ alcança pelas
+   regras automáticas (coordenação de módulo e de curso), senão o gestor
+   concederia de novo o que ela tem, ou tiraria daqui um acesso que não vem
+   daqui e continuaria valendo. As rotas continuam as do módulo de Relatórios. */
+let REL=null, REL_BUSCA="", REL_EDIT=null;
+function vRelatorios(){
+  if(!REL){
+    fetch("/api/relatorios/acessos").then(r=>r.json().then(j=>({ok:r.ok,j})))
+      .then(({ok,j})=>{ REL = ok ? j : {erro:j.error||"Falha"}; if(VIEW==="relatorios") render(); })
+      .catch(e=>{ REL={erro:e.message}; if(VIEW==="relatorios") render(); });
+    return '<div class="card muted">Carregando os acessos…</div>';
+  }
+  if(REL.erro) return `<div class="banner ba-err">${esc(REL.erro)}</div>`;
+  const b=REL_BUSCA.trim().toLowerCase();
+  // sem busca, mostra quem TEM algum acesso: a lista inteira são todas as
+  // contas do portal, e rolar por elas para achar uma pessoa é o caminho longo
+  const lista=REL.pessoas.filter(p=>(b?`${p.nome} ${p.email}`.toLowerCase().includes(b):p.alcance.length>0));
+  return `<div class="card">
+      <div class="card-t">Quem abre qual guia do Relatório Semestral</div>
+      <div class="card-s">O alcance se soma de três lugares: o <b>gestor geral</b> abre tudo; quem
+        <b>coordena um módulo</b> abre a guia do setor dele, sem recorte; quem <b>coordena um curso</b>
+        abre todas as guias, mas só o que é do curso dele. O que faltar depois disso se concede aqui —
+        é o caso de quem cuida do PPC e precisa das guias de ensino sem coordenar módulo nenhum.
+        Conceder aqui não dá acesso ao SETOR, só ao relatório dele.</div>
+      <div style="margin-top:12px"><label>Procurar pessoa</label>
+        <input value="${esc(REL_BUSCA)}" placeholder="nome ou e-mail — vazio mostra só quem já tem acesso"
+          oninput="REL_BUSCA=this.value;render()"></div>
+    </div>
+    ${lista.length?lista.map(cartaoRel).join("")
+      :`<div class="card muted">${b?"Ninguém com esse nome.":"Ninguém com acesso além do gestor geral."}</div>`}`;
+}
+function cartaoRel(p){
+  const editando=REL_EDIT===p.email;
+  const marcado=new Set((p.concedido?.setores)||[]);
+  const cursosM=new Set((p.concedido?.cursos)||[]);
+  const rotCursos=(cs)=>(cs===null?"todos os cursos":cs.map(c=>(REL.cursos.find(x=>x.slug===c)?.nome||c)).join(", "));
+  return `<div class="card">
+    <div class="card-t">${esc(p.nome||p.email)} <span class="muted" style="font-weight:400;font-size:12.5px">· ${esc(p.email)}</span></div>
+    <div class="card-s">
+      ${p.papel==="gestor"?"<b>Gestor geral</b> — abre todas as guias, sem recorte. ":""}
+      ${p.modulos?.length?`Coordena o(s) módulo(s) <b>${esc(p.modulos.join(", "))}</b>. `:""}
+      ${p.cursosCoordenados?.length?`Coordena o(s) curso(s) <b>${esc(p.cursosCoordenados.map(c=>c.nome).join(", "))}</b>. `:""}
+      ${!p.papel||(p.papel!=="gestor"&&!p.modulos?.length&&!p.cursosCoordenados?.length)?"Sem alcance automático — o que tiver vem desta tela. ":""}
+    </div>
+    <div style="margin:2px 0 12px">
+      ${p.alcance.length?p.alcance.map(a=>`<span class="selo s-on" style="margin:0 6px 6px 0;display:inline-block">
+        ${esc(a.nome)} <span style="opacity:.75">· ${esc(rotCursos(a.cursos))}</span></span>`).join("")
+        :'<span class="muted">Nenhuma guia.</span>'}
+    </div>
+    ${editando?formRel(p,marcado,cursosM):`<div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="bt" onclick="REL_EDIT='${esc(p.email)}';render()">${p.concedido?"Alterar o que foi concedido":"Conceder guias"}</button>
+      ${p.concedido?`<button class="bt bt-err" onclick="gravarRel('${esc(p.email)}',[],[])">Retirar a concessão</button>`:""}
+    </div>`}
+  </div>`;
+}
+function formRel(p,marcado,cursosM){
+  const caixa=(attr,v,on,txt)=>`<label style="display:inline-flex;gap:7px;align-items:center;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--ink);margin:0">
+    <input type="checkbox" style="width:17px;height:17px;margin:0" ${attr}="${esc(v)}" ${on?"checked":""}> ${esc(txt)}</label>`;
+  return `<div style="border-top:1px solid var(--line);padding-top:12px">
+    <label>Guias concedidas</label>
+    <div style="display:flex;flex-wrap:wrap;gap:10px 18px;margin-bottom:14px">
+      ${REL.setores.map(s=>caixa("data-set",s.chave,marcado.has(s.chave),s.nome)).join("")}</div>
+    <label>Recorte por curso <span class="muted" style="text-transform:none;letter-spacing:0">— nenhum marcado = todos os cursos</span></label>
+    <div style="display:flex;flex-wrap:wrap;gap:10px 18px;margin-bottom:14px">
+      ${REL.cursos.map(c=>caixa("data-curso",c.slug,cursosM.has(c.slug),c.nome)).join("")}</div>
+    <div style="display:flex;gap:8px">
+      <button class="bt bt-pri" onclick="salvarRel('${esc(p.email)}')">Salvar</button>
+      <button class="bt" onclick="REL_EDIT=null;render()">Cancelar</button>
+    </div>
+  </div>`;
+}
+function salvarRel(email){
+  const setores=[...document.querySelectorAll("[data-set]")].filter(i=>i.checked).map(i=>i.dataset.set);
+  const cursos=[...document.querySelectorAll("[data-curso]")].filter(i=>i.checked).map(i=>i.dataset.curso);
+  gravarRel(email,setores,cursos);
+}
+async function gravarRel(email,setores,cursos){
+  if(!setores.length && !confirm("Retirar a concessão desta pessoa? Ela mantém o que vier da coordenação de módulo ou de curso.")) return;
+  const r=await fetch("/api/relatorios/acessos",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({email,setores,cursos})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ alert(j.error||"Não foi possível gravar."); return; }
+  REL_EDIT=null; REL=null; render();
 }
 
 carregar();

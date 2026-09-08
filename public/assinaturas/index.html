@@ -237,16 +237,30 @@ async function removerDe(email){
 function cardInstitucionais(){
   return `<div class="card">
     <div class="card-t">Assinaturas institucionais</div>
-    <div class="card-s">As da reitoria e das coordenações, que entram nos certificados e na proposta
-      aprovada da Extensão. Só o gestor geral as troca — trocar de reitor não pode exigir um deploy.</div>
+    <div class="card-s">As da reitoria e das coordenações, que entram nos certificados, nos resultados
+      dos editais e na proposta aprovada da Extensão. Só o gestor geral as troca — trocar de reitor não
+      pode exigir um deploy. Este é o lugar único delas desde set/2026 (o card que existia na guia
+      Certificados do ARCHÉ IC aponta para cá). Use <b>PNG com fundo transparente</b> e traço escuro;
+      até 2 MB.</div>
     <div id="i-msg"></div>
     ${D.institucionais.map(a=>`<div class="linha">
       <div class="quem"><div class="nm">${esc(a.rotulo)}</div>
         <div class="dt">${a.tem?`enviada${a.em?` em ${fmt(a.em)}`:""}`:"sem imagem — sai a linha em branco"}</div></div>
+      ${a.tem?`<img src="/api/ic/assinatura/${esc(a.chave)}?t=${Date.now()}" alt="assinatura"
+        style="height:34px;max-width:140px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px">`:""}
       ${a.tem?'<span class="selo s-titular">✓ no banco</span>':'<span class="selo s-sem">sem imagem</span>'}
       <button class="bt bt-xs" onclick="enviarInstitucional('${esc(a.chave)}')">⬆ ${a.tem?"Substituir":"Enviar"}</button>
+      ${a.tem?`<button class="bt bt-xs bt-err" title="Remover" onclick="removerInstitucional('${esc(a.chave)}')">✕</button>`:""}
     </div>`).join("")}
   </div>`;
+}
+async function removerInstitucional(quem){
+  if(!confirm("Remover esta assinatura institucional? Os documentos voltam a sair com a linha em branco.")) return;
+  const r=await fetch("/api/ic/assinatura/"+encodeURIComponent(quem),{method:"DELETE"});
+  const j=await r.json().catch(()=>({}));
+  $("i-msg").innerHTML=r.ok?`<div class="banner ba-ok">Assinatura removida.</div>`
+    :`<div class="banner ba-err">${esc(j.error||"Não foi possível remover.")}</div>`;
+  if(r.ok) await carregar();
 }
 
 function enviarInstitucional(quem){

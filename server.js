@@ -9223,6 +9223,33 @@ async function migrarCoordenadoresApParaInstituicao() {
   console.log(`[curso] coordenadores do AP migrados à composição: ${pessoas} pessoa(s) em ${cursosTocados} curso(s)`);
 }
 
+/* A "coordenação pedagógica institucional" do ARCHÉ AC (`equipe.pedagogico`,
+   quem vê e valida TODOS os cursos) perdeu a tela quando a guia Coordenação
+   saiu do módulo (set/2026). Ela sempre foi o mesmo alcance da coordenação do
+   módulo `praticas` — e é assim que passa a existir: quem estava na lista
+   ganha a coordenação do módulo em /usuarios/ (o mesmo ato do botão
+   "coordenar"), e a lista se esvazia. Sem isso, um nome ali continuaria
+   valendo sem ninguém ter onde o ver ou tirar. Marca única. */
+async function migrarPedagogicoInstitucionalAP() {
+  const MARCA = "sys-ap-pedagogico-institucional-v1";
+  if (await storage.get(MARCA)) return;
+  const equipe = await lerEquipeAP();
+  const lista = (equipe.pedagogico || []).map((p) => String(p?.email || "").trim().toLowerCase()).filter(Boolean);
+  if (lista.length) {
+    const u = await carregarUsuarios(storage);
+    for (const e of lista) {
+      if (u.gestores.includes(e)) continue;
+      u.coordenadores[e] = [...new Set([...(u.coordenadores[e] || []), "praticas"])];
+    }
+    await salvarUsuarios(storage, u);
+    equipe.pedagogico = [];
+    await storage.set(AP_EQUIPE_KEY, JSON.stringify(normalizarEquipeAP(equipe)));
+    console.log(`[curso] pedagógico institucional do AP virou coordenação do módulo praticas: ${lista.join(", ")}`);
+  }
+  await storage.set(MARCA, JSON.stringify({ em: new Date().toISOString(), migrados: lista }));
+  await storage.flush?.();
+}
+
 /* ======================================================================
    LANÇAR EDITAL PELO PORTAL (pedido do dono, ago/2026: "todos os editais
    lançamos por aqui; no sistema não tem opção de incluir novos editais —
@@ -9602,24 +9629,32 @@ app.get("/api/cursos", (req, res) => {
   res.json({ cursos: cursosAtivos().map((c) => ({ slug: c.slug, nome: c.nome, sigla: c.sigla })) });
 });
 
-/** A página /curso/: o gestor geral vê todos; o coordenador, só o(s) dele. */
+/* QUEM NOMEIA A COORDENAÇÃO DOS CURSOS (set/2026): o gestor geral e a
+   coordenação do módulo `praticas` (a PROAC). Até aqui a PROAC nomeava pela
+   guia Coordenação do ARCHÉ AC, que gravava `ap-equipe-v1` sem tocar na
+   composição institucional; a guia saiu de lá e o Seu Curso é o lugar único,
+   então quem podia lá continua podendo aqui. */
+const nomeiaCoordenacoes = (u) => !!u && (u.papel === "gestor" || (u.modulos || []).includes("praticas"));
+
+/** A página /curso/: o gestor geral e a PROAC veem todos; o coordenador, só o(s) dele. */
 app.get("/api/curso", async (req, res) => {
   try {
     const u = await usuarioDe(req, res);
     if (!u) return res.status(401).json({ error: "Faça login." });
     const gestorGeral = u.papel === "gestor";
-    const meus = gestorGeral ? null : await cursosQueCoordenaDe(u.email);
-    if (!gestorGeral && !meus.length) {
+    const editaTodos = nomeiaCoordenacoes(u);
+    const meus = editaTodos ? null : await cursosQueCoordenaDe(u.email);
+    if (!editaTodos && !meus.length) {
       return res.status(403).json({ error: "O painel Seu Curso é da coordenação de curso — "
         + "o gestor geral designa quem coordena cada curso." });
     }
     const inst = await lerInstituicao();
     const CATALOGO = CURSOS.map((c) => ({ slug: c.slug, nome: c.nome, sigla: c.sigla,
       ativo: c.ativo !== false, extra: !!c.extra }));
-    const visiveis = gestorGeral ? CATALOGO.map((c) => c.slug) : meus;
+    const visiveis = editaTodos ? CATALOGO.map((c) => c.slug) : meus;
     const cursos = {};
     for (const slug of visiveis) cursos[slug] = normalizarComposicao(inst.cursos[slug] || {});
-    res.json({ ok: true, gestorGeral, meus: visiveis, catalogo: CATALOGO, cursos,
+    res.json({ ok: true, gestorGeral, editaTodos, meus: visiveis, catalogo: CATALOGO, cursos,
       ...(gestorGeral ? {
         reitoria: inst.reitoria, cargosReitoria: CARGOS_REITORIA, modulos: MODULOS,
       } : {}) });
@@ -9651,17 +9686,18 @@ app.post("/api/curso/:slug", async (req, res) => {
     if (!u) return res.status(401).json({ error: "Faça login." });
     const slug = String(req.params.slug || "").trim();
     if (!CURSOS.some((c) => c.slug === slug)) return res.status(404).json({ error: "Curso desconhecido." });
-    const gestorGeral = u.papel === "gestor";
-    const meus = gestorGeral ? null : await cursosQueCoordenaDe(u.email);
-    if (!gestorGeral && !meus.includes(slug)) {
+    const editaTodos = nomeiaCoordenacoes(u);
+    const meus = editaTodos ? null : await cursosQueCoordenaDe(u.email);
+    if (!editaTodos && !meus.includes(slug)) {
       return res.status(403).json({ error: "Cada coordenação edita só o painel do próprio curso." });
     }
-    /* Quem NOMEIA o coordenador do curso é o gestor geral: sem isso, a
-       coordenação poderia passar o curso adiante sozinha. O pedagógico, o
-       NDE e o Colegiado são manutenção do próprio curso. */
+    /* Quem NOMEIA o coordenador do curso é o gestor geral (e a PROAC, pela
+       coordenação do módulo `praticas`): sem isso, a coordenação poderia
+       passar o curso adiante sozinha. O pedagógico, o NDE e o Colegiado são
+       manutenção do próprio curso. */
     const antes = normalizarComposicao((await lerInstituicao()).cursos[slug] || {});
     const nova = await gravarComposicaoDoCurso(slug, req.body, u.email,
-      { manterCoordenador: gestorGeral ? null : antes.coordenador });
+      { manterCoordenador: editaTodos ? null : antes.coordenador });
     console.log(`[curso] composição de ${slug} gravada por ${u.email}`);
     res.json({ ok: true, curso: slug, composicao: nova });
   } catch (e) {
@@ -15181,22 +15217,13 @@ app.post("/api/praticas/cadastro/copiar", async (req, res) => {
   }
 });
 
-/** Quem coordena o quê — só o gestor geral e a coordenação do módulo. */
-app.post("/api/praticas/equipe", async (req, res) => {
-  try {
-    const u = await sessaoAP(req, res);
-    if (!u) return;
-    if (req.query?.como) return res.status(403).json({ error: "Em modo de visualização não se grava." });
-    if (!gerePraticas(u))
-      return res.status(403).json({ error: "Designar coordenação é da PROAC e da PROPPEX." });
-    const equipe = normalizarEquipeAP(req.body?.equipe || {});
-    await storage.set(AP_EQUIPE_KEY, JSON.stringify(equipe));
-    await storage.flush?.();
-    res.json({ ok: true, equipe });
-  } catch (e) {
-    console.error("Erro ao gravar a equipe das aulas práticas:", e);
-    res.status(500).json({ error: "Não foi possível gravar." });
-  }
+/* A coordenação dos cursos deixou de se gravar por aqui (set/2026): a guia
+   Coordenação do ARCHÉ AC saiu, e quem edita é o Seu Curso — a rota antiga
+   reescrevia `ap-equipe-v1` INTEIRA sem tocar na composição institucional,
+   e as duas fontes divergiam. Uma aba velha que ainda a chame recebe o
+   caminho, não um 404 mudo. */
+app.post("/api/praticas/equipe", (_req, res) => {
+  res.status(410).json({ error: "A coordenação dos cursos passou a ser editada no Seu Curso (/curso/)." });
 });
 
 /** GET /api/praticas/panorama — o dashboard do semestre. */
@@ -16830,6 +16857,7 @@ app.listen(port, () => {
       subirProfessoresAP,        // e as listas de professores, curso a curso
       casarProfessoresAP,        // adota o e-mail de quem entrou só com nome e matrícula
       migrarCoordenadoresApParaInstituicao, // a dupla do AP vira a composição do curso
+      migrarPedagogicoInstitucionalAP,      // e o pedagógico institucional, coordenação do módulo
       porAvisosDaGestaoNoResumo, // os avisos à gestão passam ao resumo das 13h
       // SEMPRE por último, e a cada arranque (achado de ago/2026 — o caso
       // Marlana): as migrações acima podem carimbar CPF em projeto que ainda

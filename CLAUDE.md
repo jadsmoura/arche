@@ -560,6 +560,39 @@ public/
   buscar `/api/cursos`, com a lista embutida como ponto de partida da primeira pintura. A
   COMPOSIÇÃO é retrato institucional: as ATAS continuam com a presença digitada a cada sessão
   (a decisão anterior do dono não muda).
+- **O ADMINISTRATIVO SE CONCENTRA NO SEU CURSO** (pedido do dono, set/2026: a guia Coordenação
+  "que atualmente está dentro do módulo de aulas práticas pode ir para o Seu Curso — concentrar
+  lá todas as edições de cunho administrativo; varra outros itens espalhados pelos setores").
+  Três coisas saíram dos setores e um levantamento ficou registrado:
+  (1) **A guia Coordenação do ARCHÉ AC saiu.** Ela gravava `ap-equipe-v1` INTEIRA e o "Dados do
+  curso" do Seu Curso gravava `sys-instituicao-v1` + `ap-equipe-v1` — a mesma dupla em duas telas,
+  e só uma delas mantinha a composição institucional em dia. No estado, as duas fontes coincidiam
+  (um coordenador e um pedagógico por curso; a lista `pedagogico` institucional vazia), então
+  nada se perdeu: o item da barra do AC virou **atalho** para `/curso/` (`link` em `SECOES`), o
+  `POST /api/praticas/equipe` responde **410** apontando o caminho, e **a PROAC continua podendo
+  nomear**: `nomeiaCoordenacoes` no server — gestor geral OU coordenação do módulo `praticas` —
+  abre no Seu Curso TODOS os cursos e o campo coordenador (`editaTodos` no `GET /api/curso`; a
+  coordenação de curso segue só com o próprio painel e sem o campo coordenador). A **coordenação
+  pedagógica institucional** do AC (quem via todos os cursos) é o mesmo alcance da coordenação do
+  módulo `praticas`, e é assim que passa a existir: `migrarPedagogicoInstitucionalAP` (marca
+  `sys-ap-pedagogico-institucional-v1`) leva quem estivesse na lista para `coordenadores[e]` e a
+  esvazia — `quemNoModulo` continua lendo a lista, por isso ela não pode ficar cheia sem tela.
+  A guia Cursos ganhou a coluna **Pedagógico(a)**, para o gestor ver o quadro inteiro como via no
+  AC, e os atalhos `#relatorios`/`#cursos`/`#reitoria`/`#acessos` caem direto na guia.
+  (2) **"Acessos às guias" saiu do ARCHÉ RE** e virou **Acessos aos relatórios** no Institucional
+  do Seu Curso (`vRelatorios`/`cartaoRel`, mesmas rotas `/api/relatorios/acessos`, só gestor
+  geral); a barra dos Relatórios ficou com o atalho.
+  (3) **O card "Assinaturas do certificado" do ARCHÉ IC virou atalho** ao `/assinaturas/`, que
+  já tinha o bloco Institucionais chamando a MESMA rota (`/api/ic/assinatura`) — duas telas para a
+  mesma imagem acabam divergindo. O card do IC só diz quantas faltam e nomeia quais; o bloco do
+  banco ganhou a miniatura e o **remover** (`removerInstitucional`), que só existiam no IC.
+  **O que FICOU nos setores, de propósito:** o cadastro de **Professores e Disciplinas** do AC (é
+  POR SEMESTRE e é o denominador do painel — configuração operacional, não retrato institucional);
+  os **Editais** de cada setor (o edital é ato do setor, com a numeração do órgão dele; o
+  componente já é um só); o **catálogo de espaços e os bloqueios** do ES (quem os mantém é a
+  responsável pela reserva, coordenação de módulo que não entra no Seu Curso); as assinaturas e a
+  comissão **por ação/evento** (são do documento, não da instituição); e a "Gestão de acessos" da
+  barra das Atas, que já era só um link ao `/usuarios/`.
 - **Coordenação por setor** (`/usuarios/`, ação `coordenar`): o gestor geral designa
   coordenadores para qualquer um dos módulos — `extensao`, `pesquisa`, `inovacao`,
   `atas`, `eventos`, `espacos`, `monitoria`, `praticas` e, desde set/2026, `avaliacao` (a
@@ -3095,11 +3128,13 @@ public/
   PROPPEX é suporte, com alcance total para destravar, mas não é um degrau do processo. Em todos os
   outros setores a pró-reitoria homologa; aqui não, e é de propósito — o módulo é da **PROAC**, e
   quem acompanha a aula prática é a coordenação do curso.
-  **A coordenação se cadastra na guia Coordenação**, no mesmo molde da de professores: uma LINHA
-  por pessoa, com **nome, e-mail e papel** (`PAPEIS_COORDENACAO`: coordenador do curso ou
-  coordenador pedagógico), incluir e apagar. Caixa de texto com e-mails soltos não é cadastro — não
-  guarda o NOME, que é o que sai impresso no documento, e transforma "tirar uma pessoa" em edição
-  de texto (achado do dono, ago/2026). A forma antiga (lista de strings) continua sendo lida.
+  **A coordenação se nomeia no SEU CURSO** (desde set/2026 — ver "O ADMINISTRATIVO SE CONCENTRA NO
+  SEU CURSO"; até então havia a guia Coordenação aqui, uma LINHA por pessoa com **nome, e-mail e
+  papel** — `PAPEIS_COORDENACAO`: coordenador do curso ou coordenador pedagógico —, e o item da
+  barra virou atalho). O registro continua sendo `ap-equipe-v1`, gravado pela composição do curso;
+  caixa de texto com e-mails soltos nunca foi cadastro — não guarda o NOME, que é o que sai
+  impresso no documento (achado do dono, ago/2026). A forma antiga (lista de strings) continua
+  sendo lida.
   Os 11 cursos vieram da planilha do dono e sobem no arranque (`subirEquipeAP`,
   `dados/ap-coordenadores.json`, marca `sys-ap-equipe-lote-v1`): **as DUAS pessoas de cada curso
   validam** — foi assim que o fluxo foi descrito ("coordenador do curso e/ou pedagógico") —, e por
@@ -3342,7 +3377,8 @@ public/
   Enfermagem): a ação aparece para os dois, e o recorte por curso vale também **dentro** dela —
   quem coordena Odontologia soma as horas do PPC dele, não as do vizinho.
 - **ACESSO ÀS GUIAS DE RELATÓRIO, por guia e por curso** (`alcanceDeRelatorios`/`filtrarPorCurso`
-  + `sys-relatorios-acessos-v1` + guia "Acessos às guias", pedido do dono ago/2026: "me dê gestão
+  + `sys-relatorios-acessos-v1` + a guia "Acessos aos relatórios" do Seu Curso — até set/2026
+  "Acessos às guias", dentro do próprio ARCHÉ RE —, pedido do dono ago/2026: "me dê gestão
   de acessos a esses módulos — coordenadores devem ter acesso a todos os relatórios de seus
   cursos; a Matildes da PROAC, aos de ensino e ao de curricularização"). São **duas dimensões**,
   porque são duas perguntas: QUAIS guias e DE QUE CURSOS. O alcance se soma de três origens e a

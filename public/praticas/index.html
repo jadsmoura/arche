@@ -248,8 +248,12 @@ const SECOES = [
 
   { k: "cadastro", grupo: "MÓDULO", rot: "Professores e Disciplinas", ic: IC.cadastro, gestao: true,
     tit: "Professores e Disciplinas", sub: "Quem leciona o quê, semestre a semestre. É esta lista que diz o que falta registrar." },
-  { k: "equipe", grupo: "MÓDULO", rot: "Coordenação", ic: IC.equipe, geral: true, tit: "Coordenação do módulo",
-    sub: "Quem valida os relatórios de cada curso, e quem é a coordenação pedagógica." },
+  // A COORDENAÇÃO DOS CURSOS SE EDITA NO SEU CURSO (pedido do dono, set/2026:
+  // "concentrar lá todas as edições de cunho administrativo"): a guia que
+  // vivia aqui gravava a mesma dupla que o Seu Curso, sem atualizar a
+  // composição institucional. Fica o atalho, no lugar em que se procurava.
+  { k: "equipe", grupo: "MÓDULO", rot: "Coordenação", ic: IC.equipe, geral: true, link: "/curso/",
+    tit: "Coordenação do módulo", sub: "" },
   // TODO SETOR LANÇA O SEU EDITAL (pedido do dono, ago/2026): os editais da
   // PROAC, com a numeração própria dela — independente da PROPPEX
   { k: "editais", grupo: "MÓDULO", rot: "Editais", ic: IC.lista, geral: true, tit: "Editais da PROAC",
@@ -264,6 +268,8 @@ function montarMenu() {
   $("menu").innerHTML = visiveis.map((s) => {
     const cab = s.grupo !== grupo ? `<div class="side-lab">${esc(s.grupo || "")}</div>` : "";
     grupo = s.grupo;
+    if (s.link) return cab + `<a class="side-item" href="${esc(s.link)}" title="Abre no Seu Curso">
+      ${icone(s.ic)}${s.rot} <span style="margin-left:auto;font-size:11px;opacity:.6">↗</span></a>`;
     return cab + `<button class="side-item${s.k === SECAO ? " on" : ""}" onclick="nav('${s.k}')">
       ${icone(s.ic)}${s.rot}</button>`;
   }).join("");
@@ -271,6 +277,7 @@ function montarMenu() {
 
 function nav(k) {
   const s = SECOES.find((x) => x.k === k) || SECOES[1];
+  if (s.link) { location.href = s.link; return; }   // a guia mora noutro módulo
   SECAO = s.k;
   // a guia de registro decide o TIPO: entrar por "Registrar atividade" é
   // entrar no formulário da extensão curricular, e não há o que escolher
@@ -281,7 +288,7 @@ function nav(k) {
   $("subtitulo").textContent = s.sub;
   montarMenu();
   const desenha = { painel: renderPainel, relatorios: renderRelatorios, nova: renderNova,
-    ec: renderEC, ecnova: renderNova, cadastro: renderCadastro, equipe: renderEquipe }[s.k];
+    ec: renderEC, ecnova: renderNova, cadastro: renderCadastro }[s.k];
   $("tela").innerHTML = desenha ? desenha() : "";
   // o cartão de editais é o componente compartilhado: ele se monta no
   // elemento e some sozinho para quem não pode lançar (quem barra é a rota)
@@ -1170,95 +1177,12 @@ async function copiarCadastro(slug) {
   await carregar(); nav("cadastro");
 }
 
-/* ========================= COORDENAÇÃO DO MÓDULO =======================
-   No mesmo molde da guia de professores: uma LINHA por pessoa, com nome,
-   e-mail e papel — incluir, editar e apagar. Uma caixa de texto com e-mails
-   soltos não é cadastro: não guarda o nome (que é o que sai impresso no
-   documento) e transforma "tirar uma pessoa" em edição de texto. */
-function renderEquipe() {
-  const eq = D.equipe || { cursos: {}, pedagogico: [] };
-  const papeis = D.papeisCoordenacao || [
-    { codigo: "coordenador", nome: "Coordenador(a) do curso" },
-    { codigo: "pedagogico", nome: "Coordenador(a) pedagógico(a)" }];
-  const linha = (p = {}) => `<tr data-linha>
-    <td><input value="${esc(p.nome || "")}" data-c="nome" placeholder="Nome completo"></td>
-    <td><input value="${esc(p.email || "")}" data-c="email" type="email" placeholder="email@uniego.edu.br"></td>
-    <td><select data-c="papel">${papeis.map((x) => `<option value="${esc(x.codigo)}"
-      ${(p.papel || "coordenador") === x.codigo ? "selected" : ""}>${esc(x.nome)}</option>`).join("")}</select></td>
-    <td><button class="bt bt-ghost bt-xs" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
-  const tabela = (id, lista) => `<div class="rolo"><table id="${id}">
-    <thead><tr><th style="width:32%">Nome</th><th style="width:36%">E-mail</th>
-      <th>Papel</th><th style="width:60px"></th></tr></thead>
-    <tbody>${(lista || []).map(linha).join("")
-      || '<tr><td colspan="4" class="muted">Ninguém designado.</td></tr>'}</tbody></table></div>`;
-
-  return `
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-        <div><div class="card-t">Coordenação pedagógica institucional</div>
-          <div class="card-s">Vê e valida os relatórios de <b>todos</b> os cursos. Deixe vazio se a
-            coordenação pedagógica for por curso — nesse caso ela entra no quadro do curso, abaixo.</div></div>
-        <button class="bt bt-sec bt-xs" onclick="linhaCoord('tb-ped')">＋ Incluir</button>
-      </div>
-      ${tabela("tb-ped", eq.pedagogico)}
-    </div>
-    ${(D.catalogoCursos || []).map((c) => {
-      const lista = eq.cursos?.[c.slug]?.coordenadores || [];
-      return `<div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-          <div><div class="card-t">${esc(c.nome)}</div>
-            <div class="card-s">${lista.length
-              ? `${lista.length} pessoa(s) validam os relatórios deste curso.`
-              : "<b>Sem coordenação designada</b> — os relatórios deste curso ficam só com a PROPPEX."}</div></div>
-          <button class="bt bt-sec bt-xs" onclick="linhaCoord('tb-${esc(c.slug)}')">＋ Incluir</button>
-        </div>
-        ${tabela(`tb-${esc(c.slug)}`, lista)}
-      </div>`;
-    }).join("")}
-    <div class="card">
-      <div class="exp" style="margin:0">
-        <button class="bt bt-pri" onclick="salvarEquipe()">💾 Salvar a coordenação</button>
-      </div>
-      <div class="muted" style="margin-top:12px">Quem coordena o <b>módulo inteiro</b> (equivalente à
-        coordenação pedagógica institucional) também se designa em
-        <a href="/usuarios/">Gestão de acessos</a>, ação “coordenar”. Aqui é a coordenação
-        <b>por curso</b>, que só existe neste módulo.</div>
-    </div>`;
-}
-
-function linhaCoord(idTabela) {
-  const tb = document.querySelector(`#${CSS.escape(idTabela)} tbody`);
-  if (tb.querySelector("td.muted")) tb.innerHTML = "";
-  const papeis = D.papeisCoordenacao || [{ codigo: "coordenador", nome: "Coordenador(a) do curso" },
-    { codigo: "pedagogico", nome: "Coordenador(a) pedagógico(a)" }];
-  tb.insertAdjacentHTML("beforeend", `<tr data-linha>
-    <td><input data-c="nome" placeholder="Nome completo"></td>
-    <td><input data-c="email" type="email" placeholder="email@uniego.edu.br"></td>
-    <td><select data-c="papel">${papeis.map((x) =>
-      `<option value="${esc(x.codigo)}">${esc(x.nome)}</option>`).join("")}</select></td>
-    <td><button class="bt bt-ghost bt-xs" onclick="this.closest('tr').remove()">✕</button></td></tr>`);
-}
-
-function lerTabelaCoord(id) {
-  return [...document.querySelectorAll(`#${CSS.escape(id)} tr[data-linha]`)].map((tr) => ({
-    nome: tr.querySelector('[data-c="nome"]').value.trim(),
-    email: tr.querySelector('[data-c="email"]').value.trim().toLowerCase(),
-    papel: tr.querySelector('[data-c="papel"]').value,
-  })).filter((p) => p.email);
-}
-
-async function salvarEquipe() {
-  const cursos = {};
-  for (const c of D.catalogoCursos || []) {
-    const l = lerTabelaCoord(`tb-${c.slug}`);
-    if (l.length) cursos[c.slug] = { coordenadores: l };
-  }
-  const r = await fetch("/api/praticas/equipe", { method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ equipe: { pedagogico: lerTabelaCoord("tb-ped"), cursos } }) });
-  if (!r.ok) { alert((await r.json().catch(() => ({}))).error || "Não foi possível gravar."); return; }
-  await carregar(); nav("equipe");
-}
+/* A COORDENAÇÃO DO MÓDULO saiu daqui (set/2026): quem valida os relatórios
+   de cada curso — coordenador e pedagógico — se nomeia no Seu Curso (/curso/),
+   que grava a composição institucional E a equipe deste módulo no mesmo ato.
+   A guia que ficava aqui gravava só a equipe, e as duas fontes divergiam. A
+   coordenação pedagógica INSTITUCIONAL (vê todos os cursos) é a coordenação do
+   módulo `praticas`, designada em Gestão de acessos. */
 
 /* ===================== CHAMADA (a cobrança agora) ======================
    A MESMA janela serve aos dois processos, porque é o mesmo ato: ver quem
