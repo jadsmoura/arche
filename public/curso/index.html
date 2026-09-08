@@ -71,6 +71,18 @@ padding:7px 12px;cursor:pointer;font-size:12.8px}
 .atalho{display:block;border:1px solid var(--line);border-radius:10px;padding:14px;text-decoration:none;color:var(--ink);background:#fff}
 .atalho:hover{border-color:var(--acento);background:var(--wash)}
 .atalho b{color:var(--brand)}
+.rel-linha{display:grid;grid-template-columns:minmax(220px,1.2fr) 2fr auto;gap:12px;align-items:center;width:100%;
+text-align:left;background:#fff;border:0;border-top:1px solid var(--line);padding:10px 8px;font:inherit;color:var(--ink);cursor:pointer}
+.rel-linha:first-of-type{border-top:0}
+.rel-linha:hover{background:var(--wash)}
+.rel-linha .rl-quem{display:flex;flex-direction:column;min-width:0}
+.rel-linha .rl-quem span{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rel-linha .rl-res{font-size:12.5px;line-height:1.7}
+.rel-linha .rl-n{font-size:12.5px;color:var(--acento);white-space:nowrap;font-weight:600}
+.rel-caixas{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:4px}
+.rel-caixa{display:inline-flex;gap:7px;align-items:center;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--ink);margin:0;cursor:pointer}
+.rel-caixa input{width:17px;height:17px;margin:0}
+@media (max-width:820px){.rel-linha{grid-template-columns:1fr auto}.rel-linha .rl-res{grid-column:1/-1}}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chips label{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink);
 text-transform:none;letter-spacing:0;border:1px solid var(--line);border-radius:999px;padding:4px 10px;cursor:pointer}
@@ -480,76 +492,117 @@ function vAcessos(){
    regras automáticas (coordenação de módulo e de curso), senão o gestor
    concederia de novo o que ela tem, ou tiraria daqui um acesso que não vem
    daqui e continuaria valendo. As rotas continuam as do módulo de Relatórios. */
-let REL=null, REL_BUSCA="", REL_EDIT=null;
+let REL=null, REL_BUSCA="", REL_FILTRO="acesso", REL_EDIT=null, REL_MSG="";
+const REL_PAG="sc-rel-acessos";
+function carregarRel(){
+  REL=null;
+  return fetch("/api/relatorios/acessos").then(r=>r.json().then(j=>({ok:r.ok,j})))
+    .then(({ok,j})=>{ REL = ok ? j : {erro:j.error||"Falha"}; })
+    .catch(e=>{ REL={erro:e.message}; })
+    .then(()=>{ if(VIEW==="relatorios") render(); });
+}
+/* LISTA → FICHA (revisão do dono, set/2026: "uma lista com os usuários, e ao
+   clicar no usuário abrir uma página com edição dos setores" — os cartões
+   abertos, um por pessoa com todas as etiquetas, não estavam legais). A lista
+   é uma linha por pessoa, paginada como toda lista do portal, com busca e um
+   filtro de quem mostrar; a ficha é onde se marca. */
 function vRelatorios(){
-  if(!REL){
-    fetch("/api/relatorios/acessos").then(r=>r.json().then(j=>({ok:r.ok,j})))
-      .then(({ok,j})=>{ REL = ok ? j : {erro:j.error||"Falha"}; if(VIEW==="relatorios") render(); })
-      .catch(e=>{ REL={erro:e.message}; if(VIEW==="relatorios") render(); });
-    return '<div class="card muted">Carregando os acessos…</div>';
-  }
+  if(!REL){ carregarRel(); return '<div class="card muted">Carregando os acessos…</div>'; }
   if(REL.erro) return `<div class="banner ba-err">${esc(REL.erro)}</div>`;
-  const b=REL_BUSCA.trim().toLowerCase();
-  // sem busca, mostra quem TEM algum acesso: a lista inteira são todas as
-  // contas do portal, e rolar por elas para achar uma pessoa é o caminho longo
-  const lista=REL.pessoas.filter(p=>(b?`${p.nome} ${p.email}`.toLowerCase().includes(b):p.alcance.length>0));
+  if(REL_EDIT){
+    const p=REL.pessoas.find(x=>x.email===REL_EDIT);
+    if(p) return fichaRel(p);
+    REL_EDIT=null;
+  }
+  queueMicrotask(desenharListaRel);
   return `<div class="card">
       <div class="card-t">Quem abre qual guia do Relatório Semestral</div>
       <div class="card-s">O alcance se soma de três lugares: o <b>gestor geral</b> abre tudo; quem
         <b>coordena um módulo</b> abre a guia do setor dele, sem recorte; quem <b>coordena um curso</b>
-        abre todas as guias, mas só o que é do curso dele. O que faltar depois disso se concede aqui —
-        é o caso de quem cuida do PPC e precisa das guias de ensino sem coordenar módulo nenhum.
-        Conceder aqui não dá acesso ao SETOR, só ao relatório dele.</div>
-      <div style="margin-top:12px"><label>Procurar pessoa</label>
-        <input value="${esc(REL_BUSCA)}" placeholder="nome ou e-mail — vazio mostra só quem já tem acesso"
-          oninput="REL_BUSCA=this.value;render()"></div>
+        abre todas as guias, só do curso dele. O que faltar se concede na ficha da pessoa — clique
+        na linha. Conceder aqui não dá acesso ao SETOR, só ao relatório dele.</div>
+      ${REL_MSG?`<div class="banner ba-ok">${esc(REL_MSG)}</div>`:""}
+      <div class="duo" style="margin-top:8px">
+        <div><label>Procurar pessoa</label>
+          <input id="rel-busca" value="${esc(REL_BUSCA)}" placeholder="nome ou e-mail"
+            oninput="REL_BUSCA=this.value;ArchePag.zerar(REL_PAG);desenharListaRel()"></div>
+        <div><label>Mostrar</label>
+          <select onchange="REL_FILTRO=this.value;ArchePag.zerar(REL_PAG);desenharListaRel()">
+            <option value="acesso" ${REL_FILTRO==="acesso"?"selected":""}>quem abre alguma guia</option>
+            <option value="manual" ${REL_FILTRO==="manual"?"selected":""}>só quem tem concessão manual</option>
+            <option value="todos" ${REL_FILTRO==="todos"?"selected":""}>todas as contas do portal</option>
+          </select></div>
+      </div>
     </div>
-    ${lista.length?lista.map(cartaoRel).join("")
-      :`<div class="card muted">${b?"Ninguém com esse nome.":"Ninguém com acesso além do gestor geral."}</div>`}`;
+    <div id="rel-lista"></div>`;
 }
-function cartaoRel(p){
-  const editando=REL_EDIT===p.email;
+function resumoRel(p){
+  const partes=[];
+  if(p.papel==="gestor") partes.push('<span class="selo s-gestor">gestor geral</span>');
+  if(p.modulos?.length) partes.push(`<span class="muted">módulo${p.modulos.length>1?"s":""}: ${esc(p.modulos.join(", "))}</span>`);
+  if(p.cursosCoordenados?.length) partes.push(`<span class="muted">coordena ${esc(p.cursosCoordenados.map(c=>c.nome).join(", "))}</span>`);
+  if(p.concedido) partes.push('<span class="selo s-on">concessão manual</span>');
+  return partes.join(" · ");
+}
+function desenharListaRel(){
+  const alvo=$("rel-lista"); if(!alvo||!REL||REL.erro) return;
+  const b=REL_BUSCA.trim().toLowerCase();
+  let lista=REL.pessoas.filter(p=>!b||`${p.nome} ${p.email}`.toLowerCase().includes(b));
+  if(REL_FILTRO==="acesso") lista=lista.filter(p=>p.alcance.length>0);
+  if(REL_FILTRO==="manual") lista=lista.filter(p=>p.concedido);
+  const pg=ArchePag.recorte(REL_PAG,lista,desenharListaRel);
+  alvo.innerHTML=`<div class="card" style="padding:8px 10px">
+    ${pg.barra}
+    ${pg.itens.length?pg.itens.map(p=>`<button class="rel-linha" onclick="REL_EDIT='${esc(p.email)}';render()">
+      <div class="rl-quem"><b>${esc(p.nome||p.email)}</b><span class="muted">${esc(p.email)}</span></div>
+      <div class="rl-res">${resumoRel(p)}</div>
+      <div class="rl-n">${p.alcance.length?`${p.alcance.length} guia${p.alcance.length>1?"s":""}`:'<span class="muted">nenhuma</span>'} ›</div>
+    </button>`).join("")
+    :`<div class="muted" style="padding:10px 6px">${b?"Ninguém com esse nome.":"Ninguém neste recorte."}</div>`}
+  </div>`;
+}
+function fichaRel(p){
   const marcado=new Set((p.concedido?.setores)||[]);
   const cursosM=new Set((p.concedido?.cursos)||[]);
   const rotCursos=(cs)=>(cs===null?"todos os cursos":cs.map(c=>(REL.cursos.find(x=>x.slug===c)?.nome||c)).join(", "));
-  return `<div class="card">
-    <div class="card-t">${esc(p.nome||p.email)} <span class="muted" style="font-weight:400;font-size:12.5px">· ${esc(p.email)}</span></div>
-    <div class="card-s">
-      ${p.papel==="gestor"?"<b>Gestor geral</b> — abre todas as guias, sem recorte. ":""}
-      ${p.modulos?.length?`Coordena o(s) módulo(s) <b>${esc(p.modulos.join(", "))}</b>. `:""}
-      ${p.cursosCoordenados?.length?`Coordena o(s) curso(s) <b>${esc(p.cursosCoordenados.map(c=>c.nome).join(", "))}</b>. `:""}
-      ${!p.papel||(p.papel!=="gestor"&&!p.modulos?.length&&!p.cursosCoordenados?.length)?"Sem alcance automático — o que tiver vem desta tela. ":""}
-    </div>
-    <div style="margin:2px 0 12px">
-      ${p.alcance.length?p.alcance.map(a=>`<span class="selo s-on" style="margin:0 6px 6px 0;display:inline-block">
+  const caixa=(attr,v,on,txt)=>`<label class="rel-caixa"><input type="checkbox" ${attr}="${esc(v)}" ${on?"checked":""}> ${esc(txt)}</label>`;
+  const semAuto=p.papel!=="gestor"&&!p.modulos?.length&&!p.cursosCoordenados?.length;
+  return `<div style="margin-bottom:10px"><button class="bt bt-xs" onclick="REL_EDIT=null;render()">← Voltar à lista</button></div>
+    <div class="card">
+      <div class="card-t">${esc(p.nome||p.email)}</div>
+      <div class="card-s">${esc(p.email)}</div>
+      <div class="card-s" style="margin-top:6px">
+        ${p.papel==="gestor"?"<b>Gestor geral</b> — abre todas as guias, sem recorte. ":""}
+        ${p.modulos?.length?`Coordena o(s) módulo(s) <b>${esc(p.modulos.join(", "))}</b>. `:""}
+        ${p.cursosCoordenados?.length?`Coordena o(s) curso(s) <b>${esc(p.cursosCoordenados.map(c=>c.nome).join(", "))}</b>. `:""}
+        ${semAuto?"Sem alcance automático — o que tiver vem da concessão abaixo. ":""}
+      </div>
+      <label style="margin-top:8px">O que já alcança hoje</label>
+      <div>${p.alcance.length?p.alcance.map(a=>`<span class="selo s-on" style="margin:0 6px 6px 0;display:inline-block">
         ${esc(a.nome)} <span style="opacity:.75">· ${esc(rotCursos(a.cursos))}</span></span>`).join("")
-        :'<span class="muted">Nenhuma guia.</span>'}
+        :'<span class="muted">Nenhuma guia.</span>'}</div>
     </div>
-    ${editando?formRel(p,marcado,cursosM):`<div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="bt" onclick="REL_EDIT='${esc(p.email)}';render()">${p.concedido?"Alterar o que foi concedido":"Conceder guias"}</button>
-      ${p.concedido?`<button class="bt bt-err" onclick="gravarRel('${esc(p.email)}',[],[])">Retirar a concessão</button>`:""}
-    </div>`}
-  </div>`;
-}
-function formRel(p,marcado,cursosM){
-  const caixa=(attr,v,on,txt)=>`<label style="display:inline-flex;gap:7px;align-items:center;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--ink);margin:0">
-    <input type="checkbox" style="width:17px;height:17px;margin:0" ${attr}="${esc(v)}" ${on?"checked":""}> ${esc(txt)}</label>`;
-  return `<div style="border-top:1px solid var(--line);padding-top:12px">
-    <label>Guias concedidas</label>
-    <div style="display:flex;flex-wrap:wrap;gap:10px 18px;margin-bottom:14px">
-      ${REL.setores.map(s=>caixa("data-set",s.chave,marcado.has(s.chave),s.nome)).join("")}</div>
-    <label>Recorte por curso <span class="muted" style="text-transform:none;letter-spacing:0">— nenhum marcado = todos os cursos</span></label>
-    <div style="display:flex;flex-wrap:wrap;gap:10px 18px;margin-bottom:14px">
-      ${REL.cursos.map(c=>caixa("data-curso",c.slug,cursosM.has(c.slug),c.nome)).join("")}</div>
-    <div style="display:flex;gap:8px">
-      <button class="bt bt-pri" onclick="salvarRel('${esc(p.email)}')">Salvar</button>
-      <button class="bt" onclick="REL_EDIT=null;render()">Cancelar</button>
-    </div>
-  </div>`;
+    ${p.papel==="gestor"?'<div class="card muted">Gestor geral já abre tudo — não há o que conceder.</div>':`
+    <div class="card">
+      <div class="card-t">Concessão manual</div>
+      <div class="card-s">Marque as guias e, se for o caso, os cursos a que ela fica restrita. O que vem da
+        coordenação de módulo ou de curso não se tira daqui — continua valendo.</div>
+      <label>Guias</label>
+      <div class="rel-caixas">${REL.setores.map(s=>caixa("data-set",s.chave,marcado.has(s.chave),s.nome)).join("")}</div>
+      <label style="margin-top:12px">Recorte por curso <span class="muted" style="text-transform:none;letter-spacing:0">— nenhum marcado = todos os cursos</span></label>
+      <div class="rel-caixas">${REL.cursos.map(c=>caixa("data-curso",c.slug,cursosM.has(c.slug),c.nome)).join("")}</div>
+      <div id="rel-msg"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+        <button class="bt bt-pri" onclick="salvarRel('${esc(p.email)}')">💾 Salvar a concessão</button>
+        ${p.concedido?`<button class="bt bt-err" onclick="gravarRel('${esc(p.email)}',[],[])">Retirar a concessão</button>`:""}
+        <button class="bt" onclick="REL_EDIT=null;render()">Cancelar</button>
+      </div>
+    </div>`}`;
 }
 function salvarRel(email){
   const setores=[...document.querySelectorAll("[data-set]")].filter(i=>i.checked).map(i=>i.dataset.set);
   const cursos=[...document.querySelectorAll("[data-curso]")].filter(i=>i.checked).map(i=>i.dataset.curso);
+  if(!setores.length){ $("rel-msg").innerHTML='<div class="banner ba-err">Marque ao menos uma guia — ou use "Retirar a concessão".</div>'; return; }
   gravarRel(email,setores,cursos);
 }
 async function gravarRel(email,setores,cursos){
@@ -557,12 +610,17 @@ async function gravarRel(email,setores,cursos){
   const r=await fetch("/api/relatorios/acessos",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({email,setores,cursos})});
   const j=await r.json().catch(()=>({}));
-  if(!r.ok){ alert(j.error||"Não foi possível gravar."); return; }
-  REL_EDIT=null; REL=null; render();
+  if(!r.ok){ const m=$("rel-msg"); if(m) m.innerHTML=`<div class="banner ba-err">${esc(j.error||"Não foi possível gravar.")}</div>`; else alert(j.error||"Não foi possível gravar."); return; }
+  const p=REL.pessoas.find(x=>x.email===email);
+  REL_MSG=setores.length?`Concessão gravada para ${p?.nome||email}.`:`Concessão de ${p?.nome||email} retirada.`;
+  REL_EDIT=null;
+  await carregarRel();
+  setTimeout(()=>{ REL_MSG=""; },0);
 }
 
 carregar();
 </script>
+<script src="/assets/arche-paginacao.js"></script>
 <script src="/assets/arche-nav.js"></script>
 </body>
 </html>

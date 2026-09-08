@@ -580,8 +580,15 @@ public/
   A guia Cursos ganhou a coluna **Pedagógico(a)**, para o gestor ver o quadro inteiro como via no
   AC, e os atalhos `#relatorios`/`#cursos`/`#reitoria`/`#acessos` caem direto na guia.
   (2) **"Acessos às guias" saiu do ARCHÉ RE** e virou **Acessos aos relatórios** no Institucional
-  do Seu Curso (`vRelatorios`/`cartaoRel`, mesmas rotas `/api/relatorios/acessos`, só gestor
-  geral); a barra dos Relatórios ficou com o atalho.
+  do Seu Curso (mesmas rotas `/api/relatorios/acessos`, só gestor geral); a barra dos Relatórios
+  ficou com o atalho. **É LISTA → FICHA** (revisão do dono, set/2026: "uma lista com os usuários,
+  e ao clicar no usuário abrir uma página com edição dos setores — essa lista não tá legal"; a
+  primeira versão eram cartões abertos, um por pessoa, com todas as etiquetas): `desenharListaRel`
+  é uma LINHA por pessoa (nome, e-mail, resumo do alcance e quantas guias), paginada com
+  `ArchePag` (chave `sc-rel-acessos`), com busca que redesenha só a lista (redesenhar a tela
+  inteira tirava o cursor da caixa) e o filtro *quem abre alguma guia · só concessão manual ·
+  todas as contas*; `fichaRel` é a tela da pessoa, com o que ela já alcança e as caixas de guias
+  e cursos para marcar. O gestor geral não tem ficha de concessão: já abre tudo.
   (3) **O card "Assinaturas do certificado" do ARCHÉ IC virou atalho** ao `/assinaturas/`, que
   já tinha o bloco Institucionais chamando a MESMA rota (`/api/ic/assinatura`) — duas telas para a
   mesma imagem acabam divergindo. O card do IC só diz quantas faltam e nomeia quais; o bloco do
