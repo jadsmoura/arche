@@ -991,8 +991,9 @@ public/
   Checkout Pro foi escolhido por ser o caminho de menor burocracia: a conta que o dono já tem
   recebe, a página de pagamento é a DELES (nenhum dado de cartão passa pelo ARCHÉ) e trocar para a
   conta PJ depois é trocar a credencial. **As credenciais vivem SÓ no ambiente do Render**
-  (`MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`; opcional `MP_WEBHOOK_URL` quando a URL pública difere do
-  host) — nunca no código nem no chat; sem elas o adaptador se declara desligado, a cobrança não
+  (`MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`; opcionais `MP_WEBHOOK_URL`, quando a URL pública difere do
+  host, e `MP_MODO=teste|producao`, que força o rótulo do modo — o caminho antigo de teste do Mercado
+  Pago usa a aplicação criada DENTRO da conta de vendedor de teste, cujo token começa com `APP_USR-`) — nunca no código nem no chat; sem elas o adaptador se declara desligado, a cobrança não
   liga e os eventos gratuitos seguem como sempre. Token `TEST-…` é modo de teste, e a tela diz isso.
   **A configuração** (`evento.cobranca`, normalizada em CENTAVOS por `normalizarCobranca`; a tela
   edita em reais): categorias (até 12; valor zero = categoria gratuita, ex. aluno do UNIEGO — nasce
