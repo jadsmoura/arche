@@ -118,8 +118,11 @@ test("limite de tentativas de senha", () => {
 /* ------------------------- coordenação por setor ------------------------- */
 test("os setores que podem ter coordenação designada", () => {
   assert.deepEqual(MODULOS, ["extensao", "pesquisa", "inovacao", "atas", "eventos", "espacos",
-    "monitoria", "praticas"],
-    "eventos (EV), espaços (ES) e aulas práticas (AP) entram como qualquer outro setor");
+    "monitoria", "praticas", "avaliacao"],
+    "eventos (EV), espaços (ES), aulas práticas (AP) e a Avaliação (AV) entram como qualquer outro setor");
+  // na Avaliação, coordenar o MÓDULO é a GESTÃO dela (todos os cursos, como
+  // a PROAC precisa); a coordenação DE CURSO vem da composição do curso
+  assert.ok(MODULOS.includes("avaliacao"));
   // no AP, coordenar o MÓDULO é ser a coordenação pedagógica (vê todos os
   // cursos). O coordenador DE CURSO não cabe aqui — este catálogo é por
   // módulo, não por curso — e vive no cadastro do próprio módulo.

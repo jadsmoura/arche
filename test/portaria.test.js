@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   AREA_AV, chaveAcesso, destinoSeguro, emitirSelo, lerSelo, linkAcesso,
-  paginaPortaria, senhaAv, senhaConfere,
 } from "../lib/portaria.js";
 
 /* Resposta de mentirinha: só guarda o cabeçalho que a portaria escreve. */
@@ -12,26 +11,16 @@ const resFake = () => {
 };
 const reqCom = (cookie) => ({ headers: cookie ? { cookie } : {} });
 
-test("a senha padrão é a institucional e a env var manda", () => {
-  assert.equal(senhaAv(), "uniego");
-  process.env.AV_SENHA = "outra-senha";
-  assert.equal(senhaAv(), "outra-senha");
-  assert.equal(senhaConfere("outra-senha"), true);
-  assert.equal(senhaConfere("uniego"), false);
-  delete process.env.AV_SENHA;
-});
-
-test("a senha ignora caixa e espaço às bordas, mas não erro de digitação", () => {
-  assert.equal(senhaConfere(" UNIEGO "), true);
-  assert.equal(senhaConfere("uniego "), true);
-  assert.equal(senhaConfere("uniegoo"), false);
-  assert.equal(senhaConfere(""), false);
-  assert.equal(senhaConfere(undefined), false);
+test("a senha compartilhada deixou de existir (set/2026): a portaria não a exporta mais", async () => {
+  const mod = await import("../lib/portaria.js");
+  assert.equal(mod.senhaAv, undefined);
+  assert.equal(mod.senhaConfere, undefined);
+  assert.equal(mod.paginaPortaria, undefined, "sem tela de senha: quem não tem sessão vai ao /entrar");
 });
 
 test("o selo emitido é lido de volta; cookie ausente ou adulterado não vale", () => {
   const res = resFake();
-  emitirSelo(res, "senha");
+  emitirSelo(res, "link");
   const cookie = String(res.headers["Set-Cookie"]).split(";")[0];
   assert.ok(cookie.startsWith("arche_av="));
   assert.equal(lerSelo(reqCom(cookie))?.av, true);
@@ -45,10 +34,14 @@ test("o selo emitido é lido de volta; cookie ausente ou adulterado não vale", 
 
 test("o selo diz por onde a pessoa entrou, e nunca quem ela é", () => {
   const res = resFake();
-  emitirSelo(res, "link");
+  emitirSelo(res, "avaliador");
   const selo = lerSelo(reqCom(String(res.headers["Set-Cookie"]).split(";")[0]));
-  assert.equal(selo.via, "link");
+  assert.equal(selo.via, "avaliador");
   assert.equal(selo.email, undefined);   // portaria não é sessão de pessoa
+  const res2 = resFake();
+  emitirSelo(res2);
+  assert.equal(lerSelo(reqCom(String(res2.headers["Set-Cookie"]).split(";")[0])).via, "link",
+    "sem dizer por onde, é o link de acesso");
 });
 
 test("a chave do link é estável e muda quando a versão muda", () => {
@@ -83,14 +76,6 @@ test("a área protegida é a da Avaliação, e só ela", () => {
   assert.equal(AREA_AV.test("/"), false);
 });
 
-test("a tela da portaria não vaza a senha nem o link de acesso", () => {
-  const html = paginaPortaria("/arche/dossie/");
-  assert.ok(html.includes("Avaliação Institucional"));
-  assert.ok(html.includes("/arche/dossie/"));
-  assert.ok(!html.includes(senhaAv()));
-  assert.ok(!html.includes(chaveAcesso()));
-});
-
 /* ------- o que a revisão adversarial de ago/2026 encontrou (e ficou) ------ */
 test("o favicon do portal não fica atrás da portaria", () => {
   // é o ícone de TODAS as páginas (index, /entrar, a própria portaria):
@@ -98,16 +83,6 @@ test("o favicon do portal não fica atrás da portaria", () => {
   assert.equal(AREA_AV.test("/arche/favicon.svg"), false);
   assert.equal(AREA_AV.test("/arche/favicon.svg.map"), true, "só o arquivo exato sai");
   assert.equal(AREA_AV.test("/arche/dossie/favicon.svg"), true);
-});
-
-test("a tela da portaria não deixa o endereço pedido fechar o <script>", () => {
-  const veneno = '/arche/x"></script><script>alert(1)</script>';
-  const html = paginaPortaria(destinoSeguro(veneno));
-  const bloco = html.slice(html.indexOf("const dest ="));
-  // o </script> do endereço não pode aparecer antes do fim do bloco de script
-  assert.equal(bloco.indexOf("</script>"), bloco.lastIndexOf("</script>"),
-    "o endereço injetou um fechamento de script");
-  assert.ok(html.includes("\\u003C"), "o < do endereço sai escapado");
 });
 
 test("cookie ilegível é cookie inválido — nunca uma exceção", async () => {
@@ -120,7 +95,7 @@ test("cookie ilegível é cookie inválido — nunca uma exceção", async () =>
   // assinatura com caractere multibyte: mesmo comprimento em caracteres,
   // outro em bytes — estourava dentro do timingSafeEqual
   const res = { setHeader: () => {} };
-  emitirSelo(res, "senha");
+  emitirSelo(res, "link");
   assert.equal(conferirSelo("corpo.ç".padEnd(20, "x")), null);
   assert.equal(lerSessao({ headers: { cookie: "arche_sessao=a.çççççççççççççççççççççççççççççççççççççççççç" } }), null);
 });

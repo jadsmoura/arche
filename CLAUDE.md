@@ -46,7 +46,9 @@ lib/marca.js         Identidade institucional por data (FACEG até set/2025; UNI
 lib/instituicao.js   Seu Curso: catálogo de cursos editável (incluir/desativar — o array de
                      lib/atas.js é mutado no arranque e a cada edição) e a composição por
                      curso (coordenador, pedagógico, NDE, Colegiado) com sincronia no AP
-lib/portaria.js      Portaria do ARCHÉ AV: senha compartilhada e link de acesso (sem login)
+lib/portaria.js      Portaria do ARCHÉ AV: o selo do avaliador (link de acesso e /avaliador)
+lib/avaliacao.js     ARCHÉ AV: quem vê e grava o quê pela CONTA do portal (gestão, coordenação
+                     de curso, docente, avaliador) e a fusão da ficha do docente
 lib/fusao.js         Fusão de cadastros duplicados (a mesma pessoa em duas contas)
 lib/alertas.js       Alertas de regularização das atas para a PROPPEX
 lib/mailer.js        E-mails via Gmail API (remetente "ARCHÉ · PROPPEX")
@@ -140,7 +142,10 @@ public/
   de propósito). Duas exceções nominais para conta ainda `pendente`: o aluno/avaliador convidado
   na IC e o **monitor indicado** na monitoria — o convite chega por e-mail e não pode dar em
   parede.
-  **Avaliação (`/arche/`) continua SEM login** — não criar conta, papel nem sessão nela.
+  **Avaliação (`/arche/`) entra pela CONTA do portal desde set/2026** (a régua está em
+  lib/avaliacao.js — ver "A AVALIAÇÃO ENTRA PELA CONTA DO PORTAL"); a única exceção é o
+  **avaliador do MEC**, que entra pelo link de acesso ou por `/avaliador` com o selo de
+  visualização, sem conta.
 - **Todo guarda compara `req.caminho`, nunca `req.path`**: o `req.path` chega CRU (sem
   decodificar `%2f`, sem colapsar `//`) e o `express.static` resolve o caminho já
   decodificado e normalizado — a diferença fazia `//usuarios/` e `/arche%2findex.html`
@@ -435,12 +440,44 @@ public/
   pontual (de quem era o XML de uma docente) e virou aviso permanente na ficha — uma faixa
   vermelha dizendo "este currículo parece ser de outra pessoa" sobre a ficha de uma professora
   não é diagnóstico, é acusação impressa na prova de conformidade do curso.
-- **Portaria da Avaliação** (`lib/portaria.js`, decisão do dono em ago/2026): como o cartão do
-  módulo fica na página inicial, à vista de qualquer visitante, a entrada pede uma **senha
-  compartilhada** (`AV_SENHA`, "uniego" por padrão) — só para barrar quem chegou ali por acaso.
-  Não é login e não pode virar um: o selo (cookie `arche_av`) não guarda e-mail nem papel, e não
-  abre nenhum setor da gestão. Passam **sem digitar nada** quem já está logado no ARCHÉ
-  (professores, coordenações, gestão) e quem chega pelo **link de acesso** (`/arche/?acesso=…`),
+- **A AVALIAÇÃO ENTRA PELA CONTA DO PORTAL** (`lib/avaliacao.js` + `acessoNaAvaliacao` no server +
+  `public/assets/arche-av-acesso.js`, pedido do dono set/2026: "unificar a autenticação ao
+  usuário; as gestões com acesso a todos os cursos, coordenadores e pedagógicos aos seus; o
+  coordenador inclui o professor buscando entre os usuários; eliminar a autenticação com as duas
+  senhas"). Até então o módulo tinha DUAS senhas compartilhadas ("uniego" nos indicadores,
+  "docente" na produção) e, dentro do dossiê, o professor **escolhia o próprio nome numa lista**
+  — ninguém sabia quem entrou, e qualquer pessoa com a senha editava a ficha de qualquer docente.
+  Quatro acessos, decididos pelo SERVIDOR: **gestão** (gestor geral ou coordenação do módulo
+  `avaliacao`, designável em `/usuarios/` — é o que a PROAC precisa) alcança os doze cursos;
+  **coordenação de curso** (coordenador e pedagógico, pela MESMA composição do Seu Curso e do
+  cadastro do ARCHÉ AC — `cursosQueCoordenaDe`) alcança só os seus cursos, inclusive o quadro
+  docente do dossiê; **docente** (quem a coordenação incluiu no dossiê) entra na PRÓPRIA ficha —
+  XML e comprovantes — e em nada mais; **avaliador** (o selo do link de acesso / `/avaliador`)
+  lê tudo e grava nada, como sempre. A régua vale nas ROTAS, não só na tela: `GET /api/estado`
+  recusa a chave de curso alheio (o app compilado baixa o documento inteiro, então o recorte tem
+  de ser na leitura), `PUT`/beacon e os três uploads conferem o curso da chave ou do formulário
+  (`cursoDaChave` sabe a que curso cada chave serve — as da página raiz são de Psicologia, duas
+  são de todas as páginas). **A gravação do docente é FUNDIDA no servidor**
+  (`fundirFichaDoDocente`): a tela manda o dossiê do curso inteiro (é como o app funciona), e o
+  servidor parte do que está GRAVADO e troca só a ficha dele e os ajustes de produção dele — uma
+  aba velha nunca desfaz o trabalho de um colega, e ninguém edita a ficha de outro. O **e-mail é
+  o vínculo forte** e não existia no registro do app: nasce quando a coordenação inclui o docente
+  pela busca de usuários (`GET /api/av/usuarios`, `POST/DELETE /api/av/dossie/:curso/docentes`,
+  numa fila) ou na primeira gravação do próprio docente; até lá casa-se pelo id do Lattes e pelo
+  nome completo com UMA candidata, nunca com registro que já tem e-mail de outra pessoa
+  (`identificarDocente`). O append embrulha `serializeState`/`deserializeAndMerge` para o
+  e-mail sobreviver ao ciclo gravar/ler do app, que só conhece os campos dele. Nas telas: a
+  página inicial do módulo perde as caixas de senha e mostra só os cursos da pessoa; o portão dos
+  indicadores abre para a coordenação e DIZ por que não abre para os demais; o dossiê cai direto
+  no quadro (coordenação/gestão) ou na ficha (docente), e quem é as duas coisas alterna por um
+  botão. **Incluir docente pela coordenação passou a GRAVAR** — antes o app só acrescentava na
+  memória da aba (a gravação era recusada a quem não fosse docente) e o quadro voltava ao
+  recarregar. O selo do avaliador segue como abaixo; a antiga senha e o `POST /api/av/entrar`
+  não existem mais (`AV_SENHA` deixou de ter efeito).
+- **Portaria da Avaliação** (`lib/portaria.js`, decisão do dono em ago/2026; revista em set/2026,
+  acima): o selo (cookie `arche_av`) não guarda e-mail nem papel, e não abre nenhum setor da
+  gestão. Quem não tem sessão nem selo é mandado ao `/entrar` com a volta marcada. O selo é de
+  quem chega pelo **link de acesso** (`/arche/?acesso=…`),
   que é o que a PROPPEX manda ao **avaliador do MEC** — ele não tem conta e não vai criar uma.
   O link aparece na página inicial só para gestor geral (`GET /api/av/link`) — e o botão
   "Gerar link" dos avaliadores ad hoc nas telas de dossiê embute o MESMO passe no endereço
@@ -457,16 +494,15 @@ public/
   compilado mostra só o número, e a frase que o servidor escreve não chegava a lugar
   nenhum. Agora uma faixa no alto avisa quem está com o selo de visualização, o 403 das
   rotas de escrita aparece com a explicação do servidor, e os dois trazem o botão que leva
-  ao login e volta para a mesma página, mais **"Sou da organização — usar a senha"**, que
-  troca o selo ali mesmo (POST `/api/av/entrar`) sem perder o lugar. O detalhe que
-  desorientava: **o selo GRUDA no navegador** — quem abriu o `/avaliador` uma vez entra nas
-  visitas seguintes direto pelo `/arche`, sem passar pela portaria, e por isso jura ter
-  entrado pelo endereço normal. Bloquear a leitura do `/arche/` para esse selo não serve: é
+  ao login e volta para a mesma página (o antigo "usar a senha" saiu com a senha, set/2026).
+  O detalhe que desorientava: **o selo GRUDA no navegador** — quem abriu o `/avaliador` uma
+  vez entra nas visitas seguintes direto pelo `/arche`, sem passar pelo login, e por isso jura
+  ter entrado pelo endereço normal. Bloquear a leitura do `/arche/` para esse selo não serve: é
   por ali que a página do avaliador entra (`/arche/avaliacao/`, `/arche/dossie/`), e o
-  avaliador do MEC pararia numa tela de senha. O link de acesso completo se invalida em
+  avaliador do MEC pararia numa tela de login. O link de acesso completo se invalida em
   bloco trocando `AV_LINK_VERSAO`. A mesma portaria vale para as APIs que o módulo usa
   (`/api/estado*` nas chaves abertas e os três `/api/drive/upload*`), senão bastaria pular a
-  tela e ler tudo pela API. Para trocar a senha, mude a env var — não o código.
+  tela e ler tudo pela API.
 - Gestores gerais fixos: `jadsonbelem@gmail.com` e `jadson.moura@uniego.edu.br` (lib/auth.js),
   com os **mesmos privilégios**. A identidade ACADÊMICA do pró-reitor (projetos que orienta,
   certificados) vive na conta **institucional** — a pessoal é só de gestão
@@ -510,8 +546,10 @@ public/
   COMPOSIÇÃO é retrato institucional: as ATAS continuam com a presença digitada a cada sessão
   (a decisão anterior do dono não muda).
 - **Coordenação por setor** (`/usuarios/`, ação `coordenar`): o gestor geral designa
-  coordenadores para qualquer um dos sete módulos — `extensao`, `pesquisa`, `inovacao`,
-  `atas`, `eventos`, `espacos` e `monitoria`. Dentro do setor marcado a pessoa tem o alcance da PROPPEX (no ARCHÉ
+  coordenadores para qualquer um dos módulos — `extensao`, `pesquisa`, `inovacao`,
+  `atas`, `eventos`, `espacos`, `monitoria`, `praticas` e, desde set/2026, `avaliacao` (a
+  GESTÃO da Avaliação Institucional: todos os cursos nos indicadores e na produção docente).
+  Dentro do setor marcado a pessoa tem o alcance da PROPPEX (no ARCHÉ
   AT, vê as atas de todos os órgãos, o Acompanhamento e os alertas); fora dele é
   submissora, e a gestão de acessos continua exclusiva dos gestores gerais. Cada setor
   decide isso lendo `modulos` da sessão (`gereAtas`, `gereIC`, `gereEv`) — nunca o papel

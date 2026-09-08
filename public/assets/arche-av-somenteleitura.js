@@ -39,28 +39,16 @@
 
   /* O SELO DE VISUALIZAÇÃO GRUDA NO NAVEGADOR, e é isso que confunde: quem
      abriu o `/avaliador` uma vez fica com ele, e nas visitas seguintes entra
-     no `/arche/` SEM passar pela portaria — logo, sem perceber que está em
+     no `/arche/` SEM passar pelo login — logo, sem perceber que está em
      modo de leitura. Foi o que aconteceu com a professora, que jurava (com
      razão) ter entrado pelo `arche.app.br/arche`.
 
      Bloquear a leitura do `/arche/` para esse selo não serve: é justamente
      por ali que a página do avaliador entra (`/arche/avaliacao/`,
-     `/arche/dossie/`), e o avaliador do MEC pararia numa tela de senha.
-     A saída é deixar quem é DA CASA trocar o selo onde está, sem perder a
-     página: a senha compartilhada da portaria vale para isso. */
-  function usarSenha() {
-    var senha = window.prompt("Senha de acesso da Avaliação (a mesma da portaria):");
-    if (senha === null) return;
-    fetchOriginal("/api/av/entrar", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ senha: senha }),
-    }).then(function (r) {
-      if (r.ok) { location.reload(); return; }
-      window.alert("Senha incorreta. Se você não a tem, entre com a sua conta do ARCHÉ.");
-    }).catch(function () {
-      window.alert("Não foi possível conferir a senha agora. Tente de novo em instantes.");
-    });
-  }
+     `/arche/dossie/`), e o avaliador do MEC pararia numa tela de login.
+     A saída de quem é DA CASA é uma só desde set/2026 — entrar com a
+     própria conta do ARCHÉ (a senha compartilhada da antiga portaria deixou
+     de existir): a sessão vence o selo, no próprio servidor. */
 
   function botao(rot, fn, primario) {
     var b = document.createElement("button");
@@ -85,7 +73,6 @@
       + '<b>avaliador</b> (basta ter aberto o link uma vez). Dá para ver tudo, mas '
       + '<b>nada pode ser enviado ou alterado</b>.</span>';
     d.appendChild(botao("Entrar com a minha conta", entrar, true));
-    d.appendChild(botao("Sou da organização — usar a senha", usarSenha, false));
     document.body.insertBefore(d, document.body.firstChild);
   }
 
@@ -109,10 +96,7 @@
     v.appendChild(p);
     var linha = document.createElement("div");
     linha.style.cssText = "display:flex;gap:8px;margin-top:10px;flex-wrap:wrap";
-    if (visualizacao) {
-      linha.appendChild(botao("Entrar com a minha conta", entrar, true));
-      linha.appendChild(botao("Sou da organização — usar a senha", usarSenha, false));
-    }
+    if (visualizacao) linha.appendChild(botao("Entrar com a minha conta", entrar, true));
     linha.appendChild(botao("Fechar", function () { v.remove(); }, false));
     v.appendChild(linha);
   }

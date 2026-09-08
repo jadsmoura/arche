@@ -177,9 +177,17 @@ import {
   perfilCompleto, removerSenha, ehGestorFixo,
 } from "./lib/auth.js";
 import {
-  AREA_AV, chaveAcesso, destinoSeguro, emitirSelo, lerSelo, linkAcesso,
-  paginaPortaria, senhaConfere,
+  AREA_AV, chaveAcesso, emitirSelo, lerSelo, linkAcesso,
 } from "./lib/portaria.js";
+/* ARCHÉ AV — quem vê e grava o quê na Avaliação, pela CONTA do portal
+   (set/2026; a régua é pura e vive em lib/avaliacao.js). */
+import {
+  CURSOS_AV, SLUGS_AV, nomeDoCursoAv, chaveDoDossie as avChaveDoDossie,
+  cursoDaChave as avCursoDaChave, montarAcesso as avMontarAcesso, podeLer as avPodeLer,
+  podeGravar as avPodeGravar, identificarDocente as avIdentificarDocente,
+  docenteNosDossies as avDocenteNosDossies, docenteNovo as avDocenteNovo,
+  fundirFichaDoDocente as avFundirFicha, buscarUsuarios as avBuscarUsuarios,
+} from "./lib/avaliacao.js";
 
 /* ARCHÉ AP — Aulas Práticas (da PROAC). Os nomes chegam com o prefixo `ap`
    porque quase todos têm homônimo noutro setor (falta, visao, panorama). */
@@ -420,14 +428,65 @@ app.use(async (req, res, next) => {
 });
 
 /* ---------------------- PORTARIA DA AVALIAÇÃO (ARCHÉ AV) ------------------
-   A Avaliação continua SEM login, como sempre: quem avalia (MEC) e quem
-   alimenta o dossiê não tem conta no portal e não vai criar uma. O que mudou
-   é que o cartão dela fica na PÁGINA INICIAL, à vista de qualquer visitante —
-   então entra uma senha compartilhada só para barrar a passagem de quem caiu
-   ali sem ter o que fazer. Não é login: o selo não identifica ninguém.
-   Passam sem digitar nada quem chega pelo link de acesso (`?acesso=…`, o que
-   se manda ao avaliador) e quem já está logado no ARCHÉ. */
+   A AVALIAÇÃO PASSOU A EXIGIR A CONTA DO PORTAL (pedido do dono, set/2026:
+   "unificar a autenticação ao usuário; eliminar aquela autenticação com as
+   duas senhas"). Até aqui a porta abria com uma senha compartilhada, e o app
+   compilado ainda tinha um segundo login simulado em que o professor escolhia
+   o próprio nome numa lista — ninguém sabia quem entrou, e qualquer pessoa
+   com a senha editava a ficha de qualquer docente.
+
+   Agora entram: quem tem SESSÃO no ARCHÉ (e o que cada um pode é decidido
+   pela conta — ver `acessoNaAvaliacao` e lib/avaliacao.js) e o AVALIADOR do
+   MEC pelo link de acesso ou pelo atalho /avaliador, com o selo de
+   VISUALIZAÇÃO que sempre teve: abre e lê, nada grava. Sem um nem outro, a
+   página manda ao login do portal com o destino guardado. */
 const liberadoNaAv = (req) => !!lerSelo(req) || !!lerSessao(req);
+
+/**
+ * O acesso de quem pede, montado da conta: gestão (gestor geral ou
+ * coordenação do módulo `avaliacao`), coordenação de CURSO (a composição do
+ * Seu Curso + o cadastro do ARCHÉ AC — coordenador e pedagógico) e o
+ * DOCENTE, que é quem a coordenação incluiu no dossiê de um curso. Conta
+ * removida ou pendente não é ninguém aqui. Sem sessão, só o selo do avaliador.
+ */
+async function acessoNaAvaliacao(req) {
+  const u = await usuarioDe(req);
+  const selo = lerSelo(req);
+  if (!u) return avMontarAcesso({ logado: false, avaliador: !!selo });
+  if (u.papel === "pendente" || await contaRemovida(u.email)) {
+    return avMontarAcesso({ logado: true, eu: { email: u.email, nome: u.nome } });
+  }
+  const perfil = (await carregarPerfis())[u.email] || {};
+  const gestao = u.papel === "gestor" || (u.modulos || []).includes("avaliacao");
+  const identidade = { email: u.email, lattes: perfil.lattes, nome: perfil.nome || u.nome };
+  return avMontarAcesso({
+    logado: true, gestao,
+    cursosCoordenados: gestao ? [] : await cursosQueCoordenaDe(u.email),
+    docenteEm: await docenteNosDossiesAv(identidade),
+    eu: { email: u.email, nome: perfil.nome || u.nome || "" },
+  });
+}
+/** Os doze dossiês, lidos do estado (em memória) e já parseados. */
+async function lerDossiesAv() {
+  const saida = {};
+  for (const slug of SLUGS_AV) {
+    const bruto = await storage.get(avChaveDoDossie(slug));
+    if (!bruto) continue;
+    try { saida[slug] = JSON.parse(bruto); } catch { /* documento ilegível não conta */ }
+  }
+  return saida;
+}
+async function docenteNosDossiesAv(identidade) {
+  return avDocenteNosDossies(await lerDossiesAv(), identidade);
+}
+/* A escrita do quadro de docentes entra numa fila: duas coordenações incluindo
+   ao mesmo tempo leriam o mesmo documento e a segunda apagaria a primeira. */
+let filaDossieAv = Promise.resolve();
+const comDossieAv = (fn) => {
+  const r = filaDossieAv.then(fn);
+  filaDossieAv = r.catch(() => {});
+  return r;
+};
 // O selo do atalho /avaliador é de VISUALIZAÇÃO (decisão do dono, ago/2026):
 // abre as páginas e lê as chaves da Avaliação, mas NENHUMA escrita passa —
 // avaliador externo olha, não muda. Quem também tem sessão no ARCHÉ (um
@@ -475,17 +534,121 @@ app.use((req, res, next) => {
     return res.redirect(limpo.pathname + limpo.search);
   }
   if (liberadoNaAv(req)) return next();
-  if (req.method !== "GET") return res.status(403).json({ error: "Acesso restrito" });
-  res.status(401).type("html").send(paginaPortaria(destinoSeguro(req.originalUrl)));
+  if (!["GET", "HEAD"].includes(req.method)) return res.status(403).json({ error: "Acesso restrito" });
+  // sem sessão e sem o selo do avaliador: o login do portal, com a volta marcada
+  res.redirect("/entrar?next=" + encodeURIComponent(req.originalUrl));
 });
 
-// Abrir a porta pela senha. Erra a senha, não entra — e nada mais acontece:
-// não há conta para bloquear nem sessão para criar.
-app.post("/api/av/entrar", (req, res) => {
-  if (!senhaConfere(req.body?.senha))
-    return res.status(401).json({ error: "Senha incorreta." });
-  emitirSelo(res, "senha");
-  res.json({ ok: true, next: destinoSeguro(req.body?.next) });
+/* O QUE ESTA CONTA PODE NA AVALIAÇÃO — é o que as telas do app compilado
+   consultam para escolher o que mostrar (a régua de verdade está nas rotas
+   de leitura, gravação e upload abaixo; a tela só espelha). */
+app.get("/api/av/acesso", async (req, res) => {
+  try {
+    res.setHeader("Cache-Control", "no-store");
+    const a = await acessoNaAvaliacao(req);
+    res.json({ ...a, cursosNomes: Object.fromEntries(CURSOS_AV.map((c) => [c.slug, c.nome])) });
+  } catch (e) {
+    console.error("Erro em /api/av/acesso:", e);
+    res.status(500).json({ error: "Falha ao conferir o acesso" });
+  }
+});
+
+/* A busca de usuários para a coordenação INDICAR o docente (pedido do dono,
+   set/2026: "o coordenador, quando for incluir um professor, busca dentre os
+   usuários inscritos"). Só gestão e coordenação de curso; devolve o essencial
+   (nome, e-mail, titulação, função, curso, id do Lattes) — nada de CPF nem
+   telefone. Quem não leciona (aluno, ICEM, secretaria) e quem foi removido
+   ficam de fora. */
+app.get("/api/av/usuarios", async (req, res) => {
+  try {
+    const a = await acessoNaAvaliacao(req);
+    if (!a.logado || !(a.gestao || a.cursos.length))
+      return res.status(403).json({ error: "Só a gestão e a coordenação de curso indicam docentes." });
+    const { conta, usuarios, perfis } = await contasDoPortal();
+    const contas = [...conta.keys()].map((e) => {
+      const p = perfis[e] || {};
+      return { email: e, nome: p.nome || "", funcao: normalizarFuncao(p.funcao), titulacao: p.titulacao || "",
+        curso: p.curso || "", lattes: p.lattes || "", removido: (usuarios.removidos || []).includes(e) };
+    });
+    res.json({ usuarios: avBuscarUsuarios(contas, req.query.q) });
+  } catch (e) {
+    console.error("Erro em /api/av/usuarios:", e);
+    res.status(500).json({ error: "Falha na busca" });
+  }
+});
+
+/* INCLUIR e RETIRAR um docente do dossiê de um curso — ato da coordenação do
+   curso (ou da gestão). Antes o app compilado "adicionava" o docente só na
+   memória da aba: a gravação era recusada para quem não fosse docente, e o
+   quadro voltava ao que era ao recarregar. Agora o registro entra no
+   documento gravado, com o E-MAIL como vínculo forte — é por ele que a conta
+   do professor encontra a própria ficha ao entrar. */
+async function exigirCoordenacaoAv(req, res) {
+  const curso = String(req.params.curso || "").trim().toLowerCase();
+  if (!SLUGS_AV.includes(curso)) { res.status(400).json({ error: "Curso desconhecido." }); return null; }
+  const a = await acessoNaAvaliacao(req);
+  if (!a.logado || !(a.gestao || a.cursos.includes(curso))) {
+    res.status(403).json({ error: "Só a coordenação deste curso (ou a gestão) altera o quadro docente." });
+    return null;
+  }
+  return { curso, acesso: a };
+}
+app.post("/api/av/dossie/:curso/docentes", async (req, res) => {
+  try {
+    const ctx = await exigirCoordenacaoAv(req, res); if (!ctx) return;
+    const alvo = String(req.body?.email || "").trim().toLowerCase();
+    if (!alvo.includes("@")) return res.status(400).json({ error: "Informe o e-mail do usuário." });
+    const perfil = (await carregarPerfis())[alvo];
+    if (!perfil?.nome) {
+      return res.status(404).json({ error: "Esse e-mail ainda não tem cadastro com nome no ARCHÉ. A pessoa precisa entrar no portal e completar o perfil antes de ser incluída." });
+    }
+    const chave = avChaveDoDossie(ctx.curso);
+    const r = await comDossieAv(async () => {
+      let doc = null;
+      try { doc = JSON.parse((await storage.get(chave)) || "null"); } catch { doc = null; }
+      if (!doc || !Array.isArray(doc.profs)) doc = { version: 3, profs: [], session: null };
+      const identidade = { email: alvo, lattes: perfil.lattes, nome: perfil.nome };
+      const ja = avIdentificarDocente(doc.profs, identidade);
+      if (ja >= 0) {
+        // já está: só grava o vínculo forte, se faltava
+        if (!doc.profs[ja].email) { doc.profs[ja].email = alvo; await storage.set(chave, JSON.stringify(doc)); }
+        return { ok: true, jaEstava: true, docente: { idx: ja, nome: doc.profs[ja].nome, email: alvo } };
+      }
+      const novo = avDocenteNovo({ email: alvo, nome: perfil.nome, titulo: perfil.titulacao,
+        lattesId: perfil.lattes, funcao: req.body?.funcao });
+      novo.idx = doc.profs.length;
+      doc.profs.push(novo);
+      await storage.set(chave, JSON.stringify(doc));
+      return { ok: true, docente: { idx: novo.idx, nome: novo.nome, email: alvo } };
+    });
+    res.json(r);
+  } catch (e) {
+    console.error("Erro ao incluir docente no dossiê:", e);
+    res.status(500).json({ error: "Falha ao incluir o docente" });
+  }
+});
+app.delete("/api/av/dossie/:curso/docentes", async (req, res) => {
+  try {
+    const ctx = await exigirCoordenacaoAv(req, res); if (!ctx) return;
+    const chave = avChaveDoDossie(ctx.curso);
+    const id = { email: req.body?.email, lattes: req.body?.lattesId, nome: req.body?.nome };
+    const r = await comDossieAv(async () => {
+      let doc = null;
+      try { doc = JSON.parse((await storage.get(chave)) || "null"); } catch { doc = null; }
+      if (!doc || !Array.isArray(doc.profs)) return { ok: false, status: 404, error: "O dossiê deste curso ainda não foi gravado." };
+      const i = avIdentificarDocente(doc.profs, id);
+      if (i < 0) return { ok: false, status: 404, error: "Esse docente não está no dossiê gravado." };
+      const [saiu] = doc.profs.splice(i, 1);
+      doc.profs.forEach((p, n) => { p.idx = n; });
+      await storage.set(chave, JSON.stringify(doc));
+      return { ok: true, removido: { nome: saiu?.nome || "", email: saiu?.email || "" } };
+    });
+    if (!r.ok) return res.status(r.status || 400).json({ error: r.error });
+    res.json(r);
+  } catch (e) {
+    console.error("Erro ao retirar docente do dossiê:", e);
+    res.status(500).json({ error: "Falha ao retirar o docente" });
+  }
 });
 
 // O link para mandar a quem não tem conta (avaliadores do MEC, sobretudo).
@@ -2283,6 +2446,18 @@ app.get("/api/estado", async (req, res) => {
     // as chaves abertas são as da Avaliação: a porta é a mesma da portaria,
     // senão bastaria pular a tela e ler tudo pela API
     if (!liberadoNaAv(req)) return res.status(403).json({ error: "Acesso restrito" });
+    /* Dentro da Avaliação a LEITURA também é da conta (set/2026): a
+       coordenação lê os cursos dela, o docente lê só o dossiê do curso em
+       que está, o avaliador lê tudo. Sem isso o recorte da tela seria
+       fachada — o app compilado baixa o documento inteiro. */
+    if (avCursoDaChave(chave)) {
+      const acesso = await acessoNaAvaliacao(req);
+      if (!avPodeLer(acesso, chave)) {
+        return res.status(403).json({ error: acesso.logado
+          ? "A sua conta não tem acesso a este curso na Avaliação."
+          : "Entre no portal para abrir a Avaliação." });
+      }
+    }
     // Os setores de gestão guardam dados pessoais (e-mail, telefone e CPF de
     // participantes): a LEITURA também exige sessão. As chaves da Avaliação
     // Institucional continuam abertas, como manda a regra do projeto.
@@ -2311,13 +2486,52 @@ async function podeEscrever(req, chave) {
   return !!u && u.papel !== "pendente";
 }
 
+/* A GRAVAÇÃO NA AVALIAÇÃO É DA CONTA (set/2026). Gestão e coordenação do
+   curso gravam o documento inteiro. O DOCENTE grava só a própria ficha: a
+   tela manda o dossiê do curso inteiro (é como o app compilado funciona), e
+   o servidor FUNDE — parte do que está gravado e troca nele apenas o
+   registro do docente e os ajustes de produção dele. Assim uma aba velha
+   nunca desfaz o trabalho de um colega, e ninguém edita a ficha de outro.
+   Devolve o valor a gravar, ou lança com o código HTTP. */
+async function valorParaGravarNaAv(req, chave, valor) {
+  const info = avCursoDaChave(chave);
+  if (!info) return valor;                       // não é da Avaliação: segue a régua geral
+  const acesso = await acessoNaAvaliacao(req);
+  const modo = avPodeGravar(acesso, chave);
+  if (!modo) {
+    const e = new Error(!acesso.logado
+      ? "Entre com a sua conta do ARCHÉ para gravar na Avaliação."
+      : acesso.papel === "avaliador" ? "O acesso de avaliador é somente de visualização."
+        : "A sua conta não grava neste curso da Avaliação. A coordenação do curso inclui os docentes no dossiê.");
+    e.status = 403; throw e;
+  }
+  if (modo === "total") return valor;
+  // "ficha": só a própria
+  let guardado = null, recebido = null;
+  try { guardado = JSON.parse((await storage.get(chave)) || "null"); } catch { guardado = null; }
+  try { recebido = typeof valor === "string" ? JSON.parse(valor) : valor; } catch { recebido = null; }
+  const perfil = (await carregarPerfis())[acesso.eu.email] || {};
+  const fundido = avFundirFicha(guardado, recebido,
+    { email: acesso.eu.email, lattes: perfil.lattes, nome: perfil.nome || acesso.eu.nome });
+  if (!fundido) {
+    const e = new Error("A sua ficha não está neste dossiê — só a própria ficha pode ser gravada por um docente.");
+    e.status = 403; throw e;
+  }
+  return JSON.stringify(fundido);
+}
+
 app.put("/api/estado", async (req, res) => {
   try {
     const chave = stateKey(req);
     if (!(await podeEscrever(req, chave)))
       return res.status(403).json({ error: "Faça login para salvar neste setor" });
-    await storage.set(chave, req.body.valor);
-    res.json({ key: chave, value: req.body.valor || "" });
+    let valor;
+    try { valor = await valorParaGravarNaAv(req, chave, req.body.valor); } catch (e) {
+      if (e.status) return res.status(e.status).json({ error: e.message });
+      throw e;
+    }
+    await storage.set(chave, valor);
+    res.json({ key: chave, value: valor || "" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -2332,7 +2546,12 @@ app.post("/api/estado-beacon", async (req, res) => {
     const chave = String(body?.chave || "").trim();
     if (!chave) return res.status(400).end();
     if (!(await podeEscrever(req, chave))) return res.status(403).end();
-    await storage.set(chave, body.valor);
+    let valor;
+    try { valor = await valorParaGravarNaAv(req, chave, body.valor); } catch (e) {
+      if (e.status) return res.status(e.status).end();
+      throw e;
+    }
+    await storage.set(chave, valor);
     res.status(204).end();
   } catch {
     res.status(500).end();
@@ -2370,21 +2589,17 @@ app.get("/api/estado/list", async (req, res) => {
    gravado. A portaria é a MESMA das páginas e das chaves `dossie-*` no
    /api/estado (leitura: sessão OU selo da Avaliação) — o relatório não conta
    nada que essas rotas já não entreguem. */
-const CURSOS_AV = {
-  administracao: "Administração", agronomia: "Agronomia", contabeis: "Ciências Contábeis",
-  direito: "Direito", "educacao-fisica": "Educação Física", enfermagem: "Enfermagem",
-  "engenharia-civil": "Engenharia Civil", "engenharia-mecanica": "Engenharia Mecânica",
-  "engenharia-software": "Engenharia de Software", "medicina-veterinaria": "Medicina Veterinária",
-  odontologia: "Odontologia", psicologia: "Psicologia",
-};
 app.get("/api/avaliacao/producao.pdf", async (req, res) => {
   try {
     if (!liberadoNaAv(req))
       return res.status(403).send("Acesso restrito — entre no portal ou use o link de acesso da Avaliação.");
     const curso = String(req.query.curso || "").trim().toLowerCase();
-    const cursoNome = CURSOS_AV[curso];
+    const cursoNome = nomeDoCursoAv(curso);
     if (!cursoNome) return res.status(400).send("Curso desconhecido.");
-    const bruto = await storage.get(`dossie-${curso}-v1`);
+    // o mesmo recorte da leitura do dossiê: quem não lê o curso não baixa o relatório dele
+    if (!avPodeLer(await acessoNaAvaliacao(req), avChaveDoDossie(curso)))
+      return res.status(403).send("A sua conta não tem acesso a este curso na Avaliação.");
+    const bruto = await storage.get(avChaveDoDossie(curso));
     if (!bruto) return res.status(404).send("O dossiê deste curso ainda não tem dados gravados no servidor.");
     let dossie;
     try { dossie = JSON.parse(bruto); } catch { return res.status(500).send("O dossiê gravado não pôde ser lido."); }
@@ -2407,16 +2622,38 @@ app.get("/api/avaliacao/producao.pdf", async (req, res) => {
 // Os três uploads abaixo são da Avaliação e do dossiê: valem a mesma portaria
 // das páginas, senão a barreira só existiria na tela.
 app.use(["/api/drive/upload", "/api/drive/upload-avaliacao", "/api/drive/upload-doc-institucional"],
-  (req, res, next) => {
+  async (req, res, next) => {
     if (!liberadoNaAv(req)) return res.status(403).json({ error: "Acesso restrito" });
     if (somenteLeituraNaAv(req))
       return res.status(403).json({ error: "O acesso de avaliador é somente de visualização." });
+    /* O UPLOAD TAMBÉM É DA CONTA (set/2026): sem sessão não sobe nada. Quem
+       decide POR CURSO é a rota (o curso vem do formulário, que o multer ainda
+       não leu aqui); esta porta só garante que há alguém identificado. */
+    const acesso = await acessoNaAvaliacao(req);
+    if (!acesso.logado || acesso.papel === "nenhum")
+      return res.status(403).json({ error: "Entre com a sua conta do ARCHÉ para enviar arquivos à Avaliação." });
+    req.acessoAv = acesso;
     next();
   });
+/* Curso + conta → pode enviar? Coordenação e gestão, no curso; o docente, só
+   no dossiê do curso em que está e só na PRÓPRIA pasta (o `professor` do
+   formulário é o nome dele em slug — é assim que o app nomeia a pasta). */
+function podeEnviarNaAv(req, { docenteTambem = false } = {}) {
+  const a = req.acessoAv;
+  const curso = cursoFrom(req);
+  if (!a) return false;
+  if (a.gestao || a.cursos.includes(curso)) return true;
+  if (!docenteTambem) return false;
+  const meu = a.docenteEm[curso];
+  // o `slug` preserva a caixa das letras: compara-se sem ela
+  return !!meu && slug(req.body?.professor || "").toLowerCase() === slug(meu.nome || "").toLowerCase();
+}
 
 app.post("/api/drive/upload", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
+    if (!podeEnviarNaAv(req, { docenteTambem: true }))
+      return res.status(403).json({ error: "Você só envia comprovantes para a sua própria ficha, no curso em que está no dossiê." });
     const professor = slug(req.body.professor || "desconhecido");
     const categoria = slug(req.body.categoria || "geral");
     const codigo = String(req.body.codigo || "");
@@ -2434,6 +2671,8 @@ app.post("/api/drive/upload", upload.single("file"), async (req, res) => {
 app.post("/api/drive/upload-avaliacao", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
+    if (!podeEnviarNaAv(req))
+      return res.status(403).json({ error: "Só a coordenação deste curso (ou a gestão) envia documentos dos indicadores." });
     const indicador = String(req.body.indicador || "geral");
     const criterio = Number(req.body.criterioIndice || 0) + 1;
     const originalName = `Indicador-${indicador}_Criterio-${criterio}_${req.file.originalname}`;
@@ -2450,6 +2689,8 @@ app.post("/api/drive/upload-avaliacao", upload.single("file"), async (req, res) 
 app.post("/api/drive/upload-doc-institucional", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
+    if (!podeEnviarNaAv(req))
+      return res.status(403).json({ error: "Só a coordenação deste curso (ou a gestão) envia documentos institucionais." });
     const section = slug(req.body.secao || "DI.1");
     const provided = String(req.body.nomeArquivo || "").trim();
     const originalName = provided
