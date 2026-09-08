@@ -605,6 +605,9 @@ function editar(id) {
 const tipoAtual = () => (EDIT ? (EDIT.tipo || "pratica") : TIPO_NOVO);
 const camposDoTipo = () => (D.camposPorTipo?.[tipoAtual()] || D.campos || []);
 const ehExt = () => tipoAtual() === "extensao";
+// o mínimo de fotos é POR TIPO (5 na aula prática, 3 na curricularização):
+// a régua é do servidor, a tela só a repete
+const minFotos = () => (ehExt() ? (D.minFotosExtensao || 3) : (D.minFotos || 5));
 
 function renderNova() {
   const r = EDIT || {};
@@ -762,9 +765,9 @@ function renderNova() {
            tabelas viraram campos. A atividade é <b>componente curricular da disciplina</b> e por
            isso <b>não emite certificado</b>: a carga horária é do próprio curso.
            Os campos marcados com <b>*</b> são obrigatórios, e o registro fotográfico também:
-           são <b>${D.minFotos} fotos</b>, que é o que comprova a realização.`
+           são <b>${minFotos()} fotos</b>, que é o que comprova a realização.`
         : `Todos os campos são obrigatórios, e o registro fotográfico também: são
-           <b>${D.minFotos} fotos</b>, que é o que comprova a realização da aula.`}</div>
+           <b>${minFotos()} fotos</b>, que é o que comprova a realização da aula.`}</div>
       ${aviso}
       <div id="f-alerta"></div>
       <div class="grid2">${corpo}</div>
@@ -777,7 +780,7 @@ function renderNova() {
       </div>
     </div>
     ${r.id ? `<div class="card">
-      <div class="card-t">${ehExt() ? "Registros fotográficos" : "Fotos da prática"} — ${fotos.length} de ${D.minFotos}</div>
+      <div class="card-t">${ehExt() ? "Registros fotográficos" : "Fotos da prática"} — ${fotos.length} de ${minFotos()}</div>
       <div class="card-s">O registro fotográfico entra no PDF do relatório, ao final. As imagens são
         reduzidas no seu navegador antes de subir.</div>
       <input type="file" id="f-foto" accept="image/*" multiple onchange="subirFotos()">
@@ -1288,7 +1291,7 @@ async function abrirChamada(tipo = "pratica") {
     <label>Mensagem da coordenação (opcional, entra no topo do e-mail)</label>
     <textarea id="ch-msg" placeholder="${ehEC
       ? "Ex.: o relatório precisa das três fotos e da carga horária extensionista."
-      : "Ex.: lembrem-se de anexar as três fotos."}"></textarea>
+      : "Ex.: lembrem-se de anexar as cinco fotos."}"></textarea>
     <div style="max-height:200px;overflow:auto;margin-top:12px">
       ${lista.map((p) => `<div class="linha"><div class="txt">
         <div class="p1">${esc(p.nome || p.email)}</div>

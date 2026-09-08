@@ -9,7 +9,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  CAMPOS_RELATORIO, MIN_FOTOS, MAX_FOTOS, STATUS, ENTREGUE,
+  CAMPOS_RELATORIO, MIN_FOTOS, MIN_FOTOS_EXTENSAO, minFotosDe, MAX_FOTOS, STATUS, ENTREGUE,
   normalizarRelatorio, normalizarFoto, normalizarCadastro, normalizarEquipe,
   faltaNoRelatorio, podeEnviar, papelNoRelatorio, podeVer, podeEditar, podeValidar,
   visaoDoRelatorio, quemNoModulo, coordenaCurso, cursosQueCoordena,
@@ -41,11 +41,17 @@ const completo = (x = {}) => normalizarRelatorio({
   atividades: "Em grupos de quatro, identificaram as peças e preencheram o roteiro guiado.",
   curso: "enfermagem", ...x,
 }, { base: { id: "r1", professor: { email: "ana@uniego.edu.br", nome: "Ana Prática" },
-  fotos: [{}, {}, {}].map(normalizarFoto), ...(x.base || {}) } });
+  fotos: [{}, {}, {}, {}, {}].map(normalizarFoto), ...(x.base || {}) } });
 
 /* ------------------------------ a régua -------------------------------- */
-test("a entrega exige os cinco campos e as três fotos", () => {
-  assert.equal(MIN_FOTOS, 3);
+test("a entrega exige os cinco campos e as cinco fotos", () => {
+  assert.equal(MIN_FOTOS, 5);
+  // a curricularização fica em três: o pedido de subir para cinco foi só das
+  // aulas práticas, e o formulário da CE acabou de ser enxugado
+  assert.equal(MIN_FOTOS_EXTENSAO, 3);
+  assert.equal(minFotosDe({ tipo: "pratica" }), 5);
+  assert.equal(minFotosDe({ tipo: "extensao" }), 3);
+  assert.equal(minFotosDe({}), 5, "sem tipo é aula prática");
   assert.deepEqual(CAMPOS_RELATORIO.map((c) => c.campo),
     ["disciplina", "data", "local", "objetivo", "atividades"]);
   assert.deepEqual(faltaNoRelatorio(completo(), { hoje: "2026-08-20" }), []);
@@ -55,7 +61,7 @@ test("a entrega exige os cinco campos e as três fotos", () => {
   const nada = normalizarRelatorio({}, { base: { id: "x" } });
   const falta = faltaNoRelatorio(nada, { hoje: "2026-08-20" });
   assert.ok(falta.length >= 6, `esperava tudo de uma vez, veio ${falta.length}`);
-  assert.ok(falta.some((f) => /Fotos da prática — 0 de 3/.test(f)));
+  assert.ok(falta.some((f) => /Fotos da prática — 0 de 5/.test(f)));
   assert.ok(falta.some((f) => /Curso/.test(f)));
 });
 
@@ -69,10 +75,13 @@ test("texto curto demais não é relato, e aula futura não é aula", () => {
   assert.equal(podeEnviar(completo(), { hoje: "2026-08-20" }), true);
 });
 
-test("com duas fotos ainda falta uma — e o aviso diz quantas", () => {
-  const duas = completo({ base: { fotos: [{}, {}].map(normalizarFoto) } });
-  assert.ok(faltaNoRelatorio(duas, { hoje: "2026-08-20" })
-    .some((f) => /2 de 3/.test(f)));
+test("com três fotos ainda faltam duas — e o aviso diz quantas", () => {
+  const tres = completo({ base: { fotos: [{}, {}, {}].map(normalizarFoto) } });
+  assert.ok(faltaNoRelatorio(tres, { hoje: "2026-08-20" })
+    .some((f) => /Fotos da prática — 3 de 5/.test(f)));
+  // na curricularização as mesmas três fotos bastam
+  const ec = completo({ tipo: "extensao", base: { fotos: [{}, {}, {}].map(normalizarFoto) } });
+  assert.ok(!faltaNoRelatorio(ec, { hoje: "2026-08-20" }).some((f) => /Fotos/.test(f)));
 });
 
 /* --------------------- o que o formulário NÃO decide -------------------- */
@@ -452,7 +461,7 @@ test("a régua do envio cobra o que a extensão curricular precisa comprovar", (
   // e a mesma régua não cobra os campos da extensão numa aula prática
   const pratica = normalizarRelatorio({ disciplina: "Semiologia", data: "2026-08-20",
     local: "Lab", objetivo: "o".repeat(40), atividades: "a".repeat(40) },
-  { base: { curso: "enfermagem", fotos: [{}, {}, {}] } });
+  { base: { curso: "enfermagem", fotos: [{}, {}, {}, {}, {}] } });
   assert.deepEqual(faltaNoRelatorio(pratica), []);
 });
 

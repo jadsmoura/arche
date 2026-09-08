@@ -185,7 +185,8 @@ import {
    porque quase todos têm homônimo noutro setor (falta, visao, panorama). */
 import {
   AP_KEY, AP_CADASTRO_KEY, AP_EQUIPE_KEY,
-  CAMPOS_RELATORIO as AP_CAMPOS, MIN_FOTOS as AP_MIN_FOTOS, MAX_FOTOS as AP_MAX_FOTOS,
+  CAMPOS_RELATORIO as AP_CAMPOS, MIN_FOTOS as AP_MIN_FOTOS, MIN_FOTOS_EXTENSAO as AP_MIN_FOTOS_EC,
+  MAX_FOTOS as AP_MAX_FOTOS,
   MAX_EVIDENCIAS as AP_MAX_EVID, TIPOS as AP_TIPOS, tipoDe as apTipoDe, camposDo as apCamposDo,
   ROTULO_STATUS as AP_ROTULO_STATUS,
   DECISOES as AP_DECISOES, podeReabrir as apPodeReabrir,
@@ -14346,7 +14347,8 @@ app.get("/api/praticas", async (req, res) => {
       gestao: quem.gestao, pedagogico: quem.pedagogico, cursos: quem.cursos,
       semestre, semestres, semestreCorrente: semestreCorrente(),
       catalogoCursos: CURSOS.map((c) => ({ slug: c.slug, nome: c.nome })),
-      campos: AP_CAMPOS, minFotos: AP_MIN_FOTOS, papeisCoordenacao: AP_PAPEIS_COORD,
+      campos: AP_CAMPOS, minFotos: AP_MIN_FOTOS, minFotosExtensao: AP_MIN_FOTOS_EC,
+      papeisCoordenacao: AP_PAPEIS_COORD,
       // os dois tipos de relatório e os campos de cada um: a tela desenha o
       // formulário DAQUI, e é o mesmo catálogo que o servidor confere
       tipos: AP_TIPOS, camposPorTipo: Object.fromEntries(AP_TIPOS.map((t) => [t.codigo, apCamposDo(t.codigo)])),

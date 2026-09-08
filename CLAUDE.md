@@ -3035,8 +3035,10 @@ public/
 - **ARCHÉ AC — Aulas Práticas e Extensão Curricular** (`lib/praticas.js` + `public/praticas/` + rotas
   `/api/praticas/*`, pedido de coordenadores de curso ago/2026): o professor dá a aula prática e,
   depois dela, registra o que aconteceu — **disciplina, objetivo, local, data, atividades e as
-  fotos** (mínimo de **3**, `MIN_FOTOS`: é o registro fotográfico que comprova a aula, a mesma razão
-  do mínimo da Extensão, em escala menor). A coordenação valida, e **o fluxo ENCERRA NELA**: a
+  fotos** (mínimo de **5**, `MIN_FOTOS` — subiu de 3 a pedido do dono em set/2026, igualando-se ao
+  relatório da Extensão; a **curricularização fica em 3**, `MIN_FOTOS_EXTENSAO`, porque o pedido
+  foi só das aulas práticas e `minFotosDe(r)` escolhe pelo tipo — a tela repete a régua por tipo
+  em `minFotos()`). A coordenação valida, e **o fluxo ENCERRA NELA**: a
   PROPPEX é suporte, com alcance total para destravar, mas não é um degrau do processo. Em todos os
   outros setores a pró-reitoria homologa; aqui não, e é de propósito — o módulo é da **PROAC**, e
   quem acompanha a aula prática é a coordenação do curso.
@@ -3092,7 +3094,7 @@ public/
   lista diz "disciplina fora do cadastro (registro retroativo)" — a coordenação precisa ver que a
   disciplina não veio do cadastro. **No semestre CORRENTE nada muda**: quem manda é o cadastro da
   coordenação (é o denominador do painel), e o 403 de quem não está nele passou a apontar o caminho
-  do registro retroativo. O resto do fluxo é o mesmo — 3 fotos, envio, validação pela coordenação do
+  do registro retroativo. O resto do fluxo é o mesmo — 5 fotos, envio, validação pela coordenação do
   curso, PDF timbrado.
   **O aviso do relatório enviado se REENVIA quando se perde** (`varrerAvisosAP` +
   `sys-ap-avisos-enviado-v1`, achado do dono ago/2026: "a coordenadora relatou não ter recebido
