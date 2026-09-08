@@ -751,6 +751,7 @@ function formInscricao(e) {
     <label for="i-tel">Telefone (WhatsApp) *</label><input id="i-tel" required autocomplete="tel" placeholder="(62) 9…">
     <div class="dica-campo">Vai na planilha de emissão do certificado — sem ele o certificado não sai.</div>
     <label for="i-curso">Curso / instituição de origem</label><input id="i-curso" placeholder="Ex.: Enfermagem — UNIEGO">
+    ${blocoCategoria(e)}
     ${escolha}
     ${extras}
     <div class="secao-t" style="font-size:15px;margin:20px 0 0">Tratamento de dados pessoais</div>
@@ -809,6 +810,28 @@ function avisoConflito() {
     Você pode manter as duas marcadas — a escolha é sua.</div>` : "";
 }
 
+/* EVENTO PAGO (set/2026): a categoria da inscrição, com o preço de HOJE (o
+   lote vigente já aplicado pelo servidor). O que vai ao servidor é só o
+   código — o valor ele calcula de novo, do que está gravado. */
+const reais = (c) => "R$ " + (Math.round(Number(c) || 0) / 100).toFixed(2).replace(".", ",");
+function blocoCategoria(e) {
+  const c = e.cobranca;
+  if (!c || !(c.categorias || []).length) return "";
+  const uma = c.categorias.length === 1;
+  return `<div class="secao-t" style="font-size:15px;margin:20px 0 0">Categoria da inscrição</div>
+    ${!c.online ? `<div class="msg-erro">O pagamento online está indisponível neste momento — fale com a coordenação do evento.</div>` : ""}
+    ${c.lote ? `<p style="font-size:12.5px;color:var(--muted);margin-top:4px">Valores do <b>${esc(c.lote.nome)}</b>, válidos até ${esc(fmt(c.lote.ate))}${c.proximoLote ? ` — depois, ${esc(c.proximoLote.nome)}` : ""}.</p>` : ""}
+    ${c.categorias.map((k, i) => `<label class="esc-atv" style="align-items:center">
+      <input type="radio" name="i-categoria" value="${esc(k.codigo)}" ${uma || i === 0 ? "checked" : ""} required>
+      <span style="flex:1"><b>${esc(k.nome)}</b>${k.descricao ? `<div class="m">${esc(k.descricao)}</div>` : ""}</span>
+      <b style="white-space:nowrap">${k.valor > 0 ? reais(k.valor) : "gratuita"}</b>
+      ${k.valorCheio > k.valor ? `<span class="m" style="text-decoration:line-through;white-space:nowrap">${reais(k.valorCheio)}</span>` : ""}
+    </label>`).join("")}
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">Pagamento por ${[c.meios?.pix && "Pix", c.meios?.cartao && (c.parcelas > 1 ? `cartão (até ${c.parcelas}x)` : "cartão"), c.meios?.boleto && "boleto"].filter(Boolean).join(", ") || "meio a definir"},
+      na página segura do Mercado Pago${c.recebedor ? `, em nome de ${esc(c.recebedor)}` : ""}. A vaga fica reservada por ${Math.round((c.reservaMinutos || 1440) / 60)} h para o pagamento;
+      a credencial sai depois da confirmação.</p>`;
+}
+
 /* Campos extras — o catálogo vem do evento; a resposta vai em `respostas`. */
 function campoExtra(c) {
   const ob = c.obrigatorio ? " *" : "";
@@ -841,9 +864,31 @@ function lerRespostas() {
 }
 
 /* ------ 5. pós-inscrição ------ */
-function pos(token) {
+function pos(token, pagamento) {
   const url = `/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(token)}`;
   const marcadas = [...ESCOLHIDAS].map(atvPorId).filter(Boolean);
+  /* EVENTO PAGO: a inscrição está RESERVADA, não confirmada — sem QR aqui. O
+     botão leva ao Mercado Pago; a página de pagamento (para onde ele devolve
+     a pessoa) confere a confirmação e dali se abre a credencial. */
+  if (pagamento && !pagamento.valida) {
+    const urlPag = `/eventos/${encodeURIComponent(SLUG)}/pagamento/${encodeURIComponent(token)}`;
+    const hora = (iso) => { try { return new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
+    $("card-inscricao").innerHTML = `
+      <div id="pos-inscricao">
+      <div class="card-t" style="font-size:17px">Inscrição recebida — falta o pagamento</div>
+      <p style="font-size:13.5px;margin-top:8px">Reservamos a sua vaga <b>até ${esc(hora(pagamento.expiraEm))}</b>.
+        Categoria <b>${esc(pagamento.categoriaNome)}</b>${pagamento.lote ? ` (${esc(pagamento.lote)})` : ""}: <b>${reais(pagamento.valor)}</b>.</p>
+      <p style="font-size:13px;color:var(--ink-soft);margin-top:6px">Enviamos ao seu e-mail o link para pagar. Assim que o pagamento
+        for confirmado, você recebe a credencial com o QR de acesso.</p>
+      ${pagamento.link
+        ? `<a class="bt bt-pri" style="width:100%;margin-top:14px" href="${esc(pagamento.link)}">Pagar agora</a>`
+        : `<a class="bt bt-pri" style="width:100%;margin-top:14px" href="${urlPag}">Ir para o pagamento</a>`}
+      <a class="bt bt-sec" style="width:100%;margin-top:10px" href="${urlPag}">Já paguei / ver a situação</a>
+      </div>`;
+    $("cta-flutua").style.display = "none";
+    $("card-inscricao").scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
   $("card-inscricao").innerHTML = `
     <div id="pos-inscricao">
     <div class="card-t" style="font-size:17px">Inscrição confirmada ✓</div>
@@ -896,6 +941,7 @@ async function inscrever(ev) {
         telefone: $("i-tel").value, curso: $("i-curso").value,
         atividades: [...ESCOLHIDAS],
         respostas: lerRespostas(),
+        categoria: document.querySelector('input[name="i-categoria"]:checked')?.value || "",
         consentimento: $("i-lgpd").checked === true,
         comunicacoes: $("i-comunic").checked === true,
       }),
@@ -903,7 +949,7 @@ async function inscrever(ev) {
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { const err = new Error(j.error || "Não foi possível concluir a inscrição."); err.ja = j.jaInscrito; throw err; }
     localStorage.setItem("arche-ev-" + SLUG, j.token);
-    pos(j.token);
+    pos(j.token, j.pagamento);
   } catch (e2) {
     // JÁ INSCRITO não é uma parede: quem não recebeu o e-mail volta aqui e
     // precisa de um caminho, não de um erro (pergunta do dono, ago/2026). A

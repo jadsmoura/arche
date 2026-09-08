@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Pagamento da inscrição — Eventos UNIEGO</title>
+<link rel="icon" href="/arche/favicon.svg">
+<link rel="stylesheet" href="/assets/arche-ui.css">
+<style>
+  /* Pagamento da inscrição (servida em /eventos/<slug>/pagamento/<token>): é
+     para onde o Mercado Pago devolve a pessoa depois de pagar e onde ela
+     confere se o Pix já confirmou. O token no endereço É a inscrição — a
+     página só mostra a cobrança de quem tem o link. Nada de cartão passa por
+     aqui: o pagamento acontece na página do provedor. */
+  .cartao{max-width:480px;margin:26px auto 0;text-align:center}
+  .valor{font-family:'Sora',sans-serif;font-size:34px;font-weight:700;color:var(--brand);letter-spacing:-.02em;margin-top:6px}
+  .valor small{font-size:13px;font-weight:500;color:var(--muted);display:block;letter-spacing:0;margin-top:2px}
+  .selo{font-size:12px;font-weight:600;border-radius:20px;padding:5px 12px;display:inline-block}
+  .selo.ok{background:var(--ok-soft);color:var(--ok)}
+  .selo.warn{background:var(--warn-soft);color:var(--warn)}
+  .selo.err{background:var(--err-soft);color:var(--err)}
+  .selo.v{background:var(--wash);color:var(--muted)}
+  .prazo{font-size:13px;color:var(--ink-soft);margin-top:12px;line-height:1.55}
+  .prazo b{color:var(--ink)}
+  .msg-erro{background:var(--err-soft);color:var(--err);border-radius:10px;padding:10px 13px;
+    font-size:13px;font-weight:600;margin-top:12px;text-align:left}
+  .msg-ok{background:var(--ok-soft);color:var(--ok);border-radius:10px;padding:10px 13px;
+    font-size:13px;font-weight:600;margin-top:12px;text-align:left}
+  .msg-aviso{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 13px;
+    font-size:12.5px;font-weight:500;margin-top:12px;text-align:left;line-height:1.5}
+  .meios{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+  .meios span{font-size:11.5px;border:1px solid var(--line);border-radius:8px;padding:3px 9px;color:var(--muted)}
+  .pol{font-size:12px;color:var(--muted);text-align:left;margin-top:16px;border-top:1px solid var(--line);padding-top:12px;line-height:1.55}
+  .conferindo{font-size:12px;color:var(--muted);margin-top:8px}
+  @keyframes pulsa{0%,100%{opacity:.45}50%{opacity:1}}
+  .conferindo.ativo{animation:pulsa 1.6s ease-in-out infinite}
+  @media(prefers-reduced-motion:reduce){.conferindo.ativo{animation:none}}
+</style>
+</head>
+<body>
+<header class="topo">
+  <div class="topo-rule"></div>
+  <div class="topo-inner">
+    <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+    <div class="vr"></div>
+    <div class="topo-txt">
+      <div class="topo-t"><span class="arche-wm"><span class="arche-tx">Pagamento da inscrição</span></span></div>
+      <div class="topo-s">Eventos · Extensão · PROPPEX / UNIEGO</div>
+    </div>
+    <nav class="topo-nav"><a href="/eventos/">Eventos</a></nav>
+  </div>
+</header>
+
+<main><div class="card cartao" id="cartao"><p style="color:var(--muted)">Carregando…</p></div></main>
+
+<footer>
+  <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+  <div class="sep"></div>
+  <p>PROPPEX — Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária.</p>
+</footer>
+
+<script>
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) ? iso.split("-").reverse().join("/") : "—");
+const reais = (c) => "R$ " + (Math.round(Number(c) || 0) / 100).toFixed(2).replace(".", ",");
+const hora = (iso) => { try { return new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
+const $ = (id) => document.getElementById(id);
+const m = location.pathname.match(/^\/eventos\/([^/]+)\/pagamento\/([^/]+)/) || [];
+const SLUG = decodeURIComponent(m[1] || ""), TOKEN = decodeURIComponent(m[2] || "");
+const RAIZ = `/api/publico/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(TOKEN)}`;
+const VOLTA = new URLSearchParams(location.search).get("volta") || "";
+let DADOS = null;
+let POLL = null, POLL_ATE = 0;
+
+const ROTULO = {
+  aguardando: ["warn", "aguardando pagamento"], pago: ["ok", "pagamento confirmado"], isento: ["ok", "inscrição isenta"],
+  expirado: ["err", "reserva expirada"], recusado: ["err", "pagamento recusado"],
+  estornado: ["v", "pagamento estornado"], contestado: ["warn", "pagamento em contestação"],
+};
+
+function render() {
+  const e = DADOS.evento, i = DADOS.inscricao, p = DADOS.pagamento;
+  const cred = `/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(TOKEN)}`;
+  if (!p) {
+    $("cartao").innerHTML = `<div class="card-t">Esta inscrição não tem cobrança</div>
+      <p style="font-size:13.5px;color:var(--muted);margin-top:8px">O evento é gratuito — a sua credencial já vale.</p>
+      <a class="bt bt-pri" style="width:100%;margin-top:14px" href="${cred}">Abrir minha inscrição</a>`;
+    return;
+  }
+  const [cor, rot] = ROTULO[p.status] || ["v", p.status];
+  const vencida = p.status === "aguardando" && p.reservaVencida;
+  const pendente = ["aguardando", "recusado", "expirado"].includes(p.status);
+  const meios = Object.entries(DADOS.meios || {}).filter(([, v]) => v).map(([k]) => ({ pix: "Pix", cartao: "Cartão", boleto: "Boleto" }[k] || k));
+  let aviso = "";
+  if (VOLTA === "sucesso" && pendente) aviso = `<div class="msg-aviso">Recebemos o retorno do Mercado Pago. A confirmação chega em segundos no Pix e no cartão — esta página confere sozinha. Boleto confirma depois da compensação.</div>`;
+  if (VOLTA === "falha" && pendente) aviso = `<div class="msg-erro">O pagamento não foi concluído. Você pode tentar de novo pelo botão abaixo — a vaga continua reservada até o prazo.</div>`;
+  if (p.divergente) aviso = `<div class="msg-aviso">Recebemos um pagamento com valor diferente do da inscrição. A coordenação do evento vai analisar e entrar em contato — não é preciso pagar de novo.</div>`;
+
+  $("cartao").innerHTML = `
+    <div class="eyebrow">Inscrição · ${esc(i.codigo.toUpperCase())}</div>
+    <div class="card-t" style="font-size:19px;margin-top:8px">${esc(e.nome)}</div>
+    <p style="font-size:13.5px;color:var(--ink-soft);margin-top:4px">${fmt(e.periodoInicio)} a ${fmt(e.periodoFim)} · ${esc(e.local) || ""}${e.municipio ? " — " + esc(e.municipio) : ""}</p>
+    <p style="font-size:13.5px;margin-top:10px"><b>${esc(i.nome)}</b></p>
+    <div class="valor">${reais(p.valor)}<small>${esc(p.categoriaNome)}${p.lote ? " · " + esc(p.lote) : ""}</small></div>
+    <div style="margin:12px 0 4px"><span class="selo ${cor}">${esc(rot)}${p.pagoEm ? " em " + esc(hora(p.pagoEm)) : ""}${p.meio && p.status === "pago" ? " · " + esc(p.meio) : ""}</span></div>
+    ${aviso}
+    ${p.valida ? `
+      <div class="msg-ok">✓ A sua inscrição está confirmada. A credencial com o QR de acesso foi enviada ao seu e-mail e está no botão abaixo.</div>
+      <a class="bt bt-pri" style="width:100%;margin-top:14px" href="${cred}">Abrir minha credencial</a>`
+    : pendente ? `
+      ${vencida || p.status === "expirado"
+        ? `<div class="prazo"><b>A reserva da vaga venceu</b>${p.expiraEm ? ` em ${esc(hora(p.expiraEm))}` : ""}. Se ainda houver vaga, dá para renovar e pagar agora — com o preço de hoje.</div>`
+        : `<div class="prazo">A vaga está <b>reservada até ${esc(hora(p.expiraEm))}</b>. Depois desse prazo, sem o pagamento, a inscrição expira e a vaga volta para a fila.</div>`}
+      ${p.online
+        ? `<button class="bt bt-pri" style="width:100%;margin-top:14px" id="bt-pagar" onclick="pagar()">${vencida || p.status === "expirado" ? "Renovar a reserva e pagar" : p.status === "recusado" ? "Tentar pagar de novo" : "Pagar agora"}</button>
+           ${meios.length ? `<div class="meios">${meios.map((x) => `<span>${esc(x)}</span>`).join("")}</div>` : ""}
+           <p style="font-size:12px;color:var(--muted);margin-top:8px">O pagamento acontece na página segura do Mercado Pago, em nome de ${esc(DADOS.recebedor || "UNIEGO")}. Nenhum dado de cartão passa pelo ARCHÉ.</p>
+           <button class="bt bt-sec" style="width:100%;margin-top:10px" id="bt-conferir" onclick="conferir(true)">Já paguei — conferir agora</button>
+           <div class="conferindo" id="conferindo"></div>`
+        : `<div class="msg-erro">O pagamento online está indisponível neste momento. Fale com a coordenação do evento.</div>`}`
+    : `
+      <div class="msg-aviso">${p.status === "estornado"
+        ? "O valor desta inscrição foi devolvido. Para participar, faça uma nova inscrição na página do evento."
+        : "Esta inscrição está em análise pela coordenação do evento."}</div>
+      <a class="bt bt-sec" style="width:100%;margin-top:14px" href="/eventos/${encodeURIComponent(SLUG)}">Voltar à página do evento</a>`}
+    <div id="msg"></div>
+    ${p.politicaReembolso ? `<div class="pol"><b>Política de reembolso:</b> ${esc(p.politicaReembolso)}</div>` : ""}
+    <p style="font-size:11.5px;color:var(--muted);margin-top:14px">Dúvidas sobre a inscrição ou o pagamento: eventos@uniego.edu.br.</p>`;
+}
+
+async function pagar() {
+  const bt = $("bt-pagar"); if (bt) bt.disabled = true;
+  $("msg").innerHTML = "";
+  try {
+    const r = await fetch(`${RAIZ}/pagamento/pagar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "Não foi possível gerar o link de pagamento.");
+    DADOS.pagamento = j.pagamento;
+    if (j.pagamento?.valida) { render(); return; }
+    if (j.pagamento?.link) { location.href = j.pagamento.link; return; }
+    render();
+    $("msg").innerHTML = `<div class="msg-erro">O link de pagamento não ficou pronto. Tente de novo em instantes.</div>`;
+  } catch (e) {
+    $("msg").innerHTML = `<div class="msg-erro">${esc(e.message)}</div>`;
+    if (bt) bt.disabled = false;
+  }
+}
+
+/* "Já paguei": pergunta ao servidor, que pergunta ao provedor. Enquanto a
+   inscrição aguarda, a página confere sozinha a cada 6 s por até 3 minutos
+   — o Pix confirma em segundos, e ninguém precisa apertar F5. */
+async function conferir(manual) {
+  const el = $("conferindo");
+  if (el) { el.textContent = manual ? "Conferindo no Mercado Pago…" : "Conferindo automaticamente…"; el.classList.add("ativo"); }
+  try {
+    const r = await fetch(`${RAIZ}/pagamento/conferir`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.pagamento) {
+      const antes = DADOS.pagamento?.status;
+      DADOS.pagamento = j.pagamento;
+      if (j.pagamento.valida || j.pagamento.status !== antes) { pararPoll(); render(); return; }
+    }
+    if (manual && el) el.textContent = "Ainda não consta pagamento confirmado. Se acabou de pagar, aguarde alguns segundos — a página confere sozinha.";
+  } catch {
+    if (manual && el) el.textContent = "Não foi possível conferir agora. Tente de novo em instantes.";
+  } finally {
+    if (el) el.classList.remove("ativo");
+  }
+}
+function iniciarPoll() {
+  pararPoll();
+  POLL_ATE = Date.now() + 3 * 60_000;
+  POLL = setInterval(() => {
+    if (Date.now() > POLL_ATE || document.visibilityState !== "visible") return;
+    if (DADOS?.pagamento?.status === "aguardando" && !DADOS.pagamento.valida) conferir(false); else pararPoll();
+  }, 6000);
+}
+function pararPoll() { if (POLL) clearInterval(POLL); POLL = null; }
+
+async function carregar() {
+  const r = await fetch(`${RAIZ}/pagamento`);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    $("cartao").innerHTML = `<div class="card-t">Inscrição não encontrada</div>
+      <p style="font-size:13.5px;color:var(--muted);margin-top:8px">${esc(j.error || "Confira o link recebido por e-mail.")}</p>
+      <a class="bt bt-sec" style="margin-top:14px" href="/eventos/">Ver os eventos</a>`;
+    return;
+  }
+  DADOS = j;
+  // o retrato público do evento traz os meios aceitos e o recebedor
+  try {
+    const re = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}`);
+    const je = await re.json().catch(() => ({}));
+    DADOS.meios = je.evento?.cobranca?.meios || {};
+    DADOS.recebedor = je.evento?.cobranca?.recebedor || "";
+  } catch { DADOS.meios = {}; }
+  render();
+  // voltou do provedor com a inscrição ainda aguardando: confere já e segue conferindo
+  if (DADOS.pagamento && !DADOS.pagamento.valida && DADOS.pagamento.status === "aguardando") {
+    if (VOLTA) conferir(false);
+    iniciarPoll();
+  }
+}
+
+carregar().catch(() => {
+  $("cartao").innerHTML = '<p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente em instantes.</p>';
+});
+</script>
+</body>
+</html>

@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import {
   normalizarCobranca, cobrancaAtiva, valorDaInscricao, loteVigente, novoPagamento, transitar,
   podeTransitar, inscricaoValida, reservaVencida, estadoDoProvedor, meioDoProvedor,
-  lerPagamentoDoProvedor, validarAssinaturaMP, resumoFinanceiro, linhasFinanceiro, centavos, fmtReais,
+  lerPagamentoDoProvedor, validarAssinaturaMP, resumoFinanceiro, linhasFinanceiro, centavos, fmtReais, ocupaVaga,
 } from "../lib/pagamentos.js";
 import { isoComFuso, configurado, modo } from "../lib/pagamentos/mercadopago.js";
 
@@ -153,4 +153,33 @@ test("o adaptador se declara desligado sem credencial e escreve a data com fuso 
   if (antes === undefined) delete process.env.MP_ACCESS_TOKEN; else process.env.MP_ACCESS_TOKEN = antes;
   assert.equal(isoComFuso("2026-09-10T15:30:00.000Z"), "2026-09-10T12:30:00.000-03:00");
   assert.equal(isoComFuso("lixo"), undefined);
+});
+
+test("cartão recusado renova a reserva (recusado → aguardando) e a reserva vencida não ocupa vaga", () => {
+  const pg = novoPagamento({ valor: 5000, categoria: { codigo: "x", nome: "X" }, agora: new Date("2026-09-01T12:00:00Z"), reservaMinutos: 60 });
+  const recusado = transitar(pg, "recusado", { por: "mercadopago" });
+  const renovado = transitar(recusado, "aguardando", { por: "inscrição", motivo: "reserva renovada" });
+  assert.equal(renovado.status, "aguardando");
+  assert.equal(renovado.historico.at(-1).motivo, "reserva renovada");
+  // dentro do prazo ocupa; vencida, devolve a vaga; paga ocupa sempre
+  assert.equal(ocupaVaga({ pagamento: pg }, new Date("2026-09-01T12:30:00Z")), true);
+  assert.equal(ocupaVaga({ pagamento: pg }, new Date("2026-09-01T13:30:00Z")), false);
+  assert.equal(ocupaVaga({ pagamento: transitar(pg, "pago") }, new Date("2027-01-01T00:00:00Z")), true);
+  assert.equal(ocupaVaga({}, new Date()), true);   // evento gratuito: toda inscrição ocupa
+});
+
+test("as vagas restantes do evento e os números do relatório ignoram a reserva vencida e a não paga", async () => {
+  const { vagasRestantes, numerosDoEvento } = await import("../lib/eventos.js");
+  const agora = new Date("2026-09-01T14:00:00Z");
+  const pg = novoPagamento({ valor: 5000, categoria: { codigo: "x", nome: "X" }, agora: new Date("2026-09-01T12:00:00Z"), reservaMinutos: 60 });
+  const inscritos = [
+    { nome: "Paga", pagamento: transitar(pg, "pago") },
+    { nome: "Vencida", pagamento: pg },
+    { nome: "Isenta", pagamento: transitar(pg, "isento") },
+    { nome: "Gratuita sem cobrança" },
+  ];
+  assert.equal(vagasRestantes({ vagas: 10 }, inscritos, agora), 7);
+  const n = numerosDoEvento({ evento: { controleFrequencia: false }, participantes: { inscritos } });
+  assert.equal(n.inscritos, 3);
+  assert.equal(n.presentes, 3);
 });

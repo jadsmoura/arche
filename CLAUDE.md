@@ -983,6 +983,58 @@ public/
   passou a guardar os e-mails já avisados, e participante incluído depois recebe só o dele.
   O sistema da AEE (`CERTIFICADOS_EXTERNO`) continua citado na guia, para os certificados
   emitidos lá antes de ago/2026.
+- **EVENTO PAGO — cobrança da inscrição pelo Mercado Pago** (`lib/pagamentos.js` [régua pura] +
+  `lib/pagamentos/mercadopago.js` [adaptador do Checkout Pro] + rotas em server.js + guias
+  **Cobrança** (PRÉ-EVENTO) e **Financeiro** (PÓS-EVENTO) do ARCHÉ EV + `public/eventos/pagamento.html`,
+  pedido do dono set/2026: "um sistema de cobranças para inscrição de um evento pago, que receba via
+  Pix com confirmação automática" — e, decidido o provedor, "Mercado Pago mesmo, vamos lá"). O
+  Checkout Pro foi escolhido por ser o caminho de menor burocracia: a conta que o dono já tem
+  recebe, a página de pagamento é a DELES (nenhum dado de cartão passa pelo ARCHÉ) e trocar para a
+  conta PJ depois é trocar a credencial. **As credenciais vivem SÓ no ambiente do Render**
+  (`MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`; opcional `MP_WEBHOOK_URL` quando a URL pública difere do
+  host) — nunca no código nem no chat; sem elas o adaptador se declara desligado, a cobrança não
+  liga e os eventos gratuitos seguem como sempre. Token `TEST-…` é modo de teste, e a tela diz isso.
+  **A configuração** (`evento.cobranca`, normalizada em CENTAVOS por `normalizarCobranca`; a tela
+  edita em reais): categorias (até 12; valor zero = categoria gratuita, ex. aluno do UNIEGO — nasce
+  `isento` e a credencial sai na hora), lotes (ajuste ± até uma data), meios (Pix/cartão/boleto),
+  parcelas, prazo da reserva (15 min a 7 dias, padrão 24 h), política de reembolso e o "em nome de"
+  do recibo. Ligar a cobrança e ATIVAR a página de evento pago exigem o provedor configurado.
+  **Três decisões que a régua carrega**: (1) **O PREÇO É DO SERVIDOR** — o navegador manda só a
+  categoria; `valorDaInscricao` calcula do que está gravado, com o lote de HOJE; (2) **a credencial
+  só existe PAGA ou ISENTA** (`inscricaoValida`) — aguardando, a inscrição RESERVA a vaga
+  (`ocupaVaga`: `vagasRestantes` só conta reserva dentro do prazo, paga ou isenta), o QR é recusado
+  na porta com nome e motivo (409 no check-in), o certificado e a AEE a ignoram
+  (`certificadosEx`, `gerarInscritosAeeXlsx`) e `numerosDoEvento` não a conta; vencido o prazo a
+  varredura horária a marca `expirado` e a vaga volta; (3) **nada confia no aviso do provedor** — o
+  webhook (`POST /api/publico/pagamentos/mp`) confere a assinatura `x-signature` (HMAC do manifesto
+  `id;request-id;ts`, `validarAssinaturaMP`; sem `MP_WEBHOOK_SECRET` NADA se aceita), responde 200
+  e só então CONSULTA o pagamento na API; quem move o estado é `aplicarPagamentoDoProvedor`, a
+  única porta (webhook, "Já paguei", "conferir" da gestão e conciliação passam por ela), idempotente.
+  **Estados** (`ESTADOS_PAGAMENTO` + `TRANSICOES`): aguardando → pago | expirado | isento | recusado;
+  recusado/expirado voltam a aguardando pela RENOVAÇÃO da reserva (mesma inscrição, preço de hoje,
+  só se houver vaga — re-inscrever com o mesmo e-mail renova em vez de bater no "já inscrito"); pago →
+  estornado | contestado; isento e estornado são finais. **Pago a MENOS não confirma**: fica em
+  `divergencia`, a gestão recebe e-mail (`ev-pagamento-divergente`) e decide (isentar a diferença,
+  estornar, aguardar); pago a MAIS confirma e a diferença fica visível; **segundo pagamento** da
+  mesma inscrição fica em `duplicados` para devolver; pago **depois de expirar** vale e sai marcado
+  (`aposExpirar`). **O link de pagamento** nasce fora da fila (é rede) e entra na inscrição numa
+  segunda passada — se o Mercado Pago falhar na hora, a inscrição existe reservada e a página de
+  pagamento cria o link depois (`/pagamento/pagar`, que NÃO renova a reserva quando só falta o link:
+  renová-la deixaria alguém estender o prazo clicando). A referência externa é `<ação>:<token>`; a
+  chave de idempotência leva o `criadoEm` da reserva (renovação = preferência nova).
+  **E-mails**: a inscrição paga recebe "recebemos, falta pagar" (`ev-inscricao-pagamento`, sem QR,
+  com prazo e link de `/eventos/<slug>/pagamento/<token>`); a confirmação com QR
+  (`enviarConfirmacaoInscricao`) sai quando o pagamento confirma ou a gestão isenta. **A gestão**
+  (`GET /api/extensao/:id/financeiro` + `POST …/inscritos/:token/isentar|conferir|estornar` +
+  `GET …/financeiro.xlsx`): isentar e conferir são de quem opera o evento; **estornar é só da gestão
+  da Extensão/Eventos** e acontece no provedor PRIMEIRO (só o que ele aceitou se grava). A planilha
+  da prestação de contas (`gerarFinanceiroEventoXlsx`: linhas + aba de resumo por estado, meio e
+  categoria) sai **sem CPF** — é o documento que acompanha o repasse à instituição — e vai ao
+  Repositório na pasta da ação. Toda escrita com `?como=` continua recusada. O `slug` "pagamento"
+  é reservado. **O que falta do lado do dono**: criar a aplicação no painel de desenvolvedor do
+  Mercado Pago, pôr o Access Token de TESTE e a assinatura do webhook no Render, apontar o webhook
+  para `https://arche.app.br/api/publico/pagamentos/mp` (evento "Pagamentos") e testar com os
+  usuários de teste antes de trocar para a credencial de produção.
 - **ARCHÉ Eventos** (`lib/eventos.js` + `public/eventos/` + rotas em server.js; 2ª geração
   em ago/2026, no molde Even3/Sympla — pesquisa com 3 agentes sobre as duas plataformas):
   EVENTOS GRATUITOS de todos os formatos — a ação de extensão ganha `a.evento` e uma página

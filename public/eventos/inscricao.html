@@ -75,6 +75,26 @@ let TROCA = new Set();  // ids marcados na janela de troca
 function render() {
   const e = DADOS.evento, i = DADOS.inscricao;
   const el = $("cartao");
+  /* EVENTO PAGO: sem pagamento confirmado não há credencial — o QR seria
+     recusado na porta. A página diz a situação e leva ao pagamento. */
+  const pg = DADOS.pagamento;
+  if (pg && !pg.valida) {
+    const urlPag = `/eventos/${encodeURIComponent(SLUG)}/pagamento/${encodeURIComponent(TOKEN)}`;
+    const reais = (c) => "R$ " + (Math.round(Number(c) || 0) / 100).toFixed(2).replace(".", ",");
+    const rot = { aguardando: "aguardando pagamento", expirado: "reserva expirada", recusado: "pagamento recusado",
+      estornado: "pagamento estornado", contestado: "pagamento em contestação" }[pg.status] || pg.status;
+    el.innerHTML = `
+      <div class="eyebrow">Inscrição · ${esc(i.codigo.toUpperCase())}</div>
+      <div class="card-t" style="font-size:19px;margin-top:8px">${esc(i.nome)}</div>
+      <p style="font-size:13.5px;color:var(--ink-soft);margin-top:4px"><b>${esc(e.nome)}</b><br>
+        ${fmt(e.periodoInicio)} a ${fmt(e.periodoFim)} · ${esc(e.local) || ""}${e.municipio ? " — " + esc(e.municipio) : ""}</p>
+      <div style="margin:14px 0 6px"><span class="selo v">${esc(rot)}</span></div>
+      <div class="msg-aviso">Esta inscrição ainda não tem o pagamento confirmado
+        (${esc(pg.categoriaNome)}${pg.lote ? ", " + esc(pg.lote) : ""}: <b>${reais(pg.valor)}</b>).
+        A credencial com o QR de acesso só vale depois da confirmação.</div>
+      <a class="bt bt-pri" style="width:100%;margin-top:14px" href="${urlPag}">${["estornado", "contestado"].includes(pg.status) ? "Ver a situação do pagamento" : "Pagar / conferir o pagamento"}</a>`;
+    return;
+  }
   el.innerHTML = `
     <div class="eyebrow">Credencial de participante</div>
     <div class="card-t" style="font-size:19px;margin-top:8px">${esc(i.nome)}</div>

@@ -88,6 +88,7 @@ fetch("/api/publico/eventos").then(async (r) => {
         ${e.inscricoesAbertas
           ? '<span class="selo b">inscrições abertas</span>'
           : '<span class="selo v">inscrições encerradas</span>'}
+        ${e.paga ? '<span class="selo e">inscrição paga</span>' : ""}
         ${e.vagasRestantes === null ? ""
           : e.vagasRestantes > 0
             ? `<span class="selo e">${e.vagasRestantes} vaga(s) restante(s)</span>`

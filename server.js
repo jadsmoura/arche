@@ -94,6 +94,16 @@ import {
   videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento, contaPresente, houveCredenciamento,
   normalizarCursosExtras, cursosDaAcao,
 } from "./lib/eventos.js";
+/* COBRANÇA DE INSCRIÇÃO (set/2026): a régua é pura (lib/pagamentos.js) e quem
+   fala com o Mercado Pago é o adaptador — as credenciais vivem SÓ no ambiente
+   do Render (MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET); sem elas o evento pago não
+   ativa e os gratuitos seguem como sempre. */
+import {
+  normalizarCobranca, cobrancaAtiva, valorDaInscricao, novoPagamento, inscricaoValida,
+  reservaVencida, transitar as transitarPagamento, lerPagamentoDoProvedor, validarAssinaturaMP,
+  resumoFinanceiro, linhasFinanceiro, fmtReais, loteVigente, ESTADOS_PAGAMENTO,
+} from "./lib/pagamentos.js";
+import * as mercadoPago from "./lib/pagamentos/mercadopago.js";
 import {
   AVISOS, AVISOS_KEY, SETORES_AVISO, aplicarMudanca as aplicarMudancaAviso,
   AVISOS_FILA_KEY, HORA_RESUMO, AVISOS_DA_GESTAO, avisoDe, modoDoAviso,
@@ -3995,6 +4005,8 @@ function eventoPublico(a, { detalhe = false } = {}) {
     temCapa: temArte(ev.capa),
     controleFrequencia: eventoControlaFrequencia(ev),
     hotsite: temHotsiteEvento(ev),
+    // evento PAGO: a vitrine mostra o selo; o detalhe traz as categorias
+    paga: cobrancaAtiva(ev.cobranca),
   };
   if (!detalhe) return base;
   // as atividades passam pela normalização na saída: o dado antigo (sem id,
@@ -4022,6 +4034,91 @@ function eventoPublico(a, { detalhe = false } = {}) {
     endereco: String(ev.local || ""),
     transmissaoPublicada: ev.transmissao?.publicada === true,
     modalidade: temOnline && temPresencial ? "hibrido" : temOnline ? "online" : "presencial",
+    cobranca: cobrancaPublica(ev, hojeLocalISO()),
+  };
+}
+
+/* O retrato PÚBLICO da cobrança: as categorias já com o lote de hoje
+   aplicado (o preço que a pessoa vai pagar, não a tabela), os meios
+   aceitos e a política de reembolso. Nada de recebedor, taxa ou contagem. */
+function cobrancaPublica(ev, hojeISO) {
+  const c = ev?.cobranca;
+  if (!cobrancaAtiva(c)) return null;
+  const lote = loteVigente(c, hojeISO);
+  // os lotes vêm ORDENADOS por data da normalização: o próximo é o seguinte
+  const proximo = lote ? (c.lotes[c.lotes.indexOf(lote) + 1] || null) : null;
+  return {
+    categorias: c.categorias.map((x) => ({
+      codigo: x.codigo, nome: x.nome, descricao: x.descricao,
+      valor: Math.max(0, x.valor + (lote ? lote.ajuste : 0)), valorCheio: x.valor,
+    })),
+    lote: lote ? { nome: lote.nome, ate: lote.ate } : null,
+    proximoLote: proximo ? { nome: proximo.nome, ate: proximo.ate } : null,
+    meios: c.meios, parcelas: c.parcelas, jurosPorConta: c.jurosPorConta,
+    reservaMinutos: c.reservaMinutos, politicaReembolso: c.politicaReembolso,
+    recebedor: c.recebedor,            // o nome que sai no "em nome de" e no recibo
+    online: mercadoPago.configurado(),
+  };
+}
+
+/* O link de pagamento de UMA inscrição — uma preferência do Checkout Pro
+   (fora da fila: é chamada de rede). A referência externa é `<ação>:<token>`,
+   e é por ela que o pagamento volta à inscrição no webhook e na conciliação.
+   A chave de idempotência leva o `criadoEm` da reserva: renovar a reserva
+   vencida gera preferência nova, com o prazo novo. */
+async function criarLinkDePagamento(acao, inscrito, base) {
+  const ev = acao.evento || {}, c = ev.cobranca || {}, pg = inscrito.pagamento || {};
+  const ref = `${acao.id}:${inscrito.token}`;
+  const volta = `${base}/eventos/${encodeURIComponent(ev.slug || "")}/pagamento/${encodeURIComponent(inscrito.token)}`;
+  return mercadoPago.criarCobranca({
+    titulo: `Inscrição — ${String(acao.proposta?.nomeAtividade || "evento").slice(0, 90)}`,
+    descricao: [pg.categoriaNome, pg.lote, inscrito.nome].filter(Boolean).join(" · "),
+    valor: pg.valor, externalRef: ref,
+    pagador: { email: inscrito.email, nome: inscrito.nome, cpf: inscrito.cpf },
+    expiraEm: pg.expiraEm,
+    voltar: { sucesso: `${volta}?volta=sucesso`, pendente: `${volta}?volta=pendente`, falha: `${volta}?volta=falha` },
+    webhook: process.env.MP_WEBHOOK_URL || `${base}/api/publico/pagamentos/mp`,
+    parcelas: c.parcelas, meios: c.meios, jurosPorConta: c.jurosPorConta,
+    referenciaExtrato: c.recebedor ? c.recebedor.slice(0, 16) : "UNIEGO EVENTO",
+    chave: `pref-${ref}-${String(pg.criadoEm || "").replace(/\D/g, "").slice(0, 14)}`,
+  });
+}
+
+/* A confirmação da inscrição — o e-mail com o QR embutido. Saía de um lugar
+   só; com a cobrança passou a sair de três (inscrição gratuita, pagamento
+   confirmado pelo webhook/conciliação, isenção pela coordenação). */
+async function enviarConfirmacaoInscricao(acao, inscrito, base) {
+  const { emailInscricaoEvento } = await import("./lib/mailer.js");
+  let qrPng = null;
+  try {
+    const { default: QRCode } = await import("qrcode");
+    qrPng = await QRCode.toBuffer(String(inscrito.token), {
+      type: "png", errorCorrectionLevel: "M", margin: 1, width: 440,
+    });
+  } catch (e) { console.error("[eventos] QR do e-mail não gerado:", e.message); }
+  return enviarAviso("ev-inscricao", emailInscricaoEvento(acao, inscrito,
+    { baseUrl: base, qrPng, wallet: walletConfigurada() }));
+}
+
+const ROTULO_PAGAMENTO = {
+  aguardando: "aguardando pagamento", pago: "pago", expirado: "reserva expirada", isento: "isento",
+  estornado: "estornado", contestado: "contestado", recusado: "recusado",
+};
+
+/* O que a tela pública recebe sobre o pagamento de UMA inscrição — do dono
+   do token, e nada de ninguém mais. */
+function pagamentoPublico(inscrito, ev, agora = new Date()) {
+  const pg = inscrito?.pagamento;
+  if (!pg) return null;
+  return {
+    status: pg.status, valor: pg.valor, categoriaNome: pg.categoriaNome || pg.categoria || "",
+    lote: pg.lote || "", link: pg.link || "", expiraEm: pg.expiraEm || "", pagoEm: pg.pagoEm || "",
+    meio: pg.meio || "", pagoCentavos: pg.pagoCentavos ?? null,
+    reservaVencida: reservaVencida(pg, agora),
+    divergente: !!pg.divergencia,
+    valida: inscricaoValida(inscrito),
+    politicaReembolso: String(ev?.cobranca?.politicaReembolso || ""),
+    online: mercadoPago.configurado(),
   };
 }
 
@@ -4152,6 +4249,8 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       return res.status(400).json({ error: "Para se inscrever é preciso ler e concordar com o tratamento dos dados pessoais descrito na página." });
     const atividadesPedidas = [...new Set((Array.isArray(b.atividades) ? b.atividades : [])
       .map((x) => String(x || "").trim()).filter(Boolean))].slice(0, 100);
+    const categoria = String(b.categoria || "").trim().slice(0, 40);
+    const base = `${req.protocol}://${req.get("host")}`;
 
     // dedupe, vagas e prazo se conferem DENTRO da fila: entre a leitura e a
     // gravação não pode entrar outra inscrição que fure a checagem
@@ -4162,8 +4261,47 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       if (!aberta.ok) return { erro: [409, aberta.motivo], gravar: false };
       const parts = a.participantes || (a.participantes = { inscritos: [], palestrantes: [], comissao: [] });
       parts.inscritos = parts.inscritos || [];
+      /* EVENTO PAGO (set/2026): O PREÇO É DO SERVIDOR. O navegador manda só a
+         categoria; o valor sai da configuração gravada, com o lote de HOJE.
+         Categoria com valor zero (ex.: aluno do UNIEGO) nasce ISENTA e segue
+         o caminho do evento gratuito. */
+      const cobra = cobrancaAtiva(a.evento.cobranca);
+      let preco = null;
+      if (cobra) {
+        if (!mercadoPago.configurado())
+          return { erro: [503, "O pagamento online não está disponível neste momento — fale com a coordenação do evento."], gravar: false };
+        preco = valorDaInscricao(a.evento.cobranca, { categoria, hojeISO: hojeLocalISO() });
+        if (!preco) return { erro: [400, "Escolha a categoria da sua inscrição."], gravar: false };
+      }
+      const pagamentoDe = () => {
+        if (!cobra) return null;
+        const pg = novoPagamento({ valor: preco.valor, categoria: preco.categoria, lote: preco.lote,
+          reservaMinutos: a.evento.cobranca.reservaMinutos });
+        return preco.gratuita
+          ? transitarPagamento(pg, "isento", { por: "sistema", motivo: "categoria sem valor" })
+          : pg;
+      };
       {
         const ja = jaInscrito(parts.inscritos, { cpf, email });
+        /* A inscrição que ficou SEM PAGAR não é parede: quem voltou para pagar
+           (reserva vencida, cartão recusado, link perdido) renova a reserva
+           na MESMA inscrição — com o preço de hoje, e só se for a mesma
+           pessoa com o mesmo e-mail (é a prova de que conhece a inscrição).
+           A vaga já foi conferida acima: a reserva vencida não a ocupa. */
+        if (ja && ja.pagamento && ["aguardando", "recusado", "expirado"].includes(ja.pagamento.status)
+          && String(ja.email || "").trim().toLowerCase() === email && cobra) {
+          const pg = pagamentoDe();
+          const renovado = transitarPagamento(ja.pagamento, pg.status, { por: "inscrição", motivo: "reserva renovada",
+            extra: { valor: pg.valor, categoria: pg.categoria, categoriaNome: pg.categoriaNome, lote: pg.lote,
+              criadoEm: pg.criadoEm, expiraEm: pg.expiraEm, preferenciaId: "", link: "",
+              ...(pg.status === "isento" ? { isentoPor: "sistema", motivoIsencao: "categoria sem valor" } : {}) } });
+          if (renovado) {
+            ja.pagamento = renovado;
+            if (!ja.token) ja.token = gerarToken(a.evento.chaveQr);
+            a.atualizadoEm = new Date().toISOString();
+            return { acao: a, inscrito: ja, renovada: true };
+          }
+        }
         if (ja) {
           // O erro precisa ser uma SAÍDA, não uma parede (pergunta do dono,
           // ago/2026): quem não recebeu o e-mail tenta de novo, bate aqui e
@@ -4207,6 +4345,11 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
         consentimento: { em: new Date().toISOString(), versao: versaoLgpd(textoLgpd(a.evento)) },
         comunicacoes: b.comunicacoes === true,
       };
+      const pg = pagamentoDe();
+      if (pg) {
+        inscrito.pagamento = pg;
+        if (pg.status === "isento") { pg.isentoPor = "sistema"; pg.motivoIsencao = "categoria sem valor"; }
+      }
       parts.inscritos.push(inscrito);
       a.atualizadoEm = new Date().toISOString();
       return { acao: a, inscrito };
@@ -4218,10 +4361,33 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     if (r.erro) return res.status(r.erro[0])
       .json({ error: r.erro[1], ...(r.jaInscrito ? { jaInscrito: r.jaInscrito } : {}) });
 
+    /* EVENTO PAGO: o link de pagamento nasce AGORA, fora da fila (é rede), e
+       entra na inscrição por uma segunda passada. Se o Mercado Pago falhar, a
+       inscrição existe, a vaga está reservada e a página de pagamento tenta
+       criar o link de novo — a pessoa não perde o que digitou. */
+    const aguardaPagamento = r.inscrito.pagamento?.status === "aguardando";
+    if (aguardaPagamento) {
+      let link = null;
+      try { link = await criarLinkDePagamento(r.acao, r.inscrito, base); }
+      catch (e) { console.error("[pagamentos] link não criado na inscrição:", e.message); }
+      if (link) {
+        const tok = r.inscrito.token, idAcao = r.acao.id;
+        await comAcoes((acoes) => {
+          const a = acoes.find((x) => x.id === idAcao);
+          const i = (a?.participantes?.inscritos || []).find((x) => x?.token === tok);
+          if (!i?.pagamento || i.pagamento.status !== "aguardando") return { gravar: false };
+          i.pagamento.preferenciaId = link.id; i.pagamento.link = link.link;
+          r.inscrito = i;
+          return {};
+        }, { flushJa: false });
+      }
+    }
+
     // A pessoa não espera o Drive: a resposta sai agora, com o token que já
     // vale na tela.
-    const base = `${req.protocol}://${req.get("host")}`;
-    res.json({ ok: true, token: r.inscrito.token, codigo: codigoDe(r.inscrito.token) });
+    res.json({ ok: true, token: r.inscrito.token, codigo: codigoDe(r.inscrito.token),
+      ...(r.inscrito.pagamento ? { pagamento: pagamentoPublico(r.inscrito, r.acao.evento) } : {}),
+      ...(r.renovada ? { renovada: true } : {}) });
 
     /* O E-MAIL É O RECIBO, e por isso ele sai DEPOIS de a inscrição estar
        gravada de verdade (raciocínio do dono, ago/2026): se algo falhar no
@@ -4239,19 +4405,17 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       return;                       // sem recibo: a pessoa refaz e nada fica pela metade
     }
     try {
-      const { enviarEmail, emailInscricaoEvento } = await import("./lib/mailer.js");
-      // o QR vai EMBUTIDO no e-mail (decisão do dono, ago/2026): é onde a
-      // pessoa vai procurar a credencial no dia. Falhar em desenhá-lo não
-      // cancela o aviso — o e-mail sai com o link e o código manual.
-      let qrPng = null;
-      try {
-        const { default: QRCode } = await import("qrcode");
-        qrPng = await QRCode.toBuffer(String(r.inscrito.token), {
-          type: "png", errorCorrectionLevel: "M", margin: 1, width: 440,
-        });
-      } catch (e) { console.error("[eventos] QR do e-mail não gerado:", e.message); }
-      await enviarAviso("ev-inscricao", emailInscricaoEvento(r.acao, r.inscrito,
-        { baseUrl: base, qrPng, wallet: walletConfigurada() }));
+      if (aguardaPagamento) {
+        // evento pago: o recibo é o de "recebemos, falta pagar" — SEM QR. A
+        // credencial só existe depois do pagamento confirmado (webhook).
+        const { emailInscricaoAguardandoPagamento } = await import("./lib/mailer.js");
+        await enviarAviso("ev-inscricao-pagamento", emailInscricaoAguardandoPagamento(r.acao, r.inscrito, { baseUrl: base }));
+      } else {
+        // o QR vai EMBUTIDO no e-mail (decisão do dono, ago/2026): é onde a
+        // pessoa vai procurar a credencial no dia. Falhar em desenhá-lo não
+        // cancela o aviso — o e-mail sai com o link e o código manual.
+        await enviarConfirmacaoInscricao(r.acao, r.inscrito, base);
+      }
     } catch (e) {
       console.error("[eventos] confirmação de inscrição não enviada:", e.message);
     }
@@ -4322,6 +4486,448 @@ app.post("/api/publico/eventos/:slug/recuperar", async (req, res) => {
    PRÓPRIA inscrição, e nada além dela. A busca não depende do slug da URL
    (o endereço do evento pode mudar; o token, não): confere a assinatura
    evento a evento e acha o dono. */
+/* =====================================================================
+   COBRANÇA DE INSCRIÇÃO — Mercado Pago (set/2026)
+
+   O ciclo: a inscrição nasce `aguardando` com a vaga RESERVADA por um prazo
+   e um link do Checkout Pro; o Mercado Pago avisa pelo WEBHOOK; o servidor
+   confere a assinatura do aviso, CONSULTA o pagamento na API (nunca confia
+   no corpo do aviso), aplica a transição e — pago — manda a credencial com
+   o QR. A conciliação horária cobre o aviso que se perdeu e expira a reserva
+   vencida. A coordenação isenta, estorna e confere pela guia Financeiro.
+   ===================================================================== */
+
+/* Aplica à inscrição o que a API do Mercado Pago diz de UM pagamento. É a
+   única porta por onde um pagamento muda o estado da inscrição — webhook,
+   botão "conferir" e varredura passam todos por aqui. Devolve o que mudou,
+   para o chamador avisar quem precisa (fora da fila). */
+async function aplicarPagamentoDoProvedor(p, { por = "mercadopago" } = {}) {
+  const ref = String(p?.external_reference || "");
+  const sep = ref.lastIndexOf(":");
+  if (sep < 0) return { ignorado: "sem referência" };
+  const idAcao = ref.slice(0, sep), tok = ref.slice(sep + 1).toLowerCase();
+  const r = await comAcoes((acoes) => {
+    const a = acoes.find((x) => x.id === idAcao);
+    if (!a) return { ignorado: "ação não encontrada", gravar: false };
+    const i = (a.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === tok);
+    if (!i?.pagamento) return { ignorado: "inscrição sem cobrança", gravar: false };
+    const leitura = lerPagamentoDoProvedor(p, i.pagamento);
+    if (!leitura.estado) return { ignorado: `status desconhecido: ${p?.status}`, gravar: false };
+    const antes = i.pagamento.status;
+    // um pagamento MAIS ANTIGO que o que já confirmou a inscrição não a desfaz
+    // (a pessoa tentou duas vezes: a recusada não apaga a aprovada)
+    const outroPagamento = String(i.pagamento.pagamentoId || "") !== String(p.id || "");
+    if (["pago", "isento"].includes(antes) && outroPagamento && leitura.estado !== "pago")
+      return { ignorado: "pagamento anterior ao confirmado", gravar: false };
+    // pagou DUAS vezes (dois Pix, dois cartões): a inscrição segue confirmada
+    // pelo primeiro; o segundo fica registrado para a coordenação devolver
+    if (antes === "pago" && outroPagamento && leitura.estado === "pago") {
+      const dup = i.pagamento.duplicados || [];
+      if (dup.some((d) => d.pagamentoId === leitura.extra.pagamentoId)) return { gravar: false };
+      i.pagamento.duplicados = [...dup, { ...leitura.extra, em: new Date().toISOString() }].slice(-10);
+      i.pagamento.historico = [...(i.pagamento.historico || []),
+        { em: new Date().toISOString(), de: antes, para: antes, por, motivo: `segundo pagamento de ${fmtReais(leitura.extra.pagoCentavos)} (nº ${leitura.extra.pagamentoId}) — devolver` }].slice(-30);
+      a.atualizadoEm = new Date().toISOString();
+      return { acao: a, inscrito: i, antes, depois: antes, duplicado: true, leitura };
+    }
+    /* PAGO A MENOS não confirma: fica registrado como divergência e a
+       coordenação decide (isentar a diferença, estornar, aguardar). Pago a
+       MAIS confirma e a diferença fica visível para devolver. */
+    if (leitura.divergente) {
+      if (i.pagamento.divergencia?.pagamentoId === leitura.extra.pagamentoId) return { gravar: false };
+      i.pagamento.divergencia = { ...leitura.extra, em: new Date().toISOString() };
+      i.pagamento.historico = [...(i.pagamento.historico || []),
+        { em: new Date().toISOString(), de: antes, para: antes, por, motivo: `pagamento de ${fmtReais(leitura.extra.pagoCentavos)} — devido ${fmtReais(i.pagamento.valor)}` }].slice(-30);
+      a.atualizadoEm = new Date().toISOString();
+      return { acao: a, inscrito: i, antes, depois: antes, divergente: true, leitura };
+    }
+    const novo = transitarPagamento(i.pagamento, leitura.estado, { por, extra: leitura.extra });
+    if (!novo) return { ignorado: `transição ${antes} → ${leitura.estado} não permitida`, gravar: false };
+    // nada mudou de fato (aviso repetido do mesmo pagamento): não regrava
+    if (novo.status === antes && String(i.pagamento.pagamentoId || "") === novo.pagamentoId
+      && i.pagamento.statusProvedor === novo.statusProvedor) return { gravar: false };
+    // pagou DEPOIS de a reserva vencer: vale — o dinheiro entrou —, e a
+    // coordenação vê a marca (a vaga pode ter sido ocupada por outro)
+    if (antes === "expirado" && novo.status === "pago") novo.aposExpirar = true;
+    if (novo.status === "pago") delete novo.divergencia;
+    i.pagamento = novo;
+    a.atualizadoEm = new Date().toISOString();
+    return { acao: a, inscrito: i, antes, depois: novo.status, leitura };
+  }, { flushJa: true });
+  return r;
+}
+
+/* O que se faz DEPOIS da gravação: confirmado → credencial por e-mail;
+   divergente → aviso à gestão. Fire-and-forget, como os demais avisos. */
+async function avisarDesfechoDoPagamento(r, base) {
+  if (!r?.acao) return;
+  try {
+    if (r.depois === "pago" && r.antes !== "pago") {
+      await enviarConfirmacaoInscricao(r.acao, r.inscrito, base);
+    } else if (r.divergente) {
+      const { emailPagamentoDivergente } = await import("./lib/mailer.js");
+      await enviarAviso("ev-pagamento-divergente", emailPagamentoDivergente(r.acao, r.inscrito, {
+        pagoCentavos: r.leitura.extra.pagoCentavos, devidoCentavos: r.inscrito.pagamento.valor,
+        pagamentoId: r.leitura.extra.pagamentoId }));
+    }
+  } catch (e) { console.error("[pagamentos] aviso do desfecho não enviado:", e.message); }
+}
+
+/* Conciliação de UMA inscrição: pergunta ao Mercado Pago o que existe para
+   a referência dela e aplica o mais relevante (aprovado vence; senão o mais
+   recente). Serve ao botão "Já paguei", ao "conferir" da gestão e à
+   varredura horária — o webhook que se perdeu deixa de importar. */
+async function conciliarInscricao(acao, inscrito, base) {
+  if (!mercadoPago.configurado() || !inscrito?.pagamento) return null;
+  const lista = await mercadoPago.pagamentosDaReferencia(`${acao.id}:${inscrito.token}`);
+  if (!lista.length) return { semPagamento: true };
+  const escolhido = lista.find((p) => p.status === "approved")
+    || lista.find((p) => ["refunded", "charged_back"].includes(p.status) && String(p.id) === String(inscrito.pagamento.pagamentoId))
+    || lista[0];
+  const r = await aplicarPagamentoDoProvedor(escolhido, { por: "conciliação" });
+  avisarDesfechoDoPagamento(r, base);
+  return r;
+}
+
+const baseDe = (req) => `${req.protocol}://${req.get("host")}`;
+
+/**
+ * WEBHOOK do Mercado Pago. Três regras: (1) a assinatura `x-signature` é
+ * conferida ANTES de qualquer coisa — sem MP_WEBHOOK_SECRET nada se aceita;
+ * (2) responde 200 rápido e trabalha depois (o provedor reenvia o que não
+ * responde a tempo); (3) o corpo do aviso só diz QUAL pagamento olhar — quem
+ * decide é a consulta à API. Aviso repetido é inofensivo: a aplicação é
+ * idempotente.
+ */
+app.post("/api/publico/pagamentos/mp", async (req, res) => {
+  try {
+    const b = req.body || {};
+    const tipo = String(b.type || b.topic || req.query.type || req.query.topic || "");
+    const dataId = String(b.data?.id || req.query["data.id"] || req.query.id || "");
+    if (!/payment/i.test(tipo) || !dataId) return res.status(200).json({ ok: true, ignorado: true });
+    const segredo = mercadoPago.segredoWebhook();
+    if (!segredo) {
+      console.error("[pagamentos] webhook recebido sem MP_WEBHOOK_SECRET configurado — ignorado; a conciliação horária cobre.");
+      return res.status(200).json({ ok: true, ignorado: true });
+    }
+    if (!validarAssinaturaMP({ xSignature: req.get("x-signature"), xRequestId: req.get("x-request-id"), dataId, segredo }))
+      return res.status(401).json({ error: "assinatura inválida" });
+    res.status(200).json({ ok: true });
+    const base = process.env.MP_WEBHOOK_URL ? process.env.MP_WEBHOOK_URL.replace(/\/api\/publico\/pagamentos\/mp\/?$/, "") : baseDe(req);
+    (async () => {
+      const p = await mercadoPago.consultarPagamento(dataId);
+      const r = await aplicarPagamentoDoProvedor(p, { por: "mercadopago" });
+      if (r?.ignorado) console.log(`[pagamentos] webhook ${dataId} ignorado: ${r.ignorado}`);
+      await avisarDesfechoDoPagamento(r, base);
+    })().catch((e) => console.error(`[pagamentos] webhook ${dataId}:`, e.message));
+  } catch (e) {
+    console.error("[pagamentos] webhook:", e);
+    if (!res.headersSent) res.status(500).json({ error: "falha ao processar o aviso" });
+  }
+});
+
+/** A página de pagamento: o estado da cobrança da PRÓPRIA inscrição. */
+app.get("/api/publico/eventos/:slug/inscricao/:token/pagamento", async (req, res) => {
+  try {
+    const r = await acharInscricao(req.params.slug, req.params.token);
+    if (!r) return res.status(404).json({ error: "Inscrição não encontrada — confira o link recebido por e-mail." });
+    const p = r.acao.proposta || {}, ev = r.acao.evento || {};
+    res.json({
+      evento: { slug: ev.slug, nome: p.nomeAtividade || "", curso: cursosDaAcao(r.acao).join(" e "),
+        periodoInicio: p.periodoInicio || "", periodoFim: p.periodoFim || "", local: p.local || "", municipio: p.municipio || "" },
+      inscricao: { nome: r.inscrito.nome || "", codigo: codigoDe(r.inscrito.token), email: emailMascarado(r.inscrito.email) },
+      pagamento: pagamentoPublico(r.inscrito, ev),
+    });
+  } catch (e) {
+    console.error("Erro na página de pagamento:", e);
+    res.status(500).json({ error: "Não foi possível carregar agora." });
+  }
+});
+
+/** "Já paguei" — confere no provedor agora, sem esperar o webhook. */
+app.post("/api/publico/eventos/:slug/inscricao/:token/pagamento/conferir", async (req, res) => {
+  try {
+    if (inscricaoExcedeu(req.ip)) return res.status(429).json({ error: "Muitas tentativas — aguarde um minuto." });
+    const r = await acharInscricao(req.params.slug, req.params.token);
+    if (!r) return res.status(404).json({ error: "Inscrição não encontrada." });
+    if (!r.inscrito.pagamento) return res.json({ ok: true, pagamento: null });
+    if (!inscricaoValida(r.inscrito) && mercadoPago.configurado()) {
+      try { await conciliarInscricao(r.acao, r.inscrito, baseDe(req)); }
+      catch (e) { console.error("[pagamentos] conferir:", e.message); }
+    }
+    const atual = await acharInscricao(req.params.slug, req.params.token);
+    res.json({ ok: true, pagamento: pagamentoPublico(atual.inscrito, atual.acao.evento) });
+  } catch (e) {
+    console.error("Erro ao conferir pagamento:", e);
+    res.status(500).json({ error: "Não foi possível conferir agora." });
+  }
+});
+
+/**
+ * "Pagar" — devolve o link vigente ou cria um novo: quando a inscrição nasceu
+ * sem link (falha de rede na hora), quando a reserva VENCEU (renova, com o
+ * preço de hoje e só se ainda houver vaga) ou depois de um cartão recusado.
+ */
+app.post("/api/publico/eventos/:slug/inscricao/:token/pagamento/pagar", async (req, res) => {
+  try {
+    if (inscricaoExcedeu(req.ip)) return res.status(429).json({ error: "Muitas tentativas — aguarde um minuto." });
+    if (!mercadoPago.configurado()) return res.status(503).json({ error: "O pagamento online não está disponível neste momento." });
+    const tok = String(req.params.token || "").trim().toLowerCase();
+    const r = await comAcoes((acoes) => {
+      const a = eventoPorSlug(acoes, req.params.slug)
+        || acoes.find((x) => x?.evento?.chaveQr && (x.participantes?.inscritos || []).some((i) => String(i?.token || "").toLowerCase() === tok));
+      if (!a) return { erro: [404, "Inscrição não encontrada."], gravar: false };
+      const i = (a.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === tok);
+      if (!i || !tokenValido(a.evento.chaveQr, tok)) return { erro: [404, "Inscrição não encontrada."], gravar: false };
+      const pg = i.pagamento;
+      if (!pg) return { erro: [400, "Esta inscrição não tem cobrança."], gravar: false };
+      if (inscricaoValida(i)) return { acao: a, inscrito: i, gravar: false };
+      if (["estornado", "contestado"].includes(pg.status))
+        return { erro: [409, "Esta inscrição foi estornada — para participar, faça uma nova inscrição."], gravar: false };
+      const vencida = reservaVencida(pg) || pg.status === "expirado";
+      // só FALTA O LINK (a rede falhou na inscrição): a reserva fica como está
+      // — renová-la aqui deixaria alguém estender o prazo clicando de novo
+      if (!vencida && pg.status === "aguardando" && !pg.link)
+        return { acao: a, inscrito: i, criarLink: true, gravar: false };
+      if (vencida || pg.status === "recusado") {
+        // renovar a reserva: o preço é o de HOJE e a vaga precisa existir
+        if (vencida) {
+          const aberta = podeInscreverEvento(a, hojeLocalISO(), horaLocalHHMM());
+          if (!aberta.ok) return { erro: [409, `A reserva venceu e ${aberta.motivo.charAt(0).toLowerCase()}${aberta.motivo.slice(1)}`], gravar: false };
+        }
+        const preco = valorDaInscricao(a.evento.cobranca, { categoria: pg.categoria, hojeISO: hojeLocalISO() })
+          || { valor: pg.valor, categoria: { codigo: pg.categoria, nome: pg.categoriaNome }, lote: null, gratuita: pg.valor === 0 };
+        const novoPg = novoPagamento({ valor: preco.valor, categoria: preco.categoria, lote: preco.lote,
+          reservaMinutos: a.evento.cobranca?.reservaMinutos });
+        const renovado = transitarPagamento(pg, preco.gratuita ? "isento" : "aguardando", { por: "inscrição",
+          motivo: vencida ? "reserva renovada" : (pg.link ? "nova tentativa" : "link criado"),
+          extra: { valor: novoPg.valor, lote: novoPg.lote, criadoEm: novoPg.criadoEm, expiraEm: novoPg.expiraEm, preferenciaId: "", link: "" } });
+        if (!renovado) return { erro: [409, "Não foi possível renovar a cobrança desta inscrição — fale com a coordenação."], gravar: false };
+        i.pagamento = renovado;
+        a.atualizadoEm = new Date().toISOString();
+        return { acao: a, inscrito: i, criarLink: renovado.status === "aguardando" };
+      }
+      return { acao: a, inscrito: i, gravar: false };
+    }, { flushJa: false });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    if (r.criarLink) {
+      const link = await criarLinkDePagamento(r.acao, r.inscrito, baseDe(req));
+      const idAcao = r.acao.id;
+      await comAcoes((acoes) => {
+        const a = acoes.find((x) => x.id === idAcao);
+        const i = (a?.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === tok);
+        if (!i?.pagamento || i.pagamento.status !== "aguardando") return { gravar: false };
+        i.pagamento.preferenciaId = link.id; i.pagamento.link = link.link;
+        r.inscrito = i;
+        return {};
+      }, { flushJa: true });
+    }
+    res.json({ ok: true, pagamento: pagamentoPublico(r.inscrito, r.acao.evento) });
+  } catch (e) {
+    console.error("Erro ao gerar o link de pagamento:", e);
+    res.status(502).json({ error: "Não foi possível gerar o link de pagamento agora. Tente de novo em instantes." });
+  }
+});
+
+/* ----------------------- a gestão: guia Financeiro ----------------------- */
+
+/** O quadro financeiro do evento: totais, e uma linha por inscrição com cobrança. */
+app.get("/api/extensao/:id/financeiro", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const a = (await lerAcoes()).find((x) => x.id === req.params.id);
+    if (!a || !podeOperarEvento(u, a)) return res.status(404).json({ error: "Ação não encontrada" });
+    const inscritos = a.participantes?.inscritos || [];
+    const agora = new Date();
+    res.json({
+      cobranca: a.evento?.cobranca || null,
+      provedor: { configurado: mercadoPago.configurado(), modo: mercadoPago.modo(), webhook: !!mercadoPago.segredoWebhook() },
+      resumo: resumoFinanceiro(inscritos),
+      // a linha leva o token (é a chave das ações da gestão) e a marca da
+      // reserva vencida — nunca o CPF, que os exports já têm
+      linhas: inscritos.filter((i) => i?.pagamento).map((i) => ({
+        ...linhasFinanceiro([i])[0], token: i.token || "", codigo: codigoDe(i.token || ""),
+        reservaVencida: reservaVencida(i.pagamento, agora), divergencia: i.pagamento.divergencia || null,
+        aposExpirar: i.pagamento.aposExpirar === true, expiraEm: i.pagamento.expiraEm || "",
+        inscritoEm: i.inscritoEm || "", historico: i.pagamento.historico || [],
+      })),
+      // quem pode ESTORNAR: dinheiro que sai é ato da gestão do setor
+      podeEstornar: gereEx(u) || gereEv(u),
+    });
+  } catch (e) {
+    console.error("Erro no financeiro do evento:", e);
+    res.status(500).json({ error: "Falha ao carregar o financeiro" });
+  }
+});
+
+/** Isentar uma inscrição (cortesia, convidado, pagamento fora do sistema). */
+app.post("/api/extensao/:id/inscritos/:token/isentar", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const motivo = String(req.body?.motivo || "").trim().slice(0, 300);
+    if (motivo.length < 5) return res.status(400).json({ error: "Escreva o motivo da isenção (fica no registro)." });
+    const tok = String(req.params.token || "").trim().toLowerCase();
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((x) => x.id === req.params.id);
+      if (!a || !podeOperarEvento(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      const i = (a.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === tok);
+      if (!i?.pagamento) return { erro: [404, "Inscrição com cobrança não encontrada."], gravar: false };
+      if (i.pagamento.status === "pago") return { erro: [409, "Esta inscrição já está paga — para devolver o valor, use o estorno."], gravar: false };
+      const novo = transitarPagamento(i.pagamento, "isento", { por: u.email, motivo,
+        extra: { isentoPor: u.email, motivoIsencao: motivo, link: "" } });
+      if (!novo) return { erro: [409, `Não dá para isentar uma inscrição ${ROTULO_PAGAMENTO[i.pagamento.status] || i.pagamento.status}.`], gravar: false };
+      delete novo.divergencia;
+      i.pagamento = novo;
+      a.atualizadoEm = new Date().toISOString();
+      return { acao: a, inscrito: i };
+    }, { flushJa: true });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    // isenta → a credencial passa a existir: o e-mail com o QR sai agora
+    enviarConfirmacaoInscricao(r.acao, r.inscrito, baseDe(req))
+      .catch((e) => console.error("[pagamentos] confirmação após isenção:", e.message));
+    res.json({ ok: true, pagamento: r.inscrito.pagamento });
+  } catch (e) {
+    console.error("Erro ao isentar:", e);
+    res.status(500).json({ error: "Falha ao isentar a inscrição" });
+  }
+});
+
+/** Estorno TOTAL pelo Mercado Pago — só a gestão da Extensão ou dos Eventos. */
+app.post("/api/extensao/:id/inscritos/:token/estornar", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    if (!(gereEx(u) || gereEv(u))) return res.status(403).json({ error: "Só a gestão da Extensão ou dos Eventos estorna pagamento." });
+    const motivo = String(req.body?.motivo || "").trim().slice(0, 300);
+    if (motivo.length < 5) return res.status(400).json({ error: "Escreva o motivo do estorno (fica no registro)." });
+    if (!mercadoPago.configurado()) return res.status(503).json({ error: "O provedor de pagamento não está configurado." });
+    const tok = String(req.params.token || "").trim().toLowerCase();
+    const a0 = (await lerAcoes()).find((x) => x.id === req.params.id);
+    if (!a0 || !podeOperarEvento(u, a0)) return res.status(404).json({ error: "Ação não encontrada" });
+    const i0 = (a0.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === tok);
+    if (!i0?.pagamento) return res.status(404).json({ error: "Inscrição com cobrança não encontrada." });
+    if (!["pago", "contestado"].includes(i0.pagamento.status) || !i0.pagamento.pagamentoId)
+      return res.status(409).json({ error: "Só se estorna inscrição PAGA pelo Mercado Pago." });
+    // o estorno acontece no provedor PRIMEIRO; só o que ele aceitou se grava
+    let estorno;
+    try {
+      estorno = await mercadoPago.estornar(i0.pagamento.pagamentoId, { chave: `ref-${a0.id}-${tok}-${i0.pagamento.pagamentoId}` });
+    } catch (e) {
+      return res.status(502).json({ error: `O Mercado Pago não aceitou o estorno: ${e.message}` });
+    }
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((x) => x.id === req.params.id);
+      const i = (a?.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === tok);
+      if (!i?.pagamento) return { erro: [404, "Inscrição não encontrada."], gravar: false };
+      const novo = transitarPagamento(i.pagamento, "estornado", { por: u.email, motivo,
+        extra: { estornoId: String(estorno?.id || ""), estornadoPor: u.email, motivoEstorno: motivo, estornadoEm: new Date().toISOString() } });
+      if (!novo) return { erro: [409, "Transição não permitida."], gravar: false };
+      i.pagamento = novo;
+      a.atualizadoEm = new Date().toISOString();
+      return { acao: a, inscrito: i };
+    }, { flushJa: true });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, pagamento: r.inscrito.pagamento });
+  } catch (e) {
+    console.error("Erro ao estornar:", e);
+    res.status(500).json({ error: "Falha ao estornar" });
+  }
+});
+
+/** Conferir UMA inscrição no provedor (a gestão, quando o inscrito diz que pagou). */
+app.post("/api/extensao/:id/inscritos/:token/conferir", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const tok = String(req.params.token || "").trim().toLowerCase();
+    const a = (await lerAcoes()).find((x) => x.id === req.params.id);
+    if (!a || !podeOperarEvento(u, a)) return res.status(404).json({ error: "Ação não encontrada" });
+    const i = (a.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === tok);
+    if (!i?.pagamento) return res.status(404).json({ error: "Inscrição com cobrança não encontrada." });
+    if (!mercadoPago.configurado()) return res.status(503).json({ error: "O provedor de pagamento não está configurado." });
+    const r = await conciliarInscricao(a, i, baseDe(req));
+    const atual = ((await lerAcoes()).find((x) => x.id === req.params.id)?.participantes?.inscritos || [])
+      .find((x) => String(x?.token || "").toLowerCase() === tok);
+    res.json({ ok: true, semPagamento: r?.semPagamento === true, ignorado: r?.ignorado || "", pagamento: atual?.pagamento || null });
+  } catch (e) {
+    console.error("Erro ao conferir pagamento:", e);
+    res.status(502).json({ error: "Não foi possível consultar o provedor agora: " + e.message });
+  }
+});
+
+/** A planilha da prestação de contas — sem CPF, é documento que circula. */
+app.get("/api/extensao/:id/financeiro.xlsx", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const acao = (await lerAcoes()).find((a) => a.id === req.params.id);
+    if (!acao || !podeOperarEvento(u, acao)) return res.status(404).send("Ação não encontrada");
+    const { gerarFinanceiroEventoXlsx } = await import("./lib/exports.js");
+    const buffer = await gerarFinanceiroEventoXlsx(acao, {
+      resumo: resumoFinanceiro(acao.participantes?.inscritos || []),
+      linhas: linhasFinanceiro(acao.participantes?.inscritos || []),
+    });
+    const num = (acao.numeroAcao || acao.id).replace(/[^A-Za-z0-9-]/g, "-");
+    const nome = `Financeiro-${num}.xlsx`;
+    arquivarDocumento({ buffer, nome, pasta: `Extensão/${acao.curso || "Institucional"}/${anoDaPasta(acao.numeroAcao, acao.proposta?.periodoInicio)}/${num}` });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${nome}"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error("Erro no export financeiro:", e);
+    res.status(500).send("Erro ao gerar a planilha: " + e.message);
+  }
+});
+
+/**
+ * VARREDURA HORÁRIA dos pagamentos: (1) a reserva `aguardando` vencida vira
+ * `expirado` e devolve a vaga — antes, uma última consulta ao provedor, para
+ * o Pix pago no último minuto (webhook perdido) não ser expirado por engano;
+ * (2) as `aguardando` com mais de 15 min são conciliadas, até 40 por volta,
+ * para a inscrição cujo aviso se perdeu não ficar presa até a pessoa clicar
+ * em "já paguei". Sem provedor configurado só se expira.
+ */
+async function varrerPagamentosEventos() {
+  const acoes = await lerAcoes();
+  const agora = new Date();
+  const pendentes = [];
+  for (const a of acoes) {
+    if (!a?.evento?.cobranca) continue;
+    for (const i of a.participantes?.inscritos || []) {
+      const pg = i?.pagamento;
+      if (!pg || !["aguardando", "recusado"].includes(pg.status)) continue;
+      const idade = agora - new Date(pg.criadoEm || 0);
+      if (reservaVencida(pg, agora) || (idade > 15 * 60_000 && pg.status === "aguardando")) pendentes.push({ a, i, vencida: reservaVencida(pg, agora) });
+    }
+  }
+  if (!pendentes.length) return { expiradas: 0, conciliadas: 0 };
+  const base = process.env.MP_WEBHOOK_URL ? process.env.MP_WEBHOOK_URL.replace(/\/api\/publico\/pagamentos\/mp\/?$/, "") : "https://arche.app.br";
+  let conciliadas = 0;
+  if (mercadoPago.configurado()) {
+    for (const { a, i } of pendentes.slice(0, 40)) {
+      try { await conciliarInscricao(a, i, base); conciliadas++; }
+      catch (e) { console.error("[pagamentos] conciliação:", e.message); }
+    }
+  }
+  // depois da conciliação, o que continua aguardando com a reserva vencida expira
+  const r = await comAcoes((acs) => {
+    let n = 0;
+    for (const { a: a0, i: i0 } of pendentes) {
+      const a = acs.find((x) => x.id === a0.id);
+      const i = (a?.participantes?.inscritos || []).find((x) => x?.token === i0.token);
+      if (!i?.pagamento || !reservaVencida(i.pagamento, agora)) continue;
+      const novo = transitarPagamento(i.pagamento, "expirado", { por: "sistema", motivo: "reserva vencida sem pagamento", extra: { link: "" } });
+      if (!novo) continue;
+      i.pagamento = novo; a.atualizadoEm = new Date().toISOString(); n++;
+    }
+    return n ? { n } : { n: 0, gravar: false };
+  }, { flushJa: true });
+  if (r.n || conciliadas) console.log(`[pagamentos] varredura: ${r.n} reserva(s) expirada(s), ${conciliadas} conciliada(s)`);
+  return { expiradas: r.n, conciliadas };
+}
+
 async function acharInscricao(slugEv, token) {
   const acoes = await lerAcoes();
   const t = String(token || "").trim().toLowerCase();
@@ -4352,11 +4958,15 @@ app.get("/api/publico/eventos/:slug/inscricao/:token", async (req, res) => {
     // o certificado é a razão de a pessoa voltar a esta página depois do
     // evento: ou o botão existe, ou a linha diz o que ainda falta
     const podeCert = acaoCertificavel(r.acao, hojeLocalISO());
-    const meuCert = podeCert.ok
+    // inscrição SEM pagamento confirmado não tem certificado nem presença
+    // que valha — a credencial diz isso e leva ao pagamento
+    const valida = inscricaoValida(r.inscrito);
+    const meuCert = podeCert.ok && valida
       ? certificadoDe(r.acao, { cpf: r.inscrito.cpf, email: r.inscrito.email, nome: r.inscrito.nome },
         { hoje: hojeLocalISO() })
       : null;
     res.json({
+      pagamento: pagamentoPublico(r.inscrito, ev),
       evento: {
         // o curso que sai na página pública diz os DOIS, quando a ação é de
         // mais de um: quem vê o cartaz precisa saber que o evento é dele
@@ -4365,7 +4975,9 @@ app.get("/api/publico/eventos/:slug/inscricao/:token", async (req, res) => {
         local: p.local || "", municipio: p.municipio || "",
         transmissaoPublicada: ev.transmissao?.publicada === true,
       },
-      certificado: podeCert.ok
+      certificado: !valida
+        ? { pode: false, motivo: "a inscrição ainda não tem o pagamento confirmado." }
+        : podeCert.ok
         ? (meuCert
           ? { pode: true, ch: meuCert.ch }
           : { pode: false, motivo: eventoControlaFrequencia(ev)
@@ -4821,6 +5433,13 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
       // token não conta, por código conta (achado da varredura ago/2026).
       if (!inscrito)
         return { erro: [404, "Inscrição não encontrada."], falha: !b.token, gravar: false };
+      /* EVENTO PAGO: a credencial só vale PAGA (ou isenta). Crachá de
+         inscrição sem pagamento confirmado é recusado na porta com o nome e
+         o motivo — o monitor sabe o que dizer, e a pessoa regulariza pela
+         própria página da inscrição (o Pix confirma em segundos). */
+      if (!inscricaoValida(inscrito))
+        return { erro: [409, `${inscrito.nome || "Inscrição"}: pagamento ${ROTULO_PAGAMENTO[inscrito.pagamento?.status] || "não confirmado"} — `
+          + "a credencial só vale com o pagamento confirmado. Oriente a pessoa a regularizar pela página da inscrição."], gravar: false };
       const idAtv = atv ? atv.id : "";
       // Evento SEM controle de frequência não tem porta: a inscrição já é a
       // presença, e todo inscrito conta 100% (decisão do dono, ago/2026)
@@ -5275,6 +5894,27 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
         return { erro: [400, "Configuração de transmissão inválida."], gravar: false };
       if (b.blocos !== undefined && !Array.isArray(b.blocos))
         return { erro: [400, "Blocos inválidos — envie a lista de blocos."], gravar: false };
+      if (b.cobranca !== undefined && (typeof b.cobranca !== "object" || b.cobranca === null || Array.isArray(b.cobranca)))
+        return { erro: [400, "Configuração de cobrança inválida."], gravar: false };
+      /* COBRANÇA (set/2026): a configuração passa pela régua e se grava
+         normalizada (valores em centavos). Ligar a cobrança exige o provedor
+         configurado no servidor — um evento pago sem meio de pagar seria uma
+         página que promete o que não entrega. Desligar é sempre permitido; as
+         inscrições já pagas ficam como estão. */
+      if (b.cobranca !== undefined) {
+        const cob = normalizarCobranca(b.cobranca);
+        if (cob.ativa && !cob.categorias.length)
+          return { erro: [400, "Para cobrar inscrição, cadastre ao menos uma categoria com o valor."], gravar: false };
+        if (cobrancaAtiva(cob) && !mercadoPago.configurado())
+          return { erro: [400, "O pagamento online não está configurado no servidor (MP_ACCESS_TOKEN). Peça à PROPPEX para configurar antes de ligar a cobrança."], gravar: false };
+        if (cobrancaAtiva(cob) && !cob.meios.pix && !cob.meios.cartao && !cob.meios.boleto)
+          return { erro: [400, "Escolha ao menos um meio de pagamento (Pix, cartão ou boleto)."], gravar: false };
+        ev.cobranca = cob;
+      }
+      // e a ATIVAÇÃO da página de evento pago confere o mesmo (a chave pode
+      // ter saído do ambiente depois de a cobrança ter sido configurada)
+      if (ev.ativo && !estavaAtivo && cobrancaAtiva(ev.cobranca) && !mercadoPago.configurado())
+        return { erro: [400, "Este evento cobra inscrição e o pagamento online não está configurado no servidor — desligue a cobrança ou peça a configuração à PROPPEX."], gravar: false };
       // as IMAGENS (foto de palestrante, logotipo de apoiador) não viajam nos
       // payloads: a tela recebe só `temFoto`/`temLogo`. Salvar a programação
       // ou os blocos, então, apagaria todas elas — a menos que o que está
@@ -15908,6 +16548,10 @@ app.get(/^\/eventos\/[a-z0-9-]+\/inscricao\/[a-zA-Z0-9]+\/?$/, (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "inscricao.html")));
 app.get(/^\/eventos\/[a-z0-9-]+\/assistir\/[a-zA-Z0-9]+\/?$/, (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "assistir.html")));
+// a página de pagamento da inscrição (evento pago): é para onde o Mercado
+// Pago devolve a pessoa e onde ela confere se o Pix já confirmou
+app.get(/^\/eventos\/[a-z0-9-]+\/pagamento\/[a-zA-Z0-9]+\/?$/, (_req, res) =>
+  res.sendFile(path.join(PUBLIC, "eventos", "pagamento.html")));
 // a sala de gestão do ARCHÉ EV (com login — a guarda é a do topo): entra
 // ANTES do padrão de slug, senão "gestao" viraria página de evento
 app.get(["/eventos/gestao", "/eventos/gestao/"], (_req, res) =>
@@ -16886,6 +17530,9 @@ app.listen(port, () => {
   // de 30 dias antes do prazo, semanal, até o envio
   setTimeout(() => varrerCobrancaMon().catch((e) => console.error("[cobranca-mon]", e.message)), 45_000).unref();
   setInterval(() => varrerCobrancaMon().catch((e) => console.error("[cobranca-mon]", e.message)), 60 * 60 * 1000).unref();
+  // pagamentos de inscrição: expira a reserva vencida e concilia o aviso perdido
+  setTimeout(() => varrerPagamentosEventos().catch((e) => console.error("[pagamentos]", e.message)), 60_000).unref();
+  setInterval(() => varrerPagamentosEventos().catch((e) => console.error("[pagamentos]", e.message)), 60 * 60 * 1000).unref();
   // as aulas práticas entram na mesma varredura, mas o lembrete só sai na
   // SEGUNDA-FEIRA — é a própria função que confere o dia
   setTimeout(() => varrerCobrancaAP().catch((e) => console.error("[cobranca-ap]", e.message)), 60_000).unref();

@@ -320,6 +320,8 @@
         <section id="v-equipe" class="hide"></section>
         <section id="v-credenciamento" class="hide"></section>
         <section id="v-transmissao" class="hide"></section>
+        <section id="v-cobranca" class="hide"></section>
+        <section id="v-financeiro" class="hide"></section>
         <section id="v-exportacoes" class="hide"></section>
         <section id="v-editais" class="hide"></section>
         <section id="v-certificados" class="hide"></section>
@@ -460,6 +462,8 @@ const IC = {
   credenciamento:'<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h7v7h-7z"></path>',
   transmissao:'<circle cx="12" cy="12" r="2"></circle><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 19.1a10 10 0 0 1 0-14.2M19.1 4.9a10 10 0 0 1 0 14.2"></path>',
   exportacoes:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5M12 15V3"></path>',
+  cobranca:'<rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20M6 15h4"></path>',
+  financeiro:'<path d="M3 3v18h18"></path><path d="M7 15l4-4 3 3 5-6"></path>',
   editais:'<path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"></path><path d="M14 2v5h5M8 13h8M8 17h5"></path>',
   acao:'<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><path d="M15 3h6v6M10 14 21 3"></path>',
 };
@@ -478,6 +482,10 @@ const SECOES = [
    sub:"Quem organiza e quem ministra — professores, monitores, alunos e colaboradores que recebem certificado à parte."},
   {k:"inscricoes", rot:"Inscrições", grupo:"PRÉ-EVENTO", ic:IC.inscricoes, evento:true, tit:"Inscrições",
    sub:"Vagas, prazo, campos extras do formulário e o texto de consentimento (LGPD)."},
+  /* EVENTO PAGO (set/2026): a cobrança se configura ANTES (categorias, lotes,
+     meios, prazo da reserva) e se presta contas DEPOIS (Financeiro). */
+  {k:"cobranca", rot:"Cobrança", grupo:"PRÉ-EVENTO", ic:IC.cobranca, evento:true, tit:"Cobrança da inscrição",
+   sub:"Evento pago: categorias e valores, lotes, meios de pagamento (Pix, cartão, boleto), prazo da reserva e política de reembolso."},
   {k:"pagina", rot:"Página do evento", grupo:"PRÉ-EVENTO", ic:IC.pagina, evento:true, tit:"Página do evento",
    sub:"A página pública (hotsite): ativação, endereço, descrição, local e capa."},
   {k:"programacao", rot:"Programação", grupo:"PRÉ-EVENTO", ic:IC.programacao, evento:true, tit:"Programação",
@@ -491,6 +499,8 @@ const SECOES = [
   /* PÓS-EVENTO fecha o ciclo que a barra lateral conta — pré-evento, evento,
      pós-evento (pedido do dono, ago/2026). "GERAL" não era uma fase: era o
      nome que sobrou para o que não coubera nas outras duas. */
+  {k:"financeiro", rot:"Financeiro", grupo:"PÓS-EVENTO", ic:IC.financeiro, evento:true, tit:"Financeiro",
+   sub:"O que entrou pelo Mercado Pago, inscrição a inscrição: pagos, aguardando, isentos, estornos — e a planilha da prestação de contas."},
   {k:"exportacoes", rot:"Exportações", grupo:"PÓS-EVENTO", ic:IC.exportacoes, evento:true, tit:"Exportações",
    sub:"As planilhas do evento — AEE (geral, por atividade, só presentes) e a lista completa do ARCHÉ."},
   /* TODO SETOR LANÇA O SEU EDITAL (pedido do dono, ago/2026). A chamada de
@@ -710,6 +720,8 @@ function nav(secao){
   else if(SECAO==="equipe") renderEquipe(a);
   else if(SECAO==="credenciamento") renderCredenciamento(a);
   else if(SECAO==="transmissao") renderTransmissao(a);
+  else if(SECAO==="cobranca") renderCobranca(a);
+  else if(SECAO==="financeiro") renderFinanceiro(a);
   else if(SECAO==="exportacoes") renderExportacoes(a);
   else if(SECAO==="editais") window.ArcheEditais?.montar($("v-editais"),{setores:["eventos"]});
   else if(SECAO==="certificados") renderCertificados(a);
@@ -2038,6 +2050,268 @@ function renderTransmissao(a){
   renderMuralEv(a);
 }
 
+/* ==================== PRÉ-EVENTO · COBRANÇA (set/2026) =================== */
+/* A configuração vive em `evento.cobranca` e passa pela régua do servidor
+   (lib/pagamentos.js): a tela edita em reais, o servidor grava em centavos.
+   O PREÇO que cada inscrito paga é SEMPRE calculado no servidor — a tela só
+   mostra a tabela. */
+let EV_COB=null;
+const reaisDe=(c)=>(Math.round(Number(c)||0)/100).toFixed(2).replace(".",",");
+const ROTULO_PG={aguardando:"aguardando",pago:"pago",isento:"isento",expirado:"expirado",recusado:"recusado",estornado:"estornado",contestado:"contestado"};
+const COR_PG={pago:["var(--ok-soft)","var(--ok)"],isento:["var(--ok-soft)","var(--ok)"],aguardando:["var(--warn-soft)","var(--warn)"],
+  recusado:["var(--err-soft)","var(--err)"],expirado:["#eceff3","var(--muted)"],estornado:["#eceff3","var(--muted)"],contestado:["var(--err-soft)","var(--err)"]};
+const badgePg=(pg)=>{ if(!pg) return ""; const [bg,fg]=COR_PG[pg.status]||["#eceff3","var(--muted)"];
+  return `<span class="badge" style="background:${bg};color:${fg}" title="${esc((pg.categoriaNome||"")+" · R$ "+reaisDe(pg.valor))}">${esc(ROTULO_PG[pg.status]||pg.status)}${pg.divergencia?" ⚠":""}</span>`; };
+
+async function renderCobranca(a){
+  const ev=a.evento||{};
+  const c=ev.cobranca||{};
+  // a tela edita em REAIS; o gravado está em centavos (emCentavos:true)
+  EV_COB={
+    ativa:c.ativa===true,
+    recebedor:c.recebedor||"",
+    categorias:(c.categorias||[]).map(x=>({codigo:x.codigo||"",nome:x.nome||"",valor:reaisDe(x.valor),descricao:x.descricao||""})),
+    lotes:(c.lotes||[]).map(l=>({nome:l.nome||"",ate:l.ate||"",ajuste:(l.ajuste<0?"-":"")+reaisDe(Math.abs(l.ajuste||0))})),
+    meios:{pix:c.meios?.pix!==false,cartao:c.meios?.cartao===true,boleto:c.meios?.boleto===true},
+    parcelas:c.parcelas||1, jurosPorConta:c.jurosPorConta||"inscrito",
+    reservaMinutos:c.reservaMinutos||1440, politicaReembolso:c.politicaReembolso||"",
+  };
+  let prov=null;
+  try{ const r=await fetch(`/api/extensao/${a.id}/financeiro`); if(r.ok) prov=(await r.json()).provedor; }catch{ /* segue */ }
+  const pagos=(a.participantes?.inscritos||[]).filter(x=>x.pagamento).length;
+  $("v-cobranca").innerHTML=`
+    ${prov&&!prov.configurado?`<div class="banner ba-warn"><b>O pagamento online não está configurado no servidor.</b>
+      A cobrança só pode ser ligada depois que a PROPPEX cadastrar a credencial do Mercado Pago
+      (<span style="font-family:ui-monospace,monospace">MP_ACCESS_TOKEN</span>) no ambiente do sistema. Você já pode
+      deixar a tabela pronta e salvar com a cobrança desligada.</div>`
+      :prov?`<div class="banner ${prov.modo==="teste"?"ba-warn":"ba-ok"}">Mercado Pago <b>${prov.modo==="teste"?"em modo de TESTE — nenhum pagamento real entra":"em produção"}</b>${prov.webhook?"":" · <b>aviso automático (webhook) sem chave</b>: a confirmação depende da conciliação horária e do botão \"Já paguei\""}.</div>`:""}
+    ${pagos?`<div class="banner ba-info">Este evento já tem <b>${pagos}</b> inscrição(ões) com cobrança registrada. Mudar valores vale só para as
+      próximas inscrições; as existentes ficam com o valor da época.</div>`:""}
+    <div class="card">
+      <div class="sec-t">Evento pago?</div>
+      <label class="chk" style="margin-top:12px"><input type="checkbox" id="cob-ativa" ${EV_COB.ativa?"checked":""}>
+        cobrar inscrição neste evento — a credencial só vale depois do pagamento confirmado</label>
+      <label>Em nome de <span class="muted">(sai no recibo e na página de pagamento; até 16 letras aparecem no extrato do cartão)</span></label>
+      <input id="cob-recebedor" value="${esc(EV_COB.recebedor)}" placeholder="Ex.: UNIEGO — PROPPEX" maxlength="160">
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Categorias e valores</div>
+      <div class="muted" style="margin:8px 0">Quem se inscreve escolhe UMA categoria. Valor zero é categoria gratuita
+        (ex.: aluno do UNIEGO) — ela não passa pelo pagamento e a credencial sai na hora.</div>
+      <div id="cob-cats"></div>
+      <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="EV_COB.categorias.push({codigo:'',nome:'',valor:'',descricao:''});renderCobCats()">＋ Adicionar categoria</button>
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Lotes <span class="muted" style="font-weight:400;font-size:12px">(opcional)</span></div>
+      <div class="muted" style="margin:8px 0">Um AJUSTE sobre o valor da categoria até uma data: negativo é desconto
+        ("−20,00" = R$ 20 a menos até o fim do 1º lote), positivo é acréscimo. Passado o último lote, vale o valor cheio.</div>
+      <div id="cob-lotes"></div>
+      <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="EV_COB.lotes.push({nome:'',ate:'',ajuste:''});renderCobLotes()">＋ Adicionar lote</button>
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Meios de pagamento e prazo</div>
+      <div class="grid3" style="margin-top:12px">
+        <div>
+          <label style="margin-top:0">Meios aceitos</label>
+          <label class="chk"><input type="checkbox" id="cob-pix" ${EV_COB.meios.pix?"checked":""}> Pix (confirma em segundos)</label>
+          <label class="chk"><input type="checkbox" id="cob-cartao" ${EV_COB.meios.cartao?"checked":""}> Cartão de crédito/débito</label>
+          <label class="chk"><input type="checkbox" id="cob-boleto" ${EV_COB.meios.boleto?"checked":""}> Boleto (confirma em 1–2 dias úteis)</label>
+        </div>
+        <div>
+          <label style="margin-top:0">Parcelas no cartão <span class="muted">(máx.)</span></label>
+          <select id="cob-parcelas">${[1,2,3,4,5,6,10,12].map(n=>`<option value="${n}" ${EV_COB.parcelas===n?"selected":""}>${n===1?"à vista":n+"x"}</option>`).join("")}</select>
+          <label>Juros do parcelamento</label>
+          <select id="cob-juros">
+            <option value="inscrito" ${EV_COB.jurosPorConta==="inscrito"?"selected":""}>por conta do inscrito (padrão do Mercado Pago)</option>
+            <option value="evento" ${EV_COB.jurosPorConta==="evento"?"selected":""}>por conta do evento (configurar no painel do Mercado Pago)</option>
+          </select>
+        </div>
+        <div>
+          <label style="margin-top:0">Reserva da vaga <span class="muted">(prazo para pagar)</span></label>
+          <select id="cob-reserva">${[[60,"1 hora"],[180,"3 horas"],[360,"6 horas"],[720,"12 horas"],[1440,"24 horas"],[2880,"48 horas"],[4320,"3 dias"],[10080,"7 dias"]]
+            .map(([m,r])=>`<option value="${m}" ${EV_COB.reservaMinutos===m?"selected":""}>${r}</option>`).join("")}</select>
+          <div class="muted" style="font-size:12px;margin-top:6px">Vencido o prazo sem pagamento, a inscrição expira e a vaga
+            volta. Com boleto, dê ao menos 3 dias.</div>
+        </div>
+      </div>
+      <label>Política de reembolso <span class="muted">(sai no e-mail e na página de pagamento)</span></label>
+      <textarea id="cob-politica" placeholder="Ex.: Reembolso integral até 7 dias antes do evento; depois, não há devolução. Pedidos por eventos@uniego.edu.br.">${esc(EV_COB.politicaReembolso)}</textarea>
+    </div>
+
+    <div class="exp" style="margin:0 0 18px">
+      <button class="bt bt-pri" onclick="salvarCobranca('${esc(a.id)}')">💾 Salvar cobrança</button>
+      <span class="muted" id="ev-msg" style="align-self:center"></span>
+    </div>
+    <div class="tut">
+      <b>Como funciona:</b> a pessoa se inscreve na página do evento, escolhe a categoria e é levada à página
+      segura do Mercado Pago. Pago, o ARCHÉ é avisado, confirma na API e envia a credencial com o QR — sem ninguém
+      conferir extrato. O dinheiro cai na conta do Mercado Pago da instituição; a planilha da guia
+      <button class="lk" onclick="nav('financeiro')">Financeiro</button> é a prestação de contas.
+    </div>`;
+  renderCobCats(); renderCobLotes();
+}
+function renderCobCats(){
+  const el=$("cob-cats"); if(!el) return;
+  el.innerHTML=EV_COB.categorias.length?`<div class="scrollx"><table class="pt">
+    <thead><tr><th>Categoria</th><th style="width:120px">Valor (R$)</th><th>Descrição (opcional)</th><th></th></tr></thead>
+    <tbody>${EV_COB.categorias.map((c,i)=>`<tr>
+      <td><input value="${esc(c.nome)}" placeholder="Ex.: Profissional" oninput="EV_COB.categorias[${i}].nome=this.value"></td>
+      <td><input value="${esc(c.valor)}" placeholder="0,00" inputmode="decimal" oninput="EV_COB.categorias[${i}].valor=this.value"></td>
+      <td><input value="${esc(c.descricao)}" placeholder="Ex.: com certificado e coffee" oninput="EV_COB.categorias[${i}].descricao=this.value"></td>
+      <td><button class="lk" style="color:var(--err)" onclick="EV_COB.categorias.splice(${i},1);renderCobCats()">remover</button></td>
+    </tr>`).join("")}</tbody></table></div>`
+    :`<div class="cnt">— nenhuma categoria. Adicione ao menos uma para cobrar.</div>`;
+}
+function renderCobLotes(){
+  const el=$("cob-lotes"); if(!el) return;
+  el.innerHTML=EV_COB.lotes.length?`<div class="scrollx"><table class="pt">
+    <thead><tr><th>Lote</th><th style="width:160px">Até</th><th style="width:140px">Ajuste (R$)</th><th></th></tr></thead>
+    <tbody>${EV_COB.lotes.map((l,i)=>`<tr>
+      <td><input value="${esc(l.nome)}" placeholder="Ex.: 1º lote" oninput="EV_COB.lotes[${i}].nome=this.value"></td>
+      <td><input type="date" value="${esc(l.ate)}" oninput="EV_COB.lotes[${i}].ate=this.value"></td>
+      <td><input value="${esc(l.ajuste)}" placeholder="-20,00" inputmode="decimal" oninput="EV_COB.lotes[${i}].ajuste=this.value"></td>
+      <td><button class="lk" style="color:var(--err)" onclick="EV_COB.lotes.splice(${i},1);renderCobLotes()">remover</button></td>
+    </tr>`).join("")}</tbody></table></div>`
+    :`<div class="cnt">— sem lotes: vale o valor cheio da categoria o tempo todo.</div>`;
+}
+function salvarCobranca(id){
+  return salvarParteEvento(id,{cobranca:{
+    ativa:$("cob-ativa")?.checked===true,
+    recebedor:$("cob-recebedor")?.value||"",
+    categorias:EV_COB.categorias.map(c=>({codigo:c.codigo||"",nome:c.nome||"",valor:c.valor||"0",descricao:c.descricao||""})),
+    lotes:EV_COB.lotes.map(l=>({nome:l.nome||"",ate:l.ate||"",ajuste:l.ajuste||"0"})),
+    meios:{pix:$("cob-pix")?.checked===true,cartao:$("cob-cartao")?.checked===true,boleto:$("cob-boleto")?.checked===true},
+    parcelas:Number($("cob-parcelas")?.value)||1,
+    jurosPorConta:$("cob-juros")?.value||"inscrito",
+    reservaMinutos:Number($("cob-reserva")?.value)||1440,
+    politicaReembolso:$("cob-politica")?.value||"",
+  }});
+}
+
+/* ==================== PÓS-EVENTO · FINANCEIRO (set/2026) ================= */
+let FIN=null;
+async function renderFinanceiro(a){
+  const el=$("v-financeiro");
+  el.innerHTML=`<div class="card"><p class="muted">Carregando o financeiro…</p></div>`;
+  try{
+    const r=await fetch(`/api/extensao/${a.id}/financeiro`);
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    FIN=j;
+  }catch(e){ el.innerHTML=`<div class="banner ba-warn">Não foi possível carregar o financeiro: ${esc(e.message)}</div>`; return; }
+  const R=FIN.resumo||{}, pe=R.porEstado||{};
+  const hora=(iso)=>{ try{ return new Date(iso).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}); }catch{ return ""; } };
+  const semCobranca=!FIN.cobranca?.ativa && !R.total;
+  el.innerHTML=`
+    ${semCobranca?`<div class="banner ba-info">Este evento não cobra inscrição. Para cobrar, configure a guia
+      <button class="lk" onclick="nav('cobranca')">Cobrança</button>.</div>`:""}
+    ${FIN.provedor&&!FIN.provedor.webhook&&FIN.provedor.configurado?`<div class="banner ba-warn">O aviso automático do Mercado Pago (webhook) está sem a chave
+      de assinatura no servidor: a confirmação chega pela conciliação horária e pelo botão "Já paguei" da pessoa. Peça à PROPPEX para
+      configurar <span style="font-family:ui-monospace,monospace">MP_WEBHOOK_SECRET</span>.</div>`:""}
+    <div class="stat" style="margin-top:0">
+      <div class="s"><b>${R.total||0}</b><span>Inscrições com cobrança</span></div>
+      <div class="s"><b style="color:var(--ok)">${pe.pago||0}</b><span>Pagas</span></div>
+      <div class="s"><b>${pe.isento||0}</b><span>Isentas</span></div>
+      <div class="s"><b style="color:var(--warn)">${pe.aguardando||0}</b><span>Aguardando</span></div>
+      <div class="s"><b style="color:var(--muted)">${(pe.expirado||0)+(pe.recusado||0)}</b><span>Expiradas / recusadas</span></div>
+      <div class="s"><b style="color:var(--muted)">${(pe.estornado||0)+(pe.contestado||0)}</b><span>Estornos / contestações</span></div>
+    </div>
+    <div class="stat">
+      <div class="s"><b>R$ ${reaisDe(R.bruto)}</b><span>Recebido (bruto)</span></div>
+      <div class="s"><b style="color:var(--muted)">R$ ${reaisDe(R.taxa)}</b><span>Taxas do provedor</span></div>
+      <div class="s"><b style="color:var(--ok)">R$ ${reaisDe(R.liquido)}</b><span>Líquido</span></div>
+      <div class="s"><b style="color:var(--warn)">R$ ${reaisDe(R.aReceber)}</b><span>A receber (reservas abertas)</span></div>
+    </div>
+    ${Object.keys(R.porMeio||{}).length?`<div class="card"><div class="sec-t">Por meio de pagamento</div>
+      <div class="scrollx" style="margin-top:8px"><table class="pt"><thead><tr><th>Meio</th><th>Pagamentos</th><th>Valor</th></tr></thead>
+      <tbody>${Object.entries(R.porMeio).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v.n}</td><td>R$ ${reaisDe(v.valor)}</td></tr>`).join("")}</tbody></table></div></div>`:""}
+    <div class="card">
+      <div class="sec-t">Inscrições</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 6px">
+        <input id="fin-busca" placeholder="Buscar por nome, e-mail ou código…" style="max-width:280px" oninput="ArchePag.zerar('ev-financeiro');renderFinLista()">
+        <select id="fin-estado" style="width:auto;font-size:12.5px;padding:6px 30px 6px 8px" onchange="ArchePag.zerar('ev-financeiro');renderFinLista()">
+          <option value="">todas as situações</option>
+          ${Object.keys(ROTULO_PG).map(k=>`<option value="${k}">${ROTULO_PG[k]}${pe[k]?` (${pe[k]})`:""}</option>`).join("")}
+        </select>
+        <span class="muted" id="fin-msg" style="font-size:12.5px"></span>
+      </div>
+      <div id="fin-lista" class="scrollx"></div>
+      <div class="muted" style="font-size:12px;margin-top:8px"><b>Isentar</b> confirma a inscrição sem pagamento (cortesia,
+        convidado, pagamento feito por fora) e manda a credencial. <b>Conferir</b> pergunta ao Mercado Pago agora.
+        ${FIN.podeEstornar?"<b>Estornar</b> devolve o valor pelo Mercado Pago e cancela a credencial.":"Estornar é ato da gestão da Extensão/Eventos."}</div>
+    </div>
+    <div class="card">
+      <div class="sec-t">Prestação de contas</div>
+      <div class="muted" style="margin:8px 0">A planilha com uma linha por inscrição (categoria, meio, valor pago, taxa,
+        líquido, número no provedor) e a aba de resumo — sem CPF, para circular. É o documento que acompanha o repasse à instituição.</div>
+      <div class="exp" style="margin:0"><a class="bt bt-sec" href="/api/extensao/${esc(a.id)}/financeiro.xlsx">📊 Planilha financeira (.xlsx)</a></div>
+    </div>`;
+  renderFinLista();
+}
+function renderFinLista(){
+  const el=$("fin-lista"); if(!el||!FIN) return;
+  const q=($("fin-busca")?.value||"").trim().toLowerCase();
+  const est=$("fin-estado")?.value||"";
+  const hora=(iso)=>{ try{ return new Date(iso).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}); }catch{ return ""; } };
+  const lista=(FIN.linhas||[]).filter(l=>(!est||l.estado===est)&&(!q
+    || String(l.nome||"").toLowerCase().includes(q) || String(l.email||"").toLowerCase().includes(q) || String(l.codigo||"").toLowerCase().includes(q)));
+  const pag=ArchePag.recorte("ev-financeiro",lista,renderFinLista);
+  const id=ABERTO;
+  el.innerHTML=lista.length?`${pag.barra}<table class="pt">
+    <thead><tr><th>Nome</th><th>Categoria</th><th>Situação</th><th>Valor</th><th>Pago</th><th>Meio</th><th>Quando</th><th></th></tr></thead>
+    <tbody>${pag.itens.map(l=>{
+      const pend=["aguardando","recusado","expirado"].includes(l.estado);
+      return `<tr>
+      <td>${esc(l.nome)}<br><span class="muted" style="font-size:11.5px">${esc(l.email||"")} · ${esc((l.codigo||"").toUpperCase())}</span></td>
+      <td>${esc(l.categoria)}${l.lote?`<br><span class="muted" style="font-size:11.5px">${esc(l.lote)}</span>`:""}</td>
+      <td>${badgePg({status:l.estado,categoriaNome:l.categoria,valor:Number(l.valorDevido)*100,divergencia:l.divergencia})}
+        ${l.divergencia?`<div class="muted" style="font-size:11.5px">pagou R$ ${reaisDe(l.divergencia.pagoCentavos)} (nº ${esc(l.divergencia.pagamentoId)})</div>`:""}
+        ${l.aposExpirar?`<div class="muted" style="font-size:11.5px">pago após a reserva vencer</div>`:""}
+        ${l.estado==="aguardando"&&l.reservaVencida?`<div class="muted" style="font-size:11.5px">reserva vencida</div>`:""}</td>
+      <td>R$ ${esc(l.valorDevido).replace(".",",")}</td>
+      <td>${l.valorPago!==""?`R$ ${esc(l.valorPago).replace(".",",")}`:"—"}${l.taxa?`<br><span class="muted" style="font-size:11.5px">taxa R$ ${esc(l.taxa).replace(".",",")}</span>`:""}</td>
+      <td>${esc(l.meio||"—")}${l.parcelas>1?` ${l.parcelas}x`:""}</td>
+      <td class="muted" style="font-size:12px">${l.pagoEm?"pago "+esc(hora(l.pagoEm)):l.estado==="aguardando"?"até "+esc(hora(l.expiraEm)):esc(hora(l.inscritoEm))}</td>
+      <td style="white-space:nowrap">
+        ${pend?`<button class="bt bt-sec" style="padding:2px 9px;font-size:11px" onclick="conferirPg('${esc(id)}','${esc(l.token)}')">conferir</button>
+          <button class="bt bt-ok" style="padding:2px 9px;font-size:11px" onclick="isentarPg('${esc(id)}','${esc(l.token)}','${esc(l.nome)}')">isentar</button>`:""}
+        ${["pago","contestado"].includes(l.estado)&&FIN.podeEstornar&&l.provedorId?`<button class="bt bt-err" style="padding:2px 9px;font-size:11px" onclick="estornarPg('${esc(id)}','${esc(l.token)}','${esc(l.nome)}','${esc(String(l.valorPago||l.valorDevido).replace(".",","))}')">estornar</button>`:""}
+        <details style="display:inline-block;margin-left:4px"><summary class="lk" style="font-size:11px;list-style:none;cursor:pointer">histórico</summary>
+          <div style="font-size:11.5px;color:var(--muted);text-align:left;max-width:280px">${(l.historico||[]).map(h=>`${esc(hora(h.em))} · ${esc(h.de||"—")} → ${esc(h.para)} (${esc(h.por)})${h.motivo?`: ${esc(h.motivo)}`:""}`).join("<br>")||"—"}</div></details>
+      </td></tr>`;}).join("")}</tbody></table>
+    <div class="cnt">${lista.length} de ${(FIN.linhas||[]).length} inscrição(ões) com cobrança${q||est?" no filtro":""}.</div>`
+    :`<div class="cnt">— ${(FIN.linhas||[]).length?"nenhuma inscrição encontrada com este filtro.":"nenhuma inscrição com cobrança ainda."}</div>`;
+}
+async function acaoPg(id,token,rota,body){
+  const m=$("fin-msg"); if(m) m.textContent="…";
+  const r=await fetch(`/api/extensao/${id}/inscritos/${encodeURIComponent(token)}/${rota}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error||r.status);
+  return j;
+}
+async function conferirPg(id,token){
+  try{ const j=await acaoPg(id,token,"conferir");
+    const m=$("fin-msg"); if(m) m.textContent=j.semPagamento?"O Mercado Pago não tem pagamento para esta inscrição.":j.ignorado?`Sem mudança: ${j.ignorado}`:`Situação: ${ROTULO_PG[j.pagamento?.status]||"—"}`;
+    await carregar(); renderFinanceiro(ACOES.find(x=>x.id===id));
+  }catch(e){ alert("Não foi possível conferir: "+e.message); }
+}
+async function isentarPg(id,token,nome){
+  const motivo=prompt(`Isentar a inscrição de ${nome}?\n\nA credencial passa a valer sem pagamento e o e-mail com o QR sai agora. Escreva o motivo (fica no registro):`);
+  if(motivo===null) return;
+  try{ await acaoPg(id,token,"isentar",{motivo}); await carregar(); renderFinanceiro(ACOES.find(x=>x.id===id)); }
+  catch(e){ alert("Não foi possível isentar: "+e.message); }
+}
+async function estornarPg(id,token,nome,valor){
+  const motivo=prompt(`ESTORNAR R$ ${valor} para ${nome}?\n\nO valor volta pelo Mercado Pago (o prazo depende do meio) e a credencial deixa de valer. Escreva o motivo (fica no registro):`);
+  if(motivo===null) return;
+  if(!confirm(`Confirmar o estorno de R$ ${valor} para ${nome}? Esta ação não se desfaz.`)) return;
+  try{ await acaoPg(id,token,"estornar",{motivo}); await carregar(); renderFinanceiro(ACOES.find(x=>x.id===id)); }
+  catch(e){ alert("Não foi possível estornar: "+e.message); }
+}
+
 /* ====================== GERAL · EXPORTAÇÕES ============================= */
 /* O que a planilha da AEE não conseguiria certificar — visto ANTES de
    exportar. Vale sobretudo para as listas antigas (importadas de planilha)
@@ -2718,7 +2992,7 @@ function renderInscritosEv(a){
       return `<tr>
       <td>${esc(x.nome)}</td>
       <td>${esc(x.email||"")}${x.telefone?`<br><span class="muted">${esc(x.telefone)}</span>`:""}</td>
-      <td>${x.origem==="online"?`online${x.inscritoEm?` <span class="muted">${esc(hora(x.inscritoEm))}</span>`:""}`:"lista da coordenação"}</td>
+      <td>${x.origem==="online"?`online${x.inscritoEm?` <span class="muted">${esc(hora(x.inscritoEm))}</span>`:""}`:"lista da coordenação"}${x.pagamento?`<br>${badgePg(x.pagamento)}`:""}</td>
       <td style="font-family:ui-monospace,monospace">${x.token?esc(x.token.slice(0,6).toUpperCase()):"—"}</td>
       <td title="${esc(marcadas.join(" · "))}">${marcadas.length||"—"}</td>
       <td>${x.presente===true
