@@ -447,8 +447,16 @@ public/
   senhas"). Até então o módulo tinha DUAS senhas compartilhadas ("uniego" nos indicadores,
   "docente" na produção) e, dentro do dossiê, o professor **escolhia o próprio nome numa lista**
   — ninguém sabia quem entrou, e qualquer pessoa com a senha editava a ficha de qualquer docente.
-  Quatro acessos, decididos pelo SERVIDOR: **gestão** (gestor geral ou coordenação do módulo
-  `avaliacao`, designável em `/usuarios/` — é o que a PROAC precisa) alcança os doze cursos;
+  Quatro acessos, decididos pelo SERVIDOR: **gestão** (gestor geral, coordenação do módulo
+  `avaliacao` — designável em `/usuarios/` — ou **quem declara no perfil uma coordenação de
+  pró-reitoria**, `ehCoordenacaoDeProReitoria` em lib/auth.js: as cinco funções com `orgao`
+  PROPPEX/PROAC, decisão do dono set/2026 — "todos com função de coordenação das pró-reitorias
+  podem ter os acessos livres") alcança os doze cursos. A função é AUTODECLARADA, e nenhuma das
+  seis pessoas nomeadas a tinha declarado; por isso `designarGestaoDaAvaliacao` roda no arranque
+  (marca `sys-av-gestao-designada-v1`) e põe o módulo `avaliacao` na coordenação de Matildes,
+  Wagner, Camila, Thiago Brito (as duas contas), Keren e Rosa — esta resolvida pelo NOME, só com
+  uma candidata; conta que o portal ainda não conhece fica dita no log e o pedido de pé. É o mesmo
+  ato do botão "coordenar", e a gestão o desfaz lá;
   **coordenação de curso** (coordenador e pedagógico, pela MESMA composição do Seu Curso e do
   cadastro do ARCHÉ AC — `cursosQueCoordenaDe`) alcança só os seus cursos, inclusive o quadro
   docente do dossiê; **docente** (quem a coordenação incluiu no dossiê) entra na PRÓPRIA ficha —
@@ -470,7 +478,14 @@ public/
   página inicial do módulo perde as caixas de senha e mostra só os cursos da pessoa; o portão dos
   indicadores abre para a coordenação e DIZ por que não abre para os demais; o dossiê cai direto
   no quadro (coordenação/gestão) ou na ficha (docente), e quem é as duas coisas alterna por um
-  botão. **Incluir docente pela coordenação passou a GRAVAR** — antes o app só acrescentava na
+  botão. **A coordenação EDITA EM NOME DO DOCENTE** (`entrarEmNomeDo`, botão "✎ Editar em nome do
+  docente" na barra de volta da ficha — pedido do dono set/2026: "pode ser que precisemos anexar
+  documentos em nome deles; alguns têm dificuldades com o sistema"): abre a ficha no MESMO modo
+  em que o professor a abriria — XML, comprovantes, inclusão manual —, com o rótulo dizendo quem
+  age por quem e SEM carimbar o e-mail de quem olha na ficha (a entrada do próprio docente
+  carimba; esta não — seria ligar a conta da coordenação ao registro do professor). O servidor
+  não muda: coordenação e gestão já tinham gravação total e uploads do curso; o que faltava era a
+  tela. **Incluir docente pela coordenação passou a GRAVAR** — antes o app só acrescentava na
   memória da aba (a gravação era recusada a quem não fosse docente) e o quadro voltava ao
   recarregar. O selo do avaliador segue como abaixo; a antiga senha e o `POST /api/av/entrar`
   não existem mais (`AV_SENHA` deixou de ter efeito).

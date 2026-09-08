@@ -174,6 +174,7 @@ import {
   papelDe, modulosDe, MODULOS, verificarGoogle, criarCodigo, verificarCodigo,
   iniciarAuth, definirSenha, temSenha, validarSenhaDe, senhaFraca, senhaInfo,
   registrarFalha, bloqueado, limparFalhas, FUNCOES, normalizarFuncao, faltaNoPerfil,
+  ehCoordenacaoDeProReitoria,
   perfilCompleto, removerSenha, ehGestorFixo,
 } from "./lib/auth.js";
 import {
@@ -457,7 +458,15 @@ async function acessoNaAvaliacao(req) {
     return avMontarAcesso({ logado: true, eu: { email: u.email, nome: u.nome } });
   }
   const perfil = (await carregarPerfis())[u.email] || {};
-  const gestao = u.papel === "gestor" || (u.modulos || []).includes("avaliacao");
+  /* Gestão: o gestor geral, a coordenação do módulo `avaliacao` (designada em
+     /usuarios/) e — decisão do dono, set/2026: "todos com função de
+     coordenação das pró-reitorias podem ter os acessos livres" — quem declara
+     no perfil uma coordenação da PROPPEX ou da PROAC. A função é
+     AUTODECLARADA, e por isso a designação nominal (designarGestaoDaAvaliacao)
+     existe ao lado: ela não depende do que a pessoa escreveu no perfil, e o
+     painel de usuários marca quem se declarou coordenação por e-mail de fora. */
+  const gestao = u.papel === "gestor" || (u.modulos || []).includes("avaliacao")
+    || ehCoordenacaoDeProReitoria(perfil.funcao);
   const identidade = { email: u.email, lattes: perfil.lattes, nome: perfil.nome || u.nome };
   return avMontarAcesso({
     logado: true, gestao,
@@ -2346,6 +2355,68 @@ async function fundirContasSolicitadas() {
       console.error(`[fusao] ${f.marca}:`, e.message);
     }
   }
+}
+
+/* A GESTÃO DA AVALIAÇÃO PARA AS COORDENAÇÕES DAS PRÓ-REITORIAS (pedido do dono,
+   set/2026: "Matildes e todos com função de coordenação das pró-reitorias
+   podem ter os acessos livres. Matildes, Wagner, Camila, Thiago Brito, Rosa e
+   Keren"). O acesso pela FUNÇÃO do perfil já vale em acessoNaAvaliacao; mas
+   nenhuma das seis declarou a coordenação no perfil (constam como professor ou
+   coordenação de curso), e a régua pela função não alcançaria ninguém no dia
+   seguinte. Por isso a designação NOMINAL: o módulo `avaliacao` entra na
+   coordenação de cada uma — o mesmo ato do botão "coordenar" de /usuarios/,
+   que a gestão pode desfazer lá. Nunca tira módulo que a pessoa já tem, e
+   conta que não existe no portal fica dita no log (designar um e-mail que
+   ninguém usa não daria acesso a ninguém). A Rosa não tem e-mail conhecido no
+   código: resolve-se pelo nome, e só com UMA candidata. */
+async function designarGestaoDaAvaliacao() {
+  const MARCA = "sys-av-gestao-designada-v1";
+  if (await storage.get(MARCA)) return;
+  const EMAILS = [
+    "matildes.oliveira@uniego.edu.br",   // Pró-Reitora Acadêmica
+    "wagner.junior@uniego.edu.br",       // Coordenação de Pesquisa e Inovação
+    "camila.faceg@gmail.com",            // Coordenação de Ação Comunitária
+    "thiagosteck@gmail.com", "thiasteck@gmail.com", // Coordenação de Extensão (as duas contas)
+    "keren.morais32@gmail.com",
+  ];
+  const POR_NOME = [["rosa", "steckelberg"]]; // Coordenação de Gestão Acadêmica
+  const perfis = await carregarPerfis();
+  const u = await carregarUsuarios(storage);
+  const conhecidas = new Set([
+    ...Object.keys(perfis), ...(u.aprovados || []), ...(u.gestores || []),
+    ...Object.keys(u.coordenadores || {}),
+  ].map((e) => String(e || "").trim().toLowerCase()).filter(Boolean));
+  const alvo = [];
+  const pendentes = [];
+  for (const e of EMAILS) {
+    if (conhecidas.has(e)) alvo.push(e);
+    else pendentes.push(e);
+  }
+  for (const termos of POR_NOME) {
+    const cand = Object.keys(perfis).filter((e) => {
+      const k = chaveNome(perfis[e]?.nome);
+      return k && termos.every((t) => k.includes(t));
+    });
+    if (cand.length === 1) alvo.push(cand[0]);
+    else pendentes.push(`${termos.join(" ")} (${cand.length} candidata(s): ${cand.join(", ") || "nenhuma"})`);
+  }
+  let mudou = 0;
+  for (const e of alvo) {
+    if (u.gestores.includes(e)) continue;                 // gestor geral já alcança tudo
+    const mods = new Set(u.coordenadores[e] || []);
+    if (mods.has("avaliacao")) continue;
+    mods.add("avaliacao");
+    u.coordenadores[e] = [...mods];
+    u.removidos = (u.removidos || []).filter((x) => x !== e); // designar é querer a pessoa de volta
+    mudou++;
+  }
+  if (mudou) await salvarUsuarios(storage, u);
+  if (pendentes.length) {
+    console.log(`[avaliacao] gestão designada a ${mudou} conta(s); sem conta no portal ainda: ${pendentes.join("; ")} — pedido de pé para o próximo arranque`);
+    return; // a marca só grava com todos encontrados: quem entrar depois ainda é alcançado
+  }
+  await storage.set(MARCA, JSON.stringify({ em: new Date().toISOString(), designados: alvo }));
+  console.log(`[avaliacao] gestão da Avaliação designada a ${mudou} conta(s): ${alvo.join(", ")}`);
 }
 
 app.post("/api/usuarios/perfil", async (req, res) => {
@@ -16767,6 +16838,7 @@ app.listen(port, () => {
       // projetos pelo CPF do outro) até alguém regravar o perfil. A passada é
       // idempotente e nunca sobrescreve e-mail existente.
       fundirContasSolicitadas,     // as fusões de conta pedidas pelo dono
+      designarGestaoDaAvaliacao,   // as coordenações das pró-reitorias na Avaliação
       vincularPerfisIC,
     ]) {
       try { await etapa(); }

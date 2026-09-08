@@ -74,6 +74,7 @@
     + ".ava-bt.sec{background:#eceff3;color:#1c3742}"
     + ".ava-troca{cursor:pointer;font:600 12px Figtree,system-ui,sans-serif;border:1px solid #c9e6f0;"
     + "border-radius:999px;padding:5px 11px;background:#e6f5fa;color:#2d535c;margin-top:6px}"
+    + ".ava-emnome{margin:0 0 0 10px;vertical-align:middle}"
     + ".ava-busca{position:relative}"
     + ".ava-lista{margin-top:8px;border:1px solid #dde4e8;border-radius:10px;max-height:260px;overflow:auto;background:#fff}"
     + ".ava-item{display:flex;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid #eef1f4;cursor:pointer}"
@@ -306,6 +307,7 @@
     var i = meuIndice();
     if (i >= 0) trocaBotao("✎ Editar a minha ficha", function () { entrarComoDocente(i); });
     instalarGestaoDoQuadro();
+    instalarEmNomeDo();
   }
   function entrarComoDocente(i) {
     if (typeof loginAsDocente !== "function") return;
@@ -313,6 +315,47 @@
     loginAsDocente(i);
     rotulo("<b>" + esc(professors[i] ? professors[i].nome : "") + "</b><br>Docente · " + esc(nomeCurso(CURSO)));
     if (coordena(CURSO)) trocaBotao("← Quadro do curso", entrarComoCoordenacao);
+  }
+
+  /* EM NOME DO DOCENTE (pedido do dono, set/2026: "pode ser que precisemos
+     anexar documentos em nome deles; alguns têm dificuldades com o sistema"):
+     a coordenação e a gestão abrem a ficha de qualquer docente do curso no
+     MESMO modo em que ele a abriria — importar o XML, anexar e excluir
+     comprovantes, incluir produção à mão. O servidor já lhes dá a gravação
+     total do curso e os uploads; o que faltava era a TELA, que só oferecia a
+     ficha em leitura. Duas diferenças para a entrada do próprio docente: o
+     e-mail de quem está olhando NUNCA é carimbado na ficha (seria ligar a
+     conta da coordenação ao registro do professor), e o rótulo diz quem está
+     agindo por quem — quem lê a tela precisa saber que ali não é o docente. */
+  function entrarEmNomeDo(i) {
+    if (typeof loginAsDocente !== "function" || !professors[i]) return;
+    loginAsDocente(i);
+    rotulo("<b>" + esc(professors[i].nome) + "</b><br>Editando em nome do docente · "
+      + esc(ACESSO.eu && ACESSO.eu.nome || "coordenação"));
+    trocaBotao("← Quadro do curso", entrarComoCoordenacao);
+  }
+  var emNomeInstalado = false;
+  function instalarEmNomeDo() {
+    if (emNomeInstalado || typeof window.openProfFromRoster !== "function") return;
+    emNomeInstalado = true;
+    var _abrir = window.openProfFromRoster;
+    window.openProfFromRoster = function (idx) {
+      var r = _abrir.apply(this, arguments);
+      try {
+        var barra = document.getElementById("backbar");
+        if (!barra || !(typeof state === "object" && state.role === "proreitoria") || !coordena(CURSO)) return r;
+        var b = barra.querySelector(".ava-emnome");
+        if (!b) {
+          b = document.createElement("button");
+          b.type = "button"; b.className = "ava-troca ava-emnome";
+          barra.appendChild(b);
+        }
+        b.textContent = "✎ Editar em nome do docente";
+        b.title = "Abrir a ficha como o docente a abriria — importar o XML, anexar e excluir comprovantes";
+        b.onclick = function () { entrarEmNomeDo(idx); };
+      } catch (e) { /* a ficha abriu; o botão é o acessório */ }
+      return r;
+    };
   }
 
   /* A saída volta ao PORTAL: a tela de "entrar como" deixou de existir. */

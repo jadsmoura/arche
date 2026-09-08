@@ -5,7 +5,21 @@ import {
   hashSenha, conferirSenha, senhaFraca, emitirCookie, lerSessao, limparCookie,
   renovarSessao, registrarFalha, bloqueado, limparFalhas, iniciarAuth,
   definirSenha, temSenha, validarSenhaDe, senhaInfo, MODULOS, papelDe, modulosDe, carregarUsuarios,
+  FUNCOES_PRO_REITORIA, ehCoordenacaoDeProReitoria,
 } from "../lib/auth.js";
+
+test("coordenação de pró-reitoria é a função com órgão — e só ela (Avaliação, set/2026)", () => {
+  assert.deepEqual(FUNCOES_PRO_REITORIA,
+    ["coord-pesquisa", "coord-extensao", "coord-acao-comunitaria", "coord-ensino", "coord-politicas"]);
+  assert.equal(ehCoordenacaoDeProReitoria("coord-pesquisa"), true);
+  assert.equal(ehCoordenacaoDeProReitoria("Coordenação de Extensão"), true, "o nome por extenso normaliza");
+  assert.equal(ehCoordenacaoDeProReitoria("coordenadora de ensino"), true, "texto livre antigo também");
+  // coordenar CURSO não é coordenar pró-reitoria: o alcance dela é o curso
+  assert.equal(ehCoordenacaoDeProReitoria("coord-curso"), false);
+  assert.equal(ehCoordenacaoDeProReitoria("coord-pedagogico"), false);
+  assert.equal(ehCoordenacaoDeProReitoria("professor"), false);
+  assert.equal(ehCoordenacaoDeProReitoria(""), false);
+});
 import { podeVerAta } from "../lib/atas.js";
 
 function resFalso() {
