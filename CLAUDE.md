@@ -1767,7 +1767,26 @@ public/
   a chave sozinha, e `GET /api/eventos/wallet/diagnostico` (só gestor geral) diz o que
   chegou — nunca a chave, só o formato dela. Sem as variáveis o servidor devolve
   `walletGoogle: false`, o botão não se desenha em lugar nenhum e a rota responde 501 —
-  nada quebra, e o QR em PNG continua valendo na entrada; (3) o
+  nada quebra, e o QR em PNG continua valendo na entrada.
+  **O PASSE PASSA PELA API DO GOOGLE, e o link ficou curto** (`lib/wallet.js` + o card "Google
+  Wallet" em `/diagnostico/`, set/2026 — "o ícone do Google Wallet não está migrando para a
+  carteira"): o link levava a classe e o objeto INTEIROS dentro do JWT — medido no servidor local,
+  **1.897 caracteres**, acima dos 1.800 que a própria documentação do Google dá como limite prático
+  do link "salvar" —, e o Google falhava numa página genérica, sem dizer o quê. Agora a conta de
+  serviço pede o token OAuth (`assertionOAuth`, escopo `wallet_object.issuer`), o servidor GRAVA a
+  classe (`garantirClasse`: GET, 404 → POST) e o objeto (`gravarObjeto`: POST, 409 → PUT) em
+  `walletobjects.googleapis.com`, e o link sai com o JWT **só com o id** (700 caracteres). A API
+  responde em JSON, e a frase do Google vira o que a gestão pode FAZER (`explicarErro`: 403 = a
+  conta de serviço não foi adicionada ao emissor no console, em Usuários; `invalid_grant` = chave e
+  e-mail não batem; 400 = conteúdo do passe recusado, com o detalhe). Se a API não responder, sai o
+  link completo de antes (saída de emergência) e o motivo fica em `ultimoErro`. O card no
+  `/diagnostico/` (só gestor geral) mostra o que chegou, o último erro do Google e o botão **"Testar a
+  conexão com o Google"** (`?testar=1` no diagnóstico: token novo + classe) — e lista o que costuma
+  impedir o passe: conta de serviço fora do emissor, **emissor em modo de demonstração** (só os
+  testadores listados no console salvam, e o passe sai [TEST ONLY] até o pedido de publicação) e
+  imagem que não abre em HTTPS. `GOOGLE_WALLET_API_BASE`/`GOOGLE_OAUTH_TOKEN_URL` existem só para o
+  teste local (`scratchpad/wallet-falso.mjs`; o teste em `test/wallet.test.js` sobe o próprio
+  Google falso). (3) o
   **Apple Wallet** exige certificado do Apple Developer Program (.pkpass sem assinatura o
   iPhone recusa) e por isso não tem botão enquanto a instituição não tiver o certificado.
 - **Credenciamento: o mesmo QR não se lê duas vezes** (achado no teste do dono, ago/2026):

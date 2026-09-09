@@ -184,6 +184,7 @@ import {
   gruposDeOrgao, rotuloOrgao, ORGAOS_EXTERNOS,
 } from "./lib/espacos.js";
 import { CREDENCIAMENTO, MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
+import * as wallet from "./lib/wallet.js";
 import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
   papelDe, modulosDe, MODULOS, verificarGoogle, criarCodigo, verificarCodigo,
@@ -5662,12 +5663,6 @@ const walletConfigurada = () => {
   return !!(chave && email);
 };
 
-const dataBR = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) ? iso.split("-").reverse().join("/") : "");
-const periodoBR = (ini, fim) => {
-  const a = dataBR(ini), b = dataBR(fim);
-  return !a ? "—" : (!b || b === a ? a : `${a} a ${b}`);
-};
-
 /* Conferência da configuração da carteira, só para o gestor geral: diz o que
    está preenchido e se a chave assina, SEM devolver a chave nem o e-mail da
    conta de serviço inteiros. Existe porque o erro de configuração acontece
@@ -5682,6 +5677,15 @@ app.get("/api/eventos/wallet/diagnostico", async (req, res) => {
   if (chave) {
     try { crypto.createSign("RSA-SHA256").update("arche").sign(chave, "base64url"); assina = true; }
     catch (e) { erro = e.message; }
+  }
+  /* `?testar=1`: pede um token NOVO ao Google e garante a classe do passe —
+     é a única forma de saber, sem tentar salvar um passe num celular, se a
+     conta de serviço tem permissão no emissor. Cada etapa volta com a frase
+     do Google traduzida (lib/wallet.js). */
+  let teste = null;
+  if (String(req.query.testar || "") === "1" && chave && email && emissor) {
+    const classeId = process.env.GOOGLE_WALLET_CLASS_ID || wallet.idDaClasse(emissor);
+    teste = await wallet.testar({ email, chave }, wallet.classeDoPasse(classeId));
   }
   res.json({
     emissor: { preenchido: !!emissor, sóDígitos: /^\d+$/.test(emissor), valor: emissor },
@@ -5703,8 +5707,16 @@ app.get("/api/eventos/wallet/diagnostico", async (req, res) => {
       quebrasDeLinhaEscritas: bruto.includes("\\n"), quebrasDeLinhaReais: bruto.includes("\n"),
       lidaComoChave: !!chave, tipo: chave ? chave.asymmetricKeyType : "", assina, erro,
     },
-    classe: process.env.GOOGLE_WALLET_CLASS_ID || "(definida no próprio passe)",
+    classe: process.env.GOOGLE_WALLET_CLASS_ID || (emissor ? wallet.idDaClasse(emissor) : "(sem emissor)"),
     pronto: !!(emissor && email && chave && assina),
+    teste,
+    // o que a API do Google respondeu da última vez que um passe foi pedido
+    ultimoErro: wallet.ultimoErro(),
+    avisos: [
+      "A conta de serviço precisa estar adicionada ao EMISSOR no Google Pay & Wallet Console (menu Usuários), com o e-mail que termina em iam.gserviceaccount.com — sem isso o Google responde 403 e o passe não salva.",
+      "Emissor novo fica em MODO DE DEMONSTRAÇÃO: só as contas Google listadas como testadores no console conseguem salvar o passe, e ele sai com a marca [TEST ONLY]. Para todo mundo salvar, peça a publicação no console (Publishing access).",
+      "As imagens do passe (logotipo e capa) têm de abrir de fora, em HTTPS — PUBLIC_BASE_URL deve ser https://arche.app.br.",
+    ],
   });
 });
 
@@ -5731,48 +5743,34 @@ app.get("/api/publico/eventos/:slug/inscricao/:token/wallet", async (req, res) =
        ninguém precisa criar a classe à mão no console antes do primeiro
        passe. Se a env var vier preenchida, respeitamos a classe já criada
        lá (é o caso de quem quiser personalizar a arte do cartão). */
-    const classe = process.env.GOOGLE_WALLET_CLASS_ID || `${emissor}.arche-evento`;
-    const classeNoJwt = process.env.GOOGLE_WALLET_CLASS_ID ? [] : [{ id: classe }];
-    const objeto = {
-      id: `${emissor}.${r.inscrito.token}`,
-      classId: classe,
-      state: "ACTIVE",
-      hexBackgroundColor: "#1c3742",
-      cardTitle: { defaultValue: { language: "pt-BR", value: "UNIEGO · Evento" } },
-      header: { defaultValue: { language: "pt-BR", value: String(p.nomeAtividade || "Evento").slice(0, 60) } },
-      subheader: { defaultValue: { language: "pt-BR", value: String(r.inscrito.nome || "").slice(0, 60) } },
-      barcode: { type: "QR_CODE", value: String(r.inscrito.token),
-        alternateText: codigoDe(r.inscrito.token).toUpperCase() },
-      textModulesData: [
-        { id: "quando", header: "Quando", body: periodoBR(p.periodoInicio, p.periodoFim) },
-        { id: "onde", header: "Onde", body: [p.local, p.municipio].filter(Boolean).join(" — ") || "—" },
-      ],
-      // a marca da instituição e, quando houver, a arte do evento: é o que
-      // faz o cartão na carteira parecer o crachá do evento, e não um genérico
-      logo: { sourceUri: { uri: `${base}/assets/logo-uniego.png` },
-        contentDescription: { defaultValue: { language: "pt-BR", value: "UNIEGO" } } },
-      ...(ev.capa ? { heroImage: { sourceUri: { uri: `${base}/api/publico/eventos/${encodeURIComponent(ev.slug || "")}/capa` } } } : {}),
-      linksModuleData: { uris: [{ uri: `${base}/eventos/${encodeURIComponent(ev.slug || "")}`, description: "Página do evento" }] },
-    };
+    const classeId = process.env.GOOGLE_WALLET_CLASS_ID || wallet.idDaClasse(emissor);
+    const classe = wallet.classeDoPasse(classeId);
+    const objeto = wallet.objetoDoPasse({ emissor, classe: classeId, inscrito: r.inscrito, proposta: p, evento: ev,
+      base, codigo: codigoDe(r.inscrito.token) });
     const { chave, email } = credenciaisWallet();
     if (!chave || !email) {
       console.error("[wallet] credencial da conta de serviço não reconhecida");
       return falhar(500, "A credencial da conta de serviço não foi reconhecida. Em GOOGLE_WALLET_SA_KEY, cole o arquivo JSON da conta de serviço INTEIRO, como foi baixado — não é preciso recortar a chave.");
     }
-    const agora = Math.floor(Date.now() / 1000);
-    const cabecalho = { alg: "RS256", typ: "JWT" };
-    const corpo = {
-      iss: email,
-      aud: "google", typ: "savetowallet", iat: agora,
-      origins: [base],
-      payload: { ...(classeNoJwt.length ? { genericClasses: classeNoJwt } : {}), genericObjects: [objeto] },
-    };
-    const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
-    const assinar = `${b64(cabecalho)}.${b64(corpo)}`;
-    const assinatura = crypto.createSign("RSA-SHA256").update(assinar).sign(chave, "base64url");
-    const url = `https://pay.google.com/gp/v/save/${assinar}.${assinatura}`;
+    /* O caminho que funciona: classe e objeto GRAVADOS no Google pela API, e o
+       link com um JWT curto, só com o id (set/2026 — "o ícone do Google Wallet
+       não está migrando para a carteira": o JWT completo passava do tamanho
+       que o link aguenta e o Google falhava sem dizer por quê). Se a API não
+       responder, sai o link completo de antes — e o motivo fica em
+       `wallet.ultimoErro()`, que o diagnóstico mostra. */
+    const cred = { email, chave };
+    let completo = false;
+    try {
+      await wallet.garantirClasse(cred, classe);
+      await wallet.gravarObjeto(cred, objeto);
+    } catch (e) {
+      console.error("[wallet] API do Google recusou; saindo pelo link completo:", e.message);
+      completo = true;
+    }
+    const url = wallet.linkDeSalvar(wallet.jwtDeSalvar({ email, chave, origins: [base], objeto,
+      classe: process.env.GOOGLE_WALLET_CLASS_ID ? null : classe, completo }));
     if (ir) return res.redirect(302, url);
-    res.json({ url });
+    res.json({ url, gravadoNoGoogle: !completo });
   } catch (e) {
     console.error("Erro no passe da carteira digital:", e);
     falhar(500, "Não foi possível gerar o passe agora.");

@@ -377,7 +377,53 @@ function render(d) {
         <button class="bt bt-ghost" onclick="migrar(true)">Executar a migração</button>
       </div>
       <div id="repo"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">Google Wallet</div>
+      <div class="card-s">O passe do inscrito na carteira do celular: o que está configurado e
+        o que o Google respondeu.</div>
+      <div id="wallet"><div class="kv">Conferindo…</div></div>
+      <div class="exp">
+        <button class="bt bt-ghost" onclick="testarWallet()">Testar a conexão com o Google</button>
+        <button class="bt bt-ghost" onclick="carregarWallet()">Atualizar</button>
+      </div>
     </div>`;
+  carregarWallet();
+}
+
+/* O Google Wallet falha longe daqui — no console do emissor, na chave colada no
+   Render —, e a página do Google só diz "algo deu errado". Este card mostra o
+   que chegou e o que o Google respondeu; "Testar" pede um token novo e garante
+   a classe do passe, que é o mesmo que a rota faz antes de cada passe. */
+async function carregarWallet(testar) {
+  const alvo = $("wallet");
+  if (!alvo) return;
+  try {
+    const r = await fetch("/api/eventos/wallet/diagnostico" + (testar ? "?testar=1" : ""));
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Falha ao consultar.");
+    const sim = (b) => (b ? '<b style="color:var(--ok)">✓</b>' : '<b style="color:var(--err)">✗</b>');
+    const teste = j.teste ? `<div class="banner ${j.teste.ok ? "ba-ok" : "ba-err"}" style="margin-top:10px">
+        ${j.teste.ok ? "O Google aceitou a conta de serviço e a classe do passe está no emissor." : "O Google recusou — veja a etapa que falhou."}
+        ${j.teste.etapas.map((e) => `<div style="margin-top:6px">${sim(e.ok)} <b>${esc(e.etapa)}</b>: ${esc(e.detalhe)}</div>`).join("")}
+      </div>` : "";
+    alvo.innerHTML = `
+      <div class="kv">${sim(j.emissor.preenchido && j.emissor.sóDígitos)} Emissor (GOOGLE_WALLET_ISSUER_ID): ${j.emissor.preenchido ? `<code>${esc(j.emissor.valor)}</code>${j.emissor.sóDígitos ? "" : " — deveria ter só dígitos"}` : "não preenchido"}</div>
+      <div class="kv">${sim(j.contaDeServico.preenchido && j.contaDeServico.pareceContaDeServico)} Conta de serviço: ${j.contaDeServico.preenchido ? `<code>…@${esc(j.contaDeServico.dominio)}</code> (${esc(j.contaDeServico.origem)})` : "não encontrada — cole o JSON da conta de serviço inteiro em GOOGLE_WALLET_SA_KEY"}</div>
+      <div class="kv">${sim(j.chave.lidaComoChave && j.chave.assina)} Chave privada: ${j.chave.preenchida ? (j.chave.lidaComoChave ? `lida (${esc(j.chave.tipo)}), ${j.chave.assina ? "assina" : "não assina: " + esc(j.chave.erro)}` : `não foi reconhecida (${j.chave.caracteres} caracteres, ${j.chave.chegouInteiro ? "chegou inteira" : "parece cortada"})`) : "não preenchida"}</div>
+      <div class="kv">Classe do passe: <code>${esc(j.classe)}</code></div>
+      ${j.ultimoErro ? `<div class="banner ba-err" style="margin-top:10px">Última resposta de erro do Google (${esc(new Date(j.ultimoErro.em).toLocaleString("pt-BR"))}): ${esc(j.ultimoErro.mensagem)}</div>` : ""}
+      ${teste}
+      <div class="kv" style="margin-top:10px"><b>O que costuma impedir o passe de salvar</b></div>
+      ${(j.avisos || []).map((a) => `<div class="kv" style="font-size:12px">• ${esc(a)}</div>`).join("")}`;
+  } catch (e) {
+    alvo.innerHTML = `<div class="banner ba-err">${esc(e.message)}</div>`;
+  }
+}
+async function testarWallet() {
+  $("wallet").innerHTML = `<div class="kv">Pedindo um token ao Google e conferindo a classe…</div>`;
+  await carregarWallet(true);
 }
 
 /* A migração do acervo para o Repositório Documental. Simulada por padrão;
