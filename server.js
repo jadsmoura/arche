@@ -2211,12 +2211,19 @@ const FUSOES_KEY = "sys-fusoes-v1";
  * Mesma sequência de sempre: projetos, atas e ações primeiro; o cadastro por
  * último, para uma falha no meio não deixar a pessoa sem conta E sem registros.
  */
-async function executarFusao({ manter, remover, por, simular = false, destinoSemPerfil = false }) {
+async function executarFusao({ manter, remover, por, simular = false, destinoSemPerfil = false, cpfDoDestinoManda = false }) {
   const [perfis, usuarios] = await Promise.all([carregarPerfis(), carregarUsuarios(storage)]);
   let impedimento = podeFundir(
     { email: manter, nome: perfis[manter]?.nome, cpf: perfis[manter]?.cpf },
     { email: remover, nome: perfis[remover]?.nome, cpf: perfis[remover]?.cpf },
   );
+  /* A conta que sai pode carregar o CPF de OUTRA pessoa (o caso Luana,
+     set/2026: a professora entrou pelo Gmail de uma estudante, e o perfil
+     ficou com nome dela e dado da conta alheia). O freio dos CPFs existe
+     para a fusão pela tela; no pedido explícito do dono, o CPF que vale é
+     o do DESTINO — `fundirPerfil` já preserva o que o destino tem, então o
+     da origem não entra. */
+  if (impedimento && cpfDoDestinoManda && /CPFs diferentes/.test(impedimento) && perfis[manter]?.cpf) impedimento = "";
   /* Fusão de arranque com o destino ainda SEM perfil (o caso Claudia,
      ago/2026): a pessoa não CONSEGUE preencher o perfil da conta nova — o
      CPF barra por já estar na conta antiga — e o freio dos nomes exigiria
@@ -2323,11 +2330,35 @@ async function fundirContasSolicitadas() {
     dominioDestino: "@docente.evangelicagoianesia.edu.br",
     nome: ["claudia", "santos"],
     cpf: "62927485100",
+  }, {
+    /* A profa. Luana (set/2026, pedido do dono: "a conta dela está vinculada
+       ao e-mail de uma aluna, o e-mail começado por sara; o correto é o
+       luanna…"). A conta que SAI é a do Gmail de uma estudante, que a
+       professora usou por engano e onde ficaram os projetos; a que FICA é a
+       dela no Hotmail. O endereço da origem foi lido de um print e por isso
+       vai como PREFIXO + nome, resolvido entre as contas do portal — um
+       dígito errado numa transcrição não pode fundir a conta de outra pessoa. */
+    marca: "sys-fusao-luana-v1",
+    remover: "saraaragaomathias0321986512230@gmail.com",
+    removerPrefixo: "saraaragao", removerDominio: "@gmail.com",
+    dominioDestino: "@hotmail.com",
+    nome: ["luana", "miranda", "santos"],
+    cpf: "",
+    cpfDoDestinoManda: true,
   }];
   for (const f of PEDIDOS) {
     try {
       if (await storage.get(f.marca)) continue;
       const perfis = await carregarPerfis();
+      /* Origem por PREFIXO (quando o endereço veio de um print): a conta
+         que sai é a que começa com o prefixo, no domínio dito, e tem o
+         NOME da pessoa no perfil — e só com UMA candidata. */
+      if (!perfis[f.remover] && f.removerPrefixo) {
+        const cand = Object.keys(perfis).filter((e) => e.startsWith(f.removerPrefixo)
+          && e.endsWith(f.removerDominio || "") && f.nome.every((t) => chaveNome(perfis[e]?.nome).includes(t)));
+        if (cand.length === 1) f.remover = cand[0];
+        else console.log(`[fusao] ${f.marca}: ${cand.length} conta(s) de origem com o prefixo ${f.removerPrefixo} (${cand.join(", ") || "nenhuma"})`);
+      }
       if (!perfis[f.remover]) {
         // a origem já não existe (o pré-cadastro pode ter sido transferido
         // pela própria pessoa ao informar o CPF) — não há o que fundir
@@ -2362,7 +2393,8 @@ async function fundirContasSolicitadas() {
         continue;
       }
       const r = await executarFusao({ manter: candidatas[0], remover: f.remover,
-        por: "arranque (pedido do dono)", destinoSemPerfil: !perfis[candidatas[0]]?.nome });
+        por: "arranque (pedido do dono)", destinoSemPerfil: !perfis[candidatas[0]]?.nome,
+        cpfDoDestinoManda: !!f.cpfDoDestinoManda });
       if (r.error) { console.error(`[fusao] ${f.marca}: ${r.error}`); continue; }
       await storage.set(f.marca, JSON.stringify({ em: new Date().toISOString(), ...r.resumo }));
       await storage.flush?.();

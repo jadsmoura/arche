@@ -723,6 +723,14 @@ public/
   domínio + nome/CPF, porque e-mail não se adivinha; com zero ou mais de uma candidata NADA
   acontece e o pedido fica de pé para o próximo arranque, dito no log. As **duas
   contas da pró-reitoria não aparecem como duplicidade**: são duas de propósito.
+  **O caso Luana** (set/2026, `sys-fusao-luana-v1`): a professora entrou pelo Gmail de uma
+  estudante ("sara…") e os projetos ficaram lá; a conta dela é a do Hotmail. Dois acréscimos ao
+  pedido de arranque: a origem pode vir por **PREFIXO + domínio + nome** (`removerPrefixo`), porque
+  o endereço foi lido de um print e um dígito errado não pode fundir a conta de outra pessoa — só
+  com UMA candidata; e `cpfDoDestinoManda` dispensa o freio dos CPFs diferentes quando o destino
+  já tem o seu — a conta que sai carrega dado de outra pessoa, e `fundirPerfil` preserva o que o
+  destino tem, então o CPF alheio não entra. Ensaiado no estado local: origem sai, CPF do destino
+  fica, marca gravada.
 - **Função na instituição** (`FUNCOES`/`normalizarFuncao` em lib/auth.js): o que a pessoa
   FAZ — professor, professor pesquisador, coordenador de curso, coordenador pedagógico,
   secretaria, as coordenações da PROPPEX (Pesquisa e Inovação, Extensão, Ação Comunitária)
