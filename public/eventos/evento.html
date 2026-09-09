@@ -838,9 +838,10 @@ function blocoCategoria(e) {
     ${c.categorias.map((k, i) => `<label class="esc-atv" style="align-items:center">
       <input type="radio" name="i-categoria" value="${esc(k.codigo)}" ${uma || i === 0 ? "checked" : ""} required>
       <span style="flex:1"><b>${esc(k.nome)}</b>${k.descricao ? `<div class="m">${esc(k.descricao)}</div>` : ""}</span>
-      <b style="white-space:nowrap">${k.valor > 0 ? reais(k.valor) : "gratuita"}</b>
+      <b style="white-space:nowrap">${k.valor > 0 ? reais(k.valor) : "gratuita"}${k.valor > 0 && k.valorCartao > k.valor ? `<span class="m" style="display:block;font-weight:500;text-align:right">no Pix · ${reais(k.valorCartao)} no cartão</span>` : ""}</b>
       ${k.valorCheio > k.valor ? `<span class="m" style="text-decoration:line-through;white-space:nowrap">${reais(k.valorCheio)}</span>` : ""}
     </label>`).join("")}
+    ${c.acrescimoCartao ? `<p style="font-size:12px;color:var(--muted);margin-top:6px">No cartão há acréscimo de <b>${esc(c.acrescimoCartao)}</b>, que é a tarifa do cartão repassada; no Pix vale o valor da categoria.</p>` : ""}
     <p style="font-size:12px;color:var(--muted);margin-top:8px">Pagamento por ${[c.meios?.pix && "Pix", c.meios?.cartao && (c.parcelas > 1 ? `cartão (até ${c.parcelas}x)` : "cartão"), c.meios?.boleto && "boleto"].filter(Boolean).join(", ") || "meio a definir"}${c.provedor === "picpay"
         ? ` — o QR Code Pix aparece logo depois da inscrição, emitido pelo ${esc(c.provedorRotulo || "PicPay")}${c.recebedor ? ` em nome de ${esc(c.recebedor)}` : ""}, e vale em qualquer banco`
         : `, na página segura do ${esc(c.provedorRotulo || "provedor de pagamento")}${c.recebedor ? `, em nome de ${esc(c.recebedor)}` : ""}`}. A vaga fica reservada por ${Math.round((c.reservaMinutos || 1440) / 60)} h para o pagamento;

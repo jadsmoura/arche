@@ -2074,6 +2074,9 @@ async function renderCobranca(a){
     lotes:(c.lotes||[]).map(l=>({nome:l.nome||"",ate:l.ate||"",ajuste:(l.ajuste<0?"-":"")+reaisDe(Math.abs(l.ajuste||0))})),
     meios:{pix:c.meios?.pix!==false,cartao:c.meios?.cartao===true,boleto:c.meios?.boleto===true},
     parcelas:c.parcelas||1, jurosPorConta:c.jurosPorConta||"inscrito",
+    // o acréscimo no cartão, como a tela o escreve ("5%" ou "3,00"); evento
+    // ainda sem a configuração nasce com 5% (a tarifa do PicPay, decisão do dono)
+    acrescimoCartao:c.acrescimoCartao?(c.acrescimoCartao.valor>0?(c.acrescimoCartao.modo==="fixo"?reaisDe(c.acrescimoCartao.valor):String(c.acrescimoCartao.valor).replace(".",",")+"%"):""):"5%",
     reservaMinutos:c.reservaMinutos||1440, politicaReembolso:c.politicaReembolso||"",
   };
   let prov=null;
@@ -2087,6 +2090,8 @@ async function renderCobranca(a){
       A cobrança só pode ser ligada depois que a PROPPEX cadastrar a credencial do ${esc(ROT)}
       no ambiente do sistema. Você já pode deixar a tabela pronta e salvar com a cobrança desligada.</div>`
       :prov?`<div class="banner ${prov.modo==="teste"?"ba-warn":"ba-ok"}">${esc(ROT)} <b>${prov.modo==="teste"?"em modo de TESTE — nenhum pagamento real entra":"em produção"}</b>${prov.webhook?"":" · <b>aviso automático (webhook) sem chave</b>: a confirmação depende da conciliação horária e do botão \"Já paguei\""}${prov.nome==="picpay"?" · cobra por <b>Pix com QR Code</b> direto na página de pagamento do ARCHÉ (e cartão pela página do PicPay, se marcado)":""}.</div>`:""}
+    ${prov?.ultimoErro?`<div class="banner ba-warn"><b>Último erro do ${esc(ROT)}</b> (${esc(new Date(prov.ultimoErro.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}))}, em ${esc(prov.ultimoErro.onde)}):
+      <span style="font-family:ui-monospace,monospace">${esc(prov.ultimoErro.mensagem)}</span>. Credencial inválida costuma dizer "invalid_client"; Pix desligado na conta diz "não é elegível para pix".</div>`:""}
     ${pagos?`<div class="banner ba-info">Este evento já tem <b>${pagos}</b> inscrição(ões) com cobrança registrada. Mudar valores vale só para as
       próximas inscrições; as existentes ficam com o valor da época.</div>`:""}
     <div class="card">
@@ -2131,6 +2136,11 @@ async function renderCobranca(a){
             <option value="evento" ${EV_COB.jurosPorConta==="evento"?"selected":""}>por conta do evento (configurar no painel do provedor)</option>
           </select>
           ${PM.cartao?"":`<div class="muted" style="font-size:12px;margin-top:6px">Parcelamento só existe no cartão; com o ${esc(ROT)} a cobrança é Pix à vista.</div>`}
+          ${prov?.nome==="picpay"?`<label>Acréscimo no cartão <span class="muted">(repassa a tarifa ao inscrito)</span></label>
+          <input id="cob-acrescimo" value="${esc(EV_COB.acrescimoCartao)}" placeholder="5% ou 3,00" style="max-width:140px">
+          <div class="muted" style="font-size:12px;margin-top:6px">Percentual ("5%") ou valor fixo em reais ("3,00"). Vazio = mesmo preço no Pix e no cartão.
+            Com acréscimo, a pessoa vê os dois valores antes de escolher — o Pix fica no valor da categoria, e o cartão sai
+            pela página do PicPay com o acréscimo.</div>`:""}
         </div>
         <div>
           <label style="margin-top:0">Reserva da vaga <span class="muted">(prazo para pagar)</span></label>
@@ -2190,6 +2200,7 @@ function salvarCobranca(id){
     meios:{pix:$("cob-pix")?.checked===true,cartao:$("cob-cartao")?.checked===true,boleto:$("cob-boleto")?.checked===true},
     parcelas:Number($("cob-parcelas")?.value)||1,
     jurosPorConta:$("cob-juros")?.value||"inscrito",
+    ...($("cob-acrescimo")?{acrescimoCartao:$("cob-acrescimo").value||""}:{}),
     reservaMinutos:Number($("cob-reserva")?.value)||1440,
     politicaReembolso:$("cob-politica")?.value||"",
   }});

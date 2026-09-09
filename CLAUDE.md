@@ -1090,7 +1090,40 @@ public/
   transações e estorno — 32 conferências de ponta a ponta). A credencial genérica de Sandbox que a
   documentação publica já não autentica (`invalid_client`), então o teste real é com a credencial
   Sandbox gerada no painel da instituição. Os textos das telas e dos e-mails dizem o provedor pelo
-  `rotulo` do registro, nunca um nome fixo.
+  `rotulo` do registro, nunca um nome fixo. **O painel PicPay Empresas desta conta NÃO tem a
+  configuração do webhook** (as telas da documentação são do "PicPay Negócios", outra versão, com
+  Ajustes → Meu checkout → "Link de pagamento API"; em Empresas há só Dados cadastrais, Gerenciar
+  recebimentos e Tarifas) — o sistema opera SEM webhook: a página de pagamento confere a cada 6 s,
+  o "Já paguei" e o "conferir" consultam na hora e a varredura horária cobre o resto. O Sandbox
+  do PicPay **aprova sozinho** toda transação (a inscrição vira "pago" sem dinheiro), o que serve
+  para provar credencial, link e consulta, mas suja o Financeiro do evento de teste. E o **último
+  erro da API fica em memória** (`ultimoErro` no adaptador, no `retrato()` do registro e na faixa da
+  guia Cobrança; o `pagar` devolve a mensagem do provedor por extenso): em produção ninguém lê o
+  log do Render, e "não foi possível gerar a cobrança" sem o motivo não separa credencial inválida
+  (`invalid_client`) de Pix desligado na conta ("não é elegível para pix").
+- **ACRÉSCIMO NO CARTÃO — dois links por inscrição** (`normalizarAcrescimo`/`valorNoCartao`/
+  `acrescimoTexto`/`pagamentoPeloLinkDoCartao` em lib/pagamentos.js + `criarCobranca` do PicPay +
+  campo "Acréscimo no cartão" na guia Cobrança, decisão do dono set/2026: "esse sistema também
+  permite cartão de crédito? com taxas para o inscrito" — "pode ser assim, a taxa do PicPay é de 5%
+  no cartão"). A tarifa do cartão é de quem RECEBE, e a API do Link de Pagamento não a repassa (um
+  link tem um valor só; o painel decide apenas quem paga os JUROS do parcelamento). O repasse é
+  nosso: com acréscimo configurado (`acrescimoCartao: { modo: percentual|fixo, valor }`, da tela
+  como "5%" ou "3,00"; tetos 30% e R$ 50; evento sem a configuração nasce com 5% na tela), a
+  inscrição ganha `valorCartao` e o PicPay cria **DOIS links** — o do Pix, no valor da categoria,
+  com arranjo SÓ `PIX` (pela carteira PicPay dá para pagar com cartão, e isso passaria ao largo do
+  acréscimo), e o do cartão (`CREDIT_CARD`, `card_max_installment_number`), no valor acrescido; o
+  segundo é opcional (falhando, a pessoa ainda paga no Pix). O registro guarda `preferenciaCartaoId`/
+  `linkCartao` (+ `cobrancasAnterioresCartao` na renovação), `inscricaoDaCobranca` acha a inscrição
+  também pelo link do cartão, e `lerPagamentoDoProvedor` reconhece o pagamento pelo link do cartão
+  (`peloLinkDoCartao`): o DEVIDO passa a ser `valorCartao` (pagar 50 pelo link de 52,50 é
+  divergência; pagar 52,50 não é) e o meio sai "cartão de crédito" mesmo sem o tipo na lista. A
+  Lei 13.455/2017 permite preço por meio de pagamento desde que informado ANTES: o hotsite mostra
+  "R$ 50,00 no Pix · R$ 52,50 no cartão" na categoria, a página de pagamento mostra os dois valores e
+  o botão "Pagar com cartão: R$ 52,50 (acréscimo de 5%)", e o e-mail "falta pagar" diz os dois. Só
+  no PicPay: no Mercado Pago o preço é um só (`valorCartao = valor`, e o campo não se desenha). A
+  lista de transações do PicPay não diz o MEIO (só o webhook traz `paymentType`): sem ele sai
+  "PicPay", o canal; o webhook, quando existir, empresta só o rótulo — estado e valor continuam
+  sendo os da consulta.
 - **ARCHÉ Eventos** (`lib/eventos.js` + `public/eventos/` + rotas em server.js; 2ª geração
   em ago/2026, no molde Even3/Sympla — pesquisa com 3 agentes sobre as duas plataformas):
   EVENTOS GRATUITOS de todos os formatos — a ação de extensão ganha `a.evento` e uma página

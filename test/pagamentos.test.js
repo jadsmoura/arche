@@ -7,6 +7,7 @@ import {
   podeTransitar, inscricaoValida, reservaVencida, estadoDoProvedor, meioDoProvedor,
   lerPagamentoDoProvedor, validarAssinaturaMP, resumoFinanceiro, linhasFinanceiro, centavos, fmtReais, ocupaVaga,
   normalizarMP, normalizarLinkPicPay, estadoLinkPicPay, idDoLinkPicPay, transacaoDecisiva, dataPicPayISO, validarTokenPicPay, ehNormalizado,
+  normalizarAcrescimo, valorNoCartao, acrescimoTexto, pagamentoPeloLinkDoCartao,
 } from "../lib/pagamentos.js";
 import { isoComFuso, configurado, modo } from "../lib/pagamentos/mercadopago.js";
 import * as provedor from "../lib/pagamentos/provedor.js";
@@ -142,6 +143,37 @@ test("PicPay (Link de Pagamento): a transação normaliza para a MESMA régua, e
   const mp = normalizarMP({ id: 9, status: "approved", transaction_amount: 50, external_reference: "acao:tok" });
   assert.equal(mp.referencia, "acao:tok"); assert.equal(mp.estado, "pago"); assert.equal(mp.pagoCentavos, 5000);
   assert.equal(lerPagamentoDoProvedor(mp, { valor: 5000 }).extra.pagamentoId, "9");
+});
+
+test("acréscimo no cartão: percentual ou fixo, o valor no cartão sai da régua, e o link do cartão muda o devido e o meio", () => {
+  assert.deepEqual(normalizarAcrescimo("5%"), { modo: "percentual", valor: 5 });
+  assert.deepEqual(normalizarAcrescimo("4,5 %"), { modo: "percentual", valor: 4.5 });
+  assert.deepEqual(normalizarAcrescimo("3,00"), { modo: "fixo", valor: 300 });
+  assert.deepEqual(normalizarAcrescimo(""), { modo: "percentual", valor: 0 });
+  assert.deepEqual(normalizarAcrescimo("99%"), { modo: "percentual", valor: 30 }, "teto");
+  assert.deepEqual(normalizarAcrescimo({ modo: "fixo", valor: 250 }), { modo: "fixo", valor: 250 }, "o gravado relido");
+  const cob = normalizarCobranca({ ativa: true, categorias: [{ nome: "Única", valor: "50,00" }], meios: { pix: true, cartao: true }, acrescimoCartao: "5%" });
+  assert.equal(acrescimoTexto(cob), "5%");
+  assert.equal(valorNoCartao(5000, cob), 5250);
+  assert.equal(valorNoCartao(0, cob), 0, "gratuita segue gratuita");
+  assert.equal(valorNoCartao(5000, normalizarCobranca({ ...cob, acrescimoCartao: "3,00" })), 5300);
+  assert.equal(valorNoCartao(5000, normalizarCobranca({ ...cob, acrescimoCartao: "" })), 5000);
+  const v = valorDaInscricao(cob, { categoria: "unica", hojeISO: "2026-09-10" });
+  assert.equal(v.valor, 5000); assert.equal(v.valorCartao, 5250);
+  const semCartao = normalizarCobranca({ ...cob, meios: { pix: true, cartao: false } });
+  assert.equal(valorDaInscricao(semCartao, { categoria: "unica", hojeISO: "2026-09-10" }).valorCartao, 5000, "sem cartão não há acréscimo");
+  const pg = { ...novoPagamento({ valor: 5000, valorCartao: 5250, categoria: v.categoria }), preferenciaId: "linkpix", preferenciaCartaoId: "linkcartao", linkCartao: "https://link.picpay.com/p/c" };
+  assert.equal(pg.valorCartao, 5250);
+  const pagoNoCartao = normalizarLinkPicPay({ id: "t1", status: "PAYED", amount: 5250 }, { paymentLinkId: "linkcartao" });
+  assert.equal(pagamentoPeloLinkDoCartao(pagoNoCartao, pg), true);
+  const l = lerPagamentoDoProvedor(pagoNoCartao, pg);
+  assert.equal(l.divergente, false, "pagou o valor do cartão: não é divergência");
+  assert.equal(l.extra.meio, "cartão de crédito"); assert.equal(l.extra.peloLinkDoCartao, true);
+  const pagoNoPix = normalizarLinkPicPay({ id: "t2", status: "PAYED", amount: 5000, paymentType: "PIX" }, { paymentLinkId: "linkpix" });
+  assert.equal(pagamentoPeloLinkDoCartao(pagoNoPix, pg), false);
+  assert.equal(lerPagamentoDoProvedor(pagoNoPix, pg).divergente, false);
+  // pagou o valor do Pix pelo link do cartão (não deveria acontecer): é divergência
+  assert.equal(lerPagamentoDoProvedor(normalizarLinkPicPay({ id: "t3", status: "PAYED", amount: 5000 }, { paymentLinkId: "linkcartao" }), pg).divergente, true);
 });
 
 test("PicPay: o webhook se autentica pelo token do painel, com ou sem 'Bearer' — e sem token nada passa", () => {

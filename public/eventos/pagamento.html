@@ -111,7 +111,7 @@ function render() {
     <div class="card-t" style="font-size:19px;margin-top:8px">${esc(e.nome)}</div>
     <p style="font-size:13.5px;color:var(--ink-soft);margin-top:4px">${fmt(e.periodoInicio)} a ${fmt(e.periodoFim)} · ${esc(e.local) || ""}${e.municipio ? " — " + esc(e.municipio) : ""}</p>
     <p style="font-size:13.5px;margin-top:10px"><b>${esc(i.nome)}</b></p>
-    <div class="valor">${reais(p.valor)}<small>${esc(p.categoriaNome)}${p.lote ? " · " + esc(p.lote) : ""}</small></div>
+    <div class="valor">${reais(p.valor)}<small>${esc(p.categoriaNome)}${p.lote ? " · " + esc(p.lote) : ""}${p.valorCartao > p.valor && pendente ? ` · no Pix (${reais(p.valorCartao)} no cartão)` : ""}</small></div>
     <div style="margin:12px 0 4px"><span class="selo ${cor}">${esc(rot)}${p.pagoEm ? " em " + esc(hora(p.pagoEm)) : ""}${p.meio && p.status === "pago" ? " · " + esc(p.meio) : ""}</span></div>
     ${aviso}
     ${p.valida ? `
@@ -133,7 +133,10 @@ function render() {
                <div class="cc" id="pix-cc">${esc(p.qrCode)}</div>
                <button class="bt bt-pri" style="width:100%;margin-top:10px" onclick="copiarPix()" id="bt-copiar">📋 Copiar código Pix</button>
              </div>
-             ${p.link ? `<a class="bt bt-sec" style="width:100%;margin-top:10px;box-sizing:border-box;text-align:center" href="${esc(p.link)}">Prefere ${meios.includes("Cartão") ? "cartão ou " : ""}saldo PicPay? Pagar pela página do ${esc(PROV)} →</a>` : ""}
+             ${p.linkCartao && p.valorCartao > p.valor
+               ? `<a class="bt bt-sec" style="width:100%;margin-top:10px;box-sizing:border-box;text-align:center" href="${esc(p.linkCartao)}">Pagar com cartão: <b>${reais(p.valorCartao)}</b> (acréscimo de ${esc(p.acrescimoCartao || "tarifa")}) →</a>
+                  <p style="font-size:11.5px;color:var(--muted);margin-top:6px">No Pix, ${reais(p.valor)}; no cartão, ${reais(p.valorCartao)} — a diferença é a tarifa do cartão, informada antes da escolha.</p>`
+               : p.link ? `<a class="bt bt-sec" style="width:100%;margin-top:10px;box-sizing:border-box;text-align:center" href="${esc(p.link)}">Prefere ${meios.includes("Cartão") ? "cartão ou " : ""}saldo PicPay? Pagar pela página do ${esc(PROV)} →</a>` : ""}
              <p style="font-size:12px;color:var(--muted);margin-top:8px">Cobrança emitida pelo ${esc(PROV)}${DADOS.recebedor ? `, em nome de ${esc(DADOS.recebedor)}` : ""}. O QR vale em qualquer banco.</p>
              <button class="bt bt-sec" style="width:100%;margin-top:10px" id="bt-conferir" onclick="conferir(true)">Já paguei — conferir agora</button>
              <div class="conferindo" id="conferindo"></div>`

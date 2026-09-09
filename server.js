@@ -101,7 +101,7 @@ import {
 import {
   normalizarCobranca, cobrancaAtiva, valorDaInscricao, novoPagamento, inscricaoValida,
   reservaVencida, transitar as transitarPagamento, lerPagamentoDoProvedor, validarAssinaturaMP,
-  resumoFinanceiro, linhasFinanceiro, fmtReais, loteVigente, ESTADOS_PAGAMENTO,
+  resumoFinanceiro, linhasFinanceiro, fmtReais, loteVigente, ESTADOS_PAGAMENTO, acrescimoTexto, valorNoCartao, meioLinkPicPay,
 } from "./lib/pagamentos.js";
 /* O PROVEDOR é escolhido pelo ambiente (PAGAMENTO_PROVEDOR = picpay |
    mercadopago — lib/pagamentos/provedor.js); os dois webhooks continuam
@@ -4052,15 +4052,23 @@ function cobrancaPublica(ev, hojeISO) {
   const lote = loteVigente(c, hojeISO);
   // os lotes vêm ORDENADOS por data da normalização: o próximo é o seguinte
   const proximo = lote ? (c.lotes[c.lotes.indexOf(lote) + 1] || null) : null;
+  const meios = provedorPg.meiosEfetivos(c.meios);
   return {
-    categorias: c.categorias.map((x) => ({
-      codigo: x.codigo, nome: x.nome, descricao: x.descricao,
-      valor: Math.max(0, x.valor + (lote ? lote.ajuste : 0)), valorCheio: x.valor,
-    })),
+    categorias: c.categorias.map((x) => {
+      const valor = Math.max(0, x.valor + (lote ? lote.ajuste : 0));
+      return {
+        codigo: x.codigo, nome: x.nome, descricao: x.descricao,
+        valor, valorCheio: x.valor,
+        // o valor NO CARTÃO, quando há acréscimo (só o PicPay o repassa; no
+        // Mercado Pago o preço é um só)
+        valorCartao: meios.cartao && provedorPg.nome() === "picpay" ? valorNoCartao(valor, c) : valor,
+      };
+    }),
     lote: lote ? { nome: lote.nome, ate: lote.ate } : null,
     proximoLote: proximo ? { nome: proximo.nome, ate: proximo.ate } : null,
-    // os meios saem RECORTADOS pelo provedor (o PicPay cobra só por Pix)
-    meios: provedorPg.meiosEfetivos(c.meios), parcelas: c.parcelas, jurosPorConta: c.jurosPorConta,
+    acrescimoCartao: meios.cartao && provedorPg.nome() === "picpay" ? acrescimoTexto(c) : "",
+    // os meios saem RECORTADOS pelo provedor (o PicPay não cobre boleto)
+    meios, parcelas: c.parcelas, jurosPorConta: c.jurosPorConta,
     reservaMinutos: c.reservaMinutos, politicaReembolso: c.politicaReembolso,
     recebedor: c.recebedor,            // o nome que sai no "em nome de" e no recibo
     online: provedorPg.configurado(),
@@ -4082,7 +4090,7 @@ async function criarLinkDePagamento(acao, inscrito, base) {
   return provedorPg.de(pg).criarCobranca({
     titulo: `Inscrição — ${String(acao.proposta?.nomeAtividade || "evento").slice(0, 90)}`,
     descricao: [pg.categoriaNome, pg.lote, inscrito.nome].filter(Boolean).join(" · "),
-    valor: pg.valor, externalRef: ref, token: inscrito.token, criadoEm: pg.criadoEm,
+    valor: pg.valor, valorCartao: pg.valorCartao, externalRef: ref, token: inscrito.token, criadoEm: pg.criadoEm,
     pagador: { email: inscrito.email, nome: inscrito.nome, cpf: inscrito.cpf, telefone: inscrito.telefone },
     expiraEm: pg.expiraEm,
     voltar: { sucesso: `${volta}?volta=sucesso`, pendente: `${volta}?volta=pendente`, falha: `${volta}?volta=falha` },
@@ -4125,6 +4133,10 @@ function pagamentoPublico(inscrito, ev, agora = new Date()) {
     // o Pix "copia e cola" só enquanto a cobrança está em aberto — depois
     // de pago, expirado ou renovado, o código velho não deve ser pago
     qrCode: pg.status === "aguardando" && !reservaVencida(pg, agora) ? String(pg.qrCode || "") : "",
+    // o valor e o link do CARTÃO, quando há acréscimo (PicPay)
+    valorCartao: pg.valorCartao || pg.valor,
+    linkCartao: pg.status === "aguardando" && !reservaVencida(pg, agora) ? String(pg.linkCartao || "") : "",
+    acrescimoCartao: pg.valorCartao > pg.valor ? acrescimoTexto(ev?.cobranca) : "",
     meio: pg.meio || "", pagoCentavos: pg.pagoCentavos ?? null,
     reservaVencida: reservaVencida(pg, agora),
     divergente: !!pg.divergencia,
@@ -4288,7 +4300,9 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       }
       const pagamentoDe = () => {
         if (!cobra) return null;
-        const pg = novoPagamento({ valor: preco.valor, categoria: preco.categoria, lote: preco.lote,
+        // o acréscimo no cartão só existe onde há o segundo link (PicPay)
+        const pg = novoPagamento({ valor: preco.valor, valorCartao: provedorPg.nome() === "picpay" ? preco.valorCartao : preco.valor,
+          categoria: preco.categoria, lote: preco.lote,
           reservaMinutos: a.evento.cobranca.reservaMinutos, provedor: provedorPg.nome() });
         return preco.gratuita
           ? transitarPagamento(pg, "isento", { por: "sistema", motivo: "categoria sem valor" })
@@ -4305,9 +4319,11 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
           && String(ja.email || "").trim().toLowerCase() === email && cobra) {
           const pg = pagamentoDe();
           const renovado = transitarPagamento(ja.pagamento, pg.status, { por: "inscrição", motivo: "reserva renovada",
-            extra: { valor: pg.valor, categoria: pg.categoria, categoriaNome: pg.categoriaNome, lote: pg.lote,
+            extra: { valor: pg.valor, valorCartao: pg.valorCartao, categoria: pg.categoria, categoriaNome: pg.categoriaNome, lote: pg.lote,
               criadoEm: pg.criadoEm, expiraEm: pg.expiraEm, preferenciaId: "", link: "", qrCode: "",
+              preferenciaCartaoId: "", linkCartao: "",
               provedor: provedorPg.nome(), cobrancasAnteriores: cobrancasAnteriores(ja.pagamento),
+              cobrancasAnterioresCartao: cobrancasAnterioresCartao(ja.pagamento),
               ...(pg.status === "isento" ? { isentoPor: "sistema", motivoIsencao: "categoria sem valor" } : {}) } });
           if (renovado) {
             ja.pagamento = renovado;
@@ -4518,9 +4534,17 @@ function guardarCobranca(pg, cobranca) {
   pg.preferenciaId = String(cobranca?.id || "");
   pg.link = String(cobranca?.link || "");
   pg.qrCode = String(cobranca?.qrCode || "");
+  // o segundo link, só de cartão, com o acréscimo (PicPay)
+  pg.preferenciaCartaoId = String(cobranca?.cartao?.id || "");
+  pg.linkCartao = String(cobranca?.cartao?.link || "");
+  if (cobranca?.cartao?.valor) pg.valorCartao = Math.round(cobranca.cartao.valor);
 }
 function cobrancasAnteriores(pg) {
   return [...new Set([...(pg?.cobrancasAnteriores || []), pg?.preferenciaId, pg?.pagamentoId]
+    .map((x) => String(x || "")).filter(Boolean))].slice(-6);
+}
+function cobrancasAnterioresCartao(pg) {
+  return [...new Set([...(pg?.cobrancasAnterioresCartao || []), pg?.preferenciaCartaoId]
     .map((x) => String(x || "")).filter(Boolean))].slice(-6);
 }
 
@@ -4535,7 +4559,9 @@ function inscricaoDaCobranca(acoes, { cobrancaId, link, qrCode } = {}) {
     for (const i of a?.participantes?.inscritos || []) {
       const pg = i?.pagamento; if (!pg) continue;
       const ids = [pg.preferenciaId, ...(pg.cobrancasAnteriores || [])].map((x) => String(x || "")).filter(Boolean);
-      if ((id && ids.includes(id)) || (l && pg.link && pg.link === l) || (q && pg.qrCode && pg.qrCode === q)) return { acao: a, inscrito: i };
+      const idsCartao = [pg.preferenciaCartaoId, ...(pg.cobrancasAnterioresCartao || [])].map((x) => String(x || "")).filter(Boolean);
+      if ((id && ids.includes(id)) || (l && pg.link && pg.link === l) || (q && pg.qrCode && pg.qrCode === q)) return { acao: a, inscrito: i, cartao: false };
+      if ((id && idsCartao.includes(id)) || (l && pg.linkCartao && pg.linkCartao === l)) return { acao: a, inscrito: i, cartao: true };
     }
   }
   return null;
@@ -4613,7 +4639,7 @@ async function aplicarPagamentoDoProvedor(p, { por } = {}) {
     // pagou DEPOIS de a reserva vencer: vale — o dinheiro entrou —, e a
     // coordenação vê a marca (a vaga pode ter sido ocupada por outro)
     if (antes === "expirado" && novo.status === "pago") novo.aposExpirar = true;
-    if (novo.status === "pago") { delete novo.divergencia; novo.qrCode = ""; }
+    if (novo.status === "pago") { delete novo.divergencia; novo.qrCode = ""; novo.linkCartao = ""; }
     i.pagamento = novo;
     a.atualizadoEm = new Date().toISOString();
     return { acao: a, inscrito: i, antes, depois: novo.status, leitura };
@@ -4724,18 +4750,26 @@ app.post("/api/publico/pagamentos/picpay", async (req, res) => {
         const achado = inscricaoDaCobranca(acoes, pista);
         if (!achado) return { gravar: false };
         const pg = achado.inscrito.pagamento;
-        if (idLink && pg.preferenciaId !== idLink) {
-          pg.cobrancasAnteriores = [...new Set([...(pg.cobrancasAnteriores || []), pg.preferenciaId].filter(Boolean))].slice(-6);
-          pg.preferenciaId = idLink;
+        // o aviso pode ser do link do Pix ou do link do CARTÃO — cada um
+        // adota o id no seu campo
+        const campo = achado.cartao ? "preferenciaCartaoId" : "preferenciaId";
+        const lista = achado.cartao ? "cobrancasAnterioresCartao" : "cobrancasAnteriores";
+        if (idLink && pg[campo] !== idLink) {
+          pg[lista] = [...new Set([...(pg[lista] || []), pg[campo]].filter(Boolean))].slice(-6);
+          pg[campo] = idLink;
           achado.acao.atualizadoEm = new Date().toISOString();
           return { id: idLink };
         }
-        return { id: pg.preferenciaId, gravar: false };
+        return { id: pg[campo], gravar: false };
       }, { flushJa: false });
       const idConsulta = dona?.id || idLink;
       if (!idConsulta) { console.log("[pagamentos] webhook PicPay ignorado: link não pertence a nenhuma inscrição"); return; }
       const p = await picPay.consultarPagamento(idConsulta);
       if (!p) { console.log(`[pagamentos] webhook PicPay ${idConsulta}: o link ainda não tem transação`); return; }
+      // a lista de transações não diz o MEIO; o aviso diz — e só o rótulo
+      // vem dele (estado e valor continuam sendo os da consulta)
+      const txAviso = b.data?.transaction || {};
+      if (txAviso.paymentType && (!txAviso.id || String(txAviso.id) === String(p.id))) p.meio = meioLinkPicPay(txAviso.paymentType);
       const r = await aplicarPagamentoDoProvedor({ ...p, ...pista, cobrancaId: idConsulta }, { por: "picpay" });
       if (r?.ignorado) console.log(`[pagamentos] webhook PicPay ${idConsulta} ignorado: ${r.ignorado}`);
       await avisarDesfechoDoPagamento(r, base);
@@ -4834,12 +4868,13 @@ app.post("/api/publico/eventos/:slug/inscricao/:token/pagamento/pagar", async (r
         }
         const preco = valorDaInscricao(a.evento.cobranca, { categoria: pg.categoria, hojeISO: hojeLocalISO() })
           || { valor: pg.valor, categoria: { codigo: pg.categoria, nome: pg.categoriaNome }, lote: null, gratuita: pg.valor === 0 };
-        const novoPg = novoPagamento({ valor: preco.valor, categoria: preco.categoria, lote: preco.lote,
-          reservaMinutos: a.evento.cobranca?.reservaMinutos });
+        const novoPg = novoPagamento({ valor: preco.valor, valorCartao: provedorPg.nome() === "picpay" ? preco.valorCartao : preco.valor,
+          categoria: preco.categoria, lote: preco.lote, reservaMinutos: a.evento.cobranca?.reservaMinutos });
         const renovado = transitarPagamento(pg, preco.gratuita ? "isento" : "aguardando", { por: "inscrição",
           motivo: vencida ? "reserva renovada" : (pg.link || pg.qrCode ? "nova tentativa" : "cobrança criada"),
-          extra: { valor: novoPg.valor, lote: novoPg.lote, criadoEm: novoPg.criadoEm, expiraEm: novoPg.expiraEm,
-            preferenciaId: "", link: "", qrCode: "", provedor: provedorPg.nome(), cobrancasAnteriores: cobrancasAnteriores(pg) } });
+          extra: { valor: novoPg.valor, valorCartao: novoPg.valorCartao, lote: novoPg.lote, criadoEm: novoPg.criadoEm, expiraEm: novoPg.expiraEm,
+            preferenciaId: "", link: "", qrCode: "", preferenciaCartaoId: "", linkCartao: "", provedor: provedorPg.nome(),
+            cobrancasAnteriores: cobrancasAnteriores(pg), cobrancasAnterioresCartao: cobrancasAnterioresCartao(pg) } });
         if (!renovado) return { erro: [409, "Não foi possível renovar a cobrança desta inscrição — fale com a coordenação."], gravar: false };
         i.pagamento = renovado;
         a.atualizadoEm = new Date().toISOString();
@@ -4863,7 +4898,10 @@ app.post("/api/publico/eventos/:slug/inscricao/:token/pagamento/pagar", async (r
     res.json({ ok: true, pagamento: pagamentoPublico(r.inscrito, r.acao.evento) });
   } catch (e) {
     console.error("Erro ao gerar a cobrança:", e);
-    res.status(502).json({ error: "Não foi possível gerar a cobrança agora. Tente de novo em instantes." });
+    // a mensagem do provedor vai junto: sem ela ninguém sabe se é credencial,
+    // Pix desligado na conta ou a integração ainda não liberada
+    const motivo = /^(PicPay|Mercado Pago):/.test(String(e?.message || "")) ? ` (${String(e.message).slice(0, 200)})` : "";
+    res.status(502).json({ error: `Não foi possível gerar a cobrança agora${motivo}. Tente de novo em instantes ou fale com a coordenação do evento.` });
   }
 });
 
@@ -4914,7 +4952,7 @@ app.post("/api/extensao/:id/inscritos/:token/isentar", async (req, res) => {
       if (!i?.pagamento) return { erro: [404, "Inscrição com cobrança não encontrada."], gravar: false };
       if (i.pagamento.status === "pago") return { erro: [409, "Esta inscrição já está paga — para devolver o valor, use o estorno."], gravar: false };
       const novo = transitarPagamento(i.pagamento, "isento", { por: u.email, motivo,
-        extra: { isentoPor: u.email, motivoIsencao: motivo, link: "", qrCode: "" } });
+        extra: { isentoPor: u.email, motivoIsencao: motivo, link: "", qrCode: "", linkCartao: "" } });
       if (!novo) return { erro: [409, `Não dá para isentar uma inscrição ${ROTULO_PAGAMENTO[i.pagamento.status] || i.pagamento.status}.`], gravar: false };
       delete novo.divergencia;
       i.pagamento = novo;
@@ -5058,7 +5096,7 @@ async function varrerPagamentosEventos() {
       const a = acs.find((x) => x.id === a0.id);
       const i = (a?.participantes?.inscritos || []).find((x) => x?.token === i0.token);
       if (!i?.pagamento || !reservaVencida(i.pagamento, agora)) continue;
-      const novo = transitarPagamento(i.pagamento, "expirado", { por: "sistema", motivo: "reserva vencida sem pagamento", extra: { link: "", qrCode: "" } });
+      const novo = transitarPagamento(i.pagamento, "expirado", { por: "sistema", motivo: "reserva vencida sem pagamento", extra: { link: "", qrCode: "", linkCartao: "" } });
       if (!novo) continue;
       i.pagamento = novo; a.atualizadoEm = new Date().toISOString(); n++;
     }
