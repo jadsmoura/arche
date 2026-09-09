@@ -1130,6 +1130,14 @@ public/
   a troca (`picpay-falso.mjs` com `FALSO_BLOQUEAR=1` devolve a página do Cloudflare em `/v1`).
   Se os dois bloquearem, a saída continua sendo o suporte do PicPay (liberação dos IPs de saída
   do Render) ou um relé em IP brasileiro.
+  **O PIX DA CONTA PODE FALHAR, e a cobrança não para por isso** (`ehErroDePix` + o segundo
+  `create` em `criarCobranca`, set/2026): passado o firewall, a primeira criação real de link
+  voltou `422 "Falha ao criar a url dinâmica" (B005)`, `type: pix` — o Pix DINÂMICO da cobrança
+  não nasce quando a conta PJ não tem o Pix ativo/chave cadastrada (o Sandbox simula isso e por
+  isso passou). Aceitando cartão, o link sai SÓ com a página do PicPay (sem QR;
+  `pixIndisponivel` no retorno) e o motivo, com a dica "Gerenciar recebimentos", fica no
+  "Último erro" da guia Cobrança; evento só-Pix recebe o erro com a mesma dica. É reconhecido
+  pela RESPOSTA (`type`/`code`), não só pelo texto. `FALSO_SEM_PIX=1` no servidor falso reproduz.
 - **ACRÉSCIMO NO CARTÃO — dois links por inscrição** (`normalizarAcrescimo`/`valorNoCartao`/
   `acrescimoTexto`/`pagamentoPeloLinkDoCartao` em lib/pagamentos.js + `criarCobranca` do PicPay +
   campo "Acréscimo no cartão" na guia Cobrança, decisão do dono set/2026: "esse sistema também

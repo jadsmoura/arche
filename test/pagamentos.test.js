@@ -296,3 +296,15 @@ test("PicPay: página 'you have been blocked' do Cloudflare vira mensagem com Ra
   assert.equal(mensagemDeBloqueio('{"error":"x"}', 422), "");
   assert.match(mensagemDeBloqueio("<html><body>Bad gateway</body></html>", 502), /página HTML \(HTTP 502\)/);
 });
+
+// ---- o Pix da conta que falha (B005) se reconhece pela resposta, não pelo texto só ----
+import { ehErroDePix } from "../lib/pagamentos/picpay.js";
+test("PicPay: erro de Pix da conta (B005/B001, type pix) é reconhecido", () => {
+  const e1 = new Error("PicPay: Falha ao criar a url dinâmica. (B005)"); e1.detalhe = { error: { message: "Falha ao criar a url dinâmica.", type: "pix", code: "B005" } };
+  assert.equal(ehErroDePix(e1), true);
+  const e2 = new Error("PicPay: x"); e2.detalhe = { errors: [{ message: "Seller conta liquidação não é elegível para pix.", type: "pix", code: "B001" }] };
+  assert.equal(ehErroDePix(e2), true);
+  const e3 = new Error("PicPay: Campos obrigatórios ausentes. (B002)"); e3.detalhe = { errors: { type: "charge", code: "B002" } };
+  assert.equal(ehErroDePix(e3), false);
+  assert.equal(ehErroDePix(new Error("PicPay: autenticação recusada")), false);
+});
