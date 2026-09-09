@@ -133,7 +133,7 @@ test("PicPay (Link de Pagamento): a transação normaliza para a MESMA régua, e
   assert.equal(lerPagamentoDoProvedor(n, { valor: 6000 }).divergente, true, "pagou menos: não confirma");
   // entre as transações do link, a paga decide; o estorno é outra transação
   const est = normalizarLinkPicPay({ transactionId: "b1", status: "REFUNDED", amount: 5000 }, cob);
-  assert.equal(est.estado, "estornado"); assert.equal(est.meio, "");
+  assert.equal(est.estado, "estornado"); assert.equal(est.meio, "PicPay", "sem o tipo, sai o canal");
   assert.equal(transacaoDecisiva([est, n]).id, n.id, "paga vence");
   assert.equal(transacaoDecisiva([est]).estado, "estornado");
   assert.equal(transacaoDecisiva([]), null);
