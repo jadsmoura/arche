@@ -2454,6 +2454,16 @@ public/
   de projeto deferida pela PROPPEX já se reflete aqui sozinha — não há segundo lugar a
   atualizar. O mapa só sai para a **gestão**, e a ordenação por essa coluna agrupa no fim
   quem não tem aluno, pela regra que a tabela já seguia ("sem valor vai para o fim").
+  **A coluna DIZ o que é acompanhamento e o que é indicação** (achado do dono set/2026: "esse
+  projeto tem 3 alunos indicados, mas está errado; fui excluir e não tem nenhum lá" — não tinha:
+  os três eram estudantes do ICEM que escolheram acompanhar o projeto, listados logo abaixo dos
+  indicados só com o 🎓 e a turma; e a presença deles ESCONDIA o "sem indicação"). São dois
+  vínculos diferentes com donos diferentes — a indicação é da orientação (a gestão remove na ficha
+  do projeto), o acompanhamento é escolha do estudante (a coordenação troca ou encerra na guia
+  Ensino Médio, no seletor "Projeto que acompanha") — e a coluna escreve "🎓 acompanha pelo ICEM:
+  nome · turma", com a explicação no `title`; o "sem indicação" sai sempre que o projeto aprovado
+  não tem aluno indicado, com ou sem acompanhante. Nada se apaga (decisão do dono: "pode ajustar
+  a coluna para deixar claro, mas não apague").
 - **LANÇAR EDITAL PELO PORTAL** (`lib/editais.js` + `sys-editais-v1` + `/api/editais*` +
   `public/assets/arche-editais.js`, pedido do dono ago/2026: "todos os editais lançamos por
   aqui; no sistema não tem opção de incluir novos editais — inclua essa opção nos setores").

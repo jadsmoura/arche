@@ -3375,18 +3375,26 @@ function renderClassificacao() {
      vínculo é o trecho vigente da trajetória dele, então a alteração deferida
      pela PROPPEX aparece aqui sozinha. "Sem indicação" só se cobra de projeto
      APROVADO — antes da aprovação não há o que indicar. */
+  /* Achado do dono (set/2026): "esse projeto tem 3 alunos indicados, mas está
+     errado; fui excluir e não tem nenhum lá". Não tinha mesmo — os três eram
+     estudantes do ICEM que ESCOLHERAM acompanhar o projeto, e a coluna os
+     listava logo abaixo dos indicados sem dizer a diferença, além de ESCONDER
+     o "sem indicação" quando havia acompanhante. São duas coisas: a indicação
+     (a orientação faz e a gestão remove na ficha do projeto) e o acompanhamento
+     do ICEM (o estudante escolhe; a coordenação troca ou encerra na guia Ensino
+     Médio). A coluna passa a dizer qual é qual, e o "sem indicação" sai sempre
+     que o projeto aprovado não tem aluno indicado, com ou sem acompanhante. */
   const bolsistasDo = (p) => {
     const alunos = (p.alunos || []).map((a) => `${esc(a.nome || a.email || "—")}${
       a.bolsista ? "" : ' <span class="muted">· voluntário(a)</span>'}`);
-    const em = (EM_POR_PROJETO[p.id] || []).map((b) => `<span class="muted">🎓 ${esc(b.nome)} · ICEM${
-      b.turma ? ` ${esc(b.turma)}` : ""}</span>`);
-    if (!alunos.length && !em.length) {
-      return ["aprovado", "concluido"].includes(p.status)
-        ? `<span class="badge" style="background:var(--warn-soft);color:var(--warn)"
-             title="Projeto aprovado sem aluno indicado pela orientação">sem indicação</span>`
-        : '<span class="muted">—</span>';
-    }
-    return [...alunos, ...em].join("<br>");
+    const em = (EM_POR_PROJETO[p.id] || []).map((b) => `<span class="muted"
+      title="Estudante do ensino médio que escolheu acompanhar este projeto pelo ICEM — não é indicação da orientação. Para trocar ou encerrar o acompanhamento: guia Ensino Médio, ficha do bolsista.">🎓 acompanha pelo ICEM: ${esc(b.nome)}${
+      b.turma ? ` · ${esc(b.turma)}` : ""}</span>`);
+    const semIndicacao = !alunos.length && ["aprovado", "concluido"].includes(p.status)
+      ? [`<span class="badge" style="background:var(--warn-soft);color:var(--warn)"
+             title="Projeto aprovado sem aluno indicado pela orientação">sem indicação</span>`] : [];
+    if (!alunos.length && !em.length && !semIndicacao.length) return '<span class="muted">—</span>';
+    return [...alunos, ...semIndicacao, ...em].join("<br>");
   };
 
   const quadro = (rotulo, listaBruta) => {
