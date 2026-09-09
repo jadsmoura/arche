@@ -1054,7 +1054,13 @@ public/
   `MP_API_BASE` existe só para o teste local (`scratchpad/mp-falso.mjs`, com `FALSO_SEM_PIX` e
   `FALSO_PREF_FALHA`). No Render: `PAGAMENTO_PROVEDOR=mercadopago`, `MP_ACCESS_TOKEN` (produção),
   `MP_WEBHOOK_SECRET`; as variáveis do PicPay podem ficar — com a variável do provedor apontando ao
-  MP elas não decidem nada.
+  MP elas não decidem nada. **Validado em produção em 09/09/2026**: aplicação "Proppex" criada
+  no painel de desenvolvedor, webhook em modo produtivo (evento "Pagamentos (legacy)" — é o
+  `type: payment` que a rota lê), teste da credencial verde, inscrição de R$ 1,00 paga por Pix e
+  estornada pelo Financeiro, tudo pelo caminho normal. As chaves do PicPay foram REMOVIDAS do
+  Render nessa passagem (sem elas o registro só tem o MP para escolher). A conta que recebe é a
+  PESSOA FÍSICA do dono; passar à conta da instituição é repetir a aplicação lá e trocar token e
+  assinatura no Render — nada muda no código.
 - **O PICPAY É O SEGUNDO PROVEDOR, e o provedor é escolhido pelo AMBIENTE** (`lib/pagamentos/provedor.js`
   [o registro] + `lib/pagamentos/picpay.js` [adaptador da **API de Link de Pagamento**] + a forma
   NORMALIZADA em lib/pagamentos.js, set/2026 — o checkout de teste do Mercado Pago falhou em pontos
