@@ -2211,12 +2211,26 @@ const FUSOES_KEY = "sys-fusoes-v1";
  * Mesma sequência de sempre: projetos, atas e ações primeiro; o cadastro por
  * último, para uma falha no meio não deixar a pessoa sem conta E sem registros.
  */
-async function executarFusao({ manter, remover, por, simular = false, destinoSemPerfil = false, origemSemPerfil = false, cpfDoDestinoManda = false, nomesDoPedido = null }) {
+async function executarFusao({ manter, remover, por, simular = false, destinoSemPerfil = false, origemSemPerfil = false, cpfDoDestinoManda = false, nomesDoPedido = null, nomeConferido = false, semCpfDaOrigem = false, soOrientacao = false }) {
   const [perfis, usuarios] = await Promise.all([carregarPerfis(), carregarUsuarios(storage)]);
+  /* `semCpfDaOrigem` (o caso Luana, set/2026): a conta que sai é o Gmail de
+     uma estudante, e o CPF gravado nela pode ser o DELA — não o da professora.
+     Esse CPF não pode viajar para a conta que fica (`fundirPerfil` completa o
+     que falta, e o CPF alheio entraria justamente se o destino não tiver o
+     seu). A origem entra na fusão SEM o CPF, e o freio dos CPFs não se aplica. */
+  const perfilOrigem = semCpfDaOrigem && perfis[remover]
+    ? (({ cpf, ...resto }) => resto)(perfis[remover]) : (perfis[remover] || {});
   let impedimento = podeFundir(
     { email: manter, nome: perfis[manter]?.nome, cpf: perfis[manter]?.cpf },
-    { email: remover, nome: perfis[remover]?.nome, cpf: perfis[remover]?.cpf },
+    { email: remover, nome: perfilOrigem?.nome, cpf: perfilOrigem?.cpf },
   );
+  /* `nomeConferido` (set/2026): o pedido de arranque nomeia as DUAS contas
+     por extenso, as duas existem no portal e ao menos uma delas carrega o
+     nome da pessoa — quem as identificou foi o dono. O freio dos nomes existe
+     para a fusão pela tela, entre contas que a gestão escolhe num clique; num
+     pedido assim ele só impede a fusão de acontecer ("Luanna Miranda" no
+     perfil do Hotmail contra "Luana de Miranda Santos" nos projetos). */
+  if (impedimento && nomeConferido && /nome preenchido|nomes não conferem/.test(impedimento)) impedimento = "";
   /* A mesma pessoa escrita de dois jeitos ("Luana" numa conta, "Luanna" na
      outra — o caso Luana, set/2026): o freio dos nomes recusa, e recusaria
      para sempre. No pedido de arranque quem nomeou as duas contas foi o dono;
@@ -2258,13 +2272,13 @@ async function executarFusao({ manter, remover, por, simular = false, destinoSem
   const avisos = [];
   let nProjetos = 0, nAtas = 0, nAcoes = 0;
   for (const p of projetos) {
-    const r = fundirProjeto(p, remover, manter);
+    const r = fundirProjeto(p, remover, manter, { soOrientacao });
     if (r.mudou) nProjetos += 1;
     avisos.push(...r.avisos);
   }
   for (const a of atas) if (fundirAta(a, remover, manter).mudou) nAtas += 1;
   for (const a of acoes) if (fundirAcao(a, remover, manter).mudou) nAcoes += 1;
-  const perfilFinal = fundirPerfil(perfis[manter] || {}, perfis[remover] || {});
+  const perfilFinal = fundirPerfil(perfis[manter] || {}, perfilOrigem);
   const resumo = {
     manter, remover,
     projetos: nProjetos, atas: nAtas, acoes: nAcoes,
@@ -2280,7 +2294,7 @@ async function executarFusao({ manter, remover, por, simular = false, destinoSem
   await comProjetos((lista) => {
     let n = 0;
     for (let i = 0; i < lista.length; i++) {
-      const r = fundirProjeto(lista[i], remover, manter);
+      const r = fundirProjeto(lista[i], remover, manter, { soOrientacao });
       if (r.mudou) { lista[i] = r.projeto; n += 1; }
     }
     return { gravar: n > 0 };
@@ -2376,7 +2390,11 @@ app.get("/api/usuarios/fusoes", async (req, res) => {
     pedidos.push({
       marca: f.marca, fundiu: !!marca && marca.resultado !== "origem-inexistente", registro: marca,
       ultimaTentativa: FUSOES_ULTIMA_TENTATIVA.get(f.marca) || null,
-      origem: { email: f.remover, existe: conhecida(f.remover), temPerfil: !!perfis[f.remover], projetos: projetosDe(f.remover).length },
+      origem: { email: f.remover, existe: conhecida(f.remover), temPerfil: !!perfis[f.remover],
+        nome: perfis[f.remover]?.nome || "", projetos: projetosDe(f.remover).length,
+        // em quantos projetos esse endereço consta como ALUNO — se for o
+        // Gmail de uma estudante, é o vínculo que a fusão deixa como está
+        alunoEm: projetos.filter((p) => (p.alunos || []).some((a) => baixo(a.email) === f.remover)).length },
       destino: destino ? {
         email: destino, existe: conhecida(destino), temPerfil: !!perfis[destino],
         nome: perfis[destino]?.nome || "", funcao: perfis[destino]?.funcao || "",
@@ -2434,6 +2452,18 @@ const FUSOES_SOLICITADAS = [{
     nome: ["luan", "miranda", "santos"],
     cpf: "",
     cpfDoDestinoManda: true,
+    /* v2, terceira rodada ("o caso Luana ainda está com os mesmos erros; o
+       usuário errado é aquele que está com bolsa", set/2026): as duas contas
+       foram nomeadas pelo dono por extenso, e o que ainda podia segurar a
+       fusão em produção era o que o retrato local não tem — o perfil do
+       Hotmail com o nome curto ("Luanna Miranda", como consta na composição
+       de Direito), o CPF da ESTUDANTE gravado na conta que sai, ou esse Gmail
+       constando como aluna em algum projeto. Daí as três marcas: as contas
+       são explícitas (o freio dos nomes se dispensa quando ao menos uma delas
+       carrega o nome da professora), o CPF da origem não viaja, e só a
+       orientação e a autoria se movem — o vínculo de aluno, se houver, é da
+       estudante e fica. */
+    contasExplicitas: true, semCpfDaOrigem: true, soOrientacao: true,
   }];
 /* O que aconteceu com cada pedido na ÚLTIMA tentativa (arranque ou pedido da
    gestão pela rota): fica em memória e sai em GET /api/usuarios/fusoes. É o que
@@ -2505,10 +2535,18 @@ async function tentarFusaoSolicitada(f, por = "arranque (pedido do dono)") {
           + ` (${candidatas.join(", ") || "nenhuma"}) — aguardando o próximo arranque`);
         return registrar("aguardando", `${candidatas.length} conta(s) candidata(s) para o destino (${candidatas.join(", ") || "nenhuma"})`);
       }
+      /* Contas EXPLÍCITAS no pedido (as duas nomeadas pelo dono e as duas
+         conhecidas do portal): o freio dos nomes se dispensa se ao menos uma
+         delas — pelo perfil ou pelos projetos que orienta — carrega o nome da
+         pessoa. Sem isso, o nome curto do perfil de um lado ("Luanna Miranda")
+         contra o nome completo do outro seguraria a fusão para sempre. */
+      const nomeConferido = !!f.contasExplicitas && !!f.manter && candidatas[0] === f.manter
+        && [f.manter, f.remover].some((e) => (f.nome || []).every((t) => chaveNome(nomeDe(e)).includes(t)));
       const r = await executarFusao({ manter: candidatas[0], remover: f.remover, por,
         destinoSemPerfil: !perfis[candidatas[0]]?.nome,
         origemSemPerfil: !perfis[f.remover]?.nome,
-        cpfDoDestinoManda: !!f.cpfDoDestinoManda, nomesDoPedido: f.nome });
+        cpfDoDestinoManda: !!f.cpfDoDestinoManda, nomesDoPedido: f.nome,
+        nomeConferido, semCpfDaOrigem: !!f.semCpfDaOrigem, soOrientacao: !!f.soOrientacao });
       if (r.error) { console.error(`[fusao] ${f.marca}: ${r.error}`); return registrar("recusada", r.error); }
       await storage.set(f.marca, JSON.stringify({ em: new Date().toISOString(), ...r.resumo }));
       await storage.flush?.();

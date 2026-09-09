@@ -68,6 +68,22 @@ test("o projeto muda de dono sem perder parecer entregue", () => {
   assert.ok(r.avisos.some((x) => /orientação e como avaliador/.test(x)));
 });
 
+test("só a orientação se move quando a conta que sai é o e-mail de uma estudante", () => {
+  const p = {
+    id: "p2", numero: "IC-2026-040", criadoPor: PESSOAL,
+    orientador: { nome: "Luana", email: PESSOAL },
+    alunos: [{ nome: "Sara", email: PESSOAL }, { nome: "Ana", email: "ana@x.com" }],
+    avaliacoes: [],
+  };
+  const r = fundirProjeto(p, PESSOAL, INSTIT, { soOrientacao: true });
+  assert.equal(r.projeto.orientador.email, INSTIT, "a orientação passa");
+  assert.equal(r.projeto.criadoPor, INSTIT, "a autoria passa");
+  assert.equal(r.projeto.alunos[0].email, PESSOAL, "o vínculo de aluno fica como estava");
+  assert.ok(r.avisos.some((x) => /consta como ALUNO/.test(x)), "a gestão fica sabendo do vínculo que ficou");
+  // sem a marca, o comportamento de sempre: o aluno também troca
+  assert.equal(fundirProjeto(p, PESSOAL, INSTIT).projeto.alunos[0].email, INSTIT);
+});
+
 test("ações de extensão e atas seguem a conta que fica", () => {
   const acao = fundirAcao({ id: "a1", criadoPor: PESSOAL, proposta: { respEmail: PESSOAL } }, PESSOAL, INSTIT);
   assert.equal(acao.acao.criadoPor, INSTIT);

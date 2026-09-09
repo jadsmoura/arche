@@ -385,10 +385,54 @@ async function mudarAviso(codigo,estado,ate){
 }
 
 async function carregarPainel(){
-  const r=await fetch("/api/usuarios/painel");
+  const [r,rf]=await Promise.all([fetch("/api/usuarios/painel"),fetch("/api/usuarios/fusoes").catch(()=>null)]);
   if(!r.ok){$("v-usuarios").innerHTML="Acesso restrito à PROPPEX.";return;}
   PAINEL=await r.json();
+  FUSOES=rf&&rf.ok?await rf.json().catch(()=>null):null;
   renderPainel();
+}
+
+/* ------------------- fusões pedidas ao sistema ------------------------- *
+   Os pedidos de fusão que o dono fez (a conta errada de uma professora → a
+   certa) rodam no arranque, e o que acontece com eles ficava só no log do
+   Render — "verifique se fundiu" levou três deploys para se responder. Este
+   card diz, pedido a pedido, o que a última tentativa fez e por quê, e o
+   botão executa AGORA pelo mesmo caminho do arranque. Some quando não há
+   pedido pendente. */
+let FUSOES=null;
+function blocoFusoesPedidas(){
+  const ps=(FUSOES&&FUSOES.pedidos||[]).filter(p=>!p.fundiu);
+  if(!ps.length) return "";
+  const SIT={"ja-feita":"já feita","fundiu":"✓ fundiu","mantido":"origem não encontrada — pedido mantido",
+    "aguardando":"aguardando (destino ambíguo)","encerrado":"encerrado","recusada":"✗ recusada","erro":"✗ erro"};
+  return `<div class="card" style="border-color:#ffe0b2;background:#fffdf7">
+    <div class="card-t">Fusões pedidas ao sistema — ${ps.length} pendente(s)</div>
+    <div class="card-s">Pedidos de unificar duas contas da mesma pessoa, gravados no sistema a pedido da PROPPEX.
+      Eles tentam rodar a cada arranque; aqui se vê o que a última tentativa fez e se executa agora.</div>
+    ${ps.map(p=>{const t=p.ultimaTentativa;return `<div class="linha-dup">
+      <div style="flex:1;min-width:0">
+        <div class="nm">${esc(p.origem.email)} <span class="muted">→</span> ${esc(p.destino?p.destino.email:"(destino a encontrar)")}</div>
+        <div class="em">Sai: ${p.origem.existe?`${p.origem.temPerfil?esc(p.origem.nome||"com cadastro"):"sem cadastro preenchido"} · ${p.origem.projetos} projeto(s) como orientação${
+            p.origem.alunoEm?` · consta como aluno em ${p.origem.alunoEm} (fica)`:""}`:"conta não encontrada no portal"}.
+          Fica: ${p.destino?(p.destino.existe?`${esc(p.destino.nome||"sem cadastro preenchido")} · ${p.destino.projetos.length} projeto(s)`:"conta não encontrada"):"—"}.</div>
+        <div class="em">${t?`Última tentativa (${new Date(t.em).toLocaleString("pt-BR")}, ${esc(t.por)}): <b>${esc(SIT[t.situacao]||t.situacao)}</b>${t.detalhe?` — ${esc(String(t.detalhe).slice(0,300))}`:""}`
+          :"Ainda não tentou neste arranque."}</div>
+      </div>
+      <button class="bt bt-pri" onclick="executarFusoes()">Executar agora</button>
+    </div>`;}).join("")}
+  </div>`;
+}
+async function executarFusoes(){
+  if(!confirm("Executar agora os pedidos de fusão pendentes?\n\nA conta que sai deixa de existir e tudo o que era dela passa para a que fica. Não se desfaz sozinho.")) return;
+  try{
+    const r=await fetch("/api/usuarios/fusoes?executar=1");
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||("Falha "+r.status));
+    FUSOES=j;
+    const linhas=(j.pedidos||[]).map(p=>{const t=p.ultimaTentativa;return `${p.origem.email}: ${t?t.situacao+(t.detalhe?" — "+t.detalhe:""):"sem tentativa"}`;});
+    await carregarPainel();
+    alert(linhas.join("\n\n")||"Nenhum pedido.");
+  }catch(e){ alert(e.message); }
 }
 
 function renderPainel(){
@@ -404,7 +448,7 @@ function renderPainel(){
   const semNome=PAINEL.usuarios.filter(u=>!u.temPerfil).length;
   const pg=ArchePag.recorte("us-painel",lista,renderPainel);
 
-  $("v-usuarios").innerHTML=blocoDuplicidades()+`
+  $("v-usuarios").innerHTML=blocoFusoesPedidas()+blocoDuplicidades()+`
     <div class="card">
       <div class="filtros-u">
         <input placeholder="🔎 Buscar por nome, e-mail ou curso" value="${esc(FU.q)}"

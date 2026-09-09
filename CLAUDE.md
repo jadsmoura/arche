@@ -762,6 +762,22 @@ public/
   ou a pilha do erro), e `GET /api/usuarios/fusoes?executar=1` (só gestor geral, recusado com
   `?como=`) tenta na hora os pedidos sem marca pelo MESMO caminho do arranque. A origem também se
   reconhece pelo `criadoPor` dos projetos, não só por `orientador.email`.
+  **A terceira rodada tirou os freios que o retrato local não mostrava, e pôs o botão na tela**
+  (`contasExplicitas`/`semCpfDaOrigem`/`soOrientacao` no pedido + `fundirProjeto(…, {soOrientacao})`
+  em lib/fusao.js + o card "Fusões pedidas ao sistema" em `/usuarios/` — quarto print do dono, "o caso
+  Luana ainda está com os mesmos erros; o usuário errado é aquele que está com bolsa"): sem o estado de
+  produção, o que ainda podia segurar a fusão era o que a cópia local não tem — o perfil do Hotmail
+  com o NOME CURTO ("Luanna Miranda", como está na composição de Direito, contra "Luana de Miranda
+  Santos" nos projetos: `nomesCompativeis` recusa, e `nomesDoPedido` também, porque falta "santos" de
+  um lado), o **CPF da ESTUDANTE** gravado na conta que sai (viajaria para a professora, porque
+  `fundirPerfil` completa o que falta) e o Gmail constando como **ALUNA** em algum projeto (a fusão
+  poria a professora no lugar dela). Daí as três marcas do pedido: as contas são explícitas (o freio
+  dos nomes se dispensa quando as duas existem e ao menos uma carrega o nome da professora, pelo
+  perfil ou pelos projetos), o CPF da origem não entra na fusão, e só orientação e autoria se movem —
+  o vínculo de aluno fica e a gestão é avisada (`alunoEm` na rota). Ensaiado no pior caso: 4 projetos
+  movidos, Hotmail sem CPF e com o nome que tinha, aluna preservada. E o card em `/usuarios/` (aba
+  Usuários cadastrados, some sem pedido pendente) mostra pedido a pedido a última tentativa com o
+  motivo e tem **"Executar agora"** — o dono não precisa abrir JSON nem esperar deploy.
 - **Função na instituição** (`FUNCOES`/`normalizarFuncao` em lib/auth.js): o que a pessoa
   FAZ — professor, professor pesquisador, coordenador de curso, coordenador pedagógico,
   secretaria, as coordenações da PROPPEX (Pesquisa e Inovação, Extensão, Ação Comunitária)
