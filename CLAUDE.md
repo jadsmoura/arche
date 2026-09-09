@@ -1353,6 +1353,45 @@ public/
   (env EVENTOS_NOTIFY_EMAIL) — contato do hotsite, do texto LGPD padrão e da confirmação
   de inscrição, e destinatário do aviso automático quando uma página de evento entra no
   ar (`emailEventoAtivado`, fire-and-forget).
+- **ARCHÉ TR — SUBMISSÃO DE TRABALHOS COM REVISÃO CEGA** (`lib/trabalhos.js` [régua pura] + as
+  rotas `/api/publico/eventos/:slug/trabalhos*`, `/api/publico/revisao/:token` e
+  `/api/extensao/:id/trabalhos*` em server.js + `public/eventos/trabalhos.html` (autor),
+  `public/eventos/revisao.html` (revisor), a guia **Trabalhos** do ARCHÉ EV (PRÉ-EVENTO) e a seção
+  "Submissão de trabalhos" no hotsite — pedido do dono set/2026: "teremos de implementar um sistema
+  de submissão de resumos e trabalhos completos no ARCHÉ, incluindo revisão cega, devolução para
+  correção etc.; normalmente uso o OJS, mas o nosso está com problemas e não será corrigido até o
+  fim do evento"). O módulo é do EVENTO: a coordenação liga a submissão na guia (modalidades —
+  resumo simples, expandido, completo —, áreas, prazo, revisores por trabalho, dias para correção,
+  limite do resumo, orientações, links de normas e modelo, e a chave "decidir só com parecer") e a
+  página pública do evento ganha a seção com o botão. **O autor submete SEM conta** (título,
+  modalidade, área, resumo, palavras-chave, autores com o correspondente em primeiro, arquivo PDF/Word
+  obrigatório fora do resumo simples, declaração de autoria + LGPD) e recebe por e-mail o **número
+  TR-NNN e o link de acompanhamento** (token de 24 hex) — a única chave dele, como a credencial da
+  inscrição. **A cegueira é do desenho, não da tela**: são TRÊS visões do mesmo registro
+  (`paraRevisor` sem autores nem e-mails; `paraAutor` sem revisores, com os pareceres nomeados
+  "Revisor A/B" e SÓ depois da decisão, e sem os comentários à comissão; `paraGestao` com tudo, menos
+  os tokens), e o servidor recorta antes de responder. **Cada revisor tem o próprio token por
+  trabalho** (`designar`; o autor não revisa o próprio trabalho, repetido não entra), recebe o convite
+  com o link (`emailConviteRevisao`, lembrete pelo mesmo aviso) e dá o parecer sem conta: cinco
+  critérios 1–5 (`CRITERIOS`), recomendação (aceitar · com correções · rejeitar), comentários ao
+  autor e à comissão (reservados). Entregues todos, o trabalho passa a `avaliado`; a coordenação
+  **decide** (aceito · correção · rejeitado; a devolução exige a mensagem) e o autor recebe a decisão
+  com os pareceres anônimos (`emailDecisaoTrabalho`). Devolvido, o autor manda a **versão corrigida
+  pelo mesmo link** (`reenviar`: versão 2, 3…; sem arquivo novo vale o anterior) e o trabalho volta à
+  coordenação como `reenviado` — ela decide de novo ou designa mais revisores. Estados em `ESTADOS`,
+  cada um dizendo O QUE ESPERA de quem; `retirado` é do autor, enquanto não há decisão. O registro
+  vive em **`ex-trabalhos-v1`** (chave interna: e-mails de autores e revisores), um bloco por ação
+  `{ revisores, trabalhos }`, com fila própria (`comTrabalhos`) — os escritores são anônimos e
+  concorrentes; a configuração fica em `evento.trabalhos` (a rota do evento a preserva, porque só
+  toca nos campos que recebe). Os arquivos vão ao Repositório
+  (`Extensão/<curso>/<ano>/<nº>/trabalhos`, PDF/Word, 15 MB, `uploadTr`) e saem por `/api/files/*`.
+  Freios: o da inscrição pública na submissão e `freioOnline` no link do revisor. A planilha
+  (`trabalhos.xlsx`) lista tudo com autores por extenso e sem e-mail de revisor — é o que vai aos
+  anais e à grade das apresentações. Os quatro e-mails estão no catálogo de avisos (`tr-recebido`,
+  `tr-convite-revisao`, `tr-decisao`, `tr-gestao`). O bloco "submissão" por LINK (o OJS) continua
+  existindo para quem tem o sistema da revista funcionando. Testado de ponta a ponta no servidor local
+  (submissão → designação → dois pareceres → correção → versão 2 → aceite → planilha) e as cinco telas
+  passaram no Playwright sem erro de JavaScript.
 - **A ação pode ser de MAIS DE UM CURSO** (`cursosExtras` + `normalizarCursosExtras`/
   `cursosDaAcao`/`cursosEmTexto`/`acaoDoCurso` em lib/eventos.js, pedido de um professor
   ago/2026): a jornada é de Engenharia Mecânica E de Engenharia Civil, e o formulário só

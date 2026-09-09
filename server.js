@@ -185,6 +185,8 @@ import {
 } from "./lib/espacos.js";
 import { CREDENCIAMENTO, MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
 import * as wallet from "./lib/wallet.js";
+import * as tr from "./lib/trabalhos.js";
+import { emailTrabalhoRecebido, emailConviteRevisao, emailDecisaoTrabalho, emailTrabalhoMovimentado } from "./lib/mailer.js";
 import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
   papelDe, modulosDe, MODULOS, verificarGoogle, criarCodigo, verificarCodigo,
@@ -4227,6 +4229,8 @@ function eventoPublico(a, { detalhe = false } = {}) {
     lgpdTexto: textoLgpd(ev),
     endereco: String(ev.local || ""),
     transmissaoPublicada: ev.transmissao?.publicada === true,
+    // ARCHÉ TR: a submissão de trabalhos DENTRO do evento (null = não abriu)
+    trabalhos: tr.configPublica(ev.trabalhos, hojeLocalISO()),
     modalidade: temOnline && temPresencial ? "hibrido" : temOnline ? "online" : "presencial",
     cobranca: cobrancaPublica(ev, hojeLocalISO()),
   };
@@ -5775,6 +5779,349 @@ app.get("/api/publico/eventos/:slug/inscricao/:token/wallet", async (req, res) =
     console.error("Erro no passe da carteira digital:", e);
     falhar(500, "Não foi possível gerar o passe agora.");
   }
+});
+
+/* ============================ ARCHÉ TR ====================================
+   Submissão de trabalhos com revisão cega (pedido do dono, set/2026 — "nosso
+   OJS está com problemas e não será corrigido até o fim do evento"). A régua
+   está em lib/trabalhos.js; aqui, o armazenamento, os arquivos e as rotas.
+
+   O registro vive em `ex-trabalhos-v1` (chave interna: carrega e-mail de
+   autores e revisores), UM bloco por ação: { revisores: [...], trabalhos:
+   [...] }. Uma fila própria (`comTrabalhos`), porque os escritores são
+   concorrentes e anônimos — autores submetendo, revisores entregando parecer,
+   a coordenação decidindo — e a chave inteira é reescrita a cada gravação. */
+const TR_KEY = "ex-trabalhos-v1";
+let filaTr = Promise.resolve();
+async function lerTrabalhosBase() {
+  try { return JSON.parse((await storage.get(TR_KEY)) || "{}") || {}; } catch { return {}; }
+}
+function comTrabalhos(acaoId, fn) {
+  const proxima = filaTr.then(async () => {
+    const base = await lerTrabalhosBase();
+    const reg = base[acaoId] || { revisores: [], trabalhos: [] };
+    reg.revisores = reg.revisores || []; reg.trabalhos = reg.trabalhos || [];
+    const r = await fn(reg);
+    if (r?.gravar !== false) {
+      base[acaoId] = reg;
+      await storage.set(TR_KEY, JSON.stringify(base));
+      await storage.flush?.();
+    }
+    return r;
+  });
+  filaTr = proxima.catch(() => {});
+  return proxima;
+}
+const uploadTr = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+const TIPOS_TRABALHO = new Set(["application/pdf", "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
+const pastaTrabalhos = (a) => `${REPO}/Extensão/${slug(a.curso || "geral")}/${anoDaPasta(a.numeroAcao, a.proposta?.periodoFim || a.criadoEm)}/${slug(a.numeroAcao || a.id)}/trabalhos`;
+/* O arquivo sobe ao Drive ANTES da fila (é lento e não altera o estado); só
+   PDF ou Word, porque é o que a comissão abre e o que vai aos anais. */
+async function subirArquivoTrabalho(req, a) {
+  if (!req.file) return null;
+  const f = req.file;
+  if (!TIPOS_TRABALHO.has(f.mimetype) && !/\.(pdf|docx?)$/i.test(f.originalname))
+    throw new Error("Envie o trabalho em PDF ou Word (.doc/.docx).");
+  const d = await files.save({ buffer: f.buffer, originalName: f.originalname, prefix: pastaTrabalhos(a) });
+  return { ...d, tipo: f.mimetype || "", em: new Date().toISOString() };
+}
+const eventoResumoTr = (a) => ({
+  slug: a.evento?.slug || "", nome: a.proposta?.nomeAtividade || "", curso: a.curso || "",
+  periodoInicio: a.proposta?.periodoInicio || "", periodoFim: a.proposta?.periodoFim || "",
+});
+const dadosTr = (req) => { try { return JSON.parse(req.body?.dados || "{}") || {}; } catch { return null; } };
+const avisoTr = (codigo, msg) => enviarAviso(codigo, msg).catch((e) => console.error(`[trabalhos] e-mail (${codigo}):`, e.message));
+
+/* --- o autor (sem conta): a página pública do evento ---------------------- */
+app.get("/api/publico/eventos/:slug/trabalhos", async (req, res) => {
+  try {
+    const a = eventoPorSlug(await lerAcoes(), req.params.slug);
+    if (!a) return res.status(404).json({ error: "Evento não encontrado." });
+    const ev = a.evento || {};
+    res.json({ evento: eventoResumoTr(a), config: tr.configPublica(ev.trabalhos, hojeLocalISO()),
+      lgpdTexto: textoLgpd(ev), catalogos: { modalidades: tr.MODALIDADES } });
+  } catch (e) { console.error("Erro na config de trabalhos:", e); res.status(500).json({ error: "Falha ao carregar." }); }
+});
+app.post("/api/publico/eventos/:slug/trabalhos", uploadTr.single("arquivo"), async (req, res) => {
+  try {
+    if (inscricaoExcedeu(req.ip))
+      return res.status(429).json({ error: "Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo." });
+    const d = dadosTr(req);
+    if (!d) return res.status(400).json({ error: "Dados do formulário ilegíveis." });
+    const pre = eventoPorSlug(await lerAcoes(), req.params.slug);
+    if (!pre) return res.status(404).json({ error: "Evento não encontrado." });
+    const cfg = tr.normalizarConfig(pre.evento?.trabalhos);
+    const aberta = tr.podeSubmeter(cfg, hojeLocalISO());
+    if (!aberta.ok) return res.status(409).json({ error: aberta.motivo });
+    const faltas = tr.validarSubmissao(cfg, d, { temArquivo: !!req.file });
+    if (faltas.length) return res.status(400).json({ error: `Falta: ${faltas.join("; ")}.` });
+    let arquivo = null;
+    try { arquivo = await subirArquivoTrabalho(req, pre); }
+    catch (e) { return res.status(400).json({ error: e.message }); }
+    const versaoLgpdEv = versaoLgpd(textoLgpd(pre.evento || {}));
+    const r = await comTrabalhos(pre.id, (reg) => {
+      const t = tr.novoTrabalho(cfg, { ...d, versaoLgpd: versaoLgpdEv }, { arquivo, numero: tr.proximoNumero(reg.trabalhos) });
+      reg.trabalhos.push(t);
+      return { t };
+    });
+    const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    res.json({ ok: true, numero: r.t.numero, token: r.t.token,
+      link: `${base}/eventos/${encodeURIComponent(pre.evento.slug)}/trabalhos/${r.t.token}` });
+    avisoTr("tr-recebido", emailTrabalhoRecebido(pre, r.t, { baseUrl: base }));
+    avisoTr("tr-gestao", emailTrabalhoMovimentado({ acao: pre, t: r.t, o: "Novo trabalho submetido", baseUrl: base }));
+  } catch (e) {
+    console.error("Erro na submissão de trabalho:", e);
+    if (!res.headersSent) res.status(500).json({ error: "Não foi possível registrar o trabalho agora." });
+  }
+});
+async function acharTrabalho(slugEv, token) {
+  if (!tr.TOKEN_VALIDO.test(String(token || ""))) return null;
+  const a = eventoPorSlug(await lerAcoes(), slugEv);
+  if (!a) return null;
+  const reg = (await lerTrabalhosBase())[a.id];
+  const t = (reg?.trabalhos || []).find((x) => x.token === token);
+  return t ? { a, t } : null;
+}
+app.get("/api/publico/eventos/:slug/trabalhos/:token", async (req, res) => {
+  try {
+    const r = await acharTrabalho(req.params.slug, req.params.token);
+    if (!r) return res.status(404).json({ error: "Trabalho não encontrado — confira o link do e-mail." });
+    res.json({ evento: eventoResumoTr(r.a), config: tr.configPublica(r.a.evento?.trabalhos, hojeLocalISO()),
+      trabalho: tr.paraAutor(r.t), catalogos: { modalidades: tr.MODALIDADES, criterios: tr.CRITERIOS, recomendacoes: tr.RECOMENDACOES } });
+  } catch (e) { console.error("Erro ao abrir o trabalho:", e); res.status(500).json({ error: "Falha ao carregar." }); }
+});
+app.post("/api/publico/eventos/:slug/trabalhos/:token/versao", uploadTr.single("arquivo"), async (req, res) => {
+  try {
+    const pre = await acharTrabalho(req.params.slug, req.params.token);
+    if (!pre) return res.status(404).json({ error: "Trabalho não encontrado." });
+    const d = dadosTr(req);
+    if (!d) return res.status(400).json({ error: "Dados ilegíveis." });
+    let arquivo = null;
+    try { arquivo = await subirArquivoTrabalho(req, pre.a); }
+    catch (e) { return res.status(400).json({ error: e.message }); }
+    const r = await comTrabalhos(pre.a.id, (reg) => {
+      const t = reg.trabalhos.find((x) => x.token === req.params.token);
+      if (!t) return { erro: [404, "Trabalho não encontrado."], gravar: false };
+      const x = tr.reenviar(t, { resumo: d.resumo, arquivo, nota: d.nota });
+      if (x.erro) return { erro: [400, x.erro], gravar: false };
+      return { t };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, trabalho: tr.paraAutor(r.t) });
+    const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    avisoTr("tr-gestao", emailTrabalhoMovimentado({ acao: pre.a, t: r.t, o: "Versão corrigida enviada pelo autor", baseUrl: base }));
+  } catch (e) {
+    console.error("Erro na versão do trabalho:", e);
+    if (!res.headersSent) res.status(500).json({ error: "Não foi possível enviar a versão agora." });
+  }
+});
+app.post("/api/publico/eventos/:slug/trabalhos/:token/retirar", async (req, res) => {
+  try {
+    const pre = await acharTrabalho(req.params.slug, req.params.token);
+    if (!pre) return res.status(404).json({ error: "Trabalho não encontrado." });
+    const r = await comTrabalhos(pre.a.id, (reg) => {
+      const t = reg.trabalhos.find((x) => x.token === req.params.token);
+      if (!t) return { erro: [404, "Trabalho não encontrado."], gravar: false };
+      const x = tr.retirar(t);
+      if (x.erro) return { erro: [400, x.erro], gravar: false };
+      return { t };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, trabalho: tr.paraAutor(r.t) });
+  } catch (e) { console.error("Erro ao retirar o trabalho:", e); res.status(500).json({ error: "Falha." }); }
+});
+
+/* --- o revisor (sem conta): o link do parecer -------------------------------
+   O token é por trabalho + revisor, e é ele que identifica o parecer. A
+   busca varre os registros de todas as ações: o link não diz o evento de
+   propósito (não precisa — e um endereço a menos para adivinhar). */
+async function acharRevisao(token) {
+  if (!tr.TOKEN_VALIDO.test(String(token || ""))) return null;
+  const base = await lerTrabalhosBase();
+  for (const [acaoId, reg] of Object.entries(base)) {
+    for (const t of reg?.trabalhos || []) {
+      const rev = (t.revisores || []).find((r) => r.token === token && !r.removidoEm);
+      if (rev) {
+        const a = (await lerAcoes()).find((x) => x.id === acaoId);
+        return a ? { a, t, rev } : null;
+      }
+    }
+  }
+  return null;
+}
+app.get("/api/publico/revisao/:token", async (req, res) => {
+  try {
+    if (freioOnline.excedeu(req.ip)) return res.status(429).json({ error: "Muitas tentativas. Aguarde alguns minutos." });
+    const r = await acharRevisao(req.params.token);
+    if (!r) { freioOnline.falhou(req.ip); return res.status(404).json({ error: "Revisão não encontrada — confira o link do e-mail." }); }
+    const cfg = tr.normalizarConfig(r.a.evento?.trabalhos);
+    res.json({ evento: eventoResumoTr(r.a), revisor: { nome: r.rev.nome },
+      config: { orientacoes: cfg.orientacoes, normasUrl: cfg.normasUrl, modeloUrl: cfg.modeloUrl },
+      trabalho: tr.paraRevisor(r.t, req.params.token),
+      catalogos: { criterios: tr.CRITERIOS, recomendacoes: tr.RECOMENDACOES, modalidades: tr.MODALIDADES } });
+  } catch (e) { console.error("Erro ao abrir a revisão:", e); res.status(500).json({ error: "Falha ao carregar." }); }
+});
+app.post("/api/publico/revisao/:token", async (req, res) => {
+  try {
+    const pre = await acharRevisao(req.params.token);
+    if (!pre) return res.status(404).json({ error: "Revisão não encontrada." });
+    const r = await comTrabalhos(pre.a.id, (reg) => {
+      const t = reg.trabalhos.find((x) => x.id === pre.t.id);
+      if (!t) return { erro: [404, "Trabalho não encontrado."], gravar: false };
+      const x = tr.registrarParecer(t, req.params.token, req.body || {});
+      if (x.erro) return { erro: [400, x.erro], gravar: false };
+      return { t };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, trabalho: tr.paraRevisor(r.t, req.params.token) });
+    if (tr.todosPareceresEntregues(r.t)) {
+      const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+      avisoTr("tr-gestao", emailTrabalhoMovimentado({ acao: pre.a, t: r.t, o: "Pareceres completos — aguardando decisão", baseUrl: base }));
+    }
+  } catch (e) {
+    console.error("Erro ao registrar o parecer:", e);
+    if (!res.headersSent) res.status(500).json({ error: "Não foi possível registrar o parecer agora." });
+  }
+});
+
+/* --- a coordenação (ARCHÉ EV, guia Trabalhos) ------------------------------ */
+async function acaoDoOperador(req, res) {
+  const u = await sessaoEx(req, res);
+  if (!u) return null;
+  const a = (await lerAcoes()).find((x) => x.id === req.params.id);
+  if (!a || !podeOperarEvento(u, a)) { res.status(404).json({ error: "Ação não encontrada" }); return null; }
+  return { u, a };
+}
+app.get("/api/extensao/:id/trabalhos", async (req, res) => {
+  try {
+    const x = await acaoDoOperador(req, res); if (!x) return;
+    const { a } = x;
+    const reg = (await lerTrabalhosBase())[a.id] || { revisores: [], trabalhos: [] };
+    const cfg = tr.normalizarConfig(a.evento?.trabalhos);
+    const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    res.json({
+      config: cfg, aberta: tr.podeSubmeter(cfg, hojeLocalISO()),
+      revisores: reg.revisores || [], trabalhos: (reg.trabalhos || []).map(tr.paraGestao),
+      resumo: tr.resumo(reg.trabalhos || []),
+      catalogos: { modalidades: tr.MODALIDADES, estados: tr.ESTADOS, criterios: tr.CRITERIOS, recomendacoes: tr.RECOMENDACOES, decisoes: tr.DECISOES },
+      linkPublico: a.evento?.slug ? `${base}/eventos/${encodeURIComponent(a.evento.slug)}/trabalhos` : "",
+    });
+  } catch (e) { console.error("Erro na guia Trabalhos:", e); res.status(500).json({ error: "Falha ao carregar." }); }
+});
+app.post("/api/extensao/:id/trabalhos/config", async (req, res) => {
+  try {
+    const x = await acaoDoOperador(req, res); if (!x) return;
+    const cfg = tr.normalizarConfig(req.body?.config || req.body || {});
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((y) => y.id === req.params.id);
+      if (!a) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (!a.evento) return { erro: [400, "Cadastre o evento antes de abrir a submissão de trabalhos."], gravar: false };
+      a.evento.trabalhos = cfg;
+      a.atualizadoEm = new Date().toISOString();
+      return { ok: true };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, config: cfg });
+  } catch (e) { console.error("Erro na config de trabalhos:", e); res.status(500).json({ error: "Falha ao salvar." }); }
+});
+app.post("/api/extensao/:id/trabalhos/revisores", async (req, res) => {
+  try {
+    const x = await acaoDoOperador(req, res); if (!x) return;
+    const lista = tr.normalizarRevisores(req.body?.revisores);
+    await comTrabalhos(x.a.id, (reg) => { reg.revisores = lista; return { ok: true }; });
+    res.json({ ok: true, revisores: lista });
+  } catch (e) { console.error("Erro nos revisores:", e); res.status(500).json({ error: "Falha ao salvar." }); }
+});
+app.post("/api/extensao/:id/trabalhos/:tid/designar", async (req, res) => {
+  try {
+    const x = await acaoDoOperador(req, res); if (!x) return;
+    const emails = [...new Set((Array.isArray(req.body?.emails) ? req.body.emails : []).map((e) => String(e || "").trim().toLowerCase()).filter(Boolean))];
+    if (!emails.length) return res.status(400).json({ error: "Escolha ao menos um revisor." });
+    const prazo = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.prazo || "")) ? req.body.prazo : "";
+    const mensagem = String(req.body?.mensagem || "").slice(0, 2000);
+    const r = await comTrabalhos(x.a.id, (reg) => {
+      const t = reg.trabalhos.find((y) => y.id === req.params.tid);
+      if (!t) return { erro: [404, "Trabalho não encontrado."], gravar: false };
+      if (tr.ESTADO_ENCERRADO.has(t.estado)) return { erro: [400, "O trabalho já está encerrado."], gravar: false };
+      const lista = emails.map((e) => reg.revisores.find((rv) => rv.email === e) || { email: e, nome: "" });
+      const novos = tr.designar(t, lista, { por: x.u.email });
+      if (!novos.length) return { erro: [400, "Nenhum revisor novo — os escolhidos já estão designados ou são autores do trabalho."], gravar: false };
+      return { t, novos };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, designados: r.novos.length, trabalho: tr.paraGestao(r.t) });
+    const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    for (const rev of r.novos) avisoTr("tr-convite-revisao", emailConviteRevisao(x.a, r.t, rev, { baseUrl: base, prazo, mensagem }));
+  } catch (e) { console.error("Erro ao designar revisores:", e); res.status(500).json({ error: "Falha ao designar." }); }
+});
+app.post("/api/extensao/:id/trabalhos/:tid/lembrar", async (req, res) => {
+  try {
+    const x = await acaoDoOperador(req, res); if (!x) return;
+    const reg = (await lerTrabalhosBase())[x.a.id];
+    const t = (reg?.trabalhos || []).find((y) => y.id === req.params.tid);
+    if (!t) return res.status(404).json({ error: "Trabalho não encontrado." });
+    const pendentes = (t.revisores || []).filter((rv) => !rv.removidoEm && !rv.parecer);
+    const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    const mensagem = String(req.body?.mensagem || "").slice(0, 2000);
+    for (const rev of pendentes) avisoTr("tr-convite-revisao", emailConviteRevisao(x.a, t, rev, { baseUrl: base, prazo: req.body?.prazo, mensagem }));
+    res.json({ ok: true, lembrados: pendentes.length });
+  } catch (e) { console.error("Erro ao lembrar revisores:", e); res.status(500).json({ error: "Falha." }); }
+});
+app.post("/api/extensao/:id/trabalhos/:tid/decidir", async (req, res) => {
+  try {
+    const x = await acaoDoOperador(req, res); if (!x) return;
+    const cfg = tr.normalizarConfig(x.a.evento?.trabalhos);
+    const r = await comTrabalhos(x.a.id, (reg) => {
+      const t = reg.trabalhos.find((y) => y.id === req.params.tid);
+      if (!t) return { erro: [404, "Trabalho não encontrado."], gravar: false };
+      const d = tr.decidir(t, cfg, { codigo: req.body?.codigo, mensagem: req.body?.mensagem, por: x.u.email });
+      if (d.erro) return { erro: [400, d.erro], gravar: false };
+      return { t };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, trabalho: tr.paraGestao(r.t) });
+    const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    avisoTr("tr-decisao", emailDecisaoTrabalho(x.a, r.t, { baseUrl: base }));
+  } catch (e) { console.error("Erro na decisão do trabalho:", e); res.status(500).json({ error: "Falha ao decidir." }); }
+});
+/* A lista dos trabalhos em planilha — é o que vai aos anais e à programação
+   das apresentações. Sem e-mail dos revisores; os autores saem por extenso. */
+app.get("/api/extensao/:id/trabalhos.xlsx", async (req, res) => {
+  try {
+    const x = await acaoDoOperador(req, res); if (!x) return;
+    const reg = (await lerTrabalhosBase())[x.a.id] || { trabalhos: [] };
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Trabalhos");
+    ws.columns = [
+      { header: "Número", key: "numero", width: 10 }, { header: "Título", key: "titulo", width: 60 },
+      { header: "Modalidade", key: "modalidade", width: 18 }, { header: "Área", key: "area", width: 22 },
+      { header: "Autores", key: "autores", width: 50 }, { header: "E-mail de contato", key: "email", width: 30 },
+      { header: "Instituições", key: "inst", width: 30 }, { header: "Palavras-chave", key: "pc", width: 30 },
+      { header: "Situação", key: "estado", width: 26 }, { header: "Nota média", key: "nota", width: 10 },
+      { header: "Pareceres", key: "pareceres", width: 10 }, { header: "Decisão em", key: "decisaoEm", width: 18 },
+      { header: "Versões", key: "versoes", width: 8 }, { header: "Submetido em", key: "em", width: 18 },
+    ];
+    for (const t of reg.trabalhos || []) {
+      const g = tr.paraGestao(t);
+      ws.addRow(linhaSegura({
+        numero: t.numero, titulo: t.titulo, modalidade: tr.MODALIDADES.find((m) => m.codigo === t.modalidade)?.nome || t.modalidade,
+        area: t.area, autores: (t.autores || []).map((a) => a.nome).join("; "), email: t.emailContato,
+        inst: [...new Set((t.autores || []).map((a) => a.instituicao).filter(Boolean))].join("; "),
+        pc: (t.palavrasChave || []).join("; "), estado: g.rotulo, nota: g.notaMedia ?? "",
+        pareceres: `${g.pareceresEntregues}/${g.pareceresEsperados}`,
+        decisaoEm: t.decisao?.em ? String(t.decisao.em).slice(0, 10) : "", versoes: (t.versoes || []).length,
+        em: String(t.criadoEm || "").slice(0, 10),
+      }));
+    }
+    ws.getRow(1).font = { bold: true };
+    const buf = await wb.xlsx.writeBuffer();
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="trabalhos-${slug(x.a.evento?.slug || x.a.id)}.xlsx"`);
+    res.setHeader("Cache-Control", "no-store");
+    res.send(Buffer.from(buf));
+  } catch (e) { console.error("Erro na planilha de trabalhos:", e); res.status(500).json({ error: "Falha ao gerar a planilha." }); }
 });
 
 /**
@@ -16989,6 +17336,12 @@ app.get(/^\/eventos\/[a-z0-9-]+\/assistir\/[a-zA-Z0-9]+\/?$/, (_req, res) =>
 // Pago devolve a pessoa e onde ela confere se o Pix já confirmou
 app.get(/^\/eventos\/[a-z0-9-]+\/pagamento\/[a-zA-Z0-9]+\/?$/, (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "pagamento.html")));
+// ARCHÉ TR: a submissão do autor (e o acompanhamento, com o token) e o
+// parecer do revisor (só com o token dele)
+app.get(/^\/eventos\/[a-z0-9-]+\/trabalhos(\/[a-f0-9]{24})?\/?$/, (_req, res) =>
+  res.sendFile(path.join(PUBLIC, "eventos", "trabalhos.html")));
+app.get(/^\/eventos\/revisao\/[a-f0-9]{24}\/?$/, (_req, res) =>
+  res.sendFile(path.join(PUBLIC, "eventos", "revisao.html")));
 // a sala de gestão do ARCHÉ EV (com login — a guarda é a do topo): entra
 // ANTES do padrão de slug, senão "gestao" viraria página de evento
 app.get(["/eventos/gestao", "/eventos/gestao/"], (_req, res) =>

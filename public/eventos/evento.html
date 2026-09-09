@@ -332,7 +332,7 @@ function render() {
 
   /* ------ 2b. palestrantes (banner rotativo) e blocos do organizador ------ */
   const palestrantes = secaoPalestrantes(e);
-  const blocosAntes = (e.blocos || []).filter((b) => b.tipo !== "apoiadores").map(blocoHtml).join("");
+  const blocosAntes = secaoTrabalhos(e) + (e.blocos || []).filter((b) => b.tipo !== "apoiadores").map(blocoHtml).join("");
   const blocosApoio = (e.blocos || []).filter((b) => b.tipo === "apoiadores").map(blocoHtml).join("");
 
   /* ------ 3. programação (bloco próprio — a aba redesenha SÓ ele) ------ */
@@ -486,6 +486,7 @@ function subnav(e) {
     (e.descricao || e.temaCentral || e.publicoAlvo) ? ["#sobre", "Sobre"] : null,
     palestrantesDe(e).length ? ["#palestrantes", "Palestrantes"] : null,
     (e.programacao || []).length ? ["#programacao", "Programação"] : null,
+    e.trabalhos ? ["#trabalhos", "Trabalhos"] : null,
     ...(e.blocos || []).map((b) => [`#bloco-${b.id}`, b.titulo || rotuloBloco(b.tipo)]),
     e.inscricoesAbertas ? ["#inscricao", "Inscrição"] : null,
   ].filter(Boolean);
@@ -585,6 +586,30 @@ function girarPalestrantes() {
    trabalhos (que leva ao OJS — o sistema oficial de submissão da revista; o
    ARCHÉ não recebe resumo, senão haveria duas filas para o mesmo trabalho),
    anais do evento e desta e de outras edições, e apoio/patrocínio. */
+/* ARCHÉ TR (set/2026): a submissão de trabalhos DENTRO do ARCHÉ. A seção sai
+   quando a coordenação liga o módulo no evento; o bloco "submissão" de link
+   continua existindo para quem usa o OJS. */
+function secaoTrabalhos(e) {
+  const t = e.trabalhos;
+  if (!t) return "";
+  const url = `/eventos/${encodeURIComponent(e.slug)}/trabalhos`;
+  return `
+    <div class="secao-t" id="trabalhos">Submissão de trabalhos</div>
+    <div class="card" style="margin-top:12px">
+      <p style="font-size:14.5px;line-height:1.7">${t.aberta
+        ? `Submissões <b>abertas</b>${t.prazoSubmissao ? ` até <b>${esc(fmt(t.prazoSubmissao))}</b>` : ""} — ${t.modalidades.map((m) => esc(m.nome.toLowerCase())).join(", ")}.
+           A avaliação é feita por pareceristas, às cegas, e o resultado chega por e-mail.`
+        : esc(t.motivo)}</p>
+      ${t.orientacoes ? `<p style="font-size:14px;line-height:1.7;white-space:pre-line;color:var(--ink-soft)">${esc(t.orientacoes)}</p>` : ""}
+      ${t.areas.length ? `<p style="font-size:13px;color:var(--muted)"><b>Áreas:</b> ${t.areas.map(esc).join(" · ")}</p>` : ""}
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        ${t.aberta ? `<a class="bt bt-pri" href="${url}" style="margin-top:14px">Submeter trabalho</a>` : ""}
+        ${t.normasUrl ? `<a class="bt bt-sec" href="${esc(t.normasUrl)}" target="_blank" rel="noopener" style="margin-top:14px">Normas ↗</a>` : ""}
+        ${t.modeloUrl ? `<a class="bt bt-sec" href="${esc(t.modeloUrl)}" target="_blank" rel="noopener" style="margin-top:14px">Modelo ↗</a>` : ""}
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:10px">Já submeteu? O acompanhamento é pelo link que chegou ao seu e-mail.</p>
+    </div>`;
+}
 function blocoHtml(b) {
   const titulo = esc(b.titulo || rotuloBloco(b.tipo));
   const texto = b.texto ? `<p style="font-size:14.5px;line-height:1.7;white-space:pre-line">${esc(b.texto)}</p>` : "";

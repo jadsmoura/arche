@@ -135,6 +135,13 @@
   .lk:hover{color:var(--brand-2)}
 
   .badge{display:inline-block;font-size:11px;font-weight:600;border-radius:20px;padding:3px 10px;white-space:nowrap}
+  /* ARCHÉ TR: os selos por situação e as grades da guia Trabalhos */
+  .badge.s-ok{background:var(--ok-soft);color:var(--ok)} .badge.s-warn{background:var(--warn-soft);color:var(--warn)}
+  .badge.s-err{background:var(--err-soft);color:var(--err)} .badge.s-info{background:var(--accent-wash);color:var(--brand)}
+  .badge.s-muted{background:var(--wash);color:var(--muted)}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px} .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 12px}
+  @media(max-width:760px){.g2,.g3,.tr-acoes{grid-template-columns:1fr!important}}
+  details.atv-card>summary::-webkit-details-marker{display:none}
   .banner{border-radius:10px;padding:13px 15px;margin-bottom:14px;font-size:13.5px;font-weight:500;line-height:1.5}
   .ba-warn{background:var(--warn-soft);color:var(--warn);border:1px solid #f0e0bd}
   .ba-info{background:var(--info-soft);color:var(--brand);border:1px solid #cfe6f2}
@@ -333,6 +340,7 @@
         <section id="v-programacao" class="hide"></section>
         <section id="v-blocos" class="hide"></section>
         <section id="v-equipe" class="hide"></section>
+        <section id="v-trabalhos" class="hide"></section>
         <section id="v-credenciamento" class="hide"></section>
         <section id="v-transmissao" class="hide"></section>
         <section id="v-cobranca" class="hide"></section>
@@ -472,6 +480,7 @@ const IC = {
   inscricoes:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M9 13h6M9 17h4"></path>',
   pagina:'<circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"></path>',
   programacao:'<rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M16 2v4M8 2v4M3 9h18"></path>',
+  trabalhos:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>',
   equipe:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
   blocos:'<rect x="3" y="3" width="18" height="6" rx="1.5"></rect><rect x="3" y="12" width="8" height="9" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect>',
   credenciamento:'<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h7v7h-7z"></path>',
@@ -507,6 +516,10 @@ const SECOES = [
    sub:"As atividades do evento — tipo, horários, vagas próprias — e os contadores por atividade."},
   {k:"blocos", rot:"Blocos da página", grupo:"PRÉ-EVENTO", ic:IC.blocos, evento:true, tit:"Blocos da página",
    sub:"O que entra na página além da programação: submissão de trabalhos, anais, apoio e patrocínio, textos."},
+  /* ARCHÉ TR (set/2026): a submissão de trabalhos com revisão cega vive no
+     PRÉ-EVENTO — é antes do evento que os resumos chegam e são avaliados. */
+  {k:"trabalhos", rot:"Trabalhos", grupo:"PRÉ-EVENTO", ic:IC.trabalhos, evento:true, tit:"Submissão de trabalhos",
+   sub:"Resumos e trabalhos completos com revisão cega: configuração, revisores, designação, pareceres e decisão."},
   {k:"credenciamento", rot:"Credenciamento", grupo:"EVENTO", ic:IC.credenciamento, evento:true, tit:"Credenciamento",
    sub:"O código do monitor, o link do credenciamento por QR e a lista em papel de contingência."},
   {k:"transmissao", rot:"Transmissão e mural", grupo:"EVENTO", ic:IC.transmissao, evento:true, tit:"Transmissão e mural",
@@ -733,6 +746,7 @@ function nav(secao){
   else if(SECAO==="programacao") renderProgramacao(a);
   else if(SECAO==="blocos") renderBlocos(a);
   else if(SECAO==="equipe") renderEquipe(a);
+  else if(SECAO==="trabalhos") renderTrabalhos(a);
   else if(SECAO==="credenciamento") renderCredenciamento(a);
   else if(SECAO==="transmissao") renderTransmissao(a);
   else if(SECAO==="cobranca") renderCobranca(a);
@@ -2607,6 +2621,199 @@ const faltaCert = (x, pal) => {
   if (pal && !tem(x.palestra)) f.push("título da palestra");
   return f;
 };
+
+/* ============================= ARCHÉ TR ==================================
+   Submissão de trabalhos com revisão cega (pedido do dono, set/2026: "nosso
+   OJS está com problemas"). A guia é a sala da COMISSÃO CIENTÍFICA: a
+   configuração (o que se aceita, até quando, com que normas), o cadastro de
+   revisores do evento e a fila dos trabalhos — designar revisores, ler os
+   pareceres, decidir. O autor e o revisor entram pelas páginas públicas, com
+   o token do e-mail; aqui a gestão vê tudo — inclusive quem revisou —, e é a
+   única que vê os dois lados. */
+let TR = null, TR_REV = [], TR_FILTRO = "";
+const TR_COR = { submetido:"info", "em-avaliacao":"warn", avaliado:"warn", correcao:"err", reenviado:"info", aceito:"ok", rejeitado:"err", retirado:"muted" };
+const trBadge = (e) => `<span class="badge s-${TR_COR[e]||"muted"}">${esc((TR.catalogos.estados.find(x=>x.codigo===e)||{}).nome||e)}</span>`;
+async function renderTrabalhos(a){
+  const el=$("v-trabalhos"); if(!el) return;
+  el.innerHTML=`<div class="muted">Carregando…</div>`;
+  const r=await fetch(`/api/extensao/${encodeURIComponent(a.id)}/trabalhos`);
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ el.innerHTML=`<div class="banner ba-err">${esc(j.error||"Falha ao carregar.")}</div>`; return; }
+  TR=j; TR_REV=(j.revisores||[]).map(x=>({...x, areas:(x.areas||[]).join("; ")}));
+  const c=j.config, rs=j.resumo;
+  const mods=j.catalogos.modalidades;
+  el.innerHTML=`
+    <div class="banner ba-info">O autor submete pela <b>página pública</b> do evento e acompanha pelo link do e-mail; cada revisor
+      recebe o próprio link. A avaliação é <b>cega nos dois sentidos</b>: o revisor não vê os autores e o autor não vê quem
+      avaliou. Só esta guia vê os dois lados.${j.linkPublico?` Endereço da submissão: <a href="${esc(j.linkPublico)}" target="_blank" rel="noopener">${esc(j.linkPublico)}</a>`:""}</div>
+
+    <div class="card">
+      <div class="sec-t">Configuração da submissão</div>
+      <div class="muted" style="margin:6px 0 10px">${c.ativo?`<span class="badge s-ok">submissão ligada</span> ${j.aberta.ok?"— aberta":"— <b>fechada</b>: "+esc(j.aberta.motivo)}`:`<span class="badge s-muted">submissão desligada</span> — ligue para a seção aparecer na página do evento.`}</div>
+      <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13.5px;font-weight:600"><input type="checkbox" id="tr-ativo" ${c.ativo?"checked":""} style="width:auto"> Aceitar submissão de trabalhos neste evento</label>
+      <div class="g2" style="margin-top:8px">
+        <div><label>Modalidades aceitas</label>${mods.map(m=>`<label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;margin:4px 0"><input type="checkbox" class="tr-mod" value="${esc(m.codigo)}" ${c.modalidades.includes(m.codigo)?"checked":""} style="width:auto"> ${esc(m.nome)} <span class="muted" style="font-size:11.5px">— ${esc(m.ajuda)}</span></label>`).join("")}</div>
+        <div><label>Áreas temáticas (uma por linha; vazio = sem área)</label><textarea id="tr-areas" rows="5">${esc(c.areas.join("\n"))}</textarea></div>
+      </div>
+      <div class="g3" style="margin-top:6px">
+        <div><label>Prazo final de submissão</label><input type="date" id="tr-prazo" value="${esc(c.prazoSubmissao)}"></div>
+        <div><label>Revisores por trabalho</label><input type="number" id="tr-nrev" min="1" max="5" value="${c.revisoresPorTrabalho}"></div>
+        <div><label>Dias para a correção</label><input type="number" id="tr-dcorr" min="1" max="60" value="${c.prazoCorrecaoDias}"></div>
+        <div><label>Limite do resumo (caracteres)</label><input type="number" id="tr-lim" min="300" max="20000" value="${c.limiteResumo}"></div>
+        <div><label>Máximo de autores</label><input type="number" id="tr-maxa" min="1" max="15" value="${c.maxAutores}"></div>
+        <div><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;margin-top:26px"><input type="checkbox" id="tr-exige" ${c.exigeParecer?"checked":""} style="width:auto"> decidir só com parecer entregue</label></div>
+      </div>
+      <label>Orientações aos autores (aparecem na página de submissão e para os revisores)</label>
+      <textarea id="tr-orient" rows="4" placeholder="Modelo, formatação, limite de páginas, o que o resumo deve conter, datas das apresentações…">${esc(c.orientacoes)}</textarea>
+      <div class="g2">
+        <div><label>Link das normas (opcional)</label><input id="tr-normas" value="${esc(c.normasUrl)}" placeholder="https://…"></div>
+        <div><label>Link do modelo de trabalho (opcional)</label><input id="tr-modelo" value="${esc(c.modeloUrl)}" placeholder="https://…"></div>
+      </div>
+      <div class="acoes-rod"><button class="bt bt-pri" onclick="trConfigSalvar('${esc(a.id)}')">💾 Salvar configuração</button></div>
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Revisores do evento</div>
+      <div class="muted" style="margin:6px 0 8px">A lista de quem pode receber trabalhos para parecer. O convite sai por e-mail na designação, com o link pessoal — o revisor não precisa de conta no portal.</div>
+      <div id="tr-rev"></div>
+      <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="TR_REV.push({});trRenderRev()">＋ Adicionar revisor</button>
+      <div class="acoes-rod"><button class="bt bt-pri" onclick="trRevSalvar('${esc(a.id)}')">💾 Salvar revisores</button></div>
+    </div>
+
+    <div class="card">
+      <div class="sec-t">Trabalhos — ${rs.total}</div>
+      <div class="muted" style="margin:6px 0 10px">
+        <span class="badge s-info">${rs.aguardandoCoordenacao} esperando a comissão</span>
+        <span class="badge s-warn">${rs.aguardandoRevisores} com os revisores</span>
+        <span class="badge s-err">${rs.aguardandoAutor} com o autor (correção)</span>
+        <span class="badge s-ok">${rs.aceitos} aceito(s)</span>
+        <a class="bt bt-ghost" style="padding:5px 10px;font-size:12px;margin-left:8px" href="/api/extensao/${encodeURIComponent(a.id)}/trabalhos.xlsx">📊 Planilha</a>
+      </div>
+      <div class="filtros" style="margin-bottom:8px"><select onchange="TR_FILTRO=this.value;trRenderLista()">
+        <option value="">Situação: todas</option>${TR.catalogos.estados.map(e=>`<option value="${esc(e.codigo)}" ${TR_FILTRO===e.codigo?"selected":""}>${esc(e.nome)} (${rs.porEstado[e.codigo]||0})</option>`).join("")}
+      </select></div>
+      <div id="tr-lista"></div>
+    </div>`;
+  trRenderRev(); trRenderLista();
+}
+function trRenderRev(){
+  const el=$("tr-rev"); if(!el) return;
+  el.innerHTML=TR_REV.length?TR_REV.map((x,i)=>`<div class="atv-card"><div class="g-atv2" style="grid-template-columns:1.3fr 1.3fr 1fr 1fr 40px">
+    <input placeholder="nome completo *" value="${esc(x.nome||"")}" oninput="TR_REV[${i}].nome=this.value">
+    <input placeholder="e-mail *" value="${esc(x.email||"")}" oninput="TR_REV[${i}].email=this.value">
+    <input placeholder="instituição" value="${esc(x.instituicao||"")}" oninput="TR_REV[${i}].instituicao=this.value">
+    <input placeholder="áreas (a; b)" value="${esc(x.areas||"")}" oninput="TR_REV[${i}].areas=this.value">
+    <button class="bt bt-ghost bt-xs" style="color:var(--err)" onclick="TR_REV.splice(${i},1);trRenderRev()">✕</button>
+  </div></div>`).join(""):`<div class="muted" style="font-size:12.5px;margin-bottom:8px">Nenhum revisor cadastrado ainda.</div>`;
+}
+async function trConfigSalvar(id){
+  const config={ ativo:$("tr-ativo").checked, modalidades:[...document.querySelectorAll(".tr-mod:checked")].map(x=>x.value),
+    areas:$("tr-areas").value.split("\n").map(s=>s.trim()).filter(Boolean), prazoSubmissao:$("tr-prazo").value,
+    revisoresPorTrabalho:$("tr-nrev").value, prazoCorrecaoDias:$("tr-dcorr").value, limiteResumo:$("tr-lim").value,
+    maxAutores:$("tr-maxa").value, exigeParecer:$("tr-exige").checked, orientacoes:$("tr-orient").value,
+    normasUrl:$("tr-normas").value, modeloUrl:$("tr-modelo").value };
+  try{
+    const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/trabalhos/config`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({config})});
+    const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||"Não foi possível salvar.");
+    await carregar(); nav("trabalhos");
+  }catch(e){ alert(e.message); }
+}
+async function trRevSalvar(id){
+  try{
+    const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/trabalhos/revisores`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({revisores:TR_REV})});
+    const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||"Não foi possível salvar.");
+    const lidos=(j.revisores||[]).length;
+    if(lidos<TR_REV.filter(x=>x.nome||x.email).length) alert(`Salvo com ${lidos} revisor(es). Linha sem nome ou com e-mail inválido não entra.`);
+    nav("trabalhos");
+  }catch(e){ alert(e.message); }
+}
+const trRotMod = (m) => (TR.catalogos.modalidades.find(x=>x.codigo===m)||{}).nome||m;
+const trRotRec = (r) => (TR.catalogos.recomendacoes.find(x=>x.codigo===r)||{}).nome||r;
+function trRenderLista(){
+  const el=$("tr-lista"); if(!el) return;
+  const lista=(TR.trabalhos||[]).filter(t=>!TR_FILTRO||t.estado===TR_FILTRO)
+    .sort((a,b)=>String(a.numero).localeCompare(String(b.numero)));
+  if(!lista.length){ el.innerHTML=`<div class="muted">Nenhum trabalho${TR_FILTRO?" nesta situação":" submetido ainda"}.</div>`; return; }
+  el.innerHTML=lista.map(trCard).join("");
+}
+function trCard(t){
+  const c=TR.config, crit=TR.catalogos.criterios;
+  const atual=t.versoes[t.versoes.length-1]||{};
+  const designados=new Set((t.revisores||[]).filter(r=>!r.removidoEm).map(r=>r.email));
+  const candidatos=(TR.revisores||[]).filter(r=>!designados.has(r.email)&&!(t.autores||[]).some(a=>a.email===r.email));
+  const espera=["submetido","avaliado","reenviado"].includes(t.estado);
+  const encerrado=["aceito","rejeitado","retirado"].includes(t.estado);
+  return `<details class="atv-card" ${espera?"open":""}>
+    <summary style="cursor:pointer;list-style:none;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <b style="font-family:Sora,sans-serif;color:var(--brand)">${esc(t.numero)}</b> ${trBadge(t.estado)}
+      <span style="flex:1;min-width:200px;font-weight:600">${esc(t.titulo)}</span>
+      <span class="muted" style="font-size:12px">${esc(trRotMod(t.modalidade))}${t.area?` · ${esc(t.area)}`:""} · pareceres ${t.pareceresEntregues}/${t.pareceresEsperados}${t.notaMedia!=null?` · média ${t.notaMedia}`:""}</span>
+    </summary>
+    <div style="margin-top:10px;font-size:13px;line-height:1.6">
+      <div><b>Autores:</b> ${(t.autores||[]).map(a=>`${esc(a.nome)}${a.instituicao?` (${esc(a.instituicao)})`:""}${a.email?` &lt;${esc(a.email)}&gt;`:""}`).join("; ")}</div>
+      <div><b>Palavras-chave:</b> ${esc((t.palavrasChave||[]).join(", "))} · <b>submetido em</b> ${fmtDH(t.criadoEm)}</div>
+      <div><b>Versões:</b> ${t.versoes.map(v=>`v${v.n} (${fmtDH(v.em)})${v.arquivo?` <a href="${esc(v.arquivo.link)}">${esc(v.arquivo.name)}</a>`:""}${v.nota?` — <i>${esc(v.nota)}</i>`:""}`).join(" · ")}</div>
+      <details style="margin-top:6px"><summary style="cursor:pointer;color:var(--brand)">Resumo (versão ${atual.n||1})</summary><div style="white-space:pre-wrap;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:6px">${esc(atual.resumo||"")}</div></details>
+      ${t.decisao?`<div style="border-left:4px solid var(--accent);background:var(--wash);border-radius:8px;padding:8px 12px;margin-top:8px"><b>Decisão (${fmtDH(t.decisao.em)}, ${esc(t.decisao.por||"")}):</b> ${trBadge(t.decisao.codigo)}<div style="white-space:pre-line">${esc(t.decisao.mensagem||"")}</div></div>`:""}
+
+      <div style="margin-top:10px"><b>Revisores</b>${(t.revisores||[]).filter(r=>!r.removidoEm).length?"":" — nenhum designado"}</div>
+      ${(t.revisores||[]).filter(r=>!r.removidoEm).map(r=>`<div style="border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-top:6px">
+        <div>${esc(r.nome||r.email)} <span class="muted">&lt;${esc(r.email)}&gt;</span> · designado em ${fmtDH(r.designadoEm)} · ${r.parecer?`<span class="badge s-ok">parecer entregue ${fmtDH(r.parecer.em)}</span>`:`<span class="badge s-warn">sem parecer</span>`}</div>
+        ${r.parecer?`<div style="margin-top:4px"><b>${esc(trRotRec(r.parecer.recomendacao))}</b> · ${crit.map(cr=>`${esc(cr.nome.split(" ")[0])} ${r.parecer.notas[cr.codigo]}`).join(" · ")}</div>
+          <div style="margin-top:4px"><b>Ao autor:</b><div style="white-space:pre-line">${esc(r.parecer.comentariosAutor)}</div></div>
+          ${r.parecer.comentariosComissao?`<div style="margin-top:4px;color:var(--err)"><b>À comissão (reservado):</b><div style="white-space:pre-line">${esc(r.parecer.comentariosComissao)}</div></div>`:""}`:""}
+      </div>`).join("")}
+
+      ${!encerrado?`<div style="margin-top:12px;display:grid;gap:10px;grid-template-columns:1fr 1fr" class="tr-acoes">
+        <div style="border:1px dashed var(--line);border-radius:10px;padding:10px 12px">
+          <b>Designar revisores</b> <span class="muted">(${c.revisoresPorTrabalho} por trabalho)</span>
+          ${candidatos.length?candidatos.map(r=>`<label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;margin:4px 0"><input type="checkbox" class="tr-des-${esc(t.id)}" value="${esc(r.email)}" style="width:auto"> ${esc(r.nome)}${r.areas&&r.areas.length?` <span class="muted" style="font-size:11.5px">(${esc(r.areas.join("; "))})</span>`:""}</label>`).join(""):`<div class="muted" style="font-size:12.5px">Cadastre revisores no card acima.</div>`}
+          <div class="g2" style="margin-top:6px"><div><label>Prazo sugerido</label><input type="date" id="tr-prazo-${esc(t.id)}"></div></div>
+          <label>Mensagem no convite (opcional)</label><input id="tr-msg-${esc(t.id)}" placeholder="ex.: o evento é dia 20; pedimos o parecer até o dia 10">
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="bt bt-sec" style="padding:7px 12px;font-size:12.5px" onclick="trDesignar('${esc(t.id)}')">✉ Designar e convidar</button>
+            ${(t.revisores||[]).some(r=>!r.removidoEm&&!r.parecer)?`<button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="trLembrar('${esc(t.id)}')">🔔 Lembrar quem não entregou</button>`:""}
+          </div>
+        </div>
+        <div style="border:1px dashed var(--line);border-radius:10px;padding:10px 12px">
+          <b>Decisão da comissão</b>
+          <label>Decisão</label><select id="tr-dec-${esc(t.id)}">${TR.catalogos.decisoes.map(d=>`<option value="${esc(d.codigo)}">${esc(d.nome)}</option>`).join("")}</select>
+          <label>Mensagem ao autor (obrigatória na devolução para correção)</label>
+          <textarea id="tr-decmsg-${esc(t.id)}" rows="3" placeholder="O autor recebe esta mensagem por e-mail, junto com os pareceres (sem os nomes dos revisores)."></textarea>
+          <div style="margin-top:8px"><button class="bt bt-pri" style="padding:7px 12px;font-size:12.5px" onclick="trDecidir('${esc(t.id)}')">Registrar a decisão</button></div>
+        </div>
+      </div>`:""}
+      <details style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:12px">Histórico</summary>
+        <div class="muted" style="font-size:12px">${(t.historico||[]).map(h=>`${fmtDH(h.em)} — ${esc(h.o)}${h.por?` (${esc(h.por)})`:""}`).join("<br>")}</div></details>
+    </div>
+  </details>`;
+}
+const fmtDH = (iso) => iso ? new Date(iso).toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "—";
+async function trPost(caminho, corpo){
+  const r=await fetch(`/api/extensao/${encodeURIComponent(ABERTO)}/trabalhos/${caminho}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(corpo||{})});
+  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||`Falha ${r.status}`); return j;
+}
+async function trDesignar(tid){
+  const emails=[...document.querySelectorAll(`.tr-des-${tid}:checked`)].map(x=>x.value);
+  if(!emails.length) return alert("Marque ao menos um revisor.");
+  try{
+    const j=await trPost(`${encodeURIComponent(tid)}/designar`,{emails, prazo:$(`tr-prazo-${tid}`).value, mensagem:$(`tr-msg-${tid}`).value});
+    alert(`✅ ${j.designados} revisor(es) designado(s). O convite com o link pessoal foi enviado por e-mail.`);
+    renderTrabalhos({id:ABERTO});
+  }catch(e){ alert(e.message); }
+}
+async function trLembrar(tid){
+  if(!confirm("Reenviar o convite a quem ainda não entregou o parecer?")) return;
+  try{ const j=await trPost(`${encodeURIComponent(tid)}/lembrar`,{}); alert(`Lembrete enviado a ${j.lembrados} revisor(es).`); }
+  catch(e){ alert(e.message); }
+}
+async function trDecidir(tid){
+  const codigo=$(`tr-dec-${tid}`).value, mensagem=$(`tr-decmsg-${tid}`).value;
+  const nome=(TR.catalogos.decisoes.find(d=>d.codigo===codigo)||{}).nome||codigo;
+  if(!confirm(`${nome}?\n\nO autor recebe a decisão por e-mail${codigo!=="rejeitado"?" com os pareceres (sem os nomes dos revisores)":""}.`)) return;
+  try{ await trPost(`${encodeURIComponent(tid)}/decidir`,{codigo, mensagem}); renderTrabalhos({id:ABERTO}); }
+  catch(e){ alert(e.message); }
+}
 
 function renderEquipe(a){
   const p = a.participantes || {};
