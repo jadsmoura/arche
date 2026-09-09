@@ -6,7 +6,7 @@ import {
   normalizarCobranca, cobrancaAtiva, valorDaInscricao, loteVigente, novoPagamento, transitar,
   podeTransitar, inscricaoValida, reservaVencida, estadoDoProvedor, meioDoProvedor,
   lerPagamentoDoProvedor, validarAssinaturaMP, resumoFinanceiro, linhasFinanceiro, centavos, fmtReais, ocupaVaga,
-  normalizarMP, normalizarPicPay, estadoPicPay, idCobrancaPicPay, tokenDoIdPicPay, validarTokenPicPay, ehNormalizado,
+  normalizarMP, normalizarLinkPicPay, estadoLinkPicPay, idDoLinkPicPay, transacaoDecisiva, dataPicPayISO, validarTokenPicPay, ehNormalizado,
 } from "../lib/pagamentos.js";
 import { isoComFuso, configurado, modo } from "../lib/pagamentos/mercadopago.js";
 import * as provedor from "../lib/pagamentos/provedor.js";
@@ -105,41 +105,39 @@ test("a leitura do provedor traduz status e meio, e confere o VALOR", () => {
   assert.equal(mais.divergente, false); assert.equal(mais.extra.pagoCentavos, 15000);
 });
 
-test("PicPay: a cobrança normaliza para a MESMA régua, e a leitura confere o valor igual", () => {
-  // o id da cobrança carrega o token da inscrição: é assim que o webhook volta a ela
-  const tok = "0123456789abcdef012345";
-  const id = idCobrancaPicPay(tok, "2026-09-10T18:04:22.123Z");
-  assert.match(id, /^[A-Za-z0-9-]{6,36}$/, "dentro do que a API aceita");
-  assert.equal(tokenDoIdPicPay(id), tok);
-  assert.equal(tokenDoIdPicPay("abc"), "");
-  assert.notEqual(idCobrancaPicPay(tok, "2026-09-11T18:04:22.123Z"), id, "reserva renovada = cobrança nova");
+test("PicPay (Link de Pagamento): a transação normaliza para a MESMA régua, e a leitura confere o valor igual", () => {
+  assert.equal(estadoLinkPicPay("PAYED"), "pago");
+  assert.equal(estadoLinkPicPay("PARTREFUNDED"), "pago", "estorno parcial não desfaz a inscrição");
+  assert.equal(estadoLinkPicPay("REFUNDED"), "estornado");
+  assert.equal(estadoLinkPicPay("CANCELLED"), "expirado");
+  assert.equal(estadoLinkPicPay("DENIED"), "recusado");
+  assert.equal(estadoLinkPicPay("PENDING"), "aguardando");
+  assert.equal(estadoLinkPicPay("AUTHORIZED"), "aguardando");
+  assert.equal(estadoLinkPicPay("xyz"), null);
+  // a resposta da criação não traz id: aceita o que vier, senão o trecho final do link
+  assert.equal(idDoLinkPicPay({ paymentLinkId: "3c567a2c-f800-351d-9b43-256d45949e89", link: "https://link.picpay.com/p/abc" }), "3c567a2c-f800-351d-9b43-256d45949e89");
+  assert.equal(idDoLinkPicPay({ link: "https://link.picpay.com/p/1688060808649dc38881cdc" }), "1688060808649dc38881cdc");
+  assert.equal(idDoLinkPicPay({}), "");
+  assert.equal(dataPicPayISO("2025-04-15 09:47:19"), "2025-04-15T12:47:19.000Z", "data sem fuso é Brasília");
 
-  assert.equal(estadoPicPay("PAID"), "pago");
-  assert.equal(estadoPicPay("PARTIAL"), "pago", "estorno parcial não desfaz a inscrição");
-  assert.equal(estadoPicPay("REFUNDED"), "estornado");
-  assert.equal(estadoPicPay("CANCELED"), "expirado");
-  assert.equal(estadoPicPay("DENIED"), "recusado");
-  assert.equal(estadoPicPay("PRE_AUTHORIZED", "PENDING"), "aguardando");
-  assert.equal(estadoPicPay("PRE_AUTHORIZED", "EXPIRED"), "expirado");
-  assert.equal(estadoPicPay("PAID", "CHARGEBACK"), "contestado");
-  assert.equal(estadoPicPay("xyz"), null);
-
-  const cobranca = { merchantChargeId: id, id: "ed50d469-uuid", chargeStatus: "PAID", amount: 5000, originalAmount: 5000, refundedAmount: 0,
-    transactions: [{ paymentType: "PIX", amount: 5000, originalAmount: 5000, transactionStatus: "PAID", updatedAt: "2026-09-10T15:10:00-03:00",
-      pix: { qrCode: "00020101021226940014COM.PICPAY", endToEndId: "E0041691" } }] };
-  const n = normalizarPicPay(cobranca);
+  const cob = { paymentLinkId: "66a2dc04-6fcc-3a66-b570-ea367d7df281", checkoutLink: "https://link.picpay.com/p/xyz", qrCode: "00020126580014br.gov.bcb.pix" };
+  const n = normalizarLinkPicPay({ id: "afd2901c-db02-3fda-bba4-30023baeb2a2", status: "PAYED", amount: 5000, paymentType: "PIX", updatedAt: "2026-09-10 15:10:00" }, cob);
   assert.equal(ehNormalizado(n), true);
-  assert.equal(n.provedor, "picpay"); assert.equal(n.token, tok); assert.equal(n.id, id);
+  assert.equal(n.provedor, "picpay"); assert.equal(n.id, "afd2901c-db02-3fda-bba4-30023baeb2a2");
+  assert.equal(n.cobrancaId, cob.paymentLinkId); assert.equal(n.link, cob.checkoutLink); assert.equal(n.qrCode, cob.qrCode);
   assert.equal(n.estado, "pago"); assert.equal(n.meio, "pix"); assert.equal(n.pagoCentavos, 5000);
-  assert.equal(n.qrCode, "00020101021226940014COM.PICPAY");
   assert.ok(n.pagoEm.startsWith("2026-09-10T18:10"), "hora do pagamento em UTC");
   const leitura = lerPagamentoDoProvedor(n, { valor: 5000 });
   assert.equal(leitura.estado, "pago"); assert.equal(leitura.divergente, false);
-  assert.equal(leitura.extra.pagamentoId, id); assert.equal(leitura.extra.provedor, "picpay");
+  assert.equal(leitura.extra.pagamentoId, n.id); assert.equal(leitura.extra.provedor, "picpay");
   assert.equal(lerPagamentoDoProvedor(n, { valor: 6000 }).divergente, true, "pagou menos: não confirma");
-  // depois do estorno o amount vem zerado e o pago fica em originalAmount
-  const est = normalizarPicPay({ ...cobranca, chargeStatus: "REFUNDED", amount: 0, refundedAmount: 5000 });
-  assert.equal(est.estado, "estornado"); assert.equal(est.pagoCentavos, 5000); assert.equal(est.refundedCentavos, 5000);
+  // entre as transações do link, a paga decide; o estorno é outra transação
+  const est = normalizarLinkPicPay({ transactionId: "b1", status: "REFUNDED", amount: 5000 }, cob);
+  assert.equal(est.estado, "estornado"); assert.equal(est.meio, "");
+  assert.equal(transacaoDecisiva([est, n]).id, n.id, "paga vence");
+  assert.equal(transacaoDecisiva([est]).estado, "estornado");
+  assert.equal(transacaoDecisiva([]), null);
+  assert.equal(normalizarLinkPicPay({ status: "DENIED", amount: 100, paymentType: "CREDIT_CARD" }, {}).meio, "cartão de crédito");
   // a forma crua do Mercado Pago continua entrando pela mesma porta
   const mp = normalizarMP({ id: 9, status: "approved", transaction_amount: 50, external_reference: "acao:tok" });
   assert.equal(mp.referencia, "acao:tok"); assert.equal(mp.estado, "pago"); assert.equal(mp.pagoCentavos, 5000);
@@ -161,7 +159,7 @@ test("o registro escolhe o provedor pelo ambiente e recorta os meios pelo que el
     assert.equal(provedor.nome(), "mercadopago", "sem nada configurado, o padrão de sempre");
     process.env.PICPAY_CLIENT_ID = "id"; process.env.PICPAY_CLIENT_SECRET = "s";
     assert.equal(provedor.nome(), "picpay", "PicPay configurado vence sem a variável");
-    assert.deepEqual(provedor.meiosEfetivos({ pix: true, cartao: true, boleto: true }), { pix: true, cartao: false, boleto: false });
+    assert.deepEqual(provedor.meiosEfetivos({ pix: true, cartao: true, boleto: true }), { pix: true, cartao: true, boleto: false }, "PicPay: sem boleto");
     process.env.PAGAMENTO_PROVEDOR = "mercadopago";
     assert.equal(provedor.nome(), "mercadopago", "a variável manda");
     assert.deepEqual(provedor.meiosEfetivos({ pix: true, cartao: true }), { pix: true, cartao: true, boleto: false });

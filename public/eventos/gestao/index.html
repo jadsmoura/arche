@@ -2086,7 +2086,7 @@ async function renderCobranca(a){
     ${prov&&!prov.configurado?`<div class="banner ba-warn"><b>O pagamento online não está configurado no servidor.</b>
       A cobrança só pode ser ligada depois que a PROPPEX cadastrar a credencial do ${esc(ROT)}
       no ambiente do sistema. Você já pode deixar a tabela pronta e salvar com a cobrança desligada.</div>`
-      :prov?`<div class="banner ${prov.modo==="teste"?"ba-warn":"ba-ok"}">${esc(ROT)} <b>${prov.modo==="teste"?"em modo de TESTE — nenhum pagamento real entra":"em produção"}</b>${prov.webhook?"":" · <b>aviso automático (webhook) sem chave</b>: a confirmação depende da conciliação horária e do botão \"Já paguei\""}${prov.nome==="picpay"?" · cobra por <b>Pix com QR Code</b>, direto na página de pagamento do ARCHÉ":""}.</div>`:""}
+      :prov?`<div class="banner ${prov.modo==="teste"?"ba-warn":"ba-ok"}">${esc(ROT)} <b>${prov.modo==="teste"?"em modo de TESTE — nenhum pagamento real entra":"em produção"}</b>${prov.webhook?"":" · <b>aviso automático (webhook) sem chave</b>: a confirmação depende da conciliação horária e do botão \"Já paguei\""}${prov.nome==="picpay"?" · cobra por <b>Pix com QR Code</b> direto na página de pagamento do ARCHÉ (e cartão pela página do PicPay, se marcado)":""}.</div>`:""}
     ${pagos?`<div class="banner ba-info">Este evento já tem <b>${pagos}</b> inscrição(ões) com cobrança registrada. Mudar valores vale só para as
       próximas inscrições; as existentes ficam com o valor da época.</div>`:""}
     <div class="card">
@@ -2150,7 +2150,7 @@ async function renderCobranca(a){
     </div>
     <div class="tut">
       <b>Como funciona:</b> a pessoa se inscreve na página do evento, escolhe a categoria e ${prov?.nome==="picpay"
-        ?"recebe na hora o QR Code Pix, na própria página de pagamento do ARCHÉ (vale em qualquer banco)"
+        ?"recebe na hora o QR Code Pix, na própria página de pagamento do ARCHÉ (vale em qualquer banco) — e, se o evento aceitar cartão, o link da página do PicPay"
         :`é levada à página segura do ${esc(ROT)}`}. Pago, o ARCHÉ é avisado, confirma na API e envia a credencial com o QR — sem ninguém
       conferir extrato. O dinheiro cai na conta do ${esc(ROT)} da instituição; a planilha da guia
       <button class="lk" onclick="nav('financeiro')">Financeiro</button> é a prestação de contas.

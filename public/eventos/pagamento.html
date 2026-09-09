@@ -133,6 +133,7 @@ function render() {
                <div class="cc" id="pix-cc">${esc(p.qrCode)}</div>
                <button class="bt bt-pri" style="width:100%;margin-top:10px" onclick="copiarPix()" id="bt-copiar">📋 Copiar código Pix</button>
              </div>
+             ${p.link ? `<a class="bt bt-sec" style="width:100%;margin-top:10px;box-sizing:border-box;text-align:center" href="${esc(p.link)}">Prefere ${meios.includes("Cartão") ? "cartão ou " : ""}saldo PicPay? Pagar pela página do ${esc(PROV)} →</a>` : ""}
              <p style="font-size:12px;color:var(--muted);margin-top:8px">Cobrança emitida pelo ${esc(PROV)}${DADOS.recebedor ? `, em nome de ${esc(DADOS.recebedor)}` : ""}. O QR vale em qualquer banco.</p>
              <button class="bt bt-sec" style="width:100%;margin-top:10px" id="bt-conferir" onclick="conferir(true)">Já paguei — conferir agora</button>
              <div class="conferindo" id="conferindo"></div>`

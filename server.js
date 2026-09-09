@@ -4524,12 +4524,30 @@ function cobrancasAnteriores(pg) {
     .map((x) => String(x || "")).filter(Boolean))].slice(-6);
 }
 
+/* A inscrição DONA de uma cobrança do PicPay: a API deles não devolve
+   referência nossa, então a inscrição se acha pelo id do link (o que
+   gravamos ao criar, ou o que o webhook trouxe), pelo endereço do link ou
+   pelo próprio BR Code — os três são únicos por cobrança. */
+function inscricaoDaCobranca(acoes, { cobrancaId, link, qrCode } = {}) {
+  const id = String(cobrancaId || ""), l = String(link || ""), q = String(qrCode || "");
+  if (!id && !l && !q) return null;
+  for (const a of acoes) {
+    for (const i of a?.participantes?.inscritos || []) {
+      const pg = i?.pagamento; if (!pg) continue;
+      const ids = [pg.preferenciaId, ...(pg.cobrancasAnteriores || [])].map((x) => String(x || "")).filter(Boolean);
+      if ((id && ids.includes(id)) || (l && pg.link && pg.link === l) || (q && pg.qrCode && pg.qrCode === q)) return { acao: a, inscrito: i };
+    }
+  }
+  return null;
+}
+
 /* Aplica à inscrição o que a API do provedor diz de UM pagamento — já na
    forma NORMALIZADA (lib/pagamentos.js): o Mercado Pago devolve a referência
-   `<ação>:<token>`; o PicPay traz o token embutido no id da cobrança. É a
-   única porta por onde um pagamento muda o estado da inscrição — webhook,
-   botão "conferir" e varredura passam todos por aqui. Devolve o que mudou,
-   para o chamador avisar quem precisa (fora da fila). */
+   `<ação>:<token>`; o PicPay devolve o id do link (`cobrancaId`), o endereço
+   ou o BR Code, e a inscrição se acha por eles. É a única porta por onde um
+   pagamento muda o estado da inscrição — webhook, botão "conferir" e
+   varredura passam todos por aqui. Devolve o que mudou, para o chamador
+   avisar quem precisa (fora da fila). */
 async function aplicarPagamentoDoProvedor(p, { por } = {}) {
   if (!p || typeof p !== "object") return { ignorado: "sem pagamento" };
   por = por || p.provedor || "provedor";
@@ -4537,18 +4555,26 @@ async function aplicarPagamentoDoProvedor(p, { por } = {}) {
   const sep = ref.lastIndexOf(":");
   const idAcao = sep >= 0 ? ref.slice(0, sep) : "";
   const tok = (sep >= 0 ? ref.slice(sep + 1) : String(p.token || "")).toLowerCase();
-  if (!tok) return { ignorado: "sem referência" };
+  if (!tok && !p.cobrancaId && !p.link && !p.qrCode) return { ignorado: "sem referência" };
   const r = await comAcoes((acoes) => {
     // pela referência quando ela vem; pelo token quando só ele vem — e aí a
-    // inscrição precisa ser a que tem ESTA cobrança (ou uma anterior dela)
-    const a = idAcao ? acoes.find((x) => x.id === idAcao)
-      : acoes.find((x) => (x?.participantes?.inscritos || []).some((i) => String(i?.token || "").toLowerCase() === tok && i?.pagamento));
-    if (!a) return { ignorado: "ação não encontrada", gravar: false };
-    const i = (a.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === tok);
-    if (!i?.pagamento) return { ignorado: "inscrição sem cobrança", gravar: false };
-    if (!idAcao && p.id && ![i.pagamento.preferenciaId, i.pagamento.pagamentoId, ...(i.pagamento.cobrancasAnteriores || [])]
-      .map(String).includes(String(p.id)))
-      return { ignorado: "cobrança não pertence a esta inscrição", gravar: false };
+    // inscrição precisa ser a que tem ESTA cobrança (ou uma anterior dela);
+    // sem os dois (PicPay), pela cobrança em si
+    let a, i;
+    if (idAcao || tok) {
+      a = idAcao ? acoes.find((x) => x.id === idAcao)
+        : acoes.find((x) => (x?.participantes?.inscritos || []).some((i2) => String(i2?.token || "").toLowerCase() === tok && i2?.pagamento));
+      if (!a) return { ignorado: "ação não encontrada", gravar: false };
+      i = (a.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === tok);
+      if (!i?.pagamento) return { ignorado: "inscrição sem cobrança", gravar: false };
+      if (!idAcao && p.id && ![i.pagamento.preferenciaId, i.pagamento.pagamentoId, ...(i.pagamento.cobrancasAnteriores || [])]
+        .map(String).includes(String(p.id)))
+        return { ignorado: "cobrança não pertence a esta inscrição", gravar: false };
+    } else {
+      const achado = inscricaoDaCobranca(acoes, p);
+      if (!achado) return { ignorado: "cobrança não pertence a nenhuma inscrição", gravar: false };
+      ({ acao: a, inscrito: i } = achado);
+    }
     const leitura = lerPagamentoDoProvedor(p, i.pagamento);
     if (!leitura.estado) return { ignorado: `status desconhecido: ${p?.statusProvedor}`, gravar: false };
     const antes = i.pagamento.status;
@@ -4666,34 +4692,54 @@ app.post("/api/publico/pagamentos/mp", async (req, res) => {
 });
 
 /**
- * WEBHOOK do PicPay (set/2026). As mesmas três regras: (1) o token que o
- * painel gerou ao ativar a URL de notificação vem no cabeçalho
- * `Authorization` e é conferido ANTES de tudo — sem PICPAY_WEBHOOK_TOKEN
- * nada se aceita; (2) responde 200 e trabalha depois; (3) o corpo só diz
- * QUAL cobrança olhar (`data.merchantChargeId`) — quem decide é a consulta à
- * API. O id da cobrança carrega o token da inscrição, e é assim que o aviso
- * volta a ela.
+ * WEBHOOK do PicPay (set/2026, API de Link de Pagamento). As mesmas três
+ * regras: (1) a API Key que o painel gerou ao ativar a URL de notificação
+ * vem no cabeçalho `Authorization` e é conferida ANTES de tudo — sem
+ * PICPAY_WEBHOOK_TOKEN nada se aceita; (2) responde 200 e trabalha depois;
+ * (3) o corpo só diz QUAL link olhar (`data.charge.paymentLinkId`, mais o
+ * endereço e o BR Code, por onde a inscrição se acha) — quem decide é a
+ * consulta às transações do link. A resposta da criação não traz o id do
+ * link, então é AQUI que ele costuma chegar pela primeira vez: grava-se na
+ * inscrição antes de consultar, para a consulta e o estorno o encontrarem.
  */
 app.post("/api/publico/pagamentos/picpay", async (req, res) => {
   try {
     const b = req.body || {};
     const tipo = String(req.get("event-type") || b.type || "");
-    const idCobranca = String(b.data?.merchantChargeId || b.merchantChargeId || "").trim();
-    if (/3ds|THREE_DS/i.test(tipo) || !idCobranca) return res.status(200).json({ ok: true, ignorado: true });
+    const ch = b.data?.charge || {};
+    const idLink = String(ch.paymentLinkId || b.data?.paymentLinkId || "").trim();
+    const pista = { cobrancaId: idLink, link: String(ch.checkoutLink || "").trim(), qrCode: String(ch.qrCode || "").trim() };
+    if (/3ds|THREE_DS/i.test(tipo) || (!pista.cobrancaId && !pista.link && !pista.qrCode)) return res.status(200).json({ ok: true, ignorado: true });
     if (!picPay.segredoWebhook()) {
       console.error("[pagamentos] webhook do PicPay recebido sem PICPAY_WEBHOOK_TOKEN configurado — ignorado; a conciliação horária cobre.");
       return res.status(200).json({ ok: true, ignorado: true });
     }
     if (!picPay.validarWebhook(req.get("authorization"))) return res.status(401).json({ error: "token inválido" });
-    if (!/^[A-Za-z0-9-]{6,36}$/.test(idCobranca)) return res.status(200).json({ ok: true, ignorado: true });
+    if (idLink && !/^[A-Za-z0-9_-]{6,80}$/.test(idLink)) return res.status(200).json({ ok: true, ignorado: true });
     res.status(200).json({ ok: true });
     const base = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "") || baseDe(req);
     (async () => {
-      const p = await picPay.consultarPagamento(idCobranca);
-      const r = await aplicarPagamentoDoProvedor(p, { por: "picpay" });
-      if (r?.ignorado) console.log(`[pagamentos] webhook PicPay ${idCobranca} ignorado: ${r.ignorado}`);
+      // acha a inscrição e adota o id do link, se ela ainda não o tinha
+      const dona = await comAcoes((acoes) => {
+        const achado = inscricaoDaCobranca(acoes, pista);
+        if (!achado) return { gravar: false };
+        const pg = achado.inscrito.pagamento;
+        if (idLink && pg.preferenciaId !== idLink) {
+          pg.cobrancasAnteriores = [...new Set([...(pg.cobrancasAnteriores || []), pg.preferenciaId].filter(Boolean))].slice(-6);
+          pg.preferenciaId = idLink;
+          achado.acao.atualizadoEm = new Date().toISOString();
+          return { id: idLink };
+        }
+        return { id: pg.preferenciaId, gravar: false };
+      }, { flushJa: false });
+      const idConsulta = dona?.id || idLink;
+      if (!idConsulta) { console.log("[pagamentos] webhook PicPay ignorado: link não pertence a nenhuma inscrição"); return; }
+      const p = await picPay.consultarPagamento(idConsulta);
+      if (!p) { console.log(`[pagamentos] webhook PicPay ${idConsulta}: o link ainda não tem transação`); return; }
+      const r = await aplicarPagamentoDoProvedor({ ...p, ...pista, cobrancaId: idConsulta }, { por: "picpay" });
+      if (r?.ignorado) console.log(`[pagamentos] webhook PicPay ${idConsulta} ignorado: ${r.ignorado}`);
       await avisarDesfechoDoPagamento(r, base);
-    })().catch((e) => console.error(`[pagamentos] webhook PicPay ${idCobranca}:`, e.message));
+    })().catch((e) => console.error(`[pagamentos] webhook PicPay ${idLink || pista.link}:`, e.message));
   } catch (e) {
     console.error("[pagamentos] webhook PicPay:", e);
     if (!res.headersSent) res.status(500).json({ error: "falha ao processar o aviso" });
