@@ -3829,6 +3829,12 @@ public/
   bytes não derruba pedido). O disco do Render é efêmero: a contagem recomeça a cada deploy,
   o que basta para um diagnóstico de dias e é o preço de não poluir a conta. As recomendações
   só aparecem quando o número as justifica, com o quanto cada uma pouparia.
+- **O DIAGNÓSTICO MORA EM SERVIÇOS → RELATÓRIOS** (guia "Diagnóstico do sistema" no ARCHÉ RE, sob
+  GESTÃO, só gestor geral — pedido do dono set/2026: "gostei desse diagnóstico, coloque em Serviços,
+  dentro de Relatórios, mas só para gestão"): a página `/diagnostico/` (banda, Repositório, Google
+  Wallet) é a mesma, embutida num iframe com `?embutido=1`, que esconde o chassi dela (barra lateral,
+  topbar e a barra institucional, que nesse modo nem carrega) — quem desenha o chassi é o Relatórios.
+  O endereço direto continua valendo, e a rota `/api/banda` segue recusando quem não é gestor geral.
 - **Protótipos** (`/prototipos/`, atrás de login): telas navegáveis com dados fictícios, para
   decidir o desenho ANTES de escrever o módulo. Nada ali grava nada, e cada tela termina com
   as perguntas que levanta. O de **Monitoria cumpriu o papel** — o módulo existe desde

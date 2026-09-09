@@ -300,6 +300,7 @@ async function iniciar() {
     // a gestão de acessos é do gestor geral: quem vê qual guia, e de que cursos —
     // e mora no Seu Curso desde set/2026 (o administrativo se concentra lá)
     + (META.gestorGeral ? `<div class="side-lab" style="margin-top:10px">GESTÃO</div>
+      <button class="side-item" id="mn-diagnostico" onclick="escolher('diagnostico')"><span>Diagnóstico do sistema</span></button>
       <a class="side-item" href="/curso/#relatorios" title="Abre no Seu Curso"><span>Acessos às guias ↗</span></a>` : "");
   render();
   buscar();
@@ -309,6 +310,7 @@ function escolher(chave) { SETOR = chave; PANORAMA = null; render(); buscar(); }
 function trocarPeriodo(v) { PERIODO = v; PANORAMA = null; render(); buscar(); }
 
 async function buscar() {
+  if (SETOR === "diagnostico") return;
   if (!SETOR || !PERIODO) return;
   CARREGANDO = true; render();
   try {
@@ -324,10 +326,20 @@ async function buscar() {
 
 function render() {
   if (!META) return;
-  META.setores.map((s) => s.chave).forEach((chave) => {
+  [...META.setores.map((s) => s.chave), "diagnostico"].forEach((chave) => {
     const el = $("mn-" + chave);
     if (el) el.className = "side-item" + (chave === SETOR ? " on" : "");
   });
+  /* DIAGNÓSTICO DO SISTEMA (pedido do dono, set/2026: "gostei desse diagnóstico,
+     coloque em Serviços, dentro de Relatórios, só para gestão"): a página
+     /diagnostico/ — banda, repositório, Google Wallet — embutida aqui, só para o
+     gestor geral (a rota dela já recusa quem não é). O endereço direto continua. */
+  if (SETOR === "diagnostico") {
+    $("tela").innerHTML = `<div class="card" style="padding:0;overflow:hidden">
+      <iframe src="/diagnostico/?embutido=1" title="Diagnóstico do sistema" style="width:100%;height:calc(100vh - 140px);min-height:600px;border:0;display:block"></iframe>
+    </div>`;
+    return;
+  }
   const p = PANORAMA;
   const meu = META.setores.find((s) => s.chave === SETOR);
   $("tela").innerHTML = `

@@ -242,9 +242,16 @@
   .rec.baixo{border-left-color:var(--ok)}
   .rec b{display:block;font-size:13.5px;color:var(--ink);margin-bottom:3px}
   .rec p{font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin:0}
+  /* EMBUTIDO (set/2026): a mesma página dentro da guia Diagnóstico do ARCHÉ RE
+     — "coloque ele em Serviços, dentro de Relatórios". Some o chassi (barra
+     lateral, topbar, barra institucional): quem o desenha é o Relatórios. */
+  body.embutido .side, body.embutido .topbar, body.embutido #arche-nav, body.embutido .arche-nav{display:none!important}
+  body.embutido .area{padding:0}
+  body.embutido h1{font-size:20px}
 </style>
 </head>
 <body>
+<script>if(/[?&]embutido=1/.test(location.search))document.body.className="embutido";</script>
 <div class="app">
   <nav class="side">
     <a class="side-marca" href="/" title="Voltar ao portal">
@@ -275,7 +282,7 @@
     </div></div>
   </div>
 </div>
-<script src="/assets/arche-nav.js"></script>
+<script>if(!/[?&]embutido=1/.test(location.search)){const t=document.createElement("script");t.src="/assets/arche-nav.js";document.currentScript.after(t);}</script>
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
