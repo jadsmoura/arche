@@ -2211,7 +2211,7 @@ async function testarCredencial(id){
     const host=t.host?` (<span style="font-family:ui-monospace,monospace">${esc(t.host)}</span>)`:"";
     const mono=(s)=>`<span style="font-family:ui-monospace,monospace">${esc(s||"sem detalhe")}</span>`;
     if(t.ok){
-      out.innerHTML=`<div class="banner ba-ok" style="margin:0">✓ Credencial aceita e API respondendo${amb}${host}. Se a cobrança ainda falhar, o motivo é outro — o "Último erro" acima diz qual.</div>`;
+      out.innerHTML=`<div class="banner ba-ok" style="margin:0">✓ Credencial aceita e API respondendo${amb}${host}.${t.trocouDe?` O host <span style="font-family:ui-monospace,monospace">${esc(t.trocouDe)}</span> bloqueou e o sistema passou ao seguinte sozinho.`:""} Se a cobrança ainda falhar, o motivo é outro — o "Último erro" acima diz qual.</div>`;
     }else if(t.credencial){
       // a credencial vale, mas a API não responde: o caso do firewall (set/2026)
       out.innerHTML=`<div class="banner ba-warn" style="margin:0">✓ Credencial aceita${amb}${host}, mas <b>a API está ${t.bloqueio?"BLOQUEADA":"sem responder"}</b>: ${mono(t.erro)}.

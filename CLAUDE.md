@@ -1121,8 +1121,15 @@ public/
   "acesso bloqueado pelo firewall do PicPay" com o **Ray ID** (o que o suporte pede), e o teste
   da credencial ganhou a segunda etapa: depois do token, consulta um link inexistente — 404 em
   JSON é API respondendo; HTML é bloqueio —, para "credencial aceita" não voltar a parecer
-  "cobrança funcionando". A saída é pedir ao suporte do PicPay a liberação dos IPs de saída do
-  Render (ou um relé em IP brasileiro).
+  "cobrança funcionando". **E a API tem um SEGUNDO HOST**: o gateway `api.picpay.com` serve as
+  mesmas rotas (`/oauth2/token` e `/v1/paymentlink/*`) e respondeu em JSON de onde o primeiro
+  bloqueava. `AMBIENTES.producao` é uma LISTA de candidatos na ordem da documentação; bloqueado
+  o host em uso (`e.bloqueio`), `trocarDeHost` passa ao seguinte, zera o token (o token se pede
+  ao mesmo host da API) e `chamar` repete a chamada UMA vez — daí em diante fica no host que
+  respondeu. `PICPAY_API_BASE` aceita bases separadas por vírgula para o teste local reproduzir
+  a troca (`picpay-falso.mjs` com `FALSO_BLOQUEAR=1` devolve a página do Cloudflare em `/v1`).
+  Se os dois bloquearem, a saída continua sendo o suporte do PicPay (liberação dos IPs de saída
+  do Render) ou um relé em IP brasileiro.
 - **ACRÉSCIMO NO CARTÃO — dois links por inscrição** (`normalizarAcrescimo`/`valorNoCartao`/
   `acrescimoTexto`/`pagamentoPeloLinkDoCartao` em lib/pagamentos.js + `criarCobranca` do PicPay +
   campo "Acréscimo no cartão" na guia Cobrança, decisão do dono set/2026: "esse sistema também
