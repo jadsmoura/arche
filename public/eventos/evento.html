@@ -306,7 +306,7 @@ function render() {
   const hero = `
     <div class="hero-ev" ${capa ? `style="background-image:url('${capa}')"` : ""}>
       <div class="hero-in">
-        <div class="eyebrow">Evento de extensão · inscrição gratuita</div>
+        <div class="eyebrow">Evento de extensão · ${esc(rotuloPreco(e))}</div>
         <h1>${esc(e.nome)}</h1>
         <div class="hero-meta">
           <b>${esc(periodoCompacto(e.periodoInicio, e.periodoFim)) || "datas a divulgar"}</b><br>
@@ -314,7 +314,7 @@ function render() {
         </div>
         <div class="hero-selos">${selos}</div>
         ${abertas ? `<div class="hero-cta"><a class="bt bt-pri" href="#inscricao"
-          style="background:#fff;color:var(--brand);box-shadow:none">Inscreva-se gratuitamente ↓</a></div>` : ""}
+          style="background:#fff;color:var(--brand);box-shadow:none">${e.cobranca ? "Inscreva-se ↓" : "Inscreva-se gratuitamente ↓"}</a></div>` : ""}
       </div>
     </div>
     ${encerrado ? `<div class="msg-ok" style="background:var(--wash);color:var(--ink-soft)">
@@ -378,7 +378,7 @@ function render() {
   if (e.hotsite === false) {
     $("main").innerHTML = `
       <div class="card" style="margin-top:20px;padding:22px 24px">
-        <div class="eyebrow">Inscrição · evento de extensão · gratuita</div>
+        <div class="eyebrow">Inscrição · evento de extensão · ${esc(rotuloPreco(e))}</div>
         <h1 style="font-family:'Archivo',sans-serif;font-size:26px;font-weight:800;
           letter-spacing:-.02em;margin:6px 0 0">${esc(e.nome)}</h1>
         <div style="font-size:14px;color:var(--ink-soft);margin-top:8px;line-height:1.6">
@@ -761,7 +761,7 @@ function formInscricao(e) {
     <label class="chk"><input type="checkbox" id="i-comunic">
       <span>Aceito receber comunicações da PROPPEX/UNIEGO sobre eventos futuros.</span></label>
     <div id="f-msg"></div>
-    <button class="bt bt-pri" style="width:100%;margin-top:16px" id="f-bt">Inscrever-me gratuitamente</button>
+    <button class="bt bt-pri" style="width:100%;margin-top:16px" id="f-bt">${e.cobranca ? "Inscrever-me e ir para o pagamento" : "Inscrever-me gratuitamente"}</button>
   </form>`;
 }
 
@@ -808,6 +808,20 @@ function avisoConflito() {
   el.innerHTML = pares.length ? `<div class="msg-aviso">⚠ <b>Atenção aos horários:</b> ${pares.map(([a, b]) =>
     `“${esc(a.titulo)}” e “${esc(b.titulo)}” acontecem no mesmo horário (${esc(fmt(a.dia))}, ${esc(faixaHora(a))} / ${esc(faixaHora(b))})`).join("; ")}.
     Você pode manter as duas marcadas — a escolha é sua.</div>` : "";
+}
+
+/* O rótulo do preço nos cabeçalhos: o evento gratuito continua dizendo
+   "inscrição gratuita"; o pago diz a faixa de valores das categorias (a de
+   hoje, com o lote aplicado) — "inscrição gratuita" num evento pago era o
+   que o dono viu no primeiro teste (set/2026). */
+function rotuloPreco(e) {
+  const cats = e.cobranca?.categorias || [];
+  if (!cats.length) return "inscrição gratuita";
+  const vals = cats.map((k) => k.valor);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  if (max === 0) return "inscrição gratuita";
+  if (min === max) return `inscrição: ${reais(min)}`;
+  return min === 0 ? `inscrição: até ${reais(max)} (gratuita para algumas categorias)` : `inscrição: ${reais(min)} a ${reais(max)}`;
 }
 
 /* EVENTO PAGO (set/2026): a categoria da inscrição, com o preço de HOJE (o
