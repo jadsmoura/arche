@@ -308,3 +308,60 @@ test("PicPay: erro de Pix da conta (B005/B001, type pix) é reconhecido", () => 
   assert.equal(ehErroDePix(e3), false);
   assert.equal(ehErroDePix(new Error("PicPay: autenticação recusada")), false);
 });
+
+/* O teste de credencial do Mercado Pago (set/2026, na troca do PicPay pelo MP
+   em produção): três etapas contra um servidor falso — token, meios ativos e
+   a criação de uma preferência de centavo. Cada falha diz de que etapa é. */
+import http from "node:http";
+import { testar as testarMP, ultimoErro as ultimoErroMP } from "../lib/pagamentos/mercadopago.js";
+test("o teste do Mercado Pago separa token inválido, meio desligado e conta que não cria cobrança", async () => {
+  const MODO = { pix: true, prefFalha: false };
+  const srv = http.createServer((req, res) => {
+    const auth = req.headers.authorization || "";
+    const json = (code, b) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(b)); };
+    if (auth !== "Bearer APP_USR-ok") return json(401, { message: "invalid_token", error: "unauthorized", status: 401 });
+    if (req.url === "/users/me") return json(200, { id: 123, nickname: "UNIEGO", site_id: "MLB", email: "x@y" });
+    if (req.url === "/v1/payment_methods") return json(200, [
+      ...(MODO.pix ? [{ id: "pix", payment_type_id: "bank_transfer", status: "active" }] : []),
+      { id: "visa", payment_type_id: "credit_card", status: "active" }, { id: "bolbradesco", payment_type_id: "ticket", status: "inactive" },
+    ]);
+    if (req.url === "/checkout/preferences" && req.method === "POST") {
+      let s = ""; req.on("data", (c) => (s += c)); req.on("end", () => {
+        const b = JSON.parse(s);
+        if (MODO.prefFalha) return json(400, { message: "invalid preference", cause: [{ description: "collector not allowed" }] });
+        if (b.items?.[0]?.unit_price !== 0.01) return json(400, { message: "valor" });
+        json(201, { id: "p1", init_point: "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=p1" });
+      }); return;
+    }
+    json(404, { message: "not found" });
+  });
+  await new Promise((ok) => srv.listen(0, ok));
+  const antes = { T: process.env.MP_ACCESS_TOKEN, B: process.env.MP_API_BASE };
+  process.env.MP_API_BASE = `http://127.0.0.1:${srv.address().port}`;
+  try {
+    delete process.env.MP_ACCESS_TOKEN;
+    let r = await testarMP();
+    assert.equal(r.configurado, false); assert.match(r.erro, /MP_ACCESS_TOKEN/);
+    process.env.MP_ACCESS_TOKEN = "APP_USR-errado";
+    r = await testarMP();
+    assert.equal(r.credencial, false); assert.match(r.erro, /invalid_token/); assert.equal(r.ambiente, "teste local");
+    assert.match(ultimoErroMP()?.mensagem || "", /invalid_token/, "o último erro fica no retrato");
+    process.env.MP_ACCESS_TOKEN = "APP_USR-ok";
+    r = await testarMP();
+    assert.equal(r.credencial, true); assert.equal(r.api, true); assert.equal(r.ok, true);
+    assert.equal(r.conta.apelido, "UNIEGO"); assert.equal(r.conta.tipoToken, "producao"); assert.equal(r.aviso, undefined);
+    assert.equal(r.pix.ok, true); assert.equal(r.cartao.ok, true); assert.equal(r.boleto.ok, false, "inativo não conta");
+    assert.equal(r.cobranca.ok, true);
+    MODO.pix = false;
+    r = await testarMP();
+    assert.equal(r.ok, true, "sem Pix a conta ainda cobra pelo cartão"); assert.equal(r.pix.ok, false); assert.match(r.pix.erro, /meios ativos/);
+    MODO.prefFalha = true;
+    r = await testarMP();
+    assert.equal(r.ok, false); assert.equal(r.credencial, true); assert.equal(r.api, true);
+    assert.match(r.cobranca.erro, /invalid preference \(collector not allowed\)/, "a causa do MP vai junto");
+    assert.equal(r.erro, r.cobranca.erro);
+  } finally {
+    srv.close();
+    for (const [k, v] of [["MP_ACCESS_TOKEN", antes.T], ["MP_API_BASE", antes.B]]) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  }
+});

@@ -2089,12 +2089,12 @@ async function renderCobranca(a){
     ${prov&&!prov.configurado?`<div class="banner ba-warn"><b>O pagamento online não está configurado no servidor.</b>
       A cobrança só pode ser ligada depois que a PROPPEX cadastrar a credencial do ${esc(ROT)}
       no ambiente do sistema. Você já pode deixar a tabela pronta e salvar com a cobrança desligada.</div>`
-      :prov?`<div class="banner ${prov.modo==="teste"?"ba-warn":"ba-ok"}">${esc(ROT)} <b>${prov.modo==="teste"?"em modo de TESTE — nenhum pagamento real entra":"em produção"}</b>${prov.webhook?"":" · <b>aviso automático (webhook) sem chave</b>: a confirmação depende da conciliação horária e do botão \"Já paguei\""}${prov.nome==="picpay"?" · cobra por <b>Pix com QR Code</b> direto na página de pagamento do ARCHÉ (e cartão pela página do PicPay, se marcado)":""}.</div>`:""}
+      :prov?`<div class="banner ${prov.modo==="teste"?"ba-warn":"ba-ok"}">${esc(ROT)} <b>${prov.modo==="teste"?"em modo de TESTE — nenhum pagamento real entra":"em produção"}</b>${prov.webhook?"":" · <b>aviso automático (webhook) sem chave</b>: a confirmação depende da conciliação horária e do botão \"Já paguei\""}${prov.nome==="picpay"?" · cobra por <b>Pix com QR Code</b> direto na página de pagamento do ARCHÉ (e cartão pela página do PicPay, se marcado)":prov.nome==="mercadopago"?" · a pessoa paga na <b>página do Mercado Pago</b> (Pix, cartão ou boleto, conforme marcado abaixo) e volta ao ARCHÉ com a credencial":""}.</div>`:""}
     ${prov?.ultimoErro?`<div class="banner ba-warn"><b>Último erro do ${esc(ROT)}</b> (${esc(new Date(prov.ultimoErro.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}))}, em ${esc(prov.ultimoErro.onde)}):
-      <span style="font-family:ui-monospace,monospace">${esc(prov.ultimoErro.mensagem)}</span>. Credencial inválida costuma dizer "invalid_client"; Pix desligado na conta diz "não é elegível para pix".</div>`:""}
+      <span style="font-family:ui-monospace,monospace">${esc(prov.ultimoErro.mensagem)}</span>. ${prov.nome==="picpay"?`Credencial inválida costuma dizer "invalid_client"; Pix desligado na conta diz "não é elegível para pix".`:`Token errado ou vencido diz "invalid_token"; meio de pagamento desligado na conta aparece no botão de teste abaixo.`}</div>`:""}
     ${prov?.configurado?`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px">
       <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" id="bt-cob-teste" onclick="testarCredencial('${esc(a.id)}')">🔑 Testar a credencial do ${esc(ROT)}</button>
-      <span class="muted" style="font-size:12.5px">Pede um token ao ${esc(ROT)} com a credencial que está no servidor e diz se ela vale — sem inscrever ninguém.</span>
+      <span class="muted" style="font-size:12.5px">Confere junto ao ${esc(ROT)} a credencial que está no servidor e diz se a conta consegue cobrar, meio a meio — sem inscrever ninguém.</span>
       <div id="cob-teste" style="flex-basis:100%"></div></div>`:""}
     ${pagos?`<div class="banner ba-info">Este evento já tem <b>${pagos}</b> inscrição(ões) com cobrança registrada. Mudar valores vale só para as
       próximas inscrições; as existentes ficam com o valor da época.</div>`:""}
@@ -2210,20 +2210,28 @@ async function testarCredencial(id){
     const amb=t.ambiente?` no ambiente de <b>${esc(t.ambiente)}</b>`:"";
     const host=t.host?` (<span style="font-family:ui-monospace,monospace">${esc(t.host)}</span>)`:"";
     const mono=(s)=>`<span style="font-family:ui-monospace,monospace">${esc(s||"sem detalhe")}</span>`;
-    const linhaMeio=(nome,m)=>m?`<div>${m.ok?"✓":"✗"} <b>${nome}</b>: ${m.ok?"o PicPay criou o link de teste (R$ 0,01, vence amanhã, ninguém paga)":mono(m.erro)}</div>`:"";
+    const PP=t.provedor==="picpay", MP=t.provedor==="mercadopago";
+    // cada adaptador diz o que conferiu em `texto`; o PicPay cria dois links de centavo, o Mercado Pago lê os meios ATIVOS da conta
+    const linhaMeio=(nome,m)=>m?`<div>${m.ok?"✓":"✗"} <b>${nome}</b>: ${m.ok?esc(m.texto||(PP?"o PicPay criou o link de teste (R$ 0,01, vence amanhã, ninguém paga)":"disponível")):mono(m.erro)}</div>`:"";
+    const conta=t.conta?` — conta <b>${esc(t.conta.apelido||t.conta.id||"")}</b>${t.conta.tipoToken==="teste"?" (token de TESTE)":""}`:"";
+    const aviso=t.aviso?`<div>⚠ ${esc(t.aviso)}</div>`:"";
     if(t.credencial&&t.api){
-      // o teste CRIA dois links de centavo: é isso que separa "API responde" de "a conta pode cobrar"
-      const meios=linhaMeio("Pix",t.pix)+linhaMeio("Cartão",t.cartao);
+      // é a CRIAÇÃO da cobrança que separa "API responde" de "a conta pode cobrar"
+      const meios=linhaMeio("Pix",t.pix)+linhaMeio("Cartão",t.cartao)+linhaMeio("Boleto",t.boleto)
+        +(t.cobranca?`<div>${t.cobranca.ok?"✓":"✗"} <b>Criação da cobrança</b>: ${t.cobranca.ok?"o Mercado Pago criou a preferência de teste (R$ 0,01, vence amanhã, ninguém paga)":mono(t.cobranca.erro)}</div>`:"");
       out.innerHTML=t.ok
-        ?`<div class="banner ba-ok" style="margin:0">✓ Credencial aceita e API respondendo${amb}${host}.${t.trocouDe?` O host <span style="font-family:ui-monospace,monospace">${esc(t.trocouDe)}</span> bloqueou e o sistema passou ao seguinte sozinho.`:""}${meios}${t.pix&&!t.pix.ok?`<div>O evento cobra pelo <b>cartão</b> enquanto o Pix da conta não estiver ativo.</div>`:""}</div>`
-        :`<div class="banner ba-warn" style="margin:0">✓ Credencial aceita e API respondendo${amb}${host}, mas <b>a conta não consegue criar cobrança</b>:${meios}<div>Isso não se resolve no ARCHÉ nem no Render: a conta precisa ser habilitada no serviço Link de Pagamento - API pelo <b>suporte do PicPay</b> (e o Pix ativado em Gerenciar recebimentos).</div></div>`;
+        ?`<div class="banner ba-ok" style="margin:0">✓ Credencial aceita e API respondendo${amb}${host}${conta}.${t.trocouDe?` O host <span style="font-family:ui-monospace,monospace">${esc(t.trocouDe)}</span> bloqueou e o sistema passou ao seguinte sozinho.`:""}${aviso}${meios}${t.pix&&!t.pix.ok?`<div>O evento cobra pelos meios ativos enquanto o Pix da conta não estiver ativo.</div>`:""}</div>`
+        :`<div class="banner ba-warn" style="margin:0">✓ Credencial aceita e API respondendo${amb}${host}${conta}, mas <b>a conta não consegue cobrar</b>:${aviso}${meios}<div>${PP
+          ?"Isso não se resolve no ARCHÉ nem no Render: a conta precisa ser habilitada no serviço Link de Pagamento - API pelo <b>suporte do PicPay</b> (e o Pix ativado em Gerenciar recebimentos)."
+          :"Confira na conta do Mercado Pago (<b>Seu negócio → Configurações → Meios de pagamento</b>) se o Pix e o cartão estão ativos, e em <b>developers.mercadopago.com → Suas integrações</b> se a aplicação está em produção com o token que foi ao Render."}</div></div>`;
     }else if(t.credencial){
-      // a credencial vale, mas a API não responde: o caso do firewall (set/2026)
-      out.innerHTML=`<div class="banner ba-warn" style="margin:0">✓ Credencial aceita${amb}${host}, mas <b>a API está ${t.bloqueio?"BLOQUEADA":"sem responder"}</b>: ${mono(t.erro)}.
-        ${t.bloqueio?`O PicPay recusa as chamadas que o servidor faz (o token passa, as rotas de cobrança não). Isso não se resolve no ARCHÉ nem no Render: é preciso pedir ao <b>suporte do PicPay</b> (Link de Pagamento - API) a liberação dos IPs de saída do servidor, citando o Ray ID acima.`:""}</div>`;
+      // a credencial vale, mas a API não responde: o caso do firewall do PicPay (set/2026)
+      out.innerHTML=`<div class="banner ba-warn" style="margin:0">✓ Credencial aceita${amb}${host}${conta}, mas <b>a API está ${t.bloqueio?"BLOQUEADA":"sem responder"}</b>: ${mono(t.erro)}.
+        ${t.bloqueio&&PP?`O PicPay recusa as chamadas que o servidor faz (o token passa, as rotas de cobrança não). Isso não se resolve no ARCHÉ nem no Render: é preciso pedir ao <b>suporte do PicPay</b> (Link de Pagamento - API) a liberação dos IPs de saída do servidor, citando o Ray ID acima.`:""}</div>`;
     }else{
       out.innerHTML=`<div class="banner ba-warn" style="margin:0">✗ Credencial <b>recusada</b>${amb}${host}: ${mono(t.erro)}.
-        ${/invalid_client|Invalid client/i.test(t.erro||"")?`Confira no Render se <b>PICPAY_CLIENT_ID</b> e <b>PICPAY_CLIENT_SECRET</b> são do MESMO cartão que o ambiente indica — as credenciais do Sandbox só valem com <b>PICPAY_AMBIENTE=staging</b>, e as de produção só SEM essa variável — e se foram coladas inteiras, sem espaço no fim.`:""}</div>`;
+        ${PP&&/invalid_client|Invalid client/i.test(t.erro||"")?`Confira no Render se <b>PICPAY_CLIENT_ID</b> e <b>PICPAY_CLIENT_SECRET</b> são do MESMO cartão que o ambiente indica — as credenciais do Sandbox só valem com <b>PICPAY_AMBIENTE=staging</b>, e as de produção só SEM essa variável — e se foram coladas inteiras, sem espaço no fim.`:""}
+        ${MP?`Confira no Render se <b>MP_ACCESS_TOKEN</b> é o <b>Access Token de produção</b> da aplicação (começa com <span style="font-family:ui-monospace,monospace">APP_USR-</span>; em developers.mercadopago.com → Suas integrações → a aplicação → Credenciais de produção), colado inteiro, sem espaço no fim. Token vencido ou renovado no painel também recusa assim.`:""}</div>`;
     }
   }catch(e){ if(out) out.innerHTML=`<div class="banner ba-warn" style="margin:0">${esc(e.message)}</div>`; }
   finally{ if(bt) bt.disabled=false; }

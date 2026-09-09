@@ -1036,6 +1036,25 @@ public/
   Mercado Pago, pôr o Access Token de TESTE e a assinatura do webhook no Render, apontar o webhook
   para `https://arche.app.br/api/publico/pagamentos/mp` (evento "Pagamentos") e testar com os
   usuários de teste antes de trocar para a credencial de produção.
+  **A PRODUÇÃO VOLTOU AO MERCADO PAGO, e o adaptador ganhou o teste de credencial** (`testar()` +
+  `ultimoErro` em lib/pagamentos/mercadopago.js, decisão do dono set/2026: "vamos ao mercado pago
+  então, do começo" — depois de a conta PJ do PicPay voltar B028, não habilitada no serviço de Link
+  de Pagamento, sem canal claro para o chamado). O botão "🔑 Testar a credencial" da guia Cobrança
+  passa a valer para o MP com as MESMAS três perguntas do PicPay, cada uma falhando por um motivo
+  diferente: **o token vale?** (`GET /users/me` — 401 `invalid_token` é token errado, vencido ou de
+  outro ambiente; a resposta diz o apelido da conta e o site, e conta fora do MLB sai com aviso, porque
+  cobraria em outra moeda); **que meios a conta tem ATIVOS?** (`GET /v1/payment_methods` — é aqui
+  que o Pix desligado aparece ANTES de alguém se inscrever, meio a meio, com o caminho de ativação);
+  e **a conta CRIA cobrança?** (uma preferência de R$ 0,01 que vence amanhã e ninguém paga — o "✓"
+  do painel só vale para a inscrição se a criação passar, a lição do PicPay). `ultimoErro` ficou
+  real (era `() => null`): cada chamada diz ONDE falhou e a causa do MP (`cause[].description`) vai
+  junto na mensagem. Os textos da guia Cobrança deixaram de ser do PicPay: cada adaptador entrega em
+  `texto` o que conferiu por meio, e as dicas de credencial recusada e de "conta não cobra" mudam pelo
+  `provedor` do resultado (no MP: `MP_ACCESS_TOKEN` de PRODUÇÃO, `APP_USR-`, de Suas integrações).
+  `MP_API_BASE` existe só para o teste local (`scratchpad/mp-falso.mjs`, com `FALSO_SEM_PIX` e
+  `FALSO_PREF_FALHA`). No Render: `PAGAMENTO_PROVEDOR=mercadopago`, `MP_ACCESS_TOKEN` (produção),
+  `MP_WEBHOOK_SECRET`; as variáveis do PicPay podem ficar — com a variável do provedor apontando ao
+  MP elas não decidem nada.
 - **O PICPAY É O SEGUNDO PROVEDOR, e o provedor é escolhido pelo AMBIENTE** (`lib/pagamentos/provedor.js`
   [o registro] + `lib/pagamentos/picpay.js` [adaptador da **API de Link de Pagamento**] + a forma
   NORMALIZADA em lib/pagamentos.js, set/2026 — o checkout de teste do Mercado Pago falhou em pontos
