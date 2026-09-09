@@ -3007,7 +3007,8 @@ function renderInscritosEv(a){
       return `<tr>
       <td>${esc(x.nome)}</td>
       <td>${esc(x.email||"")}${x.telefone?`<br><span class="muted">${esc(x.telefone)}</span>`:""}</td>
-      <td>${x.origem==="online"?`online${x.inscritoEm?` <span class="muted">${esc(hora(x.inscritoEm))}</span>`:""}`:"lista da coordenação"}${x.pagamento?`<br>${badgePg(x.pagamento)}`:""}</td>
+      <td>${x.origem==="online"?`online${x.inscritoEm?` <span class="muted">${esc(hora(x.inscritoEm))}</span>`:""}`:"lista da coordenação"}${x.pagamento?`<br>${badgePg(x.pagamento)}`
+        :a.evento?.cobranca?.ativa?`<br><span class="badge" style="background:#eceff3;color:var(--muted)" title="Esta inscrição não tem cobrança: entrou antes de a cobrança ser ligada, ou veio da lista da coordenação. Vale como confirmada.">sem cobrança</span>`:""}</td>
       <td style="font-family:ui-monospace,monospace">${x.token?esc(x.token.slice(0,6).toUpperCase()):"—"}</td>
       <td title="${esc(marcadas.join(" · "))}">${marcadas.length||"—"}</td>
       <td>${x.presente===true
