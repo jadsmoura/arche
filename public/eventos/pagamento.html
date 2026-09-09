@@ -8,11 +8,12 @@
 <link rel="icon" href="/arche/favicon.svg">
 <link rel="stylesheet" href="/assets/arche-ui.css">
 <style>
-  /* Pagamento da inscrição (servida em /eventos/<slug>/pagamento/<token>): é
-     para onde o Mercado Pago devolve a pessoa depois de pagar e onde ela
-     confere se o Pix já confirmou. O token no endereço É a inscrição — a
+  /* Pagamento da inscrição (servida em /eventos/<slug>/pagamento/<token>):
+     com o PicPay, é AQUI que o QR Code Pix aparece e onde a página confere
+     sozinha se o Pix já confirmou; com o Mercado Pago, é para onde ele
+     devolve a pessoa depois de pagar. O token no endereço É a inscrição — a
      página só mostra a cobrança de quem tem o link. Nada de cartão passa por
-     aqui: o pagamento acontece na página do provedor. */
+     aqui: o cartão, quando há, é na página do provedor. */
   .cartao{max-width:480px;margin:26px auto 0;text-align:center}
   .valor{font-family:'Sora',sans-serif;font-size:34px;font-weight:700;color:var(--brand);letter-spacing:-.02em;margin-top:6px}
   .valor small{font-size:13px;font-weight:500;color:var(--muted);display:block;letter-spacing:0;margin-top:2px}
@@ -33,6 +34,13 @@
   .meios span{font-size:11.5px;border:1px solid var(--line);border-radius:8px;padding:3px 9px;color:var(--muted)}
   .pol{font-size:12px;color:var(--muted);text-align:left;margin-top:16px;border-top:1px solid var(--line);padding-top:12px;line-height:1.55}
   .conferindo{font-size:12px;color:var(--muted);margin-top:8px}
+  /* o QR Pix (PicPay): desenhado pelo ARCHÉ, do "copia e cola" gravado */
+  .pix{margin-top:14px;border:1px solid var(--line);border-radius:14px;padding:14px;background:#fff}
+  .pix img{width:220px;height:220px;display:block;margin:0 auto;image-rendering:pixelated}
+  .pix .cc{font-family:ui-monospace,monospace;font-size:11px;color:var(--ink-soft);word-break:break-all;
+    background:var(--wash);border-radius:8px;padding:8px 10px;margin-top:10px;text-align:left;max-height:64px;overflow:auto}
+  .pix .passos{font-size:12.5px;color:var(--ink-soft);text-align:left;margin-top:10px;line-height:1.55}
+  .pix .passos b{color:var(--ink)}
   @keyframes pulsa{0%,100%{opacity:.45}50%{opacity:1}}
   .conferindo.ativo{animation:pulsa 1.6s ease-in-out infinite}
   @media(prefers-reduced-motion:reduce){.conferindo.ativo{animation:none}}
@@ -92,8 +100,9 @@ function render() {
   const vencida = p.status === "aguardando" && p.reservaVencida;
   const pendente = ["aguardando", "recusado", "expirado"].includes(p.status);
   const meios = Object.entries(DADOS.meios || {}).filter(([, v]) => v).map(([k]) => ({ pix: "Pix", cartao: "Cartão", boleto: "Boleto" }[k] || k));
+  const PROV = p.provedorRotulo || "provedor de pagamento";
   let aviso = "";
-  if (VOLTA === "sucesso" && pendente) aviso = `<div class="msg-aviso">Recebemos o retorno do Mercado Pago. A confirmação chega em segundos no Pix e no cartão — esta página confere sozinha. Boleto confirma depois da compensação.</div>`;
+  if (VOLTA === "sucesso" && pendente) aviso = `<div class="msg-aviso">Recebemos o retorno do ${esc(PROV)}. A confirmação chega em segundos no Pix e no cartão — esta página confere sozinha. Boleto confirma depois da compensação.</div>`;
   if (VOLTA === "falha" && pendente) aviso = `<div class="msg-erro">O pagamento não foi concluído. Você pode tentar de novo pelo botão abaixo — a vaga continua reservada até o prazo.</div>`;
   if (p.divergente) aviso = `<div class="msg-aviso">Recebemos um pagamento com valor diferente do da inscrição. A coordenação do evento vai analisar e entrar em contato — não é preciso pagar de novo.</div>`;
 
@@ -113,11 +122,27 @@ function render() {
         ? `<div class="prazo"><b>A reserva da vaga venceu</b>${p.expiraEm ? ` em ${esc(hora(p.expiraEm))}` : ""}. Se ainda houver vaga, dá para renovar e pagar agora — com o preço de hoje.</div>`
         : `<div class="prazo">A vaga está <b>reservada até ${esc(hora(p.expiraEm))}</b>. Depois desse prazo, sem o pagamento, a inscrição expira e a vaga volta para a fila.</div>`}
       ${p.online
-        ? `<button class="bt bt-pri" style="width:100%;margin-top:14px" id="bt-pagar" onclick="pagar()">${vencida || p.status === "expirado" ? "Renovar a reserva e pagar" : p.status === "recusado" ? "Tentar pagar de novo" : "Pagar agora"}</button>
+        ? (p.qrCode && !vencida && p.status === "aguardando"
+          /* PIX POR QR CODE (PicPay): a pessoa não sai daqui — escaneia ou
+             copia o código, paga no banco dela e a página confere sozinha */
+          ? `<div class="pix">
+               <img src="${RAIZ}/pagamento/qr.png?v=${encodeURIComponent(String(p.expiraEm || ""))}" alt="QR Code Pix para pagar a inscrição">
+               <div class="passos"><b>1.</b> Abra o app do seu banco e escolha <b>Pix → Ler QR Code</b> — ou copie o código abaixo e use
+                 <b>Pix Copia e Cola</b>.<br><b>2.</b> Confira o valor de <b>${reais(p.valor)}</b>${DADOS.recebedor ? ` em nome de ${esc(DADOS.recebedor)}` : ""} e confirme.<br>
+                 <b>3.</b> Pronto: em segundos esta página muda para "pagamento confirmado" e a credencial vai ao seu e-mail.</div>
+               <div class="cc" id="pix-cc">${esc(p.qrCode)}</div>
+               <button class="bt bt-pri" style="width:100%;margin-top:10px" onclick="copiarPix()" id="bt-copiar">📋 Copiar código Pix</button>
+             </div>
+             <p style="font-size:12px;color:var(--muted);margin-top:8px">Cobrança emitida pelo ${esc(PROV)}${DADOS.recebedor ? `, em nome de ${esc(DADOS.recebedor)}` : ""}. O QR vale em qualquer banco.</p>
+             <button class="bt bt-sec" style="width:100%;margin-top:10px" id="bt-conferir" onclick="conferir(true)">Já paguei — conferir agora</button>
+             <div class="conferindo" id="conferindo"></div>`
+          : `<button class="bt bt-pri" style="width:100%;margin-top:14px" id="bt-pagar" onclick="pagar()">${vencida || p.status === "expirado" ? "Renovar a reserva e pagar" : p.status === "recusado" ? "Tentar pagar de novo" : p.provedor === "picpay" ? "Gerar o QR Code Pix" : "Pagar agora"}</button>
            ${meios.length ? `<div class="meios">${meios.map((x) => `<span>${esc(x)}</span>`).join("")}</div>` : ""}
-           <p style="font-size:12px;color:var(--muted);margin-top:8px">O pagamento acontece na página segura do Mercado Pago, em nome de ${esc(DADOS.recebedor || "UNIEGO")}. Nenhum dado de cartão passa pelo ARCHÉ.</p>
+           <p style="font-size:12px;color:var(--muted);margin-top:8px">${p.provedor === "picpay"
+             ? `O QR Code Pix aparece aqui mesmo, emitido pelo ${esc(PROV)} em nome de ${esc(DADOS.recebedor || "UNIEGO")}, e vale em qualquer banco.`
+             : `O pagamento acontece na página segura do ${esc(PROV)}, em nome de ${esc(DADOS.recebedor || "UNIEGO")}. Nenhum dado de cartão passa pelo ARCHÉ.`}</p>
            <button class="bt bt-sec" style="width:100%;margin-top:10px" id="bt-conferir" onclick="conferir(true)">Já paguei — conferir agora</button>
-           <div class="conferindo" id="conferindo"></div>`
+           <div class="conferindo" id="conferindo"></div>`)
         : `<div class="msg-erro">O pagamento online está indisponível neste momento. Fale com a coordenação do evento.</div>`}`
     : `
       <div class="msg-aviso">${p.status === "estornado"
@@ -138,13 +163,26 @@ async function pagar() {
     if (!r.ok) throw new Error(j.error || "Não foi possível gerar o link de pagamento.");
     DADOS.pagamento = j.pagamento;
     if (j.pagamento?.valida) { render(); return; }
+    // QR Pix: fica nesta página, que passa a conferir sozinha
+    if (j.pagamento?.qrCode) { render(); iniciarPoll(); return; }
     if (j.pagamento?.link) { location.href = j.pagamento.link; return; }
     render();
-    $("msg").innerHTML = `<div class="msg-erro">O link de pagamento não ficou pronto. Tente de novo em instantes.</div>`;
+    $("msg").innerHTML = `<div class="msg-erro">A cobrança não ficou pronta. Tente de novo em instantes.</div>`;
   } catch (e) {
     $("msg").innerHTML = `<div class="msg-erro">${esc(e.message)}</div>`;
     if (bt) bt.disabled = false;
   }
+}
+async function copiarPix() {
+  const codigo = DADOS?.pagamento?.qrCode || "";
+  const bt = $("bt-copiar");
+  try { await navigator.clipboard.writeText(codigo); if (bt) bt.textContent = "✓ Código copiado — cole no Pix Copia e Cola do seu banco"; }
+  catch {
+    // sem permissão de área de transferência: seleciona o texto para copiar à mão
+    const el = $("pix-cc"); if (el) { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+    if (bt) bt.textContent = "Selecione o código acima e copie (Ctrl+C)";
+  }
+  setTimeout(() => { if (bt) bt.textContent = "📋 Copiar código Pix"; }, 6000);
 }
 
 /* "Já paguei": pergunta ao servidor, que pergunta ao provedor. Enquanto a
@@ -152,7 +190,7 @@ async function pagar() {
    — o Pix confirma em segundos, e ninguém precisa apertar F5. */
 async function conferir(manual) {
   const el = $("conferindo");
-  if (el) { el.textContent = manual ? "Conferindo no Mercado Pago…" : "Conferindo automaticamente…"; el.classList.add("ativo"); }
+  if (el) { el.textContent = manual ? `Conferindo no ${DADOS?.pagamento?.provedorRotulo || "provedor"}…` : "Conferindo automaticamente…"; el.classList.add("ativo"); }
   try {
     const r = await fetch(`${RAIZ}/pagamento/conferir`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     const j = await r.json().catch(() => ({}));

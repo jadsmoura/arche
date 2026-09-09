@@ -500,7 +500,7 @@ const SECOES = [
      pós-evento (pedido do dono, ago/2026). "GERAL" não era uma fase: era o
      nome que sobrou para o que não coubera nas outras duas. */
   {k:"financeiro", rot:"Financeiro", grupo:"PÓS-EVENTO", ic:IC.financeiro, evento:true, tit:"Financeiro",
-   sub:"O que entrou pelo Mercado Pago, inscrição a inscrição: pagos, aguardando, isentos, estornos — e a planilha da prestação de contas."},
+   sub:"O que entrou pelo provedor de pagamento, inscrição a inscrição: pagos, aguardando, isentos, estornos — e a planilha da prestação de contas."},
   {k:"exportacoes", rot:"Exportações", grupo:"PÓS-EVENTO", ic:IC.exportacoes, evento:true, tit:"Exportações",
    sub:"As planilhas do evento — AEE (geral, por atividade, só presentes) e a lista completa do ARCHÉ."},
   /* TODO SETOR LANÇA O SEU EDITAL (pedido do dono, ago/2026). A chamada de
@@ -2079,12 +2079,14 @@ async function renderCobranca(a){
   let prov=null;
   try{ const r=await fetch(`/api/extensao/${a.id}/financeiro`); if(r.ok) prov=(await r.json()).provedor; }catch{ /* segue */ }
   const pagos=(a.participantes?.inscritos||[]).filter(x=>x.pagamento).length;
+  // o que o provedor vigente cobre: o PicPay é só Pix; o Mercado Pago, os três
+  const PM=prov?.meios||{pix:true,cartao:true,boleto:true};
+  const ROT=prov?.rotulo||"provedor de pagamento";
   $("v-cobranca").innerHTML=`
     ${prov&&!prov.configurado?`<div class="banner ba-warn"><b>O pagamento online não está configurado no servidor.</b>
-      A cobrança só pode ser ligada depois que a PROPPEX cadastrar a credencial do Mercado Pago
-      (<span style="font-family:ui-monospace,monospace">MP_ACCESS_TOKEN</span>) no ambiente do sistema. Você já pode
-      deixar a tabela pronta e salvar com a cobrança desligada.</div>`
-      :prov?`<div class="banner ${prov.modo==="teste"?"ba-warn":"ba-ok"}">Mercado Pago <b>${prov.modo==="teste"?"em modo de TESTE — nenhum pagamento real entra":"em produção"}</b>${prov.webhook?"":" · <b>aviso automático (webhook) sem chave</b>: a confirmação depende da conciliação horária e do botão \"Já paguei\""}.</div>`:""}
+      A cobrança só pode ser ligada depois que a PROPPEX cadastrar a credencial do ${esc(ROT)}
+      no ambiente do sistema. Você já pode deixar a tabela pronta e salvar com a cobrança desligada.</div>`
+      :prov?`<div class="banner ${prov.modo==="teste"?"ba-warn":"ba-ok"}">${esc(ROT)} <b>${prov.modo==="teste"?"em modo de TESTE — nenhum pagamento real entra":"em produção"}</b>${prov.webhook?"":" · <b>aviso automático (webhook) sem chave</b>: a confirmação depende da conciliação horária e do botão \"Já paguei\""}${prov.nome==="picpay"?" · cobra por <b>Pix com QR Code</b>, direto na página de pagamento do ARCHÉ":""}.</div>`:""}
     ${pagos?`<div class="banner ba-info">Este evento já tem <b>${pagos}</b> inscrição(ões) com cobrança registrada. Mudar valores vale só para as
       próximas inscrições; as existentes ficam com o valor da época.</div>`:""}
     <div class="card">
@@ -2116,18 +2118,19 @@ async function renderCobranca(a){
       <div class="grid3" style="margin-top:12px">
         <div>
           <label style="margin-top:0">Meios aceitos</label>
-          <label class="chk"><input type="checkbox" id="cob-pix" ${EV_COB.meios.pix?"checked":""}> Pix (confirma em segundos)</label>
-          <label class="chk"><input type="checkbox" id="cob-cartao" ${EV_COB.meios.cartao?"checked":""}> Cartão de crédito/débito</label>
-          <label class="chk"><input type="checkbox" id="cob-boleto" ${EV_COB.meios.boleto?"checked":""}> Boleto (confirma em 1–2 dias úteis)</label>
+          <label class="chk"><input type="checkbox" id="cob-pix" ${EV_COB.meios.pix?"checked":""} ${PM.pix?"":"disabled"}> Pix (confirma em segundos)</label>
+          <label class="chk"><input type="checkbox" id="cob-cartao" ${EV_COB.meios.cartao?"checked":""} ${PM.cartao?"":"disabled"}> Cartão de crédito/débito${PM.cartao?"":` <span class="muted">(o ${esc(ROT)} não cobre)</span>`}</label>
+          <label class="chk"><input type="checkbox" id="cob-boleto" ${EV_COB.meios.boleto?"checked":""} ${PM.boleto?"":"disabled"}> Boleto (confirma em 1–2 dias úteis)${PM.boleto?"":` <span class="muted">(o ${esc(ROT)} não cobre)</span>`}</label>
         </div>
         <div>
           <label style="margin-top:0">Parcelas no cartão <span class="muted">(máx.)</span></label>
-          <select id="cob-parcelas">${[1,2,3,4,5,6,10,12].map(n=>`<option value="${n}" ${EV_COB.parcelas===n?"selected":""}>${n===1?"à vista":n+"x"}</option>`).join("")}</select>
+          <select id="cob-parcelas" ${PM.cartao?"":"disabled"}>${[1,2,3,4,5,6,10,12].map(n=>`<option value="${n}" ${EV_COB.parcelas===n?"selected":""}>${n===1?"à vista":n+"x"}</option>`).join("")}</select>
           <label>Juros do parcelamento</label>
-          <select id="cob-juros">
-            <option value="inscrito" ${EV_COB.jurosPorConta==="inscrito"?"selected":""}>por conta do inscrito (padrão do Mercado Pago)</option>
-            <option value="evento" ${EV_COB.jurosPorConta==="evento"?"selected":""}>por conta do evento (configurar no painel do Mercado Pago)</option>
+          <select id="cob-juros" ${PM.cartao?"":"disabled"}>
+            <option value="inscrito" ${EV_COB.jurosPorConta==="inscrito"?"selected":""}>por conta do inscrito (padrão do provedor)</option>
+            <option value="evento" ${EV_COB.jurosPorConta==="evento"?"selected":""}>por conta do evento (configurar no painel do provedor)</option>
           </select>
+          ${PM.cartao?"":`<div class="muted" style="font-size:12px;margin-top:6px">Parcelamento só existe no cartão; com o ${esc(ROT)} a cobrança é Pix à vista.</div>`}
         </div>
         <div>
           <label style="margin-top:0">Reserva da vaga <span class="muted">(prazo para pagar)</span></label>
@@ -2146,9 +2149,10 @@ async function renderCobranca(a){
       <span class="muted" id="ev-msg" style="align-self:center"></span>
     </div>
     <div class="tut">
-      <b>Como funciona:</b> a pessoa se inscreve na página do evento, escolhe a categoria e é levada à página
-      segura do Mercado Pago. Pago, o ARCHÉ é avisado, confirma na API e envia a credencial com o QR — sem ninguém
-      conferir extrato. O dinheiro cai na conta do Mercado Pago da instituição; a planilha da guia
+      <b>Como funciona:</b> a pessoa se inscreve na página do evento, escolhe a categoria e ${prov?.nome==="picpay"
+        ?"recebe na hora o QR Code Pix, na própria página de pagamento do ARCHÉ (vale em qualquer banco)"
+        :`é levada à página segura do ${esc(ROT)}`}. Pago, o ARCHÉ é avisado, confirma na API e envia a credencial com o QR — sem ninguém
+      conferir extrato. O dinheiro cai na conta do ${esc(ROT)} da instituição; a planilha da guia
       <button class="lk" onclick="nav('financeiro')">Financeiro</button> é a prestação de contas.
     </div>`;
   renderCobCats(); renderCobLotes();
@@ -2208,9 +2212,9 @@ async function renderFinanceiro(a){
   el.innerHTML=`
     ${semCobranca?`<div class="banner ba-info">Este evento não cobra inscrição. Para cobrar, configure a guia
       <button class="lk" onclick="nav('cobranca')">Cobrança</button>.</div>`:""}
-    ${FIN.provedor&&!FIN.provedor.webhook&&FIN.provedor.configurado?`<div class="banner ba-warn">O aviso automático do Mercado Pago (webhook) está sem a chave
-      de assinatura no servidor: a confirmação chega pela conciliação horária e pelo botão "Já paguei" da pessoa. Peça à PROPPEX para
-      configurar <span style="font-family:ui-monospace,monospace">MP_WEBHOOK_SECRET</span>.</div>`:""}
+    ${FIN.provedor&&!FIN.provedor.webhook&&FIN.provedor.configurado?`<div class="banner ba-warn">O aviso automático do ${esc(FIN.provedor.rotulo||"provedor")} (webhook) está sem a chave
+      de autenticação no servidor: a confirmação chega pela conciliação horária e pelo botão "Já paguei" da pessoa. Peça à PROPPEX para
+      configurar <span style="font-family:ui-monospace,monospace">${FIN.provedor.nome==="picpay"?"PICPAY_WEBHOOK_TOKEN":"MP_WEBHOOK_SECRET"}</span>.</div>`:""}
     <div class="stat" style="margin-top:0">
       <div class="s"><b>${R.total||0}</b><span>Inscrições com cobrança</span></div>
       <div class="s"><b style="color:var(--ok)">${pe.pago||0}</b><span>Pagas</span></div>
@@ -2240,8 +2244,8 @@ async function renderFinanceiro(a){
       </div>
       <div id="fin-lista" class="scrollx"></div>
       <div class="muted" style="font-size:12px;margin-top:8px"><b>Isentar</b> confirma a inscrição sem pagamento (cortesia,
-        convidado, pagamento feito por fora) e manda a credencial. <b>Conferir</b> pergunta ao Mercado Pago agora.
-        ${FIN.podeEstornar?"<b>Estornar</b> devolve o valor pelo Mercado Pago e cancela a credencial.":"Estornar é ato da gestão da Extensão/Eventos."}</div>
+        convidado, pagamento feito por fora) e manda a credencial. <b>Conferir</b> pergunta ao ${esc(FIN.provedor?.rotulo||"provedor")} agora.
+        ${FIN.podeEstornar?`<b>Estornar</b> devolve o valor pelo provedor que recebeu e cancela a credencial.`:"Estornar é ato da gestão da Extensão/Eventos."}</div>
     </div>
     <div class="card">
       <div class="sec-t">Prestação de contas</div>
@@ -2294,7 +2298,7 @@ async function acaoPg(id,token,rota,body){
 }
 async function conferirPg(id,token){
   try{ const j=await acaoPg(id,token,"conferir");
-    const m=$("fin-msg"); if(m) m.textContent=j.semPagamento?"O Mercado Pago não tem pagamento para esta inscrição.":j.ignorado?`Sem mudança: ${j.ignorado}`:`Situação: ${ROTULO_PG[j.pagamento?.status]||"—"}`;
+    const m=$("fin-msg"); if(m) m.textContent=j.semPagamento?"O provedor não tem pagamento para esta inscrição.":j.ignorado?`Sem mudança: ${j.ignorado}`:`Situação: ${ROTULO_PG[j.pagamento?.status]||"—"}`;
     await carregar(); renderFinanceiro(ACOES.find(x=>x.id===id));
   }catch(e){ alert("Não foi possível conferir: "+e.message); }
 }
@@ -2305,7 +2309,7 @@ async function isentarPg(id,token,nome){
   catch(e){ alert("Não foi possível isentar: "+e.message); }
 }
 async function estornarPg(id,token,nome,valor){
-  const motivo=prompt(`ESTORNAR R$ ${valor} para ${nome}?\n\nO valor volta pelo Mercado Pago (o prazo depende do meio) e a credencial deixa de valer. Escreva o motivo (fica no registro):`);
+  const motivo=prompt(`ESTORNAR R$ ${valor} para ${nome}?\n\nO valor volta pelo provedor que recebeu (o prazo depende do meio) e a credencial deixa de valer. Escreva o motivo (fica no registro):`);
   if(motivo===null) return;
   if(!confirm(`Confirmar o estorno de R$ ${valor} para ${nome}? Esta ação não se desfaz.`)) return;
   try{ await acaoPg(id,token,"estornar",{motivo}); await carregar(); renderFinanceiro(ACOES.find(x=>x.id===id)); }

@@ -1036,6 +1036,43 @@ public/
   Mercado Pago, pôr o Access Token de TESTE e a assinatura do webhook no Render, apontar o webhook
   para `https://arche.app.br/api/publico/pagamentos/mp` (evento "Pagamentos") e testar com os
   usuários de teste antes de trocar para a credencial de produção.
+- **O PICPAY É O SEGUNDO PROVEDOR, e o provedor é escolhido pelo AMBIENTE** (`lib/pagamentos/provedor.js`
+  [o registro] + `lib/pagamentos/picpay.js` [adaptador da API de Checkout, cobrança Pix por QR Code] +
+  a forma NORMALIZADA em lib/pagamentos.js, set/2026 — o checkout de teste do Mercado Pago falhou
+  em pontos diferentes a cada tentativa e o dono pediu: "está dando erros; o PicPay é possível?
+  Tenho uma conta PJ PicPay"). O servidor fala com "o provedor" pelo registro; `PAGAMENTO_PROVEDOR`
+  (`picpay` | `mercadopago`) decide qual, e sem a variável vale o que estiver configurado — PicPay
+  primeiro, senão o Mercado Pago. A régua de estados, a reserva de vaga, a página de pagamento, o
+  Financeiro e o estorno **não sabem quem está por baixo**: cada adaptador expõe a MESMA interface
+  (`configurado`, `modo`, `meios`, `criarCobranca`, `consultarPagamento`, `pagamentosDaReferencia`,
+  `estornar`, `segredoWebhook`) e devolve o pagamento já **normalizado** (`normalizarMP`/
+  `normalizarPicPay` → `{ provedor, id, referencia, token, estado, meio, pagoCentavos… }`), e
+  `lerPagamentoDoProvedor` lê só essa forma (a crua do Mercado Pago ainda entra, por compatibilidade).
+  **A diferença de desenho** é onde o Pix se paga: o Mercado Pago manda a pessoa à página DELE (`link`);
+  o PicPay devolve o **QR Code para o ARCHÉ desenhar** (`qrCode`, o "copia e cola") — a pessoa não sai
+  da página de pagamento, escaneia ou copia, e a página confere sozinha. O PNG sai de
+  `GET …/pagamento/qr.png`, gerado do texto gravado (nada de base64 no estado), só enquanto a cobrança
+  está em aberto. **Só Pix** no PicPay, de propósito: cartão pela API deles é checkout "transparente",
+  em que o dado do cartão passaria pelo nosso servidor; `meiosEfetivos` recorta a configuração do
+  evento pelo que o provedor cobre, a guia Cobrança desabilita o que ele não cobre e a rota recusa
+  cobrança sem meio coberto. **O id da cobrança no PicPay carrega o token da inscrição**
+  (`idCobrancaPicPay`: `<22 hex>-<10 dígitos da hora da reserva>`, 33 chars, dentro dos 6–36 da API):
+  a API deles não busca por referência nem aceita metadados, e é assim que o webhook e a conciliação
+  voltam à inscrição sem tabela à parte — reserva renovada gera cobrança nova, e a anterior fica em
+  `cobrancasAnteriores`. **Quem estorna e quem concilia é o adaptador que RECEBEU** (`provedorPg.de(pg)`,
+  pelo `provedor` gravado no registro): um Pix do Mercado Pago se devolve lá mesmo que a variável já
+  aponte ao PicPay. **O webhook do PicPay** (`POST /api/publico/pagamentos/picpay`) se autentica pelo
+  token que o painel gerou ao ativar a URL de notificação, no cabeçalho `Authorization` (com ou sem
+  "Bearer", comparação em tempo constante) — sem `PICPAY_WEBHOOK_TOKEN` nada se aceita —, responde 200
+  e **reconsulta a cobrança** antes de mover o estado, como o do Mercado Pago. O token OAuth (5 min)
+  fica em memória e se renova sozinho. Env vars (só no Render): `PICPAY_CLIENT_ID`,
+  `PICPAY_CLIENT_SECRET` (Painel Empresas → Integrações → Checkout; o secret aparece UMA vez),
+  `PICPAY_WEBHOOK_TOKEN`, `PICPAY_AMBIENTE` (`staging` | `producao`, padrão produção),
+  `PAGAMENTO_PROVEDOR`; `PICPAY_API_BASE` existe só para o teste local apontar a um servidor falso
+  (`scratchpad/picpay-falso.mjs` reproduz token, cobrança, consulta e estorno). O nome do pagador vai
+  saneado para o que a API aceita (`^[\p{L} &\d]+$`), o telefone parte em DDD + número e o QR vale até
+  o fim da reserva (mínimo 5 min). Os textos das telas e dos e-mails passaram a dizer o provedor pelo
+  `rotulo` do registro, nunca um nome fixo.
 - **ARCHÉ Eventos** (`lib/eventos.js` + `public/eventos/` + rotas em server.js; 2ª geração
   em ago/2026, no molde Even3/Sympla — pesquisa com 3 agentes sobre as duas plataformas):
   EVENTOS GRATUITOS de todos os formatos — a ação de extensão ganha `a.evento` e uma página

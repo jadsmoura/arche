@@ -103,7 +103,12 @@ import {
   reservaVencida, transitar as transitarPagamento, lerPagamentoDoProvedor, validarAssinaturaMP,
   resumoFinanceiro, linhasFinanceiro, fmtReais, loteVigente, ESTADOS_PAGAMENTO,
 } from "./lib/pagamentos.js";
-import * as mercadoPago from "./lib/pagamentos/mercadopago.js";
+/* O PROVEDOR é escolhido pelo ambiente (PAGAMENTO_PROVEDOR = picpay |
+   mercadopago — lib/pagamentos/provedor.js); os dois webhooks continuam
+   existindo, cada um conferido pelo adaptador dono dele. */
+import * as provedorPg from "./lib/pagamentos/provedor.js";
+const mercadoPago = provedorPg.TODOS.mercadopago;
+const picPay = provedorPg.TODOS.picpay;
 import {
   AVISOS, AVISOS_KEY, SETORES_AVISO, aplicarMudanca as aplicarMudancaAviso,
   AVISOS_FILA_KEY, HORA_RESUMO, AVISOS_DA_GESTAO, avisoDe, modoDoAviso,
@@ -4054,10 +4059,12 @@ function cobrancaPublica(ev, hojeISO) {
     })),
     lote: lote ? { nome: lote.nome, ate: lote.ate } : null,
     proximoLote: proximo ? { nome: proximo.nome, ate: proximo.ate } : null,
-    meios: c.meios, parcelas: c.parcelas, jurosPorConta: c.jurosPorConta,
+    // os meios saem RECORTADOS pelo provedor (o PicPay cobra só por Pix)
+    meios: provedorPg.meiosEfetivos(c.meios), parcelas: c.parcelas, jurosPorConta: c.jurosPorConta,
     reservaMinutos: c.reservaMinutos, politicaReembolso: c.politicaReembolso,
     recebedor: c.recebedor,            // o nome que sai no "em nome de" e no recibo
-    online: mercadoPago.configurado(),
+    online: provedorPg.configurado(),
+    provedor: provedorPg.nome(), provedorRotulo: provedorPg.rotulo(),
   };
 }
 
@@ -4070,11 +4077,13 @@ async function criarLinkDePagamento(acao, inscrito, base) {
   const ev = acao.evento || {}, c = ev.cobranca || {}, pg = inscrito.pagamento || {};
   const ref = `${acao.id}:${inscrito.token}`;
   const volta = `${base}/eventos/${encodeURIComponent(ev.slug || "")}/pagamento/${encodeURIComponent(inscrito.token)}`;
-  return mercadoPago.criarCobranca({
+  // o adaptador que criou a reserva é o que a cobra — um registro nascido no
+  // Mercado Pago não passa a ser cobrado pelo PicPay porque a variável mudou
+  return provedorPg.de(pg).criarCobranca({
     titulo: `Inscrição — ${String(acao.proposta?.nomeAtividade || "evento").slice(0, 90)}`,
     descricao: [pg.categoriaNome, pg.lote, inscrito.nome].filter(Boolean).join(" · "),
-    valor: pg.valor, externalRef: ref,
-    pagador: { email: inscrito.email, nome: inscrito.nome, cpf: inscrito.cpf },
+    valor: pg.valor, externalRef: ref, token: inscrito.token, criadoEm: pg.criadoEm,
+    pagador: { email: inscrito.email, nome: inscrito.nome, cpf: inscrito.cpf, telefone: inscrito.telefone },
     expiraEm: pg.expiraEm,
     voltar: { sucesso: `${volta}?volta=sucesso`, pendente: `${volta}?volta=pendente`, falha: `${volta}?volta=falha` },
     webhook: process.env.MP_WEBHOOK_URL || `${base}/api/publico/pagamentos/mp`,
@@ -4113,12 +4122,16 @@ function pagamentoPublico(inscrito, ev, agora = new Date()) {
   return {
     status: pg.status, valor: pg.valor, categoriaNome: pg.categoriaNome || pg.categoria || "",
     lote: pg.lote || "", link: pg.link || "", expiraEm: pg.expiraEm || "", pagoEm: pg.pagoEm || "",
+    // o Pix "copia e cola" só enquanto a cobrança está em aberto — depois
+    // de pago, expirado ou renovado, o código velho não deve ser pago
+    qrCode: pg.status === "aguardando" && !reservaVencida(pg, agora) ? String(pg.qrCode || "") : "",
     meio: pg.meio || "", pagoCentavos: pg.pagoCentavos ?? null,
     reservaVencida: reservaVencida(pg, agora),
     divergente: !!pg.divergencia,
     valida: inscricaoValida(inscrito),
     politicaReembolso: String(ev?.cobranca?.politicaReembolso || ""),
-    online: mercadoPago.configurado(),
+    online: provedorPg.configurado(),
+    provedor: provedorPg.de(pg).nome, provedorRotulo: provedorPg.de(pg).rotulo,
   };
 }
 
@@ -4268,7 +4281,7 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       const cobra = cobrancaAtiva(a.evento.cobranca);
       let preco = null;
       if (cobra) {
-        if (!mercadoPago.configurado())
+        if (!provedorPg.configurado())
           return { erro: [503, "O pagamento online não está disponível neste momento — fale com a coordenação do evento."], gravar: false };
         preco = valorDaInscricao(a.evento.cobranca, { categoria, hojeISO: hojeLocalISO() });
         if (!preco) return { erro: [400, "Escolha a categoria da sua inscrição."], gravar: false };
@@ -4276,7 +4289,7 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       const pagamentoDe = () => {
         if (!cobra) return null;
         const pg = novoPagamento({ valor: preco.valor, categoria: preco.categoria, lote: preco.lote,
-          reservaMinutos: a.evento.cobranca.reservaMinutos });
+          reservaMinutos: a.evento.cobranca.reservaMinutos, provedor: provedorPg.nome() });
         return preco.gratuita
           ? transitarPagamento(pg, "isento", { por: "sistema", motivo: "categoria sem valor" })
           : pg;
@@ -4293,7 +4306,8 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
           const pg = pagamentoDe();
           const renovado = transitarPagamento(ja.pagamento, pg.status, { por: "inscrição", motivo: "reserva renovada",
             extra: { valor: pg.valor, categoria: pg.categoria, categoriaNome: pg.categoriaNome, lote: pg.lote,
-              criadoEm: pg.criadoEm, expiraEm: pg.expiraEm, preferenciaId: "", link: "",
+              criadoEm: pg.criadoEm, expiraEm: pg.expiraEm, preferenciaId: "", link: "", qrCode: "",
+              provedor: provedorPg.nome(), cobrancasAnteriores: cobrancasAnteriores(ja.pagamento),
               ...(pg.status === "isento" ? { isentoPor: "sistema", motivoIsencao: "categoria sem valor" } : {}) } });
           if (renovado) {
             ja.pagamento = renovado;
@@ -4361,22 +4375,22 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     if (r.erro) return res.status(r.erro[0])
       .json({ error: r.erro[1], ...(r.jaInscrito ? { jaInscrito: r.jaInscrito } : {}) });
 
-    /* EVENTO PAGO: o link de pagamento nasce AGORA, fora da fila (é rede), e
-       entra na inscrição por uma segunda passada. Se o Mercado Pago falhar, a
-       inscrição existe, a vaga está reservada e a página de pagamento tenta
-       criar o link de novo — a pessoa não perde o que digitou. */
+    /* EVENTO PAGO: a cobrança nasce AGORA, fora da fila (é rede), e entra na
+       inscrição por uma segunda passada. Se o provedor falhar, a inscrição
+       existe, a vaga está reservada e a página de pagamento tenta criar a
+       cobrança de novo — a pessoa não perde o que digitou. */
     const aguardaPagamento = r.inscrito.pagamento?.status === "aguardando";
     if (aguardaPagamento) {
       let link = null;
       try { link = await criarLinkDePagamento(r.acao, r.inscrito, base); }
-      catch (e) { console.error("[pagamentos] link não criado na inscrição:", e.message); }
+      catch (e) { console.error("[pagamentos] cobrança não criada na inscrição:", e.message); }
       if (link) {
         const tok = r.inscrito.token, idAcao = r.acao.id;
         await comAcoes((acoes) => {
           const a = acoes.find((x) => x.id === idAcao);
           const i = (a?.participantes?.inscritos || []).find((x) => x?.token === tok);
           if (!i?.pagamento || i.pagamento.status !== "aguardando") return { gravar: false };
-          i.pagamento.preferenciaId = link.id; i.pagamento.link = link.link;
+          guardarCobranca(i.pagamento, link);
           r.inscrito = i;
           return {};
         }, { flushJa: false });
@@ -4497,22 +4511,46 @@ app.post("/api/publico/eventos/:slug/recuperar", async (req, res) => {
    vencida. A coordenação isenta, estorna e confere pela guia Financeiro.
    ===================================================================== */
 
-/* Aplica à inscrição o que a API do Mercado Pago diz de UM pagamento. É a
+/* O que se grava na inscrição quando o provedor devolve a cobrança: o id, o
+   link (Checkout Pro) ou o QR Pix (PicPay). A cobrança anterior, se houve
+   (reserva renovada), fica lembrada para a conciliação ainda a encontrar. */
+function guardarCobranca(pg, cobranca) {
+  pg.preferenciaId = String(cobranca?.id || "");
+  pg.link = String(cobranca?.link || "");
+  pg.qrCode = String(cobranca?.qrCode || "");
+}
+function cobrancasAnteriores(pg) {
+  return [...new Set([...(pg?.cobrancasAnteriores || []), pg?.preferenciaId, pg?.pagamentoId]
+    .map((x) => String(x || "")).filter(Boolean))].slice(-6);
+}
+
+/* Aplica à inscrição o que a API do provedor diz de UM pagamento — já na
+   forma NORMALIZADA (lib/pagamentos.js): o Mercado Pago devolve a referência
+   `<ação>:<token>`; o PicPay traz o token embutido no id da cobrança. É a
    única porta por onde um pagamento muda o estado da inscrição — webhook,
    botão "conferir" e varredura passam todos por aqui. Devolve o que mudou,
    para o chamador avisar quem precisa (fora da fila). */
-async function aplicarPagamentoDoProvedor(p, { por = "mercadopago" } = {}) {
-  const ref = String(p?.external_reference || "");
+async function aplicarPagamentoDoProvedor(p, { por } = {}) {
+  if (!p || typeof p !== "object") return { ignorado: "sem pagamento" };
+  por = por || p.provedor || "provedor";
+  const ref = String(p.referencia || "");
   const sep = ref.lastIndexOf(":");
-  if (sep < 0) return { ignorado: "sem referência" };
-  const idAcao = ref.slice(0, sep), tok = ref.slice(sep + 1).toLowerCase();
+  const idAcao = sep >= 0 ? ref.slice(0, sep) : "";
+  const tok = (sep >= 0 ? ref.slice(sep + 1) : String(p.token || "")).toLowerCase();
+  if (!tok) return { ignorado: "sem referência" };
   const r = await comAcoes((acoes) => {
-    const a = acoes.find((x) => x.id === idAcao);
+    // pela referência quando ela vem; pelo token quando só ele vem — e aí a
+    // inscrição precisa ser a que tem ESTA cobrança (ou uma anterior dela)
+    const a = idAcao ? acoes.find((x) => x.id === idAcao)
+      : acoes.find((x) => (x?.participantes?.inscritos || []).some((i) => String(i?.token || "").toLowerCase() === tok && i?.pagamento));
     if (!a) return { ignorado: "ação não encontrada", gravar: false };
     const i = (a.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === tok);
     if (!i?.pagamento) return { ignorado: "inscrição sem cobrança", gravar: false };
+    if (!idAcao && p.id && ![i.pagamento.preferenciaId, i.pagamento.pagamentoId, ...(i.pagamento.cobrancasAnteriores || [])]
+      .map(String).includes(String(p.id)))
+      return { ignorado: "cobrança não pertence a esta inscrição", gravar: false };
     const leitura = lerPagamentoDoProvedor(p, i.pagamento);
-    if (!leitura.estado) return { ignorado: `status desconhecido: ${p?.status}`, gravar: false };
+    if (!leitura.estado) return { ignorado: `status desconhecido: ${p?.statusProvedor}`, gravar: false };
     const antes = i.pagamento.status;
     // um pagamento MAIS ANTIGO que o que já confirmou a inscrição não a desfaz
     // (a pessoa tentou duas vezes: a recusada não apaga a aprovada)
@@ -4549,7 +4587,7 @@ async function aplicarPagamentoDoProvedor(p, { por = "mercadopago" } = {}) {
     // pagou DEPOIS de a reserva vencer: vale — o dinheiro entrou —, e a
     // coordenação vê a marca (a vaga pode ter sido ocupada por outro)
     if (antes === "expirado" && novo.status === "pago") novo.aposExpirar = true;
-    if (novo.status === "pago") delete novo.divergencia;
+    if (novo.status === "pago") { delete novo.divergencia; novo.qrCode = ""; }
     i.pagamento = novo;
     a.atualizadoEm = new Date().toISOString();
     return { acao: a, inscrito: i, antes, depois: novo.status, leitura };
@@ -4568,7 +4606,7 @@ async function avisarDesfechoDoPagamento(r, base) {
       const { emailPagamentoDivergente } = await import("./lib/mailer.js");
       await enviarAviso("ev-pagamento-divergente", emailPagamentoDivergente(r.acao, r.inscrito, {
         pagoCentavos: r.leitura.extra.pagoCentavos, devidoCentavos: r.inscrito.pagamento.valor,
-        pagamentoId: r.leitura.extra.pagamentoId }));
+        pagamentoId: r.leitura.extra.pagamentoId, provedor: provedorPg.de(r.inscrito.pagamento).rotulo }));
     }
   } catch (e) { console.error("[pagamentos] aviso do desfecho não enviado:", e.message); }
 }
@@ -4578,11 +4616,12 @@ async function avisarDesfechoDoPagamento(r, base) {
    recente). Serve ao botão "Já paguei", ao "conferir" da gestão e à
    varredura horária — o webhook que se perdeu deixa de importar. */
 async function conciliarInscricao(acao, inscrito, base) {
-  if (!mercadoPago.configurado() || !inscrito?.pagamento) return null;
-  const lista = await mercadoPago.pagamentosDaReferencia(`${acao.id}:${inscrito.token}`);
+  const adaptador = provedorPg.de(inscrito?.pagamento);
+  if (!adaptador.configurado() || !inscrito?.pagamento) return null;
+  const lista = await adaptador.pagamentosDaReferencia(`${acao.id}:${inscrito.token}`, inscrito.pagamento);
   if (!lista.length) return { semPagamento: true };
-  const escolhido = lista.find((p) => p.status === "approved")
-    || lista.find((p) => ["refunded", "charged_back"].includes(p.status) && String(p.id) === String(inscrito.pagamento.pagamentoId))
+  const escolhido = lista.find((p) => p.estado === "pago")
+    || lista.find((p) => ["estornado", "contestado"].includes(p.estado) && String(p.id) === String(inscrito.pagamento.pagamentoId))
     || lista[0];
   const r = await aplicarPagamentoDoProvedor(escolhido, { por: "conciliação" });
   avisarDesfechoDoPagamento(r, base);
@@ -4626,6 +4665,58 @@ app.post("/api/publico/pagamentos/mp", async (req, res) => {
   }
 });
 
+/**
+ * WEBHOOK do PicPay (set/2026). As mesmas três regras: (1) o token que o
+ * painel gerou ao ativar a URL de notificação vem no cabeçalho
+ * `Authorization` e é conferido ANTES de tudo — sem PICPAY_WEBHOOK_TOKEN
+ * nada se aceita; (2) responde 200 e trabalha depois; (3) o corpo só diz
+ * QUAL cobrança olhar (`data.merchantChargeId`) — quem decide é a consulta à
+ * API. O id da cobrança carrega o token da inscrição, e é assim que o aviso
+ * volta a ela.
+ */
+app.post("/api/publico/pagamentos/picpay", async (req, res) => {
+  try {
+    const b = req.body || {};
+    const tipo = String(req.get("event-type") || b.type || "");
+    const idCobranca = String(b.data?.merchantChargeId || b.merchantChargeId || "").trim();
+    if (/3ds|THREE_DS/i.test(tipo) || !idCobranca) return res.status(200).json({ ok: true, ignorado: true });
+    if (!picPay.segredoWebhook()) {
+      console.error("[pagamentos] webhook do PicPay recebido sem PICPAY_WEBHOOK_TOKEN configurado — ignorado; a conciliação horária cobre.");
+      return res.status(200).json({ ok: true, ignorado: true });
+    }
+    if (!picPay.validarWebhook(req.get("authorization"))) return res.status(401).json({ error: "token inválido" });
+    if (!/^[A-Za-z0-9-]{6,36}$/.test(idCobranca)) return res.status(200).json({ ok: true, ignorado: true });
+    res.status(200).json({ ok: true });
+    const base = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "") || baseDe(req);
+    (async () => {
+      const p = await picPay.consultarPagamento(idCobranca);
+      const r = await aplicarPagamentoDoProvedor(p, { por: "picpay" });
+      if (r?.ignorado) console.log(`[pagamentos] webhook PicPay ${idCobranca} ignorado: ${r.ignorado}`);
+      await avisarDesfechoDoPagamento(r, base);
+    })().catch((e) => console.error(`[pagamentos] webhook PicPay ${idCobranca}:`, e.message));
+  } catch (e) {
+    console.error("[pagamentos] webhook PicPay:", e);
+    if (!res.headersSent) res.status(500).json({ error: "falha ao processar o aviso" });
+  }
+});
+
+/** O QR Code Pix da cobrança em aberto, em PNG — desenhado do "copia e cola" gravado. */
+app.get("/api/publico/eventos/:slug/inscricao/:token/pagamento/qr.png", async (req, res) => {
+  try {
+    const r = await acharInscricao(req.params.slug, req.params.token);
+    const pub = r ? pagamentoPublico(r.inscrito, r.acao.evento) : null;
+    if (!pub?.qrCode) return res.status(404).send("Sem QR Code Pix em aberto para esta inscrição.");
+    const { default: QRCode } = await import("qrcode");
+    const png = await QRCode.toBuffer(pub.qrCode, { type: "png", errorCorrectionLevel: "M", margin: 2, width: 560 });
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "no-store");
+    res.send(png);
+  } catch (e) {
+    console.error("Erro no QR do pagamento:", e);
+    res.status(500).send("Não foi possível gerar o QR Code agora.");
+  }
+});
+
 /** A página de pagamento: o estado da cobrança da PRÓPRIA inscrição. */
 app.get("/api/publico/eventos/:slug/inscricao/:token/pagamento", async (req, res) => {
   try {
@@ -4651,7 +4742,7 @@ app.post("/api/publico/eventos/:slug/inscricao/:token/pagamento/conferir", async
     const r = await acharInscricao(req.params.slug, req.params.token);
     if (!r) return res.status(404).json({ error: "Inscrição não encontrada." });
     if (!r.inscrito.pagamento) return res.json({ ok: true, pagamento: null });
-    if (!inscricaoValida(r.inscrito) && mercadoPago.configurado()) {
+    if (!inscricaoValida(r.inscrito) && provedorPg.de(r.inscrito.pagamento).configurado()) {
       try { await conciliarInscricao(r.acao, r.inscrito, baseDe(req)); }
       catch (e) { console.error("[pagamentos] conferir:", e.message); }
     }
@@ -4671,7 +4762,7 @@ app.post("/api/publico/eventos/:slug/inscricao/:token/pagamento/conferir", async
 app.post("/api/publico/eventos/:slug/inscricao/:token/pagamento/pagar", async (req, res) => {
   try {
     if (inscricaoExcedeu(req.ip)) return res.status(429).json({ error: "Muitas tentativas — aguarde um minuto." });
-    if (!mercadoPago.configurado()) return res.status(503).json({ error: "O pagamento online não está disponível neste momento." });
+    if (!provedorPg.configurado()) return res.status(503).json({ error: "O pagamento online não está disponível neste momento." });
     const tok = String(req.params.token || "").trim().toLowerCase();
     const r = await comAcoes((acoes) => {
       const a = eventoPorSlug(acoes, req.params.slug)
@@ -4685,9 +4776,9 @@ app.post("/api/publico/eventos/:slug/inscricao/:token/pagamento/pagar", async (r
       if (["estornado", "contestado"].includes(pg.status))
         return { erro: [409, "Esta inscrição foi estornada — para participar, faça uma nova inscrição."], gravar: false };
       const vencida = reservaVencida(pg) || pg.status === "expirado";
-      // só FALTA O LINK (a rede falhou na inscrição): a reserva fica como está
-      // — renová-la aqui deixaria alguém estender o prazo clicando de novo
-      if (!vencida && pg.status === "aguardando" && !pg.link)
+      // só FALTA A COBRANÇA (a rede falhou na inscrição): a reserva fica como
+      // está — renová-la aqui deixaria alguém estender o prazo clicando de novo
+      if (!vencida && pg.status === "aguardando" && !pg.link && !pg.qrCode)
         return { acao: a, inscrito: i, criarLink: true, gravar: false };
       if (vencida || pg.status === "recusado") {
         // renovar a reserva: o preço é o de HOJE e a vaga precisa existir
@@ -4700,8 +4791,9 @@ app.post("/api/publico/eventos/:slug/inscricao/:token/pagamento/pagar", async (r
         const novoPg = novoPagamento({ valor: preco.valor, categoria: preco.categoria, lote: preco.lote,
           reservaMinutos: a.evento.cobranca?.reservaMinutos });
         const renovado = transitarPagamento(pg, preco.gratuita ? "isento" : "aguardando", { por: "inscrição",
-          motivo: vencida ? "reserva renovada" : (pg.link ? "nova tentativa" : "link criado"),
-          extra: { valor: novoPg.valor, lote: novoPg.lote, criadoEm: novoPg.criadoEm, expiraEm: novoPg.expiraEm, preferenciaId: "", link: "" } });
+          motivo: vencida ? "reserva renovada" : (pg.link || pg.qrCode ? "nova tentativa" : "cobrança criada"),
+          extra: { valor: novoPg.valor, lote: novoPg.lote, criadoEm: novoPg.criadoEm, expiraEm: novoPg.expiraEm,
+            preferenciaId: "", link: "", qrCode: "", provedor: provedorPg.nome(), cobrancasAnteriores: cobrancasAnteriores(pg) } });
         if (!renovado) return { erro: [409, "Não foi possível renovar a cobrança desta inscrição — fale com a coordenação."], gravar: false };
         i.pagamento = renovado;
         a.atualizadoEm = new Date().toISOString();
@@ -4717,15 +4809,15 @@ app.post("/api/publico/eventos/:slug/inscricao/:token/pagamento/pagar", async (r
         const a = acoes.find((x) => x.id === idAcao);
         const i = (a?.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === tok);
         if (!i?.pagamento || i.pagamento.status !== "aguardando") return { gravar: false };
-        i.pagamento.preferenciaId = link.id; i.pagamento.link = link.link;
+        guardarCobranca(i.pagamento, link);
         r.inscrito = i;
         return {};
       }, { flushJa: true });
     }
     res.json({ ok: true, pagamento: pagamentoPublico(r.inscrito, r.acao.evento) });
   } catch (e) {
-    console.error("Erro ao gerar o link de pagamento:", e);
-    res.status(502).json({ error: "Não foi possível gerar o link de pagamento agora. Tente de novo em instantes." });
+    console.error("Erro ao gerar a cobrança:", e);
+    res.status(502).json({ error: "Não foi possível gerar a cobrança agora. Tente de novo em instantes." });
   }
 });
 
@@ -4742,7 +4834,7 @@ app.get("/api/extensao/:id/financeiro", async (req, res) => {
     const agora = new Date();
     res.json({
       cobranca: a.evento?.cobranca || null,
-      provedor: { configurado: mercadoPago.configurado(), modo: mercadoPago.modo(), webhook: !!mercadoPago.segredoWebhook() },
+      provedor: provedorPg.retrato(),
       resumo: resumoFinanceiro(inscritos),
       // a linha leva o token (é a chave das ações da gestão) e a marca da
       // reserva vencida — nunca o CPF, que os exports já têm
@@ -4776,7 +4868,7 @@ app.post("/api/extensao/:id/inscritos/:token/isentar", async (req, res) => {
       if (!i?.pagamento) return { erro: [404, "Inscrição com cobrança não encontrada."], gravar: false };
       if (i.pagamento.status === "pago") return { erro: [409, "Esta inscrição já está paga — para devolver o valor, use o estorno."], gravar: false };
       const novo = transitarPagamento(i.pagamento, "isento", { por: u.email, motivo,
-        extra: { isentoPor: u.email, motivoIsencao: motivo, link: "" } });
+        extra: { isentoPor: u.email, motivoIsencao: motivo, link: "", qrCode: "" } });
       if (!novo) return { erro: [409, `Não dá para isentar uma inscrição ${ROTULO_PAGAMENTO[i.pagamento.status] || i.pagamento.status}.`], gravar: false };
       delete novo.divergencia;
       i.pagamento = novo;
@@ -4794,7 +4886,7 @@ app.post("/api/extensao/:id/inscritos/:token/isentar", async (req, res) => {
   }
 });
 
-/** Estorno TOTAL pelo Mercado Pago — só a gestão da Extensão ou dos Eventos. */
+/** Estorno TOTAL pelo provedor que recebeu — só a gestão da Extensão ou dos Eventos. */
 app.post("/api/extensao/:id/inscritos/:token/estornar", async (req, res) => {
   try {
     const u = await sessaoEx(req, res);
@@ -4802,20 +4894,23 @@ app.post("/api/extensao/:id/inscritos/:token/estornar", async (req, res) => {
     if (!(gereEx(u) || gereEv(u))) return res.status(403).json({ error: "Só a gestão da Extensão ou dos Eventos estorna pagamento." });
     const motivo = String(req.body?.motivo || "").trim().slice(0, 300);
     if (motivo.length < 5) return res.status(400).json({ error: "Escreva o motivo do estorno (fica no registro)." });
-    if (!mercadoPago.configurado()) return res.status(503).json({ error: "O provedor de pagamento não está configurado." });
     const tok = String(req.params.token || "").trim().toLowerCase();
     const a0 = (await lerAcoes()).find((x) => x.id === req.params.id);
     if (!a0 || !podeOperarEvento(u, a0)) return res.status(404).json({ error: "Ação não encontrada" });
     const i0 = (a0.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === tok);
     if (!i0?.pagamento) return res.status(404).json({ error: "Inscrição com cobrança não encontrada." });
+    // quem devolve é o adaptador que RECEBEU — um pagamento do Mercado Pago
+    // se estorna lá mesmo que o provedor vigente seja o PicPay
+    const adaptador = provedorPg.de(i0.pagamento);
+    if (!adaptador.configurado()) return res.status(503).json({ error: `O ${adaptador.rotulo} não está configurado no servidor — o estorno precisa da credencial de quem recebeu.` });
     if (!["pago", "contestado"].includes(i0.pagamento.status) || !i0.pagamento.pagamentoId)
-      return res.status(409).json({ error: "Só se estorna inscrição PAGA pelo Mercado Pago." });
+      return res.status(409).json({ error: `Só se estorna inscrição PAGA pelo ${adaptador.rotulo}.` });
     // o estorno acontece no provedor PRIMEIRO; só o que ele aceitou se grava
     let estorno;
     try {
-      estorno = await mercadoPago.estornar(i0.pagamento.pagamentoId, { chave: `ref-${a0.id}-${tok}-${i0.pagamento.pagamentoId}` });
+      estorno = await adaptador.estornar(i0.pagamento, { chave: `ref-${a0.id}-${tok}-${i0.pagamento.pagamentoId}` });
     } catch (e) {
-      return res.status(502).json({ error: `O Mercado Pago não aceitou o estorno: ${e.message}` });
+      return res.status(502).json({ error: `O ${adaptador.rotulo} não aceitou o estorno: ${e.message}` });
     }
     const r = await comAcoes((acoes) => {
       const a = acoes.find((x) => x.id === req.params.id);
@@ -4846,7 +4941,7 @@ app.post("/api/extensao/:id/inscritos/:token/conferir", async (req, res) => {
     if (!a || !podeOperarEvento(u, a)) return res.status(404).json({ error: "Ação não encontrada" });
     const i = (a.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === tok);
     if (!i?.pagamento) return res.status(404).json({ error: "Inscrição com cobrança não encontrada." });
-    if (!mercadoPago.configurado()) return res.status(503).json({ error: "O provedor de pagamento não está configurado." });
+    if (!provedorPg.de(i.pagamento).configurado()) return res.status(503).json({ error: `O ${provedorPg.de(i.pagamento).rotulo} não está configurado no servidor.` });
     const r = await conciliarInscricao(a, i, baseDe(req));
     const atual = ((await lerAcoes()).find((x) => x.id === req.params.id)?.participantes?.inscritos || [])
       .find((x) => String(x?.token || "").toLowerCase() === tok);
@@ -4905,11 +5000,10 @@ async function varrerPagamentosEventos() {
   if (!pendentes.length) return { expiradas: 0, conciliadas: 0 };
   const base = process.env.MP_WEBHOOK_URL ? process.env.MP_WEBHOOK_URL.replace(/\/api\/publico\/pagamentos\/mp\/?$/, "") : "https://arche.app.br";
   let conciliadas = 0;
-  if (mercadoPago.configurado()) {
-    for (const { a, i } of pendentes.slice(0, 40)) {
-      try { await conciliarInscricao(a, i, base); conciliadas++; }
-      catch (e) { console.error("[pagamentos] conciliação:", e.message); }
-    }
+  for (const { a, i } of pendentes.slice(0, 40)) {
+    if (!provedorPg.de(i.pagamento).configurado()) continue;
+    try { await conciliarInscricao(a, i, base); conciliadas++; }
+    catch (e) { console.error("[pagamentos] conciliação:", e.message); }
   }
   // depois da conciliação, o que continua aguardando com a reserva vencida expira
   const r = await comAcoes((acs) => {
@@ -4918,7 +5012,7 @@ async function varrerPagamentosEventos() {
       const a = acs.find((x) => x.id === a0.id);
       const i = (a?.participantes?.inscritos || []).find((x) => x?.token === i0.token);
       if (!i?.pagamento || !reservaVencida(i.pagamento, agora)) continue;
-      const novo = transitarPagamento(i.pagamento, "expirado", { por: "sistema", motivo: "reserva vencida sem pagamento", extra: { link: "" } });
+      const novo = transitarPagamento(i.pagamento, "expirado", { por: "sistema", motivo: "reserva vencida sem pagamento", extra: { link: "", qrCode: "" } });
       if (!novo) continue;
       i.pagamento = novo; a.atualizadoEm = new Date().toISOString(); n++;
     }
@@ -5905,15 +5999,16 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
         const cob = normalizarCobranca(b.cobranca);
         if (cob.ativa && !cob.categorias.length)
           return { erro: [400, "Para cobrar inscrição, cadastre ao menos uma categoria com o valor."], gravar: false };
-        if (cobrancaAtiva(cob) && !mercadoPago.configurado())
-          return { erro: [400, "O pagamento online não está configurado no servidor (MP_ACCESS_TOKEN). Peça à PROPPEX para configurar antes de ligar a cobrança."], gravar: false };
-        if (cobrancaAtiva(cob) && !cob.meios.pix && !cob.meios.cartao && !cob.meios.boleto)
-          return { erro: [400, "Escolha ao menos um meio de pagamento (Pix, cartão ou boleto)."], gravar: false };
+        if (cobrancaAtiva(cob) && !provedorPg.configurado())
+          return { erro: [400, "O pagamento online não está configurado no servidor (credencial do provedor). Peça à PROPPEX para configurar antes de ligar a cobrança."], gravar: false };
+        const me = provedorPg.meiosEfetivos(cob.meios);
+        if (cobrancaAtiva(cob) && !me.pix && !me.cartao && !me.boleto)
+          return { erro: [400, `Escolha ao menos um meio de pagamento que o ${provedorPg.rotulo()} cobre (${Object.entries(provedorPg.retrato().meios).filter(([, v]) => v).map(([k]) => ({ pix: "Pix", cartao: "cartão", boleto: "boleto" }[k])).join(", ")}).`], gravar: false };
         ev.cobranca = cob;
       }
       // e a ATIVAÇÃO da página de evento pago confere o mesmo (a chave pode
       // ter saído do ambiente depois de a cobrança ter sido configurada)
-      if (ev.ativo && !estavaAtivo && cobrancaAtiva(ev.cobranca) && !mercadoPago.configurado())
+      if (ev.ativo && !estavaAtivo && cobrancaAtiva(ev.cobranca) && !provedorPg.configurado())
         return { erro: [400, "Este evento cobra inscrição e o pagamento online não está configurado no servidor — desligue a cobrança ou peça a configuração à PROPPEX."], gravar: false };
       // as IMAGENS (foto de palestrante, logotipo de apoiador) não viajam nos
       // payloads: a tela recebe só `temFoto`/`temLogo`. Salvar a programação

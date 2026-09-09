@@ -6,8 +6,10 @@ import {
   normalizarCobranca, cobrancaAtiva, valorDaInscricao, loteVigente, novoPagamento, transitar,
   podeTransitar, inscricaoValida, reservaVencida, estadoDoProvedor, meioDoProvedor,
   lerPagamentoDoProvedor, validarAssinaturaMP, resumoFinanceiro, linhasFinanceiro, centavos, fmtReais, ocupaVaga,
+  normalizarMP, normalizarPicPay, estadoPicPay, idCobrancaPicPay, tokenDoIdPicPay, validarTokenPicPay, ehNormalizado,
 } from "../lib/pagamentos.js";
 import { isoComFuso, configurado, modo } from "../lib/pagamentos/mercadopago.js";
+import * as provedor from "../lib/pagamentos/provedor.js";
 
 const COB = normalizarCobranca({
   ativa: true,
@@ -101,6 +103,74 @@ test("a leitura do provedor traduz status e meio, e confere o VALOR", () => {
   assert.equal(menos.divergente, true, "pagou menos que o devido: não confirma");
   const mais = lerPagamentoDoProvedor({ id: 1, status: "approved", transaction_amount: 150 }, dev);
   assert.equal(mais.divergente, false); assert.equal(mais.extra.pagoCentavos, 15000);
+});
+
+test("PicPay: a cobrança normaliza para a MESMA régua, e a leitura confere o valor igual", () => {
+  // o id da cobrança carrega o token da inscrição: é assim que o webhook volta a ela
+  const tok = "0123456789abcdef012345";
+  const id = idCobrancaPicPay(tok, "2026-09-10T18:04:22.123Z");
+  assert.match(id, /^[A-Za-z0-9-]{6,36}$/, "dentro do que a API aceita");
+  assert.equal(tokenDoIdPicPay(id), tok);
+  assert.equal(tokenDoIdPicPay("abc"), "");
+  assert.notEqual(idCobrancaPicPay(tok, "2026-09-11T18:04:22.123Z"), id, "reserva renovada = cobrança nova");
+
+  assert.equal(estadoPicPay("PAID"), "pago");
+  assert.equal(estadoPicPay("PARTIAL"), "pago", "estorno parcial não desfaz a inscrição");
+  assert.equal(estadoPicPay("REFUNDED"), "estornado");
+  assert.equal(estadoPicPay("CANCELED"), "expirado");
+  assert.equal(estadoPicPay("DENIED"), "recusado");
+  assert.equal(estadoPicPay("PRE_AUTHORIZED", "PENDING"), "aguardando");
+  assert.equal(estadoPicPay("PRE_AUTHORIZED", "EXPIRED"), "expirado");
+  assert.equal(estadoPicPay("PAID", "CHARGEBACK"), "contestado");
+  assert.equal(estadoPicPay("xyz"), null);
+
+  const cobranca = { merchantChargeId: id, id: "ed50d469-uuid", chargeStatus: "PAID", amount: 5000, originalAmount: 5000, refundedAmount: 0,
+    transactions: [{ paymentType: "PIX", amount: 5000, originalAmount: 5000, transactionStatus: "PAID", updatedAt: "2026-09-10T15:10:00-03:00",
+      pix: { qrCode: "00020101021226940014COM.PICPAY", endToEndId: "E0041691" } }] };
+  const n = normalizarPicPay(cobranca);
+  assert.equal(ehNormalizado(n), true);
+  assert.equal(n.provedor, "picpay"); assert.equal(n.token, tok); assert.equal(n.id, id);
+  assert.equal(n.estado, "pago"); assert.equal(n.meio, "pix"); assert.equal(n.pagoCentavos, 5000);
+  assert.equal(n.qrCode, "00020101021226940014COM.PICPAY");
+  assert.ok(n.pagoEm.startsWith("2026-09-10T18:10"), "hora do pagamento em UTC");
+  const leitura = lerPagamentoDoProvedor(n, { valor: 5000 });
+  assert.equal(leitura.estado, "pago"); assert.equal(leitura.divergente, false);
+  assert.equal(leitura.extra.pagamentoId, id); assert.equal(leitura.extra.provedor, "picpay");
+  assert.equal(lerPagamentoDoProvedor(n, { valor: 6000 }).divergente, true, "pagou menos: não confirma");
+  // depois do estorno o amount vem zerado e o pago fica em originalAmount
+  const est = normalizarPicPay({ ...cobranca, chargeStatus: "REFUNDED", amount: 0, refundedAmount: 5000 });
+  assert.equal(est.estado, "estornado"); assert.equal(est.pagoCentavos, 5000); assert.equal(est.refundedCentavos, 5000);
+  // a forma crua do Mercado Pago continua entrando pela mesma porta
+  const mp = normalizarMP({ id: 9, status: "approved", transaction_amount: 50, external_reference: "acao:tok" });
+  assert.equal(mp.referencia, "acao:tok"); assert.equal(mp.estado, "pago"); assert.equal(mp.pagoCentavos, 5000);
+  assert.equal(lerPagamentoDoProvedor(mp, { valor: 5000 }).extra.pagamentoId, "9");
+});
+
+test("PicPay: o webhook se autentica pelo token do painel, com ou sem 'Bearer' — e sem token nada passa", () => {
+  assert.equal(validarTokenPicPay("abc123", "abc123"), true);
+  assert.equal(validarTokenPicPay("Bearer abc123", "abc123"), true);
+  assert.equal(validarTokenPicPay("abc124", "abc123"), false);
+  assert.equal(validarTokenPicPay("", "abc123"), false);
+  assert.equal(validarTokenPicPay("abc123", ""), false, "sem token configurado");
+});
+
+test("o registro escolhe o provedor pelo ambiente e recorta os meios pelo que ele cobre", () => {
+  const antes = { P: process.env.PAGAMENTO_PROVEDOR, ID: process.env.PICPAY_CLIENT_ID, SEC: process.env.PICPAY_CLIENT_SECRET, MP: process.env.MP_ACCESS_TOKEN };
+  try {
+    delete process.env.PAGAMENTO_PROVEDOR; delete process.env.PICPAY_CLIENT_ID; delete process.env.PICPAY_CLIENT_SECRET;
+    assert.equal(provedor.nome(), "mercadopago", "sem nada configurado, o padrão de sempre");
+    process.env.PICPAY_CLIENT_ID = "id"; process.env.PICPAY_CLIENT_SECRET = "s";
+    assert.equal(provedor.nome(), "picpay", "PicPay configurado vence sem a variável");
+    assert.deepEqual(provedor.meiosEfetivos({ pix: true, cartao: true, boleto: true }), { pix: true, cartao: false, boleto: false });
+    process.env.PAGAMENTO_PROVEDOR = "mercadopago";
+    assert.equal(provedor.nome(), "mercadopago", "a variável manda");
+    assert.deepEqual(provedor.meiosEfetivos({ pix: true, cartao: true }), { pix: true, cartao: true, boleto: false });
+    assert.equal(provedor.de({ provedor: "picpay" }).nome, "picpay", "o registro de pagamento sabe quem o emitiu");
+    assert.equal(provedor.retrato().rotulo, "Mercado Pago");
+  } finally {
+    for (const [k, v] of [["PAGAMENTO_PROVEDOR", antes.P], ["PICPAY_CLIENT_ID", antes.ID], ["PICPAY_CLIENT_SECRET", antes.SEC], ["MP_ACCESS_TOKEN", antes.MP]])
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  }
 });
 
 test("a assinatura do webhook confere pelo manifesto documentado — e sem segredo nada passa", () => {

@@ -841,8 +841,9 @@ function blocoCategoria(e) {
       <b style="white-space:nowrap">${k.valor > 0 ? reais(k.valor) : "gratuita"}</b>
       ${k.valorCheio > k.valor ? `<span class="m" style="text-decoration:line-through;white-space:nowrap">${reais(k.valorCheio)}</span>` : ""}
     </label>`).join("")}
-    <p style="font-size:12px;color:var(--muted);margin-top:8px">Pagamento por ${[c.meios?.pix && "Pix", c.meios?.cartao && (c.parcelas > 1 ? `cartão (até ${c.parcelas}x)` : "cartão"), c.meios?.boleto && "boleto"].filter(Boolean).join(", ") || "meio a definir"},
-      na página segura do Mercado Pago${c.recebedor ? `, em nome de ${esc(c.recebedor)}` : ""}. A vaga fica reservada por ${Math.round((c.reservaMinutos || 1440) / 60)} h para o pagamento;
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">Pagamento por ${[c.meios?.pix && "Pix", c.meios?.cartao && (c.parcelas > 1 ? `cartão (até ${c.parcelas}x)` : "cartão"), c.meios?.boleto && "boleto"].filter(Boolean).join(", ") || "meio a definir"}${c.provedor === "picpay"
+        ? ` — o QR Code Pix aparece logo depois da inscrição, emitido pelo ${esc(c.provedorRotulo || "PicPay")}${c.recebedor ? ` em nome de ${esc(c.recebedor)}` : ""}, e vale em qualquer banco`
+        : `, na página segura do ${esc(c.provedorRotulo || "provedor de pagamento")}${c.recebedor ? `, em nome de ${esc(c.recebedor)}` : ""}`}. A vaga fica reservada por ${Math.round((c.reservaMinutos || 1440) / 60)} h para o pagamento;
       a credencial sai depois da confirmação.</p>`;
 }
 
@@ -881,9 +882,10 @@ function lerRespostas() {
 function pos(token, pagamento) {
   const url = `/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(token)}`;
   const marcadas = [...ESCOLHIDAS].map(atvPorId).filter(Boolean);
-  /* EVENTO PAGO: a inscrição está RESERVADA, não confirmada — sem QR aqui. O
-     botão leva ao Mercado Pago; a página de pagamento (para onde ele devolve
-     a pessoa) confere a confirmação e dali se abre a credencial. */
+  /* EVENTO PAGO: a inscrição está RESERVADA, não confirmada — sem QR de
+     credencial aqui. O botão leva à página de pagamento do ARCHÉ, que mostra
+     o QR Pix (PicPay) ou encaminha ao provedor (Mercado Pago), confere a
+     confirmação e dali se abre a credencial. */
   if (pagamento && !pagamento.valida) {
     const urlPag = `/eventos/${encodeURIComponent(SLUG)}/pagamento/${encodeURIComponent(token)}`;
     const hora = (iso) => { try { return new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
