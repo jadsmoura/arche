@@ -1433,6 +1433,15 @@ public/
   A lista **deixou de ser paginada**: cortar antes de agrupar faria o número do cabeçalho contar
   só o que caiu na página, e contador que mente é pior que lista longa — é a MESMA decisão já
   tomada no arquivo de atas, e quem responde ao tamanho aqui é o bloco recolhido.
+  **O PAINEL GERAL DO ARCHÉ EV AGRUPA IGUAL** (`renderCardsPainel` + `ETAPAS_EV`/`grupoAbertoEv`
+  em public/eventos/gestao/index.html, pedido do dono set/2026: "fui procurar eventos para aprovar
+  e estavam misturados com eventos aprovados e encerrados"): os cartões dos eventos eram uma
+  fileira só, ordenada por publicação e data, e a etapa só se lia no selo, cartão a cartão. Agora
+  é um bloco recolhível por etapa, na ordem do processo e com a cor do selo, mais o filtro
+  "situação" ao lado de curso e ano; quem vem aprovar abre "Aguardando validação" e encontra só o
+  que espera decisão. Mesmas regras do EX: encerrado e reprovada nascem fechados, a escolha fica
+  no navegador (`arche-ev-grupo-<etapa>`) e o filtro por situação abre o bloco que sobrou. A
+  situação continua vindo pronta do servidor (`a.situacao`); a tela só agrupa.
 - **A PROPOSTA É O DOCUMENTO SIMPLES DO PROFESSOR, e a análise tem TRÊS SAÍDAS** (pedido do
   dono, ago/2026: "devem haver duas etapas — Propostas e Relatórios; a proposta é um documento
   mais simples, só com o que o professor preenche"). O formulário de Nova proposta perdeu os
@@ -2307,6 +2316,18 @@ public/
   aluno novo sai da concessão do projeto — a caixa do formulário não manda. A GESTÃO
   segue com a mão livre (edita pelo ramo geral). A tela espelha a regra: sem ×, e-mail
   e caixa travados nos já indicados ("via substituição" no lugar).
+- **REMOVER A INDICAÇÃO É DA GESTÃO, com motivo e histórico** (`POST /api/ic/:id/indicacao/remover`
+  + `removerIndicacao` na SPA, pedido do dono set/2026: "permita à gestão apagar indicação,
+  professores têm indicado errado"). A gestão sempre pôde tirar o aluno — pelo "×" do quadro +
+  Salvar, que passava pelo POST em bloco e entrava no histórico como "editou a proposta", sem dizer
+  quem saiu nem por quê; e a linha de estado do indicado (já entrou · corrigir · reenviar) só saía
+  para a orientação, então a coordenação nem via as ferramentas. Agora, em projeto em execução, a
+  gestão vê a linha de estado com o botão **🗑 Remover indicação**, que pede o motivo e passa pela
+  rota própria: o histórico nomeia o aluno e o motivo, o registro dele vai inteiro para
+  `indicacoesRemovidas` (teto 20 — o que ele já tinha digitado de seu não some sem rastro) e a trava
+  de um projeto por acadêmico se libera para a indicação certa. Aluno com **relatório entregue não
+  sai por aqui** (409): o relatório ficaria órfão, e aí é Substituição. Antes da aprovação o "×"
+  continua como estava — ali é rascunho.
 - **CORRIGIR A INDICAÇÃO É DA ORIENTAÇÃO, e o convite se reenvia**
   (`POST /api/ic/:id/indicacao` — o antigo `/aluno-email`, que segue valendo como caminho —
   + `bolsistaEntrou`/`camposDaIndicacaoAlterados` em lib/ic.js, pedido do dono ago/2026:

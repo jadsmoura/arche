@@ -4292,9 +4292,18 @@ function desenharAlunos() {
   // pela PROPPEX), e a marca de bolsista acompanha a concessão do fomento.
   // A gestão continua com a mão livre. `_novo` é só do cliente: marca a
   // linha recém-adicionada, que segue editável até salvar.
-  const travado = ["aprovado", "concluido"].includes(ATUAL.status) && !META.gestao;
+  const emExecucao = ["aprovado", "concluido"].includes(ATUAL.status);
+  const travado = emExecucao && !META.gestao;
   $("tb-alunos").innerHTML = (ATUAL.alunos || []).map((a, i) => {
     const fixo = travado && !a._novo;
+    /* A GESTÃO também vê a linha de estado do indicado (set/2026): antes ela
+       só saía para a orientação (`fixo`), e a coordenação, que tem a mão
+       livre, ficava sem o "já entrou", sem o corrigir e sem o reenviar — e
+       sem o REMOVER, que é o pedido do dono ("professores têm indicado
+       errado"). Para ela, em projeto em execução, o "×" mudo dá lugar ao
+       botão que passa pela rota própria, com motivo e histórico. */
+    const jaIndicado = emExecucao && !a._novo;
+    const linhaEstado = ger && (fixo || (META.gestao && jaIndicado));
     const roCampo = ger ? "" : "disabled";
     const roFixo = ger && !fixo ? "" : "disabled";
     return `
@@ -4309,7 +4318,7 @@ function desenharAlunos() {
       <td><span class="${a.bolsista ? "badge b-aprovado" : "muted"}"
         title="Não se marca aqui: acompanha a bolsa concedida ao projeto, e quem concede é a PROPPEX (guia Bolsas)"
         >${a.bolsista ? "Bolsista" : "Voluntário(a)"}</span></td>
-      <td>${ger && !fixo ? `<button class="rm" title="remover" onclick="ATUAL.alunos.splice(${i},1);desenharAlunos();desenharEtapas()">×</button>`
+      <td>${ger && !fixo && !(META.gestao && jaIndicado) ? `<button class="rm" title="remover" onclick="ATUAL.alunos.splice(${i},1);desenharAlunos();desenharEtapas()">×</button>`
         : (fixo ? `<span class="muted" title="Para trocar o bolsista, use a Substituição de bolsista — a coordenação aprova" style="font-size:11px">via substituição</span>` : "")}</td>
     </tr>
     ${/* A LINHA DE ESTADO DE CADA INDICADO (ago/2026, pedido do dono: "alguns
@@ -4319,7 +4328,7 @@ function desenharAlunos() {
           faltava a resposta à única pergunta que ele faz: o convite chegou?
           Quem responde é `entrou`, que o servidor manda de propósito (os
           campos que provam a entrada saem em branco para a orientação). */""}
-    ${ger && fixo ? `<tr><td colspan="7" style="border-top:0;padding-top:0">
+    ${linhaEstado ? `<tr><td colspan="7" style="border-top:0;padding-top:0">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px">
         ${a.entrou
           ? '<span style="color:var(--ok);font-weight:600">✓ já entrou no sistema</span>'
@@ -4329,6 +4338,9 @@ function desenharAlunos() {
         ${a.email ? `<button class="bt bt-ghost" style="padding:3px 9px;font-size:12px"
           title="Manda o mesmo convite de novo para ${esc(a.email)} — para o caso de ter caído no spam"
           onclick="reenviarConvite(${i})">✉ Reenviar convite</button>` : ""}
+        ${META.gestao ? `<button class="bt bt-ghost" style="padding:3px 9px;font-size:12px;color:var(--err)"
+          title="Tira este aluno do projeto, com o motivo no histórico — a orientação indica o certo em seguida"
+          onclick="removerIndicacao(${i})">🗑 Remover indicação</button>` : ""}
       </div></td></tr>` : ""}
     ${!a.email ? `<tr><td colspan="7" class="muted" style="border-top:0;padding-top:0">
       ⚠ sem e-mail não há convite: ${esc(a.nome || "este aluno")} não entra no sistema</td></tr>` : ""}
@@ -4447,6 +4459,29 @@ async function reenviarConvite(i) {
       body: JSON.stringify({ de: a.email, reenviar: true }),
     });
     aviso(`Convite reenviado para ${a.email}. Peça para conferir também o spam.`);
+  } catch (e) { aviso(e.message, "erro"); }
+}
+
+/* REMOVER A INDICAÇÃO — só a gestão (pedido do dono, set/2026: "professores
+   têm indicado errado"). Passa pela rota própria, com motivo: o histórico do
+   projeto diz quem saiu e por quê, e a trava de um projeto por acadêmico se
+   libera para a indicação certa. Aluno com relatório entregue o servidor
+   recusa — aí é substituição. */
+async function removerIndicacao(i) {
+  const a = (ATUAL.alunos || [])[i];
+  if (!a) return;
+  const quem = a.nome || a.email || "este aluno";
+  const motivo = prompt(`Remover a indicação de ${quem} deste projeto?\n\nEscreva o motivo — ele fica no histórico do projeto:`, "indicação feita por engano");
+  if (motivo === null) return;
+  if (String(motivo).trim().length < 5) { aviso("Escreva o motivo da remoção (ao menos 5 letras).", "erro"); return; }
+  try {
+    const r = await api(`/api/ic/${ATUAL.id}/indicacao/remover`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: a.email || "", nome: a.nome || "", motivo: String(motivo).trim() }),
+    });
+    ATUAL = r.projeto;
+    desenharAlunos(); desenharEtapas();
+    aviso(`Indicação de ${quem} removida. A orientação já pode indicar o aluno certo.`);
   } catch (e) { aviso(e.message, "erro"); }
 }
 

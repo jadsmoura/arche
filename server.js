@@ -13085,6 +13085,57 @@ app.post(["/api/ic/:id/indicacao", "/api/ic/:id/aluno-email"], async (req, res) 
 });
 
 /**
+ * REMOVER A INDICAÇÃO — ato da GESTÃO (pedido do dono, set/2026: "permita à
+ * gestão apagar indicação, professores têm indicado errado"). A orientação
+ * não remove aluno de projeto em execução (é a Substituição de bolsista); a
+ * gestão sempre pôde, mas só pelo "×" do quadro + Salvar, que passava pelo
+ * POST em bloco e entrava no histórico como "editou a proposta" — sem dizer
+ * quem saiu nem por quê. Agora é rota própria, com MOTIVO obrigatório e a
+ * linha do histórico nomeando o aluno: num projeto que a PROPPEX audita
+ * depois, "editou a proposta" não explica um bolsista que sumiu.
+ *
+ * Dois freios: aluno com RELATÓRIO entregue não sai por aqui (o relatório
+ * ficaria órfão — é caso de substituição, ou de conversa), e o registro do
+ * aluno vai INTEIRO para `indicacoesRemovidas` (teto 20), para o que ele
+ * já tinha digitado de seu não se perder sem rastro. Remover libera a trava
+ * de UM PROJETO POR ACADÊMICO: é o que permite a indicação certa em seguida.
+ */
+app.post("/api/ic/:id/indicacao/remover", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const meu = quemIC(u);
+  if (!meu.gestao) return res.status(403).json({ error: "Remover a indicação é ato da coordenação de pesquisa." });
+  const b = req.body || {};
+  const de = String(b.email || "").trim().toLowerCase();
+  const nomeB = String(b.nome || "").trim().toLowerCase();
+  const motivo = String(b.motivo || "").trim().slice(0, 600);
+  if (motivo.length < 5) return res.status(400).json({ error: "Escreva o motivo da remoção — ele fica no histórico do projeto." });
+  const r = await comProjetos((projetos) => {
+    const i = projetos.findIndex((x) => x.id === req.params.id);
+    if (i < 0) return { erro: [404, "Projeto não encontrado"], gravar: false };
+    const p = projetos[i];
+    const alunos = [...(p.alunos || [])];
+    const j = alunos.findIndex((a) => (de && String(a.email || "").toLowerCase() === de)
+      || (!de && nomeB && String(a.nome || "").trim().toLowerCase() === nomeB));
+    if (j < 0) return { erro: [400, "Não encontrei esse aluno na indicação."], gravar: false };
+    const sai = alunos[j];
+    const comRelatorio = (p.relatorios || []).some((rel) => sai.email && String(rel.aluno || "").toLowerCase() === String(sai.email).toLowerCase());
+    if (comRelatorio)
+      return { erro: [409, `${sai.nome || sai.email} já entregou relatório neste projeto — a indicação não se remove; `
+        + "se for troca de bolsista, use a Substituição."], gravar: false };
+    alunos.splice(j, 1);
+    const removidas = [...(p.indicacoesRemovidas || []), { ...sai, removidoEm: new Date().toISOString(), por: u.email, motivo }].slice(-20);
+    projetos[i] = anotarProjeto({ ...p, alunos, indicacoesRemovidas: removidas }, {
+      quem: u.email,
+      oQue: `removeu a indicação de ${sai.nome || sai.email || "um aluno"}${sai.email ? ` <${sai.email}>` : ""} — ${motivo}`,
+    });
+    return { projeto: projetos[i], sai };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, removido: { nome: r.sai.nome || "", email: r.sai.email || "" }, projeto: verProjeto(u, r.projeto) });
+});
+
+/**
  * Substituição de bolsista: a orientação SOLICITA a troca — diz quem sai,
  * apresenta o novo aluno (nome, curso, período, e-mail, telefone) e o
  * motivo — e a decisão é da coordenação. Aprovada, o sistema faz a troca:

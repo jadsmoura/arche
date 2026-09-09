@@ -175,6 +175,21 @@
   .evcard .selos{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
   .evcard .nums{font-size:12.5px;color:var(--ink-soft);margin-top:8px;font-weight:600}
   @media(max-width:560px){.evcard{flex-direction:column}.evcard .thumb{width:100%;height:90px}}
+  /* A LISTA SE AGRUPA POR SITUAÇÃO (pedido do dono, set/2026): o mesmo bloco
+     recolhível da lista de propostas do ARCHÉ EX — um por etapa, na ordem do
+     processo, com a bolinha na cor do selo. */
+  details.grupo{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
+  details.grupo>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;
+    padding:14px 18px;font-weight:600;font-size:14px;color:var(--ink);user-select:none;transition:background .15s}
+  details.grupo>summary::-webkit-details-marker{display:none}
+  details.grupo>summary:hover{background:var(--wash)}
+  details.grupo>summary .qt{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--brand-3);
+    background:var(--wash);border:1px solid var(--line);border-radius:20px;padding:3px 10px;white-space:nowrap}
+  details.grupo>summary .seta{font-size:10px;color:var(--muted);transition:transform .2s}
+  details.grupo[open]>summary .seta{transform:rotate(180deg)}
+  details.grupo>summary .pt{width:9px;height:9px;border-radius:50%;flex:none;background:var(--brand-3)}
+  details.grupo>summary .dica{font-size:11.5px;font-weight:400;color:var(--muted)}
+  details.grupo .corpo{padding:12px 14px 4px;border-top:1px solid var(--line);background:#f7f9fb}
 
   /* --------------------------- editor de atividades ----------------------- */
   .atv-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fafbfc}
@@ -786,6 +801,10 @@ function renderPainel(){
         <option value="">Todos os anos</option>
         ${anosDosEventos().map(y=>`<option value="${esc(y)}">${esc(y)}</option>`).join("")}
       </select>
+      <select id="l-etapa" onchange="renderCardsPainel()" title="Filtrar por situação">
+        <option value="">Todas as situações</option>
+        ${ETAPAS_EV.map(k=>`<option value="${k}">${esc(ETAPA_ROTULO_EV[k])}</option>`).join("")}
+      </select>
       <span class="muted" id="l-total"></span>
     </div>
     <div id="ev-cards"></div>
@@ -801,12 +820,46 @@ const anoDoEvento=(a)=>String(a?.proposta?.periodoInicio||a?.proposta?.periodoFi
 const cursosDosEventos=()=>[...new Set(ACOES.filter(a=>a.evento).flatMap(cursosDaAcao))].sort((x,y)=>x.localeCompare(y,"pt-BR"));
 const anosDosEventos=()=>[...new Set(ACOES.filter(a=>a.evento).map(anoDoEvento).filter(Boolean))].sort().reverse();
 
+/* ------------------- A LISTA SE AGRUPA POR SITUAÇÃO ---------------------
+   Pedido do dono (set/2026): "fui procurar eventos para aprovar e estavam
+   misturados com eventos aprovados e encerrados". A lista era uma fileira
+   só, ordenada por publicação e data — e a ETAPA de cada evento só se lia no
+   selo, cartão a cartão. Agora é um bloco por etapa, na ORDEM DO PROCESSO
+   (é a mesma régua e o mesmo desenho da lista de propostas do ARCHÉ EX):
+   quem vem aprovar abre "Aguardando validação" e encontra só o que espera
+   decisão. O que ESPERA alguém nasce aberto; encerrado e reprovada nascem
+   fechados (são os que mais crescem). A escolha fica no navegador, e
+   filtrando por situação o bloco que sobrou abre. A situação vem PRONTA do
+   servidor (`a.situacao`, lib/situacao.js) — a tela não refaz a régua. */
+const ETAPAS_EV = ["preenchimento","aguardando-validacao","validado","aguardando-encerramento",
+  "encerramento-em-validacao","encerrado","reprovada"];
+const ETAPA_ROTULO_EV = {preenchimento:"Em preenchimento","aguardando-validacao":"Aguardando validação",
+  validado:"Validado / em andamento","aguardando-encerramento":"Aguardando encerramento",
+  "encerramento-em-validacao":"Encerramento aguardando validação",
+  encerrado:"Encerrado · certificados emitidos",reprovada:"Reprovada"};
+const ETAPA_DICA_EV = {preenchimento:"o projeto ainda não foi completado ou enviado",
+  "aguardando-validacao":"a PROPPEX ainda não aprovou — é aqui que se aprova",
+  validado:"aprovados, com a página pronta ou no ar", "aguardando-encerramento":"o evento passou e ninguém encerrou",
+  "encerramento-em-validacao":"o coordenador encerrou; falta a PROPPEX validar",
+  encerrado:"ciclo fechado", reprovada:"fora do fluxo, por decisão"};
+const ETAPA_FECHADA_EV = new Set(["encerrado","reprovada"]);
+const chaveGrupoEv=(etapa)=>`arche-ev-grupo-${etapa}`;
+function grupoAbertoEv(etapa,filtrando){
+  if(filtrando) return true;
+  let g=null; try{ g=localStorage.getItem(chaveGrupoEv(etapa)); }catch{ /* aba privada */ }
+  return g===null ? !ETAPA_FECHADA_EV.has(etapa) : g==="1";
+}
+function alternarGrupoEv(etapa,el){
+  try{ localStorage.setItem(chaveGrupoEv(etapa), el.open?"1":"0"); }catch{ /* aba privada */ }
+}
+
 function renderCardsPainel(){
   const q=($("l-busca")?.value||"").trim().toLowerCase();
-  const fc=$("l-curso")?.value||"", fa=$("l-ano")?.value||"";
+  const fc=$("l-curso")?.value||"", fa=$("l-ano")?.value||"", fe=$("l-etapa")?.value||"";
+  const etapaDe=(a)=>a.situacao?.etapa||"preenchimento";
   const bate=(a)=>(!q || String(a.proposta?.nomeAtividade||"").toLowerCase().includes(q)
       || cursosEmTexto(a).toLowerCase().includes(q))
-    && (!fc || acaoDoCurso(a,fc)) && (!fa || anoDoEvento(a)===fa);
+    && (!fc || acaoDoCurso(a,fc)) && (!fa || anoDoEvento(a)===fa) && (!fe || etapaDe(a)===fe);
   const comEvento=ACOES.filter(a=>a.evento).filter(bate)
     .sort((x,y)=>Number(y.evento?.ativo===true)-Number(x.evento?.ativo===true)
       || String(y.proposta?.periodoInicio||"").localeCompare(String(x.proposta?.periodoInicio||"")));
@@ -815,15 +868,34 @@ function renderCardsPainel(){
   const semEvento=ACOES.filter(a=>!a.evento&&!a.origemPapel).filter(a=>!q
     || String(a.proposta?.nomeAtividade||"").toLowerCase().includes(q)
     || cursosEmTexto(a).toLowerCase().includes(q));
-  const filtrando=!!(q||fc||fa);
+  const filtrando=!!(q||fc||fa||fe);
   if($("l-total")) $("l-total").textContent = comEvento.length
     ? `${comEvento.length} evento(s)${filtrando?" no filtro":""}` : "";
 
-  $("ev-cards").innerHTML = comEvento.length ? comEvento.map(cardLista).join("") :
+  // um bloco por etapa, na ordem do processo; etapa fora do catálogo (não
+  // deve acontecer) entra no fim em vez de sumir
+  const grupos={};
+  for(const a of comEvento){ const e=etapaDe(a); (grupos[e]=grupos[e]||[]).push(a); }
+  const ordem=ETAPAS_EV.filter(k=>grupos[k]);
+  for(const k of Object.keys(grupos)) if(!ordem.includes(k)) ordem.push(k);
+  const blocos=ordem.map(k=>{
+    const itens=grupos[k];
+    const [,cor]=CORES_ETAPA[k]||["","var(--brand-3)"];
+    return `<details class="grupo"${grupoAbertoEv(k,!!fe)?" open":""} ontoggle="alternarGrupoEv('${k}',this)">
+      <summary><span class="pt" style="background:${cor}"></span>
+        ${esc(ETAPA_ROTULO_EV[k]||k)}
+        ${ETAPA_DICA_EV[k]?`<span class="dica">— ${esc(ETAPA_DICA_EV[k])}</span>`:""}
+        <span class="qt">${itens.length} ${itens.length===1?"evento":"eventos"}</span>
+        <span class="seta">▼</span></summary>
+      <div class="corpo">${itens.map(cardLista).join("")}</div>
+    </details>`;
+  }).join("");
+
+  $("ev-cards").innerHTML = comEvento.length ? blocos :
     `<div class="card" style="text-align:center;padding:34px 20px">
       <div style="font-size:15px;font-weight:700;color:var(--ink)">${filtrando?"Nenhum evento encontrado com estes filtros.":"Nenhum evento ainda."}</div>
       <div class="muted" style="margin-top:8px;max-width:520px;margin-left:auto;margin-right:auto">
-        ${filtrando?"Limpe a busca, o curso ou o ano para ver os demais."
+        ${filtrando?"Limpe a busca, o curso, o ano ou a situação para ver os demais."
         :`Comece pelo botão <b>＋ Cadastrar novo evento</b> — ele registra a ação de
         extensão e já deixa o evento pronto para montar. Se preferir, a proposta
         completa também pode ser registrada no <a href="/extensao/">ARCHÉ EX</a>.`}</div>
