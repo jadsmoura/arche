@@ -754,6 +754,14 @@ public/
   (indicação só abre no projeto `aprovado`; o IC-2026-020 estava `submetido` na cópia). Ensaiado com
   o retrato do print (origem sem perfil, só nas listas e nos projetos): 4 projetos movidos, origem
   fora de todas as listas, o painel com uma Luana só, marca v2 gravada.
+  **E o pedido se executa PELA ROTA, com o motivo por extenso** (`tentarFusaoSolicitada` +
+  `FUSOES_ULTIMA_TENTATIVA` + `?executar=1` na mesma rota — terceiro print do dono, "o erro
+  continua"): esperar o deploy seguinte para saber se o arranque fundiu, sem ler o log, custou três
+  rodadas. Agora cada tentativa (arranque ou rota) fica em memória com a situação — `ja-feita ·
+  fundiu · mantido · aguardando · recusada · erro` — e o detalhe (o impedimento de `executarFusao`
+  ou a pilha do erro), e `GET /api/usuarios/fusoes?executar=1` (só gestor geral, recusado com
+  `?como=`) tenta na hora os pedidos sem marca pelo MESMO caminho do arranque. A origem também se
+  reconhece pelo `criadoPor` dos projetos, não só por `orientador.email`.
 - **Função na instituição** (`FUNCOES`/`normalizarFuncao` em lib/auth.js): o que a pessoa
   FAZ — professor, professor pesquisador, coordenador de curso, coordenador pedagógico,
   secretaria, as coordenações da PROPPEX (Pesquisa e Inovação, Extensão, Ação Comunitária)

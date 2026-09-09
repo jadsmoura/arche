@@ -2347,6 +2347,14 @@ app.post("/api/usuarios/fundir", async (req, res) => {
    Mais a cauda do registro de fusões (`sys-fusoes-v1`). Só leitura. */
 app.get("/api/usuarios/fusoes", async (req, res) => {
   const g = await exigirGestor(req, res); if (!g) return;
+  /* `?executar=1` (só gestor geral, e nunca pelo "Ver como"): tenta AGORA os
+     pedidos ainda sem marca, pelo MESMO caminho do arranque — é o clique que
+     substitui "esperar o próximo deploy" quando o arranque não fundiu. Cada
+     tentativa fica em `ultimaTentativa`, com o motivo por extenso. */
+  const executados = [];
+  if (String(req.query.executar || "") === "1" && !req.query.como) {
+    for (const f of FUSOES_SOLICITADAS) executados.push(await tentarFusaoSolicitada(f, `gestor ${g.email} (pela rota)`));
+  }
   const [perfis, projetos, usuarios] = await Promise.all([carregarPerfis(), lerProjetos(), carregarUsuarios(storage)]);
   const baixo = (v) => String(v || "").trim().toLowerCase();
   let novos = [];
@@ -2355,7 +2363,7 @@ app.get("/api/usuarios/fusoes", async (req, res) => {
     || (usuarios.pendentes || []).some((p) => baixo(p?.email || p) === e)
     || Object.keys(usuarios.coordenadores || {}).map(baixo).includes(e)
     || novos.some((c) => baixo(c?.email) === e)
-    || projetos.some((p) => baixo(p.orientador?.email) === e);
+    || projetos.some((p) => baixo(p.orientador?.email) === e || baixo(p.criadoPor) === e);
   const projetosDe = (email) => projetos
     .filter((p) => baixo(p.orientador?.email) === email || baixo(p.criadoPor) === email)
     .map((p) => ({ numero: p.numero || p.id, status: p.status, titulo: String(p.titulo || "").slice(0, 80),
@@ -2367,6 +2375,7 @@ app.get("/api/usuarios/fusoes", async (req, res) => {
     const destino = f.manter || marca?.manter || null;
     pedidos.push({
       marca: f.marca, fundiu: !!marca && marca.resultado !== "origem-inexistente", registro: marca,
+      ultimaTentativa: FUSOES_ULTIMA_TENTATIVA.get(f.marca) || null,
       origem: { email: f.remover, existe: conhecida(f.remover), temPerfil: !!perfis[f.remover], projetos: projetosDe(f.remover).length },
       destino: destino ? {
         email: destino, existe: conhecida(destino), temPerfil: !!perfis[destino],
@@ -2426,10 +2435,18 @@ const FUSOES_SOLICITADAS = [{
     cpf: "",
     cpfDoDestinoManda: true,
   }];
-async function fundirContasSolicitadas() {
-  for (const f of FUSOES_SOLICITADAS) {
-    try {
-      if (await storage.get(f.marca)) continue;
+/* O que aconteceu com cada pedido na ÚLTIMA tentativa (arranque ou pedido da
+   gestão pela rota): fica em memória e sai em GET /api/usuarios/fusoes. É o que
+   responde "por que não fundiu?" sem o log do Render — o caso Luana levou três
+   deploys para se descobrir que a origem não tinha perfil. */
+const FUSOES_ULTIMA_TENTATIVA = new Map();
+async function tentarFusaoSolicitada(f, por = "arranque (pedido do dono)") {
+  const registrar = (situacao, detalhe = "") => {
+    FUSOES_ULTIMA_TENTATIVA.set(f.marca, { em: new Date().toISOString(), por, situacao, detalhe, remover: f.remover });
+    return { marca: f.marca, situacao, detalhe };
+  };
+  try {
+      if (await storage.get(f.marca)) return registrar("ja-feita", "a marca já está gravada");
       const perfis = await carregarPerfis();
       /* As contas que o portal CONHECE — perfis, listas de acesso, cadastros
          novos e quem orienta projeto — porque tanto a origem quanto o destino
@@ -2447,11 +2464,12 @@ async function fundirContasSolicitadas() {
         ...Object.keys(usuarios.coordenadores || {}),
         ...novos.map((c) => c?.email || ""),
         ...projetos.map((p) => p.orientador?.email || ""),
+        ...projetos.map((p) => p.criadoPor || ""),
       ].map(baixo).filter(Boolean));
       // o nome que a conta carrega: o do perfil ou, sem perfil, o que os
       // projetos dela dizem de quem orienta
       const nomeDe = (e) => perfis[e]?.nome
-        || projetos.find((p) => baixo(p.orientador?.email) === e)?.orientador?.nome || "";
+        || projetos.find((p) => baixo(p.orientador?.email) === e || baixo(p.criadoPor) === e)?.orientador?.nome || "";
       /* Origem por PREFIXO (quando o endereço veio de um print): a conta
          que sai é a que começa com o prefixo, no domínio dito, e tem o
          NOME da pessoa — e só com UMA candidata. */
@@ -2466,14 +2484,14 @@ async function fundirContasSolicitadas() {
            estar errado. Origem não encontrada aqui fica DE PÉ, dita no log,
            para o próximo arranque (ou para o pedido corrigido). */
         console.log(`[fusao] ${f.marca}: origem ${f.remover} não encontrada — pedido mantido`);
-        continue;
+        return registrar("mantido", `origem ${f.remover} não encontrada entre as contas do portal`);
       }
       if (!conhecidas.has(f.remover)) {
         // a origem já não existe (o pré-cadastro pode ter sido transferido
         // pela própria pessoa ao informar o CPF) — não há o que fundir
         console.log(`[fusao] ${f.marca}: ${f.remover} não existe — pedido encerrado`);
         await storage.set(f.marca, JSON.stringify({ em: new Date().toISOString(), resultado: "origem-inexistente" }));
-        continue;
+        return registrar("encerrado", "origem inexistente");
       }
       const cpfLimpo = String(f.cpf || "").replace(/\D/g, "");
       const primeiroNome = (f.nome || [])[0] || "";
@@ -2485,19 +2503,23 @@ async function fundirContasSolicitadas() {
       if (candidatas.length !== 1) {
         console.log(`[fusao] ${f.marca}: ${candidatas.length} conta(s) candidata(s) no domínio`
           + ` (${candidatas.join(", ") || "nenhuma"}) — aguardando o próximo arranque`);
-        continue;
+        return registrar("aguardando", `${candidatas.length} conta(s) candidata(s) para o destino (${candidatas.join(", ") || "nenhuma"})`);
       }
-      const r = await executarFusao({ manter: candidatas[0], remover: f.remover,
-        por: "arranque (pedido do dono)", destinoSemPerfil: !perfis[candidatas[0]]?.nome,
+      const r = await executarFusao({ manter: candidatas[0], remover: f.remover, por,
+        destinoSemPerfil: !perfis[candidatas[0]]?.nome,
         origemSemPerfil: !perfis[f.remover]?.nome,
         cpfDoDestinoManda: !!f.cpfDoDestinoManda, nomesDoPedido: f.nome });
-      if (r.error) { console.error(`[fusao] ${f.marca}: ${r.error}`); continue; }
+      if (r.error) { console.error(`[fusao] ${f.marca}: ${r.error}`); return registrar("recusada", r.error); }
       await storage.set(f.marca, JSON.stringify({ em: new Date().toISOString(), ...r.resumo }));
       await storage.flush?.();
-    } catch (e) {
-      console.error(`[fusao] ${f.marca}:`, e.message);
-    }
+      return registrar("fundiu", `${r.resumo.projetos} projeto(s), ${r.resumo.acoes} ação(ões), ${r.resumo.atas} ata(s) → ${candidatas[0]}`);
+  } catch (e) {
+    console.error(`[fusao] ${f.marca}:`, e.message);
+    return registrar("erro", e?.stack || e?.message || String(e));
   }
+}
+async function fundirContasSolicitadas() {
+  for (const f of FUSOES_SOLICITADAS) await tentarFusaoSolicitada(f);
 }
 
 /* A GESTÃO DA AVALIAÇÃO PARA AS COORDENAÇÕES DAS PRÓ-REITORIAS (pedido do dono,
