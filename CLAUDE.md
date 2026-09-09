@@ -731,6 +731,23 @@ public/
   já tem o seu — a conta que sai carrega dado de outra pessoa, e `fundirPerfil` preserva o que o
   destino tem, então o CPF alheio não entra. Ensaiado no estado local: origem sai, CPF do destino
   fica, marca gravada.
+  **A v1 NÃO fundiu em produção, e é por isso que existe a v2** (`sys-fusao-luana-v2`, pergunta do
+  dono: "verifique se fundiu"). O endereço da origem foi transcrito do print com o sobrenome errado
+  ("saraaragaomathias…"); a conta de verdade — conferida na cópia do estado — é
+  **saraaragaobarbosa0321@gmail.com** (perfil "Luana de Miranda Santos", 4 projetos, entre eles o
+  IC-2026-020). Com o endereço inexistente o pedido caiu no ramo "origem inexistente", gravou a marca
+  v1 e se encerrou — e marca gravada não se reabre. Três coisas mudaram: (1) o pedido **nomeia o
+  destino** (`manter`, o e-mail que o dono deu) — a busca por domínio + nome fica de reserva —, e os
+  tokens do nome são `luan · miranda · santos`, porque a professora escreve Luana no nome e luanna no
+  e-mail; (2) pedido COM prefixo cuja origem não se encontra **fica de pé** (dito no log), nunca se
+  encerra — foi um dígito que encerrou a v1; (3) `nomesDoPedido` em `executarFusao` dispensa o freio
+  "os nomes não conferem" quando os DOIS perfis carregam os tokens do pedido (a rehearsal com
+  "Luanna" no destino travava nele). E a resposta a "fundiu?" deixou de depender do log do Render:
+  **`GET /api/usuarios/fusoes`** (só gestor geral) devolve, por pedido, a marca gravada com o resumo,
+  se a origem ainda existe e o que o destino tem hoje — nome, função, CPF e os **projetos com número,
+  situação e alunos**, que é o que diz se a professora consegue indicar (indicação só abre no projeto
+  `aprovado`; o IC-2026-020 estava `submetido` na cópia). Ensaiado sobre a cópia de produção: 4
+  projetos movidos, CPF completado no destino, marca v2 gravada.
 - **Função na instituição** (`FUNCOES`/`normalizarFuncao` em lib/auth.js): o que a pessoa
   FAZ — professor, professor pesquisador, coordenador de curso, coordenador pedagógico,
   secretaria, as coordenações da PROPPEX (Pesquisa e Inovação, Extensão, Ação Comunitária)
