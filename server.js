@@ -4907,6 +4907,26 @@ app.post("/api/publico/eventos/:slug/inscricao/:token/pagamento/pagar", async (r
 
 /* ----------------------- a gestão: guia Financeiro ----------------------- */
 
+/**
+ * Testa a credencial do provedor AGORA (guia Cobrança). Existe porque a
+ * cobrança falhava em produção e a única forma de ver o motivo era inscrever
+ * alguém: o teste pede o token e devolve o ambiente, o host e a recusa —
+ * nunca a chave. Quem opera o evento pode testar; nada se grava.
+ */
+app.post("/api/extensao/:id/cobranca/testar", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const a = (await lerAcoes()).find((x) => x.id === req.params.id);
+    if (!a || !podeOperarEvento(u, a)) return res.status(404).json({ error: "Ação não encontrada" });
+    const r = await provedorPg.testar();
+    res.json({ ok: true, teste: r, provedor: provedorPg.retrato() });
+  } catch (e) {
+    console.error("Erro ao testar a credencial do provedor:", e);
+    res.status(500).json({ error: "Não foi possível testar agora." });
+  }
+});
+
 /** O quadro financeiro do evento: totais, e uma linha por inscrição com cobrança. */
 app.get("/api/extensao/:id/financeiro", async (req, res) => {
   try {

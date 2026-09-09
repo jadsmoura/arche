@@ -163,8 +163,11 @@ async function pagar() {
   $("msg").innerHTML = "";
   try {
     const r = await fetch(`${RAIZ}/pagamento/pagar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || "Não foi possível gerar o link de pagamento.");
+    const j = await r.json().catch(() => null);
+    // resposta sem JSON é o servidor fora do ar por um instante (atualização
+    // em andamento, proxy): a frase diz o status, para não parecer erro da cobrança
+    if (!r.ok) throw new Error(j?.error || (j ? "Não foi possível gerar o link de pagamento." :
+      `O servidor não respondeu à cobrança (HTTP ${r.status}) — pode estar reiniciando. Aguarde um minuto e tente de novo.`));
     DADOS.pagamento = j.pagamento;
     if (j.pagamento?.valida) { render(); return; }
     // QR Pix: fica nesta página, que passa a conferir sozinha

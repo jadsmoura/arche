@@ -1101,6 +1101,17 @@ public/
   guia Cobrança; o `pagar` devolve a mensagem do provedor por extenso): em produção ninguém lê o
   log do Render, e "não foi possível gerar a cobrança" sem o motivo não separa credencial inválida
   (`invalid_client`) de Pix desligado na conta ("não é elegível para pix").
+  **A CREDENCIAL SE TESTA NA GUIA COBRANÇA** (`testar()` no adaptador e no registro +
+  `POST /api/extensao/:id/cobranca/testar`, botão "🔑 Testar a credencial", set/2026): a primeira
+  cobrança de produção falhou e a única forma de ler o motivo foi inscrever alguém de fora para
+  ver a rota recusar — `PicPay: autenticação recusada (Invalid client…)`. O teste pede um token
+  novo (ignora o guardado) e devolve o **AMBIENTE e o host** usados, porque a frase do PicPay é a
+  MESMA nos dois hosts e o engano mais comum é a credencial de um ambiente no host do outro: a do
+  Sandbox só vale com `PICPAY_AMBIENTE=staging`, a de produção só SEM a variável. A mensagem de
+  autenticação recusada passou a nomear o ambiente pelo mesmo motivo. Quem opera o evento testa;
+  nada se grava e a chave nunca sai. E a página de pagamento diz **"HTTP n — pode estar
+  reiniciando"** quando a resposta não vem em JSON (deploy no meio, proxy): a frase genérica de
+  antes parecia erro da cobrança.
 - **ACRÉSCIMO NO CARTÃO — dois links por inscrição** (`normalizarAcrescimo`/`valorNoCartao`/
   `acrescimoTexto`/`pagamentoPeloLinkDoCartao` em lib/pagamentos.js + `criarCobranca` do PicPay +
   campo "Acréscimo no cartão" na guia Cobrança, decisão do dono set/2026: "esse sistema também

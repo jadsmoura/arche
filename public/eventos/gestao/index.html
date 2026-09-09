@@ -2092,6 +2092,10 @@ async function renderCobranca(a){
       :prov?`<div class="banner ${prov.modo==="teste"?"ba-warn":"ba-ok"}">${esc(ROT)} <b>${prov.modo==="teste"?"em modo de TESTE — nenhum pagamento real entra":"em produção"}</b>${prov.webhook?"":" · <b>aviso automático (webhook) sem chave</b>: a confirmação depende da conciliação horária e do botão \"Já paguei\""}${prov.nome==="picpay"?" · cobra por <b>Pix com QR Code</b> direto na página de pagamento do ARCHÉ (e cartão pela página do PicPay, se marcado)":""}.</div>`:""}
     ${prov?.ultimoErro?`<div class="banner ba-warn"><b>Último erro do ${esc(ROT)}</b> (${esc(new Date(prov.ultimoErro.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}))}, em ${esc(prov.ultimoErro.onde)}):
       <span style="font-family:ui-monospace,monospace">${esc(prov.ultimoErro.mensagem)}</span>. Credencial inválida costuma dizer "invalid_client"; Pix desligado na conta diz "não é elegível para pix".</div>`:""}
+    ${prov?.configurado?`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px">
+      <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" id="bt-cob-teste" onclick="testarCredencial('${esc(a.id)}')">🔑 Testar a credencial do ${esc(ROT)}</button>
+      <span class="muted" style="font-size:12.5px">Pede um token ao ${esc(ROT)} com a credencial que está no servidor e diz se ela vale — sem inscrever ninguém.</span>
+      <div id="cob-teste" style="flex-basis:100%"></div></div>`:""}
     ${pagos?`<div class="banner ba-info">Este evento já tem <b>${pagos}</b> inscrição(ões) com cobrança registrada. Mudar valores vale só para as
       próximas inscrições; as existentes ficam com o valor da época.</div>`:""}
     <div class="card">
@@ -2190,6 +2194,27 @@ function renderCobLotes(){
       <td><button class="lk" style="color:var(--err)" onclick="EV_COB.lotes.splice(${i},1);renderCobLotes()">remover</button></td>
     </tr>`).join("")}</tbody></table></div>`
     :`<div class="cnt">— sem lotes: vale o valor cheio da categoria o tempo todo.</div>`;
+}
+/* Testa a credencial do provedor: o resultado diz o AMBIENTE (produção ×
+   Sandbox) e o host, porque o engano mais comum é a credencial de um
+   ambiente no host do outro — e a recusa do PicPay é a mesma frase nos dois. */
+async function testarCredencial(id){
+  const bt=$("bt-cob-teste"), out=$("cob-teste");
+  if(bt) bt.disabled=true;
+  if(out) out.innerHTML=`<span class="muted">Testando…</span>`;
+  try{
+    const r=await fetch(`/api/extensao/${id}/cobranca/testar`,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||`HTTP ${r.status}`);
+    const t=j.teste||{};
+    const amb=t.ambiente?` no ambiente de <b>${esc(t.ambiente)}</b>`:"";
+    const host=t.host?` (<span style="font-family:ui-monospace,monospace">${esc(t.host)}</span>)`:"";
+    out.innerHTML=t.ok
+      ?`<div class="banner ba-ok" style="margin:0">✓ Credencial aceita${amb}${host}. Se a cobrança ainda falhar, o motivo é outro — o "Último erro" acima diz qual.</div>`
+      :`<div class="banner ba-warn" style="margin:0">✗ Credencial <b>recusada</b>${amb}${host}: <span style="font-family:ui-monospace,monospace">${esc(t.erro||"sem detalhe")}</span>.
+        ${/invalid_client|Invalid client/i.test(t.erro||"")?`Confira no Render se <b>PICPAY_CLIENT_ID</b> e <b>PICPAY_CLIENT_SECRET</b> são do MESMO cartão que o ambiente indica — as credenciais do Sandbox só valem com <b>PICPAY_AMBIENTE=staging</b>, e as de produção só SEM essa variável — e se foram coladas inteiras, sem espaço no fim.`:""}</div>`;
+  }catch(e){ if(out) out.innerHTML=`<div class="banner ba-warn" style="margin:0">${esc(e.message)}</div>`; }
+  finally{ if(bt) bt.disabled=false; }
 }
 function salvarCobranca(id){
   return salvarParteEvento(id,{cobranca:{
