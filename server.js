@@ -4900,7 +4900,8 @@ app.post("/api/publico/eventos/:slug/inscricao/:token/pagamento/pagar", async (r
     console.error("Erro ao gerar a cobrança:", e);
     // a mensagem do provedor vai junto: sem ela ninguém sabe se é credencial,
     // Pix desligado na conta ou a integração ainda não liberada
-    const motivo = /^(PicPay|Mercado Pago):/.test(String(e?.message || "")) ? ` (${String(e.message).slice(0, 200)})` : "";
+    // inteira: cortada em 200 a orientação saía pela metade ("peça ao s")
+    const motivo = /^(PicPay|Mercado Pago):/.test(String(e?.message || "")) ? ` (${String(e.message).slice(0, 400)})` : "";
     res.status(502).json({ error: `Não foi possível gerar a cobrança agora${motivo}. Tente de novo em instantes ou fale com a coordenação do evento.` });
   }
 });

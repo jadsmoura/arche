@@ -2210,8 +2210,13 @@ async function testarCredencial(id){
     const amb=t.ambiente?` no ambiente de <b>${esc(t.ambiente)}</b>`:"";
     const host=t.host?` (<span style="font-family:ui-monospace,monospace">${esc(t.host)}</span>)`:"";
     const mono=(s)=>`<span style="font-family:ui-monospace,monospace">${esc(s||"sem detalhe")}</span>`;
-    if(t.ok){
-      out.innerHTML=`<div class="banner ba-ok" style="margin:0">✓ Credencial aceita e API respondendo${amb}${host}.${t.trocouDe?` O host <span style="font-family:ui-monospace,monospace">${esc(t.trocouDe)}</span> bloqueou e o sistema passou ao seguinte sozinho.`:""} Se a cobrança ainda falhar, o motivo é outro — o "Último erro" acima diz qual.</div>`;
+    const linhaMeio=(nome,m)=>m?`<div>${m.ok?"✓":"✗"} <b>${nome}</b>: ${m.ok?"o PicPay criou o link de teste (R$ 0,01, vence amanhã, ninguém paga)":mono(m.erro)}</div>`:"";
+    if(t.credencial&&t.api){
+      // o teste CRIA dois links de centavo: é isso que separa "API responde" de "a conta pode cobrar"
+      const meios=linhaMeio("Pix",t.pix)+linhaMeio("Cartão",t.cartao);
+      out.innerHTML=t.ok
+        ?`<div class="banner ba-ok" style="margin:0">✓ Credencial aceita e API respondendo${amb}${host}.${t.trocouDe?` O host <span style="font-family:ui-monospace,monospace">${esc(t.trocouDe)}</span> bloqueou e o sistema passou ao seguinte sozinho.`:""}${meios}${t.pix&&!t.pix.ok?`<div>O evento cobra pelo <b>cartão</b> enquanto o Pix da conta não estiver ativo.</div>`:""}</div>`
+        :`<div class="banner ba-warn" style="margin:0">✓ Credencial aceita e API respondendo${amb}${host}, mas <b>a conta não consegue criar cobrança</b>:${meios}<div>Isso não se resolve no ARCHÉ nem no Render: a conta precisa ser habilitada no serviço Link de Pagamento - API pelo <b>suporte do PicPay</b> (e o Pix ativado em Gerenciar recebimentos).</div></div>`;
     }else if(t.credencial){
       // a credencial vale, mas a API não responde: o caso do firewall (set/2026)
       out.innerHTML=`<div class="banner ba-warn" style="margin:0">✓ Credencial aceita${amb}${host}, mas <b>a API está ${t.bloqueio?"BLOQUEADA":"sem responder"}</b>: ${mono(t.erro)}.

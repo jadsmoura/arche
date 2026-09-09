@@ -1141,6 +1141,10 @@ public/
   E o link SÓ de cartão que veio depois voltou `422 "Cadastro do seller não encontrado" (B028)`
   (`ehErroDeCadastro`): a credencial autentica, mas a conta ainda NÃO está habilitada no serviço
   de Link de Pagamento em produção — é ativação do lado do PicPay (suporte), e a mensagem diz isso.
+  Por isso o **teste da credencial ganhou a TERCEIRA etapa**: token e consulta passavam e o "✓"
+  do painel prometia o que a inscrição não conseguia; agora ele CRIA dois links de R$ 0,01 (um
+  Pix, um de cartão; vencem amanhã, ninguém paga) e diz meio a meio o que a conta consegue —
+  é o único jeito de o teste valer para a inscrição.
 - **ACRÉSCIMO NO CARTÃO — dois links por inscrição** (`normalizarAcrescimo`/`valorNoCartao`/
   `acrescimoTexto`/`pagamentoPeloLinkDoCartao` em lib/pagamentos.js + `criarCobranca` do PicPay +
   campo "Acréscimo no cartão" na guia Cobrança, decisão do dono set/2026: "esse sistema também
