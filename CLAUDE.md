@@ -1138,6 +1138,9 @@ public/
   `pixIndisponivel` no retorno) e o motivo, com a dica "Gerenciar recebimentos", fica no
   "Último erro" da guia Cobrança; evento só-Pix recebe o erro com a mesma dica. É reconhecido
   pela RESPOSTA (`type`/`code`), não só pelo texto. `FALSO_SEM_PIX=1` no servidor falso reproduz.
+  E o link SÓ de cartão que veio depois voltou `422 "Cadastro do seller não encontrado" (B028)`
+  (`ehErroDeCadastro`): a credencial autentica, mas a conta ainda NÃO está habilitada no serviço
+  de Link de Pagamento em produção — é ativação do lado do PicPay (suporte), e a mensagem diz isso.
 - **ACRÉSCIMO NO CARTÃO — dois links por inscrição** (`normalizarAcrescimo`/`valorNoCartao`/
   `acrescimoTexto`/`pagamentoPeloLinkDoCartao` em lib/pagamentos.js + `criarCobranca` do PicPay +
   campo "Acréscimo no cartão" na guia Cobrança, decisão do dono set/2026: "esse sistema também
