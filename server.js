@@ -2211,7 +2211,7 @@ const FUSOES_KEY = "sys-fusoes-v1";
  * Mesma sequência de sempre: projetos, atas e ações primeiro; o cadastro por
  * último, para uma falha no meio não deixar a pessoa sem conta E sem registros.
  */
-async function executarFusao({ manter, remover, por, simular = false, destinoSemPerfil = false, cpfDoDestinoManda = false, nomesDoPedido = null }) {
+async function executarFusao({ manter, remover, por, simular = false, destinoSemPerfil = false, origemSemPerfil = false, cpfDoDestinoManda = false, nomesDoPedido = null }) {
   const [perfis, usuarios] = await Promise.all([carregarPerfis(), carregarUsuarios(storage)]);
   let impedimento = podeFundir(
     { email: manter, nome: perfis[manter]?.nome, cpf: perfis[manter]?.cpf },
@@ -2240,6 +2240,13 @@ async function executarFusao({ manter, remover, por, simular = false, destinoSem
      pedido explícito do dono; o freio só se dispensa quando o destino
      realmente não tem nome nenhum gravado. */
   if (impedimento && destinoSemPerfil && !perfis[manter]?.nome
+    && /nome preenchido/.test(impedimento)) impedimento = "";
+  /* E a ORIGEM também pode não ter perfil (o caso Luana em produção, set/2026):
+     a conta entrou pelo Google, ganhou os projetos e ninguém preencheu o
+     cadastro dela — ela existe nas listas de acesso e nos projetos, não em
+     `perfis`. Sem nome de um dos lados o freio dos nomes não tem o que
+     comparar; no pedido de arranque quem apontou as duas contas foi o dono. */
+  if (impedimento && origemSemPerfil && !perfis[remover]?.nome
     && /nome preenchido/.test(impedimento)) impedimento = "";
   if (impedimento) return { error: impedimento };
   if (ehGestorFixo(remover))
@@ -2302,6 +2309,14 @@ async function executarFusao({ manter, remover, por, simular = false, destinoSem
   await salvarUsuarios(storage, fundirPapeis(usuarios, remover, manter));
   // a senha da conta removida não viaja: senha é da conta, não da pessoa
   await removerSenha(storage, remover);
+  /* E a conta que saiu deixa também a lista de cadastros novos: é uma das
+     fontes do painel de usuários, e sem isto a conta fundida continuava
+     aparecendo lá como se ainda existisse (o caso Luana, set/2026). */
+  try {
+    const novos = JSON.parse((await storage.get(CADASTROS_KEY)) || "[]");
+    const semEla = novos.filter((c) => String(c?.email || "").trim().toLowerCase() !== remover);
+    if (semEla.length !== novos.length) await storage.set(CADASTROS_KEY, JSON.stringify(semEla));
+  } catch { /* lista ilegível não trava a fusão */ }
   // o registro do que foi feito, com o perfil removido inteiro: fusão não se
   // desfaz sozinha, e sem isto não haveria como reconstruir à mão
   const log = JSON.parse((await storage.get(FUSOES_KEY)) || "[]");
@@ -2332,8 +2347,15 @@ app.post("/api/usuarios/fundir", async (req, res) => {
    Mais a cauda do registro de fusões (`sys-fusoes-v1`). Só leitura. */
 app.get("/api/usuarios/fusoes", async (req, res) => {
   const g = await exigirGestor(req, res); if (!g) return;
-  const [perfis, projetos] = await Promise.all([carregarPerfis(), lerProjetos()]);
+  const [perfis, projetos, usuarios] = await Promise.all([carregarPerfis(), lerProjetos(), carregarUsuarios(storage)]);
   const baixo = (v) => String(v || "").trim().toLowerCase();
+  let novos = [];
+  try { novos = JSON.parse((await storage.get(CADASTROS_KEY)) || "[]"); } catch { novos = []; }
+  const conhecida = (e) => !!perfis[e] || (usuarios.aprovados || []).map(baixo).includes(e)
+    || (usuarios.pendentes || []).some((p) => baixo(p?.email || p) === e)
+    || Object.keys(usuarios.coordenadores || {}).map(baixo).includes(e)
+    || novos.some((c) => baixo(c?.email) === e)
+    || projetos.some((p) => baixo(p.orientador?.email) === e);
   const projetosDe = (email) => projetos
     .filter((p) => baixo(p.orientador?.email) === email || baixo(p.criadoPor) === email)
     .map((p) => ({ numero: p.numero || p.id, status: p.status, titulo: String(p.titulo || "").slice(0, 80),
@@ -2345,9 +2367,10 @@ app.get("/api/usuarios/fusoes", async (req, res) => {
     const destino = f.manter || marca?.manter || null;
     pedidos.push({
       marca: f.marca, fundiu: !!marca && marca.resultado !== "origem-inexistente", registro: marca,
-      origem: { email: f.remover, existe: !!perfis[f.remover], projetos: projetosDe(f.remover).length },
+      origem: { email: f.remover, existe: conhecida(f.remover), temPerfil: !!perfis[f.remover], projetos: projetosDe(f.remover).length },
       destino: destino ? {
-        email: destino, existe: !!perfis[destino], nome: perfis[destino]?.nome || "", funcao: perfis[destino]?.funcao || "",
+        email: destino, existe: conhecida(destino), temPerfil: !!perfis[destino],
+        nome: perfis[destino]?.nome || "", funcao: perfis[destino]?.funcao || "",
         temCpf: !!perfis[destino]?.cpf, projetos: projetosDe(destino),
       } : null,
     });
@@ -2380,13 +2403,17 @@ const FUSOES_SOLICITADAS = [{
        dela no Hotmail. O endereço da origem foi lido de um print e por isso
        vai como PREFIXO + nome, resolvido entre as contas do portal — um
        dígito errado numa transcrição não pode fundir a conta de outra pessoa. */
-    /* v2 (set/2026): a v1 saiu com o endereço da origem transcrito ERRADO do
-       print ("saraaragaomathias…"), e o pedido se encerrou em produção como
-       "origem inexistente" — a marca v1 ficou gravada e não se reabre. A conta
-       de verdade, conferida na cópia do estado, é saraaragaobarbosa0321@gmail.com
-       (perfil "Luana de Miranda Santos", professor, com os projetos dela). */
+    /* v2 (set/2026): a v1 se encerrou em produção como "origem inexistente" —
+       e a marca v1 ficou gravada, sem reabrir. O endereço estava CERTO (o
+       segundo print do dono o confirma: saraaragaomathias…, "Professor 4"); o
+       que não existia era o PERFIL dessa conta — ela entrou pelo Google, ganhou
+       os projetos e ninguém preencheu o cadastro, então `perfis[remover]` era
+       vazio e o pedido leu isso como conta inexistente. A origem passa a se
+       procurar entre TODAS as contas que o portal conhece (listas de acesso,
+       cadastros novos e os projetos), e o freio dos nomes se dispensa quando
+       a origem não tem perfil para comparar (`origemSemPerfil`). */
     marca: "sys-fusao-luana-v2",
-    remover: "saraaragaobarbosa0321@gmail.com",
+    remover: "saraaragaomathias0321986512230@gmail.com",
     removerPrefixo: "saraaragao", removerDominio: "@gmail.com",
     /* O destino o dono DISSE (luanna_miranda01@hotmail.com): existindo essa
        conta no portal, é ela — a busca por domínio + nome fica como reserva.
@@ -2404,24 +2431,44 @@ async function fundirContasSolicitadas() {
     try {
       if (await storage.get(f.marca)) continue;
       const perfis = await carregarPerfis();
+      /* As contas que o portal CONHECE — perfis, listas de acesso, cadastros
+         novos e quem orienta projeto — porque tanto a origem quanto o destino
+         podem existir SEM perfil: o destino, quando o CPF barra o cadastro
+         novo (caso Claudia); a origem, quando a conta entrou pelo Google e
+         ganhou os projetos sem ninguém preencher o perfil (caso Luana). */
+      const usuarios = await carregarUsuarios(storage);
+      let novos = [];
+      try { novos = JSON.parse((await storage.get(CADASTROS_KEY)) || "[]"); } catch { novos = []; }
+      const projetos = await lerProjetos();
+      const baixo = (v) => String(v || "").trim().toLowerCase();
+      const conhecidas = new Set([
+        ...Object.keys(perfis),
+        ...(usuarios.aprovados || []), ...(usuarios.pendentes || []).map((p) => p?.email || p),
+        ...Object.keys(usuarios.coordenadores || {}),
+        ...novos.map((c) => c?.email || ""),
+        ...projetos.map((p) => p.orientador?.email || ""),
+      ].map(baixo).filter(Boolean));
+      // o nome que a conta carrega: o do perfil ou, sem perfil, o que os
+      // projetos dela dizem de quem orienta
+      const nomeDe = (e) => perfis[e]?.nome
+        || projetos.find((p) => baixo(p.orientador?.email) === e)?.orientador?.nome || "";
       /* Origem por PREFIXO (quando o endereço veio de um print): a conta
          que sai é a que começa com o prefixo, no domínio dito, e tem o
-         NOME da pessoa no perfil — e só com UMA candidata. */
-      if (!perfis[f.remover] && f.removerPrefixo) {
-        const cand = Object.keys(perfis).filter((e) => e.startsWith(f.removerPrefixo)
-          && e.endsWith(f.removerDominio || "") && f.nome.every((t) => chaveNome(perfis[e]?.nome).includes(t)));
+         NOME da pessoa — e só com UMA candidata. */
+      if (!conhecidas.has(f.remover) && f.removerPrefixo) {
+        const cand = [...conhecidas].filter((e) => e.startsWith(f.removerPrefixo)
+          && e.endsWith(f.removerDominio || "") && f.nome.every((t) => chaveNome(nomeDe(e)).includes(t)));
         if (cand.length === 1) f.remover = cand[0];
         else console.log(`[fusao] ${f.marca}: ${cand.length} conta(s) de origem com o prefixo ${f.removerPrefixo} (${cand.join(", ") || "nenhuma"})`);
       }
-      if (!perfis[f.remover] && f.removerPrefixo) {
+      if (!conhecidas.has(f.remover) && f.removerPrefixo) {
         /* Pedido COM prefixo: o endereço exato veio de uma transcrição e pode
-           estar errado — foi o que encerrou a v1 do caso Luana em produção,
-           por um dígito. Origem não encontrada aqui fica DE PÉ, dita no log,
+           estar errado. Origem não encontrada aqui fica DE PÉ, dita no log,
            para o próximo arranque (ou para o pedido corrigido). */
         console.log(`[fusao] ${f.marca}: origem ${f.remover} não encontrada — pedido mantido`);
         continue;
       }
-      if (!perfis[f.remover]) {
+      if (!conhecidas.has(f.remover)) {
         // a origem já não existe (o pré-cadastro pode ter sido transferido
         // pela própria pessoa ao informar o CPF) — não há o que fundir
         console.log(`[fusao] ${f.marca}: ${f.remover} não existe — pedido encerrado`);
@@ -2429,21 +2476,6 @@ async function fundirContasSolicitadas() {
         continue;
       }
       const cpfLimpo = String(f.cpf || "").replace(/\D/g, "");
-      /* A conta de destino pode existir SEM perfil (a pessoa não consegue
-         salvá-lo: o CPF barra por estar na conta antiga — foi o que o print
-         do dono mostrou). Por isso a varredura cobre todas as contas que o
-         portal conhece — perfis, listas de acesso e cadastros novos — e casa
-         pelo nome do perfil, pelo CPF ou pelo PRÓPRIO ENDEREÇO (o primeiro
-         nome na parte local do e-mail do domínio institucional). */
-      const usuarios = await carregarUsuarios(storage);
-      let novos = [];
-      try { novos = JSON.parse((await storage.get(CADASTROS_KEY)) || "[]"); } catch { novos = []; }
-      const conhecidas = new Set([
-        ...Object.keys(perfis),
-        ...(usuarios.aprovados || []), ...(usuarios.pendentes || []),
-        ...Object.keys(usuarios.coordenadores || {}),
-        ...novos.map((c) => String(c?.email || "")),
-      ].map((e) => String(e || "").trim().toLowerCase()).filter(Boolean));
       const primeiroNome = (f.nome || [])[0] || "";
       const candidatas = f.manter && conhecidas.has(f.manter) ? [f.manter]
         : [...conhecidas].filter((e) => e.endsWith(f.dominioDestino) && (
@@ -2457,6 +2489,7 @@ async function fundirContasSolicitadas() {
       }
       const r = await executarFusao({ manter: candidatas[0], remover: f.remover,
         por: "arranque (pedido do dono)", destinoSemPerfil: !perfis[candidatas[0]]?.nome,
+        origemSemPerfil: !perfis[f.remover]?.nome,
         cpfDoDestinoManda: !!f.cpfDoDestinoManda, nomesDoPedido: f.nome });
       if (r.error) { console.error(`[fusao] ${f.marca}: ${r.error}`); continue; }
       await storage.set(f.marca, JSON.stringify({ em: new Date().toISOString(), ...r.resumo }));
