@@ -2209,10 +2209,17 @@ async function testarCredencial(id){
     const t=j.teste||{};
     const amb=t.ambiente?` no ambiente de <b>${esc(t.ambiente)}</b>`:"";
     const host=t.host?` (<span style="font-family:ui-monospace,monospace">${esc(t.host)}</span>)`:"";
-    out.innerHTML=t.ok
-      ?`<div class="banner ba-ok" style="margin:0">✓ Credencial aceita${amb}${host}. Se a cobrança ainda falhar, o motivo é outro — o "Último erro" acima diz qual.</div>`
-      :`<div class="banner ba-warn" style="margin:0">✗ Credencial <b>recusada</b>${amb}${host}: <span style="font-family:ui-monospace,monospace">${esc(t.erro||"sem detalhe")}</span>.
+    const mono=(s)=>`<span style="font-family:ui-monospace,monospace">${esc(s||"sem detalhe")}</span>`;
+    if(t.ok){
+      out.innerHTML=`<div class="banner ba-ok" style="margin:0">✓ Credencial aceita e API respondendo${amb}${host}. Se a cobrança ainda falhar, o motivo é outro — o "Último erro" acima diz qual.</div>`;
+    }else if(t.credencial){
+      // a credencial vale, mas a API não responde: o caso do firewall (set/2026)
+      out.innerHTML=`<div class="banner ba-warn" style="margin:0">✓ Credencial aceita${amb}${host}, mas <b>a API está ${t.bloqueio?"BLOQUEADA":"sem responder"}</b>: ${mono(t.erro)}.
+        ${t.bloqueio?`O PicPay recusa as chamadas que o servidor faz (o token passa, as rotas de cobrança não). Isso não se resolve no ARCHÉ nem no Render: é preciso pedir ao <b>suporte do PicPay</b> (Link de Pagamento - API) a liberação dos IPs de saída do servidor, citando o Ray ID acima.`:""}</div>`;
+    }else{
+      out.innerHTML=`<div class="banner ba-warn" style="margin:0">✗ Credencial <b>recusada</b>${amb}${host}: ${mono(t.erro)}.
         ${/invalid_client|Invalid client/i.test(t.erro||"")?`Confira no Render se <b>PICPAY_CLIENT_ID</b> e <b>PICPAY_CLIENT_SECRET</b> são do MESMO cartão que o ambiente indica — as credenciais do Sandbox só valem com <b>PICPAY_AMBIENTE=staging</b>, e as de produção só SEM essa variável — e se foram coladas inteiras, sem espaço no fim.`:""}</div>`;
+    }
   }catch(e){ if(out) out.innerHTML=`<div class="banner ba-warn" style="margin:0">${esc(e.message)}</div>`; }
   finally{ if(bt) bt.disabled=false; }
 }

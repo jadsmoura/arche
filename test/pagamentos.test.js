@@ -283,3 +283,16 @@ test("as vagas restantes do evento e os números do relatório ignoram a reserva
   assert.equal(n.inscritos, 3);
   assert.equal(n.presentes, 3);
 });
+
+// ---- o bloqueio do firewall do PicPay vira mensagem legível (set/2026) ----
+import { mensagemDeBloqueio } from "../lib/pagamentos/picpay.js";
+test("PicPay: página 'you have been blocked' do Cloudflare vira mensagem com Ray ID", () => {
+  const html = `<!DOCTYPE html><html><head><title>Attention Required! | Cloudflare</title></head><body>
+    <h1>Sorry, you have been blocked</h1><p>Cloudflare Ray ID: <strong>a3882b20980ef455</strong> &bull; Your IP</p></body></html>`;
+  const m = mensagemDeBloqueio(html, 403);
+  assert.match(m, /BLOQUEADO pelo firewall/);
+  assert.match(m, /Ray ID a3882b20980ef455/);
+  assert.match(m, /HTTP 403/);
+  assert.equal(mensagemDeBloqueio('{"error":"x"}', 422), "");
+  assert.match(mensagemDeBloqueio("<html><body>Bad gateway</body></html>", 502), /página HTML \(HTTP 502\)/);
+});

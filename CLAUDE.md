@@ -1112,6 +1112,17 @@ public/
   nada se grava e a chave nunca sai. E a página de pagamento diz **"HTTP n — pode estar
   reiniciando"** quando a resposta não vem em JSON (deploy no meio, proxy): a frase genérica de
   antes parecia erro da cobrança.
+  **O FIREWALL DO PICPAY BLOQUEIA A API EM PRODUÇÃO** (`mensagemDeBloqueio` + a segunda etapa
+  de `testar()`, set/2026): corrigida a credencial, o token passou a sair — e TODA rota sob
+  `/v1/` (criar link, consultar transações) voltou com a página HTML do Cloudflare "Sorry, you
+  have been blocked" (HTTP 403), tanto do Render quanto de fora do Brasil; o `/oauth2/token`, no
+  MESMO host, responde normalmente, e o Sandbox (outro host) nunca bloqueou. É regra do lado do
+  PicPay (país/IP), não do ARCHÉ: o que o sistema faz é DIZER — a mensagem traduz o HTML em
+  "acesso bloqueado pelo firewall do PicPay" com o **Ray ID** (o que o suporte pede), e o teste
+  da credencial ganhou a segunda etapa: depois do token, consulta um link inexistente — 404 em
+  JSON é API respondendo; HTML é bloqueio —, para "credencial aceita" não voltar a parecer
+  "cobrança funcionando". A saída é pedir ao suporte do PicPay a liberação dos IPs de saída do
+  Render (ou um relé em IP brasileiro).
 - **ACRÉSCIMO NO CARTÃO — dois links por inscrição** (`normalizarAcrescimo`/`valorNoCartao`/
   `acrescimoTexto`/`pagamentoPeloLinkDoCartao` em lib/pagamentos.js + `criarCobranca` do PicPay +
   campo "Acréscimo no cartão" na guia Cobrança, decisão do dono set/2026: "esse sistema também
