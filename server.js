@@ -18074,11 +18074,17 @@ const CACHE_ESTATICO = [
 /* Quem é esta instalação — o produto e o nome que ela leva aqui. Público e
    sem segredo nenhum: serve para conferir, DEPOIS do deploy, se `APP_MARCA`
    pegou, sem depender de abrir o log do Render. */
+/* `versao` muda a cada DEPLOY (o commit que o Render publica; sem ele, a hora
+   do arranque). É por ela que uma aba aberta desde antes do deploy descobre
+   que o código dela é velho — foi o que fez a guia Cobrança mandar lotes no
+   formato antigo depois da mudança de set/2026. */
+const VERSAO_APP = process.env.RENDER_GIT_COMMIT || String(Date.now());
 app.get("/api/marca", (_req, res) => res.json({
   produto: PRODUTO.nome,
   descricao: PRODUTO.descricao,
   instalacao: APP.nome,
   padrao: APP.ehPadrao,
+  versao: VERSAO_APP,
 }));
 
 /* ------------------- A MARCA DA INSTALAÇÃO NO ESTÁTICO -------------------

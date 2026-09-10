@@ -3953,7 +3953,29 @@ function presencaManualEv(id, token, cpf, email){
    Cada guia salva SÓ o que edita: a rota do evento aplica campo a campo o
    que veio no corpo, então o que a guia não mandou fica exatamente como
    está. Nunca se envia a configuração inteira de uma vez. */
+/* A ABA ABERTA DESDE ANTES DO DEPLOY não grava com o código velho (set/2026):
+   foi assim que a guia Cobrança mandou lotes no formato antigo e eles se
+   perderam. A versão vem do servidor no primeiro carregamento e se reconfere
+   ANTES de cada gravação — se o deploy mudou, a página recarrega em vez de
+   enviar. Falha na conferência não segura ninguém: o diagnóstico nunca pode
+   impedir a gravação. */
+let VERSAO_APP = null;
+(async () => { try { VERSAO_APP = (await (await fetch("/api/marca")).json()).versao || null; } catch { /* segue sem conferir */ } })();
+async function versaoAindaVale(){
+  if(!VERSAO_APP) return true;
+  try{
+    const v = (await (await fetch("/api/marca", { cache: "no-store" })).json()).versao || null;
+    if(!v || v === VERSAO_APP) return true;
+  }catch{ return true; }
+  alert("O sistema foi atualizado enquanto esta página estava aberta.\n\n"
+    + "Vou recarregar agora para você não salvar com a versão antiga — "
+    + "o que estiver preenchido nesta tela precisa ser digitado de novo.");
+  location.reload();
+  return false;
+}
+
 async function salvarParteEvento(id, body){
+  if(!await versaoAindaVale()) return false;
   const msg=$("ev-msg"); if(msg){ msg.textContent="Salvando…"; msg.style.color=""; }
   try{
     const r=await fetch(`/api/extensao/${id}/evento`,{method:"POST",

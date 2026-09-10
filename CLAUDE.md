@@ -4073,6 +4073,37 @@ public/
   se desenha. O vocabulário dos três grupos é do COMPONENTE, não de cada tela: um setor novo já
   nasce com eles. O nome que falta no registro do setor (a ata guarda o e-mail de quem lavrou, a
   reserva o de quem pediu) passa a vir do perfil — uma lista de e-mails soltos não se escolhe.
+- **A JANELA DO ESTADO VOLTOU A 1,2 s: o que a economia de banda NÃO pode custar**
+  (`JANELA_MS` em lib/storage.js, pergunta do dono set/2026: "essa economia de banda pode
+  atrapalhar as inscrições e o uso do sistema? Se sim, remova — preciso priorizar o
+  funcionamento"). Podia, e num ponto só: as **PRESENÇAS**. As gravações marcadas
+  `flushJa: false` — check-in do monitor, presença pelo telão e presença manual da gestão —
+  ficavam só na memória até o fim da janela, e eu a havia esticado de 1,2 s para 60 s. A
+  inscrição nunca esteve exposta (ela grava e chama `flush({agora:true})` FORA da fila, antes
+  do e-mail com o QR, e o pagamento idem), mas perder a presença de quem foi credenciado é o
+  pior tipo de perda: o certificado não sai e ninguém descobre a tempo. A janela existe para
+  as RAJADAS (dez crachás na porta viravam dez uploads do arquivo inteiro, e a fila parecia
+  travada) e continua existindo — o que estava errado era o TAMANHO dela: esticar a janela é
+  esticar o tempo em que uma gravação só existe nesta instância. Com 1,2 s a rajada segue
+  agrupada e a exposição volta a ser de um segundo, que é como o sistema rodou por meses sem
+  perder nada.
+  **A economia de banda que FICA não arrisca dado nenhum**, e é onde estava o volume: a
+  compressão HTTP (páginas 3,3× a 3,7× menores), o poll da gestão pedindo só a ação aberta e
+  só com a aba à vista, as artes fora do arquivo de estado (eram ~92% dele) e a foto do
+  portfólio reduzida antes de subir. Nenhuma delas segura uma gravação.
+  **Isto não se resolve mudando de servidor.** A causa é o estado ser UM arquivo reescrito
+  inteiro e mantido em memória — sair do Render tira o CUSTO da banda, não o risco. O que
+  tira o risco é o estado virar banco de dados (Postgres/MySQL), onde cada gravação é
+  independente e durável no ato; foi o que motivou o adaptador MySQL já existente em
+  lib/storage.js.
+- **A ABA ABERTA DESDE ANTES DO DEPLOY NÃO GRAVA COM O CÓDIGO VELHO** (`versao` no
+  `GET /api/marca` + `versaoAindaVale` no ARCHÉ EV, a outra metade do incidente): a guia
+  Cobrança que mandou lotes no formato antigo estava aberta desde antes do deploy — o HTML
+  sai com `max-age=0`, mas uma aba que ninguém recarrega mantém o código que já baixou. O
+  servidor expõe a versão do deploy (`RENDER_GIT_COMMIT`, ou a hora do arranque fora do
+  Render) e a tela a reconfere **antes de cada gravação**: mudou, ela avisa e recarrega em
+  vez de enviar. Falha na conferência não segura ninguém — diagnóstico que impede gravação
+  seria o mesmo erro pelo outro lado.
 - **A JANELA DE 60 s PERDIA GRAVAÇÃO NO DEPLOY — o padrão voltou a subir NA HORA**
   (`comAcoes` em server.js, incidente do dono set/2026: "acabei de entrar com uma programação e
   ela sumiu; já configurei os lotes duas vezes e sumiu as duas"). Ao encurtar a banda eu fiz o
