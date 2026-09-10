@@ -192,6 +192,7 @@ import { CREDENCIAMENTO, MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
 import { APP, PRODUTO, vestir } from "./lib/produto.js";
 import * as wallet from "./lib/wallet.js";
 import * as tr from "./lib/trabalhos.js";
+import { idsDeImagens } from "./lib/richtext.js";
 import { emailTrabalhoRecebido, emailConviteRevisao, emailDecisaoTrabalho, emailTrabalhoMovimentado } from "./lib/mailer.js";
 import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
@@ -6158,13 +6159,32 @@ const cursosTrabalho = () => [...CURSOS.filter((c) => c.ativo !== false).map((c)
   "Mestrado em Sociedade, Tecnologia e Meio Ambiente", "Outro / instituição externa"];
 const catalogosTr = () => ({ modalidades: tr.MODALIDADES, criterios: tr.CRITERIOS, recomendacoes: tr.RECOMENDACOES,
   decisoes: tr.DECISOES, estados: tr.ESTADOS, secoes: tr.SECOES, titulacoes: tr.TITULACOES_AUTOR, idiomas: tr.IDIOMAS, vinculos: tr.VINCULOS });
+/* As IMAGENS que o autor colou no texto (set/2026): o registro guarda só a
+   referência `/api/files/<id>`, então quem monta o PDF precisa LER os bytes
+   antes — é o mesmo caminho das fotos do portfólio no relatório da Extensão.
+   Imagem que não abre é pulada (o texto sai sem ela), e há um teto de 12 por
+   documento: o PDF vai ao avaliador por e-mail, e um trabalho com cinquenta
+   figuras em alta viraria um arquivo que ninguém baixa. */
+async function imagensDoTrabalho(v) {
+  const campos = [v?.resumo, v?.abstract, ...Object.values(v?.secoes || {})];
+  const ids = [...new Set(campos.flatMap((c) => idsDeImagens(c)))].slice(0, 12);
+  const mapa = new Map();
+  for (const id of ids) {
+    try {
+      const buf = await files.read(decodeURIComponent(id));
+      if (buf && buf.length && buf.length <= 8 * 1024 * 1024) mapa.set(id, buf);
+    } catch { /* arquivo ilegível: o texto sai sem a figura */ }
+  }
+  return mapa;
+}
 async function pdfDoTrabalho(res, a, t, { anonimo = false, versao = null } = {}) {
   const { gerarTrabalhoPdf } = await import("./lib/pdf.js");
   const v = versao ? (t.versoes || []).find((x) => x.n === versao) : null;
   // a capa do evento (a arte do hotsite) vira a faixa do alto do documento
   let capa = null;
   try { capa = a.evento?.capa ? await lerArte(a.evento.capa) : null; } catch { capa = null; }
-  const buf = await gerarTrabalhoPdf({ trabalho: t, evento: eventoResumoTr(a), versao: v, anonimo, capa,
+  const imagens = await imagensDoTrabalho(v || tr.versaoAtual(t));
+  const buf = await gerarTrabalhoPdf({ trabalho: t, evento: eventoResumoTr(a), versao: v, anonimo, capa, imagens,
     secoes: tr.SECOES, rotuloTitulacao: tr.rotuloTitulacao, modalidades: tr.MODALIDADES });
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `inline; filename="${slug(t.numero || "trabalho")}${anonimo ? "-cego" : ""}.pdf"`);
@@ -6232,6 +6252,42 @@ app.post("/api/publico/eventos/:slug/trabalhos", uploadTr.single("arquivo"), asy
     if (!res.headersSent) res.status(500).json({ error: "Não foi possível registrar o trabalho agora." });
   }
 });
+/* A IMAGEM COLADA NO TEXTO (set/2026, pedido do dono: "inclua a possibilidade
+   de se copiar e colar imagens dentro das caixas de texto"): o editor manda o
+   arquivo AQUI e recebe o endereço; o que fica no texto é a referência
+   `/api/files/<id>`, nunca a imagem em base64 — ela engordaria o arquivo de
+   estado, que é reescrito inteiro a cada gravação (a mesma decisão das artes
+   dos eventos). Guarda-se junto dos demais documentos do trabalho.
+   A porta é a MESMA da submissão: com `exigeInscricao` ligado (o padrão), só
+   quem está inscrito e liberado; sem ela, o freio por IP da inscrição. Sem
+   isso a rota seria um depósito de arquivos aberto à internet. */
+const TIPOS_IMAGEM_TR = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+app.post("/api/publico/eventos/:slug/trabalhos/imagem", uploadTr.single("imagem"), async (req, res) => {
+  try {
+    if (inscricaoExcedeu(req.ip))
+      return res.status(429).json({ error: "Muitas imagens em pouco tempo. Aguarde um minuto." });
+    const a = eventoPorSlug(await lerAcoes(), req.params.slug);
+    if (!a) return res.status(404).json({ error: "Evento não encontrado." });
+    const cfg = tr.normalizarConfig(a.evento?.trabalhos);
+    if (!cfg.ativo) return res.status(409).json({ error: "A submissão de trabalhos não está aberta neste evento." });
+    const conta = await usuarioDe(req, res);
+    if (cfg.exigeInscricao) {
+      if (!conta) return res.status(401).json({ error: "Entre com a conta do portal usada na sua inscrição." });
+      const lib = liberadoParaParticipar(a.evento, await inscricaoDaConta(a, conta));
+      if (!lib.ok) return res.status(403).json({ error: lib.motivo });
+    }
+    const f = req.file;
+    if (!f) return res.status(400).json({ error: "Nenhuma imagem recebida." });
+    if (!TIPOS_IMAGEM_TR.has(f.mimetype)) return res.status(400).json({ error: "A imagem deve ser JPEG, PNG, WebP ou GIF." });
+    if (f.size > 6 * 1024 * 1024) return res.status(400).json({ error: "A imagem passa de 6 MB — reduza antes de colar." });
+    const d = await files.save({ buffer: f.buffer, originalName: f.originalname || "imagem.png", prefix: `${pastaTrabalhos(a)}/imagens` });
+    res.json({ ok: true, url: d.link });   // o backend já devolve o endereço pronto
+  } catch (e) {
+    console.error("Erro ao guardar imagem do trabalho:", e);
+    res.status(500).json({ error: "Não foi possível guardar a imagem agora." });
+  }
+});
+
 async function acharTrabalho(slugEv, token) {
   if (!tr.TOKEN_VALIDO.test(String(token || ""))) return null;
   const a = eventoPorSlug(await lerAcoes(), slugEv);

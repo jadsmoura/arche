@@ -1499,17 +1499,55 @@ public/
   para o texto nunca dizer uma coisa e o formulário cobrar outra. O organizador com normas
   próprias marca "usar o texto abaixo"; a gestão vê o padrão pelo botão "Ver as normas padrão"
   (`normasPadraoTexto` no GET da guia).
-  **O REVISOR É INDICADO PELO AUTOR, dentro da submissão** (`pedeRevisor` + `revisorIndicado` +
-  `indicado: true`/`revisores: [{nome, email}]` na rota de designar, decisão do dono set/2026: "esse
-  campo deve ser incluído dentro do trabalho submetido; cada trabalho terá seu revisor, que ao ser
-  indicado receberá um e-mail com o convite"): o formulário pede nome, e-mail e instituição de um
-  revisor (não pode ser autor nem orientador — `validarSubmissao`), o registro guarda
-  `revisorIndicado`, e no card da gestão o convite é UM clique ("convidar o revisor indicado pelo
-  autor"), com o campo "outro revisor" para a comissão escolher outra pessoa. O card "Revisores do
-  evento" (a lista prévia) SAIU da tela; a rota `/trabalhos/revisores` e `emails` na designação
-  ficam por compatibilidade. A indicação não quebra a cegueira do lado do revisor (a cópia dele
-  continua sem autoria), mas o revisor indicado sabe de quem é o trabalho — é a escolha do dono, e a
-  comissão pode preferir "outro revisor".
+  **QUEM INDICA O REVISOR É A COMISSÃO, e o formulário do autor não o pede** (decisão do dono
+  set/2026, revendo a de dias antes — "no campo de submissão, remova o 'revisor indicado', quem faz
+  essa indicação é o gestor, no painel de gestão; aqui na submissão só aqueles campos"): o campo
+  pedia nome, e-mail e instituição de um revisor DENTRO da submissão, e isso empurrava para o autor
+  uma escolha que é da comissão — além de fazê-lo saber quem leria o trabalho dele, o avesso da
+  revisão cega. Saíram `pedeRevisor`, `revisorIndicado` e o botão "convidar o revisor indicado pelo
+  autor"; a designação continua sendo a mesma rota, com o campo de e-mail no card da gestão. Nada se
+  perde do que já foi submetido: `revisorIndicado` gravado em trabalho antigo fica no registro e
+  simplesmente não é mais lido.
+  **E NÃO HÁ MÁXIMO DE CARACTERES** (mesmo pedido: "lembrando que não tem número máximo de
+  caracteres"): `maxPalavrasResumo` saiu da configuração, da validação e das normas. O **mínimo de
+  200 palavras** fica — ele diz o que um resumo precisa ter para ser resumo —, e o contador da tela
+  passou a dizer "sem máximo" em vez de "de 200 a 500". Um teto de palavras num resumo de trabalho
+  completo é régua de outro evento, e recusar a submissão por causa dele custaria caro no dia do
+  prazo.
+  **O TEXTO DO TRABALHO É RICO: negrito, itálico, listas e IMAGENS COLADAS** (`lib/richtext.js`
+  [régua pura] + `public/assets/arche-editor.js` [o editor] + `corpoRico`/`blocosDoRico` em
+  lib/pdf.js + `POST /api/publico/eventos/:slug/trabalhos/imagem`, pedido do dono set/2026: "inclua
+  a possibilidade de se copiar e colar imagens dentro das caixas de texto, e editar negrito,
+  itálico, etc., visto que alguns trabalhos precisam disso"). O trabalho científico tem H₂O, *E.
+  coli* em itálico, m² e o gráfico dos resultados — num `<textarea>` nada disso sobrevive, e o autor
+  acabava anexando um Word à parte, que é justamente o que o formulário existe para evitar.
+  **O editor se põe POR CIMA do textarea** (a mesma solução da justificativa do conceito na
+  Avaliação): o campo antigo continua no DOM, escondido, e o editor espelha o HTML nele — assim
+  `lerConteudo()` não muda uma linha, e o campo sem `data-rico` (título, palavras-chave) segue
+  textarea puro. **A régua de segurança é a de sempre**: lista de PERMISSÃO fechada
+  (`b i u sup sub p br ul ol li img`), **nenhum atributo passa** — a exceção é `img[src|alt]`, e o
+  `src` só vale se for `/api/files/<id>` do próprio sistema (`SRC_VALIDO`, sem `..`): o texto do
+  autor é desenhado dentro da página do ARCHÉ para o revisor e para a gestão, e `<script>`, `<a
+  href>`, `style` e imagem de fora virariam código ou rastreador lá dentro. Colar do Word traz
+  `font-family`, cor e tabela: tudo cai, o texto fica.
+  **A imagem colada SOBE, não entra no estado** (a mesma decisão das artes do EV): o editor
+  intercepta o `paste`/`drop`, põe um marcador na caixa, manda o arquivo pela rota (6 MB, mesma
+  portaria da submissão, pasta `…/<nº>/trabalhos/imagens`) e troca pelo `/api/files/<id>` — o
+  registro guarda a REFERÊNCIA. Base64 dentro do estado multiplicaria por 1,37 o arquivo que se
+  reescreve inteiro a cada gravação. Falhando o upload, o marcador SAI e o autor é avisado: uma
+  imagem que ficou parecendo carregada e não existe é pior que nenhuma.
+  **O PDF desenha o que o autor marcou** (`blocosDoRico` → parágrafo, item de lista com marcador e
+  recuo, ou figura): Times nas quatro variantes, sublinhado, sobrescrito com os `¹²³` do WinAnsi e,
+  fora deles, o mesmo texto a 0,72× levantado — o modelo do CONINT numera afiliações e o quarto
+  autor não pode sair sem número. A figura entra centralizada, escalada para caber na coluna, com o
+  `alt` de legenda; o servidor lê os arquivos (`imagensDoTrabalho`, teto de 12 por trabalho e 8 MB
+  cada) e os entrega ao gerador como bytes. Um detalhe que o PDFKit impõe: `continued` **come o
+  espaço inicial** do trecho seguinte ("prevalenteno mundo"), então o espaço de fronteira se muda
+  para o fim do trecho anterior — e, se esse anterior for sublinhado, num trecho `" "` próprio, senão
+  o sublinhado se estenderia para além da palavra.
+  **A contagem de palavras e tudo o que não é tela leem o TEXTO SIMPLES** (`textoPlano`): o mínimo
+  de 200, a régua de 50 caracteres por seção, a planilha e o e-mail. `MAX_RICO` são 400 mil
+  caracteres — umas 80 páginas: é teto de sanidade do que se grava, não limite de escrita.
 - **QUEM SE INSCREVE TEM CONTA NO PORTAL** (`exigeContaNaInscricao` em lib/eventos.js +
   `inscricaoComConta` no evento e no payload público + a régua em `POST …/inscrever` + o bloco
   "Entrar e inscrever-me" em `formInscricao` do hotsite + o card "Quem pode se inscrever" na guia
@@ -1670,6 +1708,18 @@ public/
   divergência entre as duas. A CH da AÇÃO continua mandando — é a que a PROPPEX aprovou; isto
   é conferência, não substituição, e por isso **não se exige programação** para cadastrar
   evento (seria justamente derrubar o caso do QR no fim da palestra).
+  **⧉ DUPLICAR A ATIVIDADE** (`duplicarAtvEv` na guia Programação, pedido do dono set/2026: "às
+  vezes tenho mais atividades na mesma data e horário, e é mais fácil duplicar e só editar algumas
+  coisas do que preencher tudo"): num congresso as sessões simultâneas repetem dia, horário, local,
+  tipo, modalidade e frequência — muda o título e quem ministra. A cópia entra **logo abaixo da
+  original** (não no fim da lista: quem duplica está editando ali) e o cursor cai no título, já
+  selecionado, que é o campo que sempre muda. Duas coisas **não** se copiam: o `id` nasce vazio,
+  porque id é a chave da presença e do certificado — duas atividades com o mesmo id fariam o crachá
+  lido numa contar na outra (o servidor emite o dela ao salvar); e a **foto de quem ministra**, que
+  é o único campo da linha que não se lê no formulário — nome, instituição e mini-bio ficam à vista
+  e se corrigem, mas uma foto herdada em silêncio sairia na vitrine de palestrantes com o rosto de
+  outra pessoa. O título ganha "(cópia)" — se a pessoa salvar sem editar, a lista diz o que
+  aconteceu em vez de mostrar duas linhas idênticas.
 - **Nem todo evento quer um site** (`temHotsiteEvento` em lib/eventos.js + a escolha no
   assistente e na guia Página do evento, pedido do dono ago/2026): o professor que dá uma
   palestra e quer só a lista de presença por QR não tem por que montar hotsite — capa,

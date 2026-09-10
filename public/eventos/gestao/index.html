@@ -199,6 +199,11 @@
   details.grupo .corpo{padding:12px 14px 4px;border-top:1px solid var(--line);background:#f7f9fb}
 
   /* --------------------------- editor de atividades ----------------------- */
+  .tr-texto{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:6px;line-height:1.6}
+  .tr-texto h4{font-family:Sora,sans-serif;font-size:13px;color:var(--brand);margin:12px 0 4px}
+  .tr-texto h4:first-child{margin-top:0}
+  .tr-texto p{margin:0 0 7px}.tr-texto ul,.tr-texto ol{margin:0 0 7px;padding-left:22px}
+  .tr-texto img{max-width:100%;height:auto;border-radius:6px;display:block;margin:8px auto}
   .atv-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fafbfc;position:relative}
   /* a lista de sugestões da busca de pessoas (guia Equipe): abre sob o campo do nome */
   .sug{position:absolute;left:14px;top:50px;z-index:30;background:#fff;border:1px solid var(--line);border-radius:10px;
@@ -365,6 +370,7 @@
 </div>
 
 <script src="/assets/arche-paginacao.js"></script>
+<script src="/assets/arche-editor.js"></script>
 <script src="/assets/arche-editais.js"></script>
 <script src="/assets/arche-vercomo.js"></script>
 <script>
@@ -2738,6 +2744,32 @@ function moverAtvEv(i,d){
 /* Editor das atividades: um card por atividade. O id é preservado escondido
    no próprio objeto — é ele que os inscritos marcaram, e mudar id romperia
    os vínculos. */
+/* DUPLICAR A ATIVIDADE (pedido do dono, set/2026: "às vezes tenho mais
+   atividades na mesma data e horário, e é mais fácil duplicar e só editar
+   algumas coisas do que preencher tudo"). É o caso das sessões simultâneas —
+   quatro minicursos no mesmo horário, em salas diferentes.
+   A cópia entra LOGO ABAIXO da original e guarda o que se repete (tipo, dia,
+   horário, local, CH, modalidade, vagas, frequência e o regime de inscrição).
+   Três coisas NÃO se copiam, de propósito: o **id**, porque é ele que os
+   inscritos marcaram e as presenças apontam — duas atividades com o mesmo id
+   seriam a mesma atividade em dois lugares; a **foto** e a **mini-bio** do
+   palestrante, que são de quem ministra, e o palestrante da cópia é outro; e
+   o **título**, que ganha "(cópia)" para ninguém publicar duas linhas iguais
+   sem perceber. O campo do título recebe o foco, que é o que se vai digitar. */
+function duplicarAtvEv(i){
+  const o=EV_PROG[i]; if(!o) return;
+  // o id fica VAZIO (o servidor emite o dela ao salvar): id é a chave da presença e do
+  // certificado — duas atividades com o mesmo id fariam o crachá lido numa contar na outra.
+  // A FOTO também não vem: o nome e a mini-bio se leem e se corrigem no formulário, mas uma
+  // foto herdada em silêncio sairia na vitrine de palestrantes com o rosto de outra pessoa.
+  const copia={...o, id:"", titulo:(o.titulo||"")+" (cópia)", foto:"", temFoto:false};
+  EV_PROG.splice(i+1,0,copia);
+  renderProgEv();
+  // o título da cópia é o que muda: leva o cursor até ele
+  const cx=$("ev-prog");
+  const campo=cx&&cx.querySelectorAll(".atv-card")[i+1]?.querySelector('input[placeholder^="título"]');
+  if(campo){ campo.focus(); campo.select(); campo.scrollIntoView({block:"center",behavior:"smooth"}); }
+}
 function renderProgEv(){
   const el=$("ev-prog"); if(!el) return;
   el.innerHTML = EV_PROG.length ? EV_PROG.map((p,i)=>`
@@ -2751,6 +2783,7 @@ function renderProgEv(){
         <span style="display:flex;gap:4px;justify-content:flex-end">
           <button class="bt bt-ghost" style="padding:5px 9px;font-size:12px" title="subir" ${i===0?"disabled":""} onclick="moverAtvEv(${i},-1)">↑</button>
           <button class="bt bt-ghost" style="padding:5px 9px;font-size:12px" title="descer" ${i===EV_PROG.length-1?"disabled":""} onclick="moverAtvEv(${i},1)">↓</button>
+          <button class="bt bt-ghost" style="padding:5px 9px;font-size:12px" title="duplicar esta atividade (mesma data, horário e local — o título e o resto se ajustam)" onclick="duplicarAtvEv(${i})">⧉</button>
           <button class="bt bt-ghost bt-xs" style="color:var(--err)" title="remover atividade" onclick="EV_PROG.splice(${i},1);renderProgEv()">✕</button>
         </span>
       </div>
@@ -2865,8 +2898,7 @@ async function renderTrabalhos(a){
       <div class="g3" style="margin-top:6px">
         <div><label>Prazo final de submissão</label><input type="date" id="tr-prazo" value="${esc(c.prazoSubmissao)}"></div>
         <div><label>Dias para a correção</label><input type="number" id="tr-dcorr" min="1" max="60" value="${c.prazoCorrecaoDias}"></div>
-        <div><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;margin-top:26px"><input type="checkbox" id="tr-pederev" ${c.pedeRevisor?"checked":""} style="width:auto"> o autor indica um revisor ao submeter</label></div>
-        <div><label>Máximo de palavras do resumo</label><input type="number" id="tr-lim" min="200" max="5000" value="${c.maxPalavrasResumo}"><div class="muted" style="font-size:11.5px">o mínimo é 200 palavras, fixo</div></div>
+        <div><label>Tamanho do resumo</label><div class="muted" style="font-size:12px;margin-top:6px">Mínimo de <b>200 palavras</b>, fixo. <b>Não há máximo</b> — nem no resumo, nem nas seções.</div></div>
         <div><label>Máximo de autores</label><input type="number" id="tr-maxa" min="1" max="15" value="${c.maxAutores}"></div>
         <div><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;margin-top:26px"><input type="checkbox" id="tr-exige" ${c.exigeParecer?"checked":""} style="width:auto"> decidir só com parecer entregue</label>
           <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;margin-top:8px"><input type="checkbox" id="tr-arq" ${c.permiteArquivo?"checked":""} style="width:auto"> permitir anexar arquivo (opcional)</label>
@@ -2927,7 +2959,7 @@ function trVerNormasPadrao(){
 async function trConfigSalvar(id){
   const config={ ativo:$("tr-ativo").checked, modalidades:[...document.querySelectorAll(".tr-mod:checked")].map(x=>x.value),
     areas:$("tr-areas").value.split("\n").map(s=>s.trim()).filter(Boolean), prazoSubmissao:$("tr-prazo").value,
-    prazoCorrecaoDias:$("tr-dcorr").value, maxPalavrasResumo:$("tr-lim").value, pedeRevisor:$("tr-pederev").checked,
+    prazoCorrecaoDias:$("tr-dcorr").value,
     maxAutores:$("tr-maxa").value, exigeParecer:$("tr-exige").checked, permiteArquivo:$("tr-arq").checked, exigeInscricao:$("tr-exigeinsc").checked, orientacoes:$("tr-orient").value,
     normasPadrao:(document.querySelector('input[name="tr-normas-modo"]:checked')||{}).value !== "proprio",
     normas:$("tr-normas-txt").value, normasUrl:$("tr-normas").value, modeloUrl:$("tr-modelo").value };
@@ -2948,6 +2980,10 @@ function trRenderLista(){
   if(!lista.length){ el.innerHTML=`<div class="muted">Nenhum trabalho${TR_FILTRO||TR_FILTRO_VINC?" neste recorte":" submetido ainda"}.</div>`; return; }
   el.innerHTML=lista.map(trCard).join("");
 }
+/* O texto do trabalho é HTML saneado desde set/2026 (negrito, listas,
+   imagens): mostrá-lo escapado imprimiria as tags. Limpa-se de novo aqui. */
+const trRico=(html)=>(window.ArcheEditor?ArcheEditor.limpar(ArcheEditor.paraHtml(html)):esc(String(html||"")));
+const trBlocoTexto=(titulo,html)=>(html?`<h4>${esc(titulo)}</h4><div>${trRico(html)}</div>`:"");
 function trCard(t){
   const c=TR.config, crit=TR.catalogos.criterios;
   const atual=t.versoes[t.versoes.length-1]||{};
@@ -2971,7 +3007,7 @@ function trCard(t){
       <div>${t.curso?`<b>Curso:</b> ${esc(t.curso)} · `:""}<b>Palavras-chave:</b> ${esc((atual.palavrasChave||[]).join(", "))}${atual.idioma?` · <b>idioma:</b> ${atual.idioma==="en"?"inglês":"português"}`:""} · <b>submetido em</b> ${fmtDH(t.criadoEm)}</div>
       <div><b>Versões:</b> ${t.versoes.map(v=>`v${v.n} (${fmtDH(v.em)}) <a href="/api/extensao/${encodeURIComponent(ABERTO)}/trabalhos/${esc(t.id)}/pdf?versao=${v.n}" target="_blank" rel="noopener">PDF</a>${v.arquivo?` · <a href="${esc(v.arquivo.link)}">${esc(v.arquivo.name)}</a>`:""}${v.nota?` — <i>${esc(v.nota)}</i>`:""}`).join(" · ")}
         · <a href="/api/extensao/${encodeURIComponent(ABERTO)}/trabalhos/${esc(t.id)}/pdf?anonimo=1" target="_blank" rel="noopener">PDF cego</a></div>
-      <details style="margin-top:6px"><summary style="cursor:pointer;color:var(--brand)">Texto (versão ${atual.n||1})</summary><div style="white-space:pre-wrap;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:6px"><b>Resumo</b>\n${esc(atual.resumo||"")}${atual.abstract?`\n\n<b>Abstract</b>\n${esc(atual.abstract)}\n\n<b>Keywords:</b> ${esc((atual.keywords||[]).join("; "))}`:""}${atual.secoes?(TR.catalogos.secoes||[]).map(s=>`\n\n<b>${esc(s.nome)}</b>\n${esc(atual.secoes[s.codigo]||"")}`).join(""):""}</div></details>
+      <details style="margin-top:6px"><summary style="cursor:pointer;color:var(--brand)">Texto (versão ${atual.n||1})</summary><div class="tr-texto">${trBlocoTexto("Resumo",atual.resumo)}<p><b>Palavras-chave:</b> ${esc((atual.palavrasChave||[]).join("; "))}</p>${atual.abstract?`${trBlocoTexto("Abstract",atual.abstract)}<p><b>Keywords:</b> ${esc((atual.keywords||[]).join("; "))}</p>`:""}${atual.secoes?(TR.catalogos.secoes||[]).map(s=>trBlocoTexto(s.nome,atual.secoes[s.codigo])).join(""):""}</div></details>
       ${t.decisao?`<div style="border-left:4px solid var(--accent);background:var(--wash);border-radius:8px;padding:8px 12px;margin-top:8px"><b>Decisão (${fmtDH(t.decisao.em)}, ${esc(t.decisao.por||"")}):</b> ${trBadge(t.decisao.codigo)}<div style="white-space:pre-line">${esc(t.decisao.mensagem||"")}</div></div>`:""}
 
       <div style="margin-top:10px"><b>Revisores</b>${(t.revisores||[]).filter(r=>!r.removidoEm).length?"":" — nenhum designado"}</div>

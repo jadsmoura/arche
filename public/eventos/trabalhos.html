@@ -7,6 +7,7 @@
 <title>Submissão de trabalhos — Eventos UNIEGO</title>
 <link rel="icon" href="/arche/favicon.svg">
 <link rel="stylesheet" href="/assets/arche-ui.css">
+<script src="/assets/arche-editor.js" defer></script>
 <style>
   /* ARCHÉ TR — a página do AUTOR (set/2026). Servida em
      /eventos/<slug>/trabalhos (o formulário) e /eventos/<slug>/trabalhos/<token>
@@ -41,7 +42,11 @@
   .linha-ok input{width:auto;margin-top:3px}
   .sec-t{font-family:Sora,sans-serif;font-weight:700;font-size:15px;color:var(--ink);margin:18px 0 0;padding-top:14px;border-top:1px solid var(--line)}
   .sec-t:first-child{border-top:0;padding-top:0;margin-top:0}
-  pre.resumo{white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.65;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:8px 0 0}
+  .resumo{font-size:14px;line-height:1.65;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:8px 0 0}
+  .resumo h4{font-family:Sora,sans-serif;font-size:13.5px;color:var(--brand);margin:14px 0 4px}
+  .resumo h4:first-child{margin-top:0}
+  .resumo p{margin:0 0 8px}.resumo ul,.resumo ol{margin:0 0 8px;padding-left:22px}
+  .resumo img{max-width:100%;height:auto;border-radius:8px;display:block;margin:10px auto}
   .normas-janela{position:fixed;inset:0;background:rgba(24,38,50,.55);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
   .normas-janela .cx{background:#fff;border-radius:14px;max-width:760px;width:100%;max-height:90vh;overflow:auto;padding:22px 24px}
   .normas-janela pre{white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.65}
@@ -68,15 +73,13 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (iso) => (/^\d{4}-\d{2}-\d{2}/.test(String(iso || "")) ? String(iso).slice(0, 10).split("-").reverse().join("/") : "—");
 const fmtHora = (iso) => (iso ? new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
-const palavras = (s) => (String(s || "").trim().match(/[^\s]+/g) || []).length;
+const palavras = (s) => ((window.ArcheEditor ? ArcheEditor.texto(s) : String(s || "")).trim().match(/[^\s]+/g) || []).length;
 const partes = location.pathname.replace(/\/+$/, "").split("/");   // ["", "eventos", slug, "trabalhos", token?]
 const SLUG = partes[2] || "", TOKEN = partes[4] || "";
 const API = `/api/publico/eventos/${encodeURIComponent(SLUG)}/trabalhos`;
 let DADOS = null;
 const PESSOA = () => ({ nome: "", email: "", instituicao: "UNIEGO", titulacao: "" });
 let AUTORES = [PESSOA()], ORIENTADOR = { ...PESSOA(), titulacao: "doutor" };
-// o revisor que o autor indica (decisão do dono, set/2026): a comissão decide se o convida
-let REVISOR = { nome: "", email: "", instituicao: "" };
 $("lk-evento").href = `/eventos/${encodeURIComponent(SLUG)}`;
 
 const cabecalho = (ev, sub) => `<div class="cab" style="margin-bottom:14px">
@@ -119,13 +122,13 @@ function camposConteudo(c, v = {}, modalidade) {
   const completo = modalidade === "completo";
   return `
     <div class="sec-t">Resumo</div>
-    <label>Resumo * (mínimo ${c.minPalavrasResumo} palavras; máximo ${c.maxPalavrasResumo})</label>
-    <textarea id="f-resumo" rows="10" oninput="contar('f-resumo','f-cont-resumo')">${esc(v.resumo || "")}</textarea>
+    <label>Resumo * (mínimo ${c.minPalavrasResumo} palavras; sem máximo)</label>
+    <textarea id="f-resumo" rows="10" data-rico="1" oninput="contar('f-resumo','f-cont-resumo')">${esc(v.resumo || "")}</textarea>
     <div class="contador" id="f-cont-resumo"></div>
     <label>Palavras-chave * (três a seis, separadas por vírgula)</label>
     <input id="f-palavras" value="${esc((v.palavrasChave || []).join(", "))}" placeholder="ex.: anemia, gestação, atenção básica">
     <label>Abstract (opcional)</label>
-    <textarea id="f-abstract" rows="6" oninput="contar('f-abstract','f-cont-abstract')">${esc(v.abstract || "")}</textarea>
+    <textarea id="f-abstract" rows="6" data-rico="1" oninput="contar('f-abstract','f-cont-abstract')">${esc(v.abstract || "")}</textarea>
     <div class="contador" id="f-cont-abstract"></div>
     <label>Keywords (opcional; três a seis, separadas por vírgula)</label>
     <input id="f-keywords" value="${esc((v.keywords || []).join(", "))}" placeholder="ex.: anemia, pregnancy, primary care">
@@ -135,7 +138,7 @@ function camposConteudo(c, v = {}, modalidade) {
     <select id="f-idioma">${c.idiomas.map((i) => `<option value="${esc(i.codigo)}" ${(v.idioma || "pt") === i.codigo ? "selected" : ""}>${esc(i.nome)}</option>`).join("")}</select>
     <div class="ajuda">No trabalho em inglês, o abstract e as keywords vêm em primeiro no PDF.</div>
     ${c.secoes.map((s) => `<label>${esc(s.nome)} *</label>
-      <textarea id="f-sec-${esc(s.codigo)}" rows="${s.codigo === "referencias" ? 6 : 8}">${esc((v.secoes || {})[s.codigo] || "")}</textarea>${s.ajuda ? `<div class="ajuda">${esc(s.ajuda)}</div>` : ""}`).join("")}` : ""}
+      <textarea id="f-sec-${esc(s.codigo)}" rows="${s.codigo === "referencias" ? 6 : 8}" data-rico="1">${esc((v.secoes || {})[s.codigo] || "")}</textarea>${s.ajuda ? `<div class="ajuda">${esc(s.ajuda)}</div>` : ""}`).join("")}` : ""}
     ${c.permiteArquivo ? `<div class="sec-t">Arquivo (opcional)</div>
     <label>Versão em PDF ou Word, se quiser anexar (até 15 MB)</label>
     <input id="f-arquivo" type="file" accept=".pdf,.doc,.docx">
@@ -184,14 +187,6 @@ function renderFormulario(j) {
       <div id="f-autores"></div>
       <button class="bt bt-ghost" style="margin-top:8px;padding:7px 12px;font-size:12.5px" onclick="if(AUTORES.length<${c.maxAutores}){AUTORES.push(PESSOA());renderPessoas()}else alert('Máximo de ${c.maxAutores} autores.')">＋ Adicionar autor</button>
       <div id="f-orientador"></div>
-      ${c.pedeRevisor ? `<div class="sec-t">Revisor indicado</div>
-      <div class="ajuda">Indique um professor ou pesquisador com titulação para avaliar o trabalho — que não seja autor nem orientador dele. A comissão pode convidá-lo ou escolher outro revisor; o convite, com o link do parecer, vai por e-mail.</div>
-      <div class="g4" id="f-revisor">
-        <div><label>Nome completo *</label><input value="" oninput="REVISOR.nome=this.value"></div>
-        <div><label>E-mail *</label><input type="email" value="" oninput="REVISOR.email=this.value"></div>
-        <div><label>Instituição</label><input value="" oninput="REVISOR.instituicao=this.value" placeholder="UNIEGO"></div>
-        <div></div><div></div>
-      </div>` : ""}
 
       <div id="f-conteudo">${camposConteudo(c, {}, modalidades[0]?.codigo)}</div>
 
@@ -237,13 +232,39 @@ function mudouModalidade() {
   // guarda o que já foi digitado ao trocar de tipo
   const v = lerConteudo();
   $("f-conteudo").innerHTML = camposConteudo(DADOS.config, v, cod);
+  montarEditores();
   contar("f-resumo", "f-cont-resumo"); contar("f-abstract", "f-cont-abstract");
 }
 function contar(idCampo, idCont) {
   const el = $(idCampo), cont = $(idCont); if (!el || !cont) return;
   const n = palavras(el.value), c = DADOS.config;
-  cont.textContent = `${n} palavra(s)${idCampo === "f-resumo" ? ` — mínimo ${c.minPalavrasResumo}, máximo ${c.maxPalavrasResumo}` : ""}`;
-  cont.style.color = idCampo === "f-resumo" && n && (n < c.minPalavrasResumo || n > c.maxPalavrasResumo) ? "var(--err)" : "var(--muted)";
+  cont.textContent = `${n} palavra(s)${idCampo === "f-resumo" ? ` — mínimo ${c.minPalavrasResumo}, sem máximo` : ""}`;
+  cont.style.color = idCampo === "f-resumo" && n && n < c.minPalavrasResumo ? "var(--err)" : "var(--muted)";
+}
+
+/* O EDITOR RICO (set/2026): monta-se sobre os textareas marcados com
+   `data-rico`, que continuam no DOM (escondidos) recebendo o HTML — por isso
+   `lerConteudo` não muda de uma linha. A imagem colada sobe para o sistema
+   pela rota do evento; o que entra no texto é a referência, nunca a imagem. */
+async function subirImagemDoTrabalho(arquivo) {
+  const fd = new FormData();
+  fd.append("imagem", arquivo);
+  const r = await fetch(`${API}/imagem`, { method: "POST", body: fd });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.url) throw new Error(j.error || "Não foi possível enviar a imagem.");
+  return j.url;
+}
+function montarEditores() {
+  if (!window.ArcheEditor) return;                 // sem o componente, ficam os textareas
+  document.querySelectorAll("textarea[data-rico]").forEach((ta) => {
+    ta.style.display = "";                          // o montar o esconde de novo
+    ArcheEditor.montar(ta, {
+      subirImagem: subirImagemDoTrabalho,
+      vazio: "Escreva ou cole o texto aqui.",
+      aoMudar: () => { if (ta.id === "f-resumo") contar("f-resumo", "f-cont-resumo");
+        if (ta.id === "f-abstract") contar("f-abstract", "f-cont-abstract"); },
+    });
+  });
 }
 function lerConteudo() {
   const g = (id) => ($(id) ? $(id).value : "");
@@ -267,7 +288,7 @@ function renderPessoas() {
 function montarDados() {
   const g = (id) => ($(id) ? $(id).value : "");
   return { titulo: g("f-titulo"), tituloEn: g("f-titulo-en"), modalidade: g("f-modalidade"), area: g("f-area"), curso: g("f-curso"), vinculo: g("f-vinculo"),
-    autores: AUTORES, orientador: ORIENTADOR, revisor: REVISOR, ...lerConteudo(), consentimento: $("f-ok").checked };
+    autores: AUTORES, orientador: ORIENTADOR, ...lerConteudo(), consentimento: $("f-ok").checked };
 }
 async function enviar() {
   const msg = $("f-msg"); msg.innerHTML = "";
@@ -301,6 +322,13 @@ async function enviar() {
   }
 }
 
+/* O TEXTO GRAVADO, como ele é (set/2026): resumo e seções são HTML saneado —
+   negrito, listas e imagens. Mostrá-lo escapado imprimiria as tags na tela. A
+   limpeza roda de novo aqui, no navegador: o que o servidor guarda já passou
+   pela régua, e repeti-la custa nada. */
+const rico = (html) => (window.ArcheEditor ? ArcheEditor.limpar(ArcheEditor.paraHtml(html)) : esc(String(html || "")));
+const blocoTexto = (titulo, html) => (html ? `<h4>${esc(titulo)}</h4><div>${rico(html)}</div>` : "");
+
 /* ---------------------------- o acompanhamento ---------------------------- */
 const COR = { submetido: "info", "em-avaliacao": "warn", avaliado: "warn", correcao: "err", reenviado: "info", aceito: "ok", rejeitado: "err", retirado: "muted" };
 const REC = { aceitar: "Aceitar", "aceitar-com-correcoes": "Aceitar com correções", rejeitar: "Recusar" };
@@ -332,7 +360,6 @@ function renderAcompanhamento(j) {
       <h2 style="font-size:18px;margin:12px 0 4px;line-height:1.35">${esc(t.titulo)}</h2>
       ${t.tituloEn ? `<div style="font-size:14px;color:var(--ink-soft);font-style:italic">${esc(t.tituloEn)}</div>` : ""}
       <div style="font-size:13px;color:var(--ink-soft);margin-top:8px">${[...t.autores, ...(t.orientador && t.orientador.nome ? [{ ...t.orientador, ori: true }] : [])].map((a) => `${esc(a.nome)}${a.ori ? " (orientador)" : ""}${a.instituicao ? ` — ${esc(a.instituicao)}` : ""}${a.titulacao ? `, ${esc(tit(a.titulacao))}` : ""}`).join("; ")}</div>
-      ${t.revisorIndicado && t.revisorIndicado.nome ? `<div style="font-size:12.5px;color:var(--muted);margin-top:4px">Revisor indicado por você: ${esc(t.revisorIndicado.nome)}${t.revisorIndicado.instituicao ? ` (${esc(t.revisorIndicado.instituicao)})` : ""} — a comissão decide se o convida.</div>` : ""}
       <p style="font-size:14px;line-height:1.6;margin-top:12px">${esc(explica)}</p>
       ${t.decisao ? `<div class="decisao"><b>Decisão da PROPPEX (${fmtHora(t.decisao.em)}):</b>\n${esc(t.decisao.mensagem || "—")}</div>` : ""}
       <p style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap"><a class="bt bt-sec" href="${pdf()}" target="_blank" rel="noopener">📄 PDF no modelo do evento</a>${botoesNormas(c).replace('<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">', "").replace(/<\/div>$/, "")}</p>
@@ -369,10 +396,10 @@ function renderAcompanhamento(j) {
         ${v.nota ? `<span style="color:var(--ink-soft)">— ${esc(v.nota)}</span>` : ""}
       </div>`).join("")}</div>
       <details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px;color:var(--brand)">Ver o texto da versão atual</summary>
-        <pre class="resumo"><b>Resumo</b>\n${esc(atual.resumo || "")}\n\n<b>Palavras-chave:</b> ${esc((atual.palavrasChave || []).join("; "))}${atual.abstract ? `\n\n<b>Abstract</b>\n${esc(atual.abstract)}\n\n<b>Keywords:</b> ${esc((atual.keywords || []).join("; "))}` : ""}${atual.secoes ? (j.catalogos.secoes || []).map((s) => `\n\n<b>${esc(s.nome)}</b>\n${esc(atual.secoes[s.codigo] || "")}`).join("") : ""}</pre></details>
+        <div class="resumo">${blocoTexto("Resumo", atual.resumo)}<p><b>Palavras-chave:</b> ${esc((atual.palavrasChave || []).join("; "))}</p>${atual.abstract ? `${blocoTexto("Abstract", atual.abstract)}<p><b>Keywords:</b> ${esc((atual.keywords || []).join("; "))}</p>` : ""}${atual.secoes ? (j.catalogos.secoes || []).map((s) => blocoTexto(s.nome, atual.secoes[s.codigo])).join("") : ""}</div></details>
       ${t.podeRetirar ? `<p style="margin-top:14px"><button class="bt bt-ghost" style="color:var(--err)" onclick="retirar()">Retirar o trabalho</button></p>` : ""}
     </div>`;
-  if (t.podeReenviar) { contar("f-resumo", "f-cont-resumo"); contar("f-abstract", "f-cont-abstract"); }
+  if (t.podeReenviar) { montarEditores(); contar("f-resumo", "f-cont-resumo"); contar("f-abstract", "f-cont-abstract"); }
 }
 async function reenviar() {
   const msg = $("c-msg"); msg.innerHTML = "";
