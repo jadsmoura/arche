@@ -513,8 +513,8 @@ const SECOES = [
    sub:"O projeto de evento da Extensão — a proposta da ação; os campos obrigatórios liberam a publicação da página."},
   {k:"inscritos", rot:"Inscritos e presenças", grupo:"GESTÃO", ic:IC.inscritos, evento:true, tit:"Inscritos e presenças",
    sub:"Quem se inscreveu e quem se credenciou — com a presença manual, geral e por atividade."},
-  {k:"equipe", rot:"Comissão organizadora", grupo:"GESTÃO", ic:IC.equipe, evento:true, tit:"Comissão organizadora e palestrantes",
-   sub:"Quem organiza e quem ministra — professores, monitores, alunos e colaboradores que recebem certificado à parte."},
+  {k:"equipe", rot:"Equipe do evento", grupo:"GESTÃO", ic:IC.equipe, evento:true, tit:"Equipe do evento",
+   sub:"Palestrantes, comissão organizadora e monitores — os três se certificam da mesma forma, em abas separadas."},
   {k:"inscricoes", rot:"Inscrições", grupo:"PRÉ-EVENTO", ic:IC.inscricoes, evento:true, tit:"Inscrições",
    sub:"Vagas, prazo, campos extras do formulário e o texto de consentimento (LGPD)."},
   /* EVENTO PAGO (set/2026): a cobrança se configura ANTES (categorias, lotes,
@@ -3023,19 +3023,48 @@ async function trDecidir(tid){
   catch(e){ alert(e.message); }
 }
 
+/* A EQUIPE SE LÊ EM TRÊS ABAS — palestrantes, comissão e monitores (pedido do
+   dono, set/2026): num congresso a lista da comissão passa de cinquenta
+   linhas, e os monitores são a maior parte dela; procurar o palestrante no
+   meio dos monitores é o trabalho que a separação evita.
+
+   As TRÊS abas vivem sobre DUAS listas: os monitores são a comissão com
+   `papel: "monitor"` — uma VISTA, não uma terceira lista. É o que faz "todos
+   se certificam da mesma forma" ser verdade por construção: o motor do
+   certificado, a planilha da AEE, a busca de pessoas do portal e a rota de
+   gravação continuam vendo `palestrantes` e `comissao`, sem saber que a tela
+   separou. Uma terceira lista precisaria ser acrescentada em cada um desses
+   lugares, e o esquecido não certificaria ninguém.
+
+   Por isso as linhas do monitor são desenhadas com o índice REAL dentro de
+   EQ_COM (nunca a posição na aba): trocar o papel de alguém o move de aba
+   sozinho, e o que se grava continua sendo a lista inteira. */
+let EQ_ABA = "pal";
+const ehMonitor = (x) => (x?.papel || "") === "monitor";
+const idxCom = (mon) => EQ_COM.map((_, i) => i).filter((i) => ehMonitor(EQ_COM[i]) === mon);
+
 function renderEquipe(a){
   const p = a.participantes || {};
   EQ_PAL = (p.palestrantes || []).map(x => ({...x}));
   EQ_COM = (p.comissao || []).map(x => ({...x}));
   const ch = a.proposta?.cargaHoraria || "";
+  const aba = (k, rot, n) => `<button class="bt ${EQ_ABA===k?"bt-pri":"bt-sec"}" style="padding:7px 14px;font-size:12.5px"
+      onclick="eqAba('${k}')" data-aba="${k}">${rot} <b style="opacity:.75">${n||""}</b></button>`;
   $("v-equipe").innerHTML = `
     <div class="banner ba-info">Estes dados vão para a <b>planilha de certificados</b> (o sistema da AEE emite):
       CPF ou matrícula, nome, e-mail e telefone são <b>obrigatórios</b> em cada linha — e o título da palestra,
       no caso dos palestrantes. Sem eles o certificado não sai. A carga horária em branco usa a do evento${ch?` (${esc(ch)}h)`:""}.
       <br><b>Quem tem conta no portal se busca pelo nome</b>: escreva no campo do nome, escolha a pessoa na lista e
-      só indique a carga horária (e a função ou a palestra) — e-mail, CPF e telefone vêm do cadastro dela ao salvar.</div>
+      só indique a carga horária (e a função ou a palestra) — e-mail, CPF e telefone vêm do cadastro dela ao salvar.
+      <br>Os três grupos se certificam <b>da mesma forma</b>: as abas separam a lista para caber na tela, não o documento.</div>
 
-    <div class="card">
+    <div id="eq-abas" style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px">
+      ${aba("pal","Palestrantes", EQ_PAL.length)}
+      ${aba("com","Comissão organizadora", idxCom(false).length)}
+      ${aba("mon","Monitores", idxCom(true).length)}
+    </div>
+
+    <div class="card" id="cd-pal">
       <div class="sec-t">Palestrantes e ministrantes</div>
       <div class="muted" style="margin:8px 0">Quem apresenta palestra, oficina ou minicurso. O <b>título da
         palestra</b> é a primeira coluna da planilha da AEE — é o que sai escrito no certificado.</div>
@@ -3043,20 +3072,73 @@ function renderEquipe(a){
       <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="EQ_PAL.push({});renderEqPal()">＋ Adicionar palestrante</button>
     </div>
 
-    <div class="card">
+    <div class="card" id="cd-com">
       <div class="sec-t">Comissão organizadora</div>
-      <div class="muted" style="margin:8px 0">Professores, monitores, alunos organizadores e colaboradores.
+      <div class="muted" style="margin:8px 0">Professores, alunos organizadores, colaboradores e apoio técnico.
         A <b>função</b> aparece na organização do evento; o <b>papel</b> serve para a coordenação se orientar
-        na lista.</div>
+        na lista — quem for marcado como <b>monitor</b> passa para a aba Monitores.</div>
       <div id="eq-com"></div>
       <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="EQ_COM.push({papel:'colaborador'});renderEqCom()">＋ Adicionar à comissão</button>
+    </div>
+
+    <div class="card" id="cd-mon">
+      <div class="sec-t">Monitores</div>
+      <div class="muted" style="margin:8px 0">Os monitores do evento — mesma planilha e mesmo certificado da comissão.
+        A <b>carga horária do primeiro já entra preenchida nos seguintes</b>: costuma ser a mesma para toda a equipe,
+        e digitá-la trinta vezes é onde o erro aparece. Cada linha continua editável.</div>
+      <div id="eq-mon"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+        <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="addMonitor()">＋ Adicionar monitor</button>
+        <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="chParaTodosMonitores()">⇊ Repetir a CH do primeiro em todos</button>
+      </div>
     </div>
 
     <div class="acoes-rod">
       <button class="bt bt-pri" onclick="salvarEquipe('${esc(a.id)}')">💾 Salvar equipe</button>
       <button class="bt bt-sec" onclick="nav('exportacoes')">📊 Ir às exportações</button>
     </div>`;
-  renderEqPal(); renderEqCom();
+  renderEqPal(); renderEqCom(); eqAba(EQ_ABA, true);
+}
+
+/* Trocar de aba não redesenha a guia inteira: as três listas já estão no DOM,
+   e redesenhar tiraria o cursor de quem estivesse digitando. */
+function eqAba(k, silencioso){
+  EQ_ABA = k;
+  for(const [id, alvo] of [["cd-pal","pal"],["cd-com","com"],["cd-mon","mon"]]){
+    const el = $(id); if(el) el.hidden = (alvo !== k);
+  }
+  for(const b of $("eq-abas")?.querySelectorAll("button") || [])
+    b.className = "bt " + (b.dataset.aba === k ? "bt-pri" : "bt-sec");
+}
+
+/** Os contadores das abas acompanham o que se acabou de mexer. */
+function eqContadores(){
+  const n = { pal: EQ_PAL.length, com: idxCom(false).length, mon: idxCom(true).length };
+  for(const b of $("eq-abas")?.querySelectorAll("button[data-aba]") || []){
+    const alvo = b.querySelector("b");
+    if(alvo) alvo.textContent = n[b.dataset.aba] || "";
+  }
+}
+
+/** A CH que o primeiro monitor recebeu — é ela que os seguintes herdam. */
+function chDosMonitores(){
+  for(const i of idxCom(true)){ const v = String(EQ_COM[i].ch || "").trim(); if(v) return v; }
+  return "";
+}
+function addMonitor(){
+  EQ_COM.push({ papel: "monitor", ch: chDosMonitores() });
+  renderEqCom(); eqAba("mon");
+  // o cursor vai ao nome do que acabou de nascer — a CH já veio preenchida
+  const ult = idxCom(true).slice(-1)[0];
+  $(`sug-com-${ult}`)?.closest(".atv-card")?.querySelector("input")?.focus();
+}
+function chParaTodosMonitores(){
+  const ch = chDosMonitores();
+  const alvos = idxCom(true);
+  if(!ch) return alert("Preencha a carga horária do primeiro monitor — é ela que se repete nos demais.");
+  if(!confirm(`Repetir ${ch}h em ${alvos.length} monitor(es)?\n\nO que estiver diferente será substituído.`)) return;
+  for(const i of alvos) EQ_COM[i].ch = ch;
+  renderEqCom(); eqAba("mon");
 }
 
 const linhaFalta = (f) => f.length
@@ -3084,11 +3166,12 @@ function renderEqPal(){
       ${x.conta?`<div class="do-portal">✓ conta do portal (${esc(x.conta)}) — CPF e telefone se completam do cadastro ao salvar</div>`:""}
       <div id="falta-pal-${i}">${linhaFalta(faltaCert(x,true))}</div>
     </div>`).join("") : '<div class="cnt">— nenhum palestrante cadastrado.</div>';
+  eqContadores();
 }
 
-function renderEqCom(){
-  const el=$("eq-com"); if(!el) return;
-  el.innerHTML = EQ_COM.length ? EQ_COM.map((x,i)=>`
+function linhaCom(i, monitor){
+  const x = EQ_COM[i];
+  return `
     <div class="atv-card">
       <div class="sug" id="sug-com-${i}" hidden></div>
       <div class="g-atv2">
@@ -3102,15 +3185,28 @@ function renderEqCom(){
       <div class="g-atv2" style="margin-top:6px">
         <input placeholder="e-mail *" value="${esc(x.email||"")}" oninput="EQ_COM[${i}].email=this.value;marcaFalta(${i},'com')">
         <input placeholder="${x.conta&&x.contaTemTelefone?"telefone: do cadastro do portal":"telefone *"}" value="${esc(x.telefone||"")}" oninput="EQ_COM[${i}].telefone=this.value;marcaFalta(${i},'com')">
-        <select onchange="EQ_COM[${i}].papel=this.value">
+        <select onchange="EQ_COM[${i}].papel=this.value;renderEqCom()">
           ${PAPEIS_COM.map(([c,r])=>`<option value="${c}" ${x.papel===c?"selected":""}>${esc(r)}</option>`).join("")}
         </select>
         <input placeholder="CH (em branco = a do evento)" value="${esc(x.ch||"")}" oninput="EQ_COM[${i}].ch=this.value">
       </div>
-      <input style="margin-top:6px" placeholder="função no evento (ex.: recepção e credenciamento)" value="${esc(x.funcao||"")}" oninput="EQ_COM[${i}].funcao=this.value">
+      <input style="margin-top:6px" placeholder="função no evento (ex.: ${monitor?"apoio ao credenciamento":"recepção e credenciamento"})" value="${esc(x.funcao||"")}" oninput="EQ_COM[${i}].funcao=this.value">
       ${x.conta?`<div class="do-portal">✓ conta do portal (${esc(x.conta)}) — CPF e telefone se completam do cadastro ao salvar</div>`:""}
       <div id="falta-com-${i}">${linhaFalta(faltaCert(x,false))}</div>
-    </div>`).join("") : '<div class="cnt">— ninguém na comissão ainda.</div>';
+    </div>`;
+}
+
+/* Desenha as DUAS listas de uma vez — a comissão e os monitores são a mesma
+   EQ_COM recortada pelo papel, e o índice usado em cada linha é o REAL, para
+   remover, editar e gravar continuarem falando da mesma pessoa. */
+function renderEqCom(){
+  const com=$("eq-com"), mon=$("eq-mon"); if(!com || !mon) return;
+  const iCom = idxCom(false), iMon = idxCom(true);
+  com.innerHTML = iCom.length ? iCom.map(i => linhaCom(i, false)).join("")
+    : '<div class="cnt">— ninguém na comissão ainda.</div>';
+  mon.innerHTML = iMon.length ? iMon.map(i => linhaCom(i, true)).join("")
+    : '<div class="cnt">— nenhum monitor cadastrado.</div>';
+  eqContadores();
 }
 
 /* A BUSCA DE PESSOAS (pedido do dono, set/2026): escreve-se o nome, a lista

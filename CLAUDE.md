@@ -1970,6 +1970,29 @@ public/
   Foto é o anexo com tipo de imagem (nos registros antigos, pela extensão) — documento
   anexado continua entrando no portfólio sem contar para o mínimo. **O relatório continua
   sendo do ARCHÉ EX**: é da ação de extensão, com o PDF timbrado; o ARCHÉ EV leva até lá.
+- **A EQUIPE SE LÊ EM TRÊS ABAS: palestrantes, comissão e monitores** (`EQ_ABA`/`idxCom`/
+  `linhaCom` na guia Equipe do evento do ARCHÉ EV, pedido do dono set/2026: "separe em guias
+  Palestrantes, Comissão organizadora e Monitores; todos serão certificados da mesma forma, e
+  para os monitores a carga horária que eu definir para o primeiro já pode entrar preenchida para
+  os próximos"). Num congresso a comissão passa de cinquenta linhas e os monitores são a maior
+  parte delas — procurar o palestrante no meio deles é o trabalho que a separação evita.
+  **As três abas vivem sobre DUAS listas**: os monitores são a `comissao` com `papel: "monitor"`,
+  uma VISTA, não uma terceira lista. É o que faz "todos se certificam da mesma forma" ser verdade
+  por construção — `certificadosEx`, a planilha da AEE, `completarPeloPortal`,
+  `pendenciasCertificado` e o `POST …/equipe` continuam vendo `palestrantes` e `comissao` sem
+  saber que a tela separou; uma terceira lista teria de ser acrescentada em cada um desses
+  lugares, e o esquecido não certificaria ninguém. Por isso cada linha é desenhada com o **índice
+  REAL dentro de EQ_COM**, nunca a posição na aba: remover, editar e gravar continuam falando da
+  mesma pessoa, e **trocar o papel move a pessoa de aba sozinho** (é a saída para quem foi
+  classificado errado — por isso o seletor de papel FICA na aba dos monitores).
+  A **CH do primeiro monitor entra preenchida nos seguintes** (`chDosMonitores`, lida no momento
+  de acrescentar): é a mesma para toda a equipe, e digitá-la trinta vezes é onde o erro aparece.
+  Ao lado, "⇊ Repetir a CH do primeiro em todos" cobre a ordem inversa, que é a comum — cadastrar
+  a equipe inteira e só então saber quantas horas cada um cumpriu. Cada linha continua editável;
+  a CH em branco segue usando a do evento. Trocar de aba **não redesenha a guia** (as três listas
+  já estão no DOM, escondidas): redesenhar tiraria o cursor de quem está digitando. O item da
+  barra passou a se chamar **Equipe do evento** — com uma das abas chamada "Comissão
+  organizadora", o nome antigo no menu dizia menos do que a guia faz.
 - **Comissão organizadora e palestrantes** (guia própria no ARCHÉ EV +
   `POST /api/extensao/:id/equipe`, pedido do dono ago/2026): professores, monitores, alunos
   organizadores e colaboradores recebem **certificado à parte** do participante, e quem emite
