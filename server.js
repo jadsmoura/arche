@@ -328,6 +328,30 @@ app.use((req, res, next) => {
   next();
 });
 
+/* NADA SE GRAVA COM `?como=` — em toda a API (varredura de set/2026). O
+   "Ver como" instala o parâmetro dentro do próprio fetch das SPAs, e a guarda
+   vivia numa LISTA de prefixos registrada no meio do arquivo: `/api/estado`,
+   `/api/favoritos` e qualquer rota registrada ANTES dela ficavam de fora. O
+   guarda mora aqui em cima, antes de toda rota, e vale para a API inteira:
+   escrever enquanto a tela finge ser outra pessoa gravaria em nome da gestão. */
+app.use("/api", (req, res, next) => {
+  if (req.method !== "GET" && req.method !== "HEAD" && req.query?.como) {
+    return res.status(403).json({
+      error: "Você está vendo o setor como outra pessoa — esta visualização é somente leitura.",
+    });
+  }
+  /* A RESPOSTA DE UMA CONTA NÃO SE GUARDA NA BORDA (mesma varredura): `/api/me`,
+     `/api/extensao` (com CPF e telefone de inscritos) e as demais rotas com sessão
+     saíam sem `Cache-Control`, e a Cloudflare está sendo posta na frente do domínio
+     — um proxy que guardasse a resposta de alguém a entregaria à visita seguinte.
+     O padrão é `private, no-store`; as rotas PÚBLICAS (`/api/publico/*`, os
+     arquivos em `/api/files/*`) e quem já declara o próprio cabeçalho mandam nele. */
+  if (!req.path.startsWith("/publico/") && !req.path.startsWith("/files/")) {
+    res.setHeader("Cache-Control", "private, no-store");
+  }
+  next();
+});
+
 /* ======================================================================
    DIAGNÓSTICO DE BANDA — a contagem das respostas.
 
@@ -3177,24 +3201,11 @@ function mascararEmail(e) {
 /** Quem está de fato logado, mesmo durante uma simulação. */
 const euReal = (req, u) => req.euReal || u;
 
-/** Nada se grava enquanto se olha pelos olhos de outro. */
-function travarEscritaVerComo(prefixo) {
-  app.use(prefixo, (req, res, next) => {
-    if (req.method !== "GET" && req.query?.como) {
-      return res.status(403).json({
-        error: "Você está vendo o setor como outra pessoa — esta visualização é somente leitura.",
-      });
-    }
-    next();
-  });
-}
-/* /api/editais entrou na lista na revisão de ago/2026: o componente de
-   lançar edital mora DENTRO das SPAs que têm "Ver como" (IC, Extensão,
-   Eventos, Monitoria, AP), e o `?como=` que a tela instala no fetch chegava
-   à rota — que autorizava pelo usuário REAL e gravava. Provado: um POST com
-   `?como=` criou o edital 03/2026 em nome do gestor. */
-["/api/extensao", "/api/atas", "/api/espacos", "/api/monitoria", "/api/praticas", "/api/editais"]
-  .forEach(travarEscritaVerComo);
+/* Nada se grava enquanto se olha pelos olhos de outro: o guarda do `?como=`
+   vale para a API INTEIRA e mora no alto do arquivo, antes de toda rota (a
+   lista de prefixos que vivia aqui — IC, Extensão, Atas, Espaços, Monitoria,
+   AP, Editais — deixava de fora o que fosse registrado antes dela ou depois
+   de alguém esquecer de acrescentar; varredura de set/2026). */
 
 /**
  * Quem é quem no setor, para a gestão escolher por quais olhos olhar. Sai

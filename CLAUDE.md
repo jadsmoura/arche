@@ -4567,6 +4567,36 @@ public/
   professores reais como "sem nenhum registro", o das Atas dizia "68 urgentes" e nomeava colegiados
   que nunca registraram ata, e o do Seu Curso mostrava os dois e-mails da gestão.
 
+- **VARREDURA SEM LOGIN DE SET/2026** (pedido do dono: "tente acessar todas as páginas com
+  usuários não logados buscando falhas de segurança" — um agente percorreu as 60 páginas e as
+  319 rotas sem sessão, com escrita SÓ no servidor local e, em produção, só GET/HEAD para
+  confirmar). O que se manteve de pé, e vale registrar para não se voltar a testar do zero: a
+  guarda de `AREAS_PROTEGIDAS` resistiu a todas as variações de caminho (`//`, `%2f`, `..`,
+  `%2e%2e`, caixa alta, `\`); nenhuma escrita sem sessão gravou nada (hash do estado conferido
+  antes e depois); o `/api/estado` não vaza chave interna; os webhooks de pagamento validam
+  assinatura; `/api/files/*` barra o traversal e só abre inline PDF/PNG/JPEG; a recuperação de
+  credencial exige CPF E e-mail; o código de acesso tem teto de 5 tentativas; e a vitrine pública
+  não expõe CPF, e-mail, nota nem parecer. **O que mudou** (cada achado confirmado no servidor
+  local antes da correção): (1) **open redirect no `/entrar/`** — `destinoSeguro` barrava `//` e
+  `https://`, mas `/\evil.com` passava, e o navegador lê a barra invertida como barra: virava
+  `//evil.com`, e quem já estava logado era despachado para fora no CARREGAMENTO da página.
+  Agora o destino é normalizado (`\`→`/`) e quem decide é o próprio navegador — `new URL` contra
+  a origem da página, e só fica o que resolve para cá; (2) **open redirect no `/perfil/`** — o
+  `next` era lido CRU, sem régua nenhuma (`https://evil.com` inteiro passava), e valia depois de
+  salvar; ganhou a MESMA `destinoSeguro`; (3) **o guarda do `?como=` cobria uma LISTA de
+  prefixos** (`/api/estado` e `/api/favoritos` ficavam de fora, e uma rota registrada antes da
+  lista também) — passou a ser UM middleware em `/api`, no alto do server.js, antes de toda
+  rota: nenhuma escrita passa com `?como=`, venha de onde vier; (4) **as respostas por conta
+  saíam sem `Cache-Control`** (`/api/me`, `/api/extensao` com CPF e telefone de inscritos) — o
+  mesmo middleware manda `private, no-store` em toda a `/api` fora de `/api/publico/*` e
+  `/api/files/*`; rota que já declara o próprio cabeçalho continua mandando nele. É defesa em
+  profundidade: hoje a Cloudflare responde `DYNAMIC` em tudo, mas o dono está justamente
+  configurando o cache da borda, e uma regra a mais ali entregaria a resposta de uma conta à
+  visita seguinte. **O que ficou por decisão do dono**: o `/avaliador` abre SEM senha (ago/2026),
+  e com o selo lê-se o dossiê inteiro — inclusive os documentos pessoais do 2.5 (RG, CTPS), que
+  ficam fora do PDF de produção mas são lidos pelo app. É o acesso do avaliador do MEC, e a
+  decisão de mantê-lo aberto é dele, não do código.
+
 - **O PRODUTO SE CHAMA CÁTEDRA; A INSTALAÇÃO SE CHAMA ARCHÉ** (`lib/produto.js`, decisão do dono
   set/2026: "Arché é uma referência direta ao fundador da AEE, Archibald — no contexto AEE é
   válido; mas estou vendo a possibilidade de comercializar o sistema com outras IES, e preciso de

@@ -182,10 +182,16 @@ const q = new URLSearchParams(location.search);
 /* O destino vem do endereço, então ele é texto que o visitante escolhe: só
    passa CAMINHO do próprio portal ("/pesquisa/ic/"). Sem isto, um link
    `?next=https://outro-site` usaria a nossa tela de entrada para despachar
-   quem confia nela para fora — e "//" também sai do site, apesar da barra. */
+   quem confia nela para fora — e "//" também sai do site, apesar da barra.
+   A barra INVERTIDA conta como barra (varredura de set/2026): `/\evil.com`
+   passava no teste e o navegador o lê como `//evil.com`. Por isso o teste
+   roda sobre o destino NORMALIZADO, e quem decide é o próprio navegador
+   (`new URL` contra a origem da página): só fica o que resolve para cá. */
 function destinoSeguro(v) {
-  const s = String(v || "");
-  return /^\/(?!\/)/.test(s) ? s : "/";
+  const s = String(v || "").replace(/\\/g, "/").trim();
+  if (!/^\/(?!\/)/.test(s)) return "/";
+  try { const u = new URL(s, location.origin); if (u.origin !== location.origin) return "/"; return u.pathname + u.search + u.hash; }
+  catch { return "/"; }
 }
 const NEXT = destinoSeguro(q.get("next"));
 let EMAIL = "", REDEFININDO = false;

@@ -279,7 +279,18 @@ function cpfValido(v){const d=soDig(v);
     for(let i=0;i<ate;i++)s+=Number(d[i])*(pos-i);
     if((s*10)%11%10!==Number(d[ate]))return false;}
   return true;}
-const NEXT=new URLSearchParams(location.search).get("next")||"/";
+/* O `next` vem do endereço e é texto que o visitante escolhe: só passa CAMINHO
+   do próprio portal — a mesma régua do /entrar/ (varredura de set/2026: aqui
+   ele era lido CRU, e `?next=https://evil.com` mandava para fora depois de
+   salvar). A barra invertida conta como barra (`/\evil.com` vira `//evil.com`
+   no navegador), e quem decide é o próprio navegador contra a origem da página. */
+function destinoSeguro(v){
+  const s=String(v||"").replace(/\\/g,"/").trim();
+  if(!/^\/(?!\/)/.test(s))return "/";
+  try{const u=new URL(s,location.origin);if(u.origin!==location.origin)return "/";return u.pathname+u.search+u.hash;}
+  catch{return "/";}
+}
+const NEXT=destinoSeguro(new URLSearchParams(location.search).get("next"));
 const $=(id)=>document.getElementById(id);
 let ME=null, TEM_SENHA=false;
 
