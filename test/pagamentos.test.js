@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import {
-  normalizarCobranca, cobrancaAtiva, valorDaInscricao, loteVigente, novoPagamento, transitar,
+  normalizarCobranca, cobrancaAtiva, valorDaInscricao, loteVigente, proximoLote, novoPagamento, transitar,
   podeTransitar, inscricaoValida, reservaVencida, estadoDoProvedor, meioDoProvedor,
   lerPagamentoDoProvedor, validarAssinaturaMP, resumoFinanceiro, linhasFinanceiro, centavos, fmtReais, ocupaVaga,
   normalizarMP, normalizarLinkPicPay, estadoLinkPicPay, idDoLinkPicPay, transacaoDecisiva, dataPicPayISO, validarTokenPicPay, ehNormalizado,
@@ -20,7 +20,7 @@ const COB = normalizarCobranca({
     { nome: "Estudante externo", valor: "49,90" },
     { nome: "Profissional", valor: "R$ 120,00", descricao: "Egressos e comunidade" },
   ],
-  lotes: [{ nome: "1º lote", ate: "2026-10-01", ajuste: "-20,00" }, { nome: "2º lote", ate: "2026-10-15", ajuste: "-10" }],
+  lotes: [{ nome: "2º lote", desde: "2026-10-02", acrescimo: "10,00" }, { nome: "3º lote", desde: "2026-10-16", acrescimo: "20" }],
   meios: { pix: true, cartao: true }, parcelas: 3, reservaMinutos: 60, politicaReembolso: "Até 7 dias.",
 });
 
@@ -37,7 +37,7 @@ test("a configuração normaliza categorias (código estável), lotes ordenados 
   assert.equal(COB.ativa, true);
   assert.deepEqual(COB.categorias.map((c) => c.codigo), ["estudante-uniego", "estudante-externo", "profissional"]);
   assert.equal(COB.categorias[2].valor, 12000);
-  assert.equal(COB.lotes[0].ajuste, -2000);
+  assert.equal(COB.lotes[0].acrescimo, 1000);
   assert.equal(COB.parcelas, 3);
   assert.equal(COB.reservaMinutos, 60);
   assert.equal(COB.meios.boleto, false);
@@ -50,18 +50,53 @@ test("a configuração normaliza categorias (código estável), lotes ordenados 
     "ativa sem categoria paga não cobra ninguém");
 });
 
-test("o valor é do SERVIDOR: categoria + lote vigente na data, nunca negativo", () => {
-  assert.equal(loteVigente(COB, "2026-09-20").nome, "1º lote");
-  assert.equal(loteVigente(COB, "2026-10-01").nome, "1º lote", "o dia do limite ainda é do lote");
-  assert.equal(loteVigente(COB, "2026-10-10").nome, "2º lote");
-  assert.equal(loteVigente(COB, "2026-11-01"), null);
-  assert.equal(valorDaInscricao(COB, { categoria: "profissional", hojeISO: "2026-09-20" }).valor, 10000);
-  assert.equal(valorDaInscricao(COB, { categoria: "profissional", hojeISO: "2026-11-01" }).valor, 12000);
-  assert.equal(valorDaInscricao(COB, { categoria: "estudante-externo", hojeISO: "2026-09-20" }).valor, 2990);
-  const gratis = valorDaInscricao(COB, { categoria: "estudante-uniego", hojeISO: "2026-09-20" });
-  assert.equal(gratis.valor, 0); assert.equal(gratis.gratuita, true, "desconto não deixa valor negativo");
+test("o valor é do SERVIDOR: categoria + o lote que JÁ COMEÇOU na data", () => {
+  assert.equal(loteVigente(COB, "2026-09-20"), null, "antes do primeiro lote vale o valor cheio da categoria");
+  assert.equal(loteVigente(COB, "2026-10-02").nome, "2º lote", "o próprio dia de início já é do lote");
+  assert.equal(loteVigente(COB, "2026-10-15").nome, "2º lote");
+  assert.equal(loteVigente(COB, "2026-11-01").nome, "3º lote", "o último acréscimo NÃO expira");
+  assert.equal(proximoLote(COB, "2026-09-20").nome, "2º lote", "o próximo se anuncia mesmo sem lote vigente");
+  assert.equal(proximoLote(COB, "2026-11-01"), null);
+  assert.equal(valorDaInscricao(COB, { categoria: "profissional", hojeISO: "2026-09-20" }).valor, 12000);
+  assert.equal(valorDaInscricao(COB, { categoria: "profissional", hojeISO: "2026-10-02" }).valor, 13000);
+  assert.equal(valorDaInscricao(COB, { categoria: "profissional", hojeISO: "2026-11-01" }).valor, 14000);
+  assert.equal(valorDaInscricao(COB, { categoria: "estudante-externo", hojeISO: "2026-09-20" }).valor, 4990);
+  const gratis = valorDaInscricao(COB, { categoria: "estudante-uniego", hojeISO: "2026-11-01" });
+  assert.equal(gratis.valor, 0);
+  assert.equal(gratis.gratuita, true, "categoria de valor zero é gratuita mesmo com lote em vigor");
   assert.equal(valorDaInscricao(COB, { categoria: "inventada" }), null, "categoria desconhecida é recusa");
   assert.equal(valorDaInscricao(normalizarCobranca({}), { categoria: "x" }).gratuita, true, "evento gratuito ignora a categoria");
+});
+
+test("o lote gravado no formato antigo (até + ajuste) é lido pela régua de hoje", () => {
+  // o registro de produção do CONInt: 1º até 30/09 sem ajuste, 2º até 10/10 com
+  // +10 e 3º até 17/10 com +20. Convertido, cada lote passa a COMEÇAR no dia
+  // seguinte ao fim do anterior — os preços de cada data são os mesmos, e o
+  // que muda é só o defeito: depois de 17/10 o preço não volta mais ao cheio.
+  const antigo = normalizarCobranca({
+    ativa: true, categorias: [{ nome: "Geral", valor: "50,00" }],
+    lotes: [{ nome: "1º lote", ate: "2026-09-30", ajuste: 0, emCentavos: true },
+            { nome: "2º lote", ate: "2026-10-10", ajuste: 1000, emCentavos: true },
+            { nome: "3º lote", ate: "2026-10-17", ajuste: 2000, emCentavos: true }],
+  });
+  assert.deepEqual(antigo.lotes.map((l) => [l.nome, l.desde, l.acrescimo]),
+    [["2º lote", "2026-10-01", 1000], ["3º lote", "2026-10-11", 2000]],
+    "o 1º lote, que valia desde sempre e nada acrescentava, deixa de existir");
+  const preco = (d) => valorDaInscricao(antigo, { categoria: "geral", hojeISO: d }).valor;
+  assert.equal(preco("2026-09-10"), 5000);
+  assert.equal(preco("2026-09-30"), 5000);
+  assert.equal(preco("2026-10-01"), 6000);
+  assert.equal(preco("2026-10-10"), 6000);
+  assert.equal(preco("2026-10-11"), 7000);
+  assert.equal(preco("2026-10-17"), 7000);
+  assert.equal(preco("2026-10-20"), 7000, "o último lote não expira — era aqui que o preço caía");
+  // desconto gravado no formato antigo não vira acréscimo negativo
+  const comDesconto = normalizarCobranca({
+    ativa: true, categorias: [{ nome: "Geral", valor: "50,00" }],
+    lotes: [{ nome: "1º lote", ate: "2026-09-30", ajuste: -2000, emCentavos: true },
+            { nome: "2º lote", ate: "2026-10-30", ajuste: -1000, emCentavos: true }],
+  });
+  assert.deepEqual(comDesconto.lotes.map((l) => l.acrescimo), [0], "acréscimo nunca é negativo");
 });
 
 test("vouchers: código, desconto, categorias, limite e prazo — conferidos contra as inscrições", () => {
@@ -85,23 +120,25 @@ test("vouchers: código, desconto, categorias, limite e prazo — conferidos con
   assert.match(voucherValido(cob, "nada", { categoria: "profissional" }).motivo, /não existe/);
   assert.equal(voucherValido(cob, "dez", { categoria: "estudante-externo", hojeISO: "2030-01-01", usos: 999 }).ok, true, "sem limite nem prazo");
   // o desconto entra DEPOIS do lote, e nunca deixa o valor negativo
-  const v = voucherValido(cob, "MONITOR-2026", { categoria: "profissional", hojeISO: "2026-09-20" }).voucher;
-  const p = valorDaInscricao(cob, { categoria: "profissional", hojeISO: "2026-09-20", voucher: v });
-  assert.equal(p.valorSemVoucher, 10000); assert.equal(p.valor, 5000); assert.deepEqual(p.voucher, { codigo: "MONITOR-2026", desconto: 5000 });
+  const v = voucherValido(cob, "MONITOR-2026", { categoria: "profissional", hojeISO: "2026-10-02" }).voucher;
+  const p = valorDaInscricao(cob, { categoria: "profissional", hojeISO: "2026-10-02", voucher: v });
+  assert.equal(p.valorSemVoucher, 13000, "o acréscimo do lote entra ANTES do voucher");
+  assert.equal(p.valor, 6500); assert.deepEqual(p.voucher, { codigo: "MONITOR-2026", desconto: 6500 });
   const dez = cob.vouchers[1];
   assert.equal(descontoDoVoucher(dez, 500), 500, "desconto maior que o valor tira só o valor");
-  assert.equal(valorDaInscricao(cob, { categoria: "estudante-externo", hojeISO: "2026-11-01", voucher: dez }).valor, 3990);
+  assert.equal(valorDaInscricao(cob, { categoria: "estudante-externo", hojeISO: "2026-11-01", voucher: dez }).valor, 5990,
+    "49,90 + 20,00 do 3º lote − 10,00 do voucher");
   // o pagamento guarda o voucher; os usos contam pagos, isentos e reservas vivas
-  const pg = novoPagamento({ valor: p.valor, categoria: p.categoria, lote: p.lote, voucher: p.voucher, reservaMinutos: 60, agora: new Date("2026-09-20T10:00:00Z") });
-  assert.deepEqual(pg.voucher, { codigo: "MONITOR-2026", desconto: 5000 });
+  const pg = novoPagamento({ valor: p.valor, categoria: p.categoria, lote: p.lote, voucher: p.voucher, reservaMinutos: 60, agora: new Date("2026-10-02T10:00:00Z") });
+  assert.deepEqual(pg.voucher, { codigo: "MONITOR-2026", desconto: 6500 });
   const inscritos = [
     { pagamento: { ...pg, status: "pago" } },
-    { pagamento: { ...pg, status: "aguardando", expiraEm: "2026-09-20T11:00:00.000Z" } },
+    { pagamento: { ...pg, status: "aguardando", expiraEm: "2026-10-02T11:00:00.000Z" } },
     { pagamento: { ...pg, status: "expirado" } },
     { pagamento: { ...pg, voucher: { codigo: "DEZ", desconto: 1000 }, status: "pago" } },
   ];
-  assert.equal(usosDoVoucher(inscritos, "monitor-2026", new Date("2026-09-20T10:30:00Z")), 2);
-  assert.equal(usosDoVoucher(inscritos, "monitor-2026", new Date("2026-09-20T12:00:00Z")), 1, "a reserva vencida devolve o uso");
+  assert.equal(usosDoVoucher(inscritos, "monitor-2026", new Date("2026-10-02T10:30:00Z")), 2);
+  assert.equal(usosDoVoucher(inscritos, "monitor-2026", new Date("2026-10-02T12:00:00Z")), 1, "a reserva vencida devolve o uso");
   assert.equal(resumoFinanceiro(inscritos).porVoucher["MONITOR-2026"].n, 2);
   assert.equal(linhasFinanceiro(inscritos)[0].voucher, "MONITOR-2026");
   assert.equal(normalizarVouchers(undefined).length, 0);

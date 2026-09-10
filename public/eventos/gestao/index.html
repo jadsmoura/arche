@@ -2260,7 +2260,7 @@ async function renderCobranca(a){
     ativa:c.ativa===true,
     recebedor:c.recebedor||"",
     categorias:(c.categorias||[]).map(x=>({codigo:x.codigo||"",nome:x.nome||"",valor:reaisDe(x.valor),descricao:x.descricao||""})),
-    lotes:(c.lotes||[]).map(l=>({nome:l.nome||"",ate:l.ate||"",ajuste:(l.ajuste<0?"-":"")+reaisDe(Math.abs(l.ajuste||0))})),
+    lotes:(c.lotes||[]).map(l=>({nome:l.nome||"",desde:l.desde||"",acrescimo:reaisDe(Math.max(0,l.acrescimo||0))})),
     meios:{pix:c.meios?.pix!==false,cartao:c.meios?.cartao===true,boleto:c.meios?.boleto===true},
     parcelas:c.parcelas||1, jurosPorConta:c.jurosPorConta||"inscrito",
     // o acréscimo no cartão, como a tela o escreve ("5%" ou "3,00"); evento
@@ -2305,10 +2305,12 @@ async function renderCobranca(a){
 
     <div class="card">
       <div class="sec-t">Lotes <span class="muted" style="font-weight:400;font-size:12px">(opcional)</span></div>
-      <div class="muted" style="margin:8px 0">Um AJUSTE sobre o valor da categoria até uma data: negativo é desconto
-        ("−20,00" = R$ 20 a menos até o fim do 1º lote), positivo é acréscimo. Passado o último lote, vale o valor cheio.</div>
+      <div class="muted" style="margin:8px 0">Um <b>ACRÉSCIMO</b> sobre o valor da categoria <b>a partir de</b> uma data:
+        "10,00" no lote que começa em 01/10 quer dizer que, desse dia em diante, a inscrição custa R$ 10 a mais.
+        Antes do primeiro lote vale o valor cheio da categoria, e o <b>último acréscimo continua valendo</b> até o fim das
+        inscrições — quem deixa para a véspera não paga menos que quem se inscreveu antes.</div>
       <div id="cob-lotes"></div>
-      <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="EV_COB.lotes.push({nome:'',ate:'',ajuste:''});renderCobLotes()">＋ Adicionar lote</button>
+      <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="EV_COB.lotes.push({nome:'',desde:'',acrescimo:''});renderCobLotes()">＋ Adicionar lote</button>
     </div>
 
     <div class="card">
@@ -2375,11 +2377,11 @@ function renderCobCats(){
 function renderCobLotes(){
   const el=$("cob-lotes"); if(!el) return;
   el.innerHTML=EV_COB.lotes.length?`<div class="scrollx"><table class="pt">
-    <thead><tr><th>Lote</th><th style="width:160px">Até</th><th style="width:140px">Ajuste (R$)</th><th></th></tr></thead>
+    <thead><tr><th>Lote</th><th style="width:170px">A partir de</th><th style="width:150px">Acréscimo (R$)</th><th></th></tr></thead>
     <tbody>${EV_COB.lotes.map((l,i)=>`<tr>
-      <td><input value="${esc(l.nome)}" placeholder="Ex.: 1º lote" oninput="EV_COB.lotes[${i}].nome=this.value"></td>
-      <td><input type="date" value="${esc(l.ate)}" oninput="EV_COB.lotes[${i}].ate=this.value"></td>
-      <td><input value="${esc(l.ajuste)}" placeholder="-20,00" inputmode="decimal" oninput="EV_COB.lotes[${i}].ajuste=this.value"></td>
+      <td><input value="${esc(l.nome)}" placeholder="Ex.: 2º lote" oninput="EV_COB.lotes[${i}].nome=this.value"></td>
+      <td><input type="date" value="${esc(l.desde)}" oninput="EV_COB.lotes[${i}].desde=this.value"></td>
+      <td><input value="${esc(l.acrescimo)}" placeholder="10,00" inputmode="decimal" oninput="EV_COB.lotes[${i}].acrescimo=this.value"></td>
       <td><button class="lk" style="color:var(--err)" onclick="EV_COB.lotes.splice(${i},1);renderCobLotes()">remover</button></td>
     </tr>`).join("")}</tbody></table></div>`
     :`<div class="cnt">— sem lotes: vale o valor cheio da categoria o tempo todo.</div>`;
@@ -2504,7 +2506,7 @@ function salvarCobranca(id){
     ativa:$("cob-ativa")?.checked===true,
     recebedor:$("cob-recebedor")?.value||"",
     categorias:EV_COB.categorias.map(c=>({codigo:c.codigo||"",nome:c.nome||"",valor:c.valor||"0",descricao:c.descricao||""})),
-    lotes:EV_COB.lotes.map(l=>({nome:l.nome||"",ate:l.ate||"",ajuste:l.ajuste||"0"})),
+    lotes:EV_COB.lotes.map(l=>({nome:l.nome||"",desde:l.desde||"",acrescimo:l.acrescimo||"0"})),
     meios:{pix:$("cob-pix")?.checked===true,cartao:$("cob-cartao")?.checked===true,boleto:$("cob-boleto")?.checked===true},
     parcelas:Number($("cob-parcelas")?.value)||1,
     jurosPorConta:$("cob-juros")?.value||"inscrito",

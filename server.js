@@ -106,7 +106,7 @@ import {
   normalizarCobranca, cobrancaAtiva, valorDaInscricao, novoPagamento, inscricaoValida,
   voucherValido, usosDoVoucher, descontoTexto,
   reservaVencida, transitar as transitarPagamento, lerPagamentoDoProvedor, validarAssinaturaMP,
-  resumoFinanceiro, linhasFinanceiro, fmtReais, loteVigente, ESTADOS_PAGAMENTO, acrescimoTexto, valorNoCartao, meioLinkPicPay,
+  resumoFinanceiro, linhasFinanceiro, fmtReais, loteVigente, proximoLote, lotesNormalizados, ESTADOS_PAGAMENTO, acrescimoTexto, valorNoCartao, meioLinkPicPay,
 } from "./lib/pagamentos.js";
 /* O PROVEDOR é escolhido pelo ambiente (PAGAMENTO_PROVEDOR = picpay |
    mercadopago — lib/pagamentos/provedor.js); os dois webhooks continuam
@@ -4391,12 +4391,14 @@ function cobrancaPublica(ev, hojeISO) {
   const c = ev?.cobranca;
   if (!cobrancaAtiva(c)) return null;
   const lote = loteVigente(c, hojeISO);
-  // os lotes vêm ORDENADOS por data da normalização: o próximo é o seguinte
-  const proximo = lote ? (c.lotes[c.lotes.indexOf(lote) + 1] || null) : null;
+  // o próximo é o primeiro que ainda não começou — existe mesmo sem lote
+  // vigente (antes do primeiro acréscimo o preço é o da categoria, e é
+  // justamente aí que anunciar "a partir de tal dia sobe" mais serve)
+  const proximo = proximoLote(c, hojeISO);
   const meios = provedorPg.meiosEfetivos(c.meios);
   return {
     categorias: c.categorias.map((x) => {
-      const valor = Math.max(0, x.valor + (lote ? lote.ajuste : 0));
+      const valor = Math.max(0, x.valor + (lote ? lote.acrescimo : 0));
       return {
         codigo: x.codigo, nome: x.nome, descricao: x.descricao,
         valor, valorCheio: x.valor,
@@ -4405,8 +4407,8 @@ function cobrancaPublica(ev, hojeISO) {
         valorCartao: meios.cartao && provedorPg.nome() === "picpay" ? valorNoCartao(valor, c) : valor,
       };
     }),
-    lote: lote ? { nome: lote.nome, ate: lote.ate } : null,
-    proximoLote: proximo ? { nome: proximo.nome, ate: proximo.ate } : null,
+    lote: lote ? { nome: lote.nome, desde: lote.desde } : null,
+    proximoLote: proximo ? { nome: proximo.nome, desde: proximo.desde } : null,
     acrescimoCartao: meios.cartao && provedorPg.nome() === "picpay" ? acrescimoTexto(c) : "",
     // há voucher de desconto ativo? (só o SINAL — os códigos nunca saem)
     aceitaVoucher: (c.vouchers || []).some((v) => v.ativo),
@@ -14979,6 +14981,35 @@ async function marcarAcoesDePapel() {
   }
 }
 
+/* OS LOTES GRAVADOS NO FORMATO ANTIGO viram acréscimo a partir de uma data
+   (set/2026 — ver `lotesNormalizados` em lib/pagamentos.js). A régua já lê os
+   dois formatos, então o PREÇO nunca esteve em risco; o que estava era a
+   TELA: a guia Cobrança monta os campos a partir do registro cru, e um lote
+   antigo aparecia com a data em branco e o acréscimo zerado — quem abrisse a
+   guia e salvasse apagaria os lotes do evento sem perceber. Converter o dado
+   gravado UMA vez resolve na origem. */
+async function migrarLotesParaAcrescimo() {
+  const marca = "sys-ex-lotes-acrescimo-v1";
+  try {
+    if (await storage.get(marca)) return;
+    const r = await comAcoes((acoes) => {
+      let n = 0;
+      for (const a of acoes) {
+        const c = a?.evento?.cobranca;
+        if (!c || !Array.isArray(c.lotes) || !c.lotes.length) continue;
+        if (c.lotes.every((l) => !l || l.desde !== undefined)) continue;   // já convertido
+        c.lotes = lotesNormalizados(c.lotes);
+        n++;
+      }
+      return { n, gravar: n > 0 };
+    });
+    await storage.set(marca, JSON.stringify({ em: new Date().toISOString(), eventos: r.n }));
+    if (r.n) console.log(`ARCHÉ EV · lotes de ${r.n} evento(s) convertidos para acréscimo a partir de uma data`);
+  } catch (e) {
+    console.error("Falha ao converter os lotes da cobrança:", e.message);
+  }
+}
+
 async function subirAcoesMigradasExtensao() {
   for (const { arquivo, marca, rotulo } of LOTES_EXTENSAO) {
     try {
@@ -18951,6 +18982,7 @@ app.listen(port, () => {
   migrarAcoesExtensao()
     .then(() => subirAcoesMigradasExtensao())
     .then(() => marcarAcoesDePapel())
+    .then(() => migrarLotesParaAcrescimo())
     // depois das ações existirem: as artes saem do arquivo de estado
     .then(() => migrarArtesParaODrive());
   // A ORDEM importa (num arranque limpo os projetos precisam existir antes de

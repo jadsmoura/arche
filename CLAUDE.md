@@ -1052,7 +1052,7 @@ public/
   liga e os eventos gratuitos seguem como sempre. Token `TEST-…` é modo de teste, e a tela diz isso.
   **A configuração** (`evento.cobranca`, normalizada em CENTAVOS por `normalizarCobranca`; a tela
   edita em reais): categorias (até 12; valor zero = categoria gratuita, ex. aluno do UNIEGO — nasce
-  `isento` e a credencial sai na hora), lotes (ajuste ± até uma data), meios (Pix/cartão/boleto),
+  `isento` e a credencial sai na hora), lotes (acréscimo A PARTIR de uma data — ver abaixo), meios (Pix/cartão/boleto),
   parcelas, prazo da reserva (15 min a 7 dias, padrão 24 h), política de reembolso e o "em nome de"
   do recibo. Ligar a cobrança e ATIVAR a página de evento pago exigem o provedor configurado.
   **Três decisões que a régua carrega**: (1) **O PREÇO É DO SERVIDOR** — o navegador manda só a
@@ -1225,6 +1225,31 @@ public/
   do painel prometia o que a inscrição não conseguia; agora ele CRIA dois links de R$ 0,01 (um
   Pix, um de cartão; vencem amanhã, ninguém paga) e diz meio a meio o que a conta consegue —
   é o único jeito de o teste valer para a inscrição.
+- **O LOTE É UM ACRÉSCIMO A PARTIR DE UMA DATA, não um desconto até uma data**
+  (`lotesNormalizados`/`loteVigente`/`proximoLote` em lib/pagamentos.js + a guia Cobrança +
+  `migrarLotesParaAcrescimo` no arranque, decisão do dono set/2026: "pra ficar menos confuso, no
+  lugar de colocar desconto, colocar o acréscimo; então a data ali deve ser a partir de que dia o
+  valor vai ser incrementado"). A leitura por "até" dizia o contrário do que o organizador pensa
+  em dois pontos. Ela obrigava a montar o lote como **desconto** sobre o preço final — o campo
+  aceitava sinal, e "−20,00" no 1º lote queria dizer que o preço cheio é o do fim, o que ninguém
+  anuncia assim. E fazia o preço **VOLTAR AO CHEIO depois do último lote**: no ConInt, com o 3º
+  lote até 17/10 e o evento de 19 a 24/10, quem se inscrevesse durante o congresso pagaria MENOS
+  que quem se inscreveu na semana anterior. Agora o lote tem `desde` + `acrescimo` (nunca
+  negativo), o vigente é o **último que já começou**, antes do primeiro vale o valor cheio da
+  categoria e **o último acréscimo não expira**.
+  **Categoria de valor ZERO não recebe acréscimo** (achado ao aplicar): o "aluno do UNIEGO" é
+  gratuito de propósito, e com o sinal invertido o lote passaria a cobrar dele — quem não paga não
+  paga mais caro por se inscrever tarde. O `Math.max(0, …)` de antes escondia isso, porque o
+  ajuste era negativo.
+  **O formato antigo continua sendo lido** (`lotesNormalizados` converte na leitura: o lote valia
+  ATÉ a data dele, então o seguinte COMEÇA no dia posterior, e o primeiro — que valia desde sempre
+  — deixa de existir, porque o preço antes do primeiro acréscimo é o da categoria). A conversão é
+  **neutra em preço** data a data; o que muda é só o defeito. E o dado gravado se converte UMA vez
+  no arranque (marca `sys-ex-lotes-acrescimo-v1`) porque a régua ler os dois formatos não bastava:
+  a guia Cobrança monta os campos do registro CRU, e o lote antigo aparecia com a **data em branco
+  e o acréscimo zerado** — quem abrisse a guia e salvasse apagaria os lotes do evento sem perceber.
+  O hotsite passou a anunciar o **próximo** lote mesmo sem lote vigente ("a partir de 01/10 vale o
+  2º lote, mais caro"): é justamente antes do primeiro acréscimo que o aviso serve para alguma coisa.
 - **ACRÉSCIMO NO CARTÃO — dois links por inscrição** (`normalizarAcrescimo`/`valorNoCartao`/
   `acrescimoTexto`/`pagamentoPeloLinkDoCartao` em lib/pagamentos.js + `criarCobranca` do PicPay +
   campo "Acréscimo no cartão" na guia Cobrança, decisão do dono set/2026: "esse sistema também

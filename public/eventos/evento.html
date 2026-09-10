@@ -950,7 +950,9 @@ function blocoCategoria(e) {
   const uma = c.categorias.length === 1;
   return `<div class="secao-t" style="font-size:15px;margin:20px 0 0">Categoria da inscrição</div>
     ${!c.online ? `<div class="msg-erro">O pagamento online está indisponível neste momento — fale com a coordenação do evento.</div>` : ""}
-    ${c.lote ? `<p style="font-size:12.5px;color:var(--muted);margin-top:4px">Valores do <b>${esc(c.lote.nome)}</b>, válidos até ${esc(fmt(c.lote.ate))}${c.proximoLote ? ` — depois, ${esc(c.proximoLote.nome)}` : ""}.</p>` : ""}
+    ${c.lote || c.proximoLote ? `<p style="font-size:12.5px;color:var(--muted);margin-top:4px">${
+      c.lote ? `Valores do <b>${esc(c.lote.nome)}</b>, em vigor desde ${esc(fmt(c.lote.desde))}.` : "Valores do primeiro lote."
+    }${c.proximoLote ? ` A partir de ${esc(fmt(c.proximoLote.desde))} vale o <b>${esc(c.proximoLote.nome)}</b>, mais caro.` : ""}</p>` : ""}
     ${c.categorias.map((k, i) => `<label class="esc-atv" style="align-items:center">
       <input type="radio" name="i-categoria" value="${esc(k.codigo)}" ${uma || i === 0 ? "checked" : ""} required>
       <span style="flex:1"><b>${esc(k.nome)}</b>${k.descricao ? `<div class="m">${esc(k.descricao)}</div>` : ""}</span>
