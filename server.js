@@ -5828,9 +5828,30 @@ async function subirArquivoTrabalho(req, a) {
 }
 const eventoResumoTr = (a) => ({
   slug: a.evento?.slug || "", nome: a.proposta?.nomeAtividade || "", curso: a.curso || "",
+  tema: a.proposta?.temaCentral || "",
   periodoInicio: a.proposta?.periodoInicio || "", periodoFim: a.proposta?.periodoFim || "",
 });
 const dadosTr = (req) => { try { return JSON.parse(req.body?.dados || "{}") || {}; } catch { return null; } };
+/* A lista suspensa de CURSO do formulário: os cursos ativos do catálogo, o
+   mestrado (pedido do dono: "inclua Mestrado em Sociedade, Tecnologia e Meio
+   Ambiente") e "Outro", para quem vem de fora. */
+const cursosTrabalho = () => [...CURSOS.filter((c) => c.ativo !== false).map((c) => c.nome),
+  "Mestrado em Sociedade, Tecnologia e Meio Ambiente", "Outro / instituição externa"];
+const catalogosTr = () => ({ modalidades: tr.MODALIDADES, criterios: tr.CRITERIOS, recomendacoes: tr.RECOMENDACOES,
+  decisoes: tr.DECISOES, estados: tr.ESTADOS, secoes: tr.SECOES, titulacoes: tr.TITULACOES_AUTOR, idiomas: tr.IDIOMAS });
+async function pdfDoTrabalho(res, a, t, { anonimo = false, versao = null } = {}) {
+  const { gerarTrabalhoPdf } = await import("./lib/pdf.js");
+  const v = versao ? (t.versoes || []).find((x) => x.n === versao) : null;
+  // a capa do evento (a arte do hotsite) vira a faixa do alto do documento
+  let capa = null;
+  try { capa = a.evento?.capa ? await lerArte(a.evento.capa) : null; } catch { capa = null; }
+  const buf = await gerarTrabalhoPdf({ trabalho: t, evento: eventoResumoTr(a), versao: v, anonimo, capa,
+    secoes: tr.SECOES, rotuloTitulacao: tr.rotuloTitulacao, modalidades: tr.MODALIDADES });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename="${slug(t.numero || "trabalho")}${anonimo ? "-cego" : ""}.pdf"`);
+  res.setHeader("Cache-Control", "no-store");
+  res.send(buf);
+}
 const avisoTr = (codigo, msg) => enviarAviso(codigo, msg).catch((e) => console.error(`[trabalhos] e-mail (${codigo}):`, e.message));
 
 /* --- o autor (sem conta): a página pública do evento ---------------------- */
@@ -5839,8 +5860,8 @@ app.get("/api/publico/eventos/:slug/trabalhos", async (req, res) => {
     const a = eventoPorSlug(await lerAcoes(), req.params.slug);
     if (!a) return res.status(404).json({ error: "Evento não encontrado." });
     const ev = a.evento || {};
-    res.json({ evento: eventoResumoTr(a), config: tr.configPublica(ev.trabalhos, hojeLocalISO()),
-      lgpdTexto: textoLgpd(ev), catalogos: { modalidades: tr.MODALIDADES } });
+    res.json({ evento: eventoResumoTr(a), config: tr.configPublica(ev.trabalhos, hojeLocalISO(), { cursos: cursosTrabalho() }),
+      lgpdTexto: textoLgpd(ev), catalogos: catalogosTr() });
   } catch (e) { console.error("Erro na config de trabalhos:", e); res.status(500).json({ error: "Falha ao carregar." }); }
 });
 app.post("/api/publico/eventos/:slug/trabalhos", uploadTr.single("arquivo"), async (req, res) => {
@@ -5854,10 +5875,10 @@ app.post("/api/publico/eventos/:slug/trabalhos", uploadTr.single("arquivo"), asy
     const cfg = tr.normalizarConfig(pre.evento?.trabalhos);
     const aberta = tr.podeSubmeter(cfg, hojeLocalISO());
     if (!aberta.ok) return res.status(409).json({ error: aberta.motivo });
-    const faltas = tr.validarSubmissao(cfg, d, { temArquivo: !!req.file });
+    const faltas = tr.validarSubmissao(cfg, d, { cursos: cursosTrabalho() });
     if (faltas.length) return res.status(400).json({ error: `Falta: ${faltas.join("; ")}.` });
     let arquivo = null;
-    try { arquivo = await subirArquivoTrabalho(req, pre); }
+    try { arquivo = cfg.permiteArquivo ? await subirArquivoTrabalho(req, pre) : null; }
     catch (e) { return res.status(400).json({ error: e.message }); }
     const versaoLgpdEv = versaoLgpd(textoLgpd(pre.evento || {}));
     const r = await comTrabalhos(pre.id, (reg) => {
@@ -5887,9 +5908,17 @@ app.get("/api/publico/eventos/:slug/trabalhos/:token", async (req, res) => {
   try {
     const r = await acharTrabalho(req.params.slug, req.params.token);
     if (!r) return res.status(404).json({ error: "Trabalho não encontrado — confira o link do e-mail." });
-    res.json({ evento: eventoResumoTr(r.a), config: tr.configPublica(r.a.evento?.trabalhos, hojeLocalISO()),
-      trabalho: tr.paraAutor(r.t), catalogos: { modalidades: tr.MODALIDADES, criterios: tr.CRITERIOS, recomendacoes: tr.RECOMENDACOES } });
+    res.json({ evento: eventoResumoTr(r.a), config: tr.configPublica(r.a.evento?.trabalhos, hojeLocalISO(), { cursos: cursosTrabalho() }),
+      trabalho: tr.paraAutor(r.t), catalogos: catalogosTr() });
   } catch (e) { console.error("Erro ao abrir o trabalho:", e); res.status(500).json({ error: "Falha ao carregar." }); }
+});
+/* O PDF do trabalho no modelo (ao autor, pelo token; `?versao=n` escolhe a versão). */
+app.get("/api/publico/eventos/:slug/trabalhos/:token/pdf", async (req, res) => {
+  try {
+    const r = await acharTrabalho(req.params.slug, req.params.token);
+    if (!r) return res.status(404).send("Trabalho não encontrado.");
+    await pdfDoTrabalho(res, r.a, r.t, { versao: Number(req.query.versao) || null });
+  } catch (e) { console.error("Erro no PDF do trabalho:", e); res.status(500).send("Falha ao gerar o PDF."); }
 });
 app.post("/api/publico/eventos/:slug/trabalhos/:token/versao", uploadTr.single("arquivo"), async (req, res) => {
   try {
@@ -5897,13 +5926,14 @@ app.post("/api/publico/eventos/:slug/trabalhos/:token/versao", uploadTr.single("
     if (!pre) return res.status(404).json({ error: "Trabalho não encontrado." });
     const d = dadosTr(req);
     if (!d) return res.status(400).json({ error: "Dados ilegíveis." });
+    const cfgV = tr.normalizarConfig(pre.a.evento?.trabalhos);
     let arquivo = null;
-    try { arquivo = await subirArquivoTrabalho(req, pre.a); }
+    try { arquivo = cfgV.permiteArquivo ? await subirArquivoTrabalho(req, pre.a) : null; }
     catch (e) { return res.status(400).json({ error: e.message }); }
     const r = await comTrabalhos(pre.a.id, (reg) => {
       const t = reg.trabalhos.find((x) => x.token === req.params.token);
       if (!t) return { erro: [404, "Trabalho não encontrado."], gravar: false };
-      const x = tr.reenviar(t, { resumo: d.resumo, arquivo, nota: d.nota });
+      const x = tr.reenviar(t, cfgV, d, { arquivo });
       if (x.erro) return { erro: [400, x.erro], gravar: false };
       return { t };
     });
@@ -5959,8 +5989,16 @@ app.get("/api/publico/revisao/:token", async (req, res) => {
     res.json({ evento: eventoResumoTr(r.a), revisor: { nome: r.rev.nome },
       config: { orientacoes: cfg.orientacoes, normasUrl: cfg.normasUrl, modeloUrl: cfg.modeloUrl },
       trabalho: tr.paraRevisor(r.t, req.params.token),
-      catalogos: { criterios: tr.CRITERIOS, recomendacoes: tr.RECOMENDACOES, modalidades: tr.MODALIDADES } });
+      catalogos: catalogosTr() });
   } catch (e) { console.error("Erro ao abrir a revisão:", e); res.status(500).json({ error: "Falha ao carregar." }); }
+});
+/* A cópia CEGA em PDF, para o revisor imprimir ou ler fora da tela. */
+app.get("/api/publico/revisao/:token/pdf", async (req, res) => {
+  try {
+    const r = await acharRevisao(req.params.token);
+    if (!r) return res.status(404).send("Revisão não encontrada.");
+    await pdfDoTrabalho(res, r.a, r.t, { anonimo: true });
+  } catch (e) { console.error("Erro no PDF cego:", e); res.status(500).send("Falha ao gerar o PDF."); }
 });
 app.post("/api/publico/revisao/:token", async (req, res) => {
   try {
@@ -6004,10 +6042,19 @@ app.get("/api/extensao/:id/trabalhos", async (req, res) => {
       config: cfg, aberta: tr.podeSubmeter(cfg, hojeLocalISO()),
       revisores: reg.revisores || [], trabalhos: (reg.trabalhos || []).map(tr.paraGestao),
       resumo: tr.resumo(reg.trabalhos || []),
-      catalogos: { modalidades: tr.MODALIDADES, estados: tr.ESTADOS, criterios: tr.CRITERIOS, recomendacoes: tr.RECOMENDACOES, decisoes: tr.DECISOES },
+      catalogos: catalogosTr(), cursos: cursosTrabalho(),
       linkPublico: a.evento?.slug ? `${base}/eventos/${encodeURIComponent(a.evento.slug)}/trabalhos` : "",
     });
   } catch (e) { console.error("Erro na guia Trabalhos:", e); res.status(500).json({ error: "Falha ao carregar." }); }
+});
+app.get("/api/extensao/:id/trabalhos/:tid/pdf", async (req, res) => {
+  try {
+    const x = await acaoDoOperador(req, res); if (!x) return;
+    const reg = (await lerTrabalhosBase())[x.a.id];
+    const t = (reg?.trabalhos || []).find((y) => y.id === req.params.tid);
+    if (!t) return res.status(404).send("Trabalho não encontrado.");
+    await pdfDoTrabalho(res, x.a, t, { anonimo: req.query.anonimo === "1", versao: Number(req.query.versao) || null });
+  } catch (e) { console.error("Erro no PDF do trabalho:", e); res.status(500).send("Falha ao gerar o PDF."); }
 });
 app.post("/api/extensao/:id/trabalhos/config", async (req, res) => {
   try {
@@ -6096,8 +6143,11 @@ app.get("/api/extensao/:id/trabalhos.xlsx", async (req, res) => {
     const ws = wb.addWorksheet("Trabalhos");
     ws.columns = [
       { header: "Número", key: "numero", width: 10 }, { header: "Título", key: "titulo", width: 60 },
+      { header: "Título em inglês", key: "tituloEn", width: 40 },
       { header: "Modalidade", key: "modalidade", width: 18 }, { header: "Área", key: "area", width: 22 },
-      { header: "Autores", key: "autores", width: 50 }, { header: "E-mail de contato", key: "email", width: 30 },
+      { header: "Curso", key: "curso", width: 26 }, { header: "Idioma", key: "idioma", width: 8 },
+      { header: "Autores", key: "autores", width: 50 }, { header: "Orientador(a)", key: "orientador", width: 30 },
+      { header: "E-mail de contato", key: "email", width: 30 },
       { header: "Instituições", key: "inst", width: 30 }, { header: "Palavras-chave", key: "pc", width: 30 },
       { header: "Situação", key: "estado", width: 26 }, { header: "Nota média", key: "nota", width: 10 },
       { header: "Pareceres", key: "pareceres", width: 10 }, { header: "Decisão em", key: "decisaoEm", width: 18 },
@@ -6107,9 +6157,11 @@ app.get("/api/extensao/:id/trabalhos.xlsx", async (req, res) => {
       const g = tr.paraGestao(t);
       ws.addRow(linhaSegura({
         numero: t.numero, titulo: t.titulo, modalidade: tr.MODALIDADES.find((m) => m.codigo === t.modalidade)?.nome || t.modalidade,
-        area: t.area, autores: (t.autores || []).map((a) => a.nome).join("; "), email: t.emailContato,
-        inst: [...new Set((t.autores || []).map((a) => a.instituicao).filter(Boolean))].join("; "),
-        pc: (t.palavrasChave || []).join("; "), estado: g.rotulo, nota: g.notaMedia ?? "",
+        tituloEn: t.tituloEn || "", area: t.area, curso: t.curso || "", idioma: (tr.versaoAtual(t)?.idioma || (t.modalidade === "completo" ? "pt" : "")),
+        autores: (t.autores || []).map((a) => `${a.nome}${a.titulacao ? ` (${tr.rotuloTitulacao(a.titulacao)})` : ""}`).join("; "),
+        orientador: t.orientador?.nome || "", email: t.emailContato,
+        inst: [...new Set(tr.autoriaCompleta(t).map((a) => a.instituicao).filter(Boolean))].join("; "),
+        pc: (tr.versaoAtual(t)?.palavrasChave || []).join("; "), estado: g.rotulo, nota: g.notaMedia ?? "",
         pareceres: `${g.pareceresEntregues}/${g.pareceresEsperados}`,
         decisaoEm: t.decisao?.em ? String(t.decisao.em).slice(0, 10) : "", versoes: (t.versoes || []).length,
         em: String(t.criadoEm || "").slice(0, 10),

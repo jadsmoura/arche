@@ -1392,6 +1392,33 @@ public/
   existindo para quem tem o sistema da revista funcionando. Testado de ponta a ponta no servidor local
   (submissão → designação → dois pareceres → correção → versão 2 → aceite → planilha) e as cinco telas
   passaram no Playwright sem erro de JavaScript.
+- **O TRABALHO É UM FORMULÁRIO, E O PDF SAI DELE NO MODELO DO EVENTO** (segunda rodada do ARCHÉ TR,
+  set/2026 — o dono: "se fizermos a submissão na forma de formulário, facilita depois gerar os PDFs
+  prontos já nos modelos"; "a PROPPEX aprova diretamente, sem avaliação por pares, embora precise
+  aparecer a opção de submeter"). **Dois tipos**: Resumo simples e Trabalho completo (o "expandido"
+  saiu). Os metadados são os pedidos: título e título em inglês, **autores** (botão "adicionar autor";
+  cada um com nome completo, e-mail, filiação institucional e titulação — `TITULACOES_AUTOR`, lista
+  fechada), o **orientador em campo próprio** ("é o último autor, mas coloca como orientador porque os
+  alunos esquecem" — `autoriaCompleta` o põe por último), resumo com **mínimo de 200 PALAVRAS**
+  (`contarPalavras`, e o máximo é configurável), abstract e keywords opcionais, palavras-chave,
+  **curso** em lista suspensa (`cursosTrabalho` no server: os cursos ativos do catálogo, o **Mestrado
+  em Sociedade, Tecnologia e Meio Ambiente** e "Outro / instituição externa"); o completo escolhe o
+  **idioma** (pt/en) e traz as seis seções (`SECOES`: introdução, objetivos, metodologia, resultados e
+  discussão, conclusões, referências ABNT). Só o autor correspondente precisa de e-mail; o arquivo
+  virou opcional (`permiteArquivo`) — o formulário é o que vale. A página tem o botão **"Normas de
+  submissão"** (texto em `config.normas`, aberto numa janela, e/ou `normasUrl`). **A PROPPEX decide
+  direto** — aceitar, devolver para correções, recusar — com **comentário obrigatório na devolução e
+  na recusa**; mandar a revisores é opcional (o bloco diz isso) e `exigeParecer` continua existindo
+  para quem quiser a régua. A versão corrigida é o formulário inteiro de novo, com a mesma régua
+  (`reenviar(t, cfg, dados)`; o título se corrige, a autoria não). **O PDF** (`gerarTrabalhoPdf` em
+  lib/pdf.js; rotas `…/trabalhos/:token/pdf` ao autor, `…/revisao/:token/pdf` cega ao revisor e
+  `/api/extensao/:id/trabalhos/:tid/pdf[?anonimo=1&versao=n]` à gestão) sai no timbre da PROPPEX com
+  a **capa do evento como faixa no alto** e o **tema** sob o nome (o dono mandou a arte do 13º CONINT
+  — "Ciência Delas": "seria interessante seguir o tema do evento"; a arte é a mesma do hotsite, lida
+  por `lerArte`), título em caixa alta, título em inglês, autoria com afiliações numeradas e
+  titulação, resumo e palavras-chave, abstract e keywords (no trabalho em inglês o abstract vem
+  primeiro) e as seções numeradas; `anonimo: true` tira a autoria. A planilha ganhou título em inglês,
+  curso, idioma, orientador e a titulação junto do nome.
 - **A ação pode ser de MAIS DE UM CURSO** (`cursosExtras` + `normalizarCursosExtras`/
   `cursosDaAcao`/`cursosEmTexto`/`acaoDoCurso` em lib/eventos.js, pedido de um professor
   ago/2026): a jornada é de Engenharia Mecânica E de Engenharia Civil, e o formulário só

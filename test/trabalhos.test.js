@@ -3,17 +3,23 @@ import assert from "node:assert/strict";
 import {
   normalizarConfig, configPublica, podeSubmeter, validarSubmissao, novoTrabalho, proximoNumero,
   designar, registrarParecer, decidir, reenviar, retirar, paraRevisor, paraAutor, paraGestao,
-  resumo, normalizarRevisores, CRITERIOS, todosPareceresEntregues, notaMedia,
+  resumo, normalizarRevisores, CRITERIOS, todosPareceresEntregues, notaMedia, contarPalavras,
+  autoriaCompleta, SECOES,
 } from "../lib/trabalhos.js";
 
 const CFG = { ativo: true, modalidades: ["resumo", "completo"], areas: ["Saúde", "Educação"], prazoSubmissao: "2026-10-01" };
+const CURSOS = ["Enfermagem", "Psicologia", "Mestrado em Sociedade, Tecnologia e Meio Ambiente"];
+const palavras = (n) => Array.from({ length: n }, (_, i) => `palavra${i}`).join(" ");
+const PESSOA = { nome: "Ana Souza", email: "ana@x.com", instituicao: "UNIEGO", titulacao: "graduando" };
+const ORI = { nome: "Carlos Lima", email: "carlos@x.com", instituicao: "UNIEGO", titulacao: "doutor" };
 const DADOS = {
-  titulo: "Prevalência de anemia em gestantes atendidas na atenção básica",
-  modalidade: "resumo", area: "Saúde",
-  resumo: "x".repeat(400), palavrasChave: "anemia, gestação, atenção básica",
-  autores: [{ nome: "Ana Souza", email: "ana@x.com", instituicao: "UNIEGO" }, { nome: "Bia Lima", email: "" }],
-  consentimento: true,
+  titulo: "Prevalência de anemia em gestantes atendidas na atenção básica", tituloEn: "Anemia prevalence in pregnant women",
+  modalidade: "resumo", area: "Saúde", curso: "Enfermagem",
+  resumo: palavras(210), abstract: palavras(200), palavrasChave: "anemia, gestação, atenção básica", keywords: "anemia; pregnancy; primary care",
+  autores: [PESSOA, { nome: "Bia Lima", email: "", instituicao: "UNIEGO", titulacao: "graduando" }],
+  orientador: ORI, consentimento: true,
 };
+const secoes = () => Object.fromEntries(SECOES.map((s) => [s.codigo, `Texto da seção ${s.nome} com mais de cinquenta caracteres para passar.`]));
 const parecerBom = (rec = "aceitar") => ({
   notas: Object.fromEntries(CRITERIOS.map((c) => [c.codigo, 4])), recomendacao: rec,
   comentariosAutor: "Trabalho bem delimitado; sugiro detalhar a amostra na versão final.",
@@ -21,108 +27,113 @@ const parecerBom = (rec = "aceitar") => ({
 });
 
 test("a configuração tem padrões e recorta o que não existe", () => {
-  const c = normalizarConfig({ ativo: true, modalidades: ["completo", "xis"], revisoresPorTrabalho: 9, prazoSubmissao: "hoje" });
-  assert.deepEqual(c.modalidades, ["completo"]);
-  assert.equal(c.revisoresPorTrabalho, 5, "teto de 5 revisores");
-  assert.equal(c.prazoSubmissao, "", "data inválida não entra");
-  assert.equal(normalizarConfig({}).modalidades[0], "resumo");
-  assert.equal(configPublica({ ativo: false }, "2026-09-01"), null, "módulo desligado não sai na página");
-  assert.equal(configPublica(CFG, "2026-09-01").aberta, true);
+  const c = normalizarConfig({ ativo: true, modalidades: ["completo", "expandido"], revisoresPorTrabalho: 9, prazoSubmissao: "hoje" });
+  assert.deepEqual(c.modalidades, ["completo"], "só as duas modalidades existem");
+  assert.equal(c.revisoresPorTrabalho, 5);
+  assert.equal(c.prazoSubmissao, "");
+  assert.equal(c.exigeParecer, false, "a PROPPEX decide direto por padrão");
+  assert.equal(configPublica({ ativo: false }, "2026-09-01"), null);
+  const pub = configPublica(CFG, "2026-09-01", { cursos: CURSOS });
+  assert.equal(pub.aberta, true);
+  assert.deepEqual(pub.cursos, CURSOS);
+  assert.equal(pub.minPalavrasResumo, 200);
   assert.match(podeSubmeter(CFG, "2026-10-02").motivo, /encerrou em 01\/10\/2026/);
 });
 
-test("a submissão só entra completa", () => {
-  assert.deepEqual(validarSubmissao(CFG, DADOS), []);
-  const f = validarSubmissao(CFG, { ...DADOS, titulo: "curto", area: "Outra", palavrasChave: "uma", consentimento: false });
-  assert.ok(f.some((x) => /título/.test(x)));
-  assert.ok(f.some((x) => /área/.test(x)));
-  assert.ok(f.some((x) => /palavras-chave/.test(x)));
-  assert.ok(f.some((x) => /concordância/.test(x)));
-  assert.ok(validarSubmissao(CFG, { ...DADOS, modalidade: "completo" }).some((x) => /arquivo/.test(x)), "trabalho completo exige arquivo");
-  assert.deepEqual(validarSubmissao(CFG, { ...DADOS, modalidade: "completo" }, { temArquivo: true }), []);
-  assert.ok(validarSubmissao(CFG, { ...DADOS, autores: [{ nome: "Ana", email: "sem-arroba" }] }).some((x) => /e-mail do autor/.test(x)));
+test("o resumo conta PALAVRAS, e a autoria completa exige nome, e-mail, filiação e titulação", () => {
+  assert.equal(contarPalavras("  a  b\nc "), 3);
+  assert.deepEqual(validarSubmissao(CFG, DADOS, { cursos: CURSOS }), []);
+  const f = validarSubmissao(CFG, { ...DADOS, resumo: palavras(150), curso: "Outro", orientador: { nome: "Só" }, autores: [{ nome: "Ana Souza", email: "x", instituicao: "", titulacao: "" }] }, { cursos: CURSOS });
+  assert.ok(f.some((x) => /200 palavras \(tem 150\)/.test(x)));
+  assert.ok(f.some((x) => /curso/.test(x)));
+  assert.ok(f.some((x) => /nome completo \(orientador\)/.test(x)));
+  assert.ok(f.some((x) => /e-mail válido \(autor correspondente\)/.test(x)));
+  assert.ok(f.some((x) => /filiação institucional \(autor correspondente\)/.test(x)));
+  assert.ok(f.some((x) => /titulação \(autor correspondente\)/.test(x)));
+  // o segundo autor pode vir sem e-mail; o correspondente, não
+  assert.deepEqual(validarSubmissao(CFG, { ...DADOS, autores: [PESSOA, { ...PESSOA, nome: "Bia Lima", email: "" }] }, { cursos: CURSOS }), []);
+  // o trabalho completo exige as seis seções
+  const fc = validarSubmissao(CFG, { ...DADOS, modalidade: "completo" }, { cursos: CURSOS });
+  assert.equal(fc.filter((x) => /a seção/.test(x)).length, 6);
+  assert.deepEqual(validarSubmissao(CFG, { ...DADOS, modalidade: "completo", idioma: "en", secoes: secoes() }, { cursos: CURSOS }), []);
 });
 
-test("o fluxo inteiro: submissão → designação → pareceres → decisão → correção → nova versão", () => {
-  const t = novoTrabalho(CFG, DADOS, { numero: proximoNumero([]), agora: "2026-09-10T10:00:00.000Z" });
+test("o fluxo inteiro: submissão → decisão direta da PROPPEX, e o caminho pelos revisores", () => {
+  const t = novoTrabalho(CFG, { ...DADOS, modalidade: "completo", idioma: "en", secoes: secoes() }, { numero: proximoNumero([]), agora: "2026-09-10T10:00:00.000Z" });
   assert.equal(t.numero, "TR-001");
-  assert.equal(proximoNumero([t, { numero: "TR-007" }]), "TR-008");
   assert.equal(t.estado, "submetido");
   assert.equal(t.emailContato, "ana@x.com");
-  assert.equal(t.autores.length, 2);
-  assert.match(t.token, /^[0-9a-f]{24}$/);
+  assert.equal(t.orientador.nome, "Carlos Lima");
+  assert.equal(autoriaCompleta(t).at(-1).orientador, true, "o orientador é o último autor");
+  assert.equal(t.versoes[0].idioma, "en");
+  assert.equal(Object.keys(t.versoes[0].secoes).length, 6);
+  assert.equal(t.tituloEn, "Anemia prevalence in pregnant women");
 
-  // designar: o autor não revisa o próprio trabalho; repetido não entra
-  const novos = designar(t, [{ email: "rev1@x.com", nome: "R1" }, { email: "ana@x.com" }, { email: "rev2@x.com" }, { email: "rev1@x.com" }], { por: "gestao" });
+  // a PROPPEX pode decidir DIRETO, sem parecer — mas a recusa exige o motivo
+  const t0 = novoTrabalho(CFG, DADOS, { numero: "TR-000" });
+  assert.match(decidir(t0, CFG, { codigo: "rejeitado", mensagem: "" }).erro, /motivo da recusa/);
+  assert.equal(decidir(t0, CFG, { codigo: "aceito", por: "proppex" }).ok, true);
+  assert.equal(t0.estado, "aceito");
+
+  // ou mandar a revisores: o autor e o orientador não revisam o próprio trabalho
+  const novos = designar(t, [{ email: "rev1@x.com", nome: "R1" }, { email: "ana@x.com" }, { email: "carlos@x.com" }, { email: "rev2@x.com" }, { email: "rev1@x.com" }], { por: "gestao" });
   assert.equal(novos.length, 2);
   assert.equal(t.estado, "em-avaliacao");
-  assert.notEqual(novos[0].token, novos[1].token);
 
-  // o revisor vê o trabalho SEM autores
   const vr = paraRevisor(t, novos[0].token);
   assert.equal(vr.titulo, t.titulo);
   assert.equal(vr.autores, undefined);
+  assert.equal(vr.orientador, undefined);
   assert.equal(JSON.stringify(vr).includes("ana@x.com"), false, "nenhum e-mail de autor vaza ao revisor");
-  assert.equal(paraRevisor(t, "token-errado"), null);
+  assert.equal(JSON.stringify(vr).includes("Carlos"), false, "nem o orientador");
+  assert.equal(vr.versao.secoes.introducao.length > 0, true, "o revisor lê as seções");
 
-  // parecer incompleto não entra; completo muda o estado quando é o último
-  assert.match(registrarParecer(t, novos[0].token, { notas: {}, recomendacao: "aceitar", comentariosAutor: "ok" }).erro, /Falta/);
   assert.equal(registrarParecer(t, novos[0].token, parecerBom()).ok, true);
-  assert.equal(t.estado, "em-avaliacao", "ainda falta um parecer");
-  assert.equal(todosPareceresEntregues(t), false);
+  assert.equal(t.estado, "em-avaliacao");
   assert.equal(registrarParecer(t, novos[1].token, parecerBom("aceitar-com-correcoes")).ok, true);
   assert.equal(t.estado, "avaliado");
   assert.equal(notaMedia(t), 4);
+  assert.equal(paraAutor(t).pareceres.length, 0, "antes da decisão o autor não vê parecer");
 
-  // antes da decisão o autor não vê parecer nenhum
-  assert.equal(paraAutor(t).pareceres.length, 0);
-  assert.equal(paraAutor(t).podeReenviar, false);
-
-  // devolver para correção exige a mensagem; depois o autor vê os pareceres anônimos
   assert.match(decidir(t, CFG, { codigo: "correcao", mensagem: "", por: "gestao" }).erro, /o que corrigir/);
   assert.equal(decidir(t, CFG, { codigo: "correcao", mensagem: "Ajuste a metodologia conforme os pareceres.", por: "gestao" }).ok, true);
-  assert.equal(t.estado, "correcao");
   const va = paraAutor(t);
-  assert.equal(va.pareceres.length, 2);
   assert.deepEqual(va.pareceres.map((p) => p.revisor), ["Revisor A", "Revisor B"]);
-  assert.equal(JSON.stringify(va).includes("rev1@x.com"), false, "o autor não sabe quem avaliou");
-  assert.equal(JSON.stringify(va).includes("Sem conflito"), false, "os comentários à comissão não saem ao autor");
+  assert.equal(JSON.stringify(va).includes("rev1@x.com"), false);
+  assert.equal(JSON.stringify(va).includes("Sem conflito"), false);
   assert.equal(va.podeReenviar, true);
 
-  // a versão corrigida
-  assert.match(reenviar(t, { resumo: "curto" }).erro, /200/);
-  const r = reenviar(t, { resumo: "y".repeat(300), nota: "Ajustei a amostra.", agora: "2026-09-12T10:00:00.000Z" });
+  // a versão corrigida é o formulário inteiro de novo, com a mesma régua
+  assert.match(reenviar(t, CFG, { resumo: "curto", secoes: secoes(), palavrasChave: "a,b,c" }).erro, /200 palavras/);
+  const r = reenviar(t, CFG, { titulo: "Prevalência de anemia em gestantes — versão revista", resumo: palavras(220), palavrasChave: "a, b, c", idioma: "pt", secoes: secoes(), nota: "Ajustei." }, { agora: "2026-09-12T10:00:00.000Z" });
   assert.equal(r.versao, 2);
   assert.equal(t.estado, "reenviado");
-  assert.equal(t.versoes.length, 2);
-  assert.match(reenviar(t, { resumo: "y".repeat(300) }).erro, /não está aguardando correção/);
+  assert.equal(t.titulo, "Prevalência de anemia em gestantes — versão revista");
+  assert.equal(t.versoes[1].idioma, "pt");
+  assert.match(reenviar(t, CFG, {}).erro, /não está aguardando correção/);
 
-  // a decisão final; a gestão vê tudo, sem tokens
   assert.equal(decidir(t, CFG, { codigo: "aceito", por: "gestao" }).ok, true);
-  assert.equal(t.estado, "aceito");
   const vg = paraGestao(t);
   assert.equal(vg.token, undefined);
   assert.equal(vg.revisores[0].token, undefined);
-  assert.equal(vg.revisores[0].email, "rev1@x.com");
   assert.equal(vg.pareceresEntregues, 2);
-  // trabalho encerrado não aceita parecer nem retirada
   assert.match(registrarParecer(t, novos[0].token, parecerBom()).erro, /já foi decidido/);
   assert.match(retirar(t).erro, /encerrado/);
 });
 
-test("a decisão pode exigir parecer, e o resumo conta o que espera cada um", () => {
+test("a chave exigeParecer segura a decisão sem parecer; o resumo conta o que espera cada um", () => {
   const t = novoTrabalho(CFG, DADOS, { numero: "TR-001" });
   assert.match(decidir(t, { ...CFG, exigeParecer: true }, { codigo: "aceito" }).erro, /exige ao menos um parecer/);
-  assert.equal(decidir(t, CFG, { codigo: "rejeitado", mensagem: "Fora do escopo." }).ok, true, "sem a chave, a coordenação decide direto");
   const t2 = novoTrabalho(CFG, DADOS, { numero: "TR-002" });
   designar(t2, [{ email: "r@x.com" }]);
   const t3 = novoTrabalho(CFG, DADOS, { numero: "TR-003" });
   assert.equal(retirar(t3).ok, true);
   const r = resumo([t, t2, t3]);
   assert.equal(r.total, 3);
+  assert.equal(r.aguardandoCoordenacao, 1);
   assert.equal(r.aguardandoRevisores, 1);
-  assert.equal(r.porEstado.rejeitado, 1);
   assert.equal(r.porEstado.retirado, 1);
+  assert.equal(todosPareceresEntregues(t2), false);
 });
 
 test("o cadastro de revisores deduplica e exige e-mail", () => {

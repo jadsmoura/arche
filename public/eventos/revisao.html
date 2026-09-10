@@ -79,11 +79,14 @@ function render() {
         <span style="font-size:12.5px;color:var(--muted)">${esc(modal)}${t.area ? ` · ${esc(t.area)}` : ""} · versão ${t.versao ? t.versao.n : 1}</span>
         ${p ? `<span class="selo ok">parecer entregue em ${fmtHora(p.em)}</span>` : t.encerrado ? `<span class="selo muted">trabalho já decidido</span>` : `<span class="selo warn">aguardando o seu parecer</span>`}
       </div>
-      <h2 style="font-size:18px;margin:12px 0 6px;line-height:1.35">${esc(t.titulo)}</h2>
-      <div style="font-size:12.5px;color:var(--muted)">Palavras-chave: ${esc((t.palavrasChave || []).join(", "))}</div>
-      <div style="font-size:12.5px;color:var(--muted);margin-top:6px">Avaliação cega: os autores não são mostrados, e o seu nome não vai ao autor.</div>
-      ${t.versao && t.versao.arquivo ? `<p style="margin-top:12px"><a class="bt bt-sec" href="${esc(t.versao.arquivo.link)}">⬇ Baixar o arquivo do trabalho (${esc(t.versao.arquivo.name)})</a></p>` : ""}
-      <pre class="resumo">${esc(t.versao ? t.versao.resumo : "")}</pre>
+      <h2 style="font-size:18px;margin:12px 0 4px;line-height:1.35">${esc(t.titulo)}</h2>
+      ${t.tituloEn ? `<div style="font-size:14px;color:var(--ink-soft);font-style:italic">${esc(t.tituloEn)}</div>` : ""}
+      <div style="font-size:12.5px;color:var(--muted);margin-top:6px">${t.curso ? `Curso: ${esc(t.curso)} · ` : ""}Avaliação cega: os autores não são mostrados, e o seu nome não vai ao autor.</div>
+      <p style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <a class="bt bt-sec" href="${API}/pdf" target="_blank" rel="noopener">📄 PDF (cópia cega)</a>
+        ${t.versao && t.versao.arquivo ? `<a class="bt bt-ghost" href="${esc(t.versao.arquivo.link)}">⬇ Arquivo anexado (${esc(t.versao.arquivo.name)})</a>` : ""}</p>
+      ${(() => { const v = t.versao || {}; const sec = cat.secoes || [];
+        return `<pre class="resumo"><b>Resumo</b>\n${esc(v.resumo || "")}\n\n<b>Palavras-chave:</b> ${esc((v.palavrasChave || []).join("; "))}${v.abstract ? `\n\n<b>Abstract</b>\n${esc(v.abstract)}\n\n<b>Keywords:</b> ${esc((v.keywords || []).join("; "))}` : ""}${v.secoes ? sec.map((s) => `\n\n<b>${esc(v.idioma === "en" ? s.en : s.nome)}</b>\n${esc(v.secoes[s.codigo] || "")}`).join("") : ""}</pre>`; })()}
       ${c.orientacoes || c.normasUrl ? `<details style="margin-top:12px"><summary style="cursor:pointer;font-size:13px;color:var(--brand)">Orientações e normas do evento</summary>
         <div style="font-size:13.5px;line-height:1.6;white-space:pre-line;margin-top:8px">${esc(c.orientacoes || "")}</div>
         ${c.normasUrl ? `<p><a href="${esc(c.normasUrl)}" target="_blank" rel="noopener">Normas ↗</a></p>` : ""}</details>` : ""}

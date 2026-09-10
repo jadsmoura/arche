@@ -10,9 +10,9 @@
 <style>
   /* ARCHÉ TR — a página do AUTOR (set/2026). Servida em
      /eventos/<slug>/trabalhos (o formulário) e /eventos/<slug>/trabalhos/<token>
-     (o acompanhamento: situação, pareceres anônimos, versão corrigida). Sem
-     conta: o token do e-mail é a chave, como na credencial da inscrição. */
-  main{max-width:820px;margin:26px auto 40px;padding:0 16px}
+     (o acompanhamento: situação, pareceres anônimos, versão corrigida, PDF).
+     O trabalho é um FORMULÁRIO — é dele que o PDF sai no modelo do evento. */
+  main{max-width:860px;margin:26px auto 40px;padding:0 16px}
   .cab h1{font-family:Sora,sans-serif;font-size:22px;color:var(--brand);margin:0 0 4px;letter-spacing:-.01em}
   .cab .s{color:var(--muted);font-size:13.5px}
   .selo{font-size:12px;font-weight:600;border-radius:20px;padding:5px 12px;display:inline-block}
@@ -23,10 +23,11 @@
   .msg.err{background:var(--err-soft);color:var(--err)} .msg.ok{background:var(--ok-soft);color:var(--ok)}
   .msg.warn{background:var(--warn-soft);color:var(--warn);font-weight:500}
   .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px} @media(max-width:640px){.g2{grid-template-columns:1fr}}
-  .autor{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px;background:#fafbfc}
-  .autor .g3{display:grid;grid-template-columns:1.4fr 1.4fr 1fr 40px;gap:8px;align-items:end}
-  @media(max-width:640px){.autor .g3{grid-template-columns:1fr 1fr}}
-  .autor label{margin-top:4px}
+  .pessoa{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px;background:#fafbfc}
+  .pessoa .g4{display:grid;grid-template-columns:1.4fr 1.3fr 1.1fr 1fr 36px;gap:8px;align-items:end}
+  @media(max-width:760px){.pessoa .g4{grid-template-columns:1fr 1fr}}
+  .pessoa label{margin-top:4px}
+  .pessoa.ori{border-color:var(--accent);background:var(--accent-wash)}
   .contador{font-size:11.5px;color:var(--muted);text-align:right;margin-top:4px}
   .parecer{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px}
   .parecer .t{font-weight:700;font-size:13.5px;color:var(--ink)}
@@ -38,8 +39,13 @@
   .decisao{border-left:4px solid var(--accent);background:var(--wash);border-radius:10px;padding:12px 14px;margin-top:12px;white-space:pre-line;font-size:14px;line-height:1.6}
   .linha-ok{display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-top:12px;line-height:1.5}
   .linha-ok input{width:auto;margin-top:3px}
-  .hist{font-size:12px;color:var(--muted);margin-top:14px;line-height:1.7}
+  .sec-t{font-family:Sora,sans-serif;font-weight:700;font-size:15px;color:var(--ink);margin:18px 0 0;padding-top:14px;border-top:1px solid var(--line)}
+  .sec-t:first-child{border-top:0;padding-top:0;margin-top:0}
   pre.resumo{white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.65;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:8px 0 0}
+  .normas-janela{position:fixed;inset:0;background:rgba(24,38,50,.55);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
+  .normas-janela .cx{background:#fff;border-radius:14px;max-width:760px;width:100%;max-height:90vh;overflow:auto;padding:22px 24px}
+  .normas-janela pre{white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.65}
+  .ajuda{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -56,21 +62,39 @@
   </div>
 </header>
 <main id="tela"><div class="card"><p style="color:var(--muted)">Carregando…</p></div></main>
+<div id="normas"></div>
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (iso) => (/^\d{4}-\d{2}-\d{2}/.test(String(iso || "")) ? String(iso).slice(0, 10).split("-").reverse().join("/") : "—");
 const fmtHora = (iso) => (iso ? new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
+const palavras = (s) => (String(s || "").trim().match(/[^\s]+/g) || []).length;
 const partes = location.pathname.replace(/\/+$/, "").split("/");   // ["", "eventos", slug, "trabalhos", token?]
 const SLUG = partes[2] || "", TOKEN = partes[4] || "";
 const API = `/api/publico/eventos/${encodeURIComponent(SLUG)}/trabalhos`;
-let DADOS = null, AUTORES = [{ nome: "", email: "", instituicao: "", vinculo: "" }];
+let DADOS = null;
+const PESSOA = () => ({ nome: "", email: "", instituicao: "UNIEGO", titulacao: "" });
+let AUTORES = [PESSOA()], ORIENTADOR = { ...PESSOA(), titulacao: "doutor" };
 $("lk-evento").href = `/eventos/${encodeURIComponent(SLUG)}`;
 
 const cabecalho = (ev, sub) => `<div class="cab" style="margin-bottom:14px">
   <h1>${esc(ev.nome || "Evento")}</h1>
   <div class="s">${esc([ev.curso, ev.periodoInicio ? `${fmt(ev.periodoInicio)}${ev.periodoFim && ev.periodoFim !== ev.periodoInicio ? " a " + fmt(ev.periodoFim) : ""}` : ""].filter(Boolean).join(" · "))}${sub ? ` · ${sub}` : ""}</div>
 </div>`;
+const botoesNormas = (c) => `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+  ${c.normas ? `<button class="bt bt-sec" onclick="abrirNormas()">📋 Normas de submissão</button>` : ""}
+  ${c.normasUrl ? `<a class="bt bt-sec" href="${esc(c.normasUrl)}" target="_blank" rel="noopener">📋 Normas de submissão ↗</a>` : ""}
+  ${c.modeloUrl ? `<a class="bt bt-sec" href="${esc(c.modeloUrl)}" target="_blank" rel="noopener">Modelo do trabalho ↗</a>` : ""}
+</div>`;
+function abrirNormas() {
+  $("normas").innerHTML = `<div class="normas-janela" onclick="if(event.target===this)fecharNormas()"><div class="cx">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <h2 style="font-family:Sora,sans-serif;font-size:18px;color:var(--brand);margin:0">Normas de submissão</h2>
+      <button class="bt bt-ghost" onclick="fecharNormas()">Fechar</button></div>
+    <pre style="margin-top:12px">${esc(DADOS.config.normas)}</pre>
+  </div></div>`;
+}
+function fecharNormas() { $("normas").innerHTML = ""; }
 
 async function carregar() {
   try {
@@ -86,6 +110,33 @@ async function carregar() {
 }
 
 /* ------------------------------ o formulário ------------------------------ */
+const selTit = (valor, oninput) => `<select oninput="${oninput}"><option value="">titulação *</option>${DADOS.config.titulacoes.map((t) => `<option value="${esc(t.codigo)}" ${t.codigo === valor ? "selected" : ""}>${esc(t.nome)}</option>`).join("")}</select>`;
+function camposConteudo(c, v = {}, modalidade) {
+  const completo = modalidade === "completo";
+  return `
+    <div class="sec-t">Resumo</div>
+    <label>Resumo * (mínimo ${c.minPalavrasResumo} palavras; máximo ${c.maxPalavrasResumo})</label>
+    <textarea id="f-resumo" rows="10" oninput="contar('f-resumo','f-cont-resumo')">${esc(v.resumo || "")}</textarea>
+    <div class="contador" id="f-cont-resumo"></div>
+    <label>Palavras-chave * (três a seis, separadas por vírgula)</label>
+    <input id="f-palavras" value="${esc((v.palavrasChave || []).join(", "))}" placeholder="ex.: anemia, gestação, atenção básica">
+    <label>Abstract (opcional)</label>
+    <textarea id="f-abstract" rows="6" oninput="contar('f-abstract','f-cont-abstract')">${esc(v.abstract || "")}</textarea>
+    <div class="contador" id="f-cont-abstract"></div>
+    <label>Keywords (opcional; três a seis, separadas por vírgula)</label>
+    <input id="f-keywords" value="${esc((v.keywords || []).join(", "))}" placeholder="ex.: anemia, pregnancy, primary care">
+    ${completo ? `
+    <div class="sec-t">Trabalho completo</div>
+    <label>Idioma do trabalho *</label>
+    <select id="f-idioma">${c.idiomas.map((i) => `<option value="${esc(i.codigo)}" ${(v.idioma || "pt") === i.codigo ? "selected" : ""}>${esc(i.nome)}</option>`).join("")}</select>
+    <div class="ajuda">No trabalho em inglês, o abstract e as keywords vêm em primeiro no PDF.</div>
+    ${c.secoes.map((s) => `<label>${esc(s.nome)} *</label>
+      <textarea id="f-sec-${esc(s.codigo)}" rows="${s.codigo === "referencias" ? 6 : 8}">${esc((v.secoes || {})[s.codigo] || "")}</textarea>`).join("")}` : ""}
+    ${c.permiteArquivo ? `<div class="sec-t">Arquivo (opcional)</div>
+    <label>Versão em PDF ou Word, se quiser anexar (até 15 MB)</label>
+    <input id="f-arquivo" type="file" accept=".pdf,.doc,.docx">
+    <div class="ajuda">O formulário é o que vale: é dele que a comissão lê e que o PDF no modelo do evento é gerado.</div>` : ""}`;
+}
 function renderFormulario(j) {
   const c = j.config;
   if (!c) {
@@ -98,79 +149,90 @@ function renderFormulario(j) {
       ${cabecalho(j.evento, "submissão de trabalhos")}
       ${!c.aberta ? `<div class="msg warn">${esc(c.motivo)}</div>` : `<div class="selo ok">Submissões abertas${c.prazoSubmissao ? ` até ${fmt(c.prazoSubmissao)}` : ""}</div>`}
       ${c.orientacoes ? `<div style="font-size:14px;line-height:1.65;white-space:pre-line;margin-top:14px">${esc(c.orientacoes)}</div>` : ""}
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
-        ${c.normasUrl ? `<a class="bt bt-sec" href="${esc(c.normasUrl)}" target="_blank" rel="noopener">Normas ↗</a>` : ""}
-        ${c.modeloUrl ? `<a class="bt bt-sec" href="${esc(c.modeloUrl)}" target="_blank" rel="noopener">Modelo do trabalho ↗</a>` : ""}
-      </div>
+      ${botoesNormas(c)}
       <p style="font-size:12.5px;color:var(--muted);margin-top:14px">Já submeteu? O acompanhamento é pelo link que chegou ao seu e-mail.</p>
     </div>
     ${c.aberta ? `<div class="card" style="margin-top:14px">
+      <div class="sec-t">Identificação</div>
       <div class="g2">
-        <div><label>Modalidade *</label>
+        <div><label>Tipo de trabalho *</label>
           <select id="f-modalidade" onchange="mudouModalidade()">${modalidades.map((m) => `<option value="${esc(m.codigo)}">${esc(m.nome)}</option>`).join("")}</select>
-          <div id="f-mod-ajuda" style="font-size:12px;color:var(--muted);margin-top:4px"></div></div>
-        ${c.areas.length ? `<div><label>Área temática *</label>
-          <select id="f-area"><option value="">— escolha —</option>${c.areas.map((a) => `<option>${esc(a)}</option>`).join("")}</select></div>` : "<div></div>"}
+          <div class="ajuda" id="f-mod-ajuda"></div></div>
+        <div><label>Curso *</label>
+          <select id="f-curso"><option value="">— escolha —</option>${c.cursos.map((x) => `<option>${esc(x)}</option>`).join("")}</select></div>
       </div>
-      <label>Título do trabalho *</label>
+      ${c.areas.length ? `<label>Área temática *</label>
+        <select id="f-area"><option value="">— escolha —</option>${c.areas.map((a) => `<option>${esc(a)}</option>`).join("")}</select>` : ""}
+      <label>Título *</label>
       <input id="f-titulo" maxlength="300" placeholder="Título completo, como sairá nos anais">
-      <label>Resumo *</label>
-      <textarea id="f-resumo" rows="10" oninput="contar()" placeholder="Cole aqui o resumo (introdução, objetivo, método, resultados e conclusão)."></textarea>
-      <div class="contador" id="f-contador">0 / ${c.limiteResumo} caracteres (mínimo 200)</div>
-      <label>Palavras-chave * (três a seis, separadas por vírgula)</label>
-      <input id="f-palavras" placeholder="ex.: anemia, gestação, atenção básica">
-      <div id="f-arquivo-bloco">
-        <label>Arquivo do trabalho (PDF ou Word, até 15 MB)</label>
-        <input id="f-arquivo" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
-        <div style="font-size:12px;color:var(--muted);margin-top:4px">A avaliação é <b>cega</b>: envie o arquivo <b>sem os nomes dos autores</b> — eles ficam só no formulário.</div>
-      </div>
-      <label style="margin-top:16px">Autores * (o primeiro é o autor correspondente — é no e-mail dele que chegam as decisões)</label>
+      <label>Título em inglês (opcional)</label>
+      <input id="f-titulo-en" maxlength="300">
+
+      <div class="sec-t">Autores</div>
+      <div class="ajuda">Para cada autor: nome completo, e-mail, filiação institucional e titulação. O primeiro é o <b>autor correspondente</b> — é no e-mail dele que chegam as decisões. O orientador vai em separado, abaixo, e entra como último autor.</div>
       <div id="f-autores"></div>
-      <button class="bt bt-ghost" style="margin-top:8px;padding:7px 12px;font-size:12.5px" onclick="if(AUTORES.length<${c.maxAutores}){AUTORES.push({});renderAutores()}">＋ Adicionar autor</button>
+      <button class="bt bt-ghost" style="margin-top:8px;padding:7px 12px;font-size:12.5px" onclick="if(AUTORES.length<${c.maxAutores}){AUTORES.push(PESSOA());renderPessoas()}else alert('Máximo de ${c.maxAutores} autores.')">＋ Adicionar autor</button>
+      <div id="f-orientador"></div>
+
+      <div id="f-conteudo">${camposConteudo(c, {}, modalidades[0]?.codigo)}</div>
+
       <div class="linha-ok"><input type="checkbox" id="f-ok"><label for="f-ok" style="margin:0;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;color:var(--ink)">
-        Declaro que o trabalho é de autoria dos nomeados, que não fere direitos de terceiros, e concordo com o tratamento
-        dos dados dos autores pela UNIEGO/PROPPEX para a avaliação, a comunicação e a publicação dos trabalhos deste
-        evento (Lei nº 13.709/2018).</label></div>
+        Declaro que o trabalho é de autoria dos nomeados, que segue as normas de submissão do evento e não fere direitos de
+        terceiros, e concordo com o tratamento dos dados dos autores pela UNIEGO/PROPPEX para a avaliação, a comunicação e a
+        publicação dos trabalhos deste evento (Lei nº 13.709/2018).</label></div>
       <div id="f-msg"></div>
       <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="bt bt-pri" id="f-enviar" onclick="enviar()">Submeter o trabalho</button>
         <span style="font-size:12px;color:var(--muted)">Você recebe o número do trabalho e o link de acompanhamento por e-mail.</span>
       </div>
     </div>` : ""}`;
-  if (c.aberta) { renderAutores(); mudouModalidade(); }
+  if (c.aberta) { renderPessoas(); mudouModalidade(); }
 }
 function mudouModalidade() {
-  const m = (DADOS.config.modalidades || []).find((x) => x && x.codigo === $("f-modalidade").value) || {};
+  const cod = $("f-modalidade").value;
+  const m = (DADOS.config.modalidades || []).find((x) => x && x.codigo === cod) || {};
   $("f-mod-ajuda").textContent = m.ajuda || "";
-  const bloco = $("f-arquivo-bloco");
-  bloco.querySelector("label").textContent = m.codigo === "resumo" ? "Arquivo (opcional — PDF ou Word, até 15 MB)" : "Arquivo do trabalho * (PDF ou Word, até 15 MB)";
+  // guarda o que já foi digitado ao trocar de tipo
+  const v = lerConteudo();
+  $("f-conteudo").innerHTML = camposConteudo(DADOS.config, v, cod);
+  contar("f-resumo", "f-cont-resumo"); contar("f-abstract", "f-cont-abstract");
 }
-function contar() {
-  const n = $("f-resumo").value.length, lim = DADOS.config.limiteResumo;
-  const el = $("f-contador");
-  el.textContent = `${n} / ${lim} caracteres (mínimo 200)`;
-  el.style.color = n > lim || (n && n < 200) ? "var(--err)" : "var(--muted)";
+function contar(idCampo, idCont) {
+  const el = $(idCampo), cont = $(idCont); if (!el || !cont) return;
+  const n = palavras(el.value), c = DADOS.config;
+  cont.textContent = `${n} palavra(s)${idCampo === "f-resumo" ? ` — mínimo ${c.minPalavrasResumo}, máximo ${c.maxPalavrasResumo}` : ""}`;
+  cont.style.color = idCampo === "f-resumo" && n && (n < c.minPalavrasResumo || n > c.maxPalavrasResumo) ? "var(--err)" : "var(--muted)";
 }
-function renderAutores() {
-  $("f-autores").innerHTML = AUTORES.map((a, i) => `<div class="autor">
-    <div class="g3">
-      <div><label>${i === 0 ? "Autor correspondente" : `Autor ${i + 1}`} — nome completo *</label><input value="${esc(a.nome || "")}" oninput="AUTORES[${i}].nome=this.value"></div>
-      <div><label>E-mail${i === 0 ? " *" : ""}</label><input type="email" value="${esc(a.email || "")}" oninput="AUTORES[${i}].email=this.value"></div>
-      <div><label>Instituição</label><input value="${esc(a.instituicao || "")}" oninput="AUTORES[${i}].instituicao=this.value" placeholder="UNIEGO"></div>
-      <div>${i > 0 ? `<button class="bt bt-ghost" style="padding:8px 10px;color:var(--err)" onclick="AUTORES.splice(${i},1);renderAutores()" title="remover">✕</button>` : ""}</div>
-    </div>
-    <div style="margin-top:4px"><label>Vínculo (aluno, docente, egresso, externo…)</label><input value="${esc(a.vinculo || "")}" oninput="AUTORES[${i}].vinculo=this.value" style="max-width:320px"></div>
-  </div>`).join("");
+function lerConteudo() {
+  const g = (id) => ($(id) ? $(id).value : "");
+  const secoes = {};
+  for (const s of DADOS.config.secoes) if ($(`f-sec-${s.codigo}`)) secoes[s.codigo] = g(`f-sec-${s.codigo}`);
+  return { resumo: g("f-resumo"), abstract: g("f-abstract"), palavrasChave: g("f-palavras"), keywords: g("f-keywords"),
+    idioma: g("f-idioma") || "pt", secoes };
+}
+const linhaPessoa = (p, prefixoJs, rotulo, removivel) => `<div class="g4">
+  <div><label>${rotulo} — nome completo *</label><input value="${esc(p.nome || "")}" oninput="${prefixoJs}.nome=this.value"></div>
+  <div><label>E-mail${rotulo.includes("correspondente") || rotulo === "Orientador(a)" ? " *" : ""}</label><input type="email" value="${esc(p.email || "")}" oninput="${prefixoJs}.email=this.value"></div>
+  <div><label>Filiação institucional *</label><input value="${esc(p.instituicao || "")}" oninput="${prefixoJs}.instituicao=this.value" placeholder="UNIEGO"></div>
+  <div><label>Titulação *</label>${selTit(p.titulacao, `${prefixoJs}.titulacao=this.value`)}</div>
+  <div>${removivel ? `<button class="bt bt-ghost" style="padding:8px 10px;color:var(--err)" onclick="${removivel}" title="remover">✕</button>` : ""}</div>
+</div>`;
+function renderPessoas() {
+  $("f-autores").innerHTML = AUTORES.map((a, i) => `<div class="pessoa">${linhaPessoa(a, `AUTORES[${i}]`, i === 0 ? "Autor correspondente" : `Autor ${i + 1}`, i > 0 ? `AUTORES.splice(${i},1);renderPessoas()` : "")}</div>`).join("");
+  $("f-orientador").innerHTML = `<div class="pessoa ori">${linhaPessoa(ORIENTADOR, "ORIENTADOR", "Orientador(a)", "")}
+    <div class="ajuda">O orientador é o último autor do trabalho. Fica em separado para ninguém o esquecer.</div></div>`;
+}
+function montarDados() {
+  const g = (id) => ($(id) ? $(id).value : "");
+  return { titulo: g("f-titulo"), tituloEn: g("f-titulo-en"), modalidade: g("f-modalidade"), area: g("f-area"), curso: g("f-curso"),
+    autores: AUTORES, orientador: ORIENTADOR, ...lerConteudo(), consentimento: $("f-ok").checked };
 }
 async function enviar() {
   const msg = $("f-msg"); msg.innerHTML = "";
-  const dados = {
-    titulo: $("f-titulo").value, modalidade: $("f-modalidade").value, area: $("f-area") ? $("f-area").value : "",
-    resumo: $("f-resumo").value, palavrasChave: $("f-palavras").value, autores: AUTORES, consentimento: $("f-ok").checked,
-  };
+  const dados = montarDados();
   const fd = new FormData();
   fd.append("dados", JSON.stringify(dados));
-  const arq = $("f-arquivo").files[0];
+  const arq = $("f-arquivo") && $("f-arquivo").files[0];
   if (arq) {
     if (arq.size > 15 * 1024 * 1024) { msg.innerHTML = `<div class="msg err">O arquivo passa de 15 MB.</div>`; return; }
     fd.append("arquivo", arq);
@@ -185,9 +247,9 @@ async function enviar() {
       <h2 style="font-family:Sora,sans-serif;font-size:20px;color:var(--brand);margin:12px 0 6px">${esc(j.numero)}</h2>
       <p style="font-size:14px;line-height:1.6">O trabalho <b>${esc(dados.titulo)}</b> foi registrado. O número e o link de
         acompanhamento foram enviados para <b>${esc((AUTORES[0] || {}).email || "")}</b>.</p>
-      <p style="font-size:13px;color:var(--muted);line-height:1.6">Guarde o link abaixo — é por ele que se acompanha a avaliação e
-        se envia a versão corrigida, quando pedida. Se o e-mail não chegar, confira a caixa de spam.</p>
-      <p><a class="bt bt-pri" href="${esc(j.link)}">Acompanhar o trabalho</a> <a class="bt bt-sec" href="/eventos/${encodeURIComponent(SLUG)}">Página do evento</a></p>
+      <p style="font-size:13px;color:var(--muted);line-height:1.6">Guarde o link abaixo — é por ele que se acompanha a avaliação,
+        se baixa o PDF no modelo e se envia a versão corrigida, quando pedida. Se o e-mail não chegar, confira a caixa de spam.</p>
+      <p><a class="bt bt-pri" href="${esc(j.link)}">Acompanhar o trabalho</a> <a class="bt bt-sec" href="${esc(j.link)}/pdf" target="_blank" rel="noopener">Ver o PDF</a> <a class="bt bt-ghost" href="/eventos/${encodeURIComponent(SLUG)}">Página do evento</a></p>
       <p style="font-size:11.5px;color:var(--muted);word-break:break-all">${esc(j.link)}</p>
     </div>`;
     window.scrollTo(0, 0);
@@ -199,76 +261,80 @@ async function enviar() {
 
 /* ---------------------------- o acompanhamento ---------------------------- */
 const COR = { submetido: "info", "em-avaliacao": "warn", avaliado: "warn", correcao: "err", reenviado: "info", aceito: "ok", rejeitado: "err", retirado: "muted" };
-const REC = { aceitar: "Aceitar", "aceitar-com-correcoes": "Aceitar com correções", rejeitar: "Rejeitar" };
+const REC = { aceitar: "Aceitar", "aceitar-com-correcoes": "Aceitar com correções", rejeitar: "Recusar" };
 function renderAcompanhamento(j) {
-  const t = j.trabalho, crit = j.catalogos.criterios;
+  const t = j.trabalho, crit = j.catalogos.criterios, c = j.config || {};
   const modal = (j.catalogos.modalidades.find((m) => m.codigo === t.modalidade) || {}).nome || t.modalidade;
   const atual = t.versoes[t.versoes.length - 1] || {};
+  const tit = (cod) => (j.catalogos.titulacoes.find((x) => x.codigo === cod) || {}).nome || "";
   const explica = {
-    submetido: "Recebido. A comissão científica vai designar os revisores.",
+    submetido: "Recebido. A PROPPEX vai analisar o trabalho — diretamente ou com pareceristas.",
     "em-avaliacao": "Em avaliação pelos revisores. Você será avisado(a) por e-mail quando houver decisão.",
-    avaliado: "Pareceres entregues; aguardando a decisão da comissão.",
-    correcao: "A comissão pediu correções. Leia os pareceres abaixo e envie a versão corrigida.",
-    reenviado: "Versão corrigida recebida; aguardando a decisão da comissão.",
+    avaliado: "Pareceres entregues; aguardando a decisão da PROPPEX.",
+    correcao: "A PROPPEX pediu correções. Leia os comentários abaixo e envie a versão corrigida.",
+    reenviado: "Versão corrigida recebida; aguardando a decisão da PROPPEX.",
     aceito: "Trabalho aceito. A coordenação do evento informará os próximos passos.",
     rejeitado: "O trabalho não foi aceito nesta edição.",
     retirado: "Trabalho retirado a pedido dos autores.",
   }[t.estado] || "";
+  const pdf = (n) => `${API}/${encodeURIComponent(TOKEN)}/pdf${n ? `?versao=${n}` : ""}`;
   $("tela").innerHTML = `
     <div class="card">
       ${cabecalho(j.evento, "acompanhamento do trabalho")}
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <span class="selo ${COR[t.estado] || "muted"}">${esc(t.rotulo)}</span>
         <b style="font-family:Sora,sans-serif;color:var(--brand)">${esc(t.numero)}</b>
-        <span style="font-size:12.5px;color:var(--muted)">${esc(modal)}${t.area ? ` · ${esc(t.area)}` : ""}</span>
+        <span style="font-size:12.5px;color:var(--muted)">${esc(modal)}${t.area ? ` · ${esc(t.area)}` : ""}${t.curso ? ` · ${esc(t.curso)}` : ""}</span>
       </div>
-      <h2 style="font-size:18px;margin:12px 0 6px;line-height:1.35">${esc(t.titulo)}</h2>
-      <div style="font-size:13px;color:var(--ink-soft)">${t.autores.map((a) => esc(a.nome) + (a.instituicao ? ` (${esc(a.instituicao)})` : "")).join("; ")}</div>
-      <div style="font-size:12.5px;color:var(--muted);margin-top:4px">Palavras-chave: ${esc(t.palavrasChave.join(", "))}</div>
+      <h2 style="font-size:18px;margin:12px 0 4px;line-height:1.35">${esc(t.titulo)}</h2>
+      ${t.tituloEn ? `<div style="font-size:14px;color:var(--ink-soft);font-style:italic">${esc(t.tituloEn)}</div>` : ""}
+      <div style="font-size:13px;color:var(--ink-soft);margin-top:8px">${[...t.autores, ...(t.orientador && t.orientador.nome ? [{ ...t.orientador, ori: true }] : [])].map((a) => `${esc(a.nome)}${a.ori ? " (orientador)" : ""}${a.instituicao ? ` — ${esc(a.instituicao)}` : ""}${a.titulacao ? `, ${esc(tit(a.titulacao))}` : ""}`).join("; ")}</div>
       <p style="font-size:14px;line-height:1.6;margin-top:12px">${esc(explica)}</p>
-      ${t.decisao ? `<div class="decisao"><b>Decisão da comissão (${fmtHora(t.decisao.em)}):</b>\n${esc(t.decisao.mensagem || "—")}</div>` : ""}
+      ${t.decisao ? `<div class="decisao"><b>Decisão da PROPPEX (${fmtHora(t.decisao.em)}):</b>\n${esc(t.decisao.mensagem || "—")}</div>` : ""}
+      <p style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap"><a class="bt bt-sec" href="${pdf()}" target="_blank" rel="noopener">📄 PDF no modelo do evento</a>${botoesNormas(c).replace('<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">', "").replace(/<\/div>$/, "")}</p>
     </div>
 
     ${t.pareceres.length ? `<div class="card" style="margin-top:14px">
-      <div style="font-family:Sora,sans-serif;font-weight:700;font-size:15px;color:var(--ink)">Pareceres</div>
+      <div class="sec-t">Pareceres</div>
       <div style="font-size:12.5px;color:var(--muted);margin-top:4px">A avaliação é cega: os revisores não são identificados.</div>
       ${t.pareceres.map((p) => `<div class="parecer">
         <div class="t">${esc(p.revisor)} · <span class="selo ${p.recomendacao === "rejeitar" ? "err" : p.recomendacao === "aceitar" ? "ok" : "warn"}">${esc(REC[p.recomendacao] || p.recomendacao)}</span></div>
-        <div class="notas">${crit.map((c) => `<span>${esc(c.nome)}: <b>${esc(p.notas[c.codigo] ?? "—")}</b>/5</span>`).join("")}</div>
+        <div class="notas">${crit.map((cr) => `<span>${esc(cr.nome)}: <b>${esc(p.notas[cr.codigo] ?? "—")}</b>/5</span>`).join("")}</div>
         <div style="font-size:14px;line-height:1.6;white-space:pre-line">${esc(p.comentarios)}</div>
       </div>`).join("")}
     </div>` : ""}
 
     ${t.podeReenviar ? `<div class="card" style="margin-top:14px">
-      <div style="font-family:Sora,sans-serif;font-weight:700;font-size:15px;color:var(--ink)">Enviar a versão corrigida</div>
-      <label>Resumo corrigido *</label>
-      <textarea id="c-resumo" rows="10">${esc(atual.resumo || "")}</textarea>
-      <label>${t.modalidade === "resumo" ? "Arquivo (opcional)" : "Arquivo corrigido (PDF ou Word) — sem os nomes dos autores"}</label>
-      <input id="c-arquivo" type="file" accept=".pdf,.doc,.docx">
-      ${atual.arquivo && t.modalidade !== "resumo" ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">Sem arquivo novo, vale o anterior (${esc(atual.arquivo.name)}).</div>` : ""}
-      <label>O que foi alterado (opcional, para a comissão)</label>
-      <textarea id="c-nota" rows="3" placeholder="ex.: reescrevi a metodologia e incluí o n da amostra, conforme o Revisor A."></textarea>
+      <div class="sec-t">Enviar a versão corrigida</div>
+      <div class="ajuda">O formulário volta preenchido com a versão atual. Corrija o que a PROPPEX pediu e envie de novo — a autoria não muda.</div>
+      <label>Título *</label><input id="f-titulo" value="${esc(t.titulo)}">
+      <label>Título em inglês (opcional)</label><input id="f-titulo-en" value="${esc(t.tituloEn || "")}">
+      <div id="f-conteudo">${camposConteudo(c, atual, t.modalidade)}</div>
+      <label>O que foi alterado (opcional, para a PROPPEX)</label>
+      <textarea id="c-nota" rows="3" placeholder="ex.: reescrevi a metodologia e incluí o n da amostra, conforme pedido."></textarea>
       <div id="c-msg"></div>
       <p style="margin-top:14px"><button class="bt bt-pri" id="c-enviar" onclick="reenviar()">Enviar a versão corrigida</button></p>
     </div>` : ""}
 
     <div class="card" style="margin-top:14px">
-      <div style="font-family:Sora,sans-serif;font-weight:700;font-size:15px;color:var(--ink)">Versões enviadas</div>
+      <div class="sec-t">Versões enviadas</div>
       <div style="margin-top:8px">${t.versoes.map((v) => `<div class="versao">
         <b>Versão ${v.n}</b><span style="color:var(--muted)">${fmtHora(v.em)}</span>
-        ${v.arquivo ? `<a href="${esc(v.arquivo.link)}">${esc(v.arquivo.name)}</a>` : `<span style="color:var(--muted)">só o resumo</span>`}
+        <a href="${pdf(v.n)}" target="_blank" rel="noopener">PDF</a>
+        ${v.arquivo ? `<a href="${esc(v.arquivo.link)}">${esc(v.arquivo.name)}</a>` : ""}
         ${v.nota ? `<span style="color:var(--ink-soft)">— ${esc(v.nota)}</span>` : ""}
       </div>`).join("")}</div>
-      <details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px;color:var(--brand)">Ver o resumo da versão atual</summary>
-        <pre class="resumo">${esc(atual.resumo || "")}</pre></details>
+      <details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px;color:var(--brand)">Ver o texto da versão atual</summary>
+        <pre class="resumo"><b>Resumo</b>\n${esc(atual.resumo || "")}\n\n<b>Palavras-chave:</b> ${esc((atual.palavrasChave || []).join("; "))}${atual.abstract ? `\n\n<b>Abstract</b>\n${esc(atual.abstract)}\n\n<b>Keywords:</b> ${esc((atual.keywords || []).join("; "))}` : ""}${atual.secoes ? (j.catalogos.secoes || []).map((s) => `\n\n<b>${esc(s.nome)}</b>\n${esc(atual.secoes[s.codigo] || "")}`).join("") : ""}</pre></details>
       ${t.podeRetirar ? `<p style="margin-top:14px"><button class="bt bt-ghost" style="color:var(--err)" onclick="retirar()">Retirar o trabalho</button></p>` : ""}
     </div>`;
+  if (t.podeReenviar) { contar("f-resumo", "f-cont-resumo"); contar("f-abstract", "f-cont-abstract"); }
 }
 async function reenviar() {
   const msg = $("c-msg"); msg.innerHTML = "";
   const fd = new FormData();
-  fd.append("dados", JSON.stringify({ resumo: $("c-resumo").value, nota: $("c-nota").value }));
-  const arq = $("c-arquivo").files[0];
+  fd.append("dados", JSON.stringify({ titulo: $("f-titulo").value, tituloEn: $("f-titulo-en").value, ...lerConteudo(), nota: $("c-nota").value }));
+  const arq = $("f-arquivo") && $("f-arquivo").files[0];
   if (arq) { if (arq.size > 15 * 1024 * 1024) { msg.innerHTML = `<div class="msg err">O arquivo passa de 15 MB.</div>`; return; } fd.append("arquivo", arq); }
   const bt = $("c-enviar"); bt.disabled = true; bt.textContent = "Enviando…";
   try {
