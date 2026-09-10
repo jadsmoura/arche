@@ -2374,6 +2374,19 @@ function renderCobCats(){
     </tr>`).join("")}</tbody></table></div>`
     :`<div class="cnt">— nenhuma categoria. Adicione ao menos uma para cobrar.</div>`;
 }
+/* Lote sem data não sai da tela (set/2026): o servidor recusa, e recusar
+   depois da viagem é pior do que dizer aqui — o lote existe para marcar o dia
+   em que o valor sobe, então sem data ele não é lote nenhum. */
+function lotesProntos(){
+  const sem = EV_COB.lotes.filter(l => !String(l.desde || "").trim());
+  if(!sem.length) return true;
+  alert(`Informe a data "a partir de" ${sem.length > 1 ? "dos lotes" : "do lote"} `
+    + sem.map(l => `"${l.nome || "sem nome"}"`).join(", ")
+    + ".\n\nO lote diz de que dia em diante o valor da categoria sobe. "
+    + "Para tirar um lote da lista, use o \u201cremover\u201d ao lado dele.");
+  return false;
+}
+
 function renderCobLotes(){
   const el=$("cob-lotes"); if(!el) return;
   el.innerHTML=EV_COB.lotes.length?`<div class="scrollx"><table class="pt">
@@ -2502,6 +2515,7 @@ async function salvarVouchers(id){
   }catch(e){ if(msg) msg.textContent=""; alert(e.message); }
 }
 function salvarCobranca(id){
+  if(!lotesProntos()) return false;
   return salvarParteEvento(id,{cobranca:{
     ativa:$("cob-ativa")?.checked===true,
     recebedor:$("cob-recebedor")?.value||"",

@@ -3283,22 +3283,22 @@ async function lerAcoes() {
 }
 // fila serializada: duas gravações simultâneas se perderiam uma à outra
 let filaEx = Promise.resolve();
-/**
- * A fila de escrita das ações. `flushJa: false` grava na memória e deixa o
- * arquivo subir na próxima janela do storage (1,2 s, agrupando o que chegar
- * junto) em vez de esperar a subida DENTRO da fila.
- *
- * Por que isso existe (incidente do credenciamento, ago/2026): em produção
- * o estado é UM arquivo no Drive, e cada `flush` reescreve o arquivo
- * INTEIRO. Com o flush dentro da fila, cada leitura de QR subia todo o
- * estado antes de a próxima começar — dez pessoas na porta viravam dez
- * uploads em série, e a fila parecia um sistema travado. O dado já está na
- * memória quando a resposta sai (é dela que a próxima leitura parte); o que
- * se adia é só a ida ao Drive, que o `set` já agenda sozinho.
- *
- * Continua `true` por padrão: para o que é raro e caro de perder — aprovar,
- * registrar, encerrar —, a certeza de que subiu vale a espera.
- */
+/* A fila de escrita das ações. `flushJa: false` grava na memória e deixa o
+   upload para a janela do storage — é o modo das RAJADAS (credenciamento,
+   inscrição, presença pelo telão, presença manual), onde cinquenta gravações
+   em série viravam cinquenta uploads do arquivo inteiro.
+
+   O PADRÃO É SUBIR NA HORA, e voltou a ser depois do incidente de set/2026
+   (o dono: "entrei com uma programação e ela sumiu; configurei os lotes duas
+   vezes e sumiu as duas"). Ao encurtar a banda eu havia feito o `flush()`
+   padrão apenas AGENDAR o upload para dali a 60 s — e um DEPLOY no meio da
+   janela leva a gravação junto: a instância nova lê o `_estado.json` do Drive
+   enquanto a antiga ainda tem gravações só na memória, e o que a antiga
+   escrever depois (ou deixar de escrever) se perde de um lado ou do outro.
+   Com a janela de 1,2 s isso era desprezível; com 60 s ela cobre o deploy
+   inteiro, e naquela tarde houve dois. A economia de banda veio das rajadas
+   marcadas `false`, do poll leve e da compressão — não de segurar a gravação
+   de quem configura um evento, que é rara e cara de perder. */
 function comAcoes(fn, { flushJa = true } = {}) {
   const proxima = filaEx.then(async () => {
     const acoes = await lerAcoes();
@@ -3307,8 +3307,10 @@ function comAcoes(fn, { flushJa = true } = {}) {
       await storage.set(EX_KEY, JSON.stringify(acoes));
       // "agora" sobe o arquivo na hora (só onde um e-mail depende da gravação:
       // pagamento confirmado, isenção); `true` deixa para a janela do storage
-      if (flushJa === "agora") await storage.flush?.({ agora: true });
-      else if (flushJa) await storage.flush?.();
+      // `true` e `"agora"` são a mesma coisa desde set/2026: sobem já, e o
+      // erro do upload propaga. `"agora"` fica nos pontos em que a intenção
+      // é explícita (um e-mail depende da gravação).
+      if (flushJa) await storage.flush?.({ agora: true });
     }
     return r;
   });
@@ -7218,6 +7220,26 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
          página que promete o que não entrega. Desligar é sempre permitido; as
          inscrições já pagas ficam como estão. */
       if (b.cobranca !== undefined) {
+        /* LOTE SEM DATA NÃO SE APAGA EM SILÊNCIO (achado do dono set/2026:
+           "configurei os lotes duas vezes e sumiu as duas"). Quando o lote
+           passou a ser "acréscimo A PARTIR de uma data", a tela ANTIGA — a que
+           ficou no cache do navegador — continuou lendo `ate`/`ajuste`, que não
+           existem mais: ela desenhava as linhas com a data em branco, e o que
+           voltava ao servidor era um lote sem data nenhuma, que a normalização
+           descartava. A pessoa preenchia, salvava, e via tudo vazio de novo.
+           A régua: linha com nome ou acréscimo e SEM data é recusa com o motivo
+           — nunca descarte —, e se TODAS as linhas vierem sem data enquanto há
+           lote gravado, a tela está desatualizada e a recusa diz para recarregar.
+           Apagar o que a pessoa configurou porque a página dela é velha é o
+           pior desfecho possível. */
+        if (Array.isArray(b.cobranca.lotes) && b.cobranca.lotes.length) {
+          const semData = b.cobranca.lotes.filter((l) => !l?.desde && !l?.ate);
+          const daTelaVelha = semData.length === b.cobranca.lotes.length && (ev.cobranca?.lotes || []).length;
+          if (daTelaVelha)
+            return { erro: [409, "Esta página está desatualizada e os lotes vieram sem data — recarregue com Ctrl+F5 (ou puxando a tela para baixo, no celular) e configure de novo. Nada foi alterado."], gravar: false };
+          if (semData.length)
+            return { erro: [400, `Informe a data "a partir de" ${semData.length > 1 ? "dos lotes" : "do lote"} ${semData.map((l) => `"${String(l?.nome || "sem nome").slice(0, 40)}"`).join(", ")} — o lote diz de que dia em diante o valor sobe.`], gravar: false };
+        }
         // os vouchers têm guia própria: a guia Cobrança, que não os manda, não os apaga
         const cob = normalizarCobranca(b.cobranca.vouchers === undefined && ev.cobranca?.vouchers
           ? { ...b.cobranca, vouchers: ev.cobranca.vouchers } : b.cobranca);

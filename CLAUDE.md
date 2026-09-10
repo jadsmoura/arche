@@ -4073,6 +4073,29 @@ public/
   se desenha. O vocabulário dos três grupos é do COMPONENTE, não de cada tela: um setor novo já
   nasce com eles. O nome que falta no registro do setor (a ata guarda o e-mail de quem lavrou, a
   reserva o de quem pediu) passa a vir do perfil — uma lista de e-mails soltos não se escolhe.
+- **A JANELA DE 60 s PERDIA GRAVAÇÃO NO DEPLOY — o padrão voltou a subir NA HORA**
+  (`comAcoes` em server.js, incidente do dono set/2026: "acabei de entrar com uma programação e
+  ela sumiu; já configurei os lotes duas vezes e sumiu as duas"). Ao encurtar a banda eu fiz o
+  `flush()` padrão apenas AGENDAR o upload para dali a 60 s. Um DEPLOY no meio dessa janela leva
+  a gravação junto: a instância NOVA lê o `_estado.json` do Drive enquanto a antiga ainda tem
+  gravações só na memória — quem escrever por último manda, e o do outro lado some. Com a janela
+  de 1,2 s isso era desprezível; com 60 s ela cobre o deploy inteiro, e naquela tarde houve dois,
+  exatamente enquanto ele configurava o CONINT. **`flushJa: true` (o padrão) voltou a significar
+  `agora`**, e `flushJa: false` continua nas RAJADAS que motivaram a economia — credenciamento,
+  inscrição, presença pelo telão e presença manual. A economia de banda veio delas, do poll leve
+  e da compressão; segurar a gravação de quem configura um evento (rara e cara de perder) nunca
+  foi parte dela.
+- **LOTE SEM DATA NÃO SE APAGA EM SILÊNCIO** (a guarda em `POST /api/extensao/:id/evento` +
+  `lotesProntos` na guia Cobrança — a outra metade do mesmo incidente). Quando o lote passou a
+  ser "acréscimo a partir de uma data", a tela ANTIGA que ficou no cache do navegador continuou
+  lendo `ate`/`ajuste`, que não existem mais: ela desenhava as linhas com **a data em branco e o
+  acréscimo zerado**, e o que voltava ao servidor era um lote sem data nenhuma, que a
+  normalização descartava. A pessoa preenchia, salvava, e via tudo vazio de novo — duas vezes
+  seguidas. A régua agora: linha com nome e **sem data** é recusa **nomeando o lote**, nunca
+  descarte; e se TODAS as linhas vierem sem data enquanto há lote GRAVADO, é tela desatualizada —
+  **409 mandando recarregar, sem alterar nada**. Apagar o que a pessoa configurou porque a página
+  dela é velha é o pior desfecho possível, e "descartar o que não valida" é a forma silenciosa
+  desse erro. A tela nova confere antes de enviar, para a recusa não custar uma viagem.
 - **O ESTADO SOBE AO DRIVE EM JANELAS DE UM MINUTO, não a cada gravação** (`JANELA_MS`/
   `ESTADO_JANELA_MS` e `flush({ agora })` em lib/storage.js + `flushJa: "agora"` em `comAcoes`,
   set/2026 — o Render avisou que os **25 GB do plano Pro acabaram em dez dias**). O suspeito era o
