@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Presença pelo telão — Eventos UNIEGO</title>
+<link rel="icon" href="/arche/favicon.svg">
+<style>
+  /* A PROJEÇÃO (servida em /eventos/<slug>/telao/<atividade>?acao=<id>,
+     set/2026): a tela que vai ao projetor no fim da palestra. Pede o código
+     da janela corrente à API (com a sessão de quem opera o evento) e troca o
+     QR a cada janela — é o que faz a foto do telão morrer em minutos. Nas
+     atividades de início e fim, o botão escolhe a fase; a contagem embaixo
+     diz quantos já registraram, para quem está no palco saber quando fechar. */
+  :root{--brand:#1c3742;--accent:#71c8e2;--bg:#0f2027;--ok:#8fdba1}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    background:var(--bg);color:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:center;padding:22px}
+  .ev{font-size:clamp(13px,1.5vw,18px);opacity:.75;letter-spacing:.04em;text-transform:uppercase}
+  h1{font-size:clamp(20px,3vw,38px);font-weight:800;line-height:1.2;max-width:1100px}
+  .fase{display:inline-block;font-size:clamp(12px,1.3vw,16px);font-weight:800;letter-spacing:.1em;border-radius:8px;padding:5px 12px}
+  .fase.entrada{background:#2e7d32;color:#fff}.fase.saida{background:#2159c9;color:#fff}
+  p.chamada{font-size:clamp(15px,1.8vw,22px);opacity:.9}
+  .qr{position:relative;background:#fff;border-radius:22px;padding:16px;width:min(58vh,84vw)}
+  .qr img{width:100%;height:auto;display:block}
+  .qr.trocando img{opacity:.35}
+  .barra{height:6px;border-radius:3px;background:rgba(255,255,255,.15);width:min(58vh,84vw);overflow:hidden}
+  .barra i{display:block;height:100%;background:var(--accent);transition:width 1s linear}
+  code{font-size:clamp(12px,1.3vw,17px);background:rgba(255,255,255,.12);padding:7px 12px;border-radius:10px;word-break:break-all;max-width:90vw}
+  .cont{font-size:clamp(14px,1.6vw,20px)}
+  .cont b{color:var(--ok);font-size:1.4em}
+  .acoes{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+  button{border:0;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;background:rgba(255,255,255,.14);color:#fff}
+  button.on{background:var(--accent);color:var(--brand)}
+  .erro{background:#c62828;color:#fff;border-radius:12px;padding:14px 18px;max-width:640px;font-size:15px;line-height:1.5}
+  .erro a{color:#fff}
+  .peq{font-size:12px;opacity:.55}
+  @media(prefers-reduced-motion:reduce){.barra i{transition:none}}
+</style>
+</head>
+<body>
+<div class="ev" id="ev">…</div>
+<h1 id="tit">Abrindo a projeção…</h1>
+<div id="fase"></div>
+<p class="chamada" id="chamada"></p>
+<div class="qr" id="qr" hidden><img id="img" alt="QR de presença"></div>
+<div class="barra" id="barra" hidden><i id="bi" style="width:100%"></i></div>
+<code id="url" hidden></code>
+<div class="cont" id="cont"></div>
+<div class="acoes" id="acoes"></div>
+<div id="erro"></div>
+<div class="peq" id="peq"></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const m = location.pathname.match(/^\/eventos\/([^/]+)\/telao\/([^/]+)/) || [];
+const SLUG = decodeURIComponent(m[1] || ""), AID = decodeURIComponent(m[2] || "");
+const Q = new URLSearchParams(location.search);
+const ACAO = Q.get("acao") || "";
+let FASE = Q.get("fase") === "saida" ? "saida" : "entrada";
+let ATE = 0, JANELA = 60, TIMER = null, D = null;
+
+const api = () => `/api/extensao/${encodeURIComponent(ACAO)}/telao/${encodeURIComponent(AID)}?fase=${FASE}`;
+
+function desenharAcoes() {
+  if (!D) return;
+  $("acoes").innerHTML = (D.atividade.duasLeituras
+    ? `<button class="${FASE === "entrada" ? "on" : ""}" onclick="trocarFase('entrada')">ENTRADA</button>
+       <button class="${FASE === "saida" ? "on" : ""}" onclick="trocarFase('saida')">SAÍDA</button>` : "")
+    + `<button onclick="telaCheia()">⛶ Tela cheia</button>`;
+}
+function trocarFase(f) { FASE = f; history.replaceState(null, "", `?acao=${encodeURIComponent(ACAO)}&fase=${f}`); atualizar(); }
+function telaCheia() { (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}); }
+
+async function atualizar() {
+  try {
+    const r = await fetch(api(), { cache: "no-store" });
+    if (r.status === 401 || r.status === 403) { location.href = "/entrar/?next=" + encodeURIComponent(location.pathname + location.search); return; }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { $("erro").innerHTML = `<div class="erro">${esc(j.error || "Não foi possível gerar o código.")} <a href="/eventos/gestao">Voltar à gestão</a></div>`; $("qr").hidden = true; return; }
+    D = j;
+    JANELA = j.janela; ATE = Date.parse(j.validoAte);
+    $("ev").textContent = j.evento.nome;
+    $("tit").textContent = j.atividade.titulo;
+    document.title = `${j.atividade.titulo} — presença pelo telão`;
+    $("fase").innerHTML = j.atividade.duasLeituras ? `<span class="fase ${j.fase}">${j.fase === "saida" ? "REGISTRO DE SAÍDA" : "REGISTRO DE ENTRADA"}</span>` : "";
+    $("chamada").textContent = j.fase === "saida"
+      ? "Antes de sair, aponte a câmera do celular para o código e registre a sua saída"
+      : "Aponte a câmera do celular para o código e registre a sua presença";
+    $("qr").classList.add("trocando");
+    $("img").src = `/api/extensao/${encodeURIComponent(ACAO)}/telao/${encodeURIComponent(AID)}/qr.png?fase=${FASE}&t=${Date.now()}`;
+    $("img").onload = () => $("qr").classList.remove("trocando");
+    $("qr").hidden = false; $("barra").hidden = false; $("url").hidden = false;
+    $("url").textContent = j.url.replace(/\?c=.*$/, "");
+    $("cont").innerHTML = j.fase === "saida"
+      ? `<b>${j.saidas}</b> saídas registradas · ${j.registradas} entradas`
+      : `<b>${j.registradas}</b> presenças registradas${j.inscritos ? ` · ${j.inscritos} inscritos` : ""}`;
+    $("peq").textContent = `O código se renova a cada ${JANELA} s — a foto do telão não vale depois.`;
+    $("erro").innerHTML = "";
+    desenharAcoes();
+  } catch {
+    $("erro").innerHTML = `<div class="erro">Sem conexão com o servidor — o QR em tela continua valendo até a próxima renovação.</div>`;
+  }
+}
+// a barra desce até o fim da janela; passado o fim, pede o código novo
+function tique() {
+  if (!ATE) return;
+  const resta = Math.max(0, ATE - Date.now());
+  $("bi").style.width = Math.min(100, (resta / (JANELA * 1000)) * 100) + "%";
+  if (resta <= 0) atualizar();
+}
+if (!ACAO) {
+  $("erro").innerHTML = `<div class="erro">Abra a projeção pela guia Credenciamento do ARCHÉ EV — é lá que o sistema sabe de que evento se trata.</div>`;
+  $("tit").textContent = "Presença pelo telão";
+} else {
+  atualizar();
+  TIMER = setInterval(tique, 1000);
+  // e um poll mais espaçado só para a CONTAGEM (o código já se renova pela janela)
+  setInterval(() => { if (document.visibilityState === "visible" && ATE - Date.now() > 5000) atualizarContagem(); }, 15000);
+}
+async function atualizarContagem() {
+  try {
+    const r = await fetch(api(), { cache: "no-store" });
+    if (!r.ok) return;
+    const j = await r.json();
+    $("cont").innerHTML = j.fase === "saida"
+      ? `<b>${j.saidas}</b> saídas registradas · ${j.registradas} entradas`
+      : `<b>${j.registradas}</b> presenças registradas${j.inscritos ? ` · ${j.inscritos} inscritos` : ""}`;
+  } catch { /* a próxima janela atualiza */ }
+}
+</script>
+</body>
+</html>

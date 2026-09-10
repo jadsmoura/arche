@@ -2072,6 +2072,8 @@ function renderCredenciamento(a){
       </div>
     </div>
 
+    ${cardTelao(a)}
+
     <div class="card">
       <div class="sec-t">Contingência do dia</div>
       <div class="muted" style="margin:8px 0">Se o celular do monitor falhar, a porta confere pelo nome
@@ -2087,6 +2089,81 @@ function renderCredenciamento(a){
         sistema emitir o QR dos inscritos, o código do monitor e o link do credenciamento.</div>
       <button class="bt bt-sec" onclick="nav('pagina')">Ir à Página do evento</button>
     </div>`;
+}
+
+/* PRESENÇA PELO TELÃO (decisão do dono, set/2026): na palestra grande o QR
+   vai ao telão e é o participante quem registra a própria presença. O card
+   lista as atividades marcadas com esse modo na Programação, abre a página
+   de PROJEÇÃO (código rotativo, que se renova a cada janela) e gera o QR
+   ESTÁTICO com hora de validade para o slide que ninguém atualiza. */
+function cardTelao(a){
+  const ev=a.evento||{};
+  if(ev.controleFrequencia===false) return "";
+  const dupla=(f)=>f==="entrada_saida"||f==="telao_entrada_saida";
+  const atvs=(ev.programacao||[]).filter(p=>p&&p.id&&/^telao/.test(String(p.frequencia||"")));
+  const quando=(p)=>[p.dia?p.dia.split("-").reverse().slice(0,2).join("/"):"",p.horaInicio?p.horaInicio+(p.horaFim?"–"+p.horaFim:""):""].filter(Boolean).join(" · ");
+  // validade padrão do QR estático: o fim da atividade + 1 h, ou hoje às 23:00
+  const validadePadrao=(p)=>{
+    if(p.dia&&(p.horaFim||p.horaInicio)){
+      const [h,mi]=(p.horaFim||p.horaInicio).split(":").map(Number);
+      return `${p.dia}T${String(Math.min(23,h+1)).padStart(2,"0")}:${String(mi).padStart(2,"0")}`;
+    }
+    return new Date().toISOString().slice(0,10)+"T23:00";
+  };
+  return `<div class="card">
+      <div class="sec-t">Presença pelo telão</div>
+      <div class="muted" style="margin:8px 0">Na palestra grande, em vez de a equipe ler crachá por crachá, o QR vai ao
+        <b>telão</b> e cada participante registra a própria presença pelo celular (CPF e e-mail da inscrição, ou a
+        conta do portal). O modo se escolhe <b>por atividade</b>, na guia Programação — "telão, uma leitura" ou
+        "telão, início e fim".</div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin:10px 0 4px">
+        <div><label style="margin-top:0">Renovação do QR projetado <span class="muted">(segundos)</span></label>
+          <input id="ev-telao-janela" type="number" min="20" max="600" step="10" value="${esc(ev.telaoJanela||60)}" style="max-width:120px"></div>
+        <button class="bt bt-sec" style="padding:8px 12px" onclick="salvarJanelaTelao('${esc(a.id)}')">💾 Salvar</button>
+        <span class="muted" style="font-size:12px;max-width:420px;line-height:1.45">O código do telão troca sozinho nesse intervalo e o servidor aceita
+          também o anterior — uma foto do telão vale no máximo o dobro disso. Padrão: 60 s.</span>
+      </div>
+      ${atvs.length?atvs.map((p,i)=>`
+      <div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+          <div><b>${esc(p.titulo)}</b> <span class="muted" style="font-size:12px">${esc(quando(p))} · ${dupla(p.frequencia)?"início e fim":"uma leitura"}</span></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <a class="bt bt-pri" style="padding:6px 12px;font-size:12.5px" target="_blank" rel="noopener"
+              href="/eventos/${encodeURIComponent(ev.slug)}/telao/${encodeURIComponent(p.id)}?acao=${encodeURIComponent(a.id)}&fase=entrada">🖥 Projetar${dupla(p.frequencia)?" (entrada)":""}</a>
+            ${dupla(p.frequencia)?`<a class="bt bt-sec" style="padding:6px 12px;font-size:12.5px" target="_blank" rel="noopener"
+              href="/eventos/${encodeURIComponent(ev.slug)}/telao/${encodeURIComponent(p.id)}?acao=${encodeURIComponent(a.id)}&fase=saida">🖥 Projetar (saída)</a>`:""}
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:10px">
+          <div><label style="margin-top:0;font-size:11px">QR estático para o slide — vale até</label>
+            <input type="datetime-local" id="telao-ate-${i}" value="${esc(validadePadrao(p))}" style="max-width:220px"></div>
+          ${dupla(p.frequencia)?`<div><label style="margin-top:0;font-size:11px">fase</label>
+            <select id="telao-fase-${i}" style="width:auto;padding:8px 30px 8px 10px"><option value="entrada">entrada</option><option value="saida">saída</option></select></div>`:""}
+          <button class="bt bt-ghost" style="padding:8px 12px" onclick="baixarQrTelao('${esc(a.id)}','${esc(p.id)}',${i})">⬇ Baixar o QR (PNG)</button>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:6px">O QR estático é para a apresentação de slides, que não se atualiza:
+          ele vale até a hora marcada e morre depois — quem fotografar e mandar adiante não registra nada fora dela.</div>
+      </div>`).join("")
+      :`<div class="cnt" style="margin-top:8px">— nenhuma atividade no modo telão. Na guia Programação, escolha "telão" na frequência da atividade que vai usar o QR projetado.</div>`}
+    </div>`;
+}
+async function salvarJanelaTelao(id){
+  const v=$("ev-telao-janela").value;
+  try{
+    const r=await fetch(`/api/extensao/${id}/evento`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({telaoJanela:v===""?"":Number(v)})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||r.status);
+    await carregar(); nav(SECAO);
+  }catch(e){ alert("Não foi possível salvar: "+e.message); }
+}
+function baixarQrTelao(id,aid,i){
+  const ate=$(`telao-ate-${i}`).value;
+  if(!ate){ alert("Informe até quando o QR estático vale."); return; }
+  // a validade é lida no fuso de Brasília — é onde o telão está
+  const iso=new Date(ate).toISOString();
+  if(Date.parse(iso)<=Date.now()){ alert("A validade precisa estar no futuro."); return; }
+  const fase=$(`telao-fase-${i}`)?$(`telao-fase-${i}`).value:"entrada";
+  window.open(`/api/extensao/${encodeURIComponent(id)}/telao/${encodeURIComponent(aid)}/qr.png?estatico=${encodeURIComponent(iso)}&fase=${fase}&baixar`,"_blank");
 }
 
 /* O QR em tela cheia: é o que se projeta no telão no fim da reunião. Abre
@@ -2680,12 +2757,14 @@ function renderProgEv(){
             <option value="online" ${p.modalidade==="online"?"selected":""}>online</option>
           </select></label>
         <label class="chk" style="margin:0;font-size:12.5px"
-          title="Sem controle: quem está inscrito recebe as horas. Chegada: uma leitura do QR. Entrada e saída: duas leituras, para contar o tempo de permanência.">
+          title="Sem controle: quem está inscrito recebe as horas. Monitor: a equipe da porta lê o crachá (uma vez, ou na chegada e na saída). Telão: o QR é projetado e cada participante registra a própria presença pelo celular (uma vez, ou no início e no fim).">
           frequência
           <select style="width:auto;font-size:12.5px;padding:5px 30px 5px 8px" onchange="EV_PROG[${i}].frequencia=this.value">
             <option value="nenhum" ${p.frequencia==="nenhum"?"selected":""}>sem controle</option>
-            <option value="entrada" ${(p.frequencia||"entrada")==="entrada"?"selected":""}>presença na chegada</option>
-            <option value="entrada_saida" ${p.frequencia==="entrada_saida"?"selected":""}>entrada e saída</option>
+            <option value="entrada" ${(p.frequencia||"entrada")==="entrada"?"selected":""}>monitor, na chegada</option>
+            <option value="entrada_saida" ${p.frequencia==="entrada_saida"?"selected":""}>monitor, início e fim</option>
+            <option value="telao" ${p.frequencia==="telao"?"selected":""}>telão, uma leitura</option>
+            <option value="telao_entrada_saida" ${p.frequencia==="telao_entrada_saida"?"selected":""}>telão, início e fim</option>
           </select></label>
       </div>
       <details style="margin-top:8px" ${p.descricao?"open":""}>

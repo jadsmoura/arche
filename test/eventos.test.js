@@ -16,6 +16,7 @@ import {
   FREQUENCIAS, minutosEntre, duracaoBR, REDES_SOCIAIS,
   faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento, PAPEIS_COMISSAO,
   temHotsiteEvento, eventoControlaFrequencia, contaPresente, liberadoParaParticipar, SLUGS_RESERVADOS,
+  leEmTelao, duasLeituras, janelaDoTelao, codigoTelaoRotativo, codigoTelaoEstatico, lerCodigoTelao,
 } from "../lib/eventos.js";
 
 /* --------------------------------- slug --------------------------------- */
@@ -620,7 +621,7 @@ test("blocos: catálogo com os tipos da página, códigos preservados", () => {
   assert.equal(normalizarBlocos([{ tipo: "submissao", titulo: "T", url: "https://ojs.x/y", origem: "arche" }])[0].origem, "arche");
   assert.deepEqual(REDES_SOCIAIS.map((r) => r.codigo),
     ["instagram", "facebook", "youtube", "linkedin", "tiktok", "x", "whatsapp", "telegram", "site"]);
-  assert.deepEqual(FREQUENCIAS.map((f) => f.codigo), ["nenhum", "entrada", "entrada_saida"]);
+  assert.deepEqual(FREQUENCIAS.map((f) => f.codigo), ["nenhum", "entrada", "entrada_saida", "telao", "telao_entrada_saida"]);
 });
 
 test("programação: foto grande demais é descartada sem derrubar a atividade", () => {
@@ -731,4 +732,61 @@ test("e-mail mascarado mostra a pista, não o endereço", () => {
   assert.equal(emailMascarado("@só-dominio.com"), "", "sem nome não há o que mascarar");
   // o domínio fica à vista de propósito: é ele que denuncia o "gmial.com"
   assert.match(emailMascarado("maria@gmial.com"), /@gmial\.com$/);
+});
+
+/* ------------------------- presença pelo telão --------------------------- */
+test("telão: os dois modos leem no telão, e início e fim vale para monitor e telão", () => {
+  assert.equal(leEmTelao("telao"), true);
+  assert.equal(leEmTelao("telao_entrada_saida"), true);
+  assert.equal(leEmTelao("entrada"), false);
+  assert.equal(duasLeituras("entrada_saida"), true);
+  assert.equal(duasLeituras("telao_entrada_saida"), true);
+  assert.equal(duasLeituras("telao"), false);
+  const [a] = normalizarProgramacao([{ titulo: "Magna", frequencia: "telao_entrada_saida" }]);
+  assert.equal(a.frequencia, "telao_entrada_saida");
+  assert.ok(SLUGS_RESERVADOS.has("presenca") && SLUGS_RESERVADOS.has("telao"));
+});
+
+test("telão: a janela é do evento, com padrão 60 s e limites", () => {
+  assert.equal(janelaDoTelao({}), 60);
+  assert.equal(janelaDoTelao({ telaoJanela: 120 }), 120);
+  assert.equal(janelaDoTelao({ telaoJanela: 5 }), 20);
+  assert.equal(janelaDoTelao({ telaoJanela: 9999 }), 600);
+  assert.equal(janelaDoTelao({ telaoJanela: "x" }), 60);
+});
+
+test("telão rotativo: vale na janela corrente e na anterior, morre depois", () => {
+  const chave = gerarChaveQr();
+  const t0 = Date.parse("2026-09-10T14:00:05Z");
+  const { codigo, validoAte } = codigoTelaoRotativo(chave, "abc12345", { agora: t0, janela: 60 });
+  assert.match(codigo, /^r[0-9a-z]+\.e\.[0-9a-f]{12}$/);
+  assert.equal(validoAte, "2026-09-10T14:01:00.000Z");
+  assert.deepEqual(lerCodigoTelao(chave, "abc12345", codigo, { agora: t0 + 30_000, janela: 60 }), { ok: true, fase: "entrada", tipo: "rotativo" });
+  // a janela seguinte ainda aceita (quem apontou no último segundo)
+  assert.equal(lerCodigoTelao(chave, "abc12345", codigo, { agora: t0 + 90_000, janela: 60 }).ok, true);
+  // duas janelas depois, não
+  assert.deepEqual(lerCodigoTelao(chave, "abc12345", codigo, { agora: t0 + 150_000, janela: 60 }), { ok: false, motivo: "expirado" });
+  // outra atividade, outra chave, código mexido: inválido
+  assert.equal(lerCodigoTelao(chave, "outra000", codigo, { agora: t0, janela: 60 }).motivo, "invalido");
+  assert.equal(lerCodigoTelao(gerarChaveQr(), "abc12345", codigo, { agora: t0, janela: 60 }).motivo, "invalido");
+  assert.equal(lerCodigoTelao(chave, "abc12345", codigo.replace(/.$/, (c) => (c === "0" ? "1" : "0")), { agora: t0, janela: 60 }).motivo, "invalido");
+  assert.equal(lerCodigoTelao(chave, "abc12345", "", { agora: t0 }).motivo, "invalido");
+  // a fase viaja assinada: o código de saída não vale como entrada
+  const s = codigoTelaoRotativo(chave, "abc12345", { fase: "saida", agora: t0, janela: 60 });
+  assert.equal(lerCodigoTelao(chave, "abc12345", s.codigo, { agora: t0, janela: 60 }).fase, "saida");
+  assert.equal(lerCodigoTelao(chave, "abc12345", s.codigo.replace(".s.", ".e."), { agora: t0, janela: 60 }).motivo, "invalido");
+});
+
+test("telão estático: vale até a hora marcada, nunca no passado", () => {
+  const chave = gerarChaveQr();
+  const agora = Date.parse("2026-09-10T14:00:00Z");
+  const c = codigoTelaoEstatico(chave, "abc12345", "2026-09-10T18:00:00Z", { agora });
+  assert.match(c.codigo, /^e[0-9a-z]+\.e\.[0-9a-f]{12}$/);
+  assert.equal(c.validoAte, "2026-09-10T18:00:00.000Z");
+  assert.equal(lerCodigoTelao(chave, "abc12345", c.codigo, { agora: agora + 3 * 3600_000 }).ok, true);
+  assert.equal(lerCodigoTelao(chave, "abc12345", c.codigo, { agora: agora + 4 * 3600_000 + 60_000 }).motivo, "expirado");
+  assert.equal(lerCodigoTelao(chave, "zzz00000", c.codigo, { agora }).motivo, "invalido");
+  // uma validade no passado não gera código
+  assert.equal(codigoTelaoEstatico(chave, "abc12345", "2026-09-10T13:00:00Z", { agora }), null);
+  assert.equal(codigoTelaoEstatico(chave, "abc12345", "nada", { agora }), null);
 });

@@ -1634,6 +1634,42 @@ public/
   transformaria em saída um crachá relido por engano, e o plantão de saída costuma ser de
   outro monitor. A saída grava `saidaEm` e a permanência; sem entrada registrada, a leitura de
   saída **registra a entrada** e avisa na tela.
+- **PRESENÇA PELO TELÃO — o participante registra a própria presença** (`FREQUENCIAS` com os modos
+  `telao` e `telao_entrada_saida` + `codigoTelaoRotativo`/`codigoTelaoEstatico`/`lerCodigoTelao`/
+  `janelaDoTelao` em lib/eventos.js; `registrarPresenca` no server, que é o NÚCLEO compartilhado com
+  o check-in do monitor; rotas `GET /api/extensao/:id/telao/:aid[/qr.png]` (gestão) e
+  `GET/POST /api/publico/eventos/:slug/presenca/:aid`; páginas `public/eventos/telao.html` (a
+  projeção, em `/eventos/<slug>/telao/<aid>?acao=<id>`) e `presenca.html` (o celular do
+  participante, em `/eventos/<slug>/presenca/<aid>?c=<código>`); card "Presença pelo telão" na guia
+  Credenciamento do ARCHÉ EV — decisão do dono set/2026: "palestras grandes é mais fácil se o
+  controle de frequência for projetando o QR code no final; palestras menores com monitores lendo o QR
+  uma única vez; minicursos validam com leitura no início e no fim — seria ideal eu poder escolher").
+  A escolha continua sendo POR ATIVIDADE, no seletor de frequência da guia Programação, agora com cinco
+  opções: sem controle · monitor na chegada · monitor início e fim · **telão, uma leitura** · **telão,
+  início e fim**. O que muda no telão é QUEM LÊ: nos modos do monitor a equipe lê o crachá; no telão o
+  QR é projetado e o participante lê com o próprio celular. Os dois caminhos convivem na mesma atividade
+  (o PWA do monitor lista as atividades de telão também), e a presença entra no MESMO `presencas[]`, com
+  `por: "telão"` — certificado, AEE e `houveCredenciamento` não perguntam quem gravou.
+  **O código é do servidor, e morre**: a foto do telão circula no WhatsApp (a mesma fraude da hora-limite
+  da inscrição). O **rotativo** (`r<janela>.<fase>.<hmac>`) é o índice da janela de tempo assinado com a
+  `chaveQr` do evento; a página de projeção troca o QR a cada janela (padrão 60 s, `telaoJanela` por
+  evento entre 20 e 600 — "pode deixar opção") e o servidor aceita a corrente e a anterior: a foto vale
+  no máximo o dobro da janela. O **estático** (`e<validoAte>.<fase>.<hmac>`) existe porque "às vezes o
+  QR vai ao final de uma apresentação de slides, que não me permite atualizar": carrega a hora até a
+  qual vale, assinada junto, e vence nela. O HMAC cobre atividade + fase + tipo + tempo: código de uma
+  atividade não vale na outra, e o de saída não vale como entrada. Não há "projeção aberta" a
+  sinalizar: o rotativo só existe enquanto a página o mostra, e é isso que faz o papel.
+  **Quem se identifica é a pessoa**: com sessão, o e-mail é o da conta (o CPF vem do perfil, ou é
+  pedido quando o perfil não o tem); sem sessão, **CPF e e-mail, os dois batendo na MESMA inscrição**
+  (decisão do dono — o par da recuperação de credencial; e-mail sozinho seria um jeito de marcar
+  presença em nome de outro). Quem não está inscrito recebe o caminho da inscrição, nunca uma presença;
+  no evento pago vale `liberadoParaParticipar` (só inscrição paga ou isenta), a mesma régua da porta.
+  Código inválido e identificação errada contam no `freioOnline`. A projeção exige sessão de quem opera
+  o evento e recusa atividade fora do modo telão (botão que o servidor recusaria é armadilha); a página
+  mostra fase (ENTRADA/SAÍDA nas de início e fim), a barra da janela, o endereço escrito e **quantos já
+  registraram**, que é o número que quem está no palco olha para saber se dá para fechar. Gravação com
+  `flushJa: false`, como a porta: cinquenta celulares lendo o telão ao mesmo tempo não podem esperar o
+  Drive cinquenta vezes.
 - **QR de inscrição para projetar** (`/api/publico/eventos/:slug/qr-inscricao.png`, botão na
   guia Credenciamento): nem toda reunião dá para inscrever antes — o QR da página do evento
   vai ao telão no encerramento e quem estava ali se inscreve na hora. Tem versão em tela

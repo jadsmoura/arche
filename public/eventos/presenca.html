@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Registrar presença — Eventos UNIEGO</title>
+<link rel="icon" href="/arche/favicon.svg">
+<link rel="stylesheet" href="/assets/arche-ui.css">
+<style>
+  /* PRESENÇA PELO TELÃO (servida em /eventos/<slug>/presenca/<atividade>?c=…,
+     set/2026): é a página que abre no celular de quem apontou a câmera para
+     o QR projetado. O código do endereço vale por uma janela curta (ou até a
+     hora marcada, no QR do slide) — quem confere é o servidor. A pessoa se
+     identifica pela conta do portal ou por CPF + e-mail, os dois juntos, e a
+     presença entra pelo MESMO núcleo do check-in do monitor. */
+  .cartao{max-width:460px;margin:22px auto 0}
+  .titulo{font-family:Sora,sans-serif;font-size:19px;font-weight:700;color:var(--brand);letter-spacing:-.01em;line-height:1.3}
+  .quando{font-size:13px;color:var(--muted);margin-top:4px}
+  .fase{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.08em;border-radius:6px;padding:3px 8px;margin-top:10px}
+  .fase.entrada{background:var(--ok-soft);color:var(--ok)} .fase.saida{background:var(--accent-wash);color:var(--brand)}
+  .msg{border-radius:10px;padding:11px 13px;font-size:13.5px;font-weight:600;margin-top:12px;line-height:1.5}
+  .msg.err{background:var(--err-soft);color:var(--err)} .msg.ok{background:var(--ok-soft);color:var(--ok)}
+  .msg.warn{background:var(--warn-soft);color:var(--warn);font-weight:500}
+  .conta{background:var(--wash);border-radius:10px;padding:10px 12px;font-size:13px;margin-top:12px;line-height:1.5}
+  .conta b{color:var(--ink)}
+  .res{text-align:center;padding:10px 0 4px}
+  .res .ic{font-size:52px;line-height:1}
+  .res .tt{font-family:Sora,sans-serif;font-size:22px;font-weight:800;margin-top:8px;color:var(--ink)}
+  .res .nm{font-size:16px;font-weight:600;margin-top:4px;color:var(--ink)}
+  .res .dt{font-size:13px;color:var(--muted);margin-top:4px}
+  .bt{width:100%;margin-top:12px}
+  .peq{font-size:12.5px;color:var(--muted);margin-top:14px;line-height:1.5}
+  .peq a{color:var(--brand)}
+</style>
+</head>
+<body>
+<header class="topo">
+  <div class="topo-rule"></div>
+  <div class="topo-inner">
+    <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+    <div class="vr"></div>
+    <div class="topo-txt">
+      <div class="topo-t"><span class="arche-wm"><span class="arche-tx">Registro de presença</span></span></div>
+      <div class="topo-s">Eventos · Extensão · PROPPEX / UNIEGO</div>
+    </div>
+    <nav class="topo-nav"><a id="lk-evento" href="/eventos/">Página do evento</a></nav>
+  </div>
+</header>
+<main><div class="card cartao" id="cartao"><p style="color:var(--muted)">Abrindo…</p></div></main>
+<footer>
+  <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+  <div class="sep"></div>
+  <p>PROPPEX — Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária.</p>
+</footer>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (iso) => (/^\d{4}-\d{2}-\d{2}/.test(String(iso || "")) ? String(iso).slice(0, 10).split("-").reverse().join("/") : "");
+const hora = (iso) => { try { return new Date(iso).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
+const m = location.pathname.match(/^\/eventos\/([^/]+)\/presenca\/([^/]+)/) || [];
+const SLUG = decodeURIComponent(m[1] || ""), AID = decodeURIComponent(m[2] || "");
+const CODIGO = new URLSearchParams(location.search).get("c") || "";
+const API = `/api/publico/eventos/${encodeURIComponent(SLUG)}/presenca/${encodeURIComponent(AID)}`;
+const URL_EV = `/eventos/${encodeURIComponent(SLUG)}`;
+$("lk-evento").href = URL_EV;
+let D = null;
+
+const cabecalho = () => `
+  <div class="eyebrow">${esc(D.evento.nome)}</div>
+  <div class="titulo" style="margin-top:6px">${esc(D.atividade.titulo)}</div>
+  <div class="quando">${[fmt(D.atividade.dia), D.atividade.horaInicio ? D.atividade.horaInicio + (D.atividade.horaFim ? "–" + D.atividade.horaFim : "") : ""].filter(Boolean).join(" · ")}</div>
+  ${D.atividade.duasLeituras && D.codigo.ok ? `<span class="fase ${D.codigo.fase}">${D.codigo.fase === "saida" ? "REGISTRO DE SAÍDA" : "REGISTRO DE ENTRADA"}</span>` : ""}`;
+
+function formCpf(soCpf) {
+  return `${soCpf ? "" : `<label>E-mail usado na inscrição</label>
+    <input id="f-email" type="email" autocomplete="email" inputmode="email" placeholder="voce@exemplo.com">`}
+    <label>CPF</label>
+    <input id="f-cpf" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" maxlength="14">`;
+}
+
+function render() {
+  const c = D.codigo;
+  if (!D.atividade.telao) {
+    $("cartao").innerHTML = cabecalho() + `<div class="msg warn">Esta atividade não registra presença pelo telão — a presença é lida pelo monitor, no crachá.</div>
+      <a class="bt bt-sec" href="${URL_EV}">Página do evento</a>`;
+    return;
+  }
+  if (!c.ok) {
+    $("cartao").innerHTML = cabecalho() + `<div class="msg err">${c.motivo === "expirado"
+      ? "Este código já venceu. Aponte a câmera de novo para o QR que está no telão agora — ele se renova sozinho."
+      : "Este código não vale para esta atividade. Leia o QR diretamente do telão."}</div>
+      <div class="peq">Se o QR estava num slide, a validade dele pode ter terminado — fale com a organização.</div>`;
+    return;
+  }
+  const conta = D.conta;
+  $("cartao").innerHTML = cabecalho() + (conta
+    ? `<div class="conta">Registrando a presença de <b>${esc(conta.nome || conta.email)}</b> (${esc(conta.email)}).
+         <a href="#" onclick="trocarConta();return false">Não sou eu</a></div>
+       ${conta.temCpf ? "" : `<div class="msg warn" style="margin-top:10px">O seu perfil ainda não tem CPF — informe o CPF da inscrição.</div>${formCpf(true)}`}`
+    : `<p style="font-size:13.5px;color:var(--ink-soft);margin-top:12px;line-height:1.5">Informe o <b>CPF e o e-mail</b> que você usou na inscrição.
+         ${D.exigeConta ? `Ou <a href="/entrar/?next=${encodeURIComponent(location.pathname + location.search)}">entre com a sua conta</a> do portal.` : ""}</p>
+       ${formCpf(false)}`)
+    + `<button class="bt bt-pri" id="bt-ok" onclick="registrar()">✓ Registrar minha presença</button>
+       <div id="msg"></div>
+       <div class="peq">A presença entra na sua inscrição e vale para o certificado desta atividade. Ainda não se inscreveu? <a href="${URL_EV}">Inscreva-se aqui</a> e depois leia o QR de novo.</div>`;
+  const cpf = $("f-cpf");
+  if (cpf) cpf.addEventListener("input", () => {
+    const d = cpf.value.replace(/\D/g, "").slice(0, 11);
+    cpf.value = d.replace(/^(\d{3})(\d)/, "$1.$2").replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d{1,2})$/, ".$1-$2");
+  });
+}
+
+async function trocarConta() {
+  try { await fetch("/auth/sair", { method: "POST" }); } catch { /* a tela de entrada resolve */ }
+  location.href = "/entrar/?next=" + encodeURIComponent(location.pathname + location.search);
+}
+
+function resultado(j) {
+  const cred = j.token ? `<a class="bt bt-sec" href="${URL_EV}/inscricao/${encodeURIComponent(j.token)}">Ver minha inscrição</a>` : "";
+  let ic = "✅", tt = "Presença registrada", dt = j.presenteEm ? "às " + hora(j.presenteEm) : "";
+  if (j.saida) { ic = "🏁"; tt = "Saída registrada"; dt = `entrada ${hora(j.presenteEm)} · saída ${hora(j.saidaEm)}${j.permanenciaTxt ? " · " + j.permanenciaTxt : ""}`; }
+  else if (j.completa) { ic = "✅"; tt = "Entrada e saída já registradas"; dt = `entrada ${hora(j.presenteEm)} · saída ${hora(j.saidaEm)}`; }
+  else if (j.ja) { ic = "👍"; tt = "Você já estava registrado(a)"; }
+  else if (j.entradaSemRegistro) { tt = "Presença registrada (entrada)"; }
+  $("cartao").innerHTML = `<div class="res"><div class="ic">${ic}</div><div class="tt">${tt}</div>
+    <div class="nm">${esc(j.nome || "")}</div><div class="dt">${esc(D.atividade.titulo)}${dt ? " · " + esc(dt) : ""}</div>
+    ${j.inscritoAgora ? `<div class="msg ok" style="text-align:left">Você foi incluído(a) nesta atividade — ela passa a constar na sua inscrição.</div>` : ""}
+    ${cred}<a class="bt bt-ghost" href="${URL_EV}">Página do evento</a></div>`;
+}
+
+async function registrar() {
+  const bt = $("bt-ok"); bt.disabled = true; $("msg").innerHTML = "";
+  const corpo = { c: CODIGO };
+  if ($("f-cpf")) corpo.cpf = $("f-cpf").value;
+  if ($("f-email")) corpo.email = $("f-email").value.trim();
+  try {
+    const r = await fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok) { resultado(j); return; }
+    if (j.naoInscrito) {
+      $("msg").innerHTML = `<div class="msg err">${esc(j.error)}</div>
+        <a class="bt bt-sec" href="${URL_EV}">Inscrever-me no evento</a>
+        <div class="peq">Depois de se inscrever, volte e leia o QR do telão de novo.</div>`;
+    } else {
+      $("msg").innerHTML = `<div class="msg err">${esc(j.error || "Não foi possível registrar agora.")}</div>`;
+    }
+  } catch {
+    $("msg").innerHTML = `<div class="msg err">Sem conexão agora — tente de novo.</div>`;
+  } finally { bt.disabled = false; }
+}
+
+async function carregar() {
+  const r = await fetch(`${API}?c=${encodeURIComponent(CODIGO)}`);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    $("cartao").innerHTML = `<div class="msg err">${esc(j.error || "Não foi possível abrir.")}</div><a class="bt bt-sec" href="/eventos/">Ver os eventos</a>`;
+    return;
+  }
+  D = j;
+  document.title = `${j.atividade.titulo} — presença`;
+  render();
+}
+carregar().catch(() => { $("cartao").innerHTML = '<p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente.</p>'; });
+</script>
+</body>
+</html>

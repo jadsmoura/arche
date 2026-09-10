@@ -89,6 +89,8 @@ import {
   normalizarFormulario, validarRespostas, LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd,
   normalizarBlocos, TIPOS_BLOCO, CATEGORIAS_APOIO, REDES_SOCIAIS, FREQUENCIAS,
   minutosEntre, duracaoBR, eventoControlaFrequencia, temHotsiteEvento, liberadoParaParticipar,
+  leEmTelao, duasLeituras, janelaDoTelao, codigoTelaoRotativo, codigoTelaoEstatico, lerCodigoTelao,
+  TELAO_JANELA_MIN, TELAO_JANELA_MAX,
 } from "./lib/eventos.js";
 import {
   PAPEIS_COMISSAO, faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento,
@@ -6489,6 +6491,120 @@ app.get("/api/extensao/:id/trabalhos.xlsx", async (req, res) => {
 });
 
 /**
+ * O NÚCLEO da presença: grava a presença de UM inscrito numa atividade (ou na
+ * entrada geral, `atv` nulo) e devolve o retrato para a tela. É o mesmo para
+ * o check-in do MONITOR e para a presença pelo TELÃO (set/2026) — duas cópias
+ * desta régua acabariam diferentes, e a presença é o que vira certificado.
+ * `por` diz quem registrou ("monitor" | "telão"); `fase` só importa nas
+ * atividades de início e fim. Devolve { erro: [status, msg] } quando recusa;
+ * `gravar: false` diz à fila que nada mudou.
+ */
+function registrarPresenca(a, atv, inscrito, { fase = "entrada", por = "monitor", agora = new Date().toISOString() } = {}) {
+  /* EVENTO PAGO: a credencial só vale PAGA (ou isenta). Crachá de
+     inscrição sem pagamento confirmado é recusado na porta com o nome e
+     o motivo — o monitor sabe o que dizer, e a pessoa regulariza pela
+     própria página da inscrição (o Pix confirma em segundos). */
+  if (!inscricaoValida(inscrito))
+    return { erro: [409, `${inscrito.nome || "Inscrição"}: pagamento ${ROTULO_PAGAMENTO[inscrito.pagamento?.status] || "não confirmado"} — `
+      + "a credencial só vale com o pagamento confirmado. Oriente a pessoa a regularizar pela página da inscrição."], gravar: false };
+  const idAtv = atv ? atv.id : "";
+  // Evento SEM controle de frequência não tem porta: a inscrição já é a
+  // presença, e todo inscrito conta 100% (decisão do dono, ago/2026)
+  if (!eventoControlaFrequencia(a.evento))
+    return { erro: [400, "Este evento não faz controle de frequência — quem está inscrito já conta como presente."], gravar: false };
+  // Atividade SEM controle de frequência não se credencia (decisão do
+  // dono, ago/2026): quem está inscrito já recebe as horas, e deixar o
+  // monitor ler QR à toa daria a impressão de que a presença importa.
+  if (atv && atv.frequencia === "nenhum")
+    return { erro: [400, `“${atv.titulo}” não faz controle de frequência — quem está inscrito já recebe as horas.`], gravar: false };
+  /* Quem chega sem ter marcado a atividade É INSCRITO NA HORA (decisão do
+     dono, ago/2026): em evento de programação múltipla muita gente se
+     inscreve só no geral e aparece na oficina — registrar a presença sem
+     a inscrição deixaria a atividade fora da lista da pessoa e, depois,
+     fora do certificado. Só entra havendo VAGA; lotada, a presença vale
+     igual (a pessoa está ali) e o monitor vê o aviso na tela para decidir. */
+  let inscritoAgora = false;
+  if (atv && atv.inscricao === "propria" && !(inscrito.atividades || []).includes(atv.id)) {
+    const pode = podeEscolherAtividade(a.evento, atv.id,
+      a.participantes?.inscritos || [], inscrito.atividades || []);
+    if (pode.ok) {
+      inscrito.atividades = [...(inscrito.atividades || []), atv.id];
+      inscritoAgora = true;
+    }
+  }
+  const extras = atv ? {
+    atividade: atv.titulo,
+    ...(inscritoAgora ? { inscritoAgora: true } : {}),
+    // presença vale mesmo sem a marcação (a pessoa chegou e participou —
+    // remanejamento de última hora é rotina de evento), mas a tela avisa
+    ...(atv.inscricao === "propria" && !(inscrito.atividades || []).includes(atv.id)
+      ? { naoInscritoNaAtividade: true } : {}),
+  } : {};
+  const presencas = inscrito.presencas || (inscrito.presencas = []);
+  const anterior = presencas.find((x) => String(x?.atividade || "") === idAtv);
+  /* ENTRADA E SAÍDA (decisão do dono, ago/2026): em atividade marcada
+     assim o monitor DIZ o que está registrando — o plantão de saída é
+     outro momento, com o link aberto de novo e a fase escolhida na tela.
+     Deduzir "segunda leitura = saída" transformaria em saída o crachá
+     relido por engano; e o monitor da porta, no fim da oficina, não tem
+     como saber quem já passou por ali. */
+  if (atv && duasLeituras(atv.frequencia) && fase === "saida") {
+    if (!anterior) {
+      // ninguém registrou a chegada desta pessoa (chegou antes do monitor,
+      // fila grande): a presença vale — registra a ENTRADA e avisa
+      presencas.push({ atividade: idAtv, em: agora, por });
+      if (inscrito.presente !== true) {
+        inscrito.presente = true; inscrito.presenteEm = agora; inscrito.presentePor = por;
+      }
+      a.atualizadoEm = agora;
+      return { nome: inscrito.nome || "", presenteEm: agora, entradaSemRegistro: true, ...extras };
+    }
+    if (anterior.saidaEm)
+      return { ja: true, completa: true, nome: inscrito.nome || "", presenteEm: anterior.em || "",
+        saidaEm: anterior.saidaEm, permanencia: minutosEntre(anterior.em, anterior.saidaEm),
+        ...extras, gravar: false };
+    if (Date.parse(agora) - Date.parse(anterior.em || 0) < 60000)
+      return { ja: true, nome: inscrito.nome || "", presenteEm: anterior.em || "", ...extras, gravar: false };
+    anterior.saidaEm = agora;
+    anterior.saidaPor = por;
+    a.atualizadoEm = agora;
+    return { saida: true, nome: inscrito.nome || "", presenteEm: anterior.em || "",
+      saidaEm: agora, permanencia: minutosEntre(anterior.em, agora), ...extras };
+  }
+  // idempotente POR NÍVEL: repetir a mesma atividade (ou a entrada geral)
+  // devolve a primeira hora; registro antigo sem `presencas` conta como
+  // a entrada geral já feita. MAS presença DESFEITA pela gestão volta a
+  // valer aqui (achado da revisão de ago/2026): responder "já
+  // credenciado" com presente=false deixaria a pessoa fora do export de
+  // presentes sem ninguém perceber — quem se apresenta de novo, conta.
+  if (anterior || (!atv && !presencas.length && inscrito.presente === true)) {
+    if (inscrito.presente === true)
+      return { ja: true, nome: inscrito.nome || "",
+        presenteEm: anterior?.em || inscrito.presenteEm || "", ...extras,
+        // a presença já estava lá, mas a inscrição na atividade pode ter
+        // acabado de nascer — aí há o que gravar
+        ...(inscritoAgora ? {} : { gravar: false }) };
+    if (anterior) { anterior.em = agora; anterior.por = por; }
+    inscrito.presente = true;
+    inscrito.presenteEm = agora;
+    inscrito.presentePor = por;
+    a.atualizadoEm = agora;
+    return { nome: inscrito.nome || "", presenteEm: agora, ...extras };
+  }
+  presencas.push({ atividade: idAtv, em: agora, por });
+  // o agregado continua: a PRIMEIRA presença de qualquer nível marca o
+  // participante como presente no evento (é o que o export AEE e a régua
+  // 3/3 leem)
+  if (inscrito.presente !== true) {
+    inscrito.presente = true;
+    inscrito.presenteEm = agora;
+    inscrito.presentePor = por;
+  }
+  a.atualizadoEm = agora;
+  return { nome: inscrito.nome || "", presenteEm: agora, ...extras };
+}
+
+/**
  * Check-in na entrada, pelos MONITORES (sem conta — o código do monitor,
  * que a gestão distribui, é a credencial da porta). Aceita o token lido do
  * QR ou, no fallback manual, os 6 primeiros caracteres dele. Idempotente:
@@ -6529,110 +6645,8 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
       // token não conta, por código conta (achado da varredura ago/2026).
       if (!inscrito)
         return { erro: [404, "Inscrição não encontrada."], falha: !b.token, gravar: false };
-      /* EVENTO PAGO: a credencial só vale PAGA (ou isenta). Crachá de
-         inscrição sem pagamento confirmado é recusado na porta com o nome e
-         o motivo — o monitor sabe o que dizer, e a pessoa regulariza pela
-         própria página da inscrição (o Pix confirma em segundos). */
-      if (!inscricaoValida(inscrito))
-        return { erro: [409, `${inscrito.nome || "Inscrição"}: pagamento ${ROTULO_PAGAMENTO[inscrito.pagamento?.status] || "não confirmado"} — `
-          + "a credencial só vale com o pagamento confirmado. Oriente a pessoa a regularizar pela página da inscrição."], gravar: false };
-      const idAtv = atv ? atv.id : "";
-      // Evento SEM controle de frequência não tem porta: a inscrição já é a
-      // presença, e todo inscrito conta 100% (decisão do dono, ago/2026)
-      if (!eventoControlaFrequencia(a.evento))
-        return { erro: [400, "Este evento não faz controle de frequência — quem está inscrito já conta como presente."], gravar: false };
-      // Atividade SEM controle de frequência não se credencia (decisão do
-      // dono, ago/2026): quem está inscrito já recebe as horas, e deixar o
-      // monitor ler QR à toa daria a impressão de que a presença importa.
-      if (atv && atv.frequencia === "nenhum")
-        return { erro: [400, `“${atv.titulo}” não faz controle de frequência — quem está inscrito já recebe as horas.`], gravar: false };
-      /* Quem chega sem ter marcado a atividade É INSCRITO NA HORA (decisão do
-         dono, ago/2026): em evento de programação múltipla muita gente se
-         inscreve só no geral e aparece na oficina — registrar a presença sem
-         a inscrição deixaria a atividade fora da lista da pessoa e, depois,
-         fora do certificado. Só entra havendo VAGA; lotada, a presença vale
-         igual (a pessoa está ali) e o monitor vê o aviso na tela para decidir. */
-      let inscritoAgora = false;
-      if (atv && atv.inscricao === "propria" && !(inscrito.atividades || []).includes(atv.id)) {
-        const pode = podeEscolherAtividade(a.evento, atv.id,
-          a.participantes?.inscritos || [], inscrito.atividades || []);
-        if (pode.ok) {
-          inscrito.atividades = [...(inscrito.atividades || []), atv.id];
-          inscritoAgora = true;
-        }
-      }
-      const extras = atv ? {
-        atividade: atv.titulo,
-        ...(inscritoAgora ? { inscritoAgora: true } : {}),
-        // presença vale mesmo sem a marcação (a pessoa chegou e participou —
-        // remanejamento de última hora é rotina de evento), mas a tela avisa
-        ...(atv.inscricao === "propria" && !(inscrito.atividades || []).includes(atv.id)
-          ? { naoInscritoNaAtividade: true } : {}),
-      } : {};
-      const presencas = inscrito.presencas || (inscrito.presencas = []);
-      const anterior = presencas.find((x) => String(x?.atividade || "") === idAtv);
-      const agora = new Date().toISOString();
-      /* ENTRADA E SAÍDA (decisão do dono, ago/2026): em atividade marcada
-         assim o monitor DIZ o que está registrando — o plantão de saída é
-         outro momento, com o link aberto de novo e a fase escolhida na tela.
-         Deduzir "segunda leitura = saída" transformaria em saída o crachá
-         relido por engano; e o monitor da porta, no fim da oficina, não tem
-         como saber quem já passou por ali. */
       const fase = String(b.fase || "") === "saida" ? "saida" : "entrada";
-      if (atv && atv.frequencia === "entrada_saida" && fase === "saida") {
-        if (!anterior) {
-          // ninguém registrou a chegada desta pessoa (chegou antes do monitor,
-          // fila grande): a presença vale — registra a ENTRADA e avisa
-          presencas.push({ atividade: idAtv, em: agora, por: "monitor" });
-          if (inscrito.presente !== true) {
-            inscrito.presente = true; inscrito.presenteEm = agora; inscrito.presentePor = "monitor";
-          }
-          a.atualizadoEm = agora;
-          return { nome: inscrito.nome || "", presenteEm: agora, entradaSemRegistro: true, ...extras };
-        }
-        if (anterior.saidaEm)
-          return { ja: true, completa: true, nome: inscrito.nome || "", presenteEm: anterior.em || "",
-            saidaEm: anterior.saidaEm, permanencia: minutosEntre(anterior.em, anterior.saidaEm),
-            ...extras, gravar: false };
-        if (Date.parse(agora) - Date.parse(anterior.em || 0) < 60000)
-          return { ja: true, nome: inscrito.nome || "", presenteEm: anterior.em || "", ...extras, gravar: false };
-        anterior.saidaEm = agora;
-        anterior.saidaPor = "monitor";
-        a.atualizadoEm = agora;
-        return { saida: true, nome: inscrito.nome || "", presenteEm: anterior.em || "",
-          saidaEm: agora, permanencia: minutosEntre(anterior.em, agora), ...extras };
-      }
-      // idempotente POR NÍVEL: repetir a mesma atividade (ou a entrada geral)
-      // devolve a primeira hora; registro antigo sem `presencas` conta como
-      // a entrada geral já feita. MAS presença DESFEITA pela gestão volta a
-      // valer aqui (achado da revisão de ago/2026): responder "já
-      // credenciado" com presente=false deixaria a pessoa fora do export de
-      // presentes sem ninguém perceber — quem se apresenta de novo, conta.
-      if (anterior || (!atv && !presencas.length && inscrito.presente === true)) {
-        if (inscrito.presente === true)
-          return { ja: true, nome: inscrito.nome || "",
-            presenteEm: anterior?.em || inscrito.presenteEm || "", ...extras,
-            // a presença já estava lá, mas a inscrição na atividade pode ter
-            // acabado de nascer — aí há o que gravar
-            ...(inscritoAgora ? {} : { gravar: false }) };
-        if (anterior) { anterior.em = agora; anterior.por = "monitor"; }
-        inscrito.presente = true;
-        inscrito.presenteEm = agora;
-        inscrito.presentePor = "monitor";
-        a.atualizadoEm = agora;
-        return { nome: inscrito.nome || "", presenteEm: agora, ...extras };
-      }
-      presencas.push({ atividade: idAtv, em: agora, por: "monitor" });
-      // o agregado continua: a PRIMEIRA presença de qualquer nível marca o
-      // participante como presente no evento (é o que o export AEE e a régua
-      // 3/3 leem)
-      if (inscrito.presente !== true) {
-        inscrito.presente = true;
-        inscrito.presenteEm = agora;
-        inscrito.presentePor = "monitor";
-      }
-      a.atualizadoEm = agora;
-      return { nome: inscrito.nome || "", presenteEm: agora, ...extras };
+      return registrarPresenca(a, atv, inscrito, { fase, por: "monitor" });
     }, { flushJa: false });
     if (r.erro) {
       if (r.falha) freioCheckin.falhou(req.ip);   // só o CÓDIGO DO MONITOR errado conta ao freio
@@ -6653,6 +6667,184 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
       ...(r.naoInscritoNaAtividade ? { naoInscritoNaAtividade: true } : {}) });
   } catch (e) {
     console.error("Erro no check-in do evento:", e);
+    res.status(500).json({ error: "Não foi possível registrar agora. Tente de novo." });
+  }
+});
+
+/* ======================= PRESENÇA PELO TELÃO (set/2026) =======================
+   Na palestra grande não há como parar todo mundo na porta: o QR vai ao telão
+   e é o PARTICIPANTE quem lê e registra a própria presença. A régua do código
+   está em lib/eventos.js (rotativo por janela, ou estático com hora de
+   validade para o slide que ninguém atualiza). Quem GERA o código é quem
+   opera o evento, com sessão; quem CONSOME é a rota pública, que identifica a
+   pessoa pela conta do portal ou por CPF + e-mail (os dois juntos, decisão do
+   dono) e grava pelo MESMO núcleo do check-in do monitor. */
+const atividadeDoTelao = (a, aid) => {
+  const atv = (a?.evento?.programacao || []).find((x) => x?.id === String(aid || "").trim()) || null;
+  if (!atv) return { erro: [404, "Atividade não encontrada na programação."] };
+  if (!eventoControlaFrequencia(a.evento))
+    return { erro: [400, "Este evento não faz controle de frequência — quem está inscrito já conta como presente."] };
+  if (!leEmTelao(atv.frequencia))
+    return { erro: [400, `“${atv.titulo}” não está no modo de presença pelo telão — mude a frequência da atividade na guia Programação.`] };
+  return { atv };
+};
+function codigoDoTelao(a, atv, q) {
+  const fase = String(q.fase || "") === "saida" && duasLeituras(atv.frequencia) ? "saida" : "entrada";
+  if (q.estatico) {
+    const c = codigoTelaoEstatico(a.evento.chaveQr, atv.id, String(q.estatico), { fase });
+    if (!c) return { erro: [400, "A validade do QR estático precisa ser uma data e hora no futuro."] };
+    return { ...c, fase, tipo: "estatico" };
+  }
+  return { ...codigoTelaoRotativo(a.evento.chaveQr, atv.id, { fase, janela: janelaDoTelao(a.evento) }), fase, tipo: "rotativo" };
+}
+const urlDaPresenca = (req, a, atv, codigo) => {
+  const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+  return `${base}/eventos/${encodeURIComponent(a.evento.slug)}/presenca/${encodeURIComponent(atv.id)}?c=${encodeURIComponent(codigo)}`;
+};
+async function acaoDoTelao(req, res) {
+  const u = await sessaoEx(req, res);
+  if (!u) return null;
+  const a = (await lerAcoes()).find((x) => x.id === req.params.id);
+  if (!a || !podeOperarEvento(u, a)) { res.status(404).json({ error: "Ação não encontrada" }); return null; }
+  if (!a.evento?.slug || !a.evento?.chaveQr) { res.status(400).json({ error: "O credenciamento é emitido na primeira ativação da página do evento." }); return null; }
+  return a;
+}
+/** O código de agora (ou o estático) e o endereço que ele abre. A página de
+ *  projeção chama de novo a cada janela. */
+app.get("/api/extensao/:id/telao/:aid", async (req, res) => {
+  try {
+    const a = await acaoDoTelao(req, res);
+    if (!a) return;
+    const { atv, erro } = atividadeDoTelao(a, req.params.aid);
+    if (erro) return res.status(erro[0]).json({ error: erro[1] });
+    const c = codigoDoTelao(a, atv, req.query);
+    if (c.erro) return res.status(c.erro[0]).json({ error: c.erro[1] });
+    // quantos já registraram nesta atividade (e quantos já saíram): é o
+    // número que a pessoa no palco olha para saber se dá para fechar
+    const inscritos = (a.participantes?.inscritos || []).filter((i) => inscricaoValida(i));
+    const pres = inscritos.map((i) => (i.presencas || []).find((p) => String(p?.atividade || "") === atv.id)).filter(Boolean);
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, codigo: c.codigo, url: urlDaPresenca(req, a, atv, c.codigo), validoAte: c.validoAte,
+      fase: c.fase, tipo: c.tipo, janela: janelaDoTelao(a.evento),
+      registradas: pres.length, saidas: pres.filter((p) => p.saidaEm).length, inscritos: inscritos.length,
+      evento: { nome: a.proposta?.nomeAtividade || "", slug: a.evento.slug },
+      atividade: { id: atv.id, titulo: atv.titulo, dia: atv.dia, horaInicio: atv.horaInicio, horaFim: atv.horaFim,
+        frequencia: atv.frequencia, duasLeituras: duasLeituras(atv.frequencia) } });
+  } catch (e) {
+    console.error("Erro no código do telão:", e);
+    res.status(500).json({ error: "Não foi possível gerar o código agora." });
+  }
+});
+/** O mesmo código em PNG: a página de projeção o troca a cada janela; com
+ *  `estatico=<ISO>` sai o QR para colar no slide, e `baixar` o entrega. */
+app.get("/api/extensao/:id/telao/:aid/qr.png", async (req, res) => {
+  try {
+    const a = await acaoDoTelao(req, res);
+    if (!a) return;
+    const { atv, erro } = atividadeDoTelao(a, req.params.aid);
+    if (erro) return res.status(erro[0]).send(erro[1]);
+    const c = codigoDoTelao(a, atv, req.query);
+    if (c.erro) return res.status(c.erro[0]).send(c.erro[1]);
+    const { default: QRCode } = await import("qrcode");
+    const png = await QRCode.toBuffer(urlDaPresenca(req, a, atv, c.codigo), { type: "png", errorCorrectionLevel: "M", margin: 2, width: 900 });
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "no-store");
+    if (req.query.baixar !== undefined)
+      res.setHeader("Content-Disposition", `attachment; filename="qr-presenca-${slug(atv.titulo || atv.id)}-${c.fase}.png"`);
+    res.send(png);
+  } catch (e) {
+    console.error("Erro no QR do telão:", e);
+    res.status(500).send("Erro ao gerar o QR");
+  }
+});
+
+/** O que a página de presença precisa ANTES de gravar: o evento e a
+ *  atividade, se o código ainda vale, e quem está logado (para preencher). */
+app.get("/api/publico/eventos/:slug/presenca/:aid", async (req, res) => {
+  try {
+    const a = eventoPorSlug(await lerAcoes(), req.params.slug);
+    if (!a?.evento?.slug) return res.status(404).json({ error: "Evento não encontrado." });
+    const atv = (a.evento.programacao || []).find((x) => x?.id === String(req.params.aid || "").trim());
+    if (!atv) return res.status(404).json({ error: "Atividade não encontrada." });
+    const codigo = lerCodigoTelao(a.evento.chaveQr, atv.id, req.query.c, { janela: janelaDoTelao(a.evento) });
+    const conta = await usuarioDe(req, res);
+    let cpfConta = "";
+    if (conta) cpfConta = (await carregarPerfis())[conta.email]?.cpf || "";
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      evento: { nome: a.proposta?.nomeAtividade || "", slug: a.evento.slug, pago: cobrancaAtiva(a.evento.cobranca) },
+      atividade: { id: atv.id, titulo: atv.titulo, dia: atv.dia, horaInicio: atv.horaInicio, horaFim: atv.horaFim,
+        duasLeituras: duasLeituras(atv.frequencia), telao: leEmTelao(atv.frequencia) && eventoControlaFrequencia(a.evento) },
+      codigo: codigo.ok ? { ok: true, fase: codigo.fase } : { ok: false, motivo: codigo.motivo },
+      conta: conta ? { email: conta.email, nome: conta.nome || "", temCpf: !!cpfConta } : null,
+      exigeConta: exigeContaNaInscricao(a.evento),
+    });
+  } catch (e) {
+    console.error("Erro ao abrir a presença pelo telão:", e);
+    res.status(500).json({ error: "Não foi possível abrir agora. Tente de novo." });
+  }
+});
+/**
+ * Registra a presença de quem leu o telão. Identificação: com sessão, o
+ * e-mail é o da conta (e o CPF, o do perfil ou o digitado); sem sessão, CPF
+ * E e-mail, os dois batendo na mesma inscrição — como a recuperação da
+ * credencial. Não inscrito recebe o caminho da inscrição, nunca uma presença.
+ * Evento pago: só a inscrição válida (paga ou isenta), a mesma régua da porta.
+ * Falha de código e de identificação conta no freio (é rota pública).
+ */
+app.post("/api/publico/eventos/:slug/presenca/:aid", async (req, res) => {
+  try {
+    if (freioOnline.excedeu(req.ip))
+      return res.status(429).json({ error: "Muitas tentativas sem sucesso. Aguarde alguns minutos." });
+    const b = req.body || {};
+    const conta = await usuarioDe(req, res);
+    const cpfDigitado = normalizarCpf(b.cpf);
+    let email = String(b.email || "").trim().toLowerCase();
+    let cpf = cpfDigitado;
+    if (conta) {
+      email = String(conta.email).toLowerCase();
+      if (!cpf) cpf = (await carregarPerfis())[conta.email]?.cpf || "";
+    } else if (!cpf || !RE_EMAIL_INSCRICAO.test(email)) {
+      return res.status(400).json({ error: "Informe o CPF e o e-mail usados na inscrição." });
+    }
+    const r = await comAcoes((acoes) => {
+      const a = eventoPorSlug(acoes, req.params.slug);
+      if (!a?.evento?.slug) return { erro: [404, "Evento não encontrado."], gravar: false };
+      const { atv, erro } = atividadeDoTelao(a, req.params.aid);
+      if (erro) return { erro, gravar: false };
+      const cod = lerCodigoTelao(a.evento.chaveQr, atv.id, b.c, { janela: janelaDoTelao(a.evento) });
+      if (!cod.ok)
+        return { erro: [410, cod.motivo === "expirado"
+          ? "Este código já venceu — leia o QR que está no telão agora."
+          : "Código inválido — leia o QR diretamente do telão desta atividade."], falha: true, gravar: false };
+      const inscritos = a.participantes?.inscritos || [];
+      // com conta: e-mail OU CPF (o casamento da área do inscrito); sem conta:
+      // os dois juntos, senão a rota viraria um jeito de marcar presença em nome de outro
+      const inscrito = conta
+        ? jaInscrito(inscritos, { email, cpf })
+        : inscritos.find((i) => soDigitos(i?.cpf) === cpf && String(i?.email || "").trim().toLowerCase() === email) || null;
+      if (!inscrito) return { erro: [404, "Não encontramos a sua inscrição neste evento."], naoInscrito: true, falha: true, gravar: false };
+      const lib = liberadoParaParticipar(a.evento, inscrito);
+      if (!lib.ok) return { erro: [403, lib.motivo], gravar: false };
+      const p = registrarPresenca(a, atv, inscrito, { fase: cod.fase, por: "telão" });
+      // sem sessão a pessoa provou CPF + e-mail; com sessão, provou a conta. O
+      // token da credencial é dela e a leva à própria inscrição
+      return { ...p, token: inscrito.token || "", fase: cod.fase };
+    }, { flushJa: false });
+    if (r.erro) {
+      if (r.falha) freioOnline.falhou(req.ip);
+      return res.status(r.erro[0]).json({ error: r.erro[1], ...(r.naoInscrito ? { naoInscrito: true } : {}) });
+    }
+    res.json({ ok: true, ja: r.ja === true, nome: r.nome, presenteEm: r.presenteEm, fase: r.fase,
+      ...(r.saida ? { saida: true } : {}), ...(r.completa ? { completa: true } : {}),
+      ...(r.entradaSemRegistro ? { entradaSemRegistro: true } : {}),
+      ...(r.saidaEm ? { saidaEm: r.saidaEm } : {}),
+      ...(r.permanencia !== undefined ? { permanencia: r.permanencia, permanenciaTxt: duracaoBR(r.permanencia) } : {}),
+      ...(r.atividade ? { atividade: r.atividade } : {}),
+      ...(r.inscritoAgora ? { inscritoAgora: true } : {}),
+      ...(r.token ? { token: r.token } : {}) });
+  } catch (e) {
+    console.error("Erro na presença pelo telão:", e);
     res.status(500).json({ error: "Não foi possível registrar agora. Tente de novo." });
   }
 });
@@ -7030,6 +7222,13 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
       // o interruptor do EVENTO: sem controle de frequência, ninguém
       // credencia e todo inscrito conta como presente
       if (b.controleFrequencia !== undefined) ev.controleFrequencia = b.controleFrequencia !== false;
+      // a janela do QR ROTATIVO do telão, em segundos (set/2026); vazio volta ao padrão
+      if (b.telaoJanela !== undefined) {
+        const n = Math.trunc(Number(b.telaoJanela));
+        if (b.telaoJanela !== "" && b.telaoJanela !== null && (!Number.isFinite(n) || n < TELAO_JANELA_MIN || n > TELAO_JANELA_MAX))
+          return { erro: [400, `Janela do QR do telão inválida — entre ${TELAO_JANELA_MIN} e ${TELAO_JANELA_MAX} segundos.`], gravar: false };
+        if (Number.isFinite(n) && n > 0) ev.telaoJanela = n; else delete ev.telaoJanela;
+      }
       // hotsite completo × só a folha de inscrição (pedido do dono, ago/2026)
       if (b.hotsite !== undefined) ev.hotsite = b.hotsite !== false;
       // vazio volta ao texto institucional padrão (LGPD_TEXTO_PADRAO)
@@ -17742,6 +17941,12 @@ app.get(/^\/eventos\/[a-z0-9-]+\/pagamento\/[a-zA-Z0-9]+\/?$/, (_req, res) =>
 // a ÁREA DO INSCRITO (com a conta do portal): pagamento, programação e trabalhos
 app.get(/^\/eventos\/[a-z0-9-]+\/participante\/?$/, (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "participante.html")));
+// PRESENÇA PELO TELÃO (set/2026): a página que o participante abre ao ler o
+// QR projetado, e a página de PROJEÇÃO (com login — ela pede o código à API)
+app.get(/^\/eventos\/[a-z0-9-]+\/presenca\/[a-zA-Z0-9_-]+\/?$/, (_req, res) =>
+  res.sendFile(path.join(PUBLIC, "eventos", "presenca.html")));
+app.get(/^\/eventos\/[a-z0-9-]+\/telao\/[a-zA-Z0-9_-]+\/?$/, (_req, res) =>
+  res.sendFile(path.join(PUBLIC, "eventos", "telao.html")));
 // ARCHÉ TR: a submissão do autor (e o acompanhamento, com o token) e o
 // parecer do revisor (só com o token dele)
 app.get(/^\/eventos\/[a-z0-9-]+\/trabalhos(\/[a-f0-9]{24})?\/?$/, (_req, res) =>

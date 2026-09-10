@@ -194,14 +194,18 @@ async function montarAtividades() {
     // própria e as que a coordenação marcou com entrada e saída (uma palestra
     // longa pode querer contar quem ficou até o fim). "Sem controle de
     // frequência" não aparece — ali não há o que ler
+    // as de TELÃO também entram: o monitor pode ler quem está na fila
+    // enquanto o telão pega o resto (os dois caminhos convivem)
     ATIVIDADES = (ev.programacao || []).filter((p) => p && p.id && p.frequencia !== "nenhum"
-      && (p.inscricao === "propria" || p.frequencia === "entrada_saida"));
+      && (p.inscricao === "propria" || dupla(p.frequencia) || /^telao/.test(String(p.frequencia || ""))));
   } catch { /* sem catálogo agora — a entrada geral continua funcionando */ }
 }
 
 /* A etapa da escolha: as atividades de HOJE em cima (é onde o monitor está),
    depois as demais, a entrada geral e, por último, o modo do monitor volante
    — que pergunta a cada QR em vez de fixar uma atividade. */
+// início e fim, seja o monitor ou o telão quem lê
+const dupla = (freq) => freq === "entrada_saida" || freq === "telao_entrada_saida";
 function mostrarOnde() {
   pararCamera();
   $("p-scan").classList.add("hide");
@@ -218,7 +222,7 @@ function mostrarOnde() {
     p.horaInicio ? p.horaInicio + (p.horaFim ? "–" + p.horaFim : "") : "",
     p.local || ""].filter(Boolean).join(" · ");
   $("onde-lista").innerHTML =
-    ordenadas.flatMap((p) => p.frequencia === "entrada_saida"
+    ordenadas.flatMap((p) => dupla(p.frequencia)
       // atividade de INÍCIO E FIM aparece duas vezes: o monitor diz o que está
       // registrando agora. No fim da atividade ele abre o link de novo e
       // escolhe a saída — é o que evita transformar em saída um crachá relido
@@ -244,7 +248,7 @@ function irParaLeitura(valor) {
     const atv = ATIVIDADES.find((p) => p.id === ATV_SEL);
     const nome = ATV_SEL === "?" ? "Perguntar a cada leitura"
       : atv ? atv.titulo : "Entrada geral do evento";
-    $("faixa-nome").innerHTML = esc(nome) + (atv && atv.frequencia === "entrada_saida"
+    $("faixa-nome").innerHTML = esc(nome) + (atv && dupla(atv.frequencia)
       ? ` <span class="faixa-fase ${FASE}">${FASE === "saida" ? "SAÍDA" : "ENTRADA"}</span>` : "");
     faixa.classList.remove("hide");
   } else {
@@ -431,9 +435,9 @@ async function escolher(idAtv) {
   escolhendo = null;
   if (!corpo) { pausado = false; return; }
   const chave = (corpo.token || corpo.codigo || "") + "|" + idAtv;
-  const dupla = (ATIVIDADES.find((x) => x.id === idAtv) || {}).frequencia === "entrada_saida";
+  const ehDupla = dupla((ATIVIDADES.find((x) => x.id === idAtv) || {}).frequencia);
   const visto = JA_LIDOS.get(chave);
-  if (visto && (!dupla || Date.now() - visto < 3 * 60 * 1000)) {
+  if (visto && (!ehDupla || Date.now() - visto < 3 * 60 * 1000)) {
     repetido(); setTimeout(() => { pausado = false; }, 1200); return;
   }
   JA_LIDOS.set(chave, Date.now());
