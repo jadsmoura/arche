@@ -71,6 +71,13 @@
 
   <!-- Etapa de completar o cadastro: aparece só a quem tem campo faltando,
        e some sozinha quando o perfil fica completo. -->
+  <!-- Cadastro PRÉ-PREENCHIDO pelo sistema e ainda não reivindicado: diz em
+       nome de quem está e dá a saída a quem não é essa pessoa (o e-mail pode
+       ter sido informado por outro — a aluna que preencheu o formulário do
+       edital pela orientadora, set/2026). Vem ANTES da etapa de completar:
+       "de quem é este cadastro" se responde antes de "o que falta nele". -->
+  <div id="pre-cadastro" class="oculto"></div>
+
   <div id="etapa-completar" class="oculto"></div>
 
   <!-- foto e conta -->
@@ -350,6 +357,7 @@ fetch("/api/me").then(async r=>{
   if($("cpf").value) $("cpf").value=fmtCPF($("cpf").value);   // guardado só em dígitos
   $("resumo-cont").textContent=$("resumo").value.length;
   PRE_CADASTRO = !!p.preCadastro;
+  mostrarPreCadastro(p);
   marcarEtapa(ME.perfilFalta || []);
   TEM_SENHA=!!ME.temSenha;
   $("senha-estado").textContent=TEM_SENHA
@@ -369,6 +377,39 @@ const VINDO_DE_SETOR = new URLSearchParams(location.search).get("completar") ===
    preenchidos: sem dizer de onde vieram, ela pensa que o portal os inventou
    — ou não confere o que está errado. */
 let PRE_CADASTRO = false;
+const escHtml=(s)=>String(s??"").replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+/* O pré-cadastro diz EM NOME DE QUEM está, e oferece a saída a quem não é
+   essa pessoa. O caso real (set/2026): o formulário do edital foi preenchido
+   pela aluna com o e-mail dela, e o pré-cadastro da orientadora — nome e CPF —
+   nasceu na conta da estudante. Ela via o nome de outra pessoa, o CPF gravado
+   que "só a PROPPEX altera", e não achava onde pôr os próprios dados. O
+   botão limpa o formulário; o servidor, ao receber OUTRO CPF num pré-cadastro
+   que ninguém reivindicou, desliga o cadastro anterior desta conta. */
+function mostrarPreCadastro(p){
+  const cx=$("pre-cadastro");
+  if(!p||!p.preCadastro){ cx.classList.add("oculto"); cx.innerHTML=""; return; }
+  const origem=/edital/i.test(p.criadoPor||"")
+    ? "dos documentos do edital de Iniciação Científica (formulário de submissão e termos)"
+    : "da lista que a coordenação do curso enviou à PROPPEX";
+  cx.innerHTML=`<div class="etapa" style="border-color:#c9dbe2;background:#f1f8fb">
+    <div class="t" style="color:#1c3742">Este cadastro foi preparado em nome de <span id="pc-nome">${escHtml(p.nome||"—")}</span></div>
+    <p>A PROPPEX o preencheu a partir ${origem}, para o e-mail <b>${escHtml(ME?.email||"")}</b>.
+      <b>É você?</b> Confira, complete o que falta e salve — o cadastro passa a ser seu.</p>
+    <p style="margin-top:8px"><b>Não é você?</b> Esse e-mail pode ter sido informado num formulário por outra
+      pessoa. Limpe os campos e preencha os <b>seus</b> dados — nome e CPF inclusive: ao salvar, o cadastro
+      em nome de ${escHtml(p.nome||"outra pessoa")} é desligado desta conta e a PROPPEX é avisada.</p>
+    <div style="margin-top:10px"><button class="bt bt-sec" type="button" onclick="naoSouEu()">Não sou ${escHtml((p.nome||"").split(" ")[0]||"essa pessoa")} — limpar e preencher os meus dados</button></div>
+  </div>`;
+  cx.classList.remove("oculto");
+}
+function naoSouEu(){
+  for(const c of CAMPOS){ const el=$(c); if(!el) continue; el.value=""; }
+  verOutro(); verMatricula(); pintarAvatar();
+  $("pre-cadastro").querySelector("button")?.remove();
+  $("pc-nome").insertAdjacentHTML("afterend"," <span style=\"font-weight:400\">— campos limpos: preencha os seus dados e salve.</span>");
+  $("nome").focus();
+  $("nome").scrollIntoView({ behavior:"smooth", block:"center" });
+}
 function marcarEtapa(falta){
   for(const el of document.querySelectorAll(".falta")) el.classList.remove("falta");
   for(const el of document.querySelectorAll(".falta-rot")) el.classList.remove("falta-rot");
@@ -389,8 +430,9 @@ function marcarEtapa(falta){
       : "Faltam dados que o portal usa nos documentos e nas submissões."}</p>
     <ul>${nomes.map(n=>`<li>${n}</li>`).join("")}</ul>
     ${PRE_CADASTRO?`<p style="margin-top:10px;font-size:12.5px">Parte destes dados já veio preenchida:
-      a <b>coordenação do seu curso</b> a enviou à PROPPEX. Confira se está certo — o que estiver
-      errado você corrige aqui mesmo.</p>`:""}
+      a PROPPEX a preparou a partir dos documentos que recebeu (o formulário do edital ou a lista da
+      coordenação do curso). Confira se está certo — o que estiver errado você corrige aqui mesmo; e se
+      o cadastro está em nome de <b>outra pessoa</b>, use o botão acima para limpar e preencher os seus.</p>`:""}
     <p style="margin-top:10px;font-size:12.5px">O <b>CPF</b> é o que liga a você os projetos já cadastrados
       pela PROPPEX e os certificados de edições anteriores; a <b>titulação</b> é o que enquadra a proposta
       na modalidade do edital.</p>
@@ -418,9 +460,14 @@ async function salvar(){
     }
     ME.perfil=j.perfil;
     marcarEtapa([]);                 // completo: a etapa some
+    mostrarPreCadastro(j.perfil);    // reivindicado ou desligado: o aviso some
     $("msg").style.color="var(--ok)";
     // o vínculo por CPF é o que faz o projeto da submissão anterior aparecer
-    $("msg").textContent = j.projetosVinculados
+    const d=j.preCadastroDesligado;
+    $("msg").textContent = d && !d.mesmaPessoa
+      ? `✓ Perfil salvo com os seus dados. O cadastro em nome de ${d.nome||"outra pessoa"} foi desligado desta conta`
+        + (d.desligados?` (${d.desligados} projeto(s) de IC deixaram de apontar para este e-mail)`:"")+"."
+      : j.projetosVinculados
       ? `✓ Perfil salvo. ${j.projetosVinculados} projeto(s) de IC foram vinculados ao seu CPF.`
       : "✓ Perfil salvo.";
     if(NEXT!=="/"&&NEXT!==location.pathname) setTimeout(()=>location.href=NEXT,700);

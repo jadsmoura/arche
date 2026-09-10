@@ -37,7 +37,8 @@ import {
   bolsistaEntrou as icBolsistaEntrou, camposDaIndicacaoAlterados as icCamposDaIndicacaoAlterados,
   podeEnviarRelatorio, podeValidarRelatorio, cronogramaDe, relatoriosDe, relatoriosPendentes,
   podeDesignarAvaliador, podeDarParecer, ehAvaliadorDe, parecerDe, visaoDoProjeto, notaFinal,
-  participaDeAlgum, vincularPorCpf, modalidadeEfetiva as modalidadeEfetivaIC,
+  participaDeAlgum, vincularPorCpf, desligarPreCadastro, emailDoFormularioEhDeAluno,
+  modalidadeEfetiva as modalidadeEfetivaIC,
   producaoDoOrientador, prazosRelatorios, fomentoDe, notaTranscrita, decidindoOProprio,
   janelaContestacao, editalDe, podeContestar, atoDeGestao,
   idadeEm, faltaNoCadastroDoBolsista, cadastroDoBolsistaCompleto,
@@ -1107,10 +1108,28 @@ app.post("/api/perfil", async (req, res) => {
   // primeira. Uma vez gravado, só a PROPPEX corrige.
   let cpf = antes.cpf || "";
   let herdado = null;
+  /* PRÉ-CADASTRO QUE NÃO É DESTA PESSOA (relato de uma estudante, set/2026:
+     "não estou encontrando o local para colocar os dados"). O formulário do
+     edital foi preenchido pela ALUNA, com o Gmail dela, e o pré-cadastro da
+     orientadora — nome, CPF, curso, função — nasceu na conta da estudante. Ao
+     entrar, ela via o perfil de outra pessoa e o CPF gravado, que "só a
+     PROPPEX altera": não havia onde pôr os dados dela. O pré-cadastro que
+     NINGUÉM reivindicou não é dado da pessoa; é uma hipótese do sistema sobre
+     quem usa aquele e-mail. Informar outro CPF a desmente: a conta passa a
+     ser de quem está gravando, e o que o pré-cadastro tinha escrito nos
+     projetos (o e-mail como orientação) sai, para o projeto voltar a esperar
+     o titular do CPF. Fica registrado e a coordenação é avisada. */
+  const preCadastroAlheio = !!antes.preCadastro && !!antes.cpf;
+  let desligado = null;
   if (b.cpf !== undefined && soDigitos(b.cpf) !== soDigitos(antes.cpf)) {
     const novo = normalizarCpf(b.cpf);
     if (soDigitos(b.cpf) && !novo) return res.status(400).json({ error: "CPF inválido" });
-    if (antes.cpf && novo !== antes.cpf && u.papel !== "gestor") {
+    if (preCadastroAlheio && novo && novo !== antes.cpf) {
+      // mesmo nome = a própria pessoa corrigindo o CPF que veio errado do
+      // formulário: o vínculo dos projetos por e-mail fica
+      const mesmaPessoa = nomesCompativeis(chaveNome(b.nome), chaveNome(antes.nome));
+      desligado = { perfilAnterior: { ...antes }, mesmaPessoa };
+    } else if (antes.cpf && novo !== antes.cpf && u.papel !== "gestor") {
       // A confusão mais comum (relatada por um professor em ago/2026): a
       // pessoa recebe o convite de OUTRA — o aluno indicado, o monitor — e
       // tenta cadastrá-la no próprio perfil. A mensagem tem de dizer de quem
@@ -1144,10 +1163,12 @@ app.post("/api/perfil", async (req, res) => {
     cpf = novo;
   }
 
+  // o pré-cadastro de OUTRA pessoa não deixa nada na conta de quem a desmentiu
+  const base = desligado && !desligado.mesmaPessoa ? { foto: antes.foto || null } : antes;
   perfis[u.email] = {
     // o que veio do pré-cadastro preenche o que a pessoa não informou
     ...(herdado ? { curso: herdado.perfil.curso, funcao: herdado.perfil.funcao } : {}),
-    ...antes,
+    ...base,
     // a marca some assim que a própria pessoa salva: o registro passa a ser dela
     preCadastro: false,
     // identificação
@@ -1183,7 +1204,53 @@ app.post("/api/perfil", async (req, res) => {
     });
     vinculados = r.vinculados || 0;
   }
-  res.json({ ok: true, perfil: perfis[u.email], projetosVinculados: vinculados });
+
+  /* O pré-cadastro desmentido: os projetos que o e-mail passou a orientar por
+     causa dele voltam a esperar o CPF de verdade (menos os de quem tem o
+     MESMO nome — aí era a própria pessoa corrigindo o CPF). O registro fica
+     em chave interna, com o perfil que saiu, e a coordenação de pesquisa é
+     avisada: uma orientadora acabou de perder o vínculo com os projetos dela,
+     e é a PROPPEX quem sabe em que conta ela está. */
+  let preCadastroDesligado = null;
+  if (desligado) {
+    const antigo = desligado.perfilAnterior;
+    const nomeNovo = chaveNome(b.nome);
+    const r = desligado.mesmaPessoa ? { desligados: 0, projetos: [] }
+      : await comProjetos((projetos) => {
+        const d = desligarPreCadastro(projetos, {
+          email: u.email, cpf: antigo.cpf,
+          mantem: (nome) => nomesCompativeis(nomeNovo, chaveNome(nome)),
+        });
+        return { ...d, gravar: d.desligados > 0 };
+      });
+    preCadastroDesligado = {
+      nome: antigo.nome || "", mesmaPessoa: desligado.mesmaPessoa,
+      projetos: r.projetos || [], desligados: r.desligados || 0,
+    };
+    try {
+      const KEY = "sys-precadastros-desligados-v1";
+      const lista = JSON.parse((await storage.get(KEY)) || "[]");
+      lista.unshift({
+        em: new Date().toISOString(), email: u.email, nomeInformado: txt(b.nome),
+        mesmaPessoa: desligado.mesmaPessoa, perfilAnterior: antigo, projetos: r.projetos || [],
+      });
+      await storage.set(KEY, JSON.stringify(lista.slice(0, 100)));
+    } catch (e) { console.error("[perfil] registro do pré-cadastro desligado:", e.message); }
+    console.log(`[perfil] pré-cadastro de "${antigo.nome}" desligado de ${u.email}`
+      + ` (${desligado.mesmaPessoa ? "mesma pessoa, CPF corrigido" : `${r.desligados || 0} projeto(s) desvinculado(s)`})`);
+    if (!desligado.mesmaPessoa) {
+      avisarPesquisa(`Pré-cadastro desligado — ${u.email}`, [
+        ["Conta", u.email],
+        ["Quem entrou", `${txt(b.nome)} (informou o próprio CPF)`],
+        ["Pré-cadastro que estava na conta", `${antigo.nome || "—"} · ${antigo.funcao || ""} · ${antigo.curso || ""}`],
+        ["Projetos desvinculados", (r.projetos || []).filter(Boolean).join(", ") || "nenhum"],
+        ["O que fazer", "Os projetos voltaram a esperar o CPF do pré-cadastro: quando a pessoa "
+          + "certa o informar no próprio perfil, eles se vinculam sozinhos. Se ela já tem conta, "
+          + "confira o CPF gravado nela em /usuarios/."],
+      ], "O titular do e-mail desmentiu o pré-cadastro do edital");
+    }
+  }
+  res.json({ ok: true, perfil: perfis[u.email], projetosVinculados: vinculados, preCadastroDesligado });
 });
 
 // Foto do perfil. O navegador já envia a imagem redimensionada; aqui só
@@ -1682,7 +1749,8 @@ app.get("/api/minhas-pendencias", async (req, res) => {
     const hoje = hojeLocalISO();
     const itens = [];
 
-    itens.push(...pendenciasDoPerfil(await faltaNoPerfilDe(u, perfil)));
+    itens.push(...pendenciasDoPerfil(await faltaNoPerfilDe(u, perfil),
+      { preCadastroDe: perfil.preCadastro ? perfil.nome || "" : "" }));
 
     const projetos = await lerProjetos();
     itens.push(...pendenciasIC(projetos, quem, {
@@ -1935,7 +2003,10 @@ app.post("/api/ic/convidar-professores", async (req, res) => {
   for (const p of doCiclo) {
     const cpf = p.orientador?.cpf || "";
     if (!cpf || p.orientador?.email) continue;     // sem CPF não há vínculo; com e-mail já entrou
-    const email = String(p.origem?.emailFormulario || "").trim().toLowerCase();
+    // e-mail do formulário que é do ALUNO não recebe o convite para "informar
+    // o seu CPF" — o CPF é o da orientação, e o convite iria à pessoa errada
+    const email = emailDoFormularioEhDeAluno(p) ? ""
+      : String(p.origem?.emailFormulario || "").trim().toLowerCase();
     if (!porCpf.has(cpf)) porCpf.set(cpf, { cpf, nome: p.orientador?.nome || "", email, titulos: [] });
     const g = porCpf.get(cpf);
     if (!g.email && email) g.email = email;
@@ -2527,6 +2598,20 @@ async function tentarFusaoSolicitada(f, por = "arranque (pedido do dono)") {
         console.log(`[fusao] ${f.marca}: ${f.remover} não existe — pedido encerrado`);
         await storage.set(f.marca, JSON.stringify({ em: new Date().toISOString(), resultado: "origem-inexistente" }));
         return registrar("encerrado", "origem inexistente");
+      }
+      /* A origem foi REIVINDICADA por outra pessoa (set/2026): o titular do
+         e-mail desmentiu o pré-cadastro e gravou o próprio perfil, com o
+         próprio nome. Fundir agora apagaria a conta de quem acabou de se
+         cadastrar. O pedido se encerra: os projetos já saíram desse e-mail
+         e voltaram a esperar o CPF da professora. */
+      const perfilOrigem = perfis[f.remover];
+      if (perfilOrigem?.nome && !perfilOrigem.preCadastro
+        && !(f.nome || []).every((t) => chaveNome(perfilOrigem.nome).includes(t))
+        && !projetos.some((p) => baixo(p.orientador?.email) === f.remover
+          && (f.nome || []).every((t) => chaveNome(p.orientador?.nome).includes(t)))) {
+        console.log(`[fusao] ${f.marca}: ${f.remover} agora é a conta de "${perfilOrigem.nome}" — pedido encerrado`);
+        await storage.set(f.marca, JSON.stringify({ em: new Date().toISOString(), resultado: "origem-reivindicada", por: perfilOrigem.nome }));
+        return registrar("encerrado", `a conta ${f.remover} passou a ser de "${perfilOrigem.nome}", que a reivindicou com o próprio CPF`);
       }
       const cpfLimpo = String(f.cpf || "").replace(/\D/g, "");
       const primeiroNome = (f.nome || [])[0] || "";
@@ -15094,7 +15179,15 @@ async function criarPreCadastros() {
     };
     for (const p of projetos) {
       const o = p.orientador || {};
-      juntar(o.email || p.origem?.emailFormulario, {
+      /* O e-mail do formulário é de quem o PREENCHEU. Quando ele se parece com
+         o nome de um aluno da submissão (e não com o da orientação), foi o
+         aluno quem preencheu — e o pré-cadastro da orientadora nasceria na
+         conta da estudante (o caso real de set/2026). Sem e-mail, o professor
+         fica esperando o CPF, que é o vínculo forte. */
+      const emailForm = emailDoFormularioEhDeAluno(p) ? "" : p.origem?.emailFormulario;
+      if (!o.email && !emailForm && p.origem?.emailFormulario)
+        console.log(`[pré-cadastro] ${p.numero || p.id}: o e-mail do formulário parece ser do aluno — a orientação (${o.nome}) fica sem pré-cadastro por e-mail`);
+      juntar(o.email || emailForm, {
         nome: o.nome, cpf: o.cpf, curso: cursoNomeDe(p.curso), papel: "professor",
       });
       for (const a of p.alunos || []) {

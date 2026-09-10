@@ -122,3 +122,47 @@ test("o vínculo não sobrescreve e-mail já existente nem CPF alheio", () => {
     "CPF incompleto não vincula nada");
   assert.equal(vincularPorCpf(outra, { email: "", cpf: CPF }).vinculados, 0, "sem conta não há vínculo");
 });
+
+/* O PRÉ-CADASTRO QUE NÃO É DESTA PESSOA (set/2026): o formulário do edital
+   foi preenchido pela aluna com o e-mail dela, e o pré-cadastro da
+   orientadora nasceu na conta da estudante. */
+import { desligarPreCadastro, emailPareceDe, emailDoFormularioEhDeAluno } from "../lib/ic.js";
+
+test("o e-mail que carrega o nome do aluno é do aluno, não da orientação", () => {
+  assert.equal(emailPareceDe("saraaragaobarbosa0321@gmail.com", "Sara Aragão Barbosa"), true);
+  assert.equal(emailPareceDe("saraaragaobarbosa0321@gmail.com", "Luana de Miranda Santos"), false);
+  assert.equal(emailPareceDe("jbm@uniego.edu.br", "Jadson Belém"), false, "sigla não é evidência");
+  assert.equal(emailPareceDe("maria@x.com", "Maria"), false, "nome de uma palavra não é chave");
+  const p = { origem: { emailFormulario: "saraaragaobarbosa0321@gmail.com" },
+    orientador: { nome: "Luana de Miranda Santos", cpf: CPF }, alunos: [{ nome: "Sara Aragão Barbosa" }] };
+  assert.equal(emailDoFormularioEhDeAluno(p), true);
+  assert.equal(emailDoFormularioEhDeAluno({ ...p, alunos: [] }), false, "sem aluno parecido, vale o formulário");
+  assert.equal(emailDoFormularioEhDeAluno({ ...p, orientador: { nome: "Sara Aragão Barbosa" } }), false,
+    "parecido com a orientação, é dela");
+});
+
+test("outro CPF num pré-cadastro desliga o vínculo que ele tinha escrito nos projetos", () => {
+  const lista = [importado(), importado()];
+  vincularPorCpf(lista, { email: "aluna@gmail.com", cpf: CPF });   // o pré-cadastro da orientadora no e-mail da aluna
+  assert.equal(lista[0].orientador.email, "aluna@gmail.com");
+  // a aluna também está indicada (pelo e-mail, sem CPF) no segundo projeto: esse vínculo é dela e fica
+  lista[1] = { ...lista[1], alunos: [{ nome: "Sara Aragão", email: "aluna@gmail.com", cpf: "" }] };
+  const r = desligarPreCadastro(lista, { email: "aluna@gmail.com", cpf: CPF,
+    mantem: (nome) => nome === "Sara Aragão" });
+  assert.equal(r.desligados, 2);
+  assert.equal(lista[0].orientador.email, "", "volta a esperar o CPF");
+  assert.equal(lista[0].criadoPor, "", "e deixa de ter a aluna como autora");
+  assert.equal(lista[0].orientador.cpf, CPF, "o CPF da orientadora continua no projeto");
+  assert.match(lista[0].historico.at(-1).oQue, /pré-cadastro desligado/);
+  assert.equal(lista[1].alunos[0].email, "aluna@gmail.com", "a indicação da aluna não é tocada");
+  assert.equal(papelNoProjeto({ email: "aluna@gmail.com" }, lista[0]), null, "ela não é mais a orientação");
+  // a própria professora entrando depois com o CPF certo reencontra o projeto
+  vincularPorCpf(lista, { email: "luana@hotmail.com", cpf: CPF });
+  assert.equal(lista[0].orientador.email, "luana@hotmail.com");
+  // mesma pessoa (só o CPF do formulário estava errado): `mantem` segura o vínculo
+  const outra = [importado()];
+  vincularPorCpf(outra, { email: "marina@uniego.edu.br", cpf: CPF });
+  assert.equal(desligarPreCadastro(outra, { email: "marina@uniego.edu.br", cpf: CPF, mantem: () => true }).desligados, 0);
+  assert.equal(outra[0].orientador.email, "marina@uniego.edu.br");
+  assert.equal(desligarPreCadastro(outra, { email: "marina@uniego.edu.br", cpf: "111" }).desligados, 0, "CPF incompleto não desliga nada");
+});

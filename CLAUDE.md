@@ -3092,6 +3092,31 @@ public/
   `propagarCpfOrientadores` espalha o CPF conhecido do professor pelos ciclos antigos
   (transcritos só com o nome), trocando o vínculo fraco por nome pela chave forte.
   O painel de usuários marca quem ainda não reivindicou.
+- **O PRÉ-CADASTRO QUE NÃO É DA PESSOA SE DESMENTE COM O PRÓPRIO CPF** (`desligarPreCadastro` +
+  `emailDoFormularioEhDeAluno` em lib/ic.js, o ramo `preCadastroAlheio` do `POST /api/perfil`,
+  o cartão `#pre-cadastro` do `/perfil/` e a chave `sys-precadastros-desligados-v1` — relato de
+  uma estudante pela joaninha, set/2026: "não estou encontrando o local para colocar os
+  dados"). O formulário do Edital 01/2026 da orientadora foi preenchido pela ALUNA, com o
+  Gmail dela (`origem.emailFormulario`), e o pré-cadastro da professora — nome, CPF, curso,
+  função — nasceu na conta da estudante; `vincularPorCpf` ainda escreveu esse Gmail como
+  orientação de quatro projetos. Ao entrar, ela via o perfil de outra pessoa com o CPF
+  gravado, que "só a PROPPEX altera": não havia onde pôr os dados dela. O pré-cadastro que
+  NINGUÉM reivindicou não é dado da pessoa — é uma hipótese do sistema sobre quem usa aquele
+  e-mail —, e informar OUTRO CPF a desmente: a conta fica de quem grava (sem resto do
+  pré-cadastro), o e-mail sai da orientação e do `criadoPor` dos projetos que o pré-cadastro
+  tinha vinculado (o CPF da professora fica neles, e ela se vincula ao informá-lo na conta
+  dela), o registro vai à chave interna e a coordenação de pesquisa recebe o aviso. **Mesmo
+  nome, CPF diferente** é a própria pessoa corrigindo o CPF que veio errado do formulário: o
+  vínculo por e-mail fica (`nomesCompativeis`). A tela DIZ em nome de quem o cadastro foi
+  preparado e de onde veio, com o botão "Não sou X — limpar e preencher os meus dados", e a
+  pendência da página inicial nomeia a pessoa. Para os próximos lotes, o e-mail do formulário
+  que se parece com o nome de um ALUNO da submissão (e não com o da orientação) não vira
+  pré-cadastro nem recebe o convite de "informar o seu CPF" — a orientação fica esperando o
+  CPF, que é o vínculo forte. E o pedido de fusão de arranque cuja origem foi reivindicada
+  por outra pessoa se encerra (`origem-reivindicada`) em vez de apagar a conta dela. No caso
+  real, a fusão da profa. Luana já tinha levado os projetos ao Hotmail dela e removido o
+  perfil do Gmail da estudante — a conta dela ficou limpa; a correção vale para o próximo
+  formulário preenchido pelo aluno.
 - **CPF é a chave do que vem de fora** (`lib/cpf.js`): o perfil (`/perfil/`) pede o CPF,
   guardado só em dígitos e **único por conta** (dois cadastros com o mesmo CPF são
   recusados — o segundo herdaria os projetos do primeiro); alterar CPF já gravado só
