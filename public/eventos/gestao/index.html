@@ -1757,6 +1757,7 @@ function renderInscritos(a){
       <div class="sec-t">Inscritos e presenças</div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 6px">
         <input id="ev-busca" placeholder="Buscar por nome, e-mail ou CPF…" style="max-width:280px" oninput="ArchePag.zerar('ev-inscritos');renderInscritosEv(ACOES.find(x=>x.id==='${esc(a.id)}'))">
+        ${filtrosInscritosHtml(a)}
         ${proprias.length?`<label style="margin:0;display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--muted)">Atividade
           <select id="ev-atv-sel" style="width:auto;max-width:240px;font-size:12.5px;padding:6px 30px 6px 8px"
             onchange="renderInscritosEv(ACOES.find(x=>x.id==='${esc(a.id)}'))">
@@ -2443,6 +2444,15 @@ async function conferirPg(id,token){
     const m=$("fin-msg"); if(m) m.textContent=j.semPagamento?"O provedor não tem pagamento para esta inscrição.":j.ignorado?`Sem mudança: ${j.ignorado}`:`Situação: ${ROTULO_PG[j.pagamento?.status]||"—"}`;
     await carregar(); renderFinanceiro(ACOES.find(x=>x.id===id));
   }catch(e){ alert("Não foi possível conferir: "+e.message); }
+}
+/* ISENTAR pela lista de inscritos (pedido do dono, set/2026: "monitores e
+   professores não pagam — eles se inscrevem, não pagam, e eu confirmo à
+   mão"): é a mesma rota do Financeiro; aqui só se redesenha a lista. */
+async function isentarInscrito(id,token,nome){
+  const motivo=prompt(`Isentar a inscrição de ${nome}?\n\nA inscrição fica confirmada SEM pagamento e o e-mail com o QR sai agora. Escreva o motivo (fica no registro — ex.: monitor, professor, convidado):`);
+  if(!motivo) return;
+  try{ await acaoPg(id,token,"isentar",{motivo}); await carregar(); const a=ACOES.find(x=>x.id===id); atualizarContadoresEvento(a); renderInscritosEv(a); }
+  catch(e){ alert("Não foi possível isentar: "+e.message); }
 }
 async function isentarPg(id,token,nome){
   const motivo=prompt(`Isentar a inscrição de ${nome}?\n\nA credencial passa a valer sem pagamento e o e-mail com o QR sai agora. Escreva o motivo (fica no registro):`);
@@ -3314,13 +3324,58 @@ async function moderarMural(id,mid,oculto){
 }
 
 /* ------------------------ inscritos e presenças -------------------------- */
+/* FILTROS DA LISTA DE INSCRITOS (pedido do dono, set/2026: "coloque filtros por
+   curso, período, pagos etc. — este evento terá muitos alunos"): curso, cada
+   campo extra de SELEÇÃO do formulário (é assim que "período" entra: como
+   campo extra com opções), situação do pagamento, presença e origem. Os
+   valores dos filtros ficam em EV_FILTROS e a lista se redesenha do zero. */
+let EV_FILTROS={};
+const sel=(id,rotulo,opcoes,valor)=>`<label style="margin:0;display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--muted)">${esc(rotulo)}
+  <select style="width:auto;max-width:220px;font-size:12.5px;padding:6px 30px 6px 8px" onchange="EV_FILTROS['${esc(id)}']=this.value;ArchePag.zerar('ev-inscritos');renderInscritosEv(ACOES.find(x=>x.id===ABERTO))">
+    <option value="">todos</option>${opcoes.map(o=>`<option value="${esc(o.v)}" ${valor===o.v?"selected":""}>${esc(o.r)}${o.n!=null?` (${o.n})`:""}</option>`).join("")}</select></label>`;
+function filtrosInscritosHtml(a){
+  const todos=a.participantes?.inscritos||[];
+  const cont=(fn)=>{ const m=new Map(); for(const x of todos){ for(const v of [].concat(fn(x)||[])){ if(v) m.set(v,(m.get(v)||0)+1); } } return [...m.entries()].sort((p,q)=>String(p[0]).localeCompare(String(q[0]),"pt-BR")).map(([v,n])=>({v,r:v,n})); };
+  const partes=[];
+  const cursos=cont(x=>x.curso);
+  if(cursos.length>1) partes.push(sel("curso","Curso",cursos,EV_FILTROS.curso||""));
+  for(const c of (a.evento?.formulario||[])){
+    if(!["selecao","multipla"].includes(c.tipo)) continue;
+    const ops=cont(x=>x.filtros?.[c.id]);
+    if(ops.length) partes.push(sel("campo:"+c.id,c.rotulo,ops,EV_FILTROS["campo:"+c.id]||""));
+  }
+  if(a.evento?.cobranca?.ativa||todos.some(x=>x.pagamento)){
+    const pg=cont(x=>x.pagamento?x.pagamento.status:"sem-cobranca").map(o=>({...o,r:o.v==="sem-cobranca"?"sem cobrança":(ROTULO_PG[o.v]||o.v)}));
+    pg.unshift({v:"__validas",r:"confirmadas (pagas, isentas ou sem cobrança)",n:todos.filter(x=>!x.pagamento||["pago","isento"].includes(x.pagamento.status)).length});
+    partes.push(sel("pagamento","Pagamento",pg,EV_FILTROS.pagamento||""));
+  }
+  partes.push(sel("presenca","Presença",[{v:"sim",r:"presentes",n:todos.filter(x=>x.presente===true).length},{v:"nao",r:"ausentes",n:todos.filter(x=>x.presente!==true).length}],EV_FILTROS.presenca||""));
+  if(todos.some(x=>x.origem!=="online")) partes.push(sel("origem","Origem",[{v:"online",r:"inscrição online",n:todos.filter(x=>x.origem==="online").length},{v:"lista",r:"lista da coordenação",n:todos.filter(x=>x.origem!=="online").length}],EV_FILTROS.origem||""));
+  const ativos=Object.values(EV_FILTROS).filter(Boolean).length;
+  return partes.join("")+(ativos?`<button class="bt bt-ghost" style="padding:5px 10px;font-size:12px" onclick="EV_FILTROS={};ArchePag.zerar('ev-inscritos');renderInscritos(ACOES.find(x=>x.id===ABERTO))">✕ Limpar filtros</button>`:"");
+}
+function passaFiltros(x){
+  const f=EV_FILTROS;
+  if(f.curso&&x.curso!==f.curso) return false;
+  for(const k of Object.keys(f)){ if(!k.startsWith("campo:")||!f[k]) continue; const v=x.filtros?.[k.slice(6)]; if(!(Array.isArray(v)?v.includes(f[k]):v===f[k])) return false; }
+  if(f.pagamento){
+    if(f.pagamento==="__validas"){ if(x.pagamento&&!["pago","isento"].includes(x.pagamento.status)) return false; }
+    else if(f.pagamento==="sem-cobranca"){ if(x.pagamento) return false; }
+    else if(!x.pagamento||x.pagamento.status!==f.pagamento) return false;
+  }
+  if(f.presenca==="sim"&&x.presente!==true) return false;
+  if(f.presenca==="nao"&&x.presente===true) return false;
+  if(f.origem==="online"&&x.origem!=="online") return false;
+  if(f.origem==="lista"&&x.origem==="online") return false;
+  return true;
+}
 function renderInscritosEv(a){
   const el=$("ev-inscritos"); if(!el||!a) return;
   const q=($("ev-busca")?.value||"").trim().toLowerCase();
   const todos=a.participantes?.inscritos||[];
   const prog=a.evento?.programacao||[];
   const tituloAtv=(id)=>prog.find(p=>p?.id===id)?.titulo||"?";
-  const lista=todos.filter(x=>!q
+  const lista=todos.filter(passaFiltros).filter(x=>!q
     || String(x.nome||"").toLowerCase().includes(q)
     || String(x.email||"").toLowerCase().includes(q)
     || String(x.cpf||"").replace(/\D/g,"").includes(q.replace(/\D/g,"")||"§"));
@@ -3339,7 +3394,7 @@ function renderInscritosEv(a){
       return `<tr>
       <td>${esc(x.nome)}</td>
       <td>${esc(x.email||"")}${x.telefone?`<br><span class="muted">${esc(x.telefone)}</span>`:""}</td>
-      <td>${x.origem==="online"?`online${x.inscritoEm?` <span class="muted">${esc(hora(x.inscritoEm))}</span>`:""}`:"lista da coordenação"}${x.pagamento?`<br>${badgePg(x.pagamento)}`
+      <td>${x.origem==="online"?`online${x.inscritoEm?` <span class="muted">${esc(hora(x.inscritoEm))}</span>`:""}`:"lista da coordenação"}${x.curso?`<br><span class="muted" style="font-size:11.5px">${esc(x.curso)}</span>`:""}${x.pagamento?`<br>${badgePg(x.pagamento)}${["aguardando","expirado","recusado"].includes(x.pagamento.status)&&x.token?` <button class="bt bt-ok" style="padding:1px 8px;font-size:11px" title="Confirmar a inscrição SEM pagamento (monitor, professor, convidado): a credencial passa a valer e o e-mail com o QR sai agora" onclick="isentarInscrito('${esc(a.id)}','${esc(x.token)}','${esc(x.nome)}')">isentar</button>`:""}`
         :a.evento?.cobranca?.ativa?`<br><span class="badge" style="background:#eceff3;color:var(--muted)" title="Esta inscrição não tem cobrança: entrou antes de a cobrança ser ligada, ou veio da lista da coordenação. Vale como confirmada.">sem cobrança</span>`:""}</td>
       <td style="font-family:ui-monospace,monospace">${x.token?esc(x.token.slice(0,6).toUpperCase()):"—"}</td>
       <td title="${esc(marcadas.join(" · "))}">${marcadas.length||"—"}</td>

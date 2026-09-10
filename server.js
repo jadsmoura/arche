@@ -3256,10 +3256,20 @@ const linhaSegura = (obj) => Object.fromEntries(Object.entries(obj)
    Trocados por um SINAL (`temRespostas`), como já se faz com a capa e as
    fotos. Gravar de volta não os perde: o `mesclarEventoEInscritos` traz da
    BASE todo inscrito online, com o registro completo. */
-const inscritoLeve = (i) => {
+/* `campos` são os campos extras do formulário do evento: as respostas de
+   SELEÇÃO (lista e múltipla) viajam em `filtros` — é o que a guia de inscritos
+   filtra ("período", "categoria"…, pedido do dono set/2026, para um evento
+   com muitos alunos). Texto livre continua fora: é o que pesa e ninguém filtra. */
+const inscritoLeve = (i, campos = []) => {
   if (!i || typeof i !== "object") return i;
   const { respostas, consentimento, comunicacoes, ...resto } = i;
-  return respostas && Object.keys(respostas).length ? { ...resto, temRespostas: true } : resto;
+  if (!respostas || !Object.keys(respostas).length) return resto;
+  const filtros = {};
+  for (const c of campos) {
+    if (!["selecao", "multipla"].includes(c?.tipo) || respostas[c.id] === undefined) continue;
+    filtros[c.id] = respostas[c.id];
+  }
+  return { ...resto, temRespostas: true, ...(Object.keys(filtros).length ? { filtros } : {}) };
 };
 
 const acaoSemSegredos = (a) => {
@@ -3270,7 +3280,7 @@ const acaoSemSegredos = (a) => {
   const out = a.evento ? { ...resto, evento: eventoSemSegredos(a.evento) } : { ...resto };
   if (assinaturas) out.assinaturas = assinaturasVisiveis({ assinaturas });
   if (Array.isArray(out.participantes?.inscritos))
-    out.participantes = { ...out.participantes, inscritos: out.participantes.inscritos.map(inscritoLeve) };
+    out.participantes = { ...out.participantes, inscritos: out.participantes.inscritos.map((i) => inscritoLeve(i, a.evento?.formulario || [])) };
   // A SITUAÇÃO VIAJA PRONTA (decisão do dono, ago/2026): é a mesma ação nas
   // duas telas, e cada uma tinha o seu vocabulário. A conta é do servidor —
   // se o ARCHÉ EX e o ARCHÉ EV a refizessem cada um do seu jeito, voltariam

@@ -1248,6 +1248,19 @@ public/
   lista de transações do PicPay não diz o MEIO (só o webhook traz `paymentType`): sem ele sai
   "PicPay", o canal; o webhook, quando existir, empresta só o rótulo — estado e valor continuam
   sendo os da consulta.
+- **ISENÇÃO NA LISTA DE INSCRITOS E OS FILTROS** (guia Inscritos e presenças do ARCHÉ EV, pedido do
+  dono set/2026: "em eventos pagos, permita à PROPPEX isentar alguns pagamentos — monitores e
+  professores não pagam; eles se inscrevem, não pagam, e eu confirmo à mão"; "coloque filtros por
+  curso, período, pagos etc. — este evento terá muitos alunos"). A isenção já existia no Financeiro
+  (`POST …/inscritos/:token/isentar`, com motivo obrigatório: a credencial passa a valer e o e-mail
+  com o QR sai na hora); o que faltava era ela na LISTA — o botão **"isentar"** aparece ao lado do
+  selo de pagamento aguardando/expirado/recusado (`isentarInscrito`, mesma rota). Os **filtros**
+  (`EV_FILTROS`/`filtrosInscritosHtml`/`passaFiltros`): curso (quando há mais de um), **cada campo
+  extra de SELEÇÃO do formulário** — é assim que "período" entra, como campo extra com opções —,
+  pagamento (pagas, aguardando, isentas, expiradas… mais "confirmadas": pagas, isentas ou sem
+  cobrança), presença e origem, com a contagem em cada opção e o "✕ Limpar filtros". Para isso o
+  `inscritoLeve` passou a mandar em `filtros` só as respostas dos campos de seleção (o texto livre
+  continua fora: é o que pesa e ninguém filtra). A linha mostra o curso sob a origem.
 - **ARCHÉ Eventos** (`lib/eventos.js` + `public/eventos/` + rotas em server.js; 2ª geração
   em ago/2026, no molde Even3/Sympla — pesquisa com 3 agentes sobre as duas plataformas):
   EVENTOS GRATUITOS de todos os formatos — a ação de extensão ganha `a.evento` e uma página
