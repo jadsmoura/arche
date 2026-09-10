@@ -354,6 +354,7 @@
         <section id="v-credenciamento" class="hide"></section>
         <section id="v-transmissao" class="hide"></section>
         <section id="v-cobranca" class="hide"></section>
+        <section id="v-vouchers" class="hide"></section>
         <section id="v-financeiro" class="hide"></section>
         <section id="v-exportacoes" class="hide"></section>
         <section id="v-editais" class="hide"></section>
@@ -520,6 +521,10 @@ const SECOES = [
      meios, prazo da reserva) e se presta contas DEPOIS (Financeiro). */
   {k:"cobranca", rot:"Cobrança", grupo:"PRÉ-EVENTO", ic:IC.cobranca, evento:true, tit:"Cobrança da inscrição",
    sub:"Evento pago: categorias e valores, lotes, meios de pagamento (Pix, cartão, boleto), prazo da reserva e política de reembolso."},
+  /* VOUCHERS (set/2026): códigos de desconto por categoria, ilimitados ou
+     limitados em quantidade e prazo — conferidos pelo servidor na inscrição. */
+  {k:"vouchers", rot:"Vouchers de desconto", grupo:"PRÉ-EVENTO", ic:IC.cobranca, evento:true, tit:"Vouchers de desconto",
+   sub:"Códigos de desconto para a inscrição — por categoria, ilimitados ou limitados em quantidade e prazo."},
   {k:"pagina", rot:"Página do evento", grupo:"PRÉ-EVENTO", ic:IC.pagina, evento:true, tit:"Página do evento",
    sub:"A página pública (hotsite): ativação, endereço, descrição, local e capa."},
   {k:"programacao", rot:"Programação", grupo:"PRÉ-EVENTO", ic:IC.programacao, evento:true, tit:"Programação",
@@ -760,6 +765,7 @@ function nav(secao){
   else if(SECAO==="credenciamento") renderCredenciamento(a);
   else if(SECAO==="transmissao") renderTransmissao(a);
   else if(SECAO==="cobranca") renderCobranca(a);
+  else if(SECAO==="vouchers") renderVouchers(a);
   else if(SECAO==="financeiro") renderFinanceiro(a);
   else if(SECAO==="exportacoes") renderExportacoes(a);
   else if(SECAO==="editais") window.ArcheEditais?.montar($("v-editais"),{setores:["eventos"]});
@@ -2341,6 +2347,80 @@ async function testarCredencial(id){
     }
   }catch(e){ if(out) out.innerHTML=`<div class="banner ba-warn" style="margin:0">${esc(e.message)}</div>`; }
   finally{ if(bt) bt.disabled=false; }
+}
+/* ========================= VOUCHERS DE DESCONTO ===========================
+   Pedido do dono (set/2026): "uma guia para gerar voucher de descontos, com
+   códigos com descontos para algumas categorias; ilimitados ou limitados em
+   quantidade ou tempo". A lista vive em cobranca.vouchers; os USOS vêm
+   contados das inscrições (pagas, isentas e reservas vivas), não de um
+   contador — regravar a guia nunca zera o que já foi usado. */
+let EV_VOU=[];
+const usosVoucher=(a,codigo)=>(a.participantes?.inscritos||[]).filter(i=>i.pagamento?.voucher?.codigo===codigo
+  &&(["pago","isento","contestado"].includes(i.pagamento.status)||(i.pagamento.status==="aguardando"&&!(i.pagamento.expiraEm&&new Date(i.pagamento.expiraEm)<new Date())))).length;
+const descontoTxt=(d)=>!d||!(d.valor>0)?"":d.modo==="fixo"?reaisDe(d.valor):String(d.valor).replace(".",",")+"%";
+function renderVouchers(a){
+  const ev=a.evento||{}, c=ev.cobranca||{};
+  const cats=c.categorias||[];
+  EV_VOU=(c.vouchers||[]).map(v=>({codigo:v.codigo,desconto:descontoTxt(v.desconto),categorias:[...(v.categorias||[])],limite:v.limite||0,ate:v.ate||"",ativo:v.ativo!==false,descricao:v.descricao||"",usos:usosVoucher(a,v.codigo)}));
+  $("v-vouchers").innerHTML=`
+    ${!c.ativa||!cats.some(k=>k.valor>0)?`<div class="banner ba-warn">Este evento ainda não cobra inscrição — os vouchers só têm efeito com a
+      <button class="lk" onclick="nav('cobranca')">cobrança</button> ligada e ao menos uma categoria com valor.</div>`:""}
+    <div class="banner ba-info">A pessoa digita o código no formulário de inscrição e vê na hora quanto fica. O desconto entra
+      <b>depois do lote</b> e nunca deixa o valor negativo — desconto que zera o valor torna a inscrição isenta, com a credencial na hora.
+      O <b>limite</b> conta as inscrições pagas, isentas e as reservas em aberto; reserva vencida devolve o uso.</div>
+    <div class="card">
+      <div class="sec-t">Vouchers</div>
+      <div id="vou-lista"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="EV_VOU.push({codigo:gerarCodigoVoucher(),desconto:'',categorias:[],limite:0,ate:'',ativo:true,descricao:'',usos:0});renderVouLista()">＋ Gerar voucher</button>
+        <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="EV_VOU.push({codigo:'',desconto:'',categorias:[],limite:0,ate:'',ativo:true,descricao:'',usos:0});renderVouLista()">＋ Voucher com código próprio</button>
+      </div>
+    </div>
+    <div class="exp" style="margin:0 0 18px">
+      <button class="bt bt-pri" onclick="salvarVouchers('${esc(a.id)}')">💾 Salvar vouchers</button>
+      <span class="muted" id="vou-msg" style="align-self:center"></span>
+    </div>`;
+  renderVouLista();
+}
+function gerarCodigoVoucher(){
+  const alf="ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let s="";
+  const b=crypto.getRandomValues(new Uint8Array(8)); for(const x of b) s+=alf[x%alf.length];
+  return s;
+}
+function renderVouLista(){
+  const el=$("vou-lista"); if(!el) return;
+  const a=ACOES.find(x=>x.id===ABERTO); const cats=a?.evento?.cobranca?.categorias||[];
+  el.innerHTML=EV_VOU.length?EV_VOU.map((v,i)=>`<div class="atv-card">
+    <div class="g-atv2" style="grid-template-columns:1.2fr 1fr 1fr 1fr 40px">
+      <div><label style="margin-top:0">Código</label><input value="${esc(v.codigo)}" placeholder="ex.: MONITOR2026" style="text-transform:uppercase;font-family:ui-monospace,monospace" oninput="EV_VOU[${i}].codigo=this.value"></div>
+      <div><label style="margin-top:0">Desconto</label><input value="${esc(v.desconto)}" placeholder="20% ou 15,00" inputmode="decimal" oninput="EV_VOU[${i}].desconto=this.value"></div>
+      <div><label style="margin-top:0">Limite de usos <span class="muted">(0 = ilimitado)</span></label><input type="number" min="0" value="${esc(v.limite)}" oninput="EV_VOU[${i}].limite=this.value"></div>
+      <div><label style="margin-top:0">Válido até <span class="muted">(vazio = sem prazo)</span></label><input type="date" value="${esc(v.ate)}" oninput="EV_VOU[${i}].ate=this.value"></div>
+      <button class="bt bt-ghost bt-xs" style="color:var(--err);align-self:end" onclick="EV_VOU.splice(${i},1);renderVouLista()">✕</button>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:8px">
+      <span class="muted" style="font-size:12.5px">Vale para:</span>
+      <label class="chk" style="margin:0;font-size:12.5px"><input type="checkbox" ${v.categorias.length?"":"checked"} onchange="EV_VOU[${i}].categorias=[];renderVouLista()"> todas as categorias</label>
+      ${cats.map(k=>`<label class="chk" style="margin:0;font-size:12.5px"><input type="checkbox" ${v.categorias.includes(k.codigo)?"checked":""}
+        onchange="const s=new Set(EV_VOU[${i}].categorias);this.checked?s.add('${esc(k.codigo)}'):s.delete('${esc(k.codigo)}');EV_VOU[${i}].categorias=[...s];renderVouLista()"> ${esc(k.nome)}</label>`).join("")}
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:8px">
+      <label class="chk" style="margin:0;font-size:12.5px"><input type="checkbox" ${v.ativo?"checked":""} onchange="EV_VOU[${i}].ativo=this.checked"> ativo</label>
+      <input placeholder="observação (só a gestão vê — ex.: monitores da Enfermagem)" value="${esc(v.descricao)}" oninput="EV_VOU[${i}].descricao=this.value" style="flex:1;min-width:220px">
+      <span class="badge" style="background:var(--wash);color:var(--brand-3)">${v.usos} uso(s)${v.limite>0?` de ${v.limite}`:""}</span>
+    </div>
+  </div>`).join(""):`<div class="cnt">— nenhum voucher. Gere um código ou escreva o seu.</div>`;
+}
+async function salvarVouchers(id){
+  const msg=$("vou-msg"); if(msg) msg.textContent="Salvando…";
+  try{
+    const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/vouchers`,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({vouchers:EV_VOU.map(v=>({codigo:v.codigo,desconto:v.desconto,categorias:v.categorias,limite:v.limite,ate:v.ate,ativo:v.ativo,descricao:v.descricao}))})});
+    const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||"Não foi possível salvar.");
+    const enviados=EV_VOU.filter(v=>v.codigo||v.desconto).length;
+    await carregar(); nav("vouchers");
+    if(j.vouchers.length<enviados) alert(`Salvo com ${j.vouchers.length} voucher(s). Linha sem código válido (letras e números, 2 a 30), sem desconto ou com código repetido não entra.`);
+  }catch(e){ if(msg) msg.textContent=""; alert(e.message); }
 }
 function salvarCobranca(id){
   return salvarParteEvento(id,{cobranca:{

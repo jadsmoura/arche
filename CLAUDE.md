@@ -1248,6 +1248,24 @@ public/
   lista de transações do PicPay não diz o MEIO (só o webhook traz `paymentType`): sem ele sai
   "PicPay", o canal; o webhook, quando existir, empresta só o rótulo — estado e valor continuam
   sendo os da consulta.
+- **VOUCHERS DE DESCONTO** (`normalizarVouchers`/`voucherValido`/`usosDoVoucher`/`descontoDoVoucher` em
+  lib/pagamentos.js + `cobranca.vouchers` + `GET /api/publico/eventos/:slug/voucher` +
+  `POST /api/extensao/:id/vouchers` + a guia **Vouchers de desconto** (PRÉ-EVENTO) + o campo "Código de
+  desconto" no formulário do hotsite, pedido do dono set/2026: "uma guia para gerar voucher de descontos,
+  com códigos com descontos para algumas categorias; ilimitados ou limitados em quantidade ou tempo").
+  Cada voucher tem código (letras e números, 2 a 30, maiúsculo — o botão "Gerar voucher" sorteia 8
+  sem 0/O/1/I), desconto **percentual ou em reais**, as categorias em que vale (vazio = todas), o
+  **limite de usos** (0 = ilimitado) e a **validade**. Três decisões: (1) o desconto entra **DEPOIS do
+  lote**, nunca deixa o valor negativo, e desconto que zera torna a inscrição ISENTA (o caminho da
+  categoria sem valor); (2) a conferência é do SERVIDOR, **dentro da fila** da inscrição — o limite conta
+  as inscrições gravadas (pagas, isentas e reservas VIVAS; reserva vencida devolve o uso), então regravar
+  a guia nunca zera usos e duas inscrições simultâneas não furam a última vaga do código; código inválido
+  é recusa com o motivo, nunca cobrança cheia em silêncio; (3) os códigos **nunca saem** no payload
+  público (só `aceitaVoucher`), e a rota pública responde só sobre o código perguntado, com o valor que
+  fica — o hotsite mostra "você paga R$ X" antes do clique e reconfere ao trocar de categoria. A guia
+  Cobrança, que não manda `vouchers`, não os apaga (o servidor preserva os gravados). O pagamento guarda
+  `{ codigo, desconto }`, a renovação da reserva reconfere o voucher (se ainda vale, segue; senão, preço
+  de hoje), e o Financeiro e a planilha ganharam as colunas Voucher/Desconto e o quadro "Por voucher".
 - **ISENÇÃO NA LISTA DE INSCRITOS E OS FILTROS** (guia Inscritos e presenças do ARCHÉ EV, pedido do
   dono set/2026: "em eventos pagos, permita à PROPPEX isentar alguns pagamentos — monitores e
   professores não pagam; eles se inscrevem, não pagam, e eu confirmo à mão"; "coloque filtros por

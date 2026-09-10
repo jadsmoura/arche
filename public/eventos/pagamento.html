@@ -111,7 +111,7 @@ function render() {
     <div class="card-t" style="font-size:19px;margin-top:8px">${esc(e.nome)}</div>
     <p style="font-size:13.5px;color:var(--ink-soft);margin-top:4px">${fmt(e.periodoInicio)} a ${fmt(e.periodoFim)} · ${esc(e.local) || ""}${e.municipio ? " — " + esc(e.municipio) : ""}</p>
     <p style="font-size:13.5px;margin-top:10px"><b>${esc(i.nome)}</b></p>
-    <div class="valor">${reais(p.valor)}<small>${esc(p.categoriaNome)}${p.lote ? " · " + esc(p.lote) : ""}${p.valorCartao > p.valor && pendente ? ` · no Pix (${reais(p.valorCartao)} no cartão)` : ""}</small></div>
+    <div class="valor">${reais(p.valor)}<small>${esc(p.categoriaNome)}${p.lote ? " · " + esc(p.lote) : ""}${p.voucher && p.voucher.codigo ? ` · voucher ${esc(p.voucher.codigo)} (−${reais(p.voucher.desconto)})` : ""}${p.valorCartao > p.valor && pendente ? ` · no Pix (${reais(p.valorCartao)} no cartão)` : ""}</small></div>
     <div style="margin:12px 0 4px"><span class="selo ${cor}">${esc(rot)}${p.pagoEm ? " em " + esc(hora(p.pagoEm)) : ""}${p.meio && p.status === "pago" ? " · " + esc(p.meio) : ""}</span></div>
     ${aviso}
     ${p.valida ? `

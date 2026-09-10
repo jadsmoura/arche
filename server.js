@@ -101,6 +101,7 @@ import {
    ativa e os gratuitos seguem como sempre. */
 import {
   normalizarCobranca, cobrancaAtiva, valorDaInscricao, novoPagamento, inscricaoValida,
+  voucherValido, usosDoVoucher, descontoTexto,
   reservaVencida, transitar as transitarPagamento, lerPagamentoDoProvedor, validarAssinaturaMP,
   resumoFinanceiro, linhasFinanceiro, fmtReais, loteVigente, ESTADOS_PAGAMENTO, acrescimoTexto, valorNoCartao, meioLinkPicPay,
 } from "./lib/pagamentos.js";
@@ -4272,6 +4273,8 @@ function cobrancaPublica(ev, hojeISO) {
     lote: lote ? { nome: lote.nome, ate: lote.ate } : null,
     proximoLote: proximo ? { nome: proximo.nome, ate: proximo.ate } : null,
     acrescimoCartao: meios.cartao && provedorPg.nome() === "picpay" ? acrescimoTexto(c) : "",
+    // há voucher de desconto ativo? (só o SINAL — os códigos nunca saem)
+    aceitaVoucher: (c.vouchers || []).some((v) => v.ativo),
     // os meios saem RECORTADOS pelo provedor (o PicPay não cobre boleto)
     meios, parcelas: c.parcelas, jurosPorConta: c.jurosPorConta,
     reservaMinutos: c.reservaMinutos, politicaReembolso: c.politicaReembolso,
@@ -4334,7 +4337,7 @@ function pagamentoPublico(inscrito, ev, agora = new Date()) {
   if (!pg) return null;
   return {
     status: pg.status, valor: pg.valor, categoriaNome: pg.categoriaNome || pg.categoria || "",
-    lote: pg.lote || "", link: pg.link || "", expiraEm: pg.expiraEm || "", pagoEm: pg.pagoEm || "",
+    lote: pg.lote || "", voucher: pg.voucher || null, link: pg.link || "", expiraEm: pg.expiraEm || "", pagoEm: pg.pagoEm || "",
     // o Pix "copia e cola" só enquanto a cobrança está em aberto — depois
     // de pago, expirado ou renovado, o código velho não deve ser pago
     qrCode: pg.status === "aguardando" && !reservaVencida(pg, agora) ? String(pg.qrCode || "") : "",
@@ -4437,6 +4440,45 @@ app.get("/api/publico/eventos", async (_req, res) => {
 });
 
 /** A página de um evento: descrição, programação e a situação das vagas. */
+/* O VOUCHER, conferido antes de inscrever (set/2026): a página pergunta se o
+   código vale para a categoria escolhida e mostra quanto fica — o mesmo
+   cálculo da inscrição, feito pelo servidor. Devolve só o resultado deste
+   código; a lista de códigos nunca sai. */
+app.get("/api/publico/eventos/:slug/voucher", async (req, res) => {
+  try {
+    const a = eventoPorSlug(await lerAcoes(), req.params.slug);
+    if (!a?.evento?.ativo || !cobrancaAtiva(a.evento.cobranca)) return res.status(404).json({ error: "Evento sem cobrança." });
+    const codigo = String(req.query.codigo || "").trim().slice(0, 30);
+    const categoria = String(req.query.categoria || "").trim().slice(0, 40);
+    const vv = voucherValido(a.evento.cobranca, codigo, { categoria, hojeISO: hojeLocalISO(), usos: usosDoVoucher(a.participantes?.inscritos || [], codigo) });
+    if (!vv.ok) return res.json({ ok: false, motivo: vv.motivo });
+    const preco = valorDaInscricao(a.evento.cobranca, { categoria, hojeISO: hojeLocalISO(), voucher: vv.voucher });
+    if (!preco) return res.json({ ok: false, motivo: "Escolha a categoria antes de aplicar o voucher." });
+    res.json({ ok: true, codigo: vv.voucher.codigo, desconto: preco.voucher?.desconto || 0, descontoTexto: descontoTexto(vv.voucher.desconto),
+      valor: preco.valor, valorCartao: provedorPg.nome() === "picpay" ? preco.valorCartao : preco.valor, valorSemVoucher: preco.valorSemVoucher, gratuita: preco.gratuita });
+  } catch (e) { console.error("Erro ao conferir voucher:", e); res.status(500).json({ error: "Falha ao conferir o voucher." }); }
+});
+
+/* A GUIA DE VOUCHERS (set/2026): quem opera o evento cadastra os códigos —
+   desconto (percentual ou em reais), as categorias em que vale, o limite de
+   usos (0 = ilimitado) e a validade. Grava dentro de `cobranca.vouchers`,
+   sem tocar no resto da cobrança; os usos voltam contados das inscrições. */
+app.post("/api/extensao/:id/vouchers", async (req, res) => {
+  try {
+    const x = await acaoDoOperador(req, res); if (!x) return;
+    if (!Array.isArray(req.body?.vouchers)) return res.status(400).json({ error: "Envie a lista de vouchers." });
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((y) => y.id === req.params.id);
+      if (!a?.evento) return { erro: [404, "Evento não encontrado."], gravar: false };
+      a.evento.cobranca = normalizarCobranca({ ...(a.evento.cobranca || {}), vouchers: req.body.vouchers });
+      a.atualizadoEm = new Date().toISOString();
+      return { vouchers: a.evento.cobranca.vouchers, inscritos: a.participantes?.inscritos || [] };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, vouchers: r.vouchers.map((v) => ({ ...v, usos: usosDoVoucher(r.inscritos, v.codigo) })) });
+  } catch (e) { console.error("Erro ao salvar vouchers:", e); res.status(500).json({ error: "Falha ao salvar." }); }
+});
+
 app.get("/api/publico/eventos/:slug", async (req, res) => {
   try {
     const a = eventoPorSlug(await lerAcoes(), req.params.slug);
@@ -4482,6 +4524,7 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     const atividadesPedidas = [...new Set((Array.isArray(b.atividades) ? b.atividades : [])
       .map((x) => String(x || "").trim()).filter(Boolean))].slice(0, 100);
     const categoria = String(b.categoria || "").trim().slice(0, 40);
+    const codigoVoucher = String(b.voucher || "").trim().slice(0, 30);
     const base = `${req.protocol}://${req.get("host")}`;
 
     // dedupe, vagas e prazo se conferem DENTRO da fila: entre a leitura e a
@@ -4510,14 +4553,25 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       if (cobra) {
         if (!provedorPg.configurado())
           return { erro: [503, "O pagamento online não está disponível neste momento — fale com a coordenação do evento."], gravar: false };
-        preco = valorDaInscricao(a.evento.cobranca, { categoria, hojeISO: hojeLocalISO() });
+        /* O VOUCHER (set/2026) se confere AQUI, dentro da fila: o limite de
+           usos conta as inscrições gravadas, e duas inscrições ao mesmo tempo
+           não podem furar a última vaga do código. Código inválido é recusa
+           com o motivo — a pessoa corrige ou tira o código, nunca paga cheio
+           sem saber. */
+        let voucher = null;
+        if (codigoVoucher) {
+          const vv = voucherValido(a.evento.cobranca, codigoVoucher, { categoria, hojeISO: hojeLocalISO(), usos: usosDoVoucher(parts.inscritos, codigoVoucher) });
+          if (!vv.ok) return { erro: [400, `Voucher: ${vv.motivo}`], gravar: false };
+          voucher = vv.voucher;
+        }
+        preco = valorDaInscricao(a.evento.cobranca, { categoria, hojeISO: hojeLocalISO(), voucher });
         if (!preco) return { erro: [400, "Escolha a categoria da sua inscrição."], gravar: false };
       }
       const pagamentoDe = () => {
         if (!cobra) return null;
         // o acréscimo no cartão só existe onde há o segundo link (PicPay)
         const pg = novoPagamento({ valor: preco.valor, valorCartao: provedorPg.nome() === "picpay" ? preco.valorCartao : preco.valor,
-          categoria: preco.categoria, lote: preco.lote,
+          categoria: preco.categoria, lote: preco.lote, voucher: preco.voucher,
           reservaMinutos: a.evento.cobranca.reservaMinutos, provedor: provedorPg.nome() });
         return preco.gratuita
           ? transitarPagamento(pg, "isento", { por: "sistema", motivo: "categoria sem valor" })
@@ -4534,7 +4588,7 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
           && String(ja.email || "").trim().toLowerCase() === email && cobra) {
           const pg = pagamentoDe();
           const renovado = transitarPagamento(ja.pagamento, pg.status, { por: "inscrição", motivo: "reserva renovada",
-            extra: { valor: pg.valor, valorCartao: pg.valorCartao, categoria: pg.categoria, categoriaNome: pg.categoriaNome, lote: pg.lote,
+            extra: { valor: pg.valor, valorCartao: pg.valorCartao, categoria: pg.categoria, categoriaNome: pg.categoriaNome, lote: pg.lote, voucher: pg.voucher,
               criadoEm: pg.criadoEm, expiraEm: pg.expiraEm, preferenciaId: "", link: "", qrCode: "",
               preferenciaCartaoId: "", linkCartao: "",
               provedor: provedorPg.nome(), cobrancasAnteriores: cobrancasAnteriores(ja.pagamento),
@@ -5081,13 +5135,17 @@ app.post("/api/publico/eventos/:slug/inscricao/:token/pagamento/pagar", async (r
           const aberta = podeInscreverEvento(a, hojeLocalISO(), horaLocalHHMM());
           if (!aberta.ok) return { erro: [409, `A reserva venceu e ${aberta.motivo.charAt(0).toLowerCase()}${aberta.motivo.slice(1)}`], gravar: false };
         }
-        const preco = valorDaInscricao(a.evento.cobranca, { categoria: pg.categoria, hojeISO: hojeLocalISO() })
-          || { valor: pg.valor, categoria: { codigo: pg.categoria, nome: pg.categoriaNome }, lote: null, gratuita: pg.valor === 0 };
+        // o voucher da inscrição segue valendo na renovação SE ainda vale hoje
+        // (a reserva vencida não conta como uso, então ela mesma não se barra)
+        const vvr = pg.voucher?.codigo ? voucherValido(a.evento.cobranca, pg.voucher.codigo, { categoria: pg.categoria, hojeISO: hojeLocalISO(),
+          usos: usosDoVoucher((a.participantes?.inscritos || []).filter((x) => x !== i), pg.voucher.codigo) }) : null;
+        const preco = valorDaInscricao(a.evento.cobranca, { categoria: pg.categoria, hojeISO: hojeLocalISO(), voucher: vvr?.ok ? vvr.voucher : null })
+          || { valor: pg.valor, categoria: { codigo: pg.categoria, nome: pg.categoriaNome }, lote: null, gratuita: pg.valor === 0, voucher: pg.voucher || null };
         const novoPg = novoPagamento({ valor: preco.valor, valorCartao: provedorPg.nome() === "picpay" ? preco.valorCartao : preco.valor,
-          categoria: preco.categoria, lote: preco.lote, reservaMinutos: a.evento.cobranca?.reservaMinutos });
+          categoria: preco.categoria, lote: preco.lote, voucher: preco.voucher, reservaMinutos: a.evento.cobranca?.reservaMinutos });
         const renovado = transitarPagamento(pg, preco.gratuita ? "isento" : "aguardando", { por: "inscrição",
           motivo: vencida ? "reserva renovada" : (pg.link || pg.qrCode ? "nova tentativa" : "cobrança criada"),
-          extra: { valor: novoPg.valor, valorCartao: novoPg.valorCartao, lote: novoPg.lote, criadoEm: novoPg.criadoEm, expiraEm: novoPg.expiraEm,
+          extra: { valor: novoPg.valor, valorCartao: novoPg.valorCartao, lote: novoPg.lote, voucher: novoPg.voucher, criadoEm: novoPg.criadoEm, expiraEm: novoPg.expiraEm,
             preferenciaId: "", link: "", qrCode: "", preferenciaCartaoId: "", linkCartao: "", provedor: provedorPg.nome(),
             cobrancasAnteriores: cobrancasAnteriores(pg), cobrancasAnterioresCartao: cobrancasAnterioresCartao(pg) } });
         if (!renovado) return { erro: [409, "Não foi possível renovar a cobrança desta inscrição — fale com a coordenação."], gravar: false };
@@ -6725,7 +6783,9 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
          página que promete o que não entrega. Desligar é sempre permitido; as
          inscrições já pagas ficam como estão. */
       if (b.cobranca !== undefined) {
-        const cob = normalizarCobranca(b.cobranca);
+        // os vouchers têm guia própria: a guia Cobrança, que não os manda, não os apaga
+        const cob = normalizarCobranca(b.cobranca.vouchers === undefined && ev.cobranca?.vouchers
+          ? { ...b.cobranca, vouchers: ev.cobranca.vouchers } : b.cobranca);
         if (cob.ativa && !cob.categorias.length)
           return { erro: [400, "Para cobrar inscrição, cadastre ao menos uma categoria com o valor."], gravar: false };
         if (cobrancaAtiva(cob) && !provedorPg.configurado())

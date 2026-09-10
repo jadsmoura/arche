@@ -8,6 +8,7 @@ import {
   lerPagamentoDoProvedor, validarAssinaturaMP, resumoFinanceiro, linhasFinanceiro, centavos, fmtReais, ocupaVaga,
   normalizarMP, normalizarLinkPicPay, estadoLinkPicPay, idDoLinkPicPay, transacaoDecisiva, dataPicPayISO, validarTokenPicPay, ehNormalizado,
   normalizarAcrescimo, valorNoCartao, acrescimoTexto, pagamentoPeloLinkDoCartao,
+  normalizarVouchers, voucherValido, usosDoVoucher, descontoDoVoucher, descontoTexto,
 } from "../lib/pagamentos.js";
 import { isoComFuso, configurado, modo } from "../lib/pagamentos/mercadopago.js";
 import * as provedor from "../lib/pagamentos/provedor.js";
@@ -61,6 +62,49 @@ test("o valor é do SERVIDOR: categoria + lote vigente na data, nunca negativo",
   assert.equal(gratis.valor, 0); assert.equal(gratis.gratuita, true, "desconto não deixa valor negativo");
   assert.equal(valorDaInscricao(COB, { categoria: "inventada" }), null, "categoria desconhecida é recusa");
   assert.equal(valorDaInscricao(normalizarCobranca({}), { categoria: "x" }).gratuita, true, "evento gratuito ignora a categoria");
+});
+
+test("vouchers: código, desconto, categorias, limite e prazo — conferidos contra as inscrições", () => {
+  const cob = normalizarCobranca({ ...COB, vouchers: [
+    { codigo: "monitor 2026", desconto: "50%", categorias: ["profissional", "inventada"], limite: 2, ate: "2026-10-31" },
+    { codigo: "dez", desconto: "10,00" },
+    { codigo: "x", desconto: "5%" },                 // curto demais: não entra
+    { codigo: "semdesconto", desconto: "" },         // sem desconto: não entra
+    { codigo: "MONITOR-2026", desconto: "1%" },      // repetido: não entra
+  ] });
+  assert.deepEqual(cob.vouchers.map((v) => v.codigo), ["MONITOR-2026", "DEZ"]);
+  assert.deepEqual(cob.vouchers[0].categorias, ["profissional"], "categoria que não existe sai");
+  assert.equal(cob.vouchers[0].limite, 2);
+  assert.deepEqual(cob.vouchers[1].desconto, { modo: "fixo", valor: 1000 });
+  assert.equal(descontoTexto(cob.vouchers[0].desconto), "50%");
+  // válido, vencido, categoria errada, esgotado
+  assert.equal(voucherValido(cob, "monitor-2026", { categoria: "profissional", hojeISO: "2026-09-20", usos: 1 }).ok, true);
+  assert.match(voucherValido(cob, "monitor-2026", { categoria: "profissional", hojeISO: "2026-11-01" }).motivo, /venceu em 31\/10\/2026/);
+  assert.match(voucherValido(cob, "monitor-2026", { categoria: "estudante-externo", hojeISO: "2026-09-20" }).motivo, /vale só para: Profissional/);
+  assert.match(voucherValido(cob, "monitor-2026", { categoria: "profissional", hojeISO: "2026-09-20", usos: 2 }).motivo, /limite de usos/);
+  assert.match(voucherValido(cob, "nada", { categoria: "profissional" }).motivo, /não existe/);
+  assert.equal(voucherValido(cob, "dez", { categoria: "estudante-externo", hojeISO: "2030-01-01", usos: 999 }).ok, true, "sem limite nem prazo");
+  // o desconto entra DEPOIS do lote, e nunca deixa o valor negativo
+  const v = voucherValido(cob, "MONITOR-2026", { categoria: "profissional", hojeISO: "2026-09-20" }).voucher;
+  const p = valorDaInscricao(cob, { categoria: "profissional", hojeISO: "2026-09-20", voucher: v });
+  assert.equal(p.valorSemVoucher, 10000); assert.equal(p.valor, 5000); assert.deepEqual(p.voucher, { codigo: "MONITOR-2026", desconto: 5000 });
+  const dez = cob.vouchers[1];
+  assert.equal(descontoDoVoucher(dez, 500), 500, "desconto maior que o valor tira só o valor");
+  assert.equal(valorDaInscricao(cob, { categoria: "estudante-externo", hojeISO: "2026-11-01", voucher: dez }).valor, 3990);
+  // o pagamento guarda o voucher; os usos contam pagos, isentos e reservas vivas
+  const pg = novoPagamento({ valor: p.valor, categoria: p.categoria, lote: p.lote, voucher: p.voucher, reservaMinutos: 60, agora: new Date("2026-09-20T10:00:00Z") });
+  assert.deepEqual(pg.voucher, { codigo: "MONITOR-2026", desconto: 5000 });
+  const inscritos = [
+    { pagamento: { ...pg, status: "pago" } },
+    { pagamento: { ...pg, status: "aguardando", expiraEm: "2026-09-20T11:00:00.000Z" } },
+    { pagamento: { ...pg, status: "expirado" } },
+    { pagamento: { ...pg, voucher: { codigo: "DEZ", desconto: 1000 }, status: "pago" } },
+  ];
+  assert.equal(usosDoVoucher(inscritos, "monitor-2026", new Date("2026-09-20T10:30:00Z")), 2);
+  assert.equal(usosDoVoucher(inscritos, "monitor-2026", new Date("2026-09-20T12:00:00Z")), 1, "a reserva vencida devolve o uso");
+  assert.equal(resumoFinanceiro(inscritos).porVoucher["MONITOR-2026"].n, 2);
+  assert.equal(linhasFinanceiro(inscritos)[0].voucher, "MONITOR-2026");
+  assert.equal(normalizarVouchers(undefined).length, 0);
 });
 
 test("o pagamento nasce aguardando, com reserva, e só transita pelo que a régua permite", () => {

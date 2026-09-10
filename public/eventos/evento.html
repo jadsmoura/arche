@@ -223,6 +223,28 @@ let ME = null;   // a conta logada (o /api/me), consultada ANTES de desenhar: de
 let WALLET = false;
 let DIA_SEL = "";                 // aba de dia escolhida na programação
 let ESCOLHIDAS = new Set();       // ids das atividades marcadas no formulário
+let VOUCHER = "";                 // o código de desconto aplicado (o servidor o confere de novo ao inscrever)
+
+/* O VOUCHER (set/2026): a pessoa digita o código, o servidor diz se vale
+   para a categoria marcada e quanto fica — o mesmo cálculo da inscrição.
+   Trocar de categoria reconfere, porque o voucher pode valer só para uma. */
+async function aplicarVoucher() {
+  const inp = $("i-voucher"), out = $("i-voucher-msg");
+  if (!inp || !out) return;
+  const codigo = inp.value.trim().toUpperCase();
+  if (!codigo) { VOUCHER = ""; out.innerHTML = ""; return; }
+  const categoria = document.querySelector('input[name="i-categoria"]:checked')?.value || "";
+  out.innerHTML = `<span style="color:var(--muted)">Conferindo…</span>`;
+  try {
+    const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/voucher?codigo=${encodeURIComponent(codigo)}&categoria=${encodeURIComponent(categoria)}`);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "Não foi possível conferir o voucher agora.");
+    if (!j.ok) { VOUCHER = ""; out.innerHTML = `<span style="color:var(--err)">${esc(j.motivo)}</span>`; return; }
+    VOUCHER = j.codigo;
+    out.innerHTML = `<span style="color:var(--ok);font-weight:600">✓ Voucher ${esc(j.codigo)} aplicado — desconto de ${esc(j.descontoTexto)} (${reais(j.desconto)}): ${j.gratuita ? "a inscrição fica <b>gratuita</b>" : `você paga <b>${reais(j.valor)}</b>${j.valorCartao > j.valor ? ` no Pix (${reais(j.valorCartao)} no cartão)` : ""}`}.</span>`;
+  } catch (e) { VOUCHER = ""; out.innerHTML = `<span style="color:var(--err)">${esc(e.message)}</span>`; }
+}
+document.addEventListener("change", (ev) => { if (ev.target?.name === "i-categoria" && $("i-voucher")?.value.trim()) aplicarVoucher(); });
 
 // rótulos dos tipos de atividade (códigos do catálogo de lib/eventos.js —
 // estáveis por contrato; o rótulo mora aqui para a página não depender de
@@ -928,6 +950,12 @@ function blocoCategoria(e) {
       ${k.valorCheio > k.valor ? `<span class="m" style="text-decoration:line-through;white-space:nowrap">${reais(k.valorCheio)}</span>` : ""}
     </label>`).join("")}
     ${c.acrescimoCartao ? `<p style="font-size:12px;color:var(--muted);margin-top:6px">No cartão há acréscimo de <b>${esc(c.acrescimoCartao)}</b>, que é a tarifa do cartão repassada; no Pix vale o valor da categoria.</p>` : ""}
+    ${c.aceitaVoucher ? `<label for="i-voucher" style="margin-top:12px">Código de desconto (voucher)</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input id="i-voucher" placeholder="ex.: MONITOR2026" style="flex:1;min-width:160px;text-transform:uppercase" autocomplete="off">
+      <button class="bt bt-sec" type="button" onclick="aplicarVoucher()">Aplicar</button>
+    </div>
+    <div id="i-voucher-msg" style="font-size:12.5px;margin-top:6px"></div>` : ""}
     <p style="font-size:12px;color:var(--muted);margin-top:8px">Pagamento por ${[c.meios?.pix && "Pix", c.meios?.cartao && (c.parcelas > 1 ? `cartão (até ${c.parcelas}x)` : "cartão"), c.meios?.boleto && "boleto"].filter(Boolean).join(", ") || "meio a definir"}${c.provedor === "picpay"
         ? ` — o QR Code Pix aparece logo depois da inscrição, emitido pelo ${esc(c.provedorRotulo || "PicPay")}${c.recebedor ? ` em nome de ${esc(c.recebedor)}` : ""}, e vale em qualquer banco`
         : `, na página segura do ${esc(c.provedorRotulo || "provedor de pagamento")}${c.recebedor ? `, em nome de ${esc(c.recebedor)}` : ""}`}. A vaga fica reservada por ${Math.round((c.reservaMinutos || 1440) / 60)} h para o pagamento;
@@ -1045,6 +1073,7 @@ async function inscrever(ev) {
         atividades: [...ESCOLHIDAS],
         respostas: lerRespostas(),
         categoria: document.querySelector('input[name="i-categoria"]:checked')?.value || "",
+        voucher: ($("i-voucher")?.value || "").trim().toUpperCase(),
         consentimento: $("i-lgpd").checked === true,
         comunicacoes: $("i-comunic").checked === true,
       }),
