@@ -4609,6 +4609,16 @@ public/
   `min-width:0` em `.card *` não faz nada em caixa comum (ali `auto` já vale 0): só age em item de
   flex ou de grade, que é onde o defeito mora — a mesma regra que cada SPA já escreve para as suas
   grades (`.kpis>*`, `.grid2>*`), agora valendo para as linhas escritas à mão dentro dos cards.
+  **A segunda passada da medição achou os que só se encontram NOMEANDO**, e todos moram em lugar
+  compartilhado: a **☆ dos favoritos** da página inicial (19×25px — o controle que fixa o setor no
+  alto do portal, ao lado do nome dele, com o risco de errar o alvo e ABRIR o setor em vez de
+  fixá-lo); o **"ver todas →"** dos painéis (14px de altura, o menor alvo do sistema, escrito igual
+  em cinco setores); o **"Ver como"**, que é do componente compartilhado; e os **números da
+  paginação** (27 a 30 × 25px, nove por tela, encostados — o pior desenho possível para o dedo,
+  porque errar não é não fazer nada, é ir para a página errada). Depois deles a página inicial e o
+  banco de assinaturas ficaram com **zero** alvos abaixo de 32px. Não subiram: a **caixa de marcar**
+  parou em 22px (de 13) porque o rótulo ao lado já estende o alvo, e o **link dentro de frase**, que
+  crescido quebraria a entrelinha do parágrafo — link em prosa é assim na web inteira.
   **Quem carrega**: `arche-nav.js` injeta o `<link>` nas 41 páginas com login — inclusive as 25 do
   app compilado da Avaliação, cujo `<head>` não se edita —, e as 18 páginas públicas (hotsite,
   ficha, credencial, telão, vitrines, apresentação) o trazem escrito no fim do próprio `<head>`,

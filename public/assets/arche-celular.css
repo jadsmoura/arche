@@ -79,6 +79,25 @@
   .side-item,
   .topo-nav a { min-height: 44px; }
 
+  /* Os três que a segunda passada da medição encontrou, e que só se acham
+     nomeando: a **☆ dos favoritos** da página inicial, com 19×25px — é o
+     controle que fixa o setor no alto do portal, e no telefone ele era um
+     alvo de mouse ao lado do nome do setor, com o risco de errar e abrir o
+     setor em vez de fixá-lo; o **"ver todas →"** dos painéis, com 14px de
+     altura — o menor alvo do sistema inteiro —, escrito igual em cinco
+     setores; e o **"Ver como"**, com 29px, que é do componente
+     compartilhado e por isso aparece em todos. */
+  .pin { min-width: 44px; min-height: 44px; }
+  .verTodas, .vc-bt { min-height: 40px; }
+
+  /* E os NÚMEROS DA PAGINAÇÃO, com 27 a 30 × 25px — nove por tela nas
+     listas longas, encostados uns nos outros: é o pior desenho possível
+     para o dedo, porque errar o alvo não é não fazer nada, é ir para a
+     página errada. São do componente compartilhado (`arche-paginacao.js`),
+     então isto vale em todas as dez listas que o usam. */
+  .ap-barra button { min-width: 40px; min-height: 40px; }
+  .ap-barra .ap-tam select { min-height: 40px; }
+
   /* Botões que já são flex continuam centrados; os que não são precisam
      disto, senão o texto encosta no alto da caixa que acabou de crescer. */
   .bt, .card-cta, .topo-nav a {
