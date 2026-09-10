@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import {
-  normalizarCobranca, cobrancaAtiva, valorDaInscricao, loteVigente, proximoLote, novoPagamento, transitar,
+  normalizarCobranca, cobrancaAtiva, valorDaInscricao, loteVigente, proximoLote, tabelaDeLotes, novoPagamento, transitar,
   podeTransitar, inscricaoValida, reservaVencida, estadoDoProvedor, meioDoProvedor,
   lerPagamentoDoProvedor, validarAssinaturaMP, resumoFinanceiro, linhasFinanceiro, centavos, fmtReais, ocupaVaga,
   normalizarMP, normalizarLinkPicPay, estadoLinkPicPay, idDoLinkPicPay, transacaoDecisiva, dataPicPayISO, validarTokenPicPay, ehNormalizado,
@@ -12,6 +12,7 @@ import {
 } from "../lib/pagamentos.js";
 import { isoComFuso, configurado, modo } from "../lib/pagamentos/mercadopago.js";
 import * as provedor from "../lib/pagamentos/provedor.js";
+import { somaDias } from "../lib/datas.js";
 
 const COB = normalizarCobranca({
   ativa: true,
@@ -48,6 +49,51 @@ test("a configuração normaliza categorias (código estável), lotes ordenados 
   assert.equal(normalizarCobranca(undefined).ativa, false);
   assert.equal(cobrancaAtiva(normalizarCobranca({ ativa: true, categorias: [{ nome: "Grátis", valor: 0 }] })), false,
     "ativa sem categoria paga não cobra ninguém");
+});
+
+/* A TABELA DOS LOTES (set/2026, pedido do dono: "na página inicial, acho
+   importante alguma informação sobre os lotes e datas"). Ela responde as duas
+   perguntas que a página não respondia: até quando vale este preço, e quanto
+   ele passa a ser. */
+test("a tabela dos lotes fecha o período de cada um e diz o valor de cada categoria", () => {
+  // ANTES do primeiro lote: a primeira linha é o valor de tabela, e é ela que vale hoje
+  const antes = tabelaDeLotes(COB, "2026-09-20");
+  assert.equal(antes[0].nome, "Valor de tabela");
+  assert.equal(antes[0].desde, "", "o valor de tabela não começa: ele é o preço da categoria");
+  assert.equal(antes[0].vigente, true);
+  assert.equal(antes[0].ate, somaDias(COB.lotes[0].desde, -1), "termina na VÉSPERA do primeiro lote");
+  assert.equal(antes.length, COB.lotes.length + 1);
+
+  // DEPOIS: a linha de história some — ela não ajuda quem vai decidir
+  const dentro = tabelaDeLotes(COB, "2026-10-02");
+  assert.equal(dentro.length, COB.lotes.length);
+  assert.equal(dentro[0].nome, COB.lotes[0].nome);
+  assert.equal(dentro.filter((l) => l.vigente).length, 1, "exatamente UMA linha é a de hoje");
+  assert.equal(dentro.find((l) => l.vigente).nome, "2º lote");
+  // o período de cada linha bate com o que loteVigente faz na prática
+  const seg = dentro.find((l) => l.nome === "2º lote");
+  assert.equal(loteVigente(COB, seg.desde).nome, "2º lote", "o primeiro dia do período já é dele");
+  assert.equal(loteVigente(COB, seg.ate).nome, "2º lote", "o último dia ainda é dele");
+  assert.equal(loteVigente(COB, somaDias(seg.ate, 1)).nome, "3º lote", "no dia seguinte já é o próximo");
+  assert.equal(dentro[dentro.length - 1].ate, "", "o último lote NÃO expira");
+
+  // os valores da linha são os que a inscrição cobraria naquele dia
+  for (const l of dentro) {
+    const dia = l.desde;
+    for (const v of l.valores)
+      assert.equal(v.valor, valorDaInscricao(COB, { categoria: v.codigo, hojeISO: dia }).valor,
+        `${l.nome}/${v.codigo}: a tabela promete o que a inscrição cobra`);
+  }
+  // categoria gratuita não encarece com o lote — a mesma régua de valorDaInscricao.
+  // Foi por aqui que apareceu um defeito antigo do payload público: ele refazia
+  // a conta à mão e anunciava "R$ 20,00" para a categoria gratuita assim que um
+  // lote começava, um preço que o servidor nunca cobraria.
+  const gratis = dentro[dentro.length - 1].valores.find((v) => v.codigo === "estudante-uniego");
+  assert.equal(gratis.valor, 0, "quem não paga não paga mais caro por chegar tarde");
+  assert.equal(valorDaInscricao(COB, { categoria: "estudante-uniego", hojeISO: "2026-11-01" }).valor, 0);
+
+  // evento sem lote nenhum não tem tabela
+  assert.deepEqual(tabelaDeLotes(normalizarCobranca({ ativa: true, categorias: [{ nome: "Única", valor: 5000 }] }), "2026-10-02"), []);
 });
 
 test("o valor é do SERVIDOR: categoria + o lote que JÁ COMEÇOU na data", () => {

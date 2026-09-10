@@ -106,7 +106,7 @@ import {
   normalizarCobranca, cobrancaAtiva, valorDaInscricao, novoPagamento, inscricaoValida,
   voucherValido, usosDoVoucher, descontoTexto,
   reservaVencida, transitar as transitarPagamento, lerPagamentoDoProvedor, validarAssinaturaMP,
-  resumoFinanceiro, linhasFinanceiro, fmtReais, loteVigente, proximoLote, lotesNormalizados, ESTADOS_PAGAMENTO, acrescimoTexto, valorNoCartao, meioLinkPicPay,
+  resumoFinanceiro, linhasFinanceiro, fmtReais, loteVigente, proximoLote, lotesNormalizados, tabelaDeLotes, ESTADOS_PAGAMENTO, acrescimoTexto, valorNoCartao, meioLinkPicPay,
 } from "./lib/pagamentos.js";
 /* O PROVEDOR é escolhido pelo ambiente (PAGAMENTO_PROVEDOR = picpay |
    mercadopago — lib/pagamentos/provedor.js); os dois webhooks continuam
@@ -4400,18 +4400,30 @@ function cobrancaPublica(ev, hojeISO) {
   const proximo = proximoLote(c, hojeISO);
   const meios = provedorPg.meiosEfetivos(c.meios);
   return {
+    /* O QUE A PÁGINA ANUNCIA É O QUE A INSCRIÇÃO COBRA (correção de set/2026,
+       vista ao pôr a tabela dos lotes na página): aqui o preço era refeito à
+       mão — `valor + acrescimo do lote` — e a conta divergiu da régua de
+       `valorDaInscricao` no caso que mais dói: a categoria de valor ZERO (o
+       aluno do UNIEGO, o convidado) é gratuita de PROPÓSITO e não recebe
+       acréscimo, mas a página passou a anunciar "R$ 20,00" para ela assim que
+       um lote começou. Quem paga zero via um preço que o servidor nunca
+       cobraria. Agora quem responde é a MESMA função da cobrança: uma régua só,
+       e a página não pode voltar a prometer outro valor. */
     categorias: c.categorias.map((x) => {
-      const valor = Math.max(0, x.valor + (lote ? lote.acrescimo : 0));
+      const p = valorDaInscricao(c, { categoria: x.codigo, hojeISO }) || { valor: 0, valorCartao: 0 };
       return {
         codigo: x.codigo, nome: x.nome, descricao: x.descricao,
-        valor, valorCheio: x.valor,
+        valor: p.valor, valorCheio: x.valor,
         // o valor NO CARTÃO, quando há acréscimo (só o PicPay o repassa; no
         // Mercado Pago o preço é um só)
-        valorCartao: meios.cartao && provedorPg.nome() === "picpay" ? valorNoCartao(valor, c) : valor,
+        valorCartao: meios.cartao && provedorPg.nome() === "picpay" ? p.valorCartao : p.valor,
       };
     }),
     lote: lote ? { nome: lote.nome, desde: lote.desde } : null,
     proximoLote: proximo ? { nome: proximo.nome, desde: proximo.desde } : null,
+    // a TABELA inteira (set/2026): até quando vale o preço de hoje e quanto
+    // ele passa a ser — é o que a página inicial do evento precisa dizer
+    lotes: tabelaDeLotes(c, hojeISO),
     acrescimoCartao: meios.cartao && provedorPg.nome() === "picpay" ? acrescimoTexto(c) : "",
     // há voucher de desconto ativo? (só o SINAL — os códigos nunca saem)
     aceitaVoucher: (c.vouchers || []).some((v) => v.ativo),

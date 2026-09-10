@@ -115,6 +115,20 @@
   .val-cat{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);
     border-radius:10px;margin-top:6px;font-weight:500;font-size:13.5px;color:var(--ink)}
   .val-cat .m{font-size:12px;color:var(--muted);font-weight:400;margin-top:2px}
+  /* a tabela dos lotes: quanto custa em cada período, com o de hoje marcado.
+     Ela rola na horizontal no celular — a página nunca rola de lado */
+  .rolo-lotes{overflow-x:auto;margin-top:8px;-webkit-overflow-scrolling:touch}
+  .tab-lotes{border-collapse:collapse;width:100%;min-width:340px;font-size:13px}
+  .tab-lotes th,.tab-lotes td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  .tab-lotes th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
+  .tab-lotes td+td,.tab-lotes th+th{text-align:right}
+  .tab-lotes th:nth-child(2),.tab-lotes td:nth-child(2){text-align:left}
+  .tab-lotes tbody tr:last-child td{border-bottom:0}
+  .tab-lotes tr.agora{background:var(--wash)}
+  .tab-lotes tr.agora td{font-weight:700;color:var(--brand)}
+  .tab-lotes .agora-selo{display:inline-block;background:var(--brand);color:#fff;border-radius:20px;
+    padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.03em;margin-left:6px;vertical-align:1px}
+  .tab-lotes tr.passou td{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line)}
   .dica-campo{font-size:11.5px;color:var(--muted);margin:-6px 0 2px}
   .lgpd-box{background:var(--wash);border:1px solid var(--line);border-radius:10px;padding:12px 14px;
     font-size:12px;color:var(--ink-soft);line-height:1.6;max-height:170px;overflow-y:auto;margin-top:8px}
@@ -378,6 +392,11 @@ function render() {
       ? `<span class="selo">${e.vagasRestantes} vaga(s) restante(s)</span>`
       : `<span class="selo">Vagas esgotadas</span>`,
     e.cargaHoraria ? `<span class="selo">${esc(e.cargaHoraria)}h de carga horária</span>` : "",
+    /* O LOTE DE HOJE, no alto (set/2026, pedido do dono: "acho importante
+       alguma informação sobre os lotes e datas"): o prazo do PREÇO é o que
+       faz alguém se inscrever agora, e ele só existia lá embaixo, na seção
+       Inscrição. Com data de fim o selo vem em destaque — é ela que corre. */
+    seloDoLote(e),
   ].filter(Boolean).join("");
   const hero = `
     <div class="hero-ev" ${capa ? `style="background-image:url('${capa}')"` : ""}>
@@ -916,14 +935,13 @@ function chamadaInscricao(e) {
   const vagas = e.vagasRestantes === null ? "" : ` Restam <b>${e.vagasRestantes} vaga(s)</b>.`;
   const valores = cats.length ? `
     <div class="secao-t" style="font-size:15px;margin:18px 0 0">Valores</div>
-    ${c.lote || c.proximoLote ? `<p style="font-size:12.5px;color:var(--muted);margin-top:4px">${
-      c.lote ? `Valores do <b>${esc(c.lote.nome)}</b>, em vigor desde ${esc(fmt(c.lote.desde))}.` : "Valores do primeiro lote."
-    }${c.proximoLote ? ` A partir de ${esc(fmt(c.proximoLote.desde))} vale o <b>${esc(c.proximoLote.nome)}</b>, mais caro.` : ""}</p>` : ""}
+    ${avisoLote(c)}
     ${cats.map((k) => `<div class="val-cat">
       <span style="flex:1"><b>${esc(k.nome)}</b>${k.descricao ? `<div class="m">${esc(k.descricao)}</div>` : ""}</span>
       <b style="white-space:nowrap">${k.valor > 0 ? reais(k.valor) : "gratuita"}${k.valor > 0 && k.valorCartao > k.valor
         ? `<span class="m" style="display:block;font-weight:500;text-align:right">no Pix · ${reais(k.valorCartao)} no cartão</span>` : ""}</b>
-    </div>`).join("")}` : "";
+    </div>`).join("")}
+    ${tabelaLotes(c)}` : "";
   /* TRÊS ESTADOS, UM BOTÃO (pedido do dono, set/2026): sem conta e com conta
      sem inscrição, o ato é INSCREVER-SE; com a inscrição feita, o ato é ABRIR
      A ÁREA — é lá que estão o pagamento, a credencial, a programação e os
@@ -1047,6 +1065,65 @@ function avisoConflito() {
    "inscrição gratuita"; o pago diz a faixa de valores das categorias (a de
    hoje, com o lote aplicado) — "inscrição gratuita" num evento pago era o
    que o dono viu no primeiro teste (set/2026). */
+/* OS LOTES E AS DATAS (set/2026, pedido do dono: "na página inicial, acho
+   importante alguma informação sobre os lotes e datas"). A página dizia só o
+   lote de HOJE e a data do seguinte — e quem pensa em se inscrever quer
+   justamente as duas coisas que faltavam: **até quando** vale este preço e
+   **quanto** ele passa a ser. A tabela vem pronta do servidor
+   (`tabelaDeLotes`): um período fechado por lote e o valor de cada categoria
+   nele, com o vigente marcado. Aqui só se desenha.
+
+   É UMA função para os DOIS lugares — a chamada do hotsite e o formulário da
+   ficha —, que até agora repetiam o mesmo parágrafo em duas cópias. */
+/* Na TABELA a data sai em dia/mês: com o ano por extenso em três colunas de
+   período, o quadro rola de lado até no computador. O ano só aparece quando é
+   OUTRO que o do evento — aí ele deixa de ser óbvio e passa a fazer falta. */
+const fmtLote = (iso) => {
+  const ano = String(EV?.periodoInicio || "").slice(0, 4);
+  return String(iso || "").slice(0, 4) === ano ? fmt(iso).slice(0, 5) : fmt(iso);
+};
+const periodoLote = (l) => (l.desde && l.ate ? `${fmtLote(l.desde)} a ${fmtLote(l.ate)}`
+  : l.ate ? `até ${fmtLote(l.ate)}` : l.desde ? `a partir de ${fmtLote(l.desde)}` : "");
+/* O selo do hero: "1º lote até 30/09". Sem data de fim (o último lote, que não
+   expira) ele sai discreto — não há prazo a anunciar; com data, em destaque. */
+function seloDoLote(e) {
+  const vig = (e.cobranca?.lotes || []).find((l) => l.vigente);
+  if (!vig) return "";
+  return vig.ate
+    ? `<span class="selo on">${esc(vig.nome)} até ${esc(fmt(vig.ate))}</span>`
+    : `<span class="selo">${esc(vig.nome)}</span>`;
+}
+function avisoLote(c) {
+  const vig = (c?.lotes || []).find((l) => l.vigente);
+  const prox = c?.proximoLote;
+  if (!vig && !prox) return "";
+  const agora = vig
+    ? `Os valores são os do <b>${esc(vig.nome)}</b>${vig.ate ? `, em vigor até <b>${esc(fmt(vig.ate))}</b>` : ""}.`
+    : "Os valores são os do primeiro lote.";
+  const sobe = prox ? ` A partir de <b>${esc(fmt(prox.desde))}</b> vale o <b>${esc(prox.nome)}</b>, mais caro.` : "";
+  return `<p style="font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.55">${agora}${sobe}</p>`;
+}
+function tabelaLotes(c) {
+  const linhas = c?.lotes || [];
+  const cats = c?.categorias || [];
+  // um período só não é tabela de lotes: seria uma linha repetindo os valores
+  if (linhas.length < 2 || !cats.length) return "";
+  let passou = true;                       // as linhas ANTES da vigente já se foram
+  return `<div class="rolo-lotes"><table class="tab-lotes">
+    <thead><tr><th>Lote</th><th>Período</th>${cats.map((k) => `<th>${esc(k.nome)}</th>`).join("")}</tr></thead>
+    <tbody>${linhas.map((l) => {
+      const classe = l.vigente ? "agora" : passou ? "passou" : "";
+      if (l.vigente) passou = false;
+      return `<tr${classe ? ` class="${classe}"` : ""}>
+        <td>${esc(l.nome)}${l.vigente ? '<span class="agora-selo">agora</span>' : ""}</td>
+        <td>${esc(periodoLote(l))}</td>
+        ${cats.map((k) => {
+          const v = (l.valores || []).find((x) => x.codigo === k.codigo);
+          return `<td>${!v ? "—" : v.valor > 0 ? reais(v.valor) : "gratuita"}</td>`;
+        }).join("")}
+      </tr>`;
+    }).join("")}</tbody></table></div>`;
+}
 function rotuloPreco(e) {
   const cats = e.cobranca?.categorias || [];
   if (!cats.length) return "inscrição gratuita";
@@ -1067,15 +1144,14 @@ function blocoCategoria(e) {
   const uma = c.categorias.length === 1;
   return `<div class="secao-t" style="font-size:15px;margin:20px 0 0">Categoria da inscrição</div>
     ${!c.online ? `<div class="msg-erro">O pagamento online está indisponível neste momento — fale com a coordenação do evento.</div>` : ""}
-    ${c.lote || c.proximoLote ? `<p style="font-size:12.5px;color:var(--muted);margin-top:4px">${
-      c.lote ? `Valores do <b>${esc(c.lote.nome)}</b>, em vigor desde ${esc(fmt(c.lote.desde))}.` : "Valores do primeiro lote."
-    }${c.proximoLote ? ` A partir de ${esc(fmt(c.proximoLote.desde))} vale o <b>${esc(c.proximoLote.nome)}</b>, mais caro.` : ""}</p>` : ""}
+    ${avisoLote(c)}
     ${c.categorias.map((k, i) => `<label class="esc-atv" style="align-items:center">
       <input type="radio" name="i-categoria" value="${esc(k.codigo)}" ${uma || i === 0 ? "checked" : ""} required>
       <span style="flex:1"><b>${esc(k.nome)}</b>${k.descricao ? `<div class="m">${esc(k.descricao)}</div>` : ""}</span>
       <b style="white-space:nowrap">${k.valor > 0 ? reais(k.valor) : "gratuita"}${k.valor > 0 && k.valorCartao > k.valor ? `<span class="m" style="display:block;font-weight:500;text-align:right">no Pix · ${reais(k.valorCartao)} no cartão</span>` : ""}</b>
       ${k.valorCheio > k.valor ? `<span class="m" style="text-decoration:line-through;white-space:nowrap">${reais(k.valorCheio)}</span>` : ""}
     </label>`).join("")}
+    ${tabelaLotes(c)}
     ${c.acrescimoCartao ? `<p style="font-size:12px;color:var(--muted);margin-top:6px">No cartão há acréscimo de <b>${esc(c.acrescimoCartao)}</b>, que é a tarifa do cartão repassada; no Pix vale o valor da categoria.</p>` : ""}
     ${c.aceitaVoucher ? `<label for="i-voucher" style="margin-top:12px">Código de desconto (voucher)</label>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">

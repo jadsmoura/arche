@@ -1250,6 +1250,31 @@ public/
   e o acréscimo zerado** — quem abrisse a guia e salvasse apagaria os lotes do evento sem perceber.
   O hotsite passou a anunciar o **próximo** lote mesmo sem lote vigente ("a partir de 01/10 vale o
   2º lote, mais caro"): é justamente antes do primeiro acréscimo que o aviso serve para alguma coisa.
+  **A PÁGINA MOSTRA A TABELA DOS LOTES, e o selo do lote sobe para o alto** (`tabelaDeLotes` em
+  lib/pagamentos.js + `seloDoLote`/`avisoLote`/`tabelaLotes` no hotsite, pedido do dono set/2026:
+  "na página inicial, acho importante alguma informação sobre os lotes e datas"). A página dizia só
+  o lote de HOJE e a data do seguinte, e isso lá embaixo, na seção Inscrição — quem pensa em se
+  inscrever quer as duas coisas que faltavam: **até quando** vale este preço e **quanto** ele passa
+  a ser. Agora: um **selo no hero** ("1º lote até 30/09"), em destaque quando há prazo correndo —
+  é o prazo do PREÇO que faz alguém se inscrever agora, e ele não pode viver a três telas de
+  rolagem do botão —, e a **tabela inteira** sob os valores: uma linha por lote com o período
+  fechado e o valor de cada categoria, o de hoje marcado "agora" e os que já passaram riscados.
+  A régua é do SERVIDOR e é PURA (`tabelaDeLotes`): o `ate` de cada linha é a **véspera** do lote
+  seguinte (o lote vale A PARTIR de uma data, então o anterior termina no dia antes) e o último não
+  expira — a mesma conta de `loteVigente`, escrita por extenso para quem lê a página. A linha
+  "Valor de tabela" só existe **enquanto nenhum lote começou** (antes do primeiro acréscimo o preço
+  é o da categoria); passado ele, some — é história, e história não ajuda quem vai decidir. Um teste
+  compara linha a linha o valor que a tabela PROMETE com o que `valorDaInscricao` COBRA naquele dia.
+  Na tela: a data sai em **dia/mês** (com o ano só quando é outro que o do evento — três colunas de
+  período com o ano por extenso fazem o quadro rolar de lado até no computador), o quadro rola
+  dentro do próprio contêiner e a página nunca rola na horizontal, e **é uma função para os dois
+  lugares** (a chamada do hotsite e o formulário da ficha), que repetiam o mesmo parágrafo.
+  **E o payload público passou a cobrar o que anuncia** (achado ao montar a tabela): as categorias
+  do `GET /api/publico/eventos/:slug` refaziam o preço à mão (`valor + acrescimo`) em vez de chamar
+  `valorDaInscricao`, e a conta divergia no caso que mais dói — a **categoria de valor ZERO**, que é
+  gratuita de propósito e não recebe acréscimo. Começado um lote, a página anunciava "R$ 20,00" ao
+  aluno do UNIEGO, um preço que o servidor nunca cobraria. Quem responde agora é a MESMA função da
+  cobrança: uma régua só, e a página não pode voltar a prometer outro valor.
 - **ACRÉSCIMO NO CARTÃO — dois links por inscrição** (`normalizarAcrescimo`/`valorNoCartao`/
   `acrescimoTexto`/`pagamentoPeloLinkDoCartao` em lib/pagamentos.js + `criarCobranca` do PicPay +
   campo "Acréscimo no cartão" na guia Cobrança, decisão do dono set/2026: "esse sistema também
