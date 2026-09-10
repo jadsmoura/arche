@@ -1,0 +1,203 @@
+/* ========================================================================
+   ARCHÉ · A CAMADA DO CELULAR — set/2026, pedido do dono: "é possível
+   implementar um modo para smartphones? para o ARCHÉ todo".
+
+   NÃO É UM SEGUNDO ARCHÉ. Um "modo celular" com telas próprias seria
+   duas versões de cada página, e duas versões da mesma coisa acabam
+   diferentes — é a lição que o sistema já pagou caro para aprender (a
+   guia de senha em dois lugares, o card de assinatura no IC e no banco,
+   a justificativa do conceito numa chave só). O que existe aqui é UMA
+   camada, num arquivo só, que entra por último na cascata e conserta no
+   telefone o que a medição encontrou. A tela é a mesma; o que muda é o
+   tamanho do que o dedo toca e do que o olho lê.
+
+   O QUE A MEDIÇÃO ENCONTROU (Playwright, 390×844, 16 telas do portal):
+
+   (1) NENHUMA página rola na horizontal. A estrutura já responde — a
+       barra lateral vira faixa, as grades caem para uma coluna, a barra
+       do topo rola. Isso não precisava ser feito e não foi tocado.
+
+   (2) O CAMPO DE FORMULÁRIO TEM 14px EM TODO O PORTAL (uma declaração
+       igual em 11 arquivos), e o Safari do iPhone DÁ ZOOM na página ao
+       tocar num campo de menos de 16px — e não desfaz o zoom ao sair
+       dele. É o defeito mais visível de todos: acontece na inscrição do
+       evento, no relatório, na ata, no perfil, em tudo. Depois do
+       primeiro toque a pessoa fica com a página ampliada, rolando de
+       lado para achar o botão de salvar. É por isso que o sistema
+       "parece" não ter sido feito para o telefone.
+
+   (3) ALVOS DE TOQUE PEQUENOS: de 10 a 48 por tela abaixo de 32px, e os
+       piores são os da BARRA DO TOPO — 24 a 28px de altura, em todas as
+       páginas. A própria regra de celular da barra os encolhe (ela troca
+       o recheio por `5px 9px` para caber os 11 atalhos). Cabiam; não se
+       acertava.
+
+   (4) O RÓTULO DO CAMPO tem 11px, em versalete e com espaçamento — no
+       computador é discreto, no telefone é o que some primeiro.
+
+   Onde ela entra: `assets/arche-nav.js` injeta o <link> nas 41 páginas
+   com login (inclusive as 25 do app compilado da Avaliação, cujo <head>
+   não se edita por decisão do próprio CLAUDE.md), e as páginas públicas
+   — hotsite do evento, ficha, credencial, vitrines — trazem o <link>
+   escrito no fim do <head>, depois do estilo da própria página, que é o
+   que faz esta camada vencer na cascata. O arquivo é UM; quem o carrega
+   confere antes se ele já está lá.
+   ======================================================================== */
+
+@media (max-width: 760px) {
+
+  /* --------------------------------------------------------------------
+     1. O CAMPO TEM 16px NO TELEFONE
+     Abaixo disso o Safari do iPhone amplia a página ao focar o campo.
+     16px é o piso do sistema operacional, não uma escolha de desenho —
+     por isso vale para input, select e textarea de qualquer página, com
+     `!important`: os estilos de campo estão escritos DENTRO de cada SPA,
+     e alguns deles são mais específicos que um seletor de elemento.
+     A caixa de marcar e o botão de rádio ficam de fora: não têm texto, e
+     nelas "tamanho" é a área do quadradinho — que cresce logo abaixo.
+     -------------------------------------------------------------------- */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea { font-size: 16px !important; }
+
+  /* A caixa de marcar cresce para o dedo. O ARCHÉ tem telas inteiras de
+     caixas — os 17 ODS da extensão curricular, as guias de relatório, as
+     atividades da programação —, e 13px de lado é alvo de mouse. */
+  input[type="checkbox"],
+  input[type="radio"] { width: 22px; height: 22px; }
+
+  /* --------------------------------------------------------------------
+     2. ALVO DE TOQUE
+     44px é a recomendação da Apple e ~48dp a do Google. O piso vale para o
+     que a pessoa toca o tempo todo e é NOMEADO, não posto em `button` de
+     qualquer lugar: o portal tem ✕ de chip e ✎ de linha que crescidos a 44
+     desmanchariam a linha em que vivem. `min-height` só CRESCE a caixa:
+     nenhuma regra aqui encolhe ou reposiciona o que já estava certo.
+     -------------------------------------------------------------------- */
+  .bt,
+  .card-cta,
+  .side-item,
+  .topo-nav a { min-height: 44px; }
+
+  /* Botões que já são flex continuam centrados; os que não são precisam
+     disto, senão o texto encosta no alto da caixa que acabou de crescer. */
+  .bt, .card-cta, .topo-nav a {
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .side-item { display: flex; align-items: center; }
+
+  /* O seletor é o controle mais tocado dos setores (curso, ciclo, órgão,
+     situação) e o mais fácil de errar por um fio de altura. */
+  select { min-height: 44px; }
+
+  /* O SELETOR NÃO PODE PASSAR DA TELA. Vários deles são escritos com
+     `width:auto` na própria linha (a agenda dos Espaços, os filtros dos
+     agendamentos), e `auto` num seletor é a largura da MAIOR opção — com o
+     corpo maior a lista de meses ("fevereiro de 2026"…) inchou de 330 para
+     490px e fez a página rolar de lado. Foi a única regressão que a
+     medição pegou, e o teto é a correção certa: a caixa cabe na tela e o
+     nome longo se corta, como já acontece no computador em tela estreita.
+     O teto é contra a TELA, não contra a caixa que o contém: essas linhas
+     de filtro são flex dentro de flex, e uma caixa que se dimensiona pelo
+     próprio conteúdo não serve de referência para o filho — `max-width:
+     100%` ali seria 100% de um valor que o próprio filho está inflando.
+     `min-width:0` é o par disso dentro de linha flex, onde um filho sem ele
+     se recusa a encolher abaixo do próprio conteúdo. */
+  select, input, textarea {
+    max-width: min(100%, calc(100vw - 48px));
+    min-width: 0;
+  }
+
+  /* E A LINHA QUE O CONTÉM TAMBÉM PRECISA PODER ENCOLHER. Capar o seletor
+     não bastou: as barras de filtro são `display:flex;flex-wrap:wrap`
+     escritas na própria linha, e um item flex nasce com `min-width:auto` —
+     ele se RECUSA a ficar menor que o próprio conteúdo. No calendário dos
+     Espaços a linha ficava com 490px dentro de um card de 312. `min-width:0`
+     não faz nada em caixa comum (ali `auto` já vale 0): ele só age em item
+     de flex ou de grade, que é exatamente onde o defeito mora. É a mesma
+     regra que cada SPA já escreve para as suas grades (`.kpis>*`,
+     `.grid2>*`), aqui valendo para as linhas escritas à mão dentro dos
+     cards, que são as que ninguém lembrou de cobrir. */
+  .card *, .topbar * { min-width: 0; }
+
+  /* --------------------------------------------------------------------
+     3. O RÓTULO DO CAMPO
+     11px em versalete com .08em de espaçamento: no telefone é o primeiro
+     texto a sumir, e é ele que diz o que se está preenchendo. Sobe para
+     12px e afrouxa o espaçamento — o que aperta a leitura em corpo
+     pequeno não é o tamanho sozinho, é o tamanho com o espaçamento.
+     Não se mexe no resto da tipografia: chip de 11px é etiqueta, não
+     texto de leitura, e aumentar tudo desmancharia todas as telas.
+     -------------------------------------------------------------------- */
+  label { font-size: 12px; letter-spacing: .05em; }
+
+  /* --------------------------------------------------------------------
+     4. O QUE É LARGO ROLA NO PRÓPRIO CONTÊINER
+     A medição não achou página rolando de lado — as tabelas grandes já
+     vivem dentro de caixas com rolagem. Esta regra é a rede: uma tabela
+     nova, escrita amanhã sem a caixa, rola dentro do card em vez de
+     empurrar a página inteira. `-webkit-overflow-scrolling` é o que dá
+     inércia à rolagem no iOS.
+     -------------------------------------------------------------------- */
+  .rolo, .rolo-tab, .tab-rolo {
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+  }
+
+  /* --------------------------------------------------------------------
+     5. O QUE SE DIGITA CABE NA TELA
+     `textarea` com altura mínima de 84px no telefone é meia tela para um
+     campo e um punhado de linhas para o seguinte. O relatório, a ata e a
+     proposta são feitos de campos longos: 120px dá quatro linhas à vista
+     sem tomar a tela.
+     -------------------------------------------------------------------- */
+  textarea { min-height: 120px; }
+
+  /* --------------------------------------------------------------------
+     6. O SETOR ABRE MOSTRANDO O SETOR, NÃO O CABEÇALHO DELE
+     Foi o que o print de 390px mostrou e nenhum número tinha contado: no
+     ARCHÉ EX, dos 844px do telefone, ~470 eram cabeçalho antes da primeira
+     informação. A barra lateral vira faixa e quebra em TRÊS linhas — a
+     marca do módulo, o bloco da conta e a fileira de guias —, e por baixo
+     ainda vêm a barra de caminho e o painel. A pessoa abre um setor e vê o
+     nome dele três vezes.
+
+     O bloco da conta SAI no telefone: nome, papel e "sair" já estão na
+     barra do topo, que fica presa ali em toda rolagem — é a mesma decisão
+     que a própria barra já tomou para si ("no celular a conta se reduz ao
+     avatar"), aplicada ao lugar onde ela se repetia. No `/curso/` esse
+     bloco é uma legenda em vez da conta; sai também, pelo mesmo motivo:
+     legenda não é informação de tela pequena.
+
+     As oito SPAs escrevem essas classes com os MESMOS nomes (foram
+     copiadas umas das outras), então isto é uma regra, não oito.
+     -------------------------------------------------------------------- */
+  .side-pe { display: none; }
+  /* A marca ocupa a LINHA inteira: ela tem `border-bottom`, e como item de
+     uma faixa flex saía com a largura do texto — o traço parava no meio da
+     tela, parecendo uma linha quebrada em todos os setores. */
+  .side-marca { padding: 9px 14px; flex: 1 1 100%; }
+  .side-marca span { font-size: 15px; }
+  .side-nav { padding: 6px 8px; }
+  .topbar { padding-left: 16px; padding-right: 16px; }
+
+  /* E A FAIXA É UMA FILEIRA DE GUIAS, IGUAL NOS OITO SETORES. Seis SPAs
+     já escrevem estas mesmas linhas por dentro; duas não — e nelas o menu
+     continuava EM PÉ, empilhado: no ARCHÉ AC a faixa media 423px, metade da
+     tela do telefone, antes de qualquer informação. Dizer aqui o que a
+     maioria já diz é um não-efeito para elas e a correção para as outras
+     duas — e a próxima SPA nasce com a faixa certa sem ninguém lembrar de
+     copiar o bloco. `#menu` é o contêiner que as oito usam para as guias. */
+  .app { flex-direction: column; }
+  .side {
+    width: 100%; height: auto; position: static;
+    flex-direction: row; flex-wrap: wrap; align-items: center;
+  }
+  .side-nav { flex: 1 1 100%; order: 3; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .side-nav #menu { display: flex; gap: 6px; }
+  .side-lab { display: none; }
+  .side-item {
+    width: auto; white-space: nowrap;
+    border-left: 0; border-bottom: 3px solid transparent; border-radius: 8px;
+  }
+  .side-item.on { border-left: 0; border-bottom-color: var(--accent); }
+}

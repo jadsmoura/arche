@@ -4570,6 +4570,51 @@ public/
   instituição. O modelo recomendado é justamente esse — **uma instalação por IES**, cada uma com o
   próprio banco, domínio e documentos: multi-tenant num sistema que carrega CPF de menor de idade
   e dossiê de MEC é problema que não vale a pena resolver antes do terceiro cliente.
+- **O CELULAR NÃO É UM SEGUNDO ARCHÉ: É UMA CAMADA** (`public/assets/arche-celular.css`, pedido
+  do dono set/2026: "é possível implementar um modo para smartphones? para o ARCHÉ todo"). Um
+  "modo celular" com telas próprias seriam duas versões de cada página, e duas versões da mesma
+  coisa acabam diferentes — a lição que o sistema já pagou caro (a guia de senha em dois lugares,
+  o card de assinatura no IC e no banco, a justificativa do conceito numa chave só). O que existe
+  é UM arquivo, que entra por último na cascata e conserta no telefone o que a MEDIÇÃO encontrou
+  (Playwright a 390×844, as 16 telas do portal, antes e depois):
+  (1) **Nenhuma página rolava na horizontal** — a estrutura já respondia (a barra lateral vira
+  faixa, as grades caem para uma coluna, a barra do topo rola). Isso não precisou ser feito.
+  (2) **O campo de formulário tinha 14px em TODO o portal** (a mesma declaração em 11 arquivos), e
+  **o Safari do iPhone amplia a página ao tocar num campo de menos de 16px** — e não desfaz o zoom
+  ao sair dele. Era o defeito mais visível de todos, em toda inscrição, todo relatório, toda ata:
+  depois do primeiro toque a pessoa ficava com a página ampliada, rolando de lado para achar o
+  botão de salvar. Agora todo campo sai com 16px no telefone (`!important`, porque os estilos de
+  campo estão escritos DENTRO de cada SPA e alguns são mais específicos que um seletor de elemento).
+  (3) **De 10 a 48 alvos de toque abaixo de 32px por tela**, e os piores eram os da própria BARRA
+  DO TOPO — 24 a 28px, em todas as páginas —, porque era a **regra de celular da barra** que os
+  encolhia (`padding:5px 9px`, para caber os 11 atalhos numa linha). Cabiam: a barra ROLA, então
+  quem decide quantos cabem é a rolagem, não o tamanho de cada um. A barra cresceu de ~40 para
+  ~50px e os itens vão a 40; o piso do resto é 44px para o que se toca sempre (`.bt`, `.card-cta`,
+  `.side-item`, `select`), com `min-height`, que só CRESCE — nenhuma regra da camada encolhe ou
+  reposiciona o que já estava certo.
+  (4) **O SETOR ABRIA MOSTRANDO O CABEÇALHO DELE**: no ARCHÉ EX, dos 844px do telefone, **470 eram
+  cabeçalho** antes da primeira informação — a faixa lateral quebrava em três linhas (marca do
+  módulo, bloco da conta, guias) e ainda vinham a barra de caminho e o painel. O bloco da conta SAI
+  no celular (nome, papel e "sair" já estão na barra do topo, presa ali em toda rolagem — é a mesma
+  decisão que a barra já tomara para si), e o conteúdo passou a começar aos **211px**. As oito SPAs
+  escrevem `.side-marca`/`.side-nav`/`.side-pe` com os MESMOS nomes (foram copiadas umas das
+  outras), então isto é uma regra, não oito.
+  Duas correções que a medição pegou DEPOIS, e que valem como regra: o **seletor com `width:auto`**
+  escrito na própria linha (a agenda dos Espaços) inchou com o corpo maior — "fevereiro de 2026"
+  levou a caixa de 330 para 490px — e fez a página rolar de lado; o teto é contra a **TELA**
+  (`min(100%, calc(100vw - 48px))`), não contra a caixa que o contém, porque essas linhas são flex
+  dentro de flex e uma caixa dimensionada pelo próprio conteúdo não serve de referência ao filho.
+  E capar o seletor não bastou: **item de flex nasce com `min-width:auto` e se recusa a ficar menor
+  que o próprio conteúdo** — a linha de filtros ficava com 490px dentro de um card de 312. O
+  `min-width:0` em `.card *` não faz nada em caixa comum (ali `auto` já vale 0): só age em item de
+  flex ou de grade, que é onde o defeito mora — a mesma regra que cada SPA já escreve para as suas
+  grades (`.kpis>*`, `.grid2>*`), agora valendo para as linhas escritas à mão dentro dos cards.
+  **Quem carrega**: `arche-nav.js` injeta o `<link>` nas 41 páginas com login — inclusive as 25 do
+  app compilado da Avaliação, cujo `<head>` não se edita —, e as 18 páginas públicas (hotsite,
+  ficha, credencial, telão, vitrines, apresentação) o trazem escrito no fim do próprio `<head>`,
+  **depois** do estilo da página, que é o que faz a camada vencer na cascata; o nav confere antes
+  se ele já está lá, para elas não o carregarem duas vezes. O corte é **760px**, que é o que o
+  `arche-ui.css` e seis das oito SPAs já usavam.
 
 ## Identidade visual
 

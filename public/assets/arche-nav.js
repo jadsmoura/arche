@@ -163,17 +163,51 @@
          todas as páginas. É o mesmo recurso que as barras internas dos
          setores já usam. A CONTA fica fora da rolagem, colada à direita:
          sair do sistema não pode depender de rolar a barra até o fim. */
-      "@media(max-width:600px){.arche-topnav{padding:8px 12px;gap:4px;flex-wrap:nowrap;" +
+      /* O recheio da DIREITA passa para a `.nav-dir`, que é o bloco preso
+         ali (`sticky right:0`): com o recheio na barra, o `right:0` parava
+         na borda do recheio e sobrava uma fresta de 12px por onde o que
+         estava rolando aparecia atrás da conta — parecia um pedaço de
+         botão partido, colado no canto de todas as páginas. */
+      "@media(max-width:600px){.arche-topnav{padding:4px 0 4px 12px;gap:4px;flex-wrap:nowrap;" +
       "overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}" +
       ".arche-topnav::-webkit-scrollbar{display:none}" +
-      ".arche-topnav a{font-size:12px;padding:5px 9px}.arche-topnav .nav-brand{font-size:13px}" +
-      ".arche-topnav .nav-dir{position:sticky;right:0;flex:none;background:#1c3742;padding-left:6px}" +
+      /* O ALVO DE TOQUE DA BARRA (medição de set/2026, a 390px): os atalhos
+         saíam com 24 a 28px de altura em TODAS as páginas — os menores do
+         portal inteiro —, e era esta regra que os encolhia, trocando o
+         recheio por `5px 9px` para caber os 11 atalhos em uma linha. Eles
+         cabem: a barra rola, então o que decide quantos cabem é a rolagem,
+         não o tamanho de cada um. O recheio vertical vira 11px (~40px de
+         alvo, com o piso explícito para o botão sem texto), e a barra
+         devolve em recheio próprio o que os itens passam a ocupar — ela
+         cresce de ~40 para ~50px (medido), que é o preço de a barra do
+         sistema inteiro poder ser tocada com o polegar. */
+      ".arche-topnav a,.arche-topnav .nav-gr,.arche-topnav .nav-sino,.arche-topnav .nav-sair{" +
+      "font-size:12px;padding:11px 9px;min-height:40px;display:inline-flex;align-items:center}" +
+      ".arche-topnav .nav-brand{font-size:13px}" +
+      ".arche-topnav .nav-dir{position:sticky;right:0;flex:none;background:#1c3742;padding-left:6px;padding-right:12px}" +
       /* no celular a barra é estreita e fica presa no topo: a conta se reduz
          ao avatar (que leva ao perfil) e o botão de voltar sai, já que o link
          "Portal" está ali do lado. Assim ela não come a tela. */
       ".arche-topnav .nav-id{display:none}.arche-topnav .nav-portal{display:none}" +
       ".arche-topnav .nav-conta{margin-left:0;padding-left:6px}}";
     document.head.appendChild(s);
+  }
+
+  /* A CAMADA DO CELULAR (set/2026, pedido do dono: "um modo para
+     smartphones, para o ARCHÉ todo"): um arquivo só, `arche-celular.css`,
+     que corrige no telefone o campo de 14px (o iPhone amplia a página ao
+     tocar nele), o alvo de toque e o rótulo de 11px. Entra por AQUI porque
+     o nav é o que alcança as 41 páginas com login de uma vez — inclusive as
+     25 do app compilado da Avaliação, cujo <head> não se edita. As páginas
+     públicas o trazem escrito no próprio <head>; por isso se confere antes,
+     senão elas o carregariam duas vezes. Appendado ao <head>, ele fica
+     DEPOIS do estilo de cada SPA, que é o que o faz vencer na cascata. */
+  function celular() {
+    if (document.querySelector('link[href*="arche-celular.css"]')) return;
+    var l = document.createElement("link");
+    l.rel = "stylesheet";
+    l.href = "/assets/arche-celular.css";
+    document.head.appendChild(l);
   }
 
   function link(m) {
@@ -733,6 +767,10 @@
   }
 
   function iniciar() {
+    // a camada do celular é a PRIMEIRA coisa, antes de qualquer ramo: ela
+    // não depende de quem olha nem de que barra se vai desenhar, e no modo
+    // avaliador — que troca a barra inteira — ela também tem de valer
+    celular();
     // dentro da Avaliação, primeiro se descobre QUEM olha: o selo de
     // visualização troca a barra inteira (a consulta é local e rápida;
     // qualquer erro cai na barra normal)
