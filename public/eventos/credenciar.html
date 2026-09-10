@@ -278,7 +278,8 @@ function resultado(tipo, nome, quando, extras = {}) {
   const aviso = extras.naoInscrito
     ? '<div class="dt" style="font-weight:700">⚠ não estava inscrito nesta atividade — sem vaga para incluir</div>'
     : extras.inscritoAgora
-      ? '<div class="dt" style="font-weight:700">＋ inscrito nesta atividade agora</div>'
+      ? `<div class="dt" style="font-weight:700">＋ inscrito nesta atividade agora</div>${extras.trocouDe
+          ? `<div class="dt">saiu de: ${esc(extras.trocouDe)} — a vaga voltou para a fila</div>` : ""}`
       : extras.entradaSemRegistro
         ? '<div class="dt" style="font-weight:700">⚠ não havia entrada registrada — registramos a ENTRADA agora</div>' : "";
   el.innerHTML = tipo === "saida"
@@ -314,7 +315,7 @@ async function checkin(body, atividadeEscolhida, faseEscolhida) {
     if (!r.ok) { resultado("erro", j.error && !/não encontrada/i.test(j.error) ? j.error : ""); return false; }
     resultado(j.saida ? "saida" : j.ja ? "ja" : "ok", j.nome, j.presenteEm,
       { atividade: j.atividade, naoInscrito: j.naoInscritoNaAtividade === true,
-        inscritoAgora: j.inscritoAgora === true, entradaSemRegistro: j.entradaSemRegistro === true,
+        inscritoAgora: j.inscritoAgora === true, trocouDe: j.trocouDe || "", entradaSemRegistro: j.entradaSemRegistro === true,
         saidaEm: j.saidaEm, permanencia: j.permanenciaTxt });
     return true;
   } catch {

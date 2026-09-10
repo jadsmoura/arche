@@ -85,7 +85,7 @@ import {
   codigoDe, inscritoPorToken, normalizarProgramacao, vagasRestantes, prazoInscricao,
   podeInscrever as podeInscreverEvento, jaInscrito, emailMascarado,
   horaLimiteInscricao, prazoInscricaoVencido, RE_HORA_LIMITE,
-  TIPOS_ATIVIDADE, gerarIdCurto, vagasAtividade, podeEscolherAtividade,
+  TIPOS_ATIVIDADE, gerarIdCurto, vagasAtividade, podeEscolherAtividade, simultaneasEscolhidas, choqueNaEscolha,
   normalizarFormulario, validarRespostas, LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd,
   normalizarBlocos, TIPOS_BLOCO, CATEGORIAS_APOIO, REDES_SOCIAIS, FREQUENCIAS,
   minutosEntre, duracaoBR, eventoControlaFrequencia, temHotsiteEvento, liberadoParaParticipar,
@@ -4779,6 +4779,10 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
         const pode = podeEscolherAtividade(a.evento, idAtv, parts.inscritos, []);
         if (!pode.ok) return { erro: [pode.semVaga ? 409 : 400, pode.motivo], gravar: false };
       }
+      // a mesma régua da área do inscrito: duas simultâneas prendem duas
+      // vagas para quem só pode estar numa delas
+      const choqueForm = choqueNaEscolha(a.evento, atividadesPedidas);
+      if (choqueForm) return { erro: [400, choqueForm], gravar: false };
       const inscrito = {
         nome, cpf, email, telefone, curso,
         ch: a.proposta?.cargaHoraria || "",
@@ -5475,6 +5479,89 @@ app.post("/api/extensao/:id/inscritos/:token/conferir", async (req, res) => {
   }
 });
 
+/* COMUNICADO AOS INSCRITOS (pedido do dono, set/2026: "permita a gestão enviar
+   comunicados por e-mail a todos os inscritos"): a mudança de sala, o
+   adiamento, o lembrete da véspera. Hoje isso corre por WhatsApp, numa lista
+   que ninguém tem inteira — e o sistema tem a lista.
+
+   Três decisões: (1) SIMULA antes (a mesma janela de revisão dos chamamentos
+   dos outros setores) — dizer quantos vão receber ANTES de mandar é o que
+   separa um comunicado de um engano irreversível; (2) o recorte é por SITUAÇÃO
+   da inscrição, porque as três perguntas da coordenação são diferentes ("aviso
+   a todos", "aviso a quem já confirmou", "cobro quem falta pagar"); e (3) o
+   envio é SEQUENCIAL e fire-and-forget, com a contagem do que saiu e do que
+   não tinha e-mail — o buraco precisa ser conhecido, não escondido. Fica
+   registrado em `sys-ev-comunicados-v1`: e-mail mandado não se desfaz, e o
+   histórico é o que responde depois "isso já foi avisado?". */
+const COMUNICADOS_KEY = "sys-ev-comunicados-v1";
+const ALVOS_COMUNICADO = {
+  todos: { rotulo: "todos os inscritos", filtro: () => true },
+  confirmados: { rotulo: "só os confirmados (pagos, isentos ou de evento gratuito)", filtro: (i) => inscricaoValida(i) },
+  pendentes: { rotulo: "só quem ainda não confirmou o pagamento", filtro: (i) => !inscricaoValida(i) },
+};
+app.post("/api/extensao/:id/comunicado", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const a = (await lerAcoes()).find((x) => x.id === req.params.id);
+    if (!a || !podeOperarEvento(u, a)) return res.status(404).json({ error: "Ação não encontrada" });
+    const alvo = ALVOS_COMUNICADO[String(req.body?.alvo || "todos")] ? String(req.body.alvo) : "todos";
+    const assunto = String(req.body?.assunto || "").trim().slice(0, 120);
+    const mensagem = String(req.body?.mensagem || "").trim().slice(0, 8000);
+    const inscritos = (a.participantes?.inscritos || []).filter(ALVOS_COMUNICADO[alvo].filtro);
+    const comEmail = inscritos.filter((i) => RE_EMAIL_INSCRICAO.test(String(i?.email || "").trim()));
+    const semEmail = inscritos.length - comEmail.length;
+    const { emailComunicadoEvento } = await import("./lib/mailer.js");
+    if (req.body?.simular === true) {
+      const previa = comEmail[0]
+        ? emailComunicadoEvento({ acao: a, inscrito: comEmail[0], assunto: assunto || "(assunto)", mensagem: mensagem || "(a sua mensagem)", base: baseDe(req) })
+        : null;
+      return res.json({ ok: true, simulado: true, alvo, rotulo: ALVOS_COMUNICADO[alvo].rotulo,
+        destinatarios: comEmail.length, semEmail, previaHtml: previa?.corpoHtml || "", previaAssunto: previa?.assunto || "" });
+    }
+    if (assunto.length < 3) return res.status(400).json({ error: "Escreva o assunto do comunicado." });
+    if (mensagem.length < 10) return res.status(400).json({ error: "Escreva a mensagem do comunicado." });
+    if (!comEmail.length) return res.status(409).json({ error: "Nenhum inscrito deste recorte tem e-mail no cadastro." });
+    let enviados = 0;
+    for (const i of comEmail) {
+      try {
+        await enviarAviso("ev-comunicado", emailComunicadoEvento({ acao: a, inscrito: i, assunto, mensagem, base: baseDe(req) }));
+        enviados++;
+      } catch (e) { console.error(`Comunicado não enviado a ${i.email}:`, e.message); }
+    }
+    const reg = JSON.parse((await storage.get(COMUNICADOS_KEY)) || "{}");
+    const lista = Array.isArray(reg[a.id]) ? reg[a.id] : [];
+    lista.unshift({ em: new Date().toISOString(), por: u.email, alvo, assunto, enviados, semEmail,
+      destinatarios: comEmail.length, trecho: mensagem.slice(0, 240) });
+    reg[a.id] = lista.slice(0, 50);
+    await storage.set(COMUNICADOS_KEY, JSON.stringify(reg));
+    /* NENHUM E-MAIL SAIU É FALHA, e a tela precisa dizer isso: um "✓ enviado a
+       0 inscritos" em verde é o mesmo defeito do "salvo" depois do upload
+       recusado — a coordenação sai achando que avisou. A tentativa fica no
+       registro de todo modo (é ela que explica depois por que ninguém soube). */
+    if (!enviados) return res.status(502).json({ error: "Nenhum e-mail saiu — o servidor de e-mail recusou o envio. A tentativa ficou registrada; tente de novo em instantes.", enviados: 0 });
+    res.json({ ok: true, enviados, semEmail, destinatarios: comEmail.length });
+  } catch (e) {
+    console.error("Erro ao enviar comunicado:", e);
+    res.status(500).json({ error: "Não foi possível enviar o comunicado agora." });
+  }
+});
+
+/** O que já foi comunicado neste evento — é o que responde "isso já foi avisado?". */
+app.get("/api/extensao/:id/comunicados", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const a = (await lerAcoes()).find((x) => x.id === req.params.id);
+    if (!a || !podeOperarEvento(u, a)) return res.status(404).json({ error: "Ação não encontrada" });
+    const reg = JSON.parse((await storage.get(COMUNICADOS_KEY)) || "{}");
+    res.json({ ok: true, comunicados: Array.isArray(reg[a.id]) ? reg[a.id] : [] });
+  } catch (e) {
+    console.error("Erro ao ler comunicados:", e);
+    res.status(500).json({ error: "Não foi possível ler os comunicados." });
+  }
+});
+
 /** A planilha da prestação de contas — sem CPF, é documento que circula. */
 app.get("/api/extensao/:id/financeiro.xlsx", async (req, res) => {
   try {
@@ -5735,10 +5822,14 @@ app.post("/api/publico/eventos/:slug/inscricao/:token/atividades", async (req, r
       const lib = liberadoParaParticipar(a.evento, inscrito);
       if (!lib.ok) return { erro: [403, lib.motivo], gravar: false };
       const atuais = Array.isArray(inscrito.atividades) ? inscrito.atividades : [];
+      // no mesmo horário a escolha é UMA: a tela troca sozinha, e aqui a régua
+      // é real — senão a vaga da simultânea ficaria presa por quem não vai
       for (const idAtv of pedidas) {
         const pode = podeEscolherAtividade(a.evento, idAtv, a.participantes?.inscritos, atuais);
         if (!pode.ok) return { erro: [pode.semVaga ? 409 : 400, pode.motivo], gravar: false };
       }
+      const choque = choqueNaEscolha(a.evento, pedidas);
+      if (choque) return { erro: [400, choque], gravar: false };
       inscrito.atividades = pedidas;
       a.atualizadoEm = new Date().toISOString();
       return { atividades: pedidas };
@@ -6618,18 +6709,26 @@ function registrarPresenca(a, atv, inscrito, { fase = "entrada", por = "monitor"
      a inscrição deixaria a atividade fora da lista da pessoa e, depois,
      fora do certificado. Só entra havendo VAGA; lotada, a presença vale
      igual (a pessoa está ali) e o monitor vê o aviso na tela para decidir. */
-  let inscritoAgora = false;
+  let inscritoAgora = false, trocouDe = "";
   if (atv && atv.inscricao === "propria" && !(inscrito.atividades || []).includes(atv.id)) {
-    const pode = podeEscolherAtividade(a.evento, atv.id,
-      a.participantes?.inscritos || [], inscrito.atividades || []);
+    /* NA PORTA, ENTRAR NUMA É SAIR DA SIMULTÂNEA (set/2026): a presença prova
+       onde a pessoa está, e segurar a vaga da oficina que ela deixou de fazer
+       não serve a ninguém — remanejar de última hora é rotina de evento. Sai
+       a marcação da simultânea (a vaga volta à fila na hora), fica a presença
+       já registrada nela, se houve. */
+    const saem = simultaneasEscolhidas(a.evento, atv.id, inscrito.atividades || []);
+    const ficam = (inscrito.atividades || []).filter((x) => !saem.includes(x));
+    const pode = podeEscolherAtividade(a.evento, atv.id, a.participantes?.inscritos || [], ficam);
     if (pode.ok) {
-      inscrito.atividades = [...(inscrito.atividades || []), atv.id];
+      inscrito.atividades = [...ficam, atv.id];
       inscritoAgora = true;
+      trocouDe = saem.map((x) => (a.evento.programacao || []).find((p) => p?.id === x)?.titulo).filter(Boolean).join(", ");
     }
   }
   const extras = atv ? {
     atividade: atv.titulo,
     ...(inscritoAgora ? { inscritoAgora: true } : {}),
+    ...(trocouDe ? { trocouDe } : {}),   // a simultânea de que ele saiu — o monitor vê na tela
     // presença vale mesmo sem a marcação (a pessoa chegou e participou —
     // remanejamento de última hora é rotina de evento), mas a tela avisa
     ...(atv.inscricao === "propria" && !(inscrito.atividades || []).includes(atv.id)

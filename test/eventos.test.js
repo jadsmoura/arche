@@ -9,7 +9,7 @@ import {
   vagasRestantes, prazoInscricao, podeInscrever, jaInscrito,
   horaLimiteInscricao, prazoInscricaoVencido, emailMascarado,
   TIPOS_ATIVIDADE, atividadesInscriviveis, vagasAtividade, conflitoHorario,
-  podeEscolherAtividade, normalizarFormulario, validarRespostas,
+  podeEscolherAtividade, simultaneasEscolhidas, choqueNaEscolha, normalizarFormulario, validarRespostas,
   LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd, videoIdDe, numerosDoEvento,
   faltaNoProjetoDoEvento, CAMPOS_PROJETO_EVENTO,
   normalizarBlocos, TIPOS_BLOCO, urlSegura, imagemPequena,
@@ -220,6 +220,37 @@ test("podeEscolherAtividade: inexistente, geral, lotada — e manter a sua não 
   assert.equal(podeEscolherAtividade(ev, "bbbb2222", cheia, ["bbbb2222"]).ok, true,
     "quem já a tem pode mantê-la — a vaga é dela");
   assert.equal(podeEscolherAtividade(ev, "bbbb2222", [], []).ok, true);
+});
+
+/* NO MESMO HORÁRIO A ESCOLHA É UMA (set/2026). O que se protege aqui é a
+   VAGA: duas oficinas simultâneas marcadas prendem duas vagas para quem só
+   pode estar numa delas. A régua é PAREADA de propósito — fechar o "bloco"
+   proibiria 8–10 + 10–12, que é uma escolha legítima. */
+test("simultâneas: entrar numa é sair da que se sobrepõe — e a régua é pareada", () => {
+  const ev = { programacao: [
+    { id: "a1", titulo: "Oficina A", inscricao: "propria", dia: "2026-05-13", horaInicio: "08:00", horaFim: "10:00" },
+    { id: "b2", titulo: "Oficina B", inscricao: "propria", dia: "2026-05-13", horaInicio: "09:00", horaFim: "11:00" },
+    { id: "c3", titulo: "Oficina C", inscricao: "propria", dia: "2026-05-13", horaInicio: "10:00", horaFim: "12:00" },
+    { id: "g4", titulo: "Plenária", inscricao: "geral", dia: "2026-05-13", horaInicio: "08:00", horaFim: "12:00" },
+    { id: "d5", titulo: "Oficina D", inscricao: "propria", dia: "2026-05-14", horaInicio: "08:00", horaFim: "10:00" },
+  ] };
+  // entrar em B tira A e C: as duas se sobrepõem a ela
+  assert.deepEqual(simultaneasEscolhidas(ev, "b2", ["a1", "c3", "d5"]).sort(), ["a1", "c3"]);
+  // A e C não se sobrepõem: as duas convivem, mesmo com B no meio
+  assert.deepEqual(simultaneasEscolhidas(ev, "a1", ["c3"]), []);
+  assert.equal(choqueNaEscolha(ev, ["a1", "c3"]), "", "8–10 e 10–12 são escolha legítima");
+  assert.equal(choqueNaEscolha(ev, ["a1", "d5"]), "", "dias diferentes não colidem");
+  // o choque nomeia AS DUAS: quem lê a recusa precisa saber o que trocar
+  const m = choqueNaEscolha(ev, ["a1", "b2"]);
+  assert.match(m, /Oficina A/);
+  assert.match(m, /Oficina B/);
+  // a GERAL é de todo inscrito e não entra na conta — ninguém escolhe entre ela e nada
+  assert.deepEqual(simultaneasEscolhidas(ev, "g4", ["a1"]), [], "a geral não disputa horário");
+  assert.deepEqual(simultaneasEscolhidas(ev, "a1", ["g4"]), []);
+  assert.equal(choqueNaEscolha(ev, ["g4", "a1", "b2"]).length > 0, true, "mas as duas próprias ainda colidem");
+  // atividade fora da programação não inventa choque
+  assert.deepEqual(simultaneasEscolhidas(ev, "zzz", ["a1"]), []);
+  assert.equal(choqueNaEscolha(ev, []), "");
 });
 
 /* ------------------------ campos extras e respostas ----------------------- */

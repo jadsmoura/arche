@@ -39,6 +39,11 @@
   .atv.lotada{opacity:.55} .atv.lotada label{cursor:not-allowed}
   .atv .tick{color:var(--ok);font-weight:700;font-size:15px;line-height:1.2}
   .vagas{font-weight:600;color:var(--brand)} .vagas.zero{color:var(--err)}
+  /* o bloco das simultâneas: a escolha ali dentro é UMA (set/2026) */
+  .bloco-hora{border:1px dashed var(--accent);border-radius:12px;padding:6px 10px 10px;margin-top:10px;background:var(--accent-wash)}
+  .bloco-hora .bh{font-family:Sora,sans-serif;font-weight:700;font-size:11.5px;color:var(--brand);
+    text-transform:uppercase;letter-spacing:.05em;margin:6px 2px 0}
+  .bloco-hora .atv{background:#fff}
   .trab{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px}
   .trab .t{font-weight:700;font-size:14px;color:var(--ink)}
   .trab .n{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;color:var(--muted)}
@@ -153,7 +158,10 @@ function cardPagamento(pg, i) {
 
 /* A PROGRAMAÇÃO: as atividades GERAIS já são de todo inscrito (marcadas com
    o visto, sem caixa); as de INSCRIÇÃO PRÓPRIA têm caixa e as vagas de
-   agora — esgotada, a caixa trava (quem já está nela mantém a sua). */
+   agora — esgotada, a caixa trava (quem já está nela mantém a sua).
+   NO MESMO HORÁRIO A ESCOLHA É UMA (pedido do dono, set/2026): as próprias
+   que começam juntas saem num bloco com o aviso, e marcar uma DESMARCA a
+   simultânea — a vaga da que ele deixou volta à fila no mesmo ato. */
 function cardProgramacao(e, i, lib) {
   const prog = e.programacao || [];
   if (!prog.length) return "";
@@ -164,15 +172,36 @@ function cardProgramacao(e, i, lib) {
   return `<div class="card">
     <div class="sec-t">Programação</div>
     <div class="sec-s">As atividades gerais já são suas — quem está inscrito no evento participa. As de <b>vaga limitada</b>
-      (minicursos, oficinas) você marca aqui, e a vaga se esgota conforme os inscritos as escolhem.</div>
+      (minicursos, oficinas) você marca aqui, e a vaga se esgota conforme os inscritos as escolhem.
+      Havendo mais de uma <b>no mesmo horário</b>, escolha uma: ao entrar numa, você sai da outra e a vaga dela volta para a fila.</div>
     ${dias.map((d) => `<div class="dia">${d ? esc(fmt(d)) : "Data a definir"}</div>
-      ${prog.filter((p) => (p.dia || "") === d).map(linhaAtividade).join("")}`).join("")}
+      ${blocosDoDia(prog.filter((p) => (p.dia || "") === d))}`).join("")}
     ${proprias.length ? `<div id="prog-msg"></div>
       <div class="linha">${D.podeTrocarAtividades
         ? `<button class="bt bt-pri" id="prog-bt" onclick="salvarAtividades()">💾 Salvar minhas atividades</button>
            <span style="font-size:12px;color:var(--muted)">Dá para mudar até o fim das inscrições.</span>`
         : `<span class="msg warn" style="margin:0">As inscrições encerraram — a escolha de atividades está travada. Precisa mudar? Fale com a organização.</span>`}</div>` : ""}
   </div>`;
+}
+/* As atividades do dia, com as PRÓPRIAS que começam no mesmo horário reunidas
+   num bloco. O agrupamento olha o INÍCIO — é "no mesmo horário" no sentido em
+   que o participante lê a grade. A régua de verdade é a sobreposição, e ela
+   roda em `marcar` e no servidor: 8–10 e 9–11 não caem no mesmo bloco e
+   continuam sendo uma escolha só. */
+function blocosDoDia(lista) {
+  const feitos = new Set();
+  let html = "";
+  for (const p of lista) {
+    if (feitos.has(p)) continue;
+    const irmas = p.inscricao === "propria" && p.horaInicio
+      ? lista.filter((x) => x.inscricao === "propria" && x.horaInicio === p.horaInicio && x.id !== p.id) : [];
+    if (!irmas.length) { feitos.add(p); html += linhaAtividade(p); continue; }
+    const grupo = [p, ...irmas];
+    grupo.forEach((x) => feitos.add(x));
+    html += `<div class="bloco-hora"><div class="bh">⇄ ${esc(faixa(p))} — escolha uma destas ${grupo.length}</div>
+      ${grupo.map(linhaAtividade).join("")}</div>`;
+  }
+  return html;
 }
 function linhaAtividade(p) {
   const meta = [faixa(p), p.local, p.ch ? `CH ${p.ch}` : "", p.modalidade === "online" ? "online" : ""].filter(Boolean).join(" · ");
@@ -188,7 +217,43 @@ function linhaAtividade(p) {
     <div><div>${esc(p.titulo)}${minha ? ' <span class="selo ok" style="padding:2px 8px;font-size:11px">inscrito</span>' : ""}</div>
       <div class="m">${esc(meta)}${meta ? " · " : ""}${vagas}</div></div></label></div>`;
 }
-function marcar(chk) { if (chk.checked) MARCADAS.add(chk.dataset.atv); else MARCADAS.delete(chk.dataset.atv); }
+/* Marcar uma atividade DESMARCA as que se sobrepõem a ela (set/2026): a
+   escolha no mesmo horário é uma, e sair de uma para entrar noutra é o que
+   devolve a vaga à fila. A conta do choque é a mesma do servidor — mesmo dia,
+   intervalos [início, fim) sobrepostos; sem fim, o início vale um minuto. */
+const fimDe = (p) => {
+  if (p.horaFim && p.horaFim > p.horaInicio) return p.horaFim;
+  const [h, m] = String(p.horaInicio || "").split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return "";
+  const t = h * 60 + m + 1;
+  return String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(t % 60).padStart(2, "0");
+};
+function choca(a, b) {
+  if (!a?.dia || !b?.dia || a.dia !== b.dia || !a.horaInicio || !b.horaInicio) return false;
+  return a.horaInicio < fimDe(b) && b.horaInicio < fimDe(a);
+}
+function marcar(chk) {
+  const id = chk.dataset.atv;
+  if (!chk.checked) { MARCADAS.delete(id); avisoTroca(""); return; }
+  const prog = (D?.evento?.programacao) || [];
+  const nova = prog.find((p) => p.id === id);
+  const saem = [...MARCADAS]
+    .map((x) => prog.find((p) => p.id === x))
+    .filter((p) => p && p.id !== id && p.inscricao === "propria" && choca(nova, p));
+  saem.forEach((p) => {
+    MARCADAS.delete(p.id);
+    const outro = document.querySelector(`input[data-atv="${CSS.escape(p.id)}"]`);
+    if (outro) outro.checked = false;
+  });
+  MARCADAS.add(id);
+  avisoTroca(saem.length
+    ? `Você saiu de ${saem.map((p) => `“${p.titulo}”`).join(", ")} para entrar em “${nova?.titulo || ""}” — a vaga volta para a fila ao salvar.`
+    : "");
+}
+function avisoTroca(texto) {
+  const el = $("prog-msg"); if (!el) return;
+  el.innerHTML = texto ? `<div class="msg warn">⇄ ${esc(texto)}</div>` : "";
+}
 async function salvarAtividades() {
   const bt = $("prog-bt"); bt.disabled = true; $("prog-msg").innerHTML = "";
   try {

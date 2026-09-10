@@ -146,6 +146,7 @@
   .ba-warn{background:var(--warn-soft);color:var(--warn);border:1px solid #f0e0bd}
   .ba-info{background:var(--info-soft);color:var(--brand);border:1px solid #cfe6f2}
   .ba-ok{background:var(--ok-soft);color:var(--ok);border:1px solid #cfeeda}
+  .ba-err{background:var(--err-soft);color:var(--err);border:1px solid #eed6d3}
 
   .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:14px}
   .stat .s{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
@@ -1793,8 +1794,109 @@ function renderInscritos(a){
       <div id="ev-inscritos" class="scrollx"></div>
       <div class="muted" style="font-size:12px;margin-top:8px">Com a página ativa, a lista e os
         contadores se atualizam sozinhos a cada 30 segundos — sem tocar na busca.</div>
-    </div>`;
+    </div>
+    ${cardComunicado(a)}`;
   renderInscritosEv(a);
+  carregarComunicados(a.id);
+}
+
+/* COMUNICADO AOS INSCRITOS (pedido do dono, set/2026): a mudança de sala, o
+   adiamento, o lembrete da véspera — hoje isso corre por WhatsApp, numa lista
+   que ninguém tem inteira. O envio SIMULA antes: quantos vão receber e a
+   prévia do e-mail como ele sai, porque e-mail mandado não se recolhe. */
+function cardComunicado(a){
+  const n=(a.participantes?.inscritos||[]).length;
+  return `<div class="card">
+    <div class="sec-t">📣 Comunicado aos inscritos</div>
+    <div class="muted" style="font-size:12.5px;margin-bottom:10px">Um e-mail a quem está inscrito neste evento,
+      com o texto que você escrever — mudança de sala, adiamento, lembrete da véspera. Cada pessoa recebe
+      o link da própria credencial no rodapé. ${n?`Hoje o evento tem <b>${n}</b> inscrito(s).`:"Ainda não há inscritos."}</div>
+    <div class="g-atv2" style="align-items:end">
+      <label style="margin:0">Para quem
+        <select id="cm-alvo" style="width:100%;font-size:13px">
+          <option value="todos">todos os inscritos</option>
+          <option value="confirmados">só os confirmados (pagos, isentos ou evento gratuito)</option>
+          <option value="pendentes">só quem ainda não confirmou o pagamento</option>
+        </select></label>
+      <label style="margin:0">Assunto
+        <input id="cm-assunto" maxlength="120" placeholder="ex.: mudança de sala da abertura"></label>
+    </div>
+    <label style="margin-top:10px">Mensagem</label>
+    <textarea id="cm-msg" rows="6" maxlength="8000" placeholder="Escreva como você falaria com os inscritos. O texto sai como está aqui — sem formatação."></textarea>
+    <div id="cm-msg-res"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center">
+      <button class="bt bt-pri" onclick="revisarComunicado('${esc(a.id)}')" ${n?"":"disabled"}>👁 Revisar e enviar</button>
+      <span class="muted" style="font-size:12px">Você vê quantos vão receber e a prévia antes de mandar.</span>
+    </div>
+    <div id="cm-hist" style="margin-top:14px"></div>
+  </div>`;
+}
+async function carregarComunicados(id){
+  const el=$("cm-hist"); if(!el) return;
+  try{
+    const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/comunicados`);
+    const j=await r.json(); if(!r.ok) return;
+    const l=j.comunicados||[];
+    el.innerHTML=l.length?`<details><summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--brand-3)">
+      Comunicados já enviados (${l.length})</summary>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+      ${l.map(c=>`<div style="border-left:3px solid var(--line);padding-left:10px;font-size:12.5px">
+        <b>${esc(c.assunto)}</b> — ${esc(fmtDH(c.em))} · ${c.enviados} enviado(s)${c.destinatarios&&c.destinatarios!==c.enviados?` de ${c.destinatarios}`:""}${c.semEmail?` · ${c.semEmail} sem e-mail`:""}
+        <div class="muted" style="margin-top:2px">${esc(c.trecho||"")}${(c.trecho||"").length>=240?"…":""}</div></div>`).join("")}
+      </div></details>`:"";
+  }catch{ /* histórico é informativo: falhar nele não atrapalha o envio */ }
+}
+async function revisarComunicado(id){
+  const alvo=$("cm-alvo").value, assunto=$("cm-assunto").value.trim(), mensagem=$("cm-msg").value.trim();
+  const res=$("cm-msg-res");
+  if(assunto.length<3||mensagem.length<10){ res.innerHTML=`<div class="banner ba-err" style="margin-top:10px">Escreva o assunto e a mensagem antes de revisar.</div>`; return; }
+  res.innerHTML=`<div class="muted" style="font-size:12.5px;margin-top:10px">Conferindo os destinatários…</div>`;
+  try{
+    const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/comunicado`,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({simular:true,alvo,assunto,mensagem})});
+    const j=await r.json(); if(!r.ok) throw new Error(j.error||"Não foi possível conferir.");
+    res.innerHTML="";
+    janelaComunicado(id,{alvo,assunto,mensagem,...j});
+  }catch(e){ res.innerHTML=`<div class="banner ba-err" style="margin-top:10px">${esc(e.message)}</div>`; }
+}
+function janelaComunicado(id,d){
+  const fundo=document.createElement("div");
+  fundo.className="modal-fundo";
+  fundo.style.cssText="position:fixed;inset:0;background:rgba(24,38,50,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px";
+  fundo.innerHTML=`<div style="background:#fff;border-radius:14px;max-width:720px;width:100%;max-height:90vh;overflow:auto;padding:22px 24px">
+    <h3 style="margin:0 0 4px">Revisar o comunicado</h3>
+    <p class="muted" style="font-size:13px;margin:0 0 12px">Vai para <b>${esc(d.rotulo)}</b>:
+      <b>${d.destinatarios}</b> e-mail(s).${d.semEmail?` <span style="color:var(--err)">${d.semEmail} inscrito(s) sem e-mail no cadastro não recebem.</span>`:""}</p>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:4px">Assunto: <b style="color:var(--ink)">${esc(d.previaAssunto||d.assunto)}</b></div>
+    <iframe sandbox="" style="width:100%;height:340px;border:1px solid var(--line);border-radius:10px;background:#fff"
+      srcdoc="${esc(d.previaHtml||"<p>Sem inscrito para a prévia.</p>")}"></iframe>
+    <div id="cm-jan-msg"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
+      <button class="bt bt-pri" id="cm-jan-ok" ${d.destinatarios?"":"disabled"}>✉ Enviar a ${d.destinatarios} inscrito(s)</button>
+      <button class="bt bt-ghost" id="cm-jan-nao">Cancelar</button>
+    </div></div>`;
+  document.body.appendChild(fundo);
+  const fechar=()=>fundo.remove();
+  fundo.querySelector("#cm-jan-nao").onclick=fechar;
+  fundo.onclick=(e)=>{ if(e.target===fundo) fechar(); };
+  fundo.querySelector("#cm-jan-ok").onclick=async()=>{
+    const bt=fundo.querySelector("#cm-jan-ok"); bt.disabled=true; bt.textContent="Enviando…";
+    try{
+      const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/comunicado`,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({alvo:d.alvo,assunto:d.assunto,mensagem:d.mensagem})});
+      const j=await r.json(); if(!r.ok) throw new Error(j.error||"Não foi possível enviar.");
+      fechar();
+      // parcial não é sucesso: a coordenação precisa saber quantos ficaram de fora
+      const faltou=(j.destinatarios||0)-(j.enviados||0);
+      $("cm-msg-res").innerHTML=`<div class="banner ${faltou?"ba-warn":"ba-ok"}" style="margin-top:10px">
+        ${faltou?"⚠":"✓"} Comunicado enviado a ${j.enviados} de ${j.destinatarios} inscrito(s).${faltou?` ${faltou} não saíram — o servidor de e-mail os recusou.`:""}${j.semEmail?` ${j.semEmail} não têm e-mail no cadastro.`:""}</div>`;
+      $("cm-assunto").value=""; $("cm-msg").value="";
+      carregarComunicados(id);
+    }catch(e){
+      fundo.querySelector("#cm-jan-msg").innerHTML=`<div class="banner ba-err" style="margin-top:10px">${esc(e.message)}</div>`;
+      bt.disabled=false; bt.textContent="✉ Tentar de novo";
+    }
+  };
 }
 
 /* ===================== PRÉ-EVENTO · INSCRIÇÕES ========================== */

@@ -1315,8 +1315,9 @@ public/
   próprias**, `ch`, `modalidade` presencial/online e `inscricao: geral|propria`) —
   simultaneidade é mesmo horário em locais diferentes, SEM entidade "trilha" (é como o
   Even3 faz). O participante ESCOLHE as atividades `propria` na inscrição e TROCA depois
-  pela credencial (`POST …/inscricao/:token/atividades`); **conflito de horário AVISA e
-  não trava**; vaga por atividade é conferida DENTRO da fila. **Campos extras**
+  pela credencial (`POST …/inscricao/:token/atividades`); **no mesmo horário a escolha é
+  UMA** (set/2026 — ver abaixo; até então o conflito só avisava); vaga por atividade é
+  conferida DENTRO da fila. **Campos extras**
   configuráveis (`evento.formulario`, 5 tipos, obrigatório por campo; `validarRespostas`
   no servidor; rótulo público do curso é "Curso / instituição de origem" — participante
   externo). **LGPD**: consentimento obrigatório NA ROTA de inscrição, gravado com data +
@@ -1662,6 +1663,50 @@ public/
   vaga do evento: a reserva vencida devolve a vaga da oficina. Os atalhos: "Área do inscrito" no
   topo do hotsite (só logado, só com hotsite), no pós-inscrição, na credencial e na página de
   pagamento confirmado. Sem hotsite não há área — a folha de inscrição basta.
+  **NO MESMO HORÁRIO A ESCOLHA É UMA, e trocar DEVOLVE A VAGA** (`simultaneasEscolhidas`/
+  `choqueNaEscolha` em lib/eventos.js + a régua nas três rotas + o bloco de simultâneas na área do
+  inscrito, pedido do dono set/2026: "permita ao participante escolher dentre as programações que
+  estejam acontecendo no mesmo horário; eventos para todos o participante já é automaticamente
+  inscrito. Se um participante trocar de atividade, a vaga deve ser liberada do evento que ele saiu
+  pra ocupar o evento novo escolhido"). As caixas eram **independentes** e o conflito só AVISAVA
+  (decisão de ago/2026, revista aqui): dava para ficar inscrito em duas oficinas simultâneas — duas
+  vagas presas por quem só pode estar numa delas, e a pessoa seguinte da fila sem vaga em nenhuma.
+  Escolher passa a ser **TROCAR**: marcar uma DESMARCA a que se sobrepõe, e a vaga dela volta no
+  mesmo ato — é a mesma conta de sempre (`vagasAtividade` conta quem tem o id na lista), o que
+  faltava era a lista deixar de acumular as duas.
+  Três decisões: (1) a régua é **PAREADA, nunca por "bloco"** — 8–10 e 10–12 não se sobrepõem e
+  continuam podendo ser as duas, mesmo que 9–11 exista no meio e colida com ambas; fechar o bloco
+  inteiro proibiria uma escolha legítima; (2) vale só para a atividade de **inscrição própria** —
+  a geral é de todo inscrito ("eventos para todos o participante já é automaticamente inscrito"),
+  e duas gerais no mesmo horário não pedem escolha de ninguém; (3) a régua é do **SERVIDOR**, nas
+  TRÊS portas — a área do inscrito, o formulário de inscrição (senão o conflito nasceria ali) e a
+  PORTA: no credenciamento, entrar numa atividade **tira a marcação da simultânea** em vez de
+  recusar, porque a presença prova onde a pessoa está e remanejar de última hora é rotina de
+  evento; a tela do monitor diz de qual ela saiu. A tela agrupa as próprias que **começam juntas**
+  num bloco ("⇄ 14:00–17:00 — escolha uma destas 2"): o agrupamento é presentacional e olha o
+  INÍCIO, que é como o participante lê a grade; quem manda é a sobreposição, que roda no `marcar`
+  e no servidor. A recusa **nomeia as duas** atividades — quem lê precisa saber o que trocar.
+- **COMUNICADO AOS INSCRITOS** (`emailComunicadoEvento` em lib/mailer.js + `POST/GET
+  /api/extensao/:id/comunicado[s]` + o card na guia Inscritos do ARCHÉ EV + aviso `ev-comunicado`,
+  pedido do dono set/2026: "permita a gestão enviar comunicados por e-mail a todos os inscritos"):
+  a mudança de sala, o adiamento, o lembrete da véspera. Hoje isso corre por WhatsApp, numa lista
+  que ninguém tem inteira — e o sistema tem a lista. Quem escreve é a coordenação: **assunto e
+  texto são dela**, e o sistema põe o cabeçalho do evento (para quem recebe saber de onde vem) e o
+  link da **credencial de cada um** no rodapé, que é o que a pessoa procura ao abrir um e-mail do
+  evento. O texto vai **escapado, com as quebras de linha preservadas**: não é HTML colável — o
+  corpo iria à caixa de terceiros, e marcação vinda de fora não se desenha num e-mail que sai em
+  nome da PROPPEX.
+  Quatro decisões: **SIMULA antes** (a janela de revisão dos chamamentos dos outros setores —
+  quantos vão receber e a prévia do e-mail como ele sai): e-mail mandado não se recolhe, e dizer o
+  número ANTES é o que separa um comunicado de um engano irreversível; o recorte é por **situação
+  da inscrição** (todos · só os confirmados · só quem falta pagar), porque são três perguntas
+  diferentes da coordenação; o envio é **sequencial e fire-and-forget**, devolvendo quantos saíram,
+  quantos ficaram e **quantos não têm e-mail no cadastro** — o buraco precisa ser conhecido, não
+  escondido; e **nenhum e-mail saído é FALHA** (502, faixa vermelha), nunca "✓ enviado a 0
+  inscritos" em verde — é o mesmo defeito do "salvo" depois do upload recusado, e a coordenação
+  sairia achando que avisou. Fica em `sys-ev-comunicados-v1` (50 por evento, com o trecho): e-mail
+  mandado não se desfaz, e o histórico é o que responde depois "isso já foi avisado?". Quem pode é
+  quem opera o evento (`podeOperarEvento`), e a escrita com `?como=` já é recusada.
 - **O BLOCO DE IMAGENS** (`galeria` em `TIPOS_BLOCO`, pedido do dono set/2026: "permita incluir um
   bloco onde eu possa pôr imagens"): fotos em grade com legenda, na ordem da lista, clicáveis para a
   versão inteira. A imagem mora no MESMO campo `logo` do apoiador, de propósito — é o campo que a
