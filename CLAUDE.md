@@ -4288,6 +4288,37 @@ public/
   tira o risco é o estado virar banco de dados (Postgres/MySQL), onde cada gravação é
   independente e durável no ato; foi o que motivou o adaptador MySQL já existente em
   lib/storage.js.
+- **A CORRIDA DO DEPLOY: DUAS INSTÂNCIAS, UM ARQUIVO** (`lib/mesclarEstado.js` + `versaoVista`/
+  `base`/`subir` em `initDriveStore`, lib/storage.js — set/2026, a partir de um evento da
+  Veterinária que amanheceu com zero inscritos depois de um dia com OITO deploys). O estado é UM
+  arquivo no Drive; cada instância o lê UMA vez, no boot, e depois escreve o arquivo INTEIRO da
+  própria memória — **nunca relê**. No deploy do Render as duas instâncias convivem: a nova sobe e
+  lê o arquivo, e enquanto ela ainda arranca (migrações, lotes — dezenas de segundos) o tráfego
+  continua na ANTIGA. Toda inscrição, presença ou gravação que a antiga recebe nesse intervalo sobe
+  ao Drive — e some na PRIMEIRA escrita da nova, que grava por cima a foto que tirou no boot. O
+  flush do SIGTERM não ajuda em nada aqui: ele sobe o estado completo da antiga, e a nova o cobre
+  em seguida. A defesa é **detectar e mesclar, não cobrir**: a instância guarda a VERSÃO do arquivo
+  que viu por último (`files.get fields=version` no boot e o `version` devolvido por cada `update`)
+  e a foto que conhecia (`base`); antes de subir, se a versão no Drive é outra, alguém gravou no
+  meio — ela relê e faz um **merge a TRÊS** (base × local × remoto), chave a chave: só um lado
+  mudou, vale quem mudou; os dois mudaram, entra o **mesclador da chave** — para `ex-acoes-v1`,
+  `ic-projetos-v1`, `esp-reservas-v1` e `ic-em-v1` é união de registros por `id` e, dentro do
+  registro, união das listas que crescem por gente diferente (inscritos, presenças de cada
+  inscrito, mural, anexos, alunos, relatórios, histórico) com o local mandando nos campos comuns;
+  sem mesclador, vale o local e o conflito sai no log. **Apagar é decisão, e a mescla não a
+  desfaz**: registro (ou inscrito) que estava na base e o local tirou não volta do remoto — a
+  gestão que removeu uma indicação não a vê ressuscitar. E o que muda na memória ENQUANTO a
+  instância relê o Drive é reaplicado por cima do mesclado, senão a troca do cache engoliria a
+  inscrição que chegou naquele segundo. Custa um GET de metadados por upload; a releitura só
+  acontece em conflito. **O upload que falha não apaga mais a marca `sujo`** (achado da mesma
+  varredura: `sujo` ia a false ANTES de subir, e um erro de rede deixava a gravação só na memória
+  sem nada a reagendar — subiria de carona na próxima escrita, ou morreria com a instância). O
+  teste sobe duas instâncias sobre um Drive falso versionado e prova os quatro casos (inscrição na
+  antiga sobrevive à escrita da nova; as duas inscrevendo no mesmo evento; falha de upload;
+  escrita durante a releitura). `initDriveStore(ctx)` aceita `{ drive, rootId }` injetados só
+  para isso. **Isto não substitui o banco de dados**: a mescla é a rede para a corrida do deploy e
+  para a instância que hiberna; o que tira o risco de vez é cada gravação ser independente e
+  durável no ato, que é o adaptador MySQL já existente.
 - **A ABA ABERTA DESDE ANTES DO DEPLOY NÃO GRAVA COM O CÓDIGO VELHO** (`versao` no
   `GET /api/marca` + `versaoAindaVale` no ARCHÉ EV, a outra metade do incidente): a guia
   Cobrança que mandou lotes no formato antigo estava aberta desde antes do deploy — o HTML

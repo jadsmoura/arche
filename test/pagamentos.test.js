@@ -339,7 +339,11 @@ test("a assinatura do webhook confere pelo manifesto documentado — e sem segre
   const xSignature = `ts=${ts},v1=${v1}`;
   assert.equal(validarAssinaturaMP({ xSignature, xRequestId: reqId, dataId, segredo }), true);
   assert.equal(validarAssinaturaMP({ xSignature, xRequestId: reqId, dataId: "99999", segredo }), false, "outro id");
-  assert.equal(validarAssinaturaMP({ xSignature: `ts=${ts},v1=${v1.slice(0, -1)}0`, xRequestId: reqId, dataId, segredo }), false);
+  // a assinatura adulterada troca o último caractere por OUTRO — trocá-lo
+  // por "0" fixo deixava a "adulterada" igual à certa uma vez em dezesseis
+  // (quando o hex já terminava em 0), e o teste falhava ao acaso
+  const ultimo = v1.slice(-1), trocado = ultimo === "0" ? "1" : "0";
+  assert.equal(validarAssinaturaMP({ xSignature: `ts=${ts},v1=${v1.slice(0, -1)}${trocado}`, xRequestId: reqId, dataId, segredo }), false);
   assert.equal(validarAssinaturaMP({ xSignature, xRequestId: reqId, dataId, segredo: "" }), false, "sem segredo configurado");
   // relógio: aviso de uma hora atrás não vale
   const velho = String(Math.floor(Date.now() / 1000) - 3600);
