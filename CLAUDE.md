@@ -1425,13 +1425,27 @@ public/
   para quem quiser a régua. A versão corrigida é o formulário inteiro de novo, com a mesma régua
   (`reenviar(t, cfg, dados)`; o título se corrige, a autoria não). **O PDF** (`gerarTrabalhoPdf` em
   lib/pdf.js; rotas `…/trabalhos/:token/pdf` ao autor, `…/revisao/:token/pdf` cega ao revisor e
-  `/api/extensao/:id/trabalhos/:tid/pdf[?anonimo=1&versao=n]` à gestão) sai no timbre da PROPPEX com
-  a **capa do evento como faixa no alto** e o **tema** sob o nome (o dono mandou a arte do 13º CONINT
-  — "Ciência Delas": "seria interessante seguir o tema do evento"; a arte é a mesma do hotsite, lida
-  por `lerArte`), título em caixa alta, título em inglês, autoria com afiliações numeradas e
-  titulação, resumo e palavras-chave, abstract e keywords (no trabalho em inglês o abstract vem
-  primeiro) e as seções numeradas; `anonimo: true` tira a autoria. A planilha ganhou título em inglês,
-  curso, idioma, orientador e a titulação junto do nome.
+  `/api/extensao/:id/trabalhos/:tid/pdf[?anonimo=1&versao=n]` à gestão) **sai no MODELO DO EVENTO,
+  não no timbre da PROPPEX** (o dono recusou a primeira versão — "não gostei dos modelos em PDF" — e
+  mandou o `Modelo_CONINT13.docx`, medido no próprio arquivo): A4 com 2,5 cm de margem, Times 12 com
+  entrelinha 1,5 e texto justificado — as normas que a página de submissão publica, e o PDF gerado não
+  pode contradizê-las —, a **arte do evento** (a capa do ARCHÉ EV, lida por `lerArte`) como faixa no
+  alto da primeira página com o nome do evento em ciano sob ela, título em negrito 14 no azul-marinho
+  (como digitado, não em caixa alta), autores em 11 com a afiliação em **sobrescrito desenhado**
+  (fonte menor, levantada — o WinAnsi só tem ¹²³, e o quarto autor não pode sair sem número) e o
+  orientador por último, afiliações numeradas em cinza, a linha "Autor apresentador | E-mail" em
+  itálico, "Resumo" como seção, "Palavras-chave:" em negrito na mesma linha, as seções numeradas em
+  caixa alta (MATERIAL E MÉTODOS, RESULTADOS E DISCUSSÃO — os nomes do modelo, `SECOES`) e REFERÊNCIAS
+  sem número (`semNumero`); abstract e keywords entram no mesmo desenho depois do bloco em português
+  (no trabalho em inglês o abstract vem primeiro), e a **titulação fica fora do PDF** (o modelo não a
+  imprime; vive no registro e na planilha). O **rodapé é o do modelo em todas as páginas**: linha
+  ciano de 2 pt, logotipo do UNIEGO à esquerda e o da **PROPPEX à direita — `templates/logo-proppex.png`,
+  tirado do .docx com o fundo cinza removido** (achado do dono: "as logos do PROPPEX também não estão
+  com fundo transparente"; PNG em paleta com alfa, 27 KB, para não pesar em cada documento). A faixa
+  da arte se posiciona por `openImage` + escala calculada ANTES de desenhar: o PDFKit não anda o
+  `doc.y` quando recebe a posição explícita, e o título saía por cima da arte. `anonimo: true` tira a
+  autoria inteira. A planilha ganhou título em inglês, curso, idioma, orientador e a titulação junto
+  do nome.
 - **A ação pode ser de MAIS DE UM CURSO** (`cursosExtras` + `normalizarCursosExtras`/
   `cursosDaAcao`/`cursosEmTexto`/`acaoDoCurso` em lib/eventos.js, pedido de um professor
   ago/2026): a jornada é de Engenharia Mecânica E de Engenharia Civil, e o formulário só

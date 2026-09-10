@@ -131,7 +131,7 @@ function camposConteudo(c, v = {}, modalidade) {
     <select id="f-idioma">${c.idiomas.map((i) => `<option value="${esc(i.codigo)}" ${(v.idioma || "pt") === i.codigo ? "selected" : ""}>${esc(i.nome)}</option>`).join("")}</select>
     <div class="ajuda">No trabalho em inglês, o abstract e as keywords vêm em primeiro no PDF.</div>
     ${c.secoes.map((s) => `<label>${esc(s.nome)} *</label>
-      <textarea id="f-sec-${esc(s.codigo)}" rows="${s.codigo === "referencias" ? 6 : 8}">${esc((v.secoes || {})[s.codigo] || "")}</textarea>`).join("")}` : ""}
+      <textarea id="f-sec-${esc(s.codigo)}" rows="${s.codigo === "referencias" ? 6 : 8}">${esc((v.secoes || {})[s.codigo] || "")}</textarea>${s.ajuda ? `<div class="ajuda">${esc(s.ajuda)}</div>` : ""}`).join("")}` : ""}
     ${c.permiteArquivo ? `<div class="sec-t">Arquivo (opcional)</div>
     <label>Versão em PDF ou Word, se quiser anexar (até 15 MB)</label>
     <input id="f-arquivo" type="file" accept=".pdf,.doc,.docx">
