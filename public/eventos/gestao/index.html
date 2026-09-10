@@ -199,7 +199,17 @@
   details.grupo .corpo{padding:12px 14px 4px;border-top:1px solid var(--line);background:#f7f9fb}
 
   /* --------------------------- editor de atividades ----------------------- */
-  .atv-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fafbfc}
+  .atv-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fafbfc;position:relative}
+  /* a lista de sugestões da busca de pessoas (guia Equipe): abre sob o campo do nome */
+  .sug{position:absolute;left:14px;top:50px;z-index:30;background:#fff;border:1px solid var(--line);border-radius:10px;
+    box-shadow:0 8px 24px rgba(24,38,50,.14);min-width:300px;max-width:min(480px,calc(100% - 28px));overflow:hidden}
+  .sug button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);
+    padding:8px 12px;font:inherit;font-size:13px;cursor:pointer;color:var(--ink)}
+  .sug button:last-child{border-bottom:0}
+  .sug button:hover,.sug button:focus{background:var(--accent-wash);outline:none}
+  .sug small{display:block;color:var(--muted);font-size:11.5px}
+  .sug .vazio{padding:8px 12px;font-size:12.5px;color:var(--muted)}
+  .do-portal{font-size:11.5px;color:var(--accent);margin-top:4px}
   .g-atv{display:grid;grid-template-columns:1fr 140px 106px 106px auto;gap:8px;align-items:center}
   .g-atv2{display:grid;grid-template-columns:1.2fr 1fr 96px 96px;gap:8px;margin-top:8px}
   .g-campo{display:grid;grid-template-columns:1.4fr 170px auto;gap:8px;align-items:center}
@@ -2624,10 +2634,13 @@ let PAPEIS_COM = [["coordenacao","Coordenação do evento"],["professor","Profes
 const faltaCert = (x, pal) => {
   const f = [];
   const tem = (v) => String(v ?? "").trim().length > 0;
+  // escolhido na busca de pessoas: CPF e telefone vêm do cadastro da conta ao
+  // salvar (a busca não os entrega) — só contam como faltando se a conta não os tem
+  const doPortal = x.conta && x.conta === String(x.email || "").trim().toLowerCase();
   if (!tem(x.nome)) f.push("nome");
-  if (!tem(x.cpf) && !tem(x.matricula)) f.push("CPF ou matrícula");
+  if (!tem(x.cpf) && !tem(x.matricula) && !(doPortal && x.contaTemCpf)) f.push("CPF ou matrícula");
   if (!tem(x.email)) f.push("e-mail");
-  if (!tem(x.telefone)) f.push("telefone");
+  if (!tem(x.telefone) && !(doPortal && x.contaTemTelefone)) f.push("telefone");
   if (pal && !tem(x.palestra)) f.push("título da palestra");
   return f;
 };
@@ -2640,7 +2653,7 @@ const faltaCert = (x, pal) => {
    pareceres, decidir. O autor e o revisor entram pelas páginas públicas, com
    o token do e-mail; aqui a gestão vê tudo — inclusive quem revisou —, e é a
    única que vê os dois lados. */
-let TR = null, TR_REV = [], TR_FILTRO = "";
+let TR = null, TR_FILTRO = "";
 const TR_COR = { submetido:"info", "em-avaliacao":"warn", avaliado:"warn", correcao:"err", reenviado:"info", aceito:"ok", rejeitado:"err", retirado:"muted" };
 const trBadge = (e) => `<span class="badge s-${TR_COR[e]||"muted"}">${esc((TR.catalogos.estados.find(x=>x.codigo===e)||{}).nome||e)}</span>`;
 async function renderTrabalhos(a){
@@ -2649,7 +2662,7 @@ async function renderTrabalhos(a){
   const r=await fetch(`/api/extensao/${encodeURIComponent(a.id)}/trabalhos`);
   const j=await r.json().catch(()=>({}));
   if(!r.ok){ el.innerHTML=`<div class="banner ba-err">${esc(j.error||"Falha ao carregar.")}</div>`; return; }
-  TR=j; TR_REV=(j.revisores||[]).map(x=>({...x, areas:(x.areas||[]).join("; ")}));
+  TR=j;
   const c=j.config, rs=j.resumo;
   const mods=j.catalogos.modalidades;
   el.innerHTML=`
@@ -2667,8 +2680,8 @@ async function renderTrabalhos(a){
       </div>
       <div class="g3" style="margin-top:6px">
         <div><label>Prazo final de submissão</label><input type="date" id="tr-prazo" value="${esc(c.prazoSubmissao)}"></div>
-        <div><label>Revisores por trabalho</label><input type="number" id="tr-nrev" min="1" max="5" value="${c.revisoresPorTrabalho}"></div>
         <div><label>Dias para a correção</label><input type="number" id="tr-dcorr" min="1" max="60" value="${c.prazoCorrecaoDias}"></div>
+        <div><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;margin-top:26px"><input type="checkbox" id="tr-pederev" ${c.pedeRevisor?"checked":""} style="width:auto"> o autor indica um revisor ao submeter</label></div>
         <div><label>Máximo de palavras do resumo</label><input type="number" id="tr-lim" min="200" max="5000" value="${c.maxPalavrasResumo}"><div class="muted" style="font-size:11.5px">o mínimo é 200 palavras, fixo</div></div>
         <div><label>Máximo de autores</label><input type="number" id="tr-maxa" min="1" max="15" value="${c.maxAutores}"></div>
         <div><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;margin-top:26px"><input type="checkbox" id="tr-exige" ${c.exigeParecer?"checked":""} style="width:auto"> decidir só com parecer entregue</label>
@@ -2677,21 +2690,18 @@ async function renderTrabalhos(a){
       <label>Orientações aos autores (aparecem na página de submissão e para os revisores)</label>
       <textarea id="tr-orient" rows="4" placeholder="Modelo, formatação, limite de páginas, o que o resumo deve conter, datas das apresentações…">${esc(c.orientacoes)}</textarea>
       <label>Normas de submissão (o botão "Normas de submissão" da página abre este texto)</label>
-      <textarea id="tr-normas-txt" rows="6" placeholder="Cole aqui as normas: formatação, limites, critérios, prazos, o que acontece com o trabalho aceito…">${esc(c.normas||"")}</textarea>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:4px 0 6px">
+        <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;margin:0"><input type="radio" name="tr-normas-modo" value="padrao" ${c.normasPadrao!==false?"checked":""} style="width:auto" onchange="trNormasModo()"> usar as normas padrão do ARCHÉ (montadas desta configuração)</label>
+        <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;margin:0"><input type="radio" name="tr-normas-modo" value="proprio" ${c.normasPadrao===false?"checked":""} style="width:auto" onchange="trNormasModo()"> usar o texto abaixo</label>
+        <button class="bt bt-ghost" style="padding:5px 10px;font-size:12px" onclick="trVerNormasPadrao()">👁 Ver as normas padrão</button>
+      </div>
+      <textarea id="tr-normas-txt" rows="6" placeholder="Cole aqui as normas: formatação, limites, critérios, prazos, o que acontece com o trabalho aceito…" ${c.normasPadrao!==false?"disabled":""}>${esc(c.normas||"")}</textarea>
       <div class="g2">
         <div><label>Link das normas (opcional — além do texto, ou no lugar dele)</label><input id="tr-normas" value="${esc(c.normasUrl)}" placeholder="https://…"></div>
         <div><label>Link do modelo de trabalho (opcional)</label><input id="tr-modelo" value="${esc(c.modeloUrl)}" placeholder="https://…"></div>
       </div>
       <div class="muted" style="font-size:12px;margin-top:8px">O formulário do autor já pede: título (e em inglês), autores com nome, e-mail, filiação e titulação, o orientador em separado, resumo com no mínimo 200 palavras, abstract, palavras-chave e keywords, e o curso (com o Mestrado em Sociedade, Tecnologia e Meio Ambiente na lista). O trabalho completo acrescenta o idioma e as seis seções. O PDF sai no modelo do evento.</div>
       <div class="acoes-rod"><button class="bt bt-pri" onclick="trConfigSalvar('${esc(a.id)}')">💾 Salvar configuração</button></div>
-    </div>
-
-    <div class="card">
-      <div class="sec-t">Revisores do evento</div>
-      <div class="muted" style="margin:6px 0 8px">A lista de quem pode receber trabalhos para parecer. O convite sai por e-mail na designação, com o link pessoal — o revisor não precisa de conta no portal.</div>
-      <div id="tr-rev"></div>
-      <button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="TR_REV.push({});trRenderRev()">＋ Adicionar revisor</button>
-      <div class="acoes-rod"><button class="bt bt-pri" onclick="trRevSalvar('${esc(a.id)}')">💾 Salvar revisores</button></div>
     </div>
 
     <div class="card">
@@ -2708,37 +2718,35 @@ async function renderTrabalhos(a){
       </select></div>
       <div id="tr-lista"></div>
     </div>`;
-  trRenderRev(); trRenderLista();
+  trRenderLista();
 }
-function trRenderRev(){
-  const el=$("tr-rev"); if(!el) return;
-  el.innerHTML=TR_REV.length?TR_REV.map((x,i)=>`<div class="atv-card"><div class="g-atv2" style="grid-template-columns:1.3fr 1.3fr 1fr 1fr 40px">
-    <input placeholder="nome completo *" value="${esc(x.nome||"")}" oninput="TR_REV[${i}].nome=this.value">
-    <input placeholder="e-mail *" value="${esc(x.email||"")}" oninput="TR_REV[${i}].email=this.value">
-    <input placeholder="instituição" value="${esc(x.instituicao||"")}" oninput="TR_REV[${i}].instituicao=this.value">
-    <input placeholder="áreas (a; b)" value="${esc(x.areas||"")}" oninput="TR_REV[${i}].areas=this.value">
-    <button class="bt bt-ghost bt-xs" style="color:var(--err)" onclick="TR_REV.splice(${i},1);trRenderRev()">✕</button>
-  </div></div>`).join(""):`<div class="muted" style="font-size:12.5px;margin-bottom:8px">Nenhum revisor cadastrado ainda.</div>`;
+/* as normas: padrão do ARCHÉ (o texto sai da configuração — a gestão só olha)
+   ou o texto próprio do organizador (aí a caixa abre) */
+function trNormasModo(){
+  const padrao = (document.querySelector('input[name="tr-normas-modo"]:checked')||{}).value !== "proprio";
+  $("tr-normas-txt").disabled = padrao;
+}
+function trVerNormasPadrao(){
+  const j = document.createElement("div");
+  j.className = "modal-fundo"; j.style.cssText = "position:fixed;inset:0;background:rgba(24,38,50,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px";
+  j.innerHTML = `<div style="background:#fff;border-radius:14px;max-width:760px;width:100%;max-height:90vh;overflow:auto;padding:22px 24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><b style="font-family:Sora,sans-serif;font-size:16px;color:var(--brand)">Normas padrão — como o autor as lê</b><button class="bt bt-ghost" onclick="this.closest('.modal-fundo').remove()">Fechar</button></div>
+    <div class="muted" style="font-size:12px;margin-top:4px">Montadas da configuração gravada (modalidades, limites, prazo). Salve a configuração para o texto acompanhar as mudanças.</div>
+    <pre style="white-space:pre-wrap;font-family:inherit;font-size:13.5px;line-height:1.6;margin-top:12px">${esc(TR.normasPadraoTexto||"")}</pre></div>`;
+  j.onclick = (e) => { if (e.target === j) j.remove(); };
+  document.body.appendChild(j);
 }
 async function trConfigSalvar(id){
   const config={ ativo:$("tr-ativo").checked, modalidades:[...document.querySelectorAll(".tr-mod:checked")].map(x=>x.value),
     areas:$("tr-areas").value.split("\n").map(s=>s.trim()).filter(Boolean), prazoSubmissao:$("tr-prazo").value,
-    revisoresPorTrabalho:$("tr-nrev").value, prazoCorrecaoDias:$("tr-dcorr").value, maxPalavrasResumo:$("tr-lim").value,
+    prazoCorrecaoDias:$("tr-dcorr").value, maxPalavrasResumo:$("tr-lim").value, pedeRevisor:$("tr-pederev").checked,
     maxAutores:$("tr-maxa").value, exigeParecer:$("tr-exige").checked, permiteArquivo:$("tr-arq").checked, orientacoes:$("tr-orient").value,
+    normasPadrao:(document.querySelector('input[name="tr-normas-modo"]:checked')||{}).value !== "proprio",
     normas:$("tr-normas-txt").value, normasUrl:$("tr-normas").value, modeloUrl:$("tr-modelo").value };
   try{
     const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/trabalhos/config`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({config})});
     const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||"Não foi possível salvar.");
     await carregar(); nav("trabalhos");
-  }catch(e){ alert(e.message); }
-}
-async function trRevSalvar(id){
-  try{
-    const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/trabalhos/revisores`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({revisores:TR_REV})});
-    const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||"Não foi possível salvar.");
-    const lidos=(j.revisores||[]).length;
-    if(lidos<TR_REV.filter(x=>x.nome||x.email).length) alert(`Salvo com ${lidos} revisor(es). Linha sem nome ou com e-mail inválido não entra.`);
-    nav("trabalhos");
   }catch(e){ alert(e.message); }
 }
 const trRotMod = (m) => (TR.catalogos.modalidades.find(x=>x.codigo===m)||{}).nome||m;
@@ -2755,7 +2763,8 @@ function trCard(t){
   const c=TR.config, crit=TR.catalogos.criterios;
   const atual=t.versoes[t.versoes.length-1]||{};
   const designados=new Set((t.revisores||[]).filter(r=>!r.removidoEm).map(r=>r.email));
-  const candidatos=(TR.revisores||[]).filter(r=>!designados.has(r.email)&&!(t.autores||[]).some(a=>a.email===r.email));
+  const ri=t.revisorIndicado&&t.revisorIndicado.email?t.revisorIndicado:null;
+  const riJa=ri&&designados.has(ri.email);
   const espera=["submetido","avaliado","reenviado"].includes(t.estado);
   const encerrado=["aceito","rejeitado","retirado"].includes(t.estado);
   return `<details class="atv-card" ${espera?"open":""}>
@@ -2768,6 +2777,7 @@ function trCard(t){
       ${t.tituloEn?`<div style="font-style:italic;color:var(--muted)">${esc(t.tituloEn)}</div>`:""}
       <div><b>Autores:</b> ${(t.autores||[]).map(a=>`${esc(a.nome)}${a.titulacao?`, ${esc(trRotTit(a.titulacao))}`:""}${a.instituicao?` (${esc(a.instituicao)})`:""}${a.email?` &lt;${esc(a.email)}&gt;`:""}`).join("; ")}</div>
       ${t.orientador&&t.orientador.nome?`<div><b>Orientador(a):</b> ${esc(t.orientador.nome)}${t.orientador.titulacao?`, ${esc(trRotTit(t.orientador.titulacao))}`:""}${t.orientador.instituicao?` (${esc(t.orientador.instituicao)})`:""}${t.orientador.email?` &lt;${esc(t.orientador.email)}&gt;`:""}</div>`:""}
+      ${ri?`<div><b>Revisor indicado pelo autor:</b> ${esc(ri.nome)}${ri.instituicao?` (${esc(ri.instituicao)})`:""} &lt;${esc(ri.email)}&gt;${riJa?` <span class="badge s-ok">convidado</span>`:""}</div>`:""}
       <div>${t.curso?`<b>Curso:</b> ${esc(t.curso)} · `:""}<b>Palavras-chave:</b> ${esc((atual.palavrasChave||[]).join(", "))}${atual.idioma?` · <b>idioma:</b> ${atual.idioma==="en"?"inglês":"português"}`:""} · <b>submetido em</b> ${fmtDH(t.criadoEm)}</div>
       <div><b>Versões:</b> ${t.versoes.map(v=>`v${v.n} (${fmtDH(v.em)}) <a href="/api/extensao/${encodeURIComponent(ABERTO)}/trabalhos/${esc(t.id)}/pdf?versao=${v.n}" target="_blank" rel="noopener">PDF</a>${v.arquivo?` · <a href="${esc(v.arquivo.link)}">${esc(v.arquivo.name)}</a>`:""}${v.nota?` — <i>${esc(v.nota)}</i>`:""}`).join(" · ")}
         · <a href="/api/extensao/${encodeURIComponent(ABERTO)}/trabalhos/${esc(t.id)}/pdf?anonimo=1" target="_blank" rel="noopener">PDF cego</a></div>
@@ -2784,12 +2794,16 @@ function trCard(t){
 
       ${!encerrado?`<div style="margin-top:12px;display:grid;gap:10px;grid-template-columns:1fr 1fr" class="tr-acoes">
         <div style="border:1px dashed var(--line);border-radius:10px;padding:10px 12px">
-          <b>Enviar a revisores</b> <span class="muted">(opcional — a PROPPEX pode decidir direto; ${c.revisoresPorTrabalho} por trabalho)</span>
-          ${candidatos.length?candidatos.map(r=>`<label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;margin:4px 0"><input type="checkbox" class="tr-des-${esc(t.id)}" value="${esc(r.email)}" style="width:auto"> ${esc(r.nome)}${r.areas&&r.areas.length?` <span class="muted" style="font-size:11.5px">(${esc(r.areas.join("; "))})</span>`:""}</label>`).join(""):`<div class="muted" style="font-size:12.5px">Cadastre revisores no card acima.</div>`}
+          <b>Enviar para revisão</b> <span class="muted">(opcional — a PROPPEX pode decidir direto)</span>
+          ${ri?`<label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;margin:6px 0"><input type="checkbox" id="tr-ind-${esc(t.id)}" ${riJa?"disabled":"checked"} style="width:auto"> ${riJa?"revisor indicado já convidado":`convidar o revisor indicado pelo autor — <b>${esc(ri.nome)}</b>`}</label>`:`<div class="muted" style="font-size:12.5px;margin:4px 0">O autor não indicou revisor.</div>`}
+          <div class="g2" style="margin-top:4px">
+            <div><label>Outro revisor — nome</label><input id="tr-rnome-${esc(t.id)}" placeholder="nome completo"></div>
+            <div><label>Outro revisor — e-mail</label><input id="tr-remail-${esc(t.id)}" type="email" placeholder="e-mail"></div>
+          </div>
           <div class="g2" style="margin-top:6px"><div><label>Prazo sugerido</label><input type="date" id="tr-prazo-${esc(t.id)}"></div></div>
           <label>Mensagem no convite (opcional)</label><input id="tr-msg-${esc(t.id)}" placeholder="ex.: o evento é dia 20; pedimos o parecer até o dia 10">
           <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-            <button class="bt bt-sec" style="padding:7px 12px;font-size:12.5px" onclick="trDesignar('${esc(t.id)}')">✉ Designar e convidar</button>
+            <button class="bt bt-sec" style="padding:7px 12px;font-size:12.5px" onclick="trDesignar('${esc(t.id)}')">✉ Convidar para o parecer</button>
             ${(t.revisores||[]).some(r=>!r.removidoEm&&!r.parecer)?`<button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="trLembrar('${esc(t.id)}')">🔔 Lembrar quem não entregou</button>`:""}
           </div>
         </div>
@@ -2812,10 +2826,12 @@ async function trPost(caminho, corpo){
   const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||`Falha ${r.status}`); return j;
 }
 async function trDesignar(tid){
-  const emails=[...document.querySelectorAll(`.tr-des-${tid}:checked`)].map(x=>x.value);
-  if(!emails.length) return alert("Marque ao menos um revisor.");
+  const ind=$(`tr-ind-${tid}`); const indicado=!!(ind&&ind.checked&&!ind.disabled);
+  const nome=($(`tr-rnome-${tid}`)||{}).value||"", email=(($(`tr-remail-${tid}`)||{}).value||"").trim();
+  const revisores=email?[{nome, email}]:[];
+  if(!indicado&&!revisores.length) return alert("Marque o revisor indicado ou escreva o e-mail de outro revisor.");
   try{
-    const j=await trPost(`${encodeURIComponent(tid)}/designar`,{emails, prazo:$(`tr-prazo-${tid}`).value, mensagem:$(`tr-msg-${tid}`).value});
+    const j=await trPost(`${encodeURIComponent(tid)}/designar`,{indicado, revisores, prazo:$(`tr-prazo-${tid}`).value, mensagem:$(`tr-msg-${tid}`).value});
     alert(`✅ ${j.designados} revisor(es) designado(s). O convite com o link pessoal foi enviado por e-mail.`);
     renderTrabalhos({id:ABERTO});
   }catch(e){ alert(e.message); }
@@ -2841,7 +2857,9 @@ function renderEquipe(a){
   $("v-equipe").innerHTML = `
     <div class="banner ba-info">Estes dados vão para a <b>planilha de certificados</b> (o sistema da AEE emite):
       CPF ou matrícula, nome, e-mail e telefone são <b>obrigatórios</b> em cada linha — e o título da palestra,
-      no caso dos palestrantes. Sem eles o certificado não sai. A carga horária em branco usa a do evento${ch?` (${esc(ch)}h)`:""}.</div>
+      no caso dos palestrantes. Sem eles o certificado não sai. A carga horária em branco usa a do evento${ch?` (${esc(ch)}h)`:""}.
+      <br><b>Quem tem conta no portal se busca pelo nome</b>: escreva no campo do nome, escolha a pessoa na lista e
+      só indique a carga horária (e a função ou a palestra) — e-mail, CPF e telefone vêm do cadastro dela ao salvar.</div>
 
     <div class="card">
       <div class="sec-t">Palestrantes e ministrantes</div>
@@ -2874,18 +2892,22 @@ function renderEqPal(){
   const el=$("eq-pal"); if(!el) return;
   el.innerHTML = EQ_PAL.length ? EQ_PAL.map((x,i)=>`
     <div class="atv-card">
+      <div class="sug" id="sug-pal-${i}" hidden></div>
       <div class="g-atv2">
-        <input placeholder="nome completo *" value="${esc(x.nome||"")}" oninput="EQ_PAL[${i}].nome=this.value;marcaFalta(${i},'pal')">
-        <input placeholder="CPF *" value="${esc(x.cpf||"")}" oninput="EQ_PAL[${i}].cpf=this.value;marcaFalta(${i},'pal')">
+        <input placeholder="nome completo * (escreva e escolha na lista)" autocomplete="off" value="${esc(x.nome||"")}"
+          oninput="EQ_PAL[${i}].nome=this.value;saiuDoPortal(EQ_PAL[${i}]);marcaFalta(${i},'pal');buscaPessoa(this.value,'pal',${i})"
+          onkeydown="if(event.key==='Escape')fechaSug('pal',${i})" onblur="setTimeout(()=>fechaSug('pal',${i}),180)">
+        <input placeholder="${x.conta&&x.contaTemCpf?"CPF: do cadastro do portal":"CPF *"}" value="${esc(x.cpf||"")}" oninput="EQ_PAL[${i}].cpf=this.value;marcaFalta(${i},'pal')">
         <input placeholder="matrícula (se não tiver CPF)" value="${esc(x.matricula||"")}" oninput="EQ_PAL[${i}].matricula=this.value;marcaFalta(${i},'pal')">
         <button class="bt bt-ghost bt-xs" style="color:var(--err)" onclick="EQ_PAL.splice(${i},1);renderEqPal()">✕</button>
       </div>
       <div class="g-atv2" style="margin-top:6px">
         <input placeholder="e-mail *" value="${esc(x.email||"")}" oninput="EQ_PAL[${i}].email=this.value;marcaFalta(${i},'pal')">
-        <input placeholder="telefone *" value="${esc(x.telefone||"")}" oninput="EQ_PAL[${i}].telefone=this.value;marcaFalta(${i},'pal')">
+        <input placeholder="${x.conta&&x.contaTemTelefone?"telefone: do cadastro do portal":"telefone *"}" value="${esc(x.telefone||"")}" oninput="EQ_PAL[${i}].telefone=this.value;marcaFalta(${i},'pal')">
         <input placeholder="instituição" value="${esc(x.instituicao||"")}" oninput="EQ_PAL[${i}].instituicao=this.value">
       </div>
       <input style="margin-top:6px" placeholder="título da palestra / oficina *" value="${esc(x.palestra||"")}" oninput="EQ_PAL[${i}].palestra=this.value;marcaFalta(${i},'pal')">
+      ${x.conta?`<div class="do-portal">✓ conta do portal (${esc(x.conta)}) — CPF e telefone se completam do cadastro ao salvar</div>`:""}
       <div id="falta-pal-${i}">${linhaFalta(faltaCert(x,true))}</div>
     </div>`).join("") : '<div class="cnt">— nenhum palestrante cadastrado.</div>';
 }
@@ -2894,24 +2916,69 @@ function renderEqCom(){
   const el=$("eq-com"); if(!el) return;
   el.innerHTML = EQ_COM.length ? EQ_COM.map((x,i)=>`
     <div class="atv-card">
+      <div class="sug" id="sug-com-${i}" hidden></div>
       <div class="g-atv2">
-        <input placeholder="nome completo *" value="${esc(x.nome||"")}" oninput="EQ_COM[${i}].nome=this.value;marcaFalta(${i},'com')">
-        <input placeholder="CPF *" value="${esc(x.cpf||"")}" oninput="EQ_COM[${i}].cpf=this.value;marcaFalta(${i},'com')">
+        <input placeholder="nome completo * (escreva e escolha na lista)" autocomplete="off" value="${esc(x.nome||"")}"
+          oninput="EQ_COM[${i}].nome=this.value;saiuDoPortal(EQ_COM[${i}]);marcaFalta(${i},'com');buscaPessoa(this.value,'com',${i})"
+          onkeydown="if(event.key==='Escape')fechaSug('com',${i})" onblur="setTimeout(()=>fechaSug('com',${i}),180)">
+        <input placeholder="${x.conta&&x.contaTemCpf?"CPF: do cadastro do portal":"CPF *"}" value="${esc(x.cpf||"")}" oninput="EQ_COM[${i}].cpf=this.value;marcaFalta(${i},'com')">
         <input placeholder="matrícula (se não tiver CPF)" value="${esc(x.matricula||"")}" oninput="EQ_COM[${i}].matricula=this.value;marcaFalta(${i},'com')">
         <button class="bt bt-ghost bt-xs" style="color:var(--err)" onclick="EQ_COM.splice(${i},1);renderEqCom()">✕</button>
       </div>
       <div class="g-atv2" style="margin-top:6px">
         <input placeholder="e-mail *" value="${esc(x.email||"")}" oninput="EQ_COM[${i}].email=this.value;marcaFalta(${i},'com')">
-        <input placeholder="telefone *" value="${esc(x.telefone||"")}" oninput="EQ_COM[${i}].telefone=this.value;marcaFalta(${i},'com')">
+        <input placeholder="${x.conta&&x.contaTemTelefone?"telefone: do cadastro do portal":"telefone *"}" value="${esc(x.telefone||"")}" oninput="EQ_COM[${i}].telefone=this.value;marcaFalta(${i},'com')">
         <select onchange="EQ_COM[${i}].papel=this.value">
           ${PAPEIS_COM.map(([c,r])=>`<option value="${c}" ${x.papel===c?"selected":""}>${esc(r)}</option>`).join("")}
         </select>
         <input placeholder="CH (em branco = a do evento)" value="${esc(x.ch||"")}" oninput="EQ_COM[${i}].ch=this.value">
       </div>
       <input style="margin-top:6px" placeholder="função no evento (ex.: recepção e credenciamento)" value="${esc(x.funcao||"")}" oninput="EQ_COM[${i}].funcao=this.value">
+      ${x.conta?`<div class="do-portal">✓ conta do portal (${esc(x.conta)}) — CPF e telefone se completam do cadastro ao salvar</div>`:""}
       <div id="falta-com-${i}">${linhaFalta(faltaCert(x,false))}</div>
     </div>`).join("") : '<div class="cnt">— ninguém na comissão ainda.</div>';
 }
+
+/* A BUSCA DE PESSOAS (pedido do dono, set/2026): escreve-se o nome, a lista
+   traz as contas do portal que casam, e o clique preenche nome e e-mail —
+   CPF e telefone o servidor completa do cadastro ao salvar (a busca não os
+   entrega). Quem vem da busca fica marcado em `conta`; mexer no nome depois
+   desfaz a marca, senão a linha continuaria dizendo que é a conta X com
+   outro nome em cima. */
+let SUG_TIMER = null, SUG_SEQ = 0;
+function buscaPessoa(q, qual, i){
+  clearTimeout(SUG_TIMER);
+  const alvo = $(`sug-${qual}-${i}`); if(!alvo) return;
+  const termo = String(q||"").trim();
+  if(termo.length < 3){ alvo.hidden = true; return; }
+  const seq = ++SUG_SEQ;
+  SUG_TIMER = setTimeout(async()=>{
+    try{
+      const r = await fetch(`/api/eventos/pessoas?q=${encodeURIComponent(termo)}`);
+      const j = await r.json().catch(()=>({}));
+      if(seq !== SUG_SEQ || !r.ok) return;
+      const lista = j.pessoas || [];
+      alvo.innerHTML = lista.length ? lista.map(p=>`<button type="button"
+          onmousedown="event.preventDefault()" onclick="escolhePessoa('${qual}',${i},${esc(JSON.stringify(p)).replace(/'/g,"&#39;")})">
+          ${esc(p.nome)}<small>${esc([p.email, p.funcao, p.curso].filter(Boolean).join(" · "))}${p.temCpf&&p.temTelefone?"":" · <b>cadastro sem "+[!p.temCpf?"CPF":"",!p.temTelefone?"telefone":""].filter(Boolean).join(" e ")+"</b>"}</small></button>`).join("")
+        : `<div class="vazio">Ninguém com esse nome entre as contas do portal — preencha a linha à mão.</div>`;
+      alvo.hidden = false;
+    }catch{ /* sem sugestão, a digitação segue */ }
+  }, 220);
+}
+function fechaSug(qual, i){ const alvo=$(`sug-${qual}-${i}`); if(alvo) alvo.hidden = true; }
+function escolhePessoa(qual, i, p){
+  const lista = qual==="pal" ? EQ_PAL : EQ_COM;
+  const x = lista[i]; if(!x) return;
+  x.nome = p.nome; x.email = p.email; x.conta = p.email;
+  x.contaTemCpf = !!p.temCpf; x.contaTemTelefone = !!p.temTelefone;
+  if(qual==="pal") renderEqPal(); else renderEqCom();
+  // o cursor vai ao que ainda é da pessoa que preenche: a CH ou a palestra
+  const card = $(`sug-${qual}-${i}`)?.closest(".atv-card");
+  const prox = card && [...card.querySelectorAll("input")].find(el=>/CH|palestra/.test(el.placeholder));
+  if(prox) prox.focus();
+}
+function saiuDoPortal(x){ if(x && x.conta){ /* nome alterado à mão: a linha deixa de ser a conta */ delete x.conta; delete x.contaTemCpf; delete x.contaTemTelefone; } }
 
 /* o aviso do que falta acompanha a digitação, sem redesenhar a linha (o campo
    perderia o foco a cada tecla) */

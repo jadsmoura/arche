@@ -75,6 +75,8 @@ const API = `/api/publico/eventos/${encodeURIComponent(SLUG)}/trabalhos`;
 let DADOS = null;
 const PESSOA = () => ({ nome: "", email: "", instituicao: "UNIEGO", titulacao: "" });
 let AUTORES = [PESSOA()], ORIENTADOR = { ...PESSOA(), titulacao: "doutor" };
+// o revisor que o autor indica (decisão do dono, set/2026): a comissão decide se o convida
+let REVISOR = { nome: "", email: "", instituicao: "" };
 $("lk-evento").href = `/eventos/${encodeURIComponent(SLUG)}`;
 
 const cabecalho = (ev, sub) => `<div class="cab" style="margin-bottom:14px">
@@ -173,6 +175,14 @@ function renderFormulario(j) {
       <div id="f-autores"></div>
       <button class="bt bt-ghost" style="margin-top:8px;padding:7px 12px;font-size:12.5px" onclick="if(AUTORES.length<${c.maxAutores}){AUTORES.push(PESSOA());renderPessoas()}else alert('Máximo de ${c.maxAutores} autores.')">＋ Adicionar autor</button>
       <div id="f-orientador"></div>
+      ${c.pedeRevisor ? `<div class="sec-t">Revisor indicado</div>
+      <div class="ajuda">Indique um professor ou pesquisador com titulação para avaliar o trabalho — que não seja autor nem orientador dele. A comissão pode convidá-lo ou escolher outro revisor; o convite, com o link do parecer, vai por e-mail.</div>
+      <div class="g4" id="f-revisor">
+        <div><label>Nome completo *</label><input value="" oninput="REVISOR.nome=this.value"></div>
+        <div><label>E-mail *</label><input type="email" value="" oninput="REVISOR.email=this.value"></div>
+        <div><label>Instituição</label><input value="" oninput="REVISOR.instituicao=this.value" placeholder="UNIEGO"></div>
+        <div></div><div></div>
+      </div>` : ""}
 
       <div id="f-conteudo">${camposConteudo(c, {}, modalidades[0]?.codigo)}</div>
 
@@ -225,7 +235,7 @@ function renderPessoas() {
 function montarDados() {
   const g = (id) => ($(id) ? $(id).value : "");
   return { titulo: g("f-titulo"), tituloEn: g("f-titulo-en"), modalidade: g("f-modalidade"), area: g("f-area"), curso: g("f-curso"),
-    autores: AUTORES, orientador: ORIENTADOR, ...lerConteudo(), consentimento: $("f-ok").checked };
+    autores: AUTORES, orientador: ORIENTADOR, revisor: REVISOR, ...lerConteudo(), consentimento: $("f-ok").checked };
 }
 async function enviar() {
   const msg = $("f-msg"); msg.innerHTML = "";
@@ -289,6 +299,7 @@ function renderAcompanhamento(j) {
       <h2 style="font-size:18px;margin:12px 0 4px;line-height:1.35">${esc(t.titulo)}</h2>
       ${t.tituloEn ? `<div style="font-size:14px;color:var(--ink-soft);font-style:italic">${esc(t.tituloEn)}</div>` : ""}
       <div style="font-size:13px;color:var(--ink-soft);margin-top:8px">${[...t.autores, ...(t.orientador && t.orientador.nome ? [{ ...t.orientador, ori: true }] : [])].map((a) => `${esc(a.nome)}${a.ori ? " (orientador)" : ""}${a.instituicao ? ` — ${esc(a.instituicao)}` : ""}${a.titulacao ? `, ${esc(tit(a.titulacao))}` : ""}`).join("; ")}</div>
+      ${t.revisorIndicado && t.revisorIndicado.nome ? `<div style="font-size:12.5px;color:var(--muted);margin-top:4px">Revisor indicado por você: ${esc(t.revisorIndicado.nome)}${t.revisorIndicado.instituicao ? ` (${esc(t.revisorIndicado.instituicao)})` : ""} — a comissão decide se o convida.</div>` : ""}
       <p style="font-size:14px;line-height:1.6;margin-top:12px">${esc(explica)}</p>
       ${t.decisao ? `<div class="decisao"><b>Decisão da PROPPEX (${fmtHora(t.decisao.em)}):</b>\n${esc(t.decisao.mensagem || "—")}</div>` : ""}
       <p style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap"><a class="bt bt-sec" href="${pdf()}" target="_blank" rel="noopener">📄 PDF no modelo do evento</a>${botoesNormas(c).replace('<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">', "").replace(/<\/div>$/, "")}</p>

@@ -4,7 +4,7 @@ import {
   normalizarConfig, configPublica, podeSubmeter, validarSubmissao, novoTrabalho, proximoNumero,
   designar, registrarParecer, decidir, reenviar, retirar, paraRevisor, paraAutor, paraGestao,
   resumo, normalizarRevisores, CRITERIOS, todosPareceresEntregues, notaMedia, contarPalavras,
-  autoriaCompleta, SECOES,
+  autoriaCompleta, SECOES, normasPadrao,
 } from "../lib/trabalhos.js";
 
 const CFG = { ativo: true, modalidades: ["resumo", "completo"], areas: ["Saúde", "Educação"], prazoSubmissao: "2026-10-01" };
@@ -17,7 +17,7 @@ const DADOS = {
   modalidade: "resumo", area: "Saúde", curso: "Enfermagem",
   resumo: palavras(210), abstract: palavras(200), palavrasChave: "anemia, gestação, atenção básica", keywords: "anemia; pregnancy; primary care",
   autores: [PESSOA, { nome: "Bia Lima", email: "", instituicao: "UNIEGO", titulacao: "graduando" }],
-  orientador: ORI, consentimento: true,
+  orientador: ORI, revisor: { nome: "Rita Prado", email: "rita@x.com", instituicao: "UFG" }, consentimento: true,
 };
 const secoes = () => Object.fromEntries(SECOES.map((s) => [s.codigo, `Texto da seção ${s.nome} com mais de cinquenta caracteres para passar.`]));
 const parecerBom = (rec = "aceitar") => ({
@@ -32,11 +32,21 @@ test("a configuração tem padrões e recorta o que não existe", () => {
   assert.equal(c.revisoresPorTrabalho, 5);
   assert.equal(c.prazoSubmissao, "");
   assert.equal(c.exigeParecer, false, "a PROPPEX decide direto por padrão");
+  assert.equal(c.normasPadrao, true, "sem texto do organizador valem as normas padrão");
+  assert.equal(c.pedeRevisor, true, "o autor indica um revisor ao submeter");
   assert.equal(configPublica({ ativo: false }, "2026-09-01"), null);
   const pub = configPublica(CFG, "2026-09-01", { cursos: CURSOS });
   assert.equal(pub.aberta, true);
   assert.deepEqual(pub.cursos, CURSOS);
   assert.equal(pub.minPalavrasResumo, 200);
+  // as normas padrão saem da própria configuração: limites, prazo e modalidades
+  assert.match(pub.normas, /no mínimo 200 e no máximo 500 palavras/);
+  assert.match(pub.normas, /Submissões até 01\/10\/2026/);
+  assert.match(pub.normas, /7\. TRABALHO COMPLETO/);
+  assert.match(pub.normas, /REVISOR INDICADO/);
+  assert.doesNotMatch(configPublica({ ...CFG, modalidades: ["resumo"], pedeRevisor: false }, "2026-09-01").normas, /TRABALHO COMPLETO|REVISOR INDICADO/);
+  assert.equal(configPublica({ ...CFG, normasPadrao: false, normas: "As minhas normas." }, "2026-09-01").normas, "As minhas normas.");
+  assert.match(normasPadrao(CFG), /Times New Roman 12/);
   assert.match(podeSubmeter(CFG, "2026-10-02").motivo, /encerrou em 01\/10\/2026/);
 });
 
@@ -52,6 +62,10 @@ test("o resumo conta PALAVRAS, e a autoria completa exige nome, e-mail, filiaç�
   assert.ok(f.some((x) => /titulação \(autor correspondente\)/.test(x)));
   // o segundo autor pode vir sem e-mail; o correspondente, não
   assert.deepEqual(validarSubmissao(CFG, { ...DADOS, autores: [PESSOA, { ...PESSOA, nome: "Bia Lima", email: "" }] }, { cursos: CURSOS }), []);
+  // o revisor indicado: nome completo e e-mail, e nunca quem assina o trabalho
+  assert.ok(validarSubmissao(CFG, { ...DADOS, revisor: { nome: "Rita", email: "x" } }, { cursos: CURSOS }).some((x) => /nome completo do revisor/.test(x)));
+  assert.ok(validarSubmissao(CFG, { ...DADOS, revisor: { nome: "Carlos Lima", email: "carlos@x.com" } }, { cursos: CURSOS }).some((x) => /não seja autor nem orientador/.test(x)));
+  assert.deepEqual(validarSubmissao({ ...CFG, pedeRevisor: false }, { ...DADOS, revisor: {} }, { cursos: CURSOS }), [], "sem a chave, o revisor não se cobra");
   // o trabalho completo exige as seis seções
   const fc = validarSubmissao(CFG, { ...DADOS, modalidade: "completo" }, { cursos: CURSOS });
   assert.equal(fc.filter((x) => /a seção/.test(x)).length, 6);
@@ -63,6 +77,9 @@ test("o fluxo inteiro: submissão → decisão direta da PROPPEX, e o caminho pe
   assert.equal(t.numero, "TR-001");
   assert.equal(t.estado, "submetido");
   assert.equal(t.emailContato, "ana@x.com");
+  assert.deepEqual(t.revisorIndicado, { nome: "Rita Prado", email: "rita@x.com", instituicao: "UFG" });
+  assert.equal(paraAutor(t).revisorIndicado.nome, "Rita Prado");
+  assert.equal(JSON.stringify(paraRevisor(t, "x")), "null");
   assert.equal(t.orientador.nome, "Carlos Lima");
   assert.equal(autoriaCompleta(t).at(-1).orientador, true, "o orientador é o último autor");
   assert.equal(t.versoes[0].idioma, "en");

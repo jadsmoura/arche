@@ -91,6 +91,7 @@ import {
 } from "./lib/eventos.js";
 import {
   PAPEIS_COMISSAO, faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento,
+  buscarPessoasDoPortal, completarPeloPortal,
   videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento, contaPresente, houveCredenciamento,
   normalizarCursosExtras, cursosDaAcao,
 } from "./lib/eventos.js";
@@ -6050,6 +6051,7 @@ app.get("/api/extensao/:id/trabalhos", async (req, res) => {
     const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
     res.json({
       config: cfg, aberta: tr.podeSubmeter(cfg, hojeLocalISO()),
+      normasPadraoTexto: tr.normasPadrao(cfg),   // o que a página do autor mostra com "usar as normas padrão"
       revisores: reg.revisores || [], trabalhos: (reg.trabalhos || []).map(tr.paraGestao),
       resumo: tr.resumo(reg.trabalhos || []),
       catalogos: catalogosTr(), cursos: cursosTrabalho(),
@@ -6093,15 +6095,29 @@ app.post("/api/extensao/:id/trabalhos/revisores", async (req, res) => {
 app.post("/api/extensao/:id/trabalhos/:tid/designar", async (req, res) => {
   try {
     const x = await acaoDoOperador(req, res); if (!x) return;
+    /* três origens para o revisor (decisão do dono, set/2026: "cada trabalho
+       terá seu revisor, que ao ser indicado receberá um e-mail"): o INDICADO
+       pelo autor na submissão (`indicado: true`), pessoas escritas na hora
+       (`revisores: [{ nome, email }]`) e, por compatibilidade, e-mails da
+       lista antiga do evento (`emails`) */
     const emails = [...new Set((Array.isArray(req.body?.emails) ? req.body.emails : []).map((e) => String(e || "").trim().toLowerCase()).filter(Boolean))];
-    if (!emails.length) return res.status(400).json({ error: "Escolha ao menos um revisor." });
+    const avulsos = (Array.isArray(req.body?.revisores) ? req.body.revisores : [])
+      .map((p) => ({ nome: String(p?.nome || "").trim().slice(0, 120), email: String(p?.email || "").trim().toLowerCase() }))
+      .filter((p) => p.email);
+    const indicado = req.body?.indicado === true;
+    if (!emails.length && !avulsos.length && !indicado) return res.status(400).json({ error: "Escolha ao menos um revisor." });
     const prazo = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.prazo || "")) ? req.body.prazo : "";
     const mensagem = String(req.body?.mensagem || "").slice(0, 2000);
     const r = await comTrabalhos(x.a.id, (reg) => {
       const t = reg.trabalhos.find((y) => y.id === req.params.tid);
       if (!t) return { erro: [404, "Trabalho não encontrado."], gravar: false };
       if (tr.ESTADO_ENCERRADO.has(t.estado)) return { erro: [400, "O trabalho já está encerrado."], gravar: false };
-      const lista = emails.map((e) => reg.revisores.find((rv) => rv.email === e) || { email: e, nome: "" });
+      if (indicado && !t.revisorIndicado?.email) return { erro: [400, "O autor não indicou revisor neste trabalho."], gravar: false };
+      const lista = [
+        ...(indicado ? [t.revisorIndicado] : []),
+        ...avulsos,
+        ...emails.map((e) => (reg.revisores || []).find((rv) => rv.email === e) || { email: e, nome: "" }),
+      ];
       const novos = tr.designar(t, lista, { por: x.u.email });
       if (!novos.length) return { erro: [400, "Nenhum revisor novo — os escolhidos já estão designados ou são autores do trabalho."], gravar: false };
       return { t, novos };
@@ -15724,6 +15740,29 @@ app.post("/api/ic/:id/relatorio/:rid/validar", async (req, res) => {
   res.json({ ok: true, projeto: verProjeto(u, r.projeto) });
 });
 
+/* A BUSCA DE PESSOAS para a equipe do evento (pedido do dono, set/2026):
+   quem opera evento escreve o nome e escolhe entre as contas do portal. Sai
+   nome, e-mail, curso e função — CPF e telefone se completam na GRAVAÇÃO da
+   equipe, só para quem entrou nela (ver `buscarPessoasDoPortal`). Exige a
+   sessão do setor; três letras no mínimo; oito resultados no máximo. */
+app.get("/api/eventos/pessoas", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    res.setHeader("Cache-Control", "no-store");
+    const [perfis, usuarios] = await Promise.all([carregarPerfis(), carregarUsuarios(storage)]);
+    const removidos = new Set(usuarios.removidos || []);
+    const contas = Object.entries(perfis).map(([e, p]) => ({
+      email: e, nome: p?.nome || "", funcao: normalizarFuncao(p?.funcao), curso: p?.curso || "",
+      cpf: p?.cpf || "", telefone: p?.telefone || "", removido: removidos.has(e),
+    }));
+    res.json({ pessoas: buscarPessoasDoPortal(contas, req.query.q) });
+  } catch (e) {
+    console.error("Erro em /api/eventos/pessoas:", e);
+    res.status(500).json({ error: "Falha na busca" });
+  }
+});
+
 /* A EQUIPE do evento — palestrantes e comissão organizadora — é quem recebe
    certificado À PARTE do participante, e sai na mesma planilha da AEE. Rota
    DEDICADA (o ARCHÉ EV nunca usa o POST em bloco da Extensão) e com a régua
@@ -15739,8 +15778,12 @@ app.post("/api/extensao/:id/equipe", async (req, res) => {
       || (b.comissao !== undefined && !Array.isArray(b.comissao)))
       return res.status(400).json({ error: "Envie as listas de palestrantes e da comissão." });
 
+    // quem tem conta no portal já informou CPF e telefone no perfil: a linha
+    // escolhida na busca (ou digitada com o mesmo e-mail) se completa daqui,
+    // só nos campos em branco — a busca em si nunca entrega esses dois dados
+    const perfis = await carregarPerfis();
     const prepara = (lista, opts) => (lista || [])
-      .map((x) => normalizarPessoaEvento(x, opts))
+      .map((x) => completarPeloPortal(normalizarPessoaEvento(x, opts), perfis[String(x?.email || "").trim().toLowerCase()]))
       .filter((x) => x.nome || x.cpf || x.email);
     const palestrantes = b.palestrantes === undefined ? null : prepara(b.palestrantes, { palestrante: true }).slice(0, 200);
     const comissao = b.comissao === undefined ? null : prepara(b.comissao, {}).slice(0, 300);

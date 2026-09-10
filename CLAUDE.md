@@ -1446,6 +1446,39 @@ public/
   `doc.y` quando recebe a posição explícita, e o título saía por cima da arte. `anonimo: true` tira a
   autoria inteira. A planilha ganhou título em inglês, curso, idioma, orientador e a titulação junto
   do nome.
+  **AS NORMAS SÃO OPCIONAIS, e o padrão sai da configuração** (`normasPadrao`/`normasDe` em
+  lib/trabalhos.js, decisão do dono set/2026: "deixe como opcional; se o organizador não incluir,
+  use as normas padrão que definimos aqui no chat"): a chave `normasPadrao` (ligada por padrão)
+  faz o botão "Normas de submissão" da página abrir um texto MONTADO da própria configuração —
+  modalidades, limite de palavras, prazo, revisor, critérios, dias de correção — mais o que o
+  formulário e o modelo do CONINT exigem (título sem abreviações, orientador último autor, resumo
+  em parágrafo único, 3 a 6 palavras-chave, seções do completo, ABNT ou APA). Sai da configuração
+  para o texto nunca dizer uma coisa e o formulário cobrar outra. O organizador com normas
+  próprias marca "usar o texto abaixo"; a gestão vê o padrão pelo botão "Ver as normas padrão"
+  (`normasPadraoTexto` no GET da guia).
+  **O REVISOR É INDICADO PELO AUTOR, dentro da submissão** (`pedeRevisor` + `revisorIndicado` +
+  `indicado: true`/`revisores: [{nome, email}]` na rota de designar, decisão do dono set/2026: "esse
+  campo deve ser incluído dentro do trabalho submetido; cada trabalho terá seu revisor, que ao ser
+  indicado receberá um e-mail com o convite"): o formulário pede nome, e-mail e instituição de um
+  revisor (não pode ser autor nem orientador — `validarSubmissao`), o registro guarda
+  `revisorIndicado`, e no card da gestão o convite é UM clique ("convidar o revisor indicado pelo
+  autor"), com o campo "outro revisor" para a comissão escolher outra pessoa. O card "Revisores do
+  evento" (a lista prévia) SAIU da tela; a rota `/trabalhos/revisores` e `emails` na designação
+  ficam por compatibilidade. A indicação não quebra a cegueira do lado do revisor (a cópia dele
+  continua sem autoria), mas o revisor indicado sabe de quem é o trabalho — é a escolha do dono, e a
+  comissão pode preferir "outro revisor".
+- **A EQUIPE DO EVENTO SE BUSCA ENTRE OS USUÁRIOS** (`buscarPessoasDoPortal`/`completarPeloPortal`
+  em lib/eventos.js + `GET /api/eventos/pessoas?q=` + `buscaPessoa`/`escolhePessoa` na guia Equipe do
+  ARCHÉ EV, pedido do dono set/2026, subindo o CONINT: "permita eu escrever e o sistema buscar dentre
+  os usuários, e aí eu só clico e ele já preenche, eu indicando somente a carga horária"). Escreve-se
+  no campo do nome (3 letras no mínimo), a lista traz até 8 contas do portal (nome, e-mail, função,
+  curso) e o clique preenche nome e e-mail, marca a linha (`conta`) e leva o cursor à CH. **A busca
+  NÃO devolve CPF nem telefone**: uma busca por nome que entregasse o CPF de qualquer conta a quem
+  organiza um evento seria um oráculo. Eles se completam no SERVIDOR, na gravação da equipe
+  (`completarPeloPortal`, pelo e-mail da conta, só nos campos em branco) — para quem entrou na
+  equipe, que é quem o organizador precisa certificar. A sugestão diz `temCpf`/`temTelefone` para o
+  aviso do que falta não mentir (conta sem CPF no perfil continua faltando CPF), e mexer no nome
+  depois desfaz a marca. Exige a sessão do setor; removidos ficam de fora.
 - **A ação pode ser de MAIS DE UM CURSO** (`cursosExtras` + `normalizarCursosExtras`/
   `cursosDaAcao`/`cursosEmTexto`/`acaoDoCurso` em lib/eventos.js, pedido de um professor
   ago/2026): a jornada é de Engenharia Mecânica E de Engenharia Civil, e o formulário só
