@@ -102,6 +102,11 @@
   .esc-atv .d{flex:1;min-width:0}
   .esc-atv .m{font-size:12px;color:var(--muted);font-weight:400;margin-top:2px}
   .esc-atv.lotada{opacity:.55;cursor:not-allowed}
+  /* linha de valor na chamada da inscrição: é leitura, não escolha — mesmo
+     desenho da categoria do formulário, sem cursor de clique e sem hover */
+  .val-cat{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);
+    border-radius:10px;margin-top:6px;font-weight:500;font-size:13.5px;color:var(--ink)}
+  .val-cat .m{font-size:12px;color:var(--muted);font-weight:400;margin-top:2px}
   .dica-campo{font-size:11.5px;color:var(--muted);margin:-6px 0 2px}
   .lgpd-box{background:var(--wash);border:1px solid var(--line);border-radius:10px;padding:12px 14px;
     font-size:12px;color:var(--ink-soft);line-height:1.6;max-height:170px;overflow-y:auto;margin-top:8px}
@@ -201,7 +206,7 @@
 </header>
 
 <main id="main"><div class="card" style="margin-top:20px"><p style="color:var(--muted)">Carregando…</p></div></main>
-<a class="bt bt-pri flutua" id="cta-flutua" href="#inscricao" style="display:none">Inscreva-se</a>
+<a class="bt bt-pri flutua" id="cta-flutua" href="#" style="display:none">Inscreva-se</a>
 
 <footer>
   <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
@@ -217,6 +222,13 @@ const fmt = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) ? iso.split(
 const $ = (id) => document.getElementById(id);
 // o slug é o primeiro segmento depois de /eventos/
 const SLUG = decodeURIComponent((location.pathname.match(/^\/eventos\/([^/]+)/) || [])[1] || "");
+/* A FICHA DE INSCRIÇÃO (/eventos/<slug>/inscrever, set/2026): o mesmo arquivo,
+   sem o hotsite — só o cabeçalho do evento e o formulário. O dono pediu a
+   página do evento mais fluida ("coloque só um botão de Inscreva-se"), e o
+   formulário inteiro dentro dela — nome, CPF, e-mail, telefone, categoria,
+   LGPD — era metade da poluição. Aqui não se duplica nada: é o modo em que a
+   página já desenhava o evento SEM hotsite. */
+const FICHA = /^\/eventos\/[^/]+\/inscrever\/?$/.test(location.pathname);
 let EV = null;
 let ME = null;   // a conta logada (o /api/me), consultada ANTES de desenhar: decide se o formulário aparece
 // o botão da carteira digital só existe onde a instituição tem a conta de emissor
@@ -342,8 +354,8 @@ function render() {
           ${esc(e.local) || "local a divulgar"}${e.municipio ? " — " + esc(e.municipio) : ""} · ${esc(e.curso)}
         </div>
         <div class="hero-selos">${selos}</div>
-        ${abertas ? `<div class="hero-cta"><a class="bt bt-pri" href="#inscricao"
-          style="background:#fff;color:var(--brand);box-shadow:none">${e.cobranca ? "Inscreva-se ↓" : "Inscreva-se gratuitamente ↓"}</a></div>` : ""}
+        ${abertas ? `<div class="hero-cta"><a class="bt bt-pri" href="/eventos/${encodeURIComponent(SLUG)}/inscrever"
+          style="background:#fff;color:var(--brand);box-shadow:none">${e.cobranca ? "Inscreva-se" : "Inscreva-se gratuitamente"}</a></div>` : ""}
       </div>
     </div>
     ${encerrado ? `<div class="msg-ok" style="background:var(--wash);color:var(--ink-soft)">
@@ -376,7 +388,7 @@ function render() {
       <div class="card" id="card-inscricao">
         ${jaTem ? `<div class="msg-ok" style="margin-top:0;margin-bottom:12px">Você já se inscreveu neste evento por este aparelho.
             <a href="/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(jaTem)}" style="text-decoration:underline">Abrir minha inscrição →</a></div>` : ""}
-        ${abertas ? formInscricao(e) : `<p style="font-size:13.5px;color:var(--muted)">As inscrições deste evento
+        ${abertas ? chamadaInscricao(e) : `<p style="font-size:13.5px;color:var(--muted)">As inscrições deste evento
             não estão abertas${e.vagasRestantes === 0 ? " — as vagas se esgotaram" : ""}.
             Quem já se inscreveu segue com a inscrição válida.</p>`}
         <details class="reenvio">
@@ -399,16 +411,22 @@ function render() {
       </div>
     </div>`;
 
-  /* ------ EVENTO SEM HOTSITE (pedido do dono, ago/2026) ------
-     O professor que dá uma palestra e quer só a lista de presença por QR não
-     tem por que montar um site. Aqui a página é a FOLHA DE INSCRIÇÃO: o nome
-     do evento, quando e onde, e o formulário. Sem capa, sem hero, sem
-     programação, sem blocos, sem a barra de seções — não há seções. A
+  /* ------ FOLHA DE INSCRIÇÃO ------
+     Dois caminhos chegam aqui, e a tela é a mesma. (1) EVENTO SEM HOTSITE
+     (pedido do dono, ago/2026): o professor que dá uma palestra e quer só a
+     lista de presença por QR não tem por que montar um site. (2) A FICHA do
+     evento COM hotsite (set/2026): o formulário saiu da página do evento e
+     mora em /inscrever. Nos dois, o nome do evento, quando e onde, e o
+     formulário — sem capa, sem hero, sem programação, sem blocos. A
      inscrição, a credencial e o QR são exatamente os mesmos. */
-  if (e.hotsite === false) {
+  if (e.hotsite === false || FICHA) {
+    const voltar = e.hotsite === false ? "" : `<a href="/eventos/${encodeURIComponent(SLUG)}"
+      style="display:inline-block;font-size:13px;color:var(--brand-2);font-weight:600;
+        text-decoration:none;margin-top:18px">← Voltar à página do evento</a>`;
     $("main").innerHTML = `
-      <div class="card" style="margin-top:20px;padding:22px 24px">
-        <div class="eyebrow">Inscrição · evento de extensão · ${esc(rotuloPreco(e))}</div>
+      ${voltar}
+      <div class="card" style="margin-top:${voltar ? 10 : 20}px;padding:22px 24px">
+        <div class="eyebrow">Inscrição · evento de extensão · ${esc(rotuloPreco(e).replace(/^inscrição:?\s*/i, ""))}</div>
         <h1 style="font-family:'Archivo',sans-serif;font-size:26px;font-weight:800;
           letter-spacing:-.02em;margin:6px 0 0">${esc(e.nome)}</h1>
         <div style="font-size:14px;color:var(--ink-soft);margin-top:8px;line-height:1.6">
@@ -442,11 +460,16 @@ function render() {
         </details>
       </div>`;
     $("cta-flutua").style.display = "none";
+    // o formulário nasce preenchido para quem está logado — aqui também, que
+    // é onde ele mora desde set/2026 (antes esta saída voltava sem chamar)
+    avisoConflito();
+    if (abertas) preencherComOUsuario();
     return;
   }
 
   $("main").innerHTML = hero + subnav(e) + sobre + palestrantes + progHtml + blocosAntes + insc + blocosApoio;
   girarPalestrantes();
+  $("cta-flutua").href = `/eventos/${encodeURIComponent(SLUG)}/inscrever`;
   $("cta-flutua").style.display = abertas && !document.querySelector("#pos-inscricao") ? "" : "none";
   // o botão flutuante é persistente, mas não precisa cobrir o próprio
   // formulário: some enquanto a seção de inscrição está na tela
@@ -831,6 +854,40 @@ function blocoOrganizacao(e) {
   </div>`;
 }
 
+/* A CHAMADA DA PÁGINA DO EVENTO (set/2026, pedido do dono: "coloque só um
+   botão de Inscreva-se e direciona para a página do inscrito — estou achando
+   isso poluindo a página do evento"). O formulário inteiro — nome, CPF,
+   e-mail, telefone, curso, categoria, campos extras e o texto da LGPD — vivia
+   no meio do hotsite, entre a programação e o rodapé: quem entrava para LER
+   sobre o evento levava um cadastro na cara, e quem entrava para SE INSCREVER
+   rolava a página inteira até achá-lo. Aqui fica o que ajuda a DECIDIR (o
+   prazo, as vagas e quanto custa cada categoria, com o lote de hoje) e um
+   botão só; o cadastro é a etapa seguinte, com endereço próprio. */
+function chamadaInscricao(e) {
+  const c = e.cobranca;
+  const cats = (c?.categorias || []);
+  const prazo = e.inscricoesAte
+    ? `Inscrições até <b>${esc(fmt(e.inscricoesAte))}</b>${e.inscricoesAteHora ? `, às ${esc(e.inscricoesAteHora)}` : ""}.`
+    : "Inscrições abertas.";
+  const vagas = e.vagasRestantes === null ? "" : ` Restam <b>${e.vagasRestantes} vaga(s)</b>.`;
+  const valores = cats.length ? `
+    <div class="secao-t" style="font-size:15px;margin:18px 0 0">Valores</div>
+    ${c.lote || c.proximoLote ? `<p style="font-size:12.5px;color:var(--muted);margin-top:4px">${
+      c.lote ? `Valores do <b>${esc(c.lote.nome)}</b>, em vigor desde ${esc(fmt(c.lote.desde))}.` : "Valores do primeiro lote."
+    }${c.proximoLote ? ` A partir de ${esc(fmt(c.proximoLote.desde))} vale o <b>${esc(c.proximoLote.nome)}</b>, mais caro.` : ""}</p>` : ""}
+    ${cats.map((k) => `<div class="val-cat">
+      <span style="flex:1"><b>${esc(k.nome)}</b>${k.descricao ? `<div class="m">${esc(k.descricao)}</div>` : ""}</span>
+      <b style="white-space:nowrap">${k.valor > 0 ? reais(k.valor) : "gratuita"}${k.valor > 0 && k.valorCartao > k.valor
+        ? `<span class="m" style="display:block;font-weight:500;text-align:right">no Pix · ${reais(k.valorCartao)} no cartão</span>` : ""}</b>
+    </div>`).join("")}` : "";
+  return `<p style="font-size:14.5px;line-height:1.65">${prazo}${vagas}</p>
+    ${valores}
+    <a class="bt bt-pri" style="width:100%;margin-top:18px;text-align:center;display:block"
+      href="/eventos/${encodeURIComponent(SLUG)}/inscrever">${c ? "Inscreva-se" : "Inscreva-se gratuitamente"}</a>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:10px">Na página seguinte você preenche os
+      seus dados${c ? " e escolhe a forma de pagamento" : ""}. A credencial com o QR chega por e-mail.</p>`;
+}
+
 /* ---------------------- formulário de inscrição -------------------------- */
 function formInscricao(e) {
   /* A CONTA ANTES DA INSCRIÇÃO (decisão do dono, set/2026): com a chave do
@@ -1180,7 +1237,7 @@ fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}`).then(async (r) => {
   // a ÁREA DO INSCRITO (set/2026): quem está logado tem o atalho no topo —
   // pagamento, programação e trabalhos moram lá
   if (ME && EV.hotsite !== false) { const lk = $("lk-participante"); lk.href = `/eventos/${encodeURIComponent(SLUG)}/participante`; lk.hidden = false; }
-  document.title = `${EV.nome} — Eventos UNIEGO`; render();
+  document.title = `${FICHA ? "Inscrição · " : ""}${EV.nome} — Eventos UNIEGO`; render();
 }).catch(() => {
   $("main").innerHTML = '<div class="card" style="margin-top:20px"><p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente em instantes.</p></div>';
 });

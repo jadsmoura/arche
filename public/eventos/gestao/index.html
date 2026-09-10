@@ -2058,8 +2058,8 @@ function renderCredenciamento(a){
     <div class="card">
       <div class="sec-t">QR de inscrição — para projetar</div>
       <div class="muted" style="margin:8px 0">Nem toda reunião dá para inscrever antes: projete este QR
-        no encerramento e quem estava ali se inscreve na hora, pelo celular. Ele leva à página pública do
-        evento — o mesmo endereço do cartaz e das redes.</div>
+        no encerramento e quem estava ali se inscreve na hora, pelo celular. Ele leva direto à
+        <b>ficha de inscrição</b> do evento — quem lê o QR já vem para se inscrever.</div>
       <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
         <img src="/api/publico/eventos/${encodeURIComponent(ev.slug)}/qr-inscricao.png" alt="QR de inscrição"
           style="width:150px;height:150px;border:1px solid var(--line);border-radius:12px;padding:8px;background:#fff">
@@ -2172,7 +2172,7 @@ function baixarQrTelao(id,aid,i){
 function qrTelaCheia(slug, nome){
   const w = window.open("", "_blank");
   if(!w){ alert("O navegador bloqueou a janela. Libere as janelas para este site e tente de novo."); return; }
-  const url = location.origin + "/eventos/" + encodeURIComponent(slug);
+  const url = location.origin + "/eventos/" + encodeURIComponent(slug) + "/inscrever";
   w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
     <title>Inscreva-se — ${esc(nome||"evento")}</title>
     <style>body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;

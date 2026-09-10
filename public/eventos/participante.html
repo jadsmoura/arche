@@ -92,7 +92,7 @@ function render() {
     $("tela").innerHTML = `<div class="card">${cabecalho(e)}
       <div class="trava"><div class="ic">🎫</div><div><b>Você ainda não está inscrito neste evento</b> com a conta
         <b>${esc(D.conta.email)}</b>. A inscrição é feita na página do evento — e, feita com esta conta, aparece aqui.</div></div>
-      <div class="linha"><a class="bt bt-pri" href="${URL_EV}#inscricao">Inscrever-me</a>
+      <div class="linha"><a class="bt bt-pri" href="${URL_EV}/inscrever">Inscrever-me</a>
         <button class="bt bt-ghost" onclick="trocarConta()">Entrar com outra conta</button></div></div>`;
     return;
   }

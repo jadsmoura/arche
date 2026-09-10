@@ -221,12 +221,12 @@ function blocoInscrito(j) {
     <p style="font-size:14px;line-height:1.65;margin-top:8px">A submissão de trabalhos é para quem está <b>inscrito no evento</b>. Entre com a conta do portal usada na inscrição — ou crie a conta e inscreva-se na página do evento.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
       <a class="bt bt-pri" href="/entrar/?next=${volta}">Entrar</a>
-      <a class="bt bt-sec" href="/eventos/${encodeURIComponent(SLUG)}#inscricao">Inscrever-me no evento</a></div></div>`;
+      <a class="bt bt-sec" href="/eventos/${encodeURIComponent(SLUG)}/inscrever">Inscrever-me no evento</a></div></div>`;
   return `<div class="card" style="margin-top:14px">
     <div class="sec-t">${p.inscrito ? "Inscrição ainda não liberada" : "Você ainda não está inscrito"}</div>
     <p style="font-size:14px;line-height:1.65;margin-top:8px">${esc(p.motivo || "")}${p.inscrito ? "" : ` A conta em uso é <b>${esc(p.email)}</b> — se a inscrição foi feita com outra conta, entre com ela.`}</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
-      ${p.inscrito ? `<a class="bt bt-pri" href="${area}">Ir para o pagamento</a>` : `<a class="bt bt-pri" href="/eventos/${encodeURIComponent(SLUG)}#inscricao">Inscrever-me no evento</a>`}
+      ${p.inscrito ? `<a class="bt bt-pri" href="${area}">Ir para o pagamento</a>` : `<a class="bt bt-pri" href="/eventos/${encodeURIComponent(SLUG)}/inscrever">Inscrever-me no evento</a>`}
       <a class="bt bt-sec" href="${area}">Área do inscrito</a>
       <button class="bt bt-ghost" onclick="fetch('/auth/sair',{method:'POST'}).finally(()=>location.href='/entrar/?next=${volta}')">Entrar com outra conta</button></div></div>`;
 }

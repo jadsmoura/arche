@@ -5812,13 +5812,15 @@ app.get("/api/publico/eventos/:slug/apoiador/:iid/logo", async (req, res) => {
 /* O QR da PÁGINA do evento (pedido do dono, ago/2026): nem toda reunião dá
    para inscrever antes — projeta-se este QR no encerramento e quem estava ali
    se inscreve na hora, pelo celular. Leva ao endereço público do evento, que
-   já é público: não há segredo nenhum neste QR. */
+   já é público: não há segredo nenhum neste QR. Desde set/2026 leva à FICHA
+   (/inscrever), não ao hotsite: quem lê o QR projetado no fim da palestra vai
+   se inscrever, e o formulário deixou de morar na página do evento. */
 app.get("/api/publico/eventos/:slug/qr-inscricao.png", async (req, res) => {
   try {
     const a = eventoPorSlug(await lerAcoes(), req.params.slug);
     if (!a?.evento?.ativo) return res.status(404).send("Evento não encontrado");
     const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
-    const url = `${base}/eventos/${encodeURIComponent(a.evento.slug)}`;
+    const url = `${base}/eventos/${encodeURIComponent(a.evento.slug)}/inscrever`;
     const { default: QRCode } = await import("qrcode");
     const png = await QRCode.toBuffer(url, { type: "png", errorCorrectionLevel: "M", margin: 2, width: 900 });
     res.setHeader("Content-Type", "image/png");
@@ -18018,6 +18020,13 @@ app.get(/^\/eventos\/[a-z0-9-]+\/pagamento\/[a-zA-Z0-9]+\/?$/, (_req, res) =>
 // a ÁREA DO INSCRITO (com a conta do portal): pagamento, programação e trabalhos
 app.get(/^\/eventos\/[a-z0-9-]+\/participante\/?$/, (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "participante.html")));
+/* A FICHA DE INSCRIÇÃO (set/2026): o formulário saiu do hotsite e ganhou
+   endereço próprio — a página do evento voltou a ser leitura, com um botão
+   "Inscreva-se" que traz até aqui. É o MESMO arquivo do hotsite, no modo em
+   que ele já desenhava o evento SEM página (folha de inscrição): mesmo
+   formulário, mesma categoria, mesmo voucher, mesma credencial. */
+app.get(/^\/eventos\/[a-z0-9-]+\/inscrever\/?$/, (_req, res) =>
+  res.sendFile(path.join(PUBLIC, "eventos", "evento.html")));
 // PRESENÇA PELO TELÃO (set/2026): a página que o participante abre ao ler o
 // QR projetado, e a página de PROJEÇÃO (com login — ela pede o código à API)
 app.get(/^\/eventos\/[a-z0-9-]+\/presenca\/[a-zA-Z0-9_-]+\/?$/, (_req, res) =>

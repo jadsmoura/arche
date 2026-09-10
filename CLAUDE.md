@@ -1525,6 +1525,25 @@ public/
   (achado do dono: "já salvei as informações de cobrança e continua aparecendo inscreva-se
   grátis") — agora segue `e.cobranca`. E `e.cobranca` só existe com a cobrança LIGADA
   (`cobrancaAtiva`: a caixa "ativa" marcada E ao menos uma categoria com valor).
+- **O FORMULÁRIO SAIU DA PÁGINA DO EVENTO: A FICHA TEM ENDEREÇO PRÓPRIO**
+  (`/eventos/<slug>/inscrever` + `FICHA`/`chamadaInscricao` em public/eventos/evento.html, pedido
+  do dono set/2026: "para deixar a página mais fluida, coloque só um botão de Inscreva-se e
+  direciona para a página do inscrito — estou achando isso poluindo a página do evento"). O
+  cadastro inteiro — nome, CPF, e-mail, telefone, curso, categoria, campos extras e o texto da
+  LGPD — vivia no meio do hotsite, entre a programação e o rodapé: quem entrava para LER sobre o
+  evento levava um formulário na cara, e quem entrava para SE INSCREVER rolava a página toda até
+  achá-lo. Na seção "Inscrição" fica agora o que ajuda a DECIDIR — prazo, vagas e quanto custa cada
+  categoria com o lote de hoje — e **um botão só**; o hero e o botão flutuante levam ao mesmo lugar,
+  e o QR de inscrição projetado no telão passa a apontar direto para a ficha (quem lê o QR no fim da
+  palestra vem se inscrever, não ler). **A ficha NÃO é página nova**: é o MESMO arquivo, no modo em
+  que ele já desenhava o evento **sem hotsite** — mesmo formulário, mesma categoria, mesmo voucher,
+  mesma credencial, mesma régua de conta. Uma segunda página duplicaria as quinhentas linhas que a
+  inscrição carrega, e as duas divergiriam no primeiro campo novo. Duas consequências: o modo folha
+  ganhou o **"← Voltar à página do evento"** (só quando há hotsite — no evento sem página não há
+  para onde voltar) e passou a **preencher com os dados da conta**, que era chamada só no caminho do
+  hotsite: quem entrava por um evento sem página digitava tudo à mão sem que nada explicasse por quê.
+  "inscrever" entrou em `SLUGS_RESERVADOS`, e os botões "Inscrever-me" da área do inscrito e do
+  ARCHÉ TR deixaram de apontar para a âncora `#inscricao`.
 - **O BLOCO "SUBMISSÃO DE TRABALHOS" É O ARCHÉ TR** (`origem: "arche" | "ojs"` no bloco,
   `blocoTrArche`/`secaoTrabalhos(e, b)` no hotsite, achado do dono set/2026: "cliquei em submissão
   de trabalhos e veio um bloco genérico; deve estar vinculado ao sistema de submissão que
