@@ -166,3 +166,16 @@ test("outro CPF num pré-cadastro desliga o vínculo que ele tinha escrito nos p
   assert.equal(outra[0].orientador.email, "marina@uniego.edu.br");
   assert.equal(desligarPreCadastro(outra, { email: "marina@uniego.edu.br", cpf: "111" }).desligados, 0, "CPF incompleto não desliga nada");
 });
+
+test("indicada por e-mail, com o CPF no campo da orientação de OUTRA conta, ela é aluna", () => {
+  // o CPF do formulário era o da aluna; a orientadora já está no projeto pelo e-mail dela
+  const p = normalizarProjeto({ ...importado(),
+    orientador: { nome: "Profa. Marina", cpf: CPF, email: "marina@hotmail.com" },
+    alunos: [{ nome: "Sara Aragão", email: "sara@gmail.com", cpf: "" }] }, { autor: "" });
+  assert.equal(papelNoProjeto({ email: "sara@gmail.com", cpf: CPF }, p), "aluno");
+  // sem a indicação por e-mail, o CPF continua ligando a orientação (a segunda conta da própria pessoa)
+  assert.equal(papelNoProjeto({ email: "outra@gmail.com", cpf: CPF }, p), "orientador");
+  // e com a orientação AINDA sem e-mail, o CPF manda, como sempre
+  const semEmail = normalizarProjeto({ ...importado(), alunos: [{ nome: "Sara", email: "sara@gmail.com" }] }, { autor: "" });
+  assert.equal(papelNoProjeto({ email: "sara@gmail.com", cpf: CPF }, semEmail), "orientador");
+});

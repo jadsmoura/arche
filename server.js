@@ -47,7 +47,7 @@ import {
   CRITERIOS_AVALIACAO_ORIENTADOR, CRITERIOS_AVALIACAO_ALUNO, PARECERES_CONCLUSIVOS,
   janelaRelatorio, regularizacaoDe, pedidoEncerramentoPendente, encerramentoAceito,
 } from "./lib/ic.js";
-import { normalizarCpf, soDigitos, formatarCpf, cpfValido } from "./lib/cpf.js";
+import { normalizarCpf, soDigitos, formatarCpf, cpfValido, mesmoCpf } from "./lib/cpf.js";
 import {
   MON_KEY, editalVigente as monEditalVigente, cicloCorrente as monCicloCorrente,
   cicloSemEdital as monCicloSemEdital, CRONOGRAMA as MON_CRONOGRAMA, VIGENCIA as MON_VIGENCIA,
@@ -2648,6 +2648,50 @@ async function tentarFusaoSolicitada(f, por = "arranque (pedido do dono)") {
 }
 async function fundirContasSolicitadas() {
   for (const f of FUSOES_SOLICITADAS) await tentarFusaoSolicitada(f);
+}
+
+/* O CPF NO CAMPO DA ORIENTAÇÃO ERA O DA ALUNA (set/2026, o e-mail da estudante ao
+   dono: "não estou conseguindo anexar meus dados no link", com o CPF dela — o
+   mesmo que o formulário do Edital 01/2026 trazia no campo da ORIENTADORA). A
+   aluna preencheu o formulário do projeto da professora com o Gmail e o CPF
+   dela; `propagarCpfOrientadores` ainda espalhou esse CPF pelos projetos
+   antigos da mesma orientadora. Resultado: com o próprio CPF no perfil, a
+   estudante era "orientadora" de quatro projetos (`papelNoProjeto` casa por
+   CPF) — inclusive daquele em que a professora acabou de INDICÁ-LA como
+   bolsista —, via o painel do professor e não tinha a guia Bolsa. O CPF sai
+   do campo da orientação: entra o da conta da professora se ela já o gravou,
+   senão fica vazio (ela o informa no perfil e `vincularPorCpf` o escreve).
+   Roda UMA vez (marca) e só nos projetos com esse CPF E o nome da professora. */
+const CPF_NO_FORMULARIO_DA_LUANA = "02391881100";
+async function corrigirCpfDaOrientadoraLuana() {
+  const MARCA = "sys-ic-luana-cpf-v1";
+  try {
+    if (await storage.get(MARCA)) return;
+    const perfis = await carregarPerfis();
+    const daProfessora = perfis["luanna_miranda01@hotmail.com"] || {};
+    const cpfCerto = soDigitos(daProfessora.cpf || "");
+    const novo = cpfCerto && cpfCerto !== CPF_NO_FORMULARIO_DA_LUANA ? cpfCerto : "";
+    const r = await comProjetos((projetos) => {
+      const numeros = [];
+      for (let i = 0; i < projetos.length; i++) {
+        const p = projetos[i];
+        if (!mesmoCpf(CPF_NO_FORMULARIO_DA_LUANA, p.orientador?.cpf)) continue;
+        const nome = chaveNome(p.orientador?.nome);
+        if (!(nome.includes("luan") && nome.includes("miranda"))) continue;
+        projetos[i] = anotarProjeto({
+          ...p, orientador: { ...p.orientador, cpf: novo }, atualizadoEm: new Date().toISOString(),
+        }, { quem: "sistema", oQue: "CPF da orientação corrigido: o gravado veio do formulário "
+          + "preenchido pela aluna e era o dela" + (novo ? " (entrou o CPF da conta da professora)" : "") });
+        numeros.push(p.numero || p.id);
+      }
+      return { numeros, gravar: numeros.length > 0 };
+    });
+    await storage.set(MARCA, JSON.stringify({ em: new Date().toISOString(), projetos: r.numeros, cpfDaProfessora: !!novo }));
+    await storage.flush?.();
+    if (r.numeros.length) console.log(`[ic] CPF da orientação corrigido em ${r.numeros.length} projeto(s): ${r.numeros.join(", ")}`);
+  } catch (e) {
+    console.error("[ic] corrigirCpfDaOrientadoraLuana:", e.message);
+  }
 }
 
 /* A GESTÃO DA AVALIAÇÃO PARA AS COORDENAÇÕES DAS PRÓ-REITORIAS (pedido do dono,
@@ -18662,6 +18706,7 @@ app.listen(port, () => {
       // projetos pelo CPF do outro) até alguém regravar o perfil. A passada é
       // idempotente e nunca sobrescreve e-mail existente.
       fundirContasSolicitadas,     // as fusões de conta pedidas pelo dono
+      corrigirCpfDaOrientadoraLuana, // o CPF da aluna sai do campo da orientação
       designarGestaoDaAvaliacao,   // as coordenações das pró-reitorias na Avaliação
       vincularPerfisIC,
     ]) {

@@ -3117,6 +3117,20 @@ public/
   real, a fusão da profa. Luana já tinha levado os projetos ao Hotmail dela e removido o
   perfil do Gmail da estudante — a conta dela ficou limpa; a correção vale para o próximo
   formulário preenchido pelo aluno.
+  **E O CPF DO FORMULÁRIO TAMBÉM ERA O DA ALUNA** (segunda rodada, no mesmo dia: a estudante
+  respondeu ao convite de bolsista por e-mail, "não estou conseguindo anexar meus dados no
+  link", mandando os dados — e o CPF dela é o que o formulário trazia no campo da
+  ORIENTADORA). Com o próprio CPF no perfil, `papelNoProjeto` a fazia **orientadora** dos
+  quatro projetos (o CPF vale tanto quanto o e-mail), inclusive daquele em que a professora
+  acabara de indicá-la: painel do professor, sem a guia Bolsa. Duas correções: (1)
+  `papelNoProjeto` — indicada como ALUNA pelo e-mail num projeto cuja orientação já tem OUTRO
+  e-mail, a coincidência do CPF na orientação não vira cargo: ela é aluna (o CPF sem indicação
+  continua ligando a orientação, que é a segunda conta da própria pessoa; e a orientação
+  ainda sem e-mail continua casando pelo CPF, como sempre); (2) `corrigirCpfDaOrientadoraLuana`
+  (marca `sys-ic-luana-cpf-v1`) tira esse CPF do campo da orientação nos projetos que carregam
+  o nome da professora — entra o da conta dela se já gravado, senão fica vazio, e ela se
+  vincula ao informá-lo no perfil. Os dados que a aluna mandou por e-mail **não entram pelo
+  código**: ela os grava na guia Bolsa, ou a gestão os digita na ficha do projeto.
 - **CPF é a chave do que vem de fora** (`lib/cpf.js`): o perfil (`/perfil/`) pede o CPF,
   guardado só em dígitos e **único por conta** (dois cadastros com o mesmo CPF são
   recusados — o segundo herdaria os projetos do primeiro); alterar CPF já gravado só
