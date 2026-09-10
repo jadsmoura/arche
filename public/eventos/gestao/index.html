@@ -3711,18 +3711,29 @@ function atualizarContadoresEvento(a){
 // tabela de inscritos, contadores por atividade e o mural da transmissão
 const GUIAS_AO_VIVO = ["inicio","inscritos","programacao","transmissao"];
 let AO_VIVO_ID=null;
+/* Recarrega SÓ a ação aberta (set/2026): o poll baixava o GET /api/extensao
+   inteiro — todas as ações com todos os inscritos — para pintar os contadores
+   de um evento; agora pede a rota da ação e troca a entrada em ACOES. */
+async function recarregarAcao(id){
+  const r=await fetch(`/api/extensao/${encodeURIComponent(id)}`,{cache:"no-store"});
+  if(!r.ok) throw new Error("falha ao recarregar a ação");
+  const a=(await r.json()).acao; if(!a) return null;
+  a.proposta=a.proposta||{}; const p=a.participantes||(a.participantes={}); p.inscritos=p.inscritos||[];
+  const i=ACOES.findIndex(x=>x.id===id);
+  if(i>=0) ACOES[i]=a; else ACOES.push(a);
+  return a;
+}
 async function aoVoltarAba(){
   if(document.visibilityState!=="visible"||!AO_VIVO_ID) return;
   if(!GUIAS_AO_VIVO.includes(SECAO)||ABERTO!==AO_VIVO_ID) return;
   try{
-    await carregar();
-    const a=ACOES.find(x=>x.id===AO_VIVO_ID); if(!a) return;
+    const a=await recarregarAcao(AO_VIVO_ID); if(!a) return;
     atualizarContadoresEvento(a);
   }catch{ /* sem rede agora — o intervalo tenta de novo */ }
 }
 
 /* Contadores "ao vivo" no dia do evento: enquanto uma guia de evento está
-   aberta e a página do evento ativa, recarrega a cada 30 s — só números, a
+   aberta e a página do evento ativa, recarrega a cada 60 s — só números, a
    tabela de inscritos e o mural, sem tocar nos formulários (senão o
    refresco apagaria o que se digita). */
 function agendarEvento(id){
@@ -3731,7 +3742,7 @@ function agendarEvento(id){
   const a0=ACOES.find(x=>x.id===id);
   if(!a0?.evento?.ativo) return;
   // voltar para a aba atualiza na hora: sem isto, quem volta olha um número
-  // de até 30 s atrás achando que é o de agora
+  // de até 60 s atrás achando que é o de agora
   AO_VIVO_ID=id;
   document.addEventListener("visibilitychange", aoVoltarAba);
   EV_TIMER=setInterval(async()=>{
@@ -3744,11 +3755,12 @@ function agendarEvento(id){
     if(!GUIAS_AO_VIVO.includes(SECAO)) return;
     if(document.visibilityState!=="visible") return;
     try{
-      await carregar();
-      const a=ACOES.find(x=>x.id===id); if(!a) return;
+      // só a ação aberta, e a cada 60 s (set/2026): a lista inteira a cada
+      // 30 s era o maior gasto de banda da gestão com a aba aberta o dia todo
+      const a=await recarregarAcao(id); if(!a) return;
       atualizarContadoresEvento(a); renderInscritosEv(a);
     }catch{ /* sem rede agora — a próxima volta tenta de novo */ }
-  },30000);
+  },60000);
 }
 
 async function atualizarEvento(id){

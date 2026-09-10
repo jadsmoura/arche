@@ -3236,7 +3236,7 @@ function atualizarContadoresEvento(a){
 }
 
 /* Contadores "ao vivo" no dia do evento: enquanto o detalhe está aberto e a
-   página do evento ativa, recarrega a cada 30 s — só números e a tabela,
+   página do evento ativa, recarrega a cada 60 s — só números e a tabela,
    sem tocar no formulário (senão o refresco apagaria o que se digita). */
 function agendarEvento(id){
   clearInterval(EV_TIMER);
@@ -3249,11 +3249,16 @@ function agendarEvento(id){
     // alguns GB de banda para pintar contadores que ninguém está vendo
     if(document.visibilityState!=="visible") return;
     try{
-      await carregar();
-      const a=ACOES.find(x=>x.id===id); if(!a) return;
+      // só a ação aberta, a cada 60 s (set/2026): a lista inteira a cada 30 s
+      // era o maior gasto de banda de uma aba deixada aberta no dia do evento
+      const r=await fetch(`/api/extensao/${encodeURIComponent(id)}`,{cache:"no-store"});
+      if(!r.ok) return;
+      const a=(await r.json()).acao; if(!a) return;
+      a.proposta=a.proposta||{}; const p=a.participantes||(a.participantes={}); p.inscritos=p.inscritos||[];
+      const i=ACOES.findIndex(x=>x.id===id); if(i>=0) ACOES[i]=a;
       atualizarContadoresEvento(a); renderInscritosEv(a);
     }catch{ /* sem rede agora — a próxima volta tenta de novo */ }
-  },30000);
+  },60000);
 }
 
 async function atualizarEvento(id){

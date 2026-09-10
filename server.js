@@ -3304,7 +3304,10 @@ function comAcoes(fn, { flushJa = true } = {}) {
     const r = await fn(acoes);
     if (r?.gravar !== false) {
       await storage.set(EX_KEY, JSON.stringify(acoes));
-      if (flushJa) await storage.flush?.();
+      // "agora" sobe o arquivo na hora (só onde um e-mail depende da gravação:
+      // pagamento confirmado, isenção); `true` deixa para a janela do storage
+      if (flushJa === "agora") await storage.flush?.({ agora: true });
+      else if (flushJa) await storage.flush?.();
     }
     return r;
   });
@@ -4834,7 +4837,7 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
        avisar. A espera do flush corre FORA da fila, então não segura a
        inscrição de quem vem atrás. */
     try {
-      await storage.flush?.();
+      await storage.flush?.({ agora: true });
     } catch (e) {
       console.error("[eventos] inscrição não gravou no Drive — e-mail NÃO enviado:", e.message);
       return;                       // sem recibo: a pessoa refaz e nada fica pela metade
@@ -5048,7 +5051,7 @@ async function aplicarPagamentoDoProvedor(p, { por } = {}) {
     i.pagamento = novo;
     a.atualizadoEm = new Date().toISOString();
     return { acao: a, inscrito: i, antes, depois: novo.status, leitura };
-  }, { flushJa: true });
+  }, { flushJa: "agora" });
   return r;
 }
 
@@ -5302,7 +5305,7 @@ app.post("/api/publico/eventos/:slug/inscricao/:token/pagamento/pagar", async (r
         guardarCobranca(i.pagamento, link);
         r.inscrito = i;
         return {};
-      }, { flushJa: true });
+      }, { flushJa: "agora" });
     }
     res.json({ ok: true, pagamento: pagamentoPublico(r.inscrito, r.acao.evento) });
   } catch (e) {
@@ -5388,7 +5391,7 @@ app.post("/api/extensao/:id/inscritos/:token/isentar", async (req, res) => {
       i.pagamento = novo;
       a.atualizadoEm = new Date().toISOString();
       return { acao: a, inscrito: i };
-    }, { flushJa: true });
+    }, { flushJa: "agora" });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
     // isenta → a credencial passa a existir: o e-mail com o QR sai agora
     enviarConfirmacaoInscricao(r.acao, r.inscrito, baseDe(req))
@@ -5436,7 +5439,7 @@ app.post("/api/extensao/:id/inscritos/:token/estornar", async (req, res) => {
       i.pagamento = novo;
       a.atualizadoEm = new Date().toISOString();
       return { acao: a, inscrito: i };
-    }, { flushJa: true });
+    }, { flushJa: "agora" });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
     res.json({ ok: true, pagamento: r.inscrito.pagamento });
   } catch (e) {
@@ -6668,6 +6671,26 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
   } catch (e) {
     console.error("Erro no check-in do evento:", e);
     res.status(500).json({ error: "Não foi possível registrar agora. Tente de novo." });
+  }
+});
+
+/* UMA ação só, para o refresco "ao vivo" das telas de evento (set/2026): o
+   poll do ARCHÉ EV e do EX baixava o `GET /api/extensao` INTEIRO — todas as
+   ações, todos os inscritos — a cada 30 s para pintar os contadores de um
+   evento só. Aqui vai só o que a tela aberta precisa, com o mesmo recorte e
+   o mesmo `acaoSemSegredos`. Registrada DEPOIS das rotas de um segmento fixo
+   (`/curricularizacao`, `/cobranca/…`), senão as engoliria. */
+app.get("/api/extensao/:id", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const a = (await lerAcoes()).find((x) => x.id === req.params.id);
+    if (!a || !(podeVerAcao(u, a) || (gereEv(u) && a.evento))) return res.status(404).json({ error: "Ação não encontrada" });
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ acao: acaoSemSegredos(a) });
+  } catch (e) {
+    console.error("Erro ao ler a ação:", e);
+    res.status(500).json({ error: "Não foi possível carregar a ação." });
   }
 });
 
@@ -18020,7 +18043,7 @@ for (const sinal of ["SIGTERM", "SIGINT"]) {
       // do estado — melhor esforço: minutos de transmissão não valem perder
       // o desligamento por eles
       await flushPresencaOnline().catch(() => {});
-      await storage.flush?.();
+      await storage.flush?.({ agora: true });
       // a medição de banda também desce ao disco: o que ela mediu nas
       // últimas dezenas de segundos é justamente o que interessa guardar
       await fecharMedicao().catch(() => {});

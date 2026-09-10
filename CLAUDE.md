@@ -1343,10 +1343,10 @@ public/
   `flush` DENTRO da fila, e em produção cada `flush` reescreve o `_estado.json` INTEIRO — dez
   crachás na porta viravam dez uploads em série, e a fila parecia um sistema travado. O
   check-in passou a gravar com `flushJa: false`: o dado entra na memória (de onde a leitura
-  seguinte parte) e a subida ao Drive fica para a janela de 1,2 s do storage, que agrupa a
+  seguinte parte) e a subida ao Drive fica para a janela do storage (hoje 60 s), que agrupa a
   rajada num upload só. O padrão continua `true` — para o que é raro e caro de perder
   (aprovar, registrar, encerrar), a certeza de que subiu vale a espera. O risco aceito é
-  perder até 1,2 s de leituras se a instância morrer no meio; relê-se o crachá.
+  perder até uma janela de leituras se a instância morrer no meio; relê-se o crachá.
   **Leitura ruim de monitor autenticado não é ataque** (mesmo incidente): quem passou pelo
   código do monitor já provou quem é, e crachá de outro evento ou print do colega é ruído de
   porta — só o CÓDIGO ERRADO conta no `freioCheckin`. Sem isso, vinte leituras ruins de um
@@ -4025,6 +4025,30 @@ public/
   se desenha. O vocabulário dos três grupos é do COMPONENTE, não de cada tela: um setor novo já
   nasce com eles. O nome que falta no registro do setor (a ata guarda o e-mail de quem lavrou, a
   reserva o de quem pediu) passa a vir do perfil — uma lista de e-mails soltos não se escolhe.
+- **O ESTADO SOBE AO DRIVE EM JANELAS DE UM MINUTO, não a cada gravação** (`JANELA_MS`/
+  `ESTADO_JANELA_MS` e `flush({ agora })` em lib/storage.js + `flushJa: "agora"` em `comAcoes`,
+  set/2026 — o Render avisou que os **25 GB do plano Pro acabaram em dez dias**). O suspeito era o
+  lado invisível da banda: o estado é UM arquivo, cada upload sobe o arquivo INTEIRO, e o upload ao
+  Google conta como saída do Render. Com a janela de 1,2 s e o `flush()` imediato na maioria das
+  rotas (o `comAcoes` padrão e mais ~40 chamadas soltas), cada inscrição, presença, "conferir
+  pagamento" e varredura horária era um upload completo — centenas por dia, de um arquivo que
+  cresceu com o CONINT. Agora `flush()` sem argumento só GARANTE que o que está sujo sobe na
+  próxima janela (não espera nem força), e o relógio começa na primeira gravação suja sem se
+  estender com as seguintes: o pior caso é uma janela, nunca mais. `flush({ agora: true })` sobe na
+  hora e propaga o erro, e só o pede quem manda e-mail que DEPENDE da gravação — a inscrição com o
+  QR (o recibo sai depois de gravar), o pagamento confirmado, a isenção, o estorno — e o
+  encerramento por SIGTERM, que é como todo deploy termina. O risco aceito pelo dono ("não preciso
+  do backup tão frequente" — e o backup diário, de 1 MB, nunca foi o gasto) é perder até um minuto
+  de gravações se a instância cair fora de um deploy. Ensaiado com um Drive falso: 50 gravações
+  com 50 `flush()` viraram 1 upload. Modo local e MySQL não mudam.
+  **E o poll das telas de evento pede SÓ a ação aberta** (`GET /api/extensao/:id` +
+  `recarregarAcao` no ARCHÉ EV e o refresco do card do evento no EX): o refresco "ao vivo" baixava
+  o `GET /api/extensao` INTEIRO — todas as ações com todos os inscritos — a cada 30 s para pintar os
+  contadores de um evento; uma coordenação com a aba aberta o dia todo puxava centenas de MB.
+  Passou a 60 s e à rota da ação, com o mesmo recorte e o mesmo `acaoSemSegredos`, registrada
+  DEPOIS das rotas de segmento fixo (`/curricularizacao`, `/cobranca/…`) para não engoli-las.
+  O que ficou com o dono: a Cloudflare já responde pelo domínio, mas com `cf-cache-status:
+  DYNAMIC` em tudo — sem regra de cache, cada capa, foto e script continua saindo do Render.
 - **Economia de banda sem trocar de arquitetura** (varredura de ago/2026): o Render tem
   franquia e o estado é UM arquivo reescrito inteiro a cada flush, então o gasto tem DOIS
   lados — o que sai para o navegador e o que sai para o Drive. Quatro cortes, nenhum deles
