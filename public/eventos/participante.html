@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Área do inscrito — Eventos UNIEGO</title>
+<link rel="icon" href="/arche/favicon.svg">
+<link rel="stylesheet" href="/assets/arche-ui.css">
+<style>
+  /* A ÁREA DO INSCRITO (servida em /eventos/<slug>/participante — pedido do
+     dono, set/2026): entra pela CONTA do portal e mostra o que é da pessoa —
+     o pagamento (novo QR, outro meio), a programação (as atividades gerais
+     já são dela; as de vaga limitada ela marca, e a vaga se esgota) e os
+     trabalhos que submeteu. Programação e submissão só abrem com o
+     pagamento confirmado — ou no evento gratuito. Quem barra é o servidor;
+     a página diz o que falta. */
+  main{max-width:820px;margin:26px auto 40px;padding:0 16px}
+  .cab h1{font-family:Sora,sans-serif;font-size:22px;color:var(--brand);margin:0 0 4px;letter-spacing:-.01em}
+  .cab .s{color:var(--muted);font-size:13.5px}
+  .selo{font-size:12px;font-weight:600;border-radius:20px;padding:5px 12px;display:inline-block}
+  .selo.ok{background:var(--ok-soft);color:var(--ok)} .selo.warn{background:var(--warn-soft);color:var(--warn)}
+  .selo.err{background:var(--err-soft);color:var(--err)} .selo.info{background:var(--accent-wash);color:var(--brand)}
+  .selo.muted{background:var(--wash);color:var(--muted)}
+  .msg{border-radius:10px;padding:10px 13px;font-size:13px;font-weight:600;margin-top:12px;line-height:1.5}
+  .msg.err{background:var(--err-soft);color:var(--err)} .msg.ok{background:var(--ok-soft);color:var(--ok)}
+  .msg.warn{background:var(--warn-soft);color:var(--warn);font-weight:500}
+  .sec-t{font-family:Sora,sans-serif;font-weight:700;font-size:16px;color:var(--ink);margin:0}
+  .sec-s{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.5}
+  .card+.card{margin-top:14px}
+  .trava{display:flex;gap:12px;align-items:flex-start;background:var(--wash);border-radius:12px;padding:12px 14px;margin-top:12px;font-size:13.5px;line-height:1.55}
+  .trava .ic{font-size:22px;line-height:1}
+  .dia{font-family:Sora,sans-serif;font-weight:700;font-size:13px;color:var(--brand);margin:16px 0 4px;text-transform:uppercase;letter-spacing:.04em}
+  .atv{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-top:6px;font-size:13.5px;color:var(--ink)}
+  .atv.geral{background:var(--ok-soft);border-color:transparent}
+  .atv label{display:flex;gap:10px;align-items:flex-start;cursor:pointer;flex:1;margin:0;text-transform:none;letter-spacing:0;font-weight:500;font-size:13.5px;color:var(--ink)}
+  .atv input{margin-top:3px;width:auto}
+  .atv .m{font-size:12px;color:var(--muted);font-weight:400;margin-top:2px;line-height:1.45}
+  .atv.lotada{opacity:.55} .atv.lotada label{cursor:not-allowed}
+  .atv .tick{color:var(--ok);font-weight:700;font-size:15px;line-height:1.2}
+  .vagas{font-weight:600;color:var(--brand)} .vagas.zero{color:var(--err)}
+  .trab{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px}
+  .trab .t{font-weight:700;font-size:14px;color:var(--ink)}
+  .trab .n{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;color:var(--muted)}
+  .linha{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13.5px;margin-top:10px}
+  .kv b{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  .valor{font-family:Sora,sans-serif;font-size:26px;font-weight:700;color:var(--brand);letter-spacing:-.02em}
+</style>
+</head>
+<body>
+<header class="topo">
+  <div class="topo-rule"></div>
+  <div class="topo-inner">
+    <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+    <div class="vr"></div>
+    <div class="topo-txt">
+      <div class="topo-t"><span class="arche-wm"><span class="arche-tx">Área do inscrito</span></span></div>
+      <div class="topo-s">Eventos · Extensão · PROPPEX / UNIEGO</div>
+    </div>
+    <nav class="topo-nav"><a id="lk-evento" href="/eventos/">Página do evento</a><a href="/">Portal</a></nav>
+  </div>
+</header>
+<main id="tela"><div class="card"><p style="color:var(--muted)">Carregando…</p></div></main>
+<footer>
+  <img class="u" src="/assets/logo-uniego.png" alt="UNIEGO" onerror="this.style.display='none'">
+  <div class="sep"></div>
+  <p>PROPPEX — Pró-Reitoria de Pós-Graduação, Pesquisa, Extensão e Ação Comunitária.</p>
+</footer>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (iso) => (/^\d{4}-\d{2}-\d{2}/.test(String(iso || "")) ? String(iso).slice(0, 10).split("-").reverse().join("/") : "");
+const hora = (iso) => { try { return new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
+const reais = (c) => "R$ " + (Math.round(Number(c) || 0) / 100).toFixed(2).replace(".", ",");
+const faixa = (p) => p.horaInicio ? (p.horaInicio + (p.horaFim ? "–" + p.horaFim : "")) : "";
+const SLUG = (location.pathname.match(/^\/eventos\/([^/]+)\/participante/) || [])[1] || "";
+const URL_EV = `/eventos/${encodeURIComponent(SLUG)}`;
+const API = `/api/publico/eventos/${encodeURIComponent(SLUG)}`;
+$("lk-evento").href = URL_EV;
+let D = null;            // a resposta da API
+let MARCADAS = new Set(); // as atividades próprias marcadas na tela
+
+const cabecalho = (e) => `<div class="cab">
+  <h1>${esc(e.nome || "Evento")}</h1>
+  <div class="s">${esc([e.curso, e.periodoInicio ? `${fmt(e.periodoInicio)}${e.periodoFim && e.periodoFim !== e.periodoInicio ? " a " + fmt(e.periodoFim) : ""}` : "", e.local].filter(Boolean).join(" · "))}</div>
+</div>`;
+
+function render() {
+  const e = D.evento, i = D.inscricao, pg = D.pagamento, lib = D.liberado;
+  if (!i) {
+    $("tela").innerHTML = `<div class="card">${cabecalho(e)}
+      <div class="trava"><div class="ic">🎫</div><div><b>Você ainda não está inscrito neste evento</b> com a conta
+        <b>${esc(D.conta.email)}</b>. A inscrição é feita na página do evento — e, feita com esta conta, aparece aqui.</div></div>
+      <div class="linha"><a class="bt bt-pri" href="${URL_EV}#inscricao">Inscrever-me</a>
+        <button class="bt bt-ghost" onclick="trocarConta()">Entrar com outra conta</button></div></div>`;
+    return;
+  }
+  const cred = `${URL_EV}/inscricao/${encodeURIComponent(i.token)}`;
+  $("tela").innerHTML = `
+    <div class="card">${cabecalho(e)}
+      <div class="kv">
+        <b>Inscrito</b><span>${esc(i.nome)} · <span style="color:var(--muted)">${esc(D.conta.email)}</span></span>
+        <b>Código</b><span style="font-family:'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.12em">${esc(i.codigo.toUpperCase())}</span>
+        <b>Situação</b><span>${seloInscricao()}</span>
+      </div>
+      <div class="linha">
+        ${i.valida ? `<a class="bt bt-pri" href="${cred}">🎫 Minha credencial (QR)</a>` : ""}
+        ${e.transmissaoPublicada && i.valida ? `<a class="bt bt-sec" href="${URL_EV}/assistir/${encodeURIComponent(i.token)}">🖥 Assistir online</a>` : ""}
+        <button class="bt bt-ghost" onclick="trocarConta()">Não sou eu</button>
+      </div>
+    </div>
+    ${cardPagamento(pg, i)}
+    ${cardProgramacao(e, i, lib)}
+    ${cardTrabalhos(e, lib)}`;
+}
+
+function seloInscricao() {
+  const i = D.inscricao, pg = D.pagamento;
+  if (!pg) return `<span class="selo ok">inscrição confirmada</span>${i.presente ? ' <span class="selo info">presença registrada</span>' : ""}`;
+  const rot = { pago: ["ok", "pagamento confirmado"], isento: ["ok", "inscrição isenta — confirmada"], aguardando: [pg.reservaVencida ? "err" : "warn", pg.reservaVencida ? "reserva vencida" : "aguardando pagamento"],
+    expirado: ["err", "reserva expirada"], recusado: ["err", "pagamento recusado"], estornado: ["muted", "pagamento estornado"], contestado: ["warn", "pagamento em contestação"] }[pg.status] || ["muted", pg.status];
+  return `<span class="selo ${rot[0]}">${esc(rot[1])}</span>${i.presente ? ' <span class="selo info">presença registrada</span>' : ""}`;
+}
+
+/* O PAGAMENTO: a situação, o valor e o caminho — gerar novo QR, pagar por
+   outro meio, renovar a reserva vencida. A página de pagamento é a mesma de
+   sempre; aqui é a porta para ela, com a situação à vista. */
+function cardPagamento(pg, i) {
+  if (!pg) return "";
+  const urlPag = `${URL_EV}/pagamento/${encodeURIComponent(i.token)}`;
+  const pendente = ["aguardando", "recusado", "expirado"].includes(pg.status);
+  const vencida = pg.status === "expirado" || (pg.status === "aguardando" && pg.reservaVencida);
+  return `<div class="card">
+    <div class="sec-t">Pagamento</div>
+    <div class="linha" style="align-items:baseline"><span class="valor">${reais(pg.valor)}</span>
+      <span style="font-size:12.5px;color:var(--muted)">${esc(pg.categoriaNome)}${pg.lote ? " · " + esc(pg.lote) : ""}${pg.voucher && pg.voucher.codigo ? ` · voucher ${esc(pg.voucher.codigo)} (−${reais(pg.voucher.desconto)})` : ""}${pg.valorCartao > pg.valor && pendente ? ` · ${reais(pg.valorCartao)} no cartão` : ""}</span></div>
+    ${pg.status === "pago" ? `<div class="msg ok">✓ Pago${pg.pagoEm ? " em " + esc(hora(pg.pagoEm)) : ""}${pg.meio ? " · " + esc(pg.meio) : ""}${pg.provedorRotulo ? " · " + esc(pg.provedorRotulo) : ""}.</div>`
+    : pg.status === "isento" ? `<div class="msg ok">✓ Inscrição isenta de pagamento — confirmada.</div>`
+    : pendente ? `<div class="msg warn">${vencida
+        ? `A reserva da vaga venceu${pg.expiraEm ? " em " + esc(hora(pg.expiraEm)) : ""}. Havendo vaga, dá para renovar a reserva e pagar agora, com o preço de hoje.`
+        : `A vaga está reservada até <b>${esc(hora(pg.expiraEm))}</b>. Até lá é possível pagar por Pix (QR ou copia e cola)${pg.linkCartao || pg.link ? " ou pela página do provedor (cartão)" : ""}; sem o pagamento, a inscrição expira e a vaga volta para a fila.`}</div>`
+    : pg.divergente ? `<div class="msg warn">Recebemos um pagamento com valor diferente do da inscrição — a coordenação vai analisar e entrar em contato.</div>`
+    : `<div class="msg warn">${esc({ estornado: "O pagamento foi estornado; a inscrição não vale mais para o evento.", contestado: "Há uma contestação sobre este pagamento; a coordenação vai analisar." }[pg.status] || pg.status)}</div>`}
+    <div class="linha">
+      ${pendente ? `<a class="bt bt-pri" href="${urlPag}">${vencida ? "Renovar a reserva e pagar" : "Pagar · gerar novo QR · outro meio"}</a>` : `<a class="bt bt-sec" href="${urlPag}">Ver o pagamento</a>`}
+    </div>
+    ${pg.politicaReembolso ? `<p style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5"><b>Reembolso:</b> ${esc(pg.politicaReembolso)}</p>` : ""}
+  </div>`;
+}
+
+/* A PROGRAMAÇÃO: as atividades GERAIS já são de todo inscrito (marcadas com
+   o visto, sem caixa); as de INSCRIÇÃO PRÓPRIA têm caixa e as vagas de
+   agora — esgotada, a caixa trava (quem já está nela mantém a sua). */
+function cardProgramacao(e, i, lib) {
+  const prog = e.programacao || [];
+  if (!prog.length) return "";
+  if (!lib.ok) return `<div class="card"><div class="sec-t">Programação</div>
+    <div class="trava"><div class="ic">🔒</div><div>${esc(lib.motivo)}</div></div></div>`;
+  const dias = [...new Set(prog.map((p) => p.dia || ""))].sort();
+  const proprias = prog.filter((p) => p.inscricao === "propria");
+  return `<div class="card">
+    <div class="sec-t">Programação</div>
+    <div class="sec-s">As atividades gerais já são suas — quem está inscrito no evento participa. As de <b>vaga limitada</b>
+      (minicursos, oficinas) você marca aqui, e a vaga se esgota conforme os inscritos as escolhem.</div>
+    ${dias.map((d) => `<div class="dia">${d ? esc(fmt(d)) : "Data a definir"}</div>
+      ${prog.filter((p) => (p.dia || "") === d).map(linhaAtividade).join("")}`).join("")}
+    ${proprias.length ? `<div id="prog-msg"></div>
+      <div class="linha">${D.podeTrocarAtividades
+        ? `<button class="bt bt-pri" id="prog-bt" onclick="salvarAtividades()">💾 Salvar minhas atividades</button>
+           <span style="font-size:12px;color:var(--muted)">Dá para mudar até o fim das inscrições.</span>`
+        : `<span class="msg warn" style="margin:0">As inscrições encerraram — a escolha de atividades está travada. Precisa mudar? Fale com a organização.</span>`}</div>` : ""}
+  </div>`;
+}
+function linhaAtividade(p) {
+  const meta = [faixa(p), p.local, p.ch ? `CH ${p.ch}` : "", p.modalidade === "online" ? "online" : ""].filter(Boolean).join(" · ");
+  if (p.inscricao !== "propria")
+    return `<div class="atv geral"><span class="tick">✓</span><div><div>${esc(p.titulo)}</div><div class="m">${esc(meta)}${meta ? " · " : ""}para todos os inscritos</div></div></div>`;
+  const minha = MARCADAS.has(p.id);
+  const lotada = !minha && p.vagasRestantes !== null && p.vagasRestantes <= 0;
+  const vagas = p.vagasRestantes === null ? "sem limite de vagas"
+    : lotada ? `<span class="vagas zero">vagas esgotadas</span>`
+    : `<span class="vagas">${p.vagasRestantes} vaga(s) restante(s)</span>`;
+  return `<div class="atv ${lotada ? "lotada" : ""}"><label>
+    <input type="checkbox" data-atv="${esc(p.id)}" ${minha ? "checked" : ""} ${lotada || !D.podeTrocarAtividades ? "disabled" : ""} onchange="marcar(this)">
+    <div><div>${esc(p.titulo)}${minha ? ' <span class="selo ok" style="padding:2px 8px;font-size:11px">inscrito</span>' : ""}</div>
+      <div class="m">${esc(meta)}${meta ? " · " : ""}${vagas}</div></div></label></div>`;
+}
+function marcar(chk) { if (chk.checked) MARCADAS.add(chk.dataset.atv); else MARCADAS.delete(chk.dataset.atv); }
+async function salvarAtividades() {
+  const bt = $("prog-bt"); bt.disabled = true; $("prog-msg").innerHTML = "";
+  try {
+    const r = await fetch(`${API}/inscricao/${encodeURIComponent(D.inscricao.token)}/atividades`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ atividades: [...MARCADAS] }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "Não foi possível gravar agora.");
+    await carregar();
+    $("prog-msg").innerHTML = `<div class="msg ok">✓ Atividades gravadas — elas saem na sua credencial.</div>`;
+  } catch (e) {
+    $("prog-msg").innerHTML = `<div class="msg err">${esc(e.message)}</div>`;
+    bt.disabled = false;
+  }
+}
+
+/* OS TRABALHOS: os que a pessoa submeteu (com o link de acompanhamento e o
+   PDF) e o botão de submeter — resumo ou trabalho completo, conforme o
+   evento aceita. Fechado o prazo, o botão some e a lista fica. */
+function cardTrabalhos(e, lib) {
+  const c = e.trabalhos;
+  if (!c) return "";
+  const meus = D.trabalhos || [];
+  const rot = (t) => ({ aceito: "ok", rejeitado: "err", correcao: "warn", retirado: "muted" }[t.estado] || "info");
+  return `<div class="card">
+    <div class="sec-t">Trabalhos</div>
+    <div class="sec-s">${esc((c.modalidades || []).filter(Boolean).map((m) => m.nome).join(" · "))}${c.prazoSubmissao ? ` · submissões até ${fmt(c.prazoSubmissao)}` : ""}</div>
+    ${!lib.ok ? `<div class="trava"><div class="ic">🔒</div><div>${esc(lib.motivo)}</div></div>` : `
+    ${meus.length ? meus.map((t) => `<div class="trab">
+        <div class="n">${esc(t.numero)} · ${esc((c.modalidades || []).find((m) => m && m.codigo === t.modalidade)?.nome || t.modalidade)}</div>
+        <div class="t">${esc(t.titulo)}</div>
+        <div style="margin-top:6px"><span class="selo ${rot(t)}">${esc(t.rotulo)}</span>${t.decisao?.em ? ` <span style="font-size:12px;color:var(--muted)">decisão em ${esc(fmt(t.decisao.em))}</span>` : ""}</div>
+        ${t.decisao?.mensagem ? `<p style="font-size:13px;line-height:1.55;margin-top:8px;white-space:pre-line">${esc(t.decisao.mensagem)}</p>` : ""}
+        <div class="linha"><a class="bt bt-sec" href="${esc(t.link)}">${t.podeReenviar ? "✎ Enviar a versão corrigida" : "Acompanhar"}</a>
+          <a class="bt bt-ghost" href="${esc(t.link)}/pdf" target="_blank" rel="noopener">PDF</a></div>
+      </div>`).join("") : `<p style="font-size:13.5px;color:var(--muted);margin-top:10px">Você ainda não submeteu trabalho neste evento.</p>`}
+    <div class="linha">${c.aberta
+      ? `<a class="bt bt-pri" href="${URL_EV}/trabalhos">＋ Submeter resumo ou trabalho completo</a>
+         ${c.normas ? `<a class="bt bt-ghost" href="${URL_EV}/trabalhos#normas">Normas de submissão</a>` : ""}`
+      : `<span class="msg warn" style="margin:0">${esc(c.motivo || "A submissão está fechada.")}</span>`}</div>`}
+  </div>`;
+}
+
+async function trocarConta() {
+  try { await fetch("/auth/sair", { method: "POST" }); } catch { /* a tela de entrada resolve */ }
+  location.href = "/entrar/?next=" + encodeURIComponent(location.pathname);
+}
+
+async function carregar() {
+  const r = await fetch(`${API}/participante`);
+  if (r.status === 401) { location.href = "/entrar/?next=" + encodeURIComponent(location.pathname); return; }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    $("tela").innerHTML = `<div class="card"><div class="msg err">${esc(j.error || "Não foi possível abrir a área do inscrito.")}</div>
+      <p style="margin-top:12px"><a class="bt bt-sec" href="/eventos/">Ver os eventos</a></p></div>`;
+    return;
+  }
+  D = j;
+  MARCADAS = new Set(j.inscricao?.atividades || []);
+  document.title = `${j.evento.nome} — Área do inscrito`;
+  render();
+}
+carregar().catch(() => {
+  $("tela").innerHTML = '<div class="card"><p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente em instantes.</p></div>';
+});
+</script>
+</body>
+</html>

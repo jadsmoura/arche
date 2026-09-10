@@ -116,7 +116,8 @@ function render() {
     ${aviso}
     ${p.valida ? `
       <div class="msg-ok">✓ A sua inscrição está confirmada. A credencial com o QR de acesso foi enviada ao seu e-mail e está no botão abaixo.</div>
-      <a class="bt bt-pri" style="width:100%;margin-top:14px" href="${cred}">Abrir minha credencial</a>`
+      <a class="bt bt-pri" style="width:100%;margin-top:14px" href="${cred}">Abrir minha credencial</a>
+      <a class="bt bt-sec" style="width:100%;margin-top:10px" href="/eventos/${encodeURIComponent(SLUG)}/participante">Área do inscrito — programação e trabalhos</a>`
     : pendente ? `
       ${vencida || p.status === "expirado"
         ? `<div class="prazo"><b>A reserva da vaga venceu</b>${p.expiraEm ? ` em ${esc(hora(p.expiraEm))}` : ""}. Se ainda houver vaga, dá para renovar e pagar agora — com o preço de hoje.</div>`

@@ -47,7 +47,7 @@
       <div class="topo-t"><span class="arche-wm"><span class="arche-tx">Minha inscrição</span></span></div>
       <div class="topo-s">Eventos · Extensão · PROPPEX / UNIEGO</div>
     </div>
-    <nav class="topo-nav"><a href="/eventos/">Eventos</a></nav>
+    <nav class="topo-nav"><a id="lk-participante" href="#">Área do inscrito</a><a href="/eventos/">Eventos</a></nav>
   </div>
 </header>
 
@@ -66,6 +66,8 @@ const fmt = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || "")) ? iso.split(
 const $ = (id) => document.getElementById(id);
 const m = location.pathname.match(/^\/eventos\/([^/]+)\/inscricao\/([^/]+)/) || [];
 const SLUG = decodeURIComponent(m[1] || ""), TOKEN = decodeURIComponent(m[2] || "");
+// a ÁREA DO INSCRITO (set/2026): pagamento, programação e trabalhos, pela conta
+$("lk-participante").href = `/eventos/${encodeURIComponent(SLUG)}/participante`;
 const hora = (iso) => { try { return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
 const faixa = (p) => p.horaInicio ? (p.horaInicio + (p.horaFim ? "–" + p.horaFim : "")) : "";
 let DADOS = null;       // { evento, inscricao } da API
@@ -123,6 +125,8 @@ function render() {
         <summary>Trocar minhas atividades</summary>
         <div id="troca-corpo"><p style="font-size:12.5px;color:var(--muted);margin-top:6px">Carregando…</p></div>
       </details>
+      <p style="font-size:12.5px;margin-top:10px"><a href="/eventos/${encodeURIComponent(SLUG)}/participante" style="color:var(--brand-2);font-weight:600">Área do inscrito →</a>
+        <span style="color:var(--muted)">programação completa, pagamento e submissão de trabalhos</span></p>
     </div>
     <p style="font-size:13px;color:var(--ink-soft);margin-top:14px;text-align:left">
       <b>Como usar:</b> na entrada do evento (e na porta de cada atividade), apresente este QR ao

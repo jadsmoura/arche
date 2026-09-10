@@ -2774,7 +2774,8 @@ async function renderTrabalhos(a){
         <div><label>Máximo de palavras do resumo</label><input type="number" id="tr-lim" min="200" max="5000" value="${c.maxPalavrasResumo}"><div class="muted" style="font-size:11.5px">o mínimo é 200 palavras, fixo</div></div>
         <div><label>Máximo de autores</label><input type="number" id="tr-maxa" min="1" max="15" value="${c.maxAutores}"></div>
         <div><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;margin-top:26px"><input type="checkbox" id="tr-exige" ${c.exigeParecer?"checked":""} style="width:auto"> decidir só com parecer entregue</label>
-          <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;margin-top:8px"><input type="checkbox" id="tr-arq" ${c.permiteArquivo?"checked":""} style="width:auto"> permitir anexar arquivo (opcional)</label></div>
+          <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;margin-top:8px"><input type="checkbox" id="tr-arq" ${c.permiteArquivo?"checked":""} style="width:auto"> permitir anexar arquivo (opcional)</label>
+          <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;margin-top:8px" title="Com a chave ligada, só submete quem está inscrito com a conta do portal — e, no evento pago, com o pagamento confirmado. Desligada, a submissão fica aberta a quem chegar pela página."><input type="checkbox" id="tr-exigeinsc" ${c.exigeInscricao!==false?"checked":""} style="width:auto"> só o inscrito submete (pela área do inscrito)</label></div>
       </div>
       <label>Orientações aos autores (aparecem na página de submissão e para os revisores)</label>
       <textarea id="tr-orient" rows="4" placeholder="Modelo, formatação, limite de páginas, o que o resumo deve conter, datas das apresentações…">${esc(c.orientacoes)}</textarea>
@@ -2829,7 +2830,7 @@ async function trConfigSalvar(id){
   const config={ ativo:$("tr-ativo").checked, modalidades:[...document.querySelectorAll(".tr-mod:checked")].map(x=>x.value),
     areas:$("tr-areas").value.split("\n").map(s=>s.trim()).filter(Boolean), prazoSubmissao:$("tr-prazo").value,
     prazoCorrecaoDias:$("tr-dcorr").value, maxPalavrasResumo:$("tr-lim").value, pedeRevisor:$("tr-pederev").checked,
-    maxAutores:$("tr-maxa").value, exigeParecer:$("tr-exige").checked, permiteArquivo:$("tr-arq").checked, orientacoes:$("tr-orient").value,
+    maxAutores:$("tr-maxa").value, exigeParecer:$("tr-exige").checked, permiteArquivo:$("tr-arq").checked, exigeInscricao:$("tr-exigeinsc").checked, orientacoes:$("tr-orient").value,
     normasPadrao:(document.querySelector('input[name="tr-normas-modo"]:checked')||{}).value !== "proprio",
     normas:$("tr-normas-txt").value, normasUrl:$("tr-normas").value, modeloUrl:$("tr-modelo").value };
   try{

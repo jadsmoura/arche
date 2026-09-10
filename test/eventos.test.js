@@ -15,7 +15,7 @@ import {
   normalizarBlocos, TIPOS_BLOCO, urlSegura, imagemPequena,
   FREQUENCIAS, minutosEntre, duracaoBR, REDES_SOCIAIS,
   faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento, PAPEIS_COMISSAO,
-  temHotsiteEvento, eventoControlaFrequencia, contaPresente,
+  temHotsiteEvento, eventoControlaFrequencia, contaPresente, liberadoParaParticipar, SLUGS_RESERVADOS,
 } from "../lib/eventos.js";
 
 /* --------------------------------- slug --------------------------------- */
@@ -169,6 +169,25 @@ test("vagasAtividade: null sem limite, conta só quem marcou, nunca negativa", (
   assert.equal(vagasAtividade(atv, [
     { atividades: ["aabbccdd"] }, { atividades: ["aabbccdd"] }, { atividades: ["aabbccdd"] },
   ]), 0, "cota reduzida depois das marcações não vira -1");
+  // evento pago: a reserva vencida devolve a vaga da atividade (mesma régua da vaga do evento)
+  const agora = new Date("2026-09-10T12:00:00Z");
+  assert.equal(vagasAtividade(atv, [
+    { atividades: ["aabbccdd"], pagamento: { status: "aguardando", expiraEm: "2026-09-09T12:00:00Z" } },
+    { atividades: ["aabbccdd"], pagamento: { status: "expirado" } },
+    { atividades: ["aabbccdd"], pagamento: { status: "pago" } },
+  ], agora), 1, "só a inscrição paga ocupa a vaga");
+});
+
+test("liberadoParaParticipar: gratuito libera todo inscrito; pago só a inscrição válida", () => {
+  const cob = { ativa: true, categorias: [{ codigo: "geral", nome: "Geral", valor: 5000 }] };
+  assert.equal(liberadoParaParticipar({}, null).ok, false, "sem inscrição não há área");
+  assert.equal(liberadoParaParticipar({}, { nome: "x" }).ok, true, "evento gratuito");
+  assert.equal(liberadoParaParticipar({ cobranca: cob }, { pagamento: { status: "aguardando", expiraEm: "2999-01-01T00:00:00Z" } }).ok, false);
+  assert.match(liberadoParaParticipar({ cobranca: cob }, { pagamento: { status: "aguardando", expiraEm: "2999-01-01T00:00:00Z" } }).motivo, /confirmação do pagamento/);
+  assert.match(liberadoParaParticipar({ cobranca: cob }, { pagamento: { status: "expirado" } }).motivo, /reserva/);
+  assert.equal(liberadoParaParticipar({ cobranca: cob }, { pagamento: { status: "pago" } }).ok, true);
+  assert.equal(liberadoParaParticipar({ cobranca: cob }, { pagamento: { status: "isento" } }).ok, true);
+  assert.ok(SLUGS_RESERVADOS.has("participante"), "o endereço da área é reservado");
 });
 
 test("conflitoHorario: mesmo dia com intervalos sobrepostos; sem dia/hora não compara", () => {

@@ -87,7 +87,7 @@ import {
   TIPOS_ATIVIDADE, gerarIdCurto, vagasAtividade, podeEscolherAtividade,
   normalizarFormulario, validarRespostas, LGPD_TEXTO_PADRAO, textoLgpd, versaoLgpd,
   normalizarBlocos, TIPOS_BLOCO, CATEGORIAS_APOIO, REDES_SOCIAIS, FREQUENCIAS,
-  minutosEntre, duracaoBR, eventoControlaFrequencia, temHotsiteEvento,
+  minutosEntre, duracaoBR, eventoControlaFrequencia, temHotsiteEvento, liberadoParaParticipar,
 } from "./lib/eventos.js";
 import {
   PAPEIS_COMISSAO, faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento,
@@ -4629,7 +4629,12 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       const respostas = validarRespostas(a.evento.formulario || [], b.respostas);
       if (!respostas.ok) return { erro: [400, respostas.erros.join(" ")], gravar: false };
       // as atividades marcadas, uma a uma — a vaga por atividade também só
-      // vale conferida aqui dentro
+      // vale conferida aqui dentro. NO EVENTO PAGO a escolha fica para a
+      // área do inscrito, DEPOIS da confirmação (decisão do dono, set/2026:
+      // a vaga limitada se esgota com quem pagou, não com quem reservou) —
+      // a categoria sem valor nasce isenta e escolhe como no gratuito.
+      const escolheAgora = !cobra || preco.gratuita;
+      if (!escolheAgora) atividadesPedidas.length = 0;
       for (const idAtv of atividadesPedidas) {
         const pode = podeEscolherAtividade(a.evento, idAtv, parts.inscritos, []);
         if (!pode.ok) return { erro: [pode.semVaga ? 409 : 400, pode.motivo], gravar: false };
@@ -5471,6 +5476,66 @@ app.get("/api/publico/eventos/:slug/inscricao/:token", async (req, res) => {
   }
 });
 
+/* ======================= A ÁREA DO INSCRITO ==============================
+   (pedido do dono, set/2026: "crie a página do inscrito, onde ele pode ter
+   acesso ao seu pagamento, escolher a programação e submeter os resumos").
+   Entra pela CONTA do portal — a inscrição é a da pessoa logada, achada
+   pelo e-mail da conta ou pelo CPF do perfil (o mesmo casamento de
+   `jaInscrito`). Devolve o que é DELA: a inscrição (com o token, que é a
+   credencial dela mesma), o pagamento, a programação com as vagas de agora
+   e os trabalhos que ela submeteu. `liberado` diz se a programação e a
+   submissão abrem — pagamento confirmado ou evento gratuito. */
+async function inscricaoDaConta(a, conta) {
+  if (!conta?.email) return null;
+  const perfis = await carregarPerfis();
+  const cpf = perfis[conta.email]?.cpf || "";
+  return jaInscrito(a.participantes?.inscritos || [], { email: conta.email, cpf });
+}
+const trabalhosDaConta = (reg, conta, inscrito) => (reg?.trabalhos || []).filter((t) => {
+  const e = String(conta?.email || "").toLowerCase();
+  return e && (String(t.contaEmail || "").toLowerCase() === e || String(t.emailContato || "").toLowerCase() === e
+    || (inscrito?.email && String(t.emailContato || "").toLowerCase() === String(inscrito.email).toLowerCase()));
+});
+app.get("/api/publico/eventos/:slug/participante", async (req, res) => {
+  try {
+    const conta = await usuarioDe(req, res);
+    if (!conta) return res.status(401).json({ error: "Entre com a sua conta do portal para abrir a área do inscrito." });
+    const acoes = await lerAcoes();
+    const a = eventoPorSlug(acoes, req.params.slug);
+    if (!a) return res.status(404).json({ error: "Evento não encontrado." });
+    const ev = a.evento || {};
+    const inscrito = await inscricaoDaConta(a, conta);
+    const liberado = liberadoParaParticipar(ev, inscrito);
+    const pub = eventoPublico(a, { detalhe: true });
+    const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    let trabalhos = [];
+    if (ev.trabalhos?.ativo) {
+      const reg = (await lerTrabalhosBase())[a.id];
+      trabalhos = trabalhosDaConta(reg, conta, inscrito).map((t) => ({
+        ...tr.paraAutor(t),
+        link: `${base}/eventos/${encodeURIComponent(ev.slug)}/trabalhos/${t.token}`,
+      }));
+    }
+    res.json({
+      conta: { email: conta.email, nome: conta.nome || "" },
+      evento: { ...pub, programacao: pub.programacao.map((p) => ({ ...p, minha: !!inscrito && (inscrito.atividades || []).includes(p.id) })) },
+      inscricao: inscrito ? {
+        nome: inscrito.nome || "", codigo: codigoDe(inscrito.token), token: inscrito.token,
+        inscritoEm: inscrito.inscritoEm || "", presente: inscrito.presente === true,
+        atividades: Array.isArray(inscrito.atividades) ? inscrito.atividades : [],
+        valida: inscricaoValida(inscrito),
+      } : null,
+      pagamento: inscrito ? pagamentoPublico(inscrito, ev) : null,
+      liberado,
+      trabalhos,
+      podeTrocarAtividades: !!ev.ativo && !prazoInscricaoVencido(a, hojeLocalISO(), horaLocalHHMM()),
+    });
+  } catch (e) {
+    console.error("Erro na área do inscrito:", e);
+    res.status(500).json({ error: "Não foi possível abrir a área do inscrito agora." });
+  }
+});
+
 /**
  * Troca das atividades DEPOIS da inscrição — o token assinado é a
  * autenticação, e o corpo substitui o conjunto inteiro (marcar e desmarcar
@@ -5496,6 +5561,10 @@ app.post("/api/publico/eventos/:slug/inscricao/:token/atividades", async (req, r
         return { erro: [409, "As inscrições deste evento não estão abertas."], gravar: false };
       if (prazoInscricaoVencido(a, hojeLocalISO(), horaLocalHHMM()))
         return { erro: [409, "O prazo de inscrição deste evento já se encerrou."], gravar: false };
+      // a programação só se escolhe com a inscrição LIBERADA (paga, isenta ou
+      // de evento gratuito) — a área do inscrito diz o que falta
+      const lib = liberadoParaParticipar(a.evento, inscrito);
+      if (!lib.ok) return { erro: [403, lib.motivo], gravar: false };
       const atuais = Array.isArray(inscrito.atividades) ? inscrito.atividades : [];
       for (const idAtv of pedidas) {
         const pode = podeEscolherAtividade(a.evento, idAtv, a.participantes?.inscritos, atuais);
@@ -5940,8 +6009,14 @@ app.get("/api/publico/eventos/:slug/trabalhos", async (req, res) => {
     const a = eventoPorSlug(await lerAcoes(), req.params.slug);
     if (!a) return res.status(404).json({ error: "Evento não encontrado." });
     const ev = a.evento || {};
+    // quem está logado recebe a própria situação (inscrito? liberado?) — é o
+    // que a página usa para abrir o formulário ou apontar o caminho
+    const conta = await usuarioDe(req, res);
+    const inscrito = conta ? await inscricaoDaConta(a, conta) : null;
+    const lib = liberadoParaParticipar(ev, inscrito);
     res.json({ evento: eventoResumoTr(a), config: tr.configPublica(ev.trabalhos, hojeLocalISO(), { cursos: cursosTrabalho() }),
-      lgpdTexto: textoLgpd(ev), catalogos: catalogosTr() });
+      lgpdTexto: textoLgpd(ev), catalogos: catalogosTr(),
+      participante: { logado: !!conta, email: conta?.email || "", inscrito: !!inscrito, liberado: lib.ok, motivo: lib.motivo } });
   } catch (e) { console.error("Erro na config de trabalhos:", e); res.status(500).json({ error: "Falha ao carregar." }); }
 });
 app.post("/api/publico/eventos/:slug/trabalhos", uploadTr.single("arquivo"), async (req, res) => {
@@ -5955,6 +6030,17 @@ app.post("/api/publico/eventos/:slug/trabalhos", uploadTr.single("arquivo"), asy
     const cfg = tr.normalizarConfig(pre.evento?.trabalhos);
     const aberta = tr.podeSubmeter(cfg, hojeLocalISO());
     if (!aberta.ok) return res.status(409).json({ error: aberta.motivo });
+    /* SÓ O INSCRITO SUBMETE (decisão do dono, set/2026): com a chave ligada
+       (o padrão), a submissão exige a conta do portal e a inscrição
+       liberada — paga, isenta ou de evento gratuito. Quem barra é o
+       servidor; a página só aponta o caminho. */
+    const conta = await usuarioDe(req, res);
+    if (cfg.exigeInscricao) {
+      if (!conta) return res.status(401).json({ error: "Para submeter, entre com a conta do portal usada na sua inscrição." });
+      const inscrito = await inscricaoDaConta(pre, conta);
+      const lib = liberadoParaParticipar(pre.evento, inscrito);
+      if (!lib.ok) return res.status(403).json({ error: lib.motivo });
+    }
     const faltas = tr.validarSubmissao(cfg, d, { cursos: cursosTrabalho() });
     if (faltas.length) return res.status(400).json({ error: `Falta: ${faltas.join("; ")}.` });
     let arquivo = null;
@@ -5962,7 +6048,7 @@ app.post("/api/publico/eventos/:slug/trabalhos", uploadTr.single("arquivo"), asy
     catch (e) { return res.status(400).json({ error: e.message }); }
     const versaoLgpdEv = versaoLgpd(textoLgpd(pre.evento || {}));
     const r = await comTrabalhos(pre.id, (reg) => {
-      const t = tr.novoTrabalho(cfg, { ...d, versaoLgpd: versaoLgpdEv }, { arquivo, numero: tr.proximoNumero(reg.trabalhos) });
+      const t = tr.novoTrabalho(cfg, { ...d, versaoLgpd: versaoLgpdEv }, { arquivo, numero: tr.proximoNumero(reg.trabalhos), conta: conta?.email || "" });
       reg.trabalhos.push(t);
       return { t };
     });
@@ -17514,6 +17600,9 @@ app.get(/^\/eventos\/[a-z0-9-]+\/assistir\/[a-zA-Z0-9]+\/?$/, (_req, res) =>
 // Pago devolve a pessoa e onde ela confere se o Pix já confirmou
 app.get(/^\/eventos\/[a-z0-9-]+\/pagamento\/[a-zA-Z0-9]+\/?$/, (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "pagamento.html")));
+// a ÁREA DO INSCRITO (com a conta do portal): pagamento, programação e trabalhos
+app.get(/^\/eventos\/[a-z0-9-]+\/participante\/?$/, (_req, res) =>
+  res.sendFile(path.join(PUBLIC, "eventos", "participante.html")));
 // ARCHÉ TR: a submissão do autor (e o acompanhamento, com o token) e o
 // parecer do revisor (só com o token dele)
 app.get(/^\/eventos\/[a-z0-9-]+\/trabalhos(\/[a-f0-9]{24})?\/?$/, (_req, res) =>

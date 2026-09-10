@@ -34,6 +34,9 @@ test("a configuração tem padrões e recorta o que não existe", () => {
   assert.equal(c.exigeParecer, false, "a PROPPEX decide direto por padrão");
   assert.equal(c.normasPadrao, true, "sem texto do organizador valem as normas padrão");
   assert.equal(c.pedeRevisor, true, "o autor indica um revisor ao submeter");
+  assert.equal(c.exigeInscricao, true, "só o inscrito submete, por padrão (área do inscrito)");
+  assert.equal(normalizarConfig({ exigeInscricao: false }).exigeInscricao, false);
+  assert.equal(configPublica(CFG, "2026-09-01", { cursos: CURSOS }).exigeInscricao, true);
   assert.equal(configPublica({ ativo: false }, "2026-09-01"), null);
   const pub = configPublica(CFG, "2026-09-01", { cursos: CURSOS });
   assert.equal(pub.aberta, true);

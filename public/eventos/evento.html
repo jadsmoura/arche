@@ -196,7 +196,7 @@
       <div class="topo-t"><span class="arche-wm"><span class="arche-tx">Eventos</span></span></div>
       <div class="topo-s">Extensão · PROPPEX · Centro Universitário Evangélico de Goianésia — UNIEGO</div>
     </div>
-    <nav class="topo-nav"><a href="/eventos/">Todos os eventos</a><a href="/">Portal</a></nav>
+    <nav class="topo-nav"><a id="lk-participante" href="#" hidden>Área do inscrito</a><a href="/eventos/">Todos os eventos</a><a href="/">Portal</a></nav>
   </div>
 </header>
 
@@ -878,6 +878,14 @@ function formInscricao(e) {
 function blocoEscolhaAtividades(e) {
   const proprias = (e.programacao || []).filter((p) => p.inscricao === "propria");
   if (!proprias.length) return "";
+  /* NO EVENTO PAGO a escolha fica para DEPOIS da confirmação, na área do
+     inscrito (decisão do dono, set/2026): a vaga limitada se esgota com quem
+     pagou — o servidor ignora o que viesse marcado aqui. */
+  if (e.cobranca) return `<div id="bloco-escolha">
+    <div class="secao-t" style="font-size:15px;margin:20px 0 0">Atividades com vaga limitada</div>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:4px">Este evento tem ${proprias.length} atividade(s) com inscrição própria
+      (minicursos, oficinas). A escolha é feita na <b>área do inscrito</b>, depois da confirmação do pagamento — as
+      vagas se esgotam entre quem já confirmou. As atividades gerais não precisam de marcação.</p></div>`;
   const dias = [...new Set(proprias.map((p) => p.dia || ""))];
   return `<div id="bloco-escolha">
     <div class="secao-t" style="font-size:15px;margin:20px 0 0">Escolha suas atividades</div>
@@ -1010,7 +1018,8 @@ function pos(token, pagamento) {
       <p style="font-size:13.5px;margin-top:8px">Reservamos a sua vaga <b>até ${esc(hora(pagamento.expiraEm))}</b>.
         Categoria <b>${esc(pagamento.categoriaNome)}</b>${pagamento.lote ? ` (${esc(pagamento.lote)})` : ""}: <b>${reais(pagamento.valor)}</b>.</p>
       <p style="font-size:13px;color:var(--ink-soft);margin-top:6px">Enviamos ao seu e-mail o link para pagar. Assim que o pagamento
-        for confirmado, você recebe a credencial com o QR de acesso.</p>
+        for confirmado, você recebe a credencial com o QR de acesso — e a <a href="/eventos/${encodeURIComponent(SLUG)}/participante" style="color:var(--brand-2);font-weight:600">área do inscrito</a>
+        abre para escolher a programação e submeter trabalhos.</p>
       ${pagamento.link
         ? `<a class="bt bt-pri" style="width:100%;margin-top:14px" href="${esc(pagamento.link)}">Pagar agora</a>`
         : `<a class="bt bt-pri" style="width:100%;margin-top:14px" href="${urlPag}">Ir para o pagamento</a>`}
@@ -1046,6 +1055,7 @@ function pos(token, pagamento) {
     <p style="font-size:12px;color:var(--muted);margin-top:6px">O QR baixado vale offline — guarde na
       galeria do celular. O calendário entra com lembrete na véspera.</p>
     <a class="bt bt-pri" style="width:100%;margin-top:14px" href="${url}">Abrir minha inscrição</a>
+    ${ME && EV?.hotsite !== false ? `<a class="bt bt-sec" style="width:100%;margin-top:10px" href="/eventos/${encodeURIComponent(SLUG)}/participante">Área do inscrito — programação e trabalhos</a>` : ""}
     ${EV?.transmissaoPublicada ? `<a class="bt bt-sec" style="width:100%;margin-top:10px"
       href="/eventos/${encodeURIComponent(SLUG)}/assistir/${encodeURIComponent(token)}">🖥 Assistir online</a>` : ""}
     </div>`;
@@ -1165,6 +1175,9 @@ fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}`).then(async (r) => {
   EV = j.evento; WALLET = j.walletGoogle === true;
   // a conta logada decide se o formulário aparece (evento que exige conta)
   try { const rm = await fetch("/api/me"); ME = rm.ok ? await rm.json() : null; } catch { ME = null; }
+  // a ÁREA DO INSCRITO (set/2026): quem está logado tem o atalho no topo —
+  // pagamento, programação e trabalhos moram lá
+  if (ME && EV.hotsite !== false) { const lk = $("lk-participante"); lk.href = `/eventos/${encodeURIComponent(SLUG)}/participante`; lk.hidden = false; }
   document.title = `${EV.nome} — Eventos UNIEGO`; render();
 }).catch(() => {
   $("main").innerHTML = '<div class="card" style="margin-top:20px"><p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente em instantes.</p></div>';

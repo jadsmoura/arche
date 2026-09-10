@@ -1508,6 +1508,33 @@ public/
   submissão" (que abre a janela do autor por `#normas`); sem bloco, a seção continua saindo sozinha
   quando o módulo está ligado (uma vez só — `blocoTrArche` decide). Bloco antigo com URL continua
   sendo o link externo (`ojs`), com os prazos digitados.
+- **A ÁREA DO INSCRITO** (`public/eventos/participante.html` em `/eventos/<slug>/participante` +
+  `GET /api/publico/eventos/:slug/participante` + `liberadoParaParticipar` em lib/eventos.js +
+  `exigeInscricao` em lib/trabalhos.js, pedido do dono set/2026: "para eventos com site, crie a
+  página do inscrito, onde ele tem acesso ao seu pagamento — gerar novo QR, mudar a forma —, escolhe
+  a programação e submete o resumo ou trabalho completo; só com pagamento efetuado ou em evento
+  gratuito"). Entra pela **CONTA do portal** (sem sessão a rota responde 401 e a página manda ao
+  `/entrar` com a volta marcada): a inscrição é a da pessoa logada, achada pelo e-mail da conta ou
+  pelo CPF do perfil (`inscricaoDaConta`, o mesmo casamento de `jaInscrito`) — por isso a resposta
+  pode trazer o token dela, que é a credencial dela mesma. Três cartões: **Pagamento** (situação,
+  valor, voucher, e a porta para a página de pagamento — renovar a reserva, novo QR, outro meio);
+  **Programação** (as atividades GERAIS saem com o visto, sem caixa — quem está inscrito já
+  participa; as de INSCRIÇÃO PRÓPRIA têm caixa e as vagas de agora, e a esgotada trava para quem
+  não está nela); e **Trabalhos** (os que a pessoa submeteu — por `contaEmail`, que passou a ser
+  gravado no trabalho, ou pelo e-mail do correspondente —, com acompanhamento e PDF, mais o botão de
+  submeter). A TRAVA é `liberadoParaParticipar`: evento gratuito libera todo inscrito; evento pago,
+  só a inscrição VÁLIDA (paga ou isenta), com o motivo por extenso (reserva vencida ≠ aguardando).
+  Ela vale nas ROTAS, não só na tela: `POST …/inscricao/:token/atividades` recusa 403 sem
+  liberação, e a submissão pública do ARCHÉ TR, com `exigeInscricao` ligado (o PADRÃO; a gestão
+  desliga na guia Trabalhos para abrir a quem chegar pela página), exige sessão (401) e inscrição
+  liberada (403) — o `GET` da página do autor devolve `participante` (logado, inscrito, liberado,
+  motivo) e a página desenha o caminho no lugar do formulário. Duas consequências na inscrição do
+  evento PAGO: a **escolha de atividades saiu do formulário** (o servidor zera o que viesse
+  marcado; a categoria sem valor, que nasce isenta, continua escolhendo na hora) — a vaga limitada
+  se esgota entre quem CONFIRMOU —, e `vagasAtividade` passou a contar só quem `ocupaVaga`, como a
+  vaga do evento: a reserva vencida devolve a vaga da oficina. Os atalhos: "Área do inscrito" no
+  topo do hotsite (só logado, só com hotsite), no pós-inscrição, na credencial e na página de
+  pagamento confirmado. Sem hotsite não há área — a folha de inscrição basta.
 - **O BLOCO DE IMAGENS** (`galeria` em `TIPOS_BLOCO`, pedido do dono set/2026: "permita incluir um
   bloco onde eu possa pôr imagens"): fotos em grade com legenda, na ordem da lista, clicáveis para a
   versão inteira. A imagem mora no MESMO campo `logo` do apoiador, de propósito — é o campo que a

@@ -154,9 +154,10 @@ function renderFormulario(j) {
       ${!c.aberta ? `<div class="msg warn">${esc(c.motivo)}</div>` : `<div class="selo ok">Submissões abertas${c.prazoSubmissao ? ` até ${fmt(c.prazoSubmissao)}` : ""}</div>`}
       ${c.orientacoes ? `<div style="font-size:14px;line-height:1.65;white-space:pre-line;margin-top:14px">${esc(c.orientacoes)}</div>` : ""}
       ${botoesNormas(c)}
-      <p style="font-size:12.5px;color:var(--muted);margin-top:14px">Já submeteu? O acompanhamento é pelo link que chegou ao seu e-mail.</p>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:14px">Já submeteu? O acompanhamento é pelo link que chegou ao seu e-mail${c.exigeInscricao ? ` e pela <a href="/eventos/${encodeURIComponent(SLUG)}/participante" style="color:var(--brand-2);font-weight:600">área do inscrito</a>` : ""}.</p>
     </div>
-    ${c.aberta ? `<div class="card" style="margin-top:14px">
+    ${c.aberta && c.exigeInscricao && !podeSubmeterAqui(j) ? blocoInscrito(j) : ""}
+    ${c.aberta && (!c.exigeInscricao || podeSubmeterAqui(j)) ? `<div class="card" style="margin-top:14px">
       <div class="sec-t">Identificação</div>
       <div class="g2">
         <div><label>Tipo de trabalho *</label>
@@ -198,7 +199,30 @@ function renderFormulario(j) {
         <span style="font-size:12px;color:var(--muted)">Você recebe o número do trabalho e o link de acompanhamento por e-mail.</span>
       </div>
     </div>` : ""}`;
-  if (c.aberta) { renderPessoas(); mudouModalidade(); }
+  if (c.aberta && (!c.exigeInscricao || podeSubmeterAqui(j))) { renderPessoas(); mudouModalidade(); }
+}
+/* SÓ O INSCRITO SUBMETE (decisão do dono, set/2026): o servidor diz, pela
+   conta logada, se a pessoa está inscrita e liberada (paga, isenta ou de
+   evento gratuito). Sem isso o formulário não se desenha — e o bloco diz o
+   caminho: entrar, inscrever-se ou pagar. */
+const podeSubmeterAqui = (j) => !!(j.participante && j.participante.logado && j.participante.liberado);
+function blocoInscrito(j) {
+  const p = j.participante || {};
+  const volta = encodeURIComponent(location.pathname);
+  const area = `/eventos/${encodeURIComponent(SLUG)}/participante`;
+  if (!p.logado) return `<div class="card" style="margin-top:14px">
+    <div class="sec-t">Quem submete é o inscrito</div>
+    <p style="font-size:14px;line-height:1.65;margin-top:8px">A submissão de trabalhos é para quem está <b>inscrito no evento</b>. Entre com a conta do portal usada na inscrição — ou crie a conta e inscreva-se na página do evento.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+      <a class="bt bt-pri" href="/entrar/?next=${volta}">Entrar</a>
+      <a class="bt bt-sec" href="/eventos/${encodeURIComponent(SLUG)}#inscricao">Inscrever-me no evento</a></div></div>`;
+  return `<div class="card" style="margin-top:14px">
+    <div class="sec-t">${p.inscrito ? "Inscrição ainda não liberada" : "Você ainda não está inscrito"}</div>
+    <p style="font-size:14px;line-height:1.65;margin-top:8px">${esc(p.motivo || "")}${p.inscrito ? "" : ` A conta em uso é <b>${esc(p.email)}</b> — se a inscrição foi feita com outra conta, entre com ela.`}</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+      ${p.inscrito ? `<a class="bt bt-pri" href="${area}">Ir para o pagamento</a>` : `<a class="bt bt-pri" href="/eventos/${encodeURIComponent(SLUG)}#inscricao">Inscrever-me no evento</a>`}
+      <a class="bt bt-sec" href="${area}">Área do inscrito</a>
+      <button class="bt bt-ghost" onclick="fetch('/auth/sair',{method:'POST'}).finally(()=>location.href='/entrar/?next=${volta}')">Entrar com outra conta</button></div></div>`;
 }
 function mudouModalidade() {
   const cod = $("f-modalidade").value;
