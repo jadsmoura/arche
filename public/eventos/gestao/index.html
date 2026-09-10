@@ -1807,6 +1807,15 @@ function renderInscricoes(a){
     </div>
 
     <div class="card">
+      <div class="sec-t">Quem pode se inscrever</div>
+      <label class="chk" style="margin-top:10px"><input type="radio" name="ev-conta" value="1" ${ev.inscricaoComConta===false?"":"checked"}>
+        <span><b>Só quem tem conta no portal</b> — a página pede para entrar; quem não tem conta cria uma na hora, com o
+        próprio e-mail. A inscrição fica casada com a conta e a credencial vai para o e-mail dela.</span></label>
+      <label class="chk" style="margin-top:6px"><input type="radio" name="ev-conta" value="0" ${ev.inscricaoComConta===false?"checked":""}>
+        <span><b>Qualquer pessoa, sem conta</b> — para o evento aberto à comunidade externa; a inscrição é só o formulário.</span></label>
+    </div>
+
+    <div class="card">
       <div class="sec-t">Campos extras do formulário de inscrição</div>
       <div class="muted" style="margin:8px 0">Além dos fixos (nome, CPF, e-mail, telefone,
         curso/instituição). As respostas aparecem só aqui e nos exports — nunca na página pública.</div>
@@ -3011,9 +3020,10 @@ async function salvarEquipe(id){
    bloco leva o autor até lá com os prazos e as normas à vista. */
 let EV_BLOCOS = [];
 const TIPOS_BLOCO_UI = [
-  ["submissao","Submissão de trabalhos","Leva ao sistema oficial de submissão (o OJS da revista), com prazos e normas."],
+  ["submissao","Submissão de trabalhos","A seção do sistema de submissão do ARCHÉ (guia Trabalhos) — ou um link externo, para quem usa o OJS."],
   ["anais","Anais do evento","Os anais desta edição e das anteriores, com link e ISSN."],
   ["apoiadores","Apoio e patrocínio","Logotipos de quem realiza, patrocina e apoia o evento."],
+  ["galeria","Imagens","Fotos e cartazes em grade, com legenda — a arte do evento, edições anteriores, o local."],
   ["video","Vídeo (YouTube)","Chamada, teaser ou a gravação de uma edição anterior, tocando na própria página."],
   ["redes","Mídias sociais","Os perfis do evento ou do curso, com os ícones das redes."],
   ["texto","Texto livre","Um assunto à parte: chamada, hospedagem, contato, o que o evento pedir."],
@@ -3047,11 +3057,11 @@ function renderBlocos(a){
 
 function novoBloco(tipo){
   const padrao={
-    submissao:{titulo:"Submissão de trabalhos", rotuloBotao:"Submeter trabalho",
-      texto:"Os resumos são submetidos no sistema oficial da revista (OJS). Leia as normas antes de enviar.",
-      prazos:[{rotulo:"Prazo final para submissão",data:""},{rotulo:"Divulgação dos aceites",data:""}]},
+    submissao:{titulo:"Submissão de trabalhos", rotuloBotao:"Submeter trabalho", origem:"arche",
+      texto:"", prazos:[{rotulo:"Prazo final para submissão",data:""},{rotulo:"Divulgação dos aceites",data:""}]},
     anais:{titulo:"Anais do evento", itens:[{titulo:"",ano:"",url:"",issn:""}]},
     apoiadores:{titulo:"Apoio e patrocínio", itens:[{nome:"",categoria:"patrocinio",url:""}]},
+    galeria:{titulo:"Imagens", itens:[{legenda:""}]},
     video:{titulo:"Vídeo do evento"},
     redes:{titulo:"Acompanhe o evento", itens:[{rede:"instagram",url:""}]},
     texto:{titulo:""},
@@ -3088,7 +3098,19 @@ function renderBlocosEv(){
 
 function corpoBloco(b,i){
   if(b.tipo==="submissao"){
-    return `
+    const arche = b.origem !== "ojs";
+    const origem = `<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px">
+        <label class="chk" style="margin:0;font-size:12.5px"><input type="radio" name="bl-origem-${i}" value="arche" ${arche?"checked":""}
+          onchange="EV_BLOCOS[${i}].origem='arche';renderBlocosEv()"> sistema de submissão do ARCHÉ (guia Trabalhos)</label>
+        <label class="chk" style="margin:0;font-size:12.5px"><input type="radio" name="bl-origem-${i}" value="ojs" ${arche?"":"checked"}
+          onchange="EV_BLOCOS[${i}].origem='ojs';renderBlocosEv()"> link externo (o OJS da revista)</label>
+      </div>`;
+    if(arche) return origem + `
+      <div class="muted" style="margin-top:8px;font-size:12.5px">A seção sai com o prazo, as modalidades, as normas e o botão
+        "${esc(b.rotuloBotao||"Submeter trabalho")}" da <a href="#" onclick="nav('trabalhos');return false">guia Trabalhos</a> —
+        é lá que a submissão se liga e se configura. O texto acima entra como apresentação da seção.</div>
+      <input placeholder="rótulo do botão (Submeter trabalho)" style="margin-top:8px" value="${esc(b.rotuloBotao||"")}" oninput="EV_BLOCOS[${i}].rotuloBotao=this.value">`;
+    return origem + `
       <div class="g-atv2" style="margin-top:8px">
         <input placeholder="endereço do sistema de submissão (OJS)" value="${esc(b.url||"")}" oninput="EV_BLOCOS[${i}].url=this.value">
         <input placeholder="rótulo do botão (Submeter trabalho)" value="${esc(b.rotuloBotao||"")}" oninput="EV_BLOCOS[${i}].rotuloBotao=this.value">
@@ -3142,6 +3164,21 @@ function corpoBloco(b,i){
       <button class="bt bt-ghost" style="padding:6px 11px;font-size:12px;margin-top:8px"
         onclick="EV_BLOCOS[${i}].itens=(EV_BLOCOS[${i}].itens||[]).concat({nome:'',categoria:'patrocinio',url:''});renderBlocosEv()">＋ apoiador</button>`;
   }
+  if(b.tipo==="galeria"){
+    return `
+      <div class="muted" style="margin-top:10px;font-size:12.5px">As imagens saem em grade, na ordem desta lista; o navegador
+        as reduz a 1400 px antes de subir. Clicar na imagem da página abre a versão inteira.</div>
+      ${(b.itens||[]).map((it,j)=>`<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <span id="logo-prev-${i}-${j}">${logoPrevia(it)}</span>
+          <input type="file" accept="image/jpeg,image/png,image/webp" style="max-width:230px" onchange="lerImagemGaleria(this,${i},${j})">
+          <input placeholder="legenda (opcional)" value="${esc(it.legenda||"")}" oninput="EV_BLOCOS[${i}].itens[${j}].legenda=this.value" style="flex:1;min-width:180px">
+          <button class="bt bt-ghost bt-xs" style="color:var(--err)" onclick="EV_BLOCOS[${i}].itens.splice(${j},1);renderBlocosEv()">✕</button>
+        </div>
+      </div>`).join("")}
+      <button class="bt bt-ghost" style="padding:6px 11px;font-size:12px;margin-top:8px"
+        onclick="EV_BLOCOS[${i}].itens=(EV_BLOCOS[${i}].itens||[]).concat({legenda:''});renderBlocosEv()">＋ imagem</button>`;
+  }
   if(b.tipo==="video"){
     return `
       <input placeholder="link do vídeo no YouTube (cole a URL inteira)" style="margin-top:8px"
@@ -3191,6 +3228,19 @@ async function lerLogo(inp,i,j){
     EV_BLOCOS[i].itens[j].temLogo = true;
     const prev=$(`logo-prev-${i}-${j}`);
     if(prev) prev.innerHTML=`<img src="${EV_BLOCOS[i].itens[j].logo}" alt="" style="max-height:40px;max-width:130px">
+      <button class="bt bt-ghost" style="padding:4px 8px;font-size:11px" onclick="removerLogo(${i},${j})">✕ remover</button>`;
+  }catch(e){ alert("Não foi possível preparar a imagem neste navegador."); }
+}
+/* a foto do bloco de imagens: mesmo campo do logotipo, teto maior (é foto) */
+async function lerImagemGaleria(inp,i,j){
+  const f=inp.files&&inp.files[0]; if(!f) return;
+  if(!/^image\/(jpeg|png|webp)$/.test(f.type)){ alert("A imagem deve ser JPEG, PNG ou WebP."); inp.value=""; return; }
+  if(f.size>CAPA_MAX_ARQUIVO){ alert("A imagem passa de 10 MB."); inp.value=""; return; }
+  try{
+    EV_BLOCOS[i].itens[j].logo = await reduzirLargura(f, 1400, 380*1024);
+    EV_BLOCOS[i].itens[j].temLogo = true;
+    const prev=$(`logo-prev-${i}-${j}`);
+    if(prev) prev.innerHTML=`<img src="${EV_BLOCOS[i].itens[j].logo}" alt="" style="max-height:60px;max-width:110px;border-radius:6px">
       <button class="bt bt-ghost" style="padding:4px 8px;font-size:11px" onclick="removerLogo(${i},${j})">✕ remover</button>`;
   }catch(e){ alert("Não foi possível preparar a imagem neste navegador."); }
 }
@@ -3660,6 +3710,7 @@ function salvarInscricoes(id){
     vagas:$("ev-vagas")?.value||0,
     inscricoesAte:$("ev-prazo")?.value||"",
     inscricoesAteHora:$("ev-prazo-hora")?.value||"",
+    inscricaoComConta:(document.querySelector('input[name="ev-conta"]:checked')||{}).value!=="0",
     formulario:EV_FORM.map(c=>({ id:c.id||"", rotulo:c.rotulo||"", tipo:c.tipo||"texto",
       opcoes:String(c.opcoesTxt||"").split(",").map(s=>s.trim()).filter(Boolean),
       obrigatorio:!!c.obrigatorio, instrucoes:c.instrucoes||"" })),

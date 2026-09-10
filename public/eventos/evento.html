@@ -172,6 +172,12 @@
   .apoio-grupo{margin-top:16px}
   .apoio-t{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
   .apoio-grade{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:10px}
+  /* o bloco de imagens (set/2026): grade de fotos com legenda, na ordem da lista */
+  .galeria{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-top:12px}
+  .galeria-item{margin:0;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .galeria-item img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}
+  .galeria-item figcaption{font-size:12.5px;color:var(--ink-soft);padding:8px 10px;line-height:1.45}
+  @media(max-width:520px){.galeria{grid-template-columns:repeat(2,1fr);gap:8px}}
   .apoio-item{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;
     display:flex;align-items:center;gap:10px;min-height:64px;text-decoration:none;color:var(--ink-soft);font-size:13px}
   .apoio-item img{height:44px;width:auto;max-width:170px;object-fit:contain;display:block}
@@ -212,6 +218,7 @@ const $ = (id) => document.getElementById(id);
 // o slug é o primeiro segmento depois de /eventos/
 const SLUG = decodeURIComponent((location.pathname.match(/^\/eventos\/([^/]+)/) || [])[1] || "");
 let EV = null;
+let ME = null;   // a conta logada (o /api/me), consultada ANTES de desenhar: decide se o formulário aparece
 // o botão da carteira digital só existe onde a instituição tem a conta de emissor
 let WALLET = false;
 let DIA_SEL = "";                 // aba de dia escolhida na programação
@@ -332,7 +339,8 @@ function render() {
 
   /* ------ 2b. palestrantes (banner rotativo) e blocos do organizador ------ */
   const palestrantes = secaoPalestrantes(e);
-  const blocosAntes = secaoTrabalhos(e) + (e.blocos || []).filter((b) => b.tipo !== "apoiadores").map(blocoHtml).join("");
+  // com um bloco de submissão do ARCHÉ, a seção sai no lugar dele (e uma vez só)
+  const blocosAntes = (blocoTrArche(e) ? "" : secaoTrabalhos(e)) + (e.blocos || []).filter((b) => b.tipo !== "apoiadores").map(blocoHtml).join("");
   const blocosApoio = (e.blocos || []).filter((b) => b.tipo === "apoiadores").map(blocoHtml).join("");
 
   /* ------ 3. programação (bloco próprio — a aba redesenha SÓ ele) ------ */
@@ -341,7 +349,7 @@ function render() {
   /* ------ 4. inscrição ------ */
   const insc = `
     <div class="secao-t" id="inscricao">Inscrição</div>
-    <div class="secao-s">Gratuita e feita aqui mesmo — no dia, apresente na entrada o QR que você recebe.</div>
+    <div class="secao-s">${e.cobranca ? "Feita aqui mesmo, com o pagamento online" : "Gratuita e feita aqui mesmo"} — no dia, apresente na entrada o QR que você recebe.</div>
     <div class="duas">
       <div class="card" id="card-inscricao">
         ${jaTem ? `<div class="msg-ok" style="margin-top:0;margin-bottom:12px">Você já se inscreveu neste evento por este aparelho.
@@ -462,14 +470,23 @@ async function preencherComOUsuario() {
     // o aviso entra RECOLHIDO (pedido do dono, ago/2026): quem reconhece os
     // próprios dados no formulário não precisa de um bloco explicando; quem
     // estranhar abre e encontra a conta usada e o "não sou eu"
+    // evento que exige conta: o e-mail É o da conta (o servidor o impõe), e
+    // "não sou eu" significa trocar de conta, não limpar os campos
+    const comConta = EV?.inscricaoComConta === true;
+    if (comConta) { $("i-email").value = u.email; $("i-email").readOnly = true; }
     const av = document.createElement("details");
     av.className = "msg-ok av-conta";
     av.innerHTML = `<summary>✓ Preenchido com os dados da sua conta</summary>
       <div class="av-conta-corpo">Estes campos vieram da sua conta <b>${esc(u.email)}</b> —
-        confira e ajuste o que precisar antes de enviar.
-        <button type="button" id="i-limpar">Não sou eu, limpar os campos</button></div>`;
+        confira e ajuste o que precisar antes de enviar.${comConta ? " A inscrição fica ligada a esta conta, e a credencial vai para este e-mail." : ""}
+        <button type="button" id="i-limpar">${comConta ? "Não sou eu, entrar com outra conta" : "Não sou eu, limpar os campos"}</button></div>`;
     form.insertBefore(av, form.firstChild);
-    $("i-limpar").addEventListener("click", () => {
+    $("i-limpar").addEventListener("click", async () => {
+      if (comConta) {
+        try { await fetch("/auth/sair", { method: "POST" }); } catch { /* sem rede: a tela de entrada resolve */ }
+        location.href = "/entrar/?next=" + encodeURIComponent(location.pathname);
+        return;
+      }
       for (const id of ["i-nome", "i-cpf", "i-email", "i-tel", "i-curso"]) { const el = $(id); if (el) el.value = ""; }
       av.remove();
       $("i-nome").focus();
@@ -486,7 +503,7 @@ function subnav(e) {
     (e.descricao || e.temaCentral || e.publicoAlvo) ? ["#sobre", "Sobre"] : null,
     palestrantesDe(e).length ? ["#palestrantes", "Palestrantes"] : null,
     (e.programacao || []).length ? ["#programacao", "Programação"] : null,
-    e.trabalhos ? ["#trabalhos", "Trabalhos"] : null,
+    e.trabalhos && !blocoTrArche(e) ? ["#trabalhos", "Trabalhos"] : null,
     ...(e.blocos || []).map((b) => [`#bloco-${b.id}`, b.titulo || rotuloBloco(b.tipo)]),
     e.inscricoesAbertas ? ["#inscricao", "Inscrição"] : null,
   ].filter(Boolean);
@@ -495,7 +512,7 @@ function subnav(e) {
     `<a href="${href}">${esc(rot)}</a>`).join("")}</nav>`;
 }
 const rotuloBloco = (t) => ({ texto: "Informações", submissao: "Trabalhos", anais: "Anais",
-  apoiadores: "Apoio", video: "Vídeo", redes: "Redes" }[t] || "Seção");
+  apoiadores: "Apoio", video: "Vídeo", redes: "Redes", galeria: "Imagens" }[t] || "Seção");
 
 /* Ícones das redes em SVG inline: nada de biblioteca externa numa página
    pública que precisa abrir rápido no celular da fila do evento. */
@@ -589,13 +606,26 @@ function girarPalestrantes() {
 /* ARCHÉ TR (set/2026): a submissão de trabalhos DENTRO do ARCHÉ. A seção sai
    quando a coordenação liga o módulo no evento; o bloco "submissão" de link
    continua existindo para quem usa o OJS. */
-function secaoTrabalhos(e) {
+/* O bloco "Submissão de trabalhos" com origem `arche` (pedido do dono,
+   set/2026) É esta seção, no lugar em que o organizador o pôs — com o título
+   e o texto dele; sem bloco, a seção sai sozinha quando o módulo está ligado. */
+const blocoTrArche = (e) => (e.blocos || []).find((b) => b.tipo === "submissao" && b.origem === "arche");
+function secaoTrabalhos(e, b = null) {
   const t = e.trabalhos;
-  if (!t) return "";
   const url = `/eventos/${encodeURIComponent(e.slug)}/trabalhos`;
-  return `
-    <div class="secao-t" id="trabalhos">Submissão de trabalhos</div>
+  if (!t) {
+    if (!b) return "";
+    return `
+    <div class="secao-t" id="bloco-${esc(b.id)}">${esc(b.titulo || "Submissão de trabalhos")}</div>
     <div class="card" style="margin-top:12px">
+      ${b.texto ? `<p style="font-size:14.5px;line-height:1.7;white-space:pre-line">${esc(b.texto)}</p>` : ""}
+      <p style="font-size:14px;color:var(--muted)">A submissão de trabalhos ainda não está aberta neste evento.</p>
+    </div>`;
+  }
+  return `
+    <div class="secao-t" id="${b ? `bloco-${esc(b.id)}` : "trabalhos"}">${esc(b?.titulo || "Submissão de trabalhos")}</div>
+    <div class="card" style="margin-top:12px">
+      ${b?.texto ? `<p style="font-size:14.5px;line-height:1.7;white-space:pre-line">${esc(b.texto)}</p>` : ""}
       <p style="font-size:14.5px;line-height:1.7">${t.aberta
         ? `Submissões <b>abertas</b>${t.prazoSubmissao ? ` até <b>${esc(fmt(t.prazoSubmissao))}</b>` : ""} — ${t.modalidades.map((m) => esc(m.nome.toLowerCase())).join(", ")}.
            A avaliação é feita por pareceristas, às cegas, e o resultado chega por e-mail.`
@@ -603,7 +633,8 @@ function secaoTrabalhos(e) {
       ${t.orientacoes ? `<p style="font-size:14px;line-height:1.7;white-space:pre-line;color:var(--ink-soft)">${esc(t.orientacoes)}</p>` : ""}
       ${t.areas.length ? `<p style="font-size:13px;color:var(--muted)"><b>Áreas:</b> ${t.areas.map(esc).join(" · ")}</p>` : ""}
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        ${t.aberta ? `<a class="bt bt-pri" href="${url}" style="margin-top:14px">Submeter trabalho</a>` : ""}
+        ${t.aberta ? `<a class="bt bt-pri" href="${url}" style="margin-top:14px">${esc(b?.rotuloBotao || "Submeter trabalho")}</a>` : ""}
+        ${t.normas ? `<a class="bt bt-sec" href="${url}#normas" style="margin-top:14px">Normas de submissão</a>` : ""}
         ${t.normasUrl ? `<a class="bt bt-sec" href="${esc(t.normasUrl)}" target="_blank" rel="noopener" style="margin-top:14px">Normas ↗</a>` : ""}
         ${t.modeloUrl ? `<a class="bt bt-sec" href="${esc(t.modeloUrl)}" target="_blank" rel="noopener" style="margin-top:14px">Modelo ↗</a>` : ""}
       </div>
@@ -615,6 +646,7 @@ function blocoHtml(b) {
   const texto = b.texto ? `<p style="font-size:14.5px;line-height:1.7;white-space:pre-line">${esc(b.texto)}</p>` : "";
   const botao = b.url ? `<a class="bt bt-pri" href="${esc(b.url)}" target="_blank" rel="noopener"
     style="margin-top:14px">${esc(b.rotuloBotao || "Acessar")} ↗</a>` : "";
+  if (b.tipo === "submissao" && b.origem === "arche") return secaoTrabalhos(EV, b);
   if (b.tipo === "submissao") {
     const prazos = (b.prazos || []).length ? `<div class="prazos">${b.prazos.map((p) =>
       `<div class="prazo"><b>${esc(p.data ? fmt(p.data) : "—")}</b><span>${esc(p.rotulo)}</span></div>`).join("")}</div>` : "";
@@ -667,6 +699,18 @@ function blocoHtml(b) {
         <a class="rede rede-${esc(i.rede)}" href="${esc(i.url)}" target="_blank" rel="noopener">
           ${ICONE_REDE[i.rede] || ICONE_REDE.site}
           <span>${esc(i.rotulo || ROTULO_REDE[i.rede] || "Perfil")}</span></a>`).join("")}</div>`;
+  }
+  if (b.tipo === "galeria") {
+    // a imagem sai pela mesma rota do logotipo (é o mesmo campo, ver lib/eventos.js)
+    const src = (i) => `/api/publico/eventos/${encodeURIComponent(SLUG)}/apoiador/${encodeURIComponent(i.id)}/logo`;
+    const itens = (b.itens || []).filter((i) => i.temLogo);
+    return `
+      <div class="secao-t" id="bloco-${esc(b.id)}">${titulo}</div>
+      ${texto ? `<div class="secao-s">${esc(b.texto)}</div>` : ""}
+      <div class="galeria">${itens.map((i) => `<figure class="galeria-item">
+        <a href="${src(i)}" target="_blank" rel="noopener"><img src="${src(i)}" alt="${esc(i.legenda)}" loading="lazy"></a>
+        ${i.legenda ? `<figcaption>${esc(i.legenda)}</figcaption>` : ""}
+      </figure>`).join("")}</div>`;
   }
   if (b.tipo === "apoiadores") {
     const cat = [["realizacao", "Realização"], ["patrocinio", "Patrocínio"], ["apoio", "Apoio"]];
@@ -767,6 +811,23 @@ function blocoOrganizacao(e) {
 
 /* ---------------------- formulário de inscrição -------------------------- */
 function formInscricao(e) {
+  /* A CONTA ANTES DA INSCRIÇÃO (decisão do dono, set/2026): com a chave do
+     evento ligada, quem não está logado vê o convite para entrar — ou criar
+     a conta na hora — e volta a esta página. Quem barra é o servidor (401);
+     aqui é só o caminho. */
+  if (e.inscricaoComConta && !ME) {
+    const volta = encodeURIComponent(location.pathname);
+    return `<div id="f" class="entrar-insc">
+      <p style="font-size:14.5px;line-height:1.65">Para se inscrever, <b>entre com a sua conta do ARCHÉ</b>. Se ainda não tem,
+        crie uma na hora com o seu e-mail — leva um minuto, e a sua inscrição e o certificado ficam ligados a ela.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
+        <a class="bt bt-pri" style="flex:1 1 200px;text-align:center" href="/entrar/?next=${volta}">Entrar e inscrever-me</a>
+        <a class="bt bt-sec" style="flex:1 1 200px;text-align:center" href="/entrar/?next=${volta}">Criar a minha conta</a>
+      </div>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:10px">Entra-se com o e-mail (código enviado a ele), com a senha ou com o Google.
+        Voltando aqui, o formulário já vem preenchido com os seus dados.</p>
+    </div>`;
+  }
   const escolha = blocoEscolhaAtividades(e);
   const extras = (e.formulario || []).map(campoExtra).join("");
   return `<form id="f" onsubmit="inscrever(event)">
@@ -1073,6 +1134,8 @@ fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}`).then(async (r) => {
     return;
   }
   EV = j.evento; WALLET = j.walletGoogle === true;
+  // a conta logada decide se o formulário aparece (evento que exige conta)
+  try { const rm = await fetch("/api/me"); ME = rm.ok ? await rm.json() : null; } catch { ME = null; }
   document.title = `${EV.nome} — Eventos UNIEGO`; render();
 }).catch(() => {
   $("main").innerHTML = '<div class="card" style="margin-top:20px"><p style="color:var(--muted)">Não foi possível carregar agora. Tente novamente em instantes.</p></div>';

@@ -91,7 +91,7 @@ import {
 } from "./lib/eventos.js";
 import {
   PAPEIS_COMISSAO, faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento,
-  buscarPessoasDoPortal, completarPeloPortal,
+  buscarPessoasDoPortal, completarPeloPortal, exigeContaNaInscricao,
   videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento, contaPresente, houveCredenciamento,
   normalizarCursosExtras, cursosDaAcao,
 } from "./lib/eventos.js";
@@ -4212,6 +4212,7 @@ function eventoPublico(a, { detalhe = false } = {}) {
     temCapa: temArte(ev.capa),
     controleFrequencia: eventoControlaFrequencia(ev),
     hotsite: temHotsiteEvento(ev),
+    inscricaoComConta: exigeContaNaInscricao(ev),
     // evento PAGO: a vitrine mostra o selo; o detalhe traz as categorias
     paga: cobrancaAtiva(ev.cobranca),
   };
@@ -4459,8 +4460,10 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     const b = req.body || {};
     const nome = String(b.nome || "").trim().slice(0, 120);
     const cpf = normalizarCpf(b.cpf);
-    const email = String(b.email || "").trim().toLowerCase().slice(0, 120);
+    let email = String(b.email || "").trim().toLowerCase().slice(0, 120);
     const telefone = String(b.telefone || "").trim().slice(0, 40);
+    // a conta de quem se inscreve (quando o evento a exige, é dela que sai o e-mail)
+    const conta = await usuarioDe(req, res);
     const curso = String(b.curso || "").trim().slice(0, 120);
     if (nome.length < 3) return res.status(400).json({ error: "Escreva o seu nome completo." });
     if (!cpf) return res.status(400).json({ error: "O CPF informado não é válido — confira os números digitados." });
@@ -4488,6 +4491,14 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       if (!a) return { erro: [404, "Evento não encontrado — a página pode ter sido encerrada."], gravar: false };
       const aberta = podeInscreverEvento(a, hojeLocalISO(), horaLocalHHMM());
       if (!aberta.ok) return { erro: [409, aberta.motivo], gravar: false };
+      /* QUEM SE INSCREVE TEM CONTA (decisão do dono, set/2026): sem sessão a
+         rota recusa com 401 e a página oferece entrar ou criar a conta; com
+         sessão, o e-mail da inscrição É o da conta — a credencial vai para
+         onde a pessoa entra, e a inscrição fica casada com ela. */
+      if (exigeContaNaInscricao(a.evento)) {
+        if (!conta) return { erro: [401, "Para se inscrever, entre com a sua conta do portal — ou crie uma na hora, com o seu e-mail."], gravar: false };
+        email = String(conta.email || "").trim().toLowerCase();
+      }
       const parts = a.participantes || (a.participantes = { inscritos: [], palestrantes: [], comissao: [] });
       parts.inscritos = parts.inscritos || [];
       /* EVENTO PAGO (set/2026): O PREÇO É DO SERVIDOR. O navegador manda só a
@@ -6693,6 +6704,8 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
           return { erro: [400, "Hora-limite de inscrição inválida — use o formato 21:00."], gravar: false };
         ev.inscricoesAteHora = h;
       }
+      // quem pode se inscrever: só com conta no portal (padrão) ou qualquer pessoa
+      if (b.inscricaoComConta !== undefined) ev.inscricaoComConta = b.inscricaoComConta === true || b.inscricaoComConta === "1";
       // tipo errado é 400, nunca 200: normalizar uma string devolveria []
       // e ZERARIA atividades/campos com resposta de sucesso (achado da
       // revisão de ago/2026 — mesmo tratamento que vagas e capa já tinham)

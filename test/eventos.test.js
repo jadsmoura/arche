@@ -584,7 +584,21 @@ test("imagemPequena: descarta o que não é imagem ou passa do teto", () => {
 
 test("blocos: catálogo com os tipos da página, códigos preservados", () => {
   assert.deepEqual(TIPOS_BLOCO.map((t) => t.codigo),
-    ["texto", "submissao", "anais", "apoiadores", "video", "redes"]);
+    ["texto", "submissao", "anais", "apoiadores", "galeria", "video", "redes"]);
+  // o bloco de imagens: a foto mora no campo `logo` (é o campo que a
+  // preservação, a subida ao Drive e a rota pública já tratam), e o item
+  // sem imagem nova fica pelo sinal temLogo — senão salvar a legenda a apagaria
+  const png = "data:image/png;base64," + Buffer.from("x").toString("base64");
+  const [g] = normalizarBlocos([{ tipo: "galeria", titulo: "Imagens", itens: [
+    { id: "a1b2c3d4", legenda: "Cartaz", temLogo: true }, { legenda: "", logo: png }, { legenda: "" }] }]);
+  assert.equal(g.itens.length, 2);
+  assert.equal(g.itens[0].id, "a1b2c3d4");
+  assert.equal("temLogo" in g.itens[0], false, "o sinal não se grava");
+  assert.equal(g.itens[1].logo, png);
+  // a submissão: origem `arche` por padrão; bloco antigo com URL continua OJS
+  assert.equal(normalizarBlocos([{ tipo: "submissao", titulo: "T" }])[0].origem, "arche");
+  assert.equal(normalizarBlocos([{ tipo: "submissao", titulo: "T", url: "https://ojs.x/y" }])[0].origem, "ojs");
+  assert.equal(normalizarBlocos([{ tipo: "submissao", titulo: "T", url: "https://ojs.x/y", origem: "arche" }])[0].origem, "arche");
   assert.deepEqual(REDES_SOCIAIS.map((r) => r.codigo),
     ["instagram", "facebook", "youtube", "linkedin", "tiktok", "x", "whatsapp", "telegram", "site"]);
   assert.deepEqual(FREQUENCIAS.map((f) => f.codigo), ["nenhum", "entrada", "entrada_saida"]);

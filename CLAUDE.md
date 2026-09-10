@@ -1467,6 +1467,36 @@ public/
   ficam por compatibilidade. A indicação não quebra a cegueira do lado do revisor (a cópia dele
   continua sem autoria), mas o revisor indicado sabe de quem é o trabalho — é a escolha do dono, e a
   comissão pode preferir "outro revisor".
+- **QUEM SE INSCREVE TEM CONTA NO PORTAL** (`exigeContaNaInscricao` em lib/eventos.js +
+  `inscricaoComConta` no evento e no payload público + a régua em `POST …/inscrever` + o bloco
+  "Entrar e inscrever-me" em `formInscricao` do hotsite + o card "Quem pode se inscrever" na guia
+  Inscrições, decisão do dono set/2026: "na hora de inscrever, peça para o usuário logar; se ele
+  tiver login, é só se inscrever; se não tiver, ele cria um login"). Ligado por padrão em TODO
+  evento; o evento aberto à comunidade sem conta desliga na guia. A régua é do SERVIDOR: sem sessão
+  a rota recusa com 401, e com sessão o **e-mail da inscrição É o da conta** (o campo fica
+  travado na tela) — a credencial vai para onde a pessoa entra, e a inscrição fica casada com ela.
+  O hotsite consulta o `/api/me` ANTES de desenhar (`ME`): sem conta mostra os dois botões (entrar ·
+  criar a conta — os dois vão ao `/entrar/?next=<página>`, que cria a conta no primeiro código) e
+  "Não sou eu" vira trocar de conta (`POST /auth/sair` e de volta ao `/entrar`). No mesmo passo saiu
+  o subtítulo "Gratuita e feita aqui mesmo", que estava ESCRITO na página e ignorava a cobrança
+  (achado do dono: "já salvei as informações de cobrança e continua aparecendo inscreva-se
+  grátis") — agora segue `e.cobranca`. E `e.cobranca` só existe com a cobrança LIGADA
+  (`cobrancaAtiva`: a caixa "ativa" marcada E ao menos uma categoria com valor).
+- **O BLOCO "SUBMISSÃO DE TRABALHOS" É O ARCHÉ TR** (`origem: "arche" | "ojs"` no bloco,
+  `blocoTrArche`/`secaoTrabalhos(e, b)` no hotsite, achado do dono set/2026: "cliquei em submissão
+  de trabalhos e veio um bloco genérico; deve estar vinculado ao sistema de submissão que
+  organizamos"): o bloco nasce com origem `arche` e a página desenha, no lugar dele e com o título e
+  o texto dele, a seção do módulo — prazo, modalidades, botão "Submeter trabalho" e "Normas de
+  submissão" (que abre a janela do autor por `#normas`); sem bloco, a seção continua saindo sozinha
+  quando o módulo está ligado (uma vez só — `blocoTrArche` decide). Bloco antigo com URL continua
+  sendo o link externo (`ojs`), com os prazos digitados.
+- **O BLOCO DE IMAGENS** (`galeria` em `TIPOS_BLOCO`, pedido do dono set/2026: "permita incluir um
+  bloco onde eu possa pôr imagens"): fotos em grade com legenda, na ordem da lista, clicáveis para a
+  versão inteira. A imagem mora no MESMO campo `logo` do apoiador, de propósito — é o campo que a
+  preservação item a item (`preservarImagens`), a subida ao Drive (`guardarArte`), o `temLogo` do
+  payload e a rota `/apoiador/:iid/logo` já tratam; um campo novo repetiria os quatro. Teto maior
+  (`GALERIA_MAX`, 400 KB; o navegador reduz a 1400 px), e o item sem imagem nova fica pelo sinal
+  `temLogo` que a tela devolve — senão salvar a legenda apagaria a foto.
 - **A EQUIPE DO EVENTO SE BUSCA ENTRE OS USUÁRIOS** (`buscarPessoasDoPortal`/`completarPeloPortal`
   em lib/eventos.js + `GET /api/eventos/pessoas?q=` + `buscaPessoa`/`escolhePessoa` na guia Equipe do
   ARCHÉ EV, pedido do dono set/2026, subindo o CONINT: "permita eu escrever e o sistema buscar dentre
