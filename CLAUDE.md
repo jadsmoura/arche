@@ -4669,6 +4669,17 @@ public/
   (a chave era o nome; passou a ser e-mail → matrícula → posição); (9) `aviso(…, "erro")` usava
   classe inexistente; (10) o servidor validava relatório com pedido de interrupção pendente (409
   agora — quem decide é a PROPPEX).
+- **FILTROS NA GUIA BOLSISTAS E VOLUNTÁRIOS** (`BV_FILTROS` + a barra em `renderBolsistas`, pedido
+  do dono set/2026: "quero achar alunos por curso, alunos com documentação completa, alunos
+  bolsistas, etc."): busca (aluno, e-mail, projeto, orientação) e cinco recortes — curso do
+  projeto (só quando o ciclo tem mais de um), bolsa (bolsista/voluntário), cadastro do contrato
+  (completo/incompleto, a MESMA régua do `dadosCompletos`/`faltaNoCadastroDoBolsista`), situação
+  dos relatórios (a validar · devolvido · final validado · parcial validado · atrasado · nenhum) e
+  acesso (com/sem e-mail). Cada opção diz quantos alunos tem, contados dentro do ciclo e antes dos
+  demais filtros, e a barra diz "N de M aluno(s)"; a busca redesenha só a lista
+  (`renderBolsistasCorpo` — redesenhar a barra tiraria o cursor), e a busca se lê a cada chamada de
+  `passa`, não no desenho da barra. Os filtros são da GUIA: trocar de ciclo os mantém; "✕ Limpar
+  filtros" zera. O agrupamento por orientador continua, e o orientador sem aluno no recorte some.
 
 - **O PRODUTO SE CHAMA CÁTEDRA; A INSTALAÇÃO SE CHAMA ARCHÉ** (`lib/produto.js`, decisão do dono
   set/2026: "Arché é uma referência direta ao fundador da AEE, Archibald — no contexto AEE é

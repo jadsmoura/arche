@@ -400,6 +400,10 @@ let ORIGEM_LISTA = "gestao";
 let CICLO_REL = "";
 // idem para a guia Bolsistas e Voluntários — começa no ciclo mais atual
 let CICLO_BV = "";
+/* Os filtros da guia Bolsistas e Voluntários (pedido do dono, set/2026:
+   "quero achar alunos por curso, alunos com documentação completa, alunos
+   bolsistas, etc."). São da GUIA, não do ciclo: trocar de ciclo os mantém. */
+let BV_FILTROS = { q: "", curso: "", tipo: "", contrato: "", relatorio: "", email: "" };
 
 // Quatro acessos, uma barra lateral só: cada perfil vê as guias que usa.
 //   gestao     — tudo
@@ -2814,22 +2818,81 @@ function renderBolsistas() {
   $("v-bolsistas").innerHTML = seletor + ciclos.filter(([c]) => c === CICLO_BV).map(([ciclo, projetos]) => {
     const comAlunos = projetos.filter((p) => (p.alunos || []).length);
     const totalAlunos = comAlunos.reduce((s, p) => s + p.alunos.length, 0);
-    let corpo = "";
-    if (META.gestao) {
+    /* OS FILTROS (pedido do dono, set/2026): cada aluno é um par projeto ×
+       aluno, e as perguntas que a coordenação faz sobre ele são cinco — de que
+       curso é, se tem bolsa, se o cadastro do contrato está completo, como
+       estão os relatórios e se tem e-mail (sem e-mail não entra no sistema).
+       Cada opção diz quantos alunos tem, contados DENTRO do ciclo escolhido e
+       antes dos demais filtros, para a lista nunca dizer "0" sem explicar. */
+    const pares = comAlunos.flatMap((p) => (p.alunos || []).map((a) => ({ p, a })));
+    const completo = ({ a }) => !!(a.dadosCompletos ?? cadastroCompletoLocal(a));
+    const relatorioDe = ({ p, a }) => {
+      const rels = RELS.relatorios.filter((x) => x.projetoId === p.id && x.aluno === a.email);
+      if (rels.some((x) => x.situacao === "enviado")) return "a-validar";
+      if (rels.some((x) => x.situacao === "devolvido")) return "devolvido";
+      if (rels.some((x) => x.tipo === "final" && x.situacao === "validado")) return "final-validado";
+      if (rels.some((x) => x.situacao === "validado")) return "parcial-validado";
+      const prazos = p.prazoRelatorios?.prazos || [];
+      if (prazos.some((x) => x.atrasado && !rels.some((r) => r.tipo === x.tipo))) return "atrasado";
+      return "nenhum";
+    };
+    const REL_ROT = { "a-validar": "entregue — a validar", devolvido: "devolvido ao aluno", "final-validado": "final validado",
+      "parcial-validado": "parcial validado", atrasado: "relatório atrasado", nenhum: "nenhum relatório ainda" };
+    const passa = (par, ignorar) => {
+      const { p, a } = par, f = BV_FILTROS;
+      const busca = semAcento(f.q).trim();   // lida a cada chamada: a busca muda sem redesenhar a barra
+      if (ignorar !== "curso" && f.curso && (p.curso || "") !== f.curso) return false;
+      if (ignorar !== "tipo" && f.tipo && (f.tipo === "bolsista") !== !!a.bolsista) return false;
+      if (ignorar !== "contrato" && f.contrato && (f.contrato === "completo") !== completo(par)) return false;
+      if (ignorar !== "relatorio" && f.relatorio && relatorioDe(par) !== f.relatorio) return false;
+      if (ignorar !== "email" && f.email && (f.email === "com") !== !!a.email) return false;
+      if (ignorar !== "q" && busca && !semAcento(`${a.nome} ${a.email} ${p.numero} ${p.titulo} ${p.orientador?.nome}`).includes(busca)) return false;
+      return true;
+    };
+    const conta = (chave, fn) => pares.filter((par) => passa(par, chave) && fn(par)).length;
+    const opcao = (chave, v, rot, fn) => `<option value="${esc(v)}" ${BV_FILTROS[chave] === v ? "selected" : ""}>${esc(rot)} (${conta(chave, fn)})</option>`;
+    const selF = (chave, rotulo, opcoes) => `<label style="margin:0;display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--muted)">${rotulo}
+      <select style="width:auto;max-width:240px;font-size:12.5px;padding:6px 30px 6px 8px" onchange="BV_FILTROS['${chave}']=this.value;renderBolsistas()">
+        <option value="">todos</option>${opcoes}</select></label>`;
+    const cursosDoCiclo = [...new Set(pares.map(({ p }) => p.curso).filter(Boolean))]
+      .sort((x, y) => cursoNome(x).localeCompare(cursoNome(y), "pt-BR"));
+    const ativos = Object.values(BV_FILTROS).some(Boolean);
+    const filtrados = pares.filter((par) => passa(par));
+    const barra = `<div class="filtros" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 12px">
+      <input id="bv-busca" placeholder="Buscar por aluno, e-mail, projeto ou orientação…" style="max-width:280px" value="${esc(BV_FILTROS.q)}"
+        oninput="BV_FILTROS.q=this.value;renderBolsistasCorpo()">
+      ${cursosDoCiclo.length > 1 ? selF("curso", "Curso", cursosDoCiclo.map((c) => opcao("curso", c, cursoNome(c), ({ p }) => p.curso === c)).join("")) : ""}
+      ${selF("tipo", "Bolsa", opcao("tipo", "bolsista", "bolsistas", ({ a }) => !!a.bolsista) + opcao("tipo", "voluntario", "voluntários", ({ a }) => !a.bolsista))}
+      ${selF("contrato", "Cadastro do contrato", opcao("contrato", "completo", "documentação completa", (par) => completo(par)) + opcao("contrato", "incompleto", "documentação incompleta", (par) => !completo(par)))}
+      ${selF("relatorio", "Relatórios", Object.entries(REL_ROT).map(([v, r]) => opcao("relatorio", v, r, (par) => relatorioDe(par) === v)).join(""))}
+      ${selF("email", "Acesso", opcao("email", "com", "com e-mail", ({ a }) => !!a.email) + opcao("email", "sem", "sem e-mail (sem acesso)", ({ a }) => !a.email))}
+      ${ativos ? `<button class="bt bt-ghost" style="padding:5px 10px;font-size:12px" onclick="BV_FILTROS={q:'',curso:'',tipo:'',contrato:'',relatorio:'',email:''};renderBolsistas()">✕ Limpar filtros</button>` : ""}
+      <span class="muted" id="bv-conta" style="font-size:12.5px">${filtrados.length} de ${totalAlunos} aluno(s)</span>
+    </div>`;
+    const corpoDe = (lista) => {
+      if (!lista.length) return totalAlunos
+        ? `<div class="vazio">Nenhum dos ${totalAlunos} aluno(s) passa nos filtros escolhidos.</div>` : "";
+      if (!META.gestao) return lista.map(({ p, a }) => cartaoAluno(p, a)).join("");
       // gestão: agrupado por orientador
       const porOrientador = new Map();
-      for (const p of comAlunos) {
-        const k = p.orientador?.nome || p.orientador?.email || "—";
+      for (const par of lista) {
+        const k = par.p.orientador?.nome || par.p.orientador?.email || "—";
         if (!porOrientador.has(k)) porOrientador.set(k, []);
-        porOrientador.get(k).push(p);
+        porOrientador.get(k).push(par);
       }
-      corpo = [...porOrientador.entries()].sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
+      return [...porOrientador.entries()].sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
         .map(([nome, ps]) => `<div class="sec-t">${esc(nome)}
-          <span class="muted" style="font-weight:400">· ${ps.reduce((s, p) => s + p.alunos.length, 0)} aluno(s)</span></div>
-          ${ps.flatMap((p) => (p.alunos || []).map((a) => cartaoAluno(p, a))).join("")}`).join("");
-    } else {
-      corpo = comAlunos.flatMap((p) => (p.alunos || []).map((a) => cartaoAluno(p, a))).join("");
-    }
+          <span class="muted" style="font-weight:400">· ${ps.length} aluno(s)</span></div>
+          ${ps.map(({ p, a }) => cartaoAluno(p, a)).join("")}`).join("");
+    };
+    // a busca redesenha SÓ a lista (redesenhar a barra tiraria o cursor da caixa)
+    window.renderBolsistasCorpo = () => {
+      const alvo = $("bv-corpo"); if (!alvo) return;
+      const lista = pares.filter((par) => passa(par));
+      alvo.innerHTML = corpoDe(lista);
+      const c = $("bv-conta"); if (c) c.textContent = `${lista.length} de ${totalAlunos} aluno(s)`;
+    };
+    const corpo = totalAlunos ? barra + `<div id="bv-corpo">${corpoDe(filtrados)}</div>` : "";
     /* QUEM AINDA DEVE O CADASTRO (ago/2026): o pedido sai sozinho no ato da
        concessão, mas e-mail cai em spam e o aluno esquece — e quem fecha a
        folha precisa VER quantos faltam antes de mandar de novo. Conta só
