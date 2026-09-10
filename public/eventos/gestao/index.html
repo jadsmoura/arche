@@ -3421,8 +3421,10 @@ function corpoBloco(b,i){
   }
   if(b.tipo==="apoiadores"){
     return `
-      <div class="muted" style="margin-top:10px;font-size:12.5px">Quem apoia (o logotipo entra recortado
-        na altura da faixa; sem logotipo, sai o nome):</div>
+      <div class="muted" style="margin-top:10px;font-size:12.5px">Quem apoia. O logotipo sai <b>inteiro</b>, sem recorte,
+        e a página o mostra em destaque — a <b>Realização</b> maior que os demais; sem logotipo, sai o nome.
+        Mande a arte na melhor resolução que tiver (o navegador a reduz a 640 px antes de subir); logotipo
+        enviado antes de set/2026 está em 320 px e fica mais nítido se você reenviar.</div>
       ${(b.itens||[]).map((it,j)=>`<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px">
         <div class="g-atv2">
           <input placeholder="nome *" value="${esc(it.nome||"")}" oninput="EV_BLOCOS[${i}].itens[${j}].nome=this.value">
@@ -3489,10 +3491,10 @@ function corpoBloco(b,i){
 
 function logoPrevia(it){
   const ev=(ABERTO?ACOES.find(x=>x.id===ABERTO):null)?.evento;
-  if(it.logo) return `<img src="${it.logo}" alt="" style="max-height:40px;max-width:130px;border:1px solid var(--line);border-radius:6px;padding:3px">`;
+  if(it.logo) return `<img src="${it.logo}" alt="" style="max-height:56px;max-width:180px;border:1px solid var(--line);border-radius:6px;padding:3px">`;
   if(it.temLogo && ev?.slug && ev?.ativo)
     return `<img src="/api/publico/eventos/${encodeURIComponent(ev.slug)}/apoiador/${encodeURIComponent(it.id||"")}/logo?v=${Date.now()}"
-      alt="" style="max-height:40px;max-width:130px" onerror="this.remove()">`;
+      alt="" style="max-height:56px;max-width:180px" onerror="this.remove()">`;
   if(it.temLogo) return '<span class="muted" style="font-size:12px">✓ logotipo enviado</span>';
   return '<span class="muted" style="font-size:12px">— sem logotipo</span>';
 }
@@ -3501,10 +3503,10 @@ async function lerLogo(inp,i,j){
   if(!/^image\/(jpeg|png|webp)$/.test(f.type)){ alert("O logotipo deve ser JPEG, PNG ou WebP."); inp.value=""; return; }
   if(f.size>CAPA_MAX_ARQUIVO){ alert("A imagem passa de 10 MB."); inp.value=""; return; }
   try{
-    EV_BLOCOS[i].itens[j].logo = await reduzirLargura(f, 320, 60*1024);
+    EV_BLOCOS[i].itens[j].logo = await reduzirLargura(f, 640, 150*1024);
     EV_BLOCOS[i].itens[j].temLogo = true;
     const prev=$(`logo-prev-${i}-${j}`);
-    if(prev) prev.innerHTML=`<img src="${EV_BLOCOS[i].itens[j].logo}" alt="" style="max-height:40px;max-width:130px">
+    if(prev) prev.innerHTML=`<img src="${EV_BLOCOS[i].itens[j].logo}" alt="" style="max-height:56px;max-width:180px">
       <button class="bt bt-ghost" style="padding:4px 8px;font-size:11px" onclick="removerLogo(${i},${j})">✕ remover</button>`;
   }catch(e){ alert("Não foi possível preparar a imagem neste navegador."); }
 }

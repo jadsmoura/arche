@@ -1655,6 +1655,23 @@ public/
   que é como o CONINT e as semanas de curso publicam. **Apoio** sai sempre no rodapé, agrupado
   por realização/patrocínio/apoio. Link só `http(s)` (`urlSegura` — um `javascript:` no
   hotsite seria XSS), e bloco invisível não vai à rota pública.
+- **O APOIO SAI EM DESTAQUE, e a REALIZAÇÃO um degrau acima** (`.apoio-item`/`.apoio-grupo-<categoria>`
+  no hotsite, achado do dono set/2026: "gostaria de um pouco mais de destaque para os apoiadores; os
+  ícones estão muito pequenos"). Estavam: 44 px de altura numa caixa de 64, quatro logotipos numa
+  fileira que se lia como rodapé — e patrocinador em miniatura não é patrocinador reconhecido; é
+  contrapartida de patrocínio que a instituição prometeu e não entregou. A caixa passou a 104 px com
+  o logotipo em 64, e a **Realização** a 132/88, porque é quem responde pelo evento; o link ganhou
+  hover, e no celular os itens se dividem em dois por linha (`flex:1 1 140px`) em vez de encolher.
+  A **origem também subiu**: o navegador reduzia a 320 px, e no dobro da altura isso sai borrado em
+  tela retina — agora são **640 px** (`LOGO_MAX` foi a 200 KB no servidor, com folga sobre os 150 KB
+  do navegador: cliente que reduzisse a MAIS teria a arte **descartada em silêncio** por
+  `imagemPequena`, e logotipo que some sem aviso é pior que logotipo grande). A arte vive no Drive
+  desde ago/2026, então o teto maior não engorda o arquivo de estado. Logotipo enviado antes disso
+  continua em 320 px e a guia Blocos DIZ que reenviar o deixa mais nítido.
+  No mesmo passo saiu um defeito antigo: a **barra de seções sangrava −20 px** enquanto o `<main>`
+  tem 26 px de padding (18 px abaixo de 760 px), então no celular ela passava 2 px de cada lado e a
+  **página inteira rolava na horizontal**. A margem negativa passou a ser exatamente o padding, com
+  a mesma quebra de 760 px do `arche-ui.css`.
 - **Palestrantes em banner rotativo** (pedido do dono, ago/2026): a vitrine sai da PRÓPRIA
   programação — não há cadastro de palestrante à parte —, com **foto, instituição e mini-bio**
   por atividade. O banner gira de 6 em 6 segundos, para no toque/foco, tem setas e miniaturas

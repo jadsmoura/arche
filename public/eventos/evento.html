@@ -148,9 +148,14 @@
   .atv-quem img{width:34px;height:34px;border-radius:50%;object-fit:cover;flex:none}
 
   /* --------------------------- blocos da página -------------------------- */
+  /* a barra de seções sangra até a borda do <main>, e por isso a margem
+     negativa tem de ser EXATAMENTE o padding dele (26px, 18px abaixo de
+     760px em arche-ui.css). Com o -20px fixo de antes, no celular ela passava
+     2px de cada lado e a PÁGINA INTEIRA rolava na horizontal. */
   .subnav{position:sticky;top:0;z-index:30;background:rgba(238,241,244,.92);backdrop-filter:blur(6px);
-    border-bottom:1px solid var(--line);margin:18px -20px 0;padding:10px 20px;display:flex;gap:8px;
+    border-bottom:1px solid var(--line);margin:18px -26px 0;padding:10px 26px;display:flex;gap:8px;
     overflow-x:auto;white-space:nowrap}
+  @media(max-width:760px){.subnav{margin:18px -18px 0;padding:10px 18px}}
   .subnav a{font-size:13px;font-weight:600;color:var(--ink-soft);text-decoration:none;padding:6px 12px;
     border-radius:999px;border:1px solid transparent}
   .subnav a:hover{background:var(--card);border-color:var(--line);color:var(--brand)}
@@ -174,18 +179,34 @@
   .rede-instagram:hover{color:#c13584}.rede-facebook:hover{color:#1877f2}.rede-youtube:hover{color:#ff0000}
   .rede-linkedin:hover{color:#0a66c2}.rede-tiktok:hover{color:#010101}.rede-whatsapp:hover{color:#25d366}
   .rede-telegram:hover{color:#229ed9}
-  .apoio-grupo{margin-top:16px}
-  .apoio-t{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-  .apoio-grade{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:10px}
+  /* APOIO (set/2026): quem realiza, patrocina e apoia é parceria institucional
+     — no tamanho de antes (44 px de altura numa caixa de 64) o logotipo virava
+     miniatura, e patrocinador em miniatura não é patrocinador reconhecido.
+     A REALIZAÇÃO tem um degrau a mais: é quem responde pelo evento. */
+  .apoio-grupo{margin-top:22px}
+  .apoio-t{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .apoio-grade{display:flex;flex-wrap:wrap;gap:18px;align-items:stretch;margin-top:12px}
   /* o bloco de imagens (set/2026): grade de fotos com legenda, na ordem da lista */
   .galeria{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-top:12px}
   .galeria-item{margin:0;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
   .galeria-item img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}
   .galeria-item figcaption{font-size:12.5px;color:var(--ink-soft);padding:8px 10px;line-height:1.45}
   @media(max-width:520px){.galeria{grid-template-columns:repeat(2,1fr);gap:8px}}
-  .apoio-item{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;
-    display:flex;align-items:center;gap:10px;min-height:64px;text-decoration:none;color:var(--ink-soft);font-size:13px}
-  .apoio-item img{height:44px;width:auto;max-width:170px;object-fit:contain;display:block}
+  .apoio-item{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 24px;
+    display:flex;align-items:center;justify-content:center;gap:10px;min-height:104px;min-width:150px;
+    text-decoration:none;color:var(--ink-soft);font-size:14px;font-weight:600;text-align:center;
+    transition:border-color .15s,box-shadow .15s,transform .15s}
+  .apoio-item img{height:64px;width:auto;max-width:230px;object-fit:contain;display:block}
+  a.apoio-item:hover{border-color:var(--brand-2);box-shadow:0 6px 18px rgba(28,55,66,.10);transform:translateY(-2px)}
+  .apoio-grupo-realizacao .apoio-item{min-height:132px;padding:20px 28px;min-width:180px}
+  .apoio-grupo-realizacao .apoio-item img{height:88px;max-width:280px}
+  @media(max-width:520px){
+    .apoio-grade{gap:12px}
+    .apoio-item{padding:14px 16px;min-height:88px;min-width:120px;flex:1 1 140px}
+    .apoio-item img{height:52px;max-width:100%}
+    .apoio-grupo-realizacao .apoio-item{min-height:108px;padding:16px 18px}
+    .apoio-grupo-realizacao .apoio-item img{height:70px;max-width:100%}
+  }
   .org{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
   .org .quadro{background:var(--wash);border-radius:12px;padding:12px 18px;font-size:13.5px}
   .org .quadro b{display:block;color:var(--brand)}
@@ -762,7 +783,7 @@ function blocoHtml(b) {
     const grupos = cat.map(([codigo, rotulo]) => {
       const itens = (b.itens || []).filter((i) => i.categoria === codigo);
       if (!itens.length) return "";
-      return `<div class="apoio-grupo"><div class="apoio-t">${rotulo}</div>
+      return `<div class="apoio-grupo apoio-grupo-${codigo}"><div class="apoio-t">${rotulo}</div>
         <div class="apoio-grade">${itens.map((i) => {
           const dentro = i.temLogo
             ? `<img src="/api/publico/eventos/${encodeURIComponent(SLUG)}/apoiador/${encodeURIComponent(i.id)}/logo"
