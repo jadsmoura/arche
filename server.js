@@ -5675,6 +5675,35 @@ app.get("/api/publico/eventos/:slug/participante", async (req, res) => {
   }
 });
 
+/* A RESPOSTA CURTA a "eu já estou inscrito?" (set/2026): é o que o hotsite
+   pergunta para decidir o botão da seção Inscrição — "Inscreva-se" para quem
+   não está, "Acesse a área do inscrito" para quem está (pedido do dono). A
+   área do inscrito acima devolve o evento inteiro, os trabalhos e o
+   pagamento; puxá-la só para escolher o rótulo de um botão dobraria o peso da
+   página pública. Aqui vão QUATRO campos, e mais nada.
+   `no-store` porque a resposta é de UMA conta: guardá-la na borda entregaria
+   a situação de uma pessoa à visita seguinte. */
+app.get("/api/publico/eventos/:slug/minha-inscricao", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const conta = await usuarioDe(req, res);
+    if (!conta) return res.json({ logado: false, inscrito: false });
+    const a = eventoPorSlug(await lerAcoes(), req.params.slug);
+    if (!a) return res.status(404).json({ error: "Evento não encontrado." });
+    const inscrito = await inscricaoDaConta(a, conta);
+    const pg = inscrito ? pagamentoPublico(inscrito, a.evento || {}) : null;
+    res.json({
+      logado: true,
+      inscrito: !!inscrito,
+      valida: !!inscrito && inscricaoValida(inscrito),
+      pagamentoPendente: !!pg && ["aguardando", "recusado", "expirado"].includes(pg.status),
+    });
+  } catch (e) {
+    console.error("Erro em minha-inscricao:", e);
+    res.status(500).json({ error: "Falha ao conferir a inscrição." });
+  }
+});
+
 /**
  * Troca das atividades DEPOIS da inscrição — o token assinado é a
  * autenticação, e o corpo substitui o conjunto inteiro (marcar e desmarcar
@@ -18020,13 +18049,89 @@ app.get(/^\/eventos\/[a-z0-9-]+\/pagamento\/[a-zA-Z0-9]+\/?$/, (_req, res) =>
 // a ÁREA DO INSCRITO (com a conta do portal): pagamento, programação e trabalhos
 app.get(/^\/eventos\/[a-z0-9-]+\/participante\/?$/, (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "participante.html")));
+/* ===================== A PRÉVIA DO LINK DO EVENTO =======================
+   Achado do dono (set/2026): "copiei e colei o link do evento no WhatsApp e o
+   resumo da página deu só 'Evento'; eu gostaria que aparecesse uma prévia da
+   arte anexada e o título do evento — isso para todos os eventos geridos no
+   sistema".
+
+   A causa: `evento.html` é uma SPA. O nome, a arte e as datas chegam do
+   `/api/publico/eventos/<slug>` DEPOIS que o JavaScript roda, e o robô do
+   WhatsApp (como o do Facebook, o do Telegram e o do Google) lê o HTML como
+   ele sai do servidor — encontra o `<title>` genérico do arquivo e mais nada.
+   Por isso quem monta a prévia é o SERVIDOR: ele lê o evento pelo slug e
+   troca o marcador `<!--ARCHE-OG-->` pelas og:*, com a arte cadastrada no
+   ARCHÉ EV (a mesma rota pública da capa) e o título de verdade.
+
+   Três cuidados: o arquivo é lido UMA vez e fica em memória por mtime (a
+   página é a mais aberta do portal); a resposta é `no-store` para os robôs e
+   os navegadores não guardarem a prévia de um evento que a coordenação
+   acabou de renomear; e evento sem arte sai só com título e descrição — o
+   WhatsApp mostra o cartão de texto, que já é o que o dono pediu. */
+const OG_CACHE = { arquivo: "", mtime: 0, html: "" };
+function lerPaginaEvento() {
+  const arquivo = path.join(PUBLIC, "eventos", "evento.html");
+  const info = statSync(arquivo);
+  if (OG_CACHE.html && OG_CACHE.mtime === info.mtimeMs) return OG_CACHE.html;
+  OG_CACHE.html = readFileSync(arquivo, "utf8");
+  OG_CACHE.mtime = info.mtimeMs; OG_CACHE.arquivo = arquivo;
+  return OG_CACHE.html;
+}
+const ogEsc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;").replace(/"/g, "&quot;").slice(0, 300);
+/** A descrição da prévia: o que se lê num cartão de link — quando, onde e do que trata. */
+function descricaoDoEvento(a) {
+  const p = a.proposta || {};
+  const dia = (x) => (/^\d{4}-\d{2}-\d{2}$/.test(String(x || "")) ? x.split("-").reverse().join("/") : "");
+  const quando = p.periodoInicio
+    ? (p.periodoFim && p.periodoFim !== p.periodoInicio ? `${dia(p.periodoInicio)} a ${dia(p.periodoFim)}` : dia(p.periodoInicio))
+    : "";
+  const onde = [p.local, p.municipio].filter(Boolean).join(" — ");
+  const cabeca = [quando, onde, a.curso].filter(Boolean).join(" · ");
+  const corpo = String(p.temaCentral || p.descricao || "").replace(/\s+/g, " ").trim();
+  return [cabeca, corpo].filter(Boolean).join(". ").slice(0, 280);
+}
+async function paginaDoEvento(req, res, { ficha = false } = {}) {
+  const arquivo = path.join(PUBLIC, "eventos", "evento.html");
+  try {
+    const slugEv = decodeURIComponent((req.caminho || req.path).split("/")[2] || "");
+    const a = eventoPorSlug(await lerAcoes(), slugEv);
+    if (!a?.evento) return res.sendFile(arquivo);
+    const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    const nome = a.proposta?.nomeAtividade || "Evento";
+    const titulo = ficha ? `Inscrição · ${nome}` : nome;
+    const url = `${base}/eventos/${encodeURIComponent(a.evento.slug)}${ficha ? "/inscrever" : ""}`;
+    const capa = temArte(a.evento.capa) ? `${base}/api/publico/eventos/${encodeURIComponent(a.evento.slug)}/capa` : "";
+    const og = [
+      `<title>${ogEsc(titulo)} — Eventos UNIEGO</title>`,
+      `<meta name="description" content="${ogEsc(descricaoDoEvento(a))}">`,
+      `<meta property="og:type" content="website">`,
+      `<meta property="og:site_name" content="UNIEGO · Eventos">`,
+      `<meta property="og:title" content="${ogEsc(titulo)}">`,
+      `<meta property="og:description" content="${ogEsc(descricaoDoEvento(a))}">`,
+      `<meta property="og:url" content="${ogEsc(url)}">`,
+      capa ? `<meta property="og:image" content="${ogEsc(capa)}">` : "",
+      capa ? `<meta property="og:image:alt" content="${ogEsc(`Arte do evento ${nome}`)}">` : "",
+      `<meta name="twitter:card" content="${capa ? "summary_large_image" : "summary"}">`,
+    ].filter(Boolean).join("\n");
+    const html = lerPaginaEvento()
+      .replace("<!--ARCHE-OG-->", og)
+      .replace(/<title>Evento — UNIEGO<\/title>\n?/, "");
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    res.send(html);
+  } catch (e) {
+    console.error("Erro ao montar a prévia do evento:", e.message);
+    res.sendFile(arquivo);          // a página sem a prévia é melhor que erro
+  }
+}
+
 /* A FICHA DE INSCRIÇÃO (set/2026): o formulário saiu do hotsite e ganhou
    endereço próprio — a página do evento voltou a ser leitura, com um botão
    "Inscreva-se" que traz até aqui. É o MESMO arquivo do hotsite, no modo em
    que ele já desenhava o evento SEM página (folha de inscrição): mesmo
    formulário, mesma categoria, mesmo voucher, mesma credencial. */
-app.get(/^\/eventos\/[a-z0-9-]+\/inscrever\/?$/, (_req, res) =>
-  res.sendFile(path.join(PUBLIC, "eventos", "evento.html")));
+app.get(/^\/eventos\/[a-z0-9-]+\/inscrever\/?$/, (req, res) => paginaDoEvento(req, res, { ficha: true }));
 // PRESENÇA PELO TELÃO (set/2026): a página que o participante abre ao ler o
 // QR projetado, e a página de PROJEÇÃO (com login — ela pede o código à API)
 app.get(/^\/eventos\/[a-z0-9-]+\/presenca\/[a-zA-Z0-9_-]+\/?$/, (_req, res) =>
@@ -18043,8 +18148,7 @@ app.get(/^\/eventos\/revisao\/[a-f0-9]{24}\/?$/, (_req, res) =>
 // ANTES do padrão de slug, senão "gestao" viraria página de evento
 app.get(["/eventos/gestao", "/eventos/gestao/"], (_req, res) =>
   res.sendFile(path.join(PUBLIC, "eventos", "gestao", "index.html")));
-app.get(/^\/eventos\/[a-z0-9-]+\/?$/, (_req, res) =>
-  res.sendFile(path.join(PUBLIC, "eventos", "evento.html")));
+app.get(/^\/eventos\/[a-z0-9-]+\/?$/, (req, res) => paginaDoEvento(req, res, {}));
 /* O app compilado da Avaliação carrega `../firebase-config.js` em TODA página
    — é ele que define `window.storage`, quem grava o dossiê. Nas páginas POR
    CURSO (/arche/avaliacao/<curso>/ e /arche/dossie/<curso>/) esse caminho

@@ -126,10 +126,12 @@ function seloInscricao() {
 /* O PAGAMENTO: a situação, o valor e o caminho — gerar novo QR, pagar por
    outro meio, renovar a reserva vencida. A página de pagamento é a mesma de
    sempre; aqui é a porta para ela, com a situação à vista. */
+/** Falta pagar? É a mesma pergunta no alto da página e no card do pagamento. */
+const pagamentoPendente = (pg) => !!pg && ["aguardando", "recusado", "expirado"].includes(pg.status);
 function cardPagamento(pg, i) {
   if (!pg) return "";
   const urlPag = `${URL_EV}/pagamento/${encodeURIComponent(i.token)}`;
-  const pendente = ["aguardando", "recusado", "expirado"].includes(pg.status);
+  const pendente = pagamentoPendente(pg);
   const vencida = pg.status === "expirado" || (pg.status === "aguardando" && pg.reservaVencida);
   return `<div class="card">
     <div class="sec-t">Pagamento</div>
@@ -143,7 +145,7 @@ function cardPagamento(pg, i) {
     : pg.divergente ? `<div class="msg warn">Recebemos um pagamento com valor diferente do da inscrição — a coordenação vai analisar e entrar em contato.</div>`
     : `<div class="msg warn">${esc({ estornado: "O pagamento foi estornado; a inscrição não vale mais para o evento.", contestado: "Há uma contestação sobre este pagamento; a coordenação vai analisar." }[pg.status] || pg.status)}</div>`}
     <div class="linha">
-      ${pendente ? `<a class="bt bt-pri" href="${urlPag}">${vencida ? "Renovar a reserva e pagar" : "Pagar · gerar novo QR · outro meio"}</a>` : `<a class="bt bt-sec" href="${urlPag}">Ver o pagamento</a>`}
+      ${pendente ? `<a class="bt bt-pri" href="${urlPag}">${vencida ? "Renovar a reserva e pagar" : "💳 Realizar pagamento"}</a>` : `<a class="bt bt-sec" href="${urlPag}">Ver o pagamento</a>`}
     </div>
     ${pg.politicaReembolso ? `<p style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5"><b>Reembolso:</b> ${esc(pg.politicaReembolso)}</p>` : ""}
   </div>`;

@@ -1544,6 +1544,42 @@ public/
   hotsite: quem entrava por um evento sem página digitava tudo à mão sem que nada explicasse por quê.
   "inscrever" entrou em `SLUGS_RESERVADOS`, e os botões "Inscrever-me" da área do inscrito e do
   ARCHÉ TR deixaram de apontar para a âncora `#inscricao`.
+- **O BOTÃO DA INSCRIÇÃO DIZ O QUE FALTA À PESSOA QUE ESTÁ OLHANDO**
+  (`MINHA`/`destinoInscricao`/`rotuloInscricao` no hotsite + `GET /api/publico/eventos/:slug/minha-inscricao`,
+  pedido do dono set/2026: "se o usuário não estiver logado, aparecer Inscreva-se; se estiver logado
+  mas não inscrito, Inscreva-se; se estiver logado e inscrito, Acesse a área do inscrito"). São
+  QUATRO estados, porque o inscrito que ainda não pagou não está no mesmo lugar de quem pagou:
+  sem conta e com conta sem inscrição → **Inscreva-se**; inscrito com pagamento pendente →
+  **💳 Realizar pagamento**; inscrito e confirmado → **Acesse a área do inscrito**. A régua vale
+  nos TRÊS botões da página (hero, flutuante e a seção Inscrição) — um dizendo "Inscreva-se" e
+  outro "Área do inscrito" na mesma tela seria pior que o de antes. Oferecer "Inscreva-se" a quem
+  já se inscreveu manda a pessoa a um formulário que o servidor recusa, e a seção passou a
+  aparecer **mesmo com as inscrições encerradas** para quem já é inscrito: é por ela que ele chega
+  à credencial. O aviso do APARELHO ("você já se inscreveu por este aparelho", do localStorage)
+  só sai quando a CONTA não reconhece a inscrição — senão a mesma coisa é dita duas vezes.
+  A resposta vem de uma rota **curta** (`logado`, `inscrito`, `valida`, `pagamentoPendente`) com
+  `Cache-Control: no-store`: a área do inscrito devolveria o evento inteiro, os trabalhos e o
+  pagamento só para escolher o rótulo de um botão, e a resposta é de UMA conta — guardá-la na
+  borda entregaria a situação de uma pessoa à visita seguinte. Falha na consulta cai no caminho
+  de sempre ("Inscreva-se"); quem barra a inscrição repetida é o servidor.
+  E na **área do inscrito** o card Pagamento passou a dizer o ato: **"💳 Realizar pagamento"** no
+  lugar de "Pagar · gerar novo QR · outro meio" (os meios continuam no texto acima do botão);
+  reserva vencida segue com "Renovar a reserva e pagar", que é o que vai acontecer. O botão é UM
+  — pôr o mesmo ato também no alto da página repetiria o que o dono já mandou tirar na Extensão.
+- **A PRÉVIA DO LINK DO EVENTO SAI DO SERVIDOR** (`paginaDoEvento` + o marcador `<!--ARCHE-OG-->`
+  em public/eventos/evento.html, achado do dono set/2026: "copiei e colei o link do evento no
+  WhatsApp e o resumo da página deu só 'Evento'; eu gostaria que aparecesse uma prévia da arte
+  anexada e o título do evento, para todos os eventos geridos no sistema"). A página do evento é
+  uma SPA: nome, arte e datas chegam do `/api/publico/eventos/<slug>` DEPOIS que o JavaScript
+  roda, e o robô do WhatsApp — como o do Facebook, o do Telegram e o do Google — lê o HTML como
+  ele sai do servidor. Ele encontrava o `<title>` genérico do arquivo e mais nada. Agora o
+  SERVIDOR resolve o evento pelo slug e troca o marcador pelas `og:*` — título, descrição (quando,
+  onde, curso e o tema), `og:url` e a **arte cadastrada no ARCHÉ EV**, pela mesma rota pública da
+  capa, com `twitter:card` grande quando há arte. Vale para o hotsite e para a **ficha**
+  (`/inscrever`, com "Inscrição · " no título), que são os dois endereços que se mandam a alguém.
+  Três cuidados: o arquivo é lido UMA vez e fica em memória por `mtime` (é a página mais aberta do
+  portal); a resposta é `no-store`, senão a prévia de um evento renomeado ficaria guardada na
+  borda; e qualquer falha cai no `sendFile` de antes — página sem prévia é melhor que erro.
 - **O BLOCO "SUBMISSÃO DE TRABALHOS" É O ARCHÉ TR** (`origem: "arche" | "ojs"` no bloco,
   `blocoTrArche`/`secaoTrabalhos(e, b)` no hotsite, achado do dono set/2026: "cliquei em submissão
   de trabalhos e veio um bloco genérico; deve estar vinculado ao sistema de submissão que

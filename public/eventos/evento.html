@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Evento — UNIEGO</title>
+<!-- A PRÉVIA DO LINK (set/2026, achado do dono: "copiei e colei o link do evento
+     no WhatsApp e o resumo da página deu só 'Evento'"). Esta página é uma SPA:
+     o nome do evento e a arte só existem DEPOIS de o JavaScript rodar, e o robô
+     do WhatsApp não roda JavaScript — ele lê o HTML como veio e encontra este
+     título genérico. Por isso o SERVIDOR troca a linha abaixo pelas og:* do
+     evento (`paginaDoEvento` em server.js) antes de mandar a página: nome,
+     descrição e a arte cadastrada no ARCHÉ EV. Não remova o marcador. -->
+<!--ARCHE-OG-->
 <link rel="icon" href="/arche/favicon.svg">
 <link rel="stylesheet" href="/assets/arche-ui.css">
 <style>
@@ -252,6 +260,12 @@ const SLUG = decodeURIComponent((location.pathname.match(/^\/eventos\/([^/]+)/) 
 const FICHA = /^\/eventos\/[^/]+\/inscrever\/?$/.test(location.pathname);
 let EV = null;
 let ME = null;   // a conta logada (o /api/me), consultada ANTES de desenhar: decide se o formulário aparece
+/* A SITUAÇÃO DA CONTA NESTE EVENTO (set/2026, pedido do dono: "se não estiver
+   logado, aparecer Inscreva-se; se logado mas não inscrito, Inscreva-se; se
+   logado e inscrito, Acesse a área do inscrito"). Vem da rota CURTA
+   `/minha-inscricao` — quatro campos —, e não da área do inscrito, que
+   devolveria o evento inteiro só para escolher o rótulo de um botão. */
+let MINHA = { logado: false, inscrito: false, valida: false, pagamentoPendente: false };
 // o botão da carteira digital só existe onde a instituição tem a conta de emissor
 let WALLET = false;
 let DIA_SEL = "";                 // aba de dia escolhida na programação
@@ -375,8 +389,8 @@ function render() {
           ${esc(e.local) || "local a divulgar"}${e.municipio ? " — " + esc(e.municipio) : ""} · ${esc(e.curso)}
         </div>
         <div class="hero-selos">${selos}</div>
-        ${abertas ? `<div class="hero-cta"><a class="bt bt-pri" href="/eventos/${encodeURIComponent(SLUG)}/inscrever"
-          style="background:#fff;color:var(--brand);box-shadow:none">${e.cobranca ? "Inscreva-se" : "Inscreva-se gratuitamente"}</a></div>` : ""}
+        ${abertas || MINHA.inscrito ? `<div class="hero-cta"><a class="bt bt-pri" href="${destinoInscricao()}"
+          style="background:#fff;color:var(--brand);box-shadow:none">${rotuloInscricao(e)}</a></div>` : ""}
       </div>
     </div>
     ${encerrado ? `<div class="msg-ok" style="background:var(--wash);color:var(--ink-soft)">
@@ -407,9 +421,9 @@ function render() {
     <div class="secao-s">${e.cobranca ? "Feita aqui mesmo, com o pagamento online" : "Gratuita e feita aqui mesmo"} — no dia, apresente na entrada o QR que você recebe.</div>
     <div class="duas">
       <div class="card" id="card-inscricao">
-        ${jaTem ? `<div class="msg-ok" style="margin-top:0;margin-bottom:12px">Você já se inscreveu neste evento por este aparelho.
+        ${jaTem && !MINHA.inscrito ? `<div class="msg-ok" style="margin-top:0;margin-bottom:12px">Você já se inscreveu neste evento por este aparelho.
             <a href="/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(jaTem)}" style="text-decoration:underline">Abrir minha inscrição →</a></div>` : ""}
-        ${abertas ? chamadaInscricao(e) : `<p style="font-size:13.5px;color:var(--muted)">As inscrições deste evento
+        ${abertas || MINHA.inscrito ? chamadaInscricao(e) : `<p style="font-size:13.5px;color:var(--muted)">As inscrições deste evento
             não estão abertas${e.vagasRestantes === 0 ? " — as vagas se esgotaram" : ""}.
             Quem já se inscreveu segue com a inscrição válida.</p>`}
         <details class="reenvio">
@@ -461,7 +475,7 @@ function render() {
       ${encerrado ? `<div class="msg-ok" style="background:var(--wash);color:var(--ink-soft)">
         Este evento já foi realizado.</div>` : ""}
       <div class="card" id="card-inscricao" style="margin-top:14px">
-        ${jaTem ? `<div class="msg-ok" style="margin-top:0;margin-bottom:12px">Você já se inscreveu neste evento por este aparelho.
+        ${jaTem && !MINHA.inscrito ? `<div class="msg-ok" style="margin-top:0;margin-bottom:12px">Você já se inscreveu neste evento por este aparelho.
           <a href="/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(jaTem)}" style="text-decoration:underline">Abrir minha inscrição →</a></div>` : ""}
         ${abertas ? formInscricao(e) : `<p style="font-size:13.5px;color:var(--muted)">As inscrições deste evento
           não estão abertas${e.vagasRestantes === 0 ? " — as vagas se esgotaram" : ""}.
@@ -490,14 +504,15 @@ function render() {
 
   $("main").innerHTML = hero + subnav(e) + sobre + palestrantes + progHtml + blocosAntes + insc + blocosApoio;
   girarPalestrantes();
-  $("cta-flutua").href = `/eventos/${encodeURIComponent(SLUG)}/inscrever`;
-  $("cta-flutua").style.display = abertas && !document.querySelector("#pos-inscricao") ? "" : "none";
+  $("cta-flutua").href = destinoInscricao();
+  $("cta-flutua").textContent = rotuloInscricao(e);
+  $("cta-flutua").style.display = (abertas || MINHA.inscrito) && !document.querySelector("#pos-inscricao") ? "" : "none";
   // o botão flutuante é persistente, mas não precisa cobrir o próprio
   // formulário: some enquanto a seção de inscrição está na tela
   try {
     new IntersectionObserver((ents) => {
       const fl = $("cta-flutua");
-      if (!fl || !abertas || document.querySelector("#pos-inscricao")) return;
+      if (!fl || (!abertas && !MINHA.inscrito) || document.querySelector("#pos-inscricao")) return;
       fl.style.display = ents.some((x) => x.isIntersecting) ? "none" : "";
     }).observe($("card-inscricao"));
   } catch { /* sem IntersectionObserver, o botão só fica fixo */ }
@@ -875,6 +890,14 @@ function blocoOrganizacao(e) {
   </div>`;
 }
 
+/* Para onde o botão de inscrição leva, e o que ele diz — a MESMA régua no
+   hero, no botão flutuante e na seção Inscrição: quem já está inscrito vai à
+   área do inscrito; os demais, à ficha. */
+const destinoInscricao = () => `/eventos/${encodeURIComponent(SLUG)}/${MINHA.inscrito ? "participante" : "inscrever"}`;
+const rotuloInscricao = (e) => (MINHA.inscrito
+  ? (MINHA.pagamentoPendente ? "💳 Realizar pagamento" : "Área do inscrito")
+  : (e.cobranca ? "Inscreva-se" : "Inscreva-se gratuitamente"));
+
 /* A CHAMADA DA PÁGINA DO EVENTO (set/2026, pedido do dono: "coloque só um
    botão de Inscreva-se e direciona para a página do inscrito — estou achando
    isso poluindo a página do evento"). O formulário inteiro — nome, CPF,
@@ -901,6 +924,22 @@ function chamadaInscricao(e) {
       <b style="white-space:nowrap">${k.valor > 0 ? reais(k.valor) : "gratuita"}${k.valor > 0 && k.valorCartao > k.valor
         ? `<span class="m" style="display:block;font-weight:500;text-align:right">no Pix · ${reais(k.valorCartao)} no cartão</span>` : ""}</b>
     </div>`).join("")}` : "";
+  /* TRÊS ESTADOS, UM BOTÃO (pedido do dono, set/2026): sem conta e com conta
+     sem inscrição, o ato é INSCREVER-SE; com a inscrição feita, o ato é ABRIR
+     A ÁREA — é lá que estão o pagamento, a credencial, a programação e os
+     trabalhos. Oferecer "Inscreva-se" a quem já se inscreveu manda a pessoa a
+     um formulário que o servidor vai recusar. */
+  if (MINHA.inscrito) {
+    return `<p style="font-size:14.5px;line-height:1.65">✓ <b>Você já está inscrito neste evento.</b>
+      ${MINHA.pagamentoPendente ? "Falta concluir o <b>pagamento</b> — a credencial sai depois da confirmação."
+        : "A sua credencial com o QR está na área do inscrito."}</p>
+    ${valores}
+    <a class="bt bt-pri" style="width:100%;margin-top:18px;text-align:center;display:block"
+      href="/eventos/${encodeURIComponent(SLUG)}/participante">${MINHA.pagamentoPendente ? "💳 Realizar pagamento — área do inscrito" : "Acesse a área do inscrito"}</a>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:10px">Na área do inscrito você
+      ${c ? "conclui o pagamento, " : ""}abre a credencial, escolhe as atividades com vaga própria
+      e acompanha os seus trabalhos.</p>`;
+  }
   return `<p style="font-size:14.5px;line-height:1.65">${prazo}${vagas}</p>
     ${valores}
     <a class="bt bt-pri" style="width:100%;margin-top:18px;text-align:center;display:block"
@@ -1255,6 +1294,15 @@ fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}`).then(async (r) => {
   EV = j.evento; WALLET = j.walletGoogle === true;
   // a conta logada decide se o formulário aparece (evento que exige conta)
   try { const rm = await fetch("/api/me"); ME = rm.ok ? await rm.json() : null; } catch { ME = null; }
+  // e, havendo conta, se ela já está inscrita NESTE evento — é o que troca o
+  // botão da seção Inscrição. Falha na consulta cai no caminho de sempre
+  // ("Inscreva-se"): quem barra a inscrição repetida é o servidor.
+  if (ME) {
+    try {
+      const rs = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/minha-inscricao`);
+      if (rs.ok) MINHA = { ...MINHA, ...(await rs.json()) };
+    } catch { /* sem rede: segue como não inscrito */ }
+  }
   // a ÁREA DO INSCRITO (set/2026): quem está logado tem o atalho no topo —
   // pagamento, programação e trabalhos moram lá
   if (ME && EV.hotsite !== false) { const lk = $("lk-participante"); lk.href = `/eventos/${encodeURIComponent(SLUG)}/participante`; lk.hidden = false; }
