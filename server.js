@@ -12,7 +12,7 @@ import multer from "multer";
 import crypto from "node:crypto";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { getStorage } from "./lib/storage.js";
 import { getFiles, slug } from "./lib/files.js";
@@ -189,6 +189,7 @@ import {
   gruposDeOrgao, rotuloOrgao, ORGAOS_EXTERNOS,
 } from "./lib/espacos.js";
 import { CREDENCIAMENTO, MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
+import { APP, PRODUTO, vestir } from "./lib/produto.js";
 import * as wallet from "./lib/wallet.js";
 import * as tr from "./lib/trabalhos.js";
 import { emailTrabalhoRecebido, emailConviteRevisao, emailDecisaoTrabalho, emailTrabalhoMovimentado } from "./lib/mailer.js";
@@ -18017,6 +18018,65 @@ const CACHE_ESTATICO = [
   [/\.pdf$/i, "public, max-age=604800"],
   [/\.(js|css)$/i, "public, max-age=300"],
 ];
+/* Quem é esta instalação — o produto e o nome que ela leva aqui. Público e
+   sem segredo nenhum: serve para conferir, DEPOIS do deploy, se `APP_MARCA`
+   pegou, sem depender de abrir o log do Render. */
+app.get("/api/marca", (_req, res) => res.json({
+  produto: PRODUTO.nome,
+  descricao: PRODUTO.descricao,
+  instalacao: APP.nome,
+  padrao: APP.ehPadrao,
+}));
+
+/* ------------------- A MARCA DA INSTALAÇÃO NO ESTÁTICO -------------------
+   (decisão do dono, set/2026 — ver lib/produto.js): o produto se chama
+   Cátedra; a INSTALAÇÃO se chama como cada instituição a batizar, e aqui ela
+   é o ARCHÉ. As ~720 ocorrências da marca nas telas não foram reescritas: a
+   troca acontece na SAÍDA, e este é o terceiro e último ponto dela (os
+   outros dois são `blindarTexto`, em lib/pdf.js, e `enviarEmail`, em
+   lib/mailer.js).
+
+   Só `.html` e os scripts de `public/assets` passam por aqui — é onde mora
+   texto de tela: o `<title>` de cada página, a marca da barra do topo
+   (arche-nav.js) e o texto das SPAs. Nome de arquivo, classe de CSS e cookie
+   ficam de fora porque são minúsculos e sem acento, e o que se troca é
+   `ARCHÉ`/`Arché`, que só existe como texto visível.
+
+   COM A VARIÁVEL NO PADRÃO ISTO NÃO EXISTE: o middleware nem se registra, o
+   estático continua sendo servido pelo `express.static` como sempre foi, com
+   ETag, Range e o cache da borda intactos. É o que garante que ligar o
+   mecanismo não mexeu em nada nesta instalação. Fora do padrão, o arquivo é
+   lido, vestido e guardado em memória por caminho + mtime: uma vez por
+   arquivo por processo, não a cada requisição. */
+if (!APP.ehPadrao) {
+  const vestidos = new Map();
+  app.get(/.*/, (req, res, proximo) => {
+    let rel = decodeURIComponent(req.caminho || req.path).replace(/^\/+/, "");
+    // O `express.static` serve `index.html` para o diretório; sem repetir isso
+    // aqui, a página inicial de cada setor — que é justamente onde o `<title>`
+    // e a barra do topo aparecem — passaria ao largo do filtro.
+    if (rel === "" || rel.endsWith("/") || !path.basename(rel).includes("."))
+      rel = path.join(rel, "index.html");
+    if (!/\.html$/.test(rel) && !/^assets\/.+\.js$/.test(rel)) return proximo();
+    const arquivo = path.resolve(PUBLIC, rel);
+    if (!arquivo.startsWith(PUBLIC + path.sep)) return proximo();
+    let info;
+    try { info = statSync(arquivo); } catch { return proximo(); }
+    if (!info.isFile()) return proximo();
+    const chave = arquivo + ":" + info.mtimeMs;
+    let corpo = vestidos.get(chave);
+    if (corpo === undefined) {
+      try { corpo = Buffer.from(vestir(readFileSync(arquivo, "utf8")), "utf8"); }
+      catch { return proximo(); }
+      if (vestidos.size > 400) vestidos.clear();
+      vestidos.set(chave, corpo);
+    }
+    res.type(arquivo.endsWith(".js") ? "application/javascript" : "text/html");
+    res.setHeader("Cache-Control", arquivo.endsWith(".js") ? "public, max-age=300" : "max-age=0");
+    res.send(corpo);
+  });
+}
+
 app.use(express.static(PUBLIC, {
   setHeaders(res, arquivo) {
     for (const [re, valor] of CACHE_ESTATICO) {

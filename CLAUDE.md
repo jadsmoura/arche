@@ -4242,6 +4242,41 @@ public/
   professores reais como "sem nenhum registro", o das Atas dizia "68 urgentes" e nomeava colegiados
   que nunca registraram ata, e o do Seu Curso mostrava os dois e-mails da gestão.
 
+- **O PRODUTO SE CHAMA CÁTEDRA; A INSTALAÇÃO SE CHAMA ARCHÉ** (`lib/produto.js`, decisão do dono
+  set/2026: "Arché é uma referência direta ao fundador da AEE, Archibald — no contexto AEE é
+  válido; mas estou vendo a possibilidade de comercializar o sistema com outras IES, e preciso de
+  um nome mais genérico, e em cada instituição ele ser batizado conforme seu contexto"). São dois
+  níveis, e confundi-los é o que trava a venda: o **PRODUTO** é o que se licencia (contrato, site
+  comercial, "feito com") e não é configuração — é a marca de quem vende; a **INSTALAÇÃO** é o que
+  os usuários veem todo dia, e vem de `APP_MARCA` no ambiente, com `APP_MARCA_GENERO` (`o`/`a`)
+  para a preposição concordar — sem ele sairia "no Cátedra". A convenção dos módulos já suportava
+  isso: em `<marca> <sigla>` só o PREFIXO é institucional, e as siglas (IC, AT, EV, MO, AC, ES,
+  RE, TR, SC, AV, EX) são do produto e viajam iguais para qualquer cliente.
+  **A troca acontece na SAÍDA, não no código-fonte.** As ~720 ocorrências da marca nas telas, nos
+  e-mails e nos documentos NÃO foram reescritas — reescrevê-las deixaria a próxima esquecida, e a
+  seguinte divergente. `vestir()` é chamada em **três pontos por onde tudo passa**: `blindarTexto`
+  em lib/pdf.js (todo texto desenhado em todo PDF — o rodapé de cada página, o "Documento emitido
+  pelo ARCHÉ" dos certificados, os cabeçalhos de módulo); `enviarEmail` em lib/mailer.js (todo
+  assunto e todo corpo, ~70 ocorrências entre o prefixo "[ARCHÉ Extensão]" e o rodapé); e um
+  filtro do estático no server, antes do `express.static`, para `.html` e `public/assets/*.js` —
+  que é onde moram o `<title>` de cada página, a marca da barra do topo e o texto das SPAs.
+  **Com a variável no padrão nada disso existe**: `vestir` devolve a mesma string e o filtro do
+  estático **nem se registra** — o `express.static` continua servindo como sempre, com ETag, Range
+  e o cache da borda intactos. É o que garante que ligar o mecanismo não mexeu em nada aqui.
+  O que **não** se veste, de propósito: cookie (`arche_sessao`, `arche_av`), nome de arquivo
+  (`public/assets/arche-*.js`), classe de CSS (`.arche-*`), chave de estado (`sys-*`, `ic-*`,
+  `ex-*`…) e prefixo de protocolo (`EXT-`, `IC-`, `MON-`, `AP-`…) — encanamento invisível, cujo
+  rename é risco gratuito (cookie renomeado desloga o campus; chave renomeada some com o dado).
+  Todos eles são minúsculos e sem acento, e o que se troca é `ARCHÉ`/`Arché`, que só existe como
+  texto visível — o `[ARCHE]` sem acento dos logs do app compilado também fica. `GET /api/marca`
+  (público, sem segredo) diz produto, instalação e se está no padrão: serve para conferir depois
+  do deploy se a variável pegou, sem abrir o log do Render.
+  **Vender a outra IES precisa de mais que o nome**, e isto ainda não foi feito: o estado vive no
+  Drive PESSOAL do dono, os gestores gerais estão escritos em `lib/auth.js` e um deploy é uma
+  instituição. O modelo recomendado é justamente esse — **uma instalação por IES**, cada uma com o
+  próprio banco, domínio e documentos: multi-tenant num sistema que carrega CPF de menor de idade
+  e dossiê de MEC é problema que não vale a pena resolver antes do terceiro cliente.
+
 ## Identidade visual
 
 Paleta (mesma do sistema de Avaliação): fundo `#eef1f4`, marca `#1c3742`, hover `#2d535c`,
