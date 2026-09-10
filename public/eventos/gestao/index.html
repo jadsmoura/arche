@@ -705,6 +705,10 @@ function escolherEvento(id){ fecharEscolher(); trocarEvento(id); }
 function trocarEvento(id, guia){
   if(!id){ ABERTO=null; clearInterval(EV_TIMER); montarSeletor(); nav("painel"); return; }
   if(!ACOES.some(a=>a.id===id)) return;
+  // os filtros da guia Inscritos são DESTE evento (varredura de set/2026: o
+  // filtro por um campo extra do evento A escondia todos os inscritos do B,
+  // e o campo nem existia lá para ser desmarcado)
+  if(ABERTO!==id){ EV_FILTROS={}; if(window.ArchePag) ArchePag.zerar('ev-inscritos'); }
   ABERTO=id; EV_CAPA=undefined;
   montarSeletor();
   // com guia pedida, vai direto a ela (é o "Completar dados" do cartão);
@@ -1391,7 +1395,13 @@ function atalhosCard(a){
    apagá-la abriria buraco na numeração e sumiria com a proposta do professor.
    Nesse caso o que se apaga é o EVENTO — página, programação e inscritos —,
    e a ação continua no ARCHÉ EX. */
-const podeExcluir = (a) => GESTAO_EX || (!a.numeroAcao && ehMinha(a));
+/* E o evento que ACONTECEU não se exclui (varredura de set/2026): com
+   encerramento solicitado/validado ou presença lançada o servidor recusa, e
+   o botão não se desenha — quem quer tirar a página do ar despublica. */
+const aconteceu = (a) => !!a.evento && (
+  ["solicitado","validado"].includes(String(a.evento?.encerramento?.status||""))
+  || (a.participantes?.inscritos||[]).some(x=>x?.presente||(x?.presencas||[]).length));
+const podeExcluir = (a) => !aconteceu(a) && (GESTAO_EX || (!a.numeroAcao && ehMinha(a)));
 const ehMinha = (a) => !!EU && (a.criadoPor === EU || a.proposta?.respEmail === EU);
 
 async function excluirEvento(id){
@@ -1780,7 +1790,7 @@ function renderInscritos(a){
       <div class="sec-t">Inscritos e presenças</div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 6px">
         <input id="ev-busca" placeholder="Buscar por nome, e-mail ou CPF…" style="max-width:280px" oninput="ArchePag.zerar('ev-inscritos');renderInscritosEv(ACOES.find(x=>x.id==='${esc(a.id)}'))">
-        ${filtrosInscritosHtml(a)}
+        <span id="ev-filtros-barra" style="display:contents">${filtrosInscritosHtml(a)}</span>
         ${proprias.length?`<label style="margin:0;display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--muted)">Atividade
           <select id="ev-atv-sel" style="width:auto;max-width:240px;font-size:12.5px;padding:6px 30px 6px 8px"
             onchange="renderInscritosEv(ACOES.find(x=>x.id==='${esc(a.id)}'))">
@@ -2060,6 +2070,7 @@ function renderProgramacao(a){
     // pessoa enviar uma nova, e o servidor preserva a que já está gravada
     temFoto:p.temFoto===true, instituicao:p.instituicao||"", miniBio:p.miniBio||"",
     frequencia:p.frequencia||"entrada",
+    destaque:p.destaque===true,
   }));
 
   $("v-programacao").innerHTML=`
@@ -2864,7 +2875,8 @@ function duplicarAtvEv(i){
   // certificado — duas atividades com o mesmo id fariam o crachá lido numa contar na outra.
   // A FOTO também não vem: o nome e a mini-bio se leem e se corrigem no formulário, mas uma
   // foto herdada em silêncio sairia na vitrine de palestrantes com o rosto de outra pessoa.
-  const copia={...o, id:"", titulo:(o.titulo||"")+" (cópia)", foto:"", temFoto:false};
+  // e o DESTAQUE também não: é da pessoa que ministra, e a cópia é de outra
+  const copia={...o, id:"", titulo:(o.titulo||"")+" (cópia)", foto:"", temFoto:false, destaque:false};
   EV_PROG.splice(i+1,0,copia);
   renderProgEv();
   // o título da cópia é o que muda: leva o cursor até ele
@@ -2922,12 +2934,17 @@ function renderProgEv(){
         <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--brand-3)">descrição da atividade (aparece no "ver detalhes" da página)</summary>
         <textarea style="margin-top:6px;min-height:56px" oninput="EV_PROG[${i}].descricao=this.value">${esc(p.descricao)}</textarea>
       </details>
-      <details style="margin-top:6px" ${(p.temFoto||p.foto||p.instituicao||p.miniBio)?"open":""}>
-        <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--brand-3)">quem ministra: foto, instituição e mini-bio (vitrine de palestrantes da página)</summary>
+      <details style="margin-top:6px" ${(p.temFoto||p.foto||p.instituicao||p.miniBio||p.destaque)?"open":""}>
+        <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--brand-3)">quem ministra: foto, instituição e mini-bio (vitrine de palestrantes da página)${p.destaque?' <span class="badge b-aprovado" style="margin-left:6px">★ em destaque</span>':""}</summary>
         <div class="g-atv2" style="margin-top:6px">
           <input placeholder="instituição / vínculo" value="${esc(p.instituicao||"")}" oninput="EV_PROG[${i}].instituicao=this.value">
           <input placeholder="mini-bio (uma ou duas linhas)" value="${esc(p.miniBio||"")}" oninput="EV_PROG[${i}].miniBio=this.value">
         </div>
+        <label style="display:flex;align-items:center;gap:8px;margin:8px 0 0;font-size:12.5px;text-transform:none;letter-spacing:0;cursor:pointer"
+          title="Marcada em alguma atividade, só as marcadas giram no carrossel 'Palestrantes e convidados' da página; sem nenhuma marca, o carrossel mostra todas as que têm quem ministra">
+          <input type="checkbox" style="width:auto;margin:0" ${p.destaque?"checked":""} onchange="EV_PROG[${i}].destaque=this.checked">
+          ★ destacar no carrossel de palestrantes da página inicial do evento
+        </label>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">
           <span id="foto-prev-${i}">${fotoPrevia(p,i)}</span>
           <input type="file" accept="image/jpeg,image/png,image/webp" style="max-width:250px" onchange="lerFotoAtv(this,${i})">
@@ -3865,8 +3882,19 @@ async function moderarMural(id,mid,oculto){
    valores dos filtros ficam em EV_FILTROS e a lista se redesenha do zero. */
 let EV_FILTROS={};
 const sel=(id,rotulo,opcoes,valor)=>`<label style="margin:0;display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--muted)">${esc(rotulo)}
-  <select style="width:auto;max-width:220px;font-size:12.5px;padding:6px 30px 6px 8px" onchange="EV_FILTROS['${esc(id)}']=this.value;ArchePag.zerar('ev-inscritos');renderInscritosEv(ACOES.find(x=>x.id===ABERTO))">
+  <select style="width:auto;max-width:220px;font-size:12.5px;padding:6px 30px 6px 8px" onchange="mudouFiltroEv('${esc(id)}',this.value)">
     <option value="">todos</option>${opcoes.map(o=>`<option value="${esc(o.v)}" ${valor===o.v?"selected":""}>${esc(o.r)}${o.n!=null?` (${o.n})`:""}</option>`).join("")}</select></label>`;
+/* Escolher um filtro redesenha a TABELA e a BARRA (varredura de set/2026:
+   só a tabela mudava — o "✕ Limpar filtros" e as contagens das opções só
+   apareciam num redesenho completo). A barra tem contêiner próprio para o
+   cursor da caixa de busca não se perder. */
+function mudouFiltroEv(id, valor){
+  if(valor) EV_FILTROS[id]=valor; else delete EV_FILTROS[id];
+  ArchePag.zerar('ev-inscritos');
+  const a=ACOES.find(x=>x.id===ABERTO); if(!a) return;
+  const barra=$("ev-filtros-barra"); if(barra) barra.innerHTML=filtrosInscritosHtml(a);
+  renderInscritosEv(a);
+}
 function filtrosInscritosHtml(a){
   const todos=a.participantes?.inscritos||[];
   const cont=(fn)=>{ const m=new Map(); for(const x of todos){ for(const v of [].concat(fn(x)||[])){ if(v) m.set(v,(m.get(v)||0)+1); } } return [...m.entries()].sort((p,q)=>String(p[0]).localeCompare(String(q[0]),"pt-BR")).map(([v,n])=>({v,r:v,n})); };
@@ -3942,7 +3970,11 @@ function renderInscritosEv(a){
              onclick="presencaManualEv('${esc(a.id)}','${esc(x.token||"")}','${esc(x.cpf||"")}','${esc(x.email||"")}')">✓ presente</button>`}</td>
     </tr>`;}).join("")}</tbody></table>
     <div class="cnt">${lista.length} de ${todos.length} inscrito(s)${q?" no filtro":""}.</div>`
-    : `<div class="cnt">— ${todos.length?"ninguém encontrado com esta busca.":"nenhum inscrito ainda."}</div>`;
+    : `<div class="cnt">— ${todos.length
+        ? (Object.keys(EV_FILTROS).length
+          ? `nenhum dos ${todos.length} inscrito(s) passa nos filtros escolhidos. <button class="bt bt-ghost" style="padding:3px 9px;font-size:12px" onclick="EV_FILTROS={};ArchePag.zerar('ev-inscritos');renderInscritos(ACOES.find(x=>x.id===ABERTO))">✕ Limpar filtros</button>`
+          : "ninguém encontrado com esta busca.")
+        : "nenhum inscrito ainda."}</div>`;
 }
 
 /* Atualiza os números da guia aberta sem tocar em formulário: cada bloco só
@@ -3950,10 +3982,14 @@ function renderInscritosEv(a){
 function atualizarContadoresEvento(a){
   const inscritos=a.participantes?.inscritos||[];
   const ev=a.evento||{};
-  if($("ev-cnt-insc")) $("ev-cnt-insc").textContent=inscritos.length;
-  if($("ev-cnt-pres")) $("ev-cnt-pres").textContent=inscritos.filter(x=>x.presente===true).length;
-  if($("ev-cnt-vagas")) $("ev-cnt-vagas").textContent=Number(ev.vagas)>0
-    ? `${Math.max(0,Number(ev.vagas)-inscritos.length)} de ${ev.vagas}` : "ilimitadas";
+  // os mesmos ids existem na guia Início E na guia Inscritos (varredura de
+  // set/2026: `getElementById` achava só o primeiro, escondido, e o número
+  // grande da guia aberta ficava velho) — atualizam-se todos
+  const todosOs=(id)=>document.querySelectorAll("#"+id);
+  todosOs("ev-cnt-insc").forEach(el=>el.textContent=inscritos.length);
+  todosOs("ev-cnt-pres").forEach(el=>el.textContent=inscritos.filter(x=>x.presente===true).length);
+  todosOs("ev-cnt-vagas").forEach(el=>el.textContent=Number(ev.vagas)>0
+    ? `${Math.max(0,Number(ev.vagas)-inscritos.length)} de ${ev.vagas}` : "ilimitadas");
   if($("ev-cnt-atv")) $("ev-cnt-atv").innerHTML=contadoresAtividadeHtml(a)
     ||'<div class="cnt">— sem atividade com inscrição própria ou presença registrada.</div>';
   renderMuralEv(a);

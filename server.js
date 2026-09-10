@@ -2722,6 +2722,51 @@ async function corrigirCpfDaOrientadoraLuana() {
   }
 }
 
+/* A GESTÃO QUE VIROU ORIENTAÇÃO SEM QUERER (varredura de set/2026): até esta
+   correção, `normalizarProjeto` carimbava o e-mail de QUEM SALVA na orientação
+   de todo projeto que não tinha e-mail — e os projetos transcritos dos editais
+   chegaram só com o CPF do professor. Bastava a gestão abrir um deles e clicar
+   "Salvar o cronograma" para o gestor virar a orientação do projeto: perdia o
+   parecer e a correção do texto, o professor de verdade nunca mais se
+   vinculava pelo CPF, e os certificados da orientação iam ao gestor. Esta
+   passada desfaz o carimbo onde ele é inequívoco: e-mail de gestor geral na
+   orientação de um projeto IMPORTADO (`origem`) cujo nome de orientação NÃO é
+   o do gestor. O projeto volta a esperar o titular do CPF, como nasceu; os
+   projetos que o pró-reitor orienta de verdade levam o nome dele e ficam. */
+async function desfazerOrientacaoCarimbadaPelaGestao() {
+  const MARCA = "sys-ic-orientacao-carimbada-v1";
+  try {
+    if (await storage.get(MARCA)) return;
+    const usuarios = await carregarUsuarios(storage);
+    const perfis = await carregarPerfis();
+    const gestores = new Set((usuarios.gestores || []).map((e) => String(e || "").trim().toLowerCase()));
+    const nomeDoGestor = (e) => chaveNome(perfis[e]?.nome || "");
+    const r = await comProjetos((projetos) => {
+      const numeros = [];
+      for (let i = 0; i < projetos.length; i++) {
+        const p = projetos[i];
+        const e = String(p.orientador?.email || "").trim().toLowerCase();
+        if (!e || !gestores.has(e) || !p.origem) continue;
+        const nome = chaveNome(p.orientador?.nome || "");
+        if (!nome || !nomeDoGestor(e) || nomesCompativeis(nome, nomeDoGestor(e))) continue;
+        projetos[i] = anotarProjeto({
+          ...p,
+          orientador: { ...p.orientador, email: "" },
+          criadoPor: p.criadoPor === e ? "" : p.criadoPor,
+          atualizadoEm: new Date().toISOString(),
+        }, { quem: "sistema", oQue: `e-mail da orientação (${e}) removido: era o de quem salvou o projeto pela gestão, não o de ${p.orientador?.nome || "quem orienta"} — o projeto volta a esperar o vínculo pelo CPF` });
+        numeros.push(p.numero || p.id);
+      }
+      return { numeros, gravar: numeros.length > 0 };
+    });
+    await storage.set(MARCA, JSON.stringify({ em: new Date().toISOString(), projetos: r.numeros }));
+    await storage.flush?.();
+    if (r.numeros.length) console.log(`[ic] orientação carimbada pela gestão desfeita em ${r.numeros.length} projeto(s): ${r.numeros.join(", ")}`);
+  } catch (e) {
+    console.error("[ic] desfazerOrientacaoCarimbadaPelaGestao:", e.message);
+  }
+}
+
 /* A GESTÃO DA AVALIAÇÃO PARA AS COORDENAÇÕES DAS PRÓ-REITORIAS (pedido do dono,
    set/2026: "Matildes e todos com função de coordenação das pró-reitorias
    podem ter os acessos livres. Matildes, Wagner, Camila, Thiago Brito, Rosa e
@@ -3358,14 +3403,32 @@ function mesclarEventoEInscritos(base, nova) {
   // em silêncio (achado da varredura de ago/2026). Vem sempre da base.
   const out = { evento: base.evento };
   if (base.assinaturas) out.assinaturas = base.assinaturas;
-  const baseIns = base.participantes?.inscritos || [];
-  const doServidor = baseIns.filter((x) => x?.origem === "online" || x?.presente || x?.token);
-  if (!doServidor.length) return out;   // ação sem inscrição online: nada a mesclar
-  const chave = (x) => soDigitos(x?.cpf) || String(x?.email || "").trim().toLowerCase()
-    || String(x?.nome || "").trim().toLowerCase();
-  const donas = new Set(doServidor.map(chave));
-  const manuais = (nova.participantes?.inscritos || []).filter((x) => !donas.has(chave(x)));
-  out.participantes = { ...(nova.participantes || {}), inscritos: [...manuais, ...doServidor] };
+  /* A LISTA DE INSCRITOS VEM SEMPRE DA BASE (varredura de set/2026 — o evento
+     da Veterinária que amanheceu com zero inscritos). A mescla protegia só o
+     inscrito online, com presença ou com token; o resto vinha da CÓPIA DA ABA
+     de quem salvou. O `salvar()` do ARCHÉ EX manda a lista INTEIRA de ações da
+     aba, e o "Dados do evento" do EV manda a ação inteira: uma aba aberta antes
+     de a coordenação colar a lista de participantes — ou de outra pessoa
+     colá-la — apagava a lista ao salvar qualquer coisa, inclusive a proposta de
+     OUTRA ação. E numa ação sem nenhum online (as migradas do papel: 168, 73,
+     307 nomes) a função nem tocava em `participantes`: a cópia velha
+     substituía tudo. A lista digitada passou a ter escrita própria
+     (`POST /:id/participantes` e `/remover`), como a online já tinha; o POST em
+     bloco não a toca. Palestrantes e comissão continuam vindo do formulário —
+     são campos da proposta. */
+  out.participantes = { ...(nova.participantes || base.participantes || {}),
+    inscritos: base.participantes?.inscritos || [] };
+  /* O PORTFÓLIO tem rotas próprias (`POST /api/extensao/anexo`, `DELETE
+     /:id/anexo/:ref`) e a aba velha o apagava junto — três fotos subidas no
+     encerramento, e um salvar no EX de antes delas as levava (mesma
+     varredura). Sempre da base. */
+  if (base.portfolio) out.portfolio = base.portfolio;
+  /* O RELATÓRIO ENTREGUE não se desentrega por uma aba velha: a entrega tem
+     data do servidor, e a cópia que a aba carregou antes dela vinha com
+     `relatorio` vazio — `entregueEm` sumia, `status` e `encerramento` ficavam,
+     e a validação do encerramento encontrava uma ação sem relatório. Se a base
+     tem a entrega e a cópia não, vale a base inteira. */
+  if (base.relatorio?.entregueEm && !nova.relatorio?.entregueEm) out.relatorio = base.relatorio;
   return out;
 }
 
@@ -3590,11 +3653,33 @@ app.post("/api/extensao", async (req, res) => {
         // — baixar um documento no timbre do UNIEGO com as assinaturas
         // digitalizadas do pró-reitor e do reitor. Sem `base`, os valores são
         // os do começo do fluxo.
-        const controlado = gereEx(u) ? {} : (base
-          ? { numeroAcao: base.numeroAcao, status: base.status, apreciacao: base.apreciacao,
-              criadoPor: base.criadoPor, criadoEm: base.criadoEm }
-          : { numeroAcao: null, status: "submetida", apreciacao: "",
-              criadoPor: u.email, criadoEm: new Date().toISOString() });
+        /* E VALE PARA A GESTÃO TAMBÉM (varredura de set/2026): para quem gere
+           o setor NADA era protegido, e a aba do ARCHÉ EX aberta de manhã
+           desfazia à tarde as aprovações feitas pelo cartão do EV — três
+           eventos voltavam a `submetida` com `numeroAcao: null`, os números
+           ficavam vagos na sequência oficial e a página pública seguia
+           aceitando inscrições de um evento que o sistema dizia "não
+           aprovado". Número, aprovação, devolução e autoria têm ROTA própria
+           (aprovar, devolver, reprovar, reenviar) e vêm sempre da base; o que
+           a gestão muda pelo formulário é a `apreciacao` e as DUAS transições
+           que este caminho sempre teve — registrar e reabrir —, que as guardas
+           abaixo já conferem. */
+        const daBase = base ? {
+          numeroAcao: base.numeroAcao, criadoPor: base.criadoPor, criadoEm: base.criadoEm,
+          ...(base.aprovadoEm ? { aprovadoEm: base.aprovadoEm, aprovadoPor: base.aprovadoPor } : {}),
+          ...(base.devolucoes ? { devolucoes: base.devolucoes } : {}),
+          ...(base.motivoDevolucao !== undefined ? { motivoDevolucao: base.motivoDevolucao } : {}),
+          ...(base.devolvidaEm ? { devolvidaEm: base.devolvidaEm, devolvidaPor: base.devolvidaPor } : {}),
+        } : {};
+        const transicaoDoRegistro = base && (nova.status === "registrada" || base.status === "registrada");
+        const controlado = gereEx(u)
+          ? (base
+            ? { ...daBase, status: transicaoDoRegistro ? nova.status : base.status }
+            : { numeroAcao: null, status: "submetida", criadoPor: u.email, criadoEm: new Date().toISOString() })
+          : (base
+            ? { ...daBase, status: base.status, apreciacao: base.apreciacao }
+            : { numeroAcao: null, status: "submetida", apreciacao: "",
+                criadoPor: u.email, criadoEm: new Date().toISOString() });
         /* A REPROVAÇÃO é decisão final e "prova da decisão" — o POST em
            bloco não pode desfazê-la nem apagar o motivo: nem o salvar do
            dono (que não manda `motivoReprovacao` de volta), nem o da
@@ -3811,6 +3896,19 @@ app.post("/api/extensao/:id/excluir", async (req, res) => {
         return { erro: [403, "Proposta reprovada fica arquivada — só a gestão da Extensão pode excluí-la."], gravar: false };
       if (a.status === "registrada")
         return { erro: [400, "Ação registrada — o ciclo está encerrado e o registro não se apaga."], gravar: false };
+      /* O EVENTO QUE ACONTECEU NÃO SE APAGA (varredura de set/2026): a guarda
+         só olhava `registrada`, e um evento com encerramento solicitado ou
+         validado — ou com presença lançada na porta — sumia com a página, a
+         programação, os inscritos e as presenças; era exatamente o retrato de
+         "evento de ontem, hoje com zero inscritos". Presença é prova de que
+         houve evento; encerramento é o processo em curso. Quem quer tirar a
+         página do ar despublica. */
+      const enc = situacaoEncerramento(a);
+      if (a.evento && enc !== "aberto")
+        return { erro: [400, `Este evento tem o encerramento ${enc === "validado" ? "validado" : "solicitado à PROPPEX"} — não se exclui um evento em encerramento. Para tirar a página do ar, despublique.`], gravar: false };
+      const presentes = (a.participantes?.inscritos || []).filter((x) => x?.presente || (x?.presencas || []).length).length;
+      if (a.evento && presentes)
+        return { erro: [400, `Este evento tem ${presentes} presença(s) registrada(s): ele aconteceu, e o registro não se apaga. Para tirar a página do ar, despublique.`], gravar: false };
       const inscritos = (a.participantes?.inscritos || []).length;
       const nome = String(a.proposta?.nomeAtividade || "").trim();
       if (inscritos && confirmacao !== nome)
@@ -3845,6 +3943,87 @@ app.post("/api/extensao/:id/excluir", async (req, res) => {
   } catch (e) {
     console.error("Erro ao excluir a ação/evento:", e);
     res.status(500).json({ error: "Não foi possível excluir agora." });
+  }
+});
+
+/* A LISTA DIGITADA TEM ESCRITA PRÓPRIA (varredura de set/2026): os
+   participantes colados no ARCHÉ EX (a planilha da coordenação, a lista de
+   presença de papel) entravam pelo POST em bloco, e por isso qualquer aba
+   velha os apagava. Agora entram e saem por aqui, DENTRO da fila, e o POST em
+   bloco não toca mais em `participantes.inscritos`. A chave é a mesma que a
+   tela sempre usou — CPF, matrícula ou nome —, e o inscrito ONLINE (token,
+   origem online, presença) não sai por esta porta: ele tem crachá e presença,
+   e apagá-lo da lista de um evento que aconteceu é o tipo de perda que esta
+   varredura existe para impedir. */
+const CATEGORIAS_PART = ["inscritos", "palestrantes", "comissao"];
+const chaveDeParticipante = (x) => (soDigitos(x?.cpf) || String(x?.matricula || "").trim() || String(x?.nome || "").trim()).toLowerCase();
+const ehOnline = (x) => !!(x?.token || x?.origem === "online" || x?.presente || (x?.presencas || []).length);
+app.post("/api/extensao/:id/participantes", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const categoria = String(req.body?.categoria || "inscritos");
+    if (!CATEGORIAS_PART.includes(categoria)) return res.status(400).json({ error: "Categoria inválida" });
+    const entrada = Array.isArray(req.body?.adicionar) ? req.body.adicionar.slice(0, 2000) : [];
+    if (!entrada.length) return res.status(400).json({ error: "Nada a adicionar" });
+    const r = await comAcoes((acoes) => {
+      const i = acoes.findIndex((x) => x.id === req.params.id);
+      if (i < 0 || !podeVerAcao(u, acoes[i])) return { erro: [404, "Ação não encontrada"], gravar: false };
+      const a = acoes[i];
+      a.participantes = a.participantes || {};
+      const lista = Array.isArray(a.participantes[categoria]) ? a.participantes[categoria] : [];
+      const existentes = new Set(lista.map(chaveDeParticipante).filter(Boolean));
+      let add = 0, dup = 0;
+      for (const bruto of entrada) {
+        if (!bruto || typeof bruto !== "object") continue;
+        let x = categoria === "inscritos"
+          ? Object.fromEntries(Object.entries(bruto).filter(([k, v]) => typeof v === "string" && k.length <= 40).map(([k, v]) => [k, v.trim().slice(0, 300)]))
+          : normalizarPessoaEvento(bruto, { palestrante: categoria === "palestrantes" });
+        if (x.cpf) x.cpf = cpfValido(x.cpf) ? soDigitos(x.cpf) : "";
+        if (!x.nome) continue;
+        const k = chaveDeParticipante(x);
+        if (!k || existentes.has(k)) { dup++; continue; }
+        existentes.add(k);
+        lista.push(limparProfundo({ ...x, ...(categoria === "inscritos" ? { origem: "manual", em: new Date().toISOString() } : {}) }));
+        add++;
+      }
+      a.participantes[categoria] = lista.slice(0, 5000);
+      a.atualizadoEm = new Date().toISOString();
+      return { add, dup, acao: a, gravar: add > 0 };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, adicionados: r.add, duplicados: r.dup, acao: acaoSemSegredos(r.acao) });
+  } catch (e) {
+    console.error("Erro ao adicionar participantes:", e);
+    res.status(500).json({ error: "Falha ao adicionar participantes" });
+  }
+});
+app.post("/api/extensao/:id/participantes/remover", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const categoria = String(req.body?.categoria || "inscritos");
+    if (!CATEGORIAS_PART.includes(categoria)) return res.status(400).json({ error: "Categoria inválida" });
+    const chave = String(req.body?.chave || "").trim().toLowerCase();
+    if (!chave) return res.status(400).json({ error: "Diga quem remover" });
+    const r = await comAcoes((acoes) => {
+      const i = acoes.findIndex((x) => x.id === req.params.id);
+      if (i < 0 || !podeVerAcao(u, acoes[i])) return { erro: [404, "Ação não encontrada"], gravar: false };
+      const a = acoes[i];
+      const lista = Array.isArray(a.participantes?.[categoria]) ? a.participantes[categoria] : [];
+      const j = lista.findIndex((x) => chaveDeParticipante(x) === chave);
+      if (j < 0) return { erro: [404, "Participante não encontrado na lista"], gravar: false };
+      if (categoria === "inscritos" && ehOnline(lista[j]))
+        return { erro: [409, "Esta pessoa se inscreveu pelo sistema (tem credencial ou presença registrada) e não sai pela lista — cancelar uma inscrição online é ato do ARCHÉ EV."], gravar: false };
+      lista.splice(j, 1);
+      a.atualizadoEm = new Date().toISOString();
+      return { acao: a };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, acao: acaoSemSegredos(r.acao) });
+  } catch (e) {
+    console.error("Erro ao remover participante:", e);
+    res.status(500).json({ error: "Falha ao remover participante" });
   }
 });
 
@@ -7459,6 +7638,21 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
         const me = provedorPg.meiosEfetivos(cob.meios);
         if (cobrancaAtiva(cob) && !me.pix && !me.cartao && !me.boleto)
           return { erro: [400, `Escolha ao menos um meio de pagamento que o ${provedorPg.rotulo()} cobre (${Object.entries(provedorPg.retrato().meios).filter(([, v]) => v).map(([k]) => ({ pix: "Pix", cartao: "cartão", boleto: "boleto" }[k])).join(", ")}).`], gravar: false };
+        /* DESLIGAR A COBRANÇA LIBERA QUEM ESTAVA ESPERANDO PAGAR (varredura de
+           set/2026): a reserva não paga ficava presa — "já inscrito, a
+           credencial vale", a área do inscrito "liberado", e a porta recusava
+           o crachá com 409, porque `inscricaoValida` só olha o estado do
+           pagamento. Num evento que passou a ser gratuito não há o que pagar:
+           a reserva vira ISENÇÃO, com o motivo no histórico, e a régua da
+           credencial continua uma só. */
+        if (cobrancaAtiva(a.evento?.cobranca) && !cobrancaAtiva(cob)) {
+          for (const ins of a.participantes?.inscritos || []) {
+            const pg = ins?.pagamento;
+            if (!pg || !["aguardando", "expirado", "recusado"].includes(pg.status)) continue;
+            const isento = transitarPagamento(pg, "isento", { por: u.email, motivo: "cobrança desligada no evento" });
+            if (isento) ins.pagamento = isento;
+          }
+        }
         ev.cobranca = cob;
       }
       // e a ATIVAÇÃO da página de evento pago confere o mesmo (a chave pode
@@ -14004,6 +14198,12 @@ app.post("/api/ic", async (req, res) => {
           producao: b.producao ?? base.producao,
           grupoPesquisa: b.grupoPesquisa ?? base.grupoPesquisa,
         }, { base, autor: u.email, grupos: conhecidos });
+        /* A orientação que chegou ao projeto pelo CPF (transcrito sem e-mail)
+           e o salva é a própria pessoa que o vínculo pelo CPF esperava: o
+           e-mail dela entra aqui, como `vincularPorCpf` faria no perfil. É o
+           ÚNICO caso em que quem salva carimba a orientação — a gestão não
+           (ver `normalizarProjeto`). */
+        if (!p.orientador.email && papelNoProjeto(meu, base) === "orientador") p.orientador.email = u.email;
         // Depois da aprovação, o quadro de alunos só CRESCE pela tela da
         // orientação (decisão do dono, ago/2026): remover aluno — ou trocar
         // o e-mail de quem já foi indicado, que é a mesma coisa — é ato da
@@ -14011,13 +14211,22 @@ app.post("/api/ic", async (req, res) => {
         // bolsista acompanha a concessão do fomento, não a caixa do
         // formulário. Este ramo só roda para a orientação (a gestão edita
         // pelo ramo de baixo, com a mão livre de sempre).
-        const chaveAluno = (a) => (a.email
+        /* A chave do aluno SEM e-mail é a matrícula e, sem ela, a POSIÇÃO na
+           lista (varredura de set/2026): era o nome, e corrigir o nome de um
+           aluno transcrito sem e-mail caía na trava de remoção — "não pode ser
+           removido (nem ter o e-mail trocado)" sobre um campo que a tela
+           deixa editar e que só se quis consertar. A lista não se reordena
+           na tela (o × é a única saída, e aqui ele é recusado), então a
+           posição é chave estável para quem não tem outra. */
+        const chaveAluno = (a, i) => (a.email
           ? "e:" + String(a.email).toLowerCase()
-          : "n:" + String(a.nome || "").trim().toLowerCase());
-        const antigos = new Map((base.alunos || []).map((a) => [chaveAluno(a), a]));
-        for (const a of base.alunos || []) {
-          if (!p.alunos.some((x) => chaveAluno(x) === chaveAluno(a)))
-            return { erro: [400, `${a.nome || a.email || "Aluno indicado"} não pode ser removido (nem ter o e-mail trocado) por aqui: para trocar o bolsista, use a Substituição de bolsista; para corrigir um e-mail, fale com a PROPPEX.`], gravar: false };
+          : a.matricula ? "m:" + String(a.matricula).trim().toLowerCase()
+          : "i:" + i);
+        const antigos = new Map((base.alunos || []).map((a, i) => [chaveAluno(a, i), a]));
+        const chavesNovas = new Set(p.alunos.map(chaveAluno));
+        for (const [k, a] of antigos) {
+          if (!chavesNovas.has(k))
+            return { erro: [400, `${a.nome || a.email || "Aluno indicado"} não pode ser removido (nem ter o e-mail trocado) por aqui: para trocar o bolsista, use a Substituição de bolsista; para corrigir nome, telefone ou e-mail, use o "✎ Corrigir os dados" na linha do aluno.`], gravar: false };
         }
         // Documentos e conta bancária são DO ALUNO: ele mesmo informa, pela
         // rota própria. O formulário da orientação nunca os altera — nem os
@@ -14028,13 +14237,13 @@ app.post("/api/ic", async (req, res) => {
            exclusiva, e dois planos de trabalho para a mesma pessoa não são o
            que o edital prevê. A conferência é sobre os alunos NOVOS: quem já
            está neste projeto não trava contra si mesmo. */
-        for (const a of p.alunos) {
-          if (antigos.has(chaveAluno(a))) continue;
+        for (const [i, a] of p.alunos.entries()) {
+          if (antigos.has(chaveAluno(a, i))) continue;
           const outro = projetoQueJaTemOAluno(projetos, a, { exceto: p.id, edital: editalDe(p) });
           if (outro) return { erro: [409, motivoAlunoJaIndicado(a, outro)], gravar: false };
         }
-        p.alunos = p.alunos.map((a) => {
-          const antes = antigos.get(chaveAluno(a));
+        p.alunos = p.alunos.map((a, i) => {
+          const antes = antigos.get(chaveAluno(a, i));
           if (!antes) {
             /* Aluno novo: a marca de bolsista sai da concessão, não da tela;
                e o que é DO ALUNO (CPF, RG, conta) NÃO entra pela indicação
@@ -14077,8 +14286,10 @@ app.post("/api/ic", async (req, res) => {
         const outro = projetoQueJaTemOAluno(projetos, a, { exceto: projeto.id, edital: editalDe(projeto) });
         if (outro) return { erro: [409, motivoAlunoJaIndicado(a, outro)], gravar: false };
       }
+      const trocasDeEmail = [];
       if (base) {
         const doBase = (email) => (base.alunos || []).find((a) => a.email && a.email === email);
+        const doBasePorCpf = (cpf) => cpf && (base.alunos || []).find((a) => a.cpf && a.cpf === cpf);
         projeto.alunos = (projeto.alunos || []).map((a) => {
           const antes = doBase(a.email);
           // aluno NOVO: bolsista ou voluntário sai da bolsa concedida ao
@@ -14089,6 +14300,17 @@ app.post("/api/ic", async (req, res) => {
             // o mesmo da execução: só a GESTÃO grava CPF/RG/conta pela indicação
             // (é ela que transcreve os lotes); da orientação, nunca
             if (!meu.gestao) for (const c of CAMPOS_DO_ALUNO_PROTEGIDOS) limpo[c] = "";
+            /* A GESTÃO trocando o E-MAIL de um aluno na própria linha do quadro
+               (varredura de set/2026): o registro chega com o CPF, o RG e a
+               conta do aluno ANTERIOR, e gravá-los sob o endereço novo entrega
+               esses dados a quem entrar com ele — a régua que a rota
+               `/indicacao` já tem. A troca se reconhece pelo CPF, que é de
+               quem já estava: o cadastro sai com quem saiu, e o histórico diz. */
+            const anterior = doBasePorCpf(limpo.cpf);
+            if (meu.gestao && anterior && anterior.email && anterior.email !== limpo.email) {
+              for (const c of CAMPOS_DO_ALUNO_PROTEGIDOS) limpo[c] = "";
+              trocasDeEmail.push(`${anterior.email} → ${limpo.email || "(sem e-mail)"}`);
+            }
             return limpo;
           }
           const dele = { bolsista: !!antes.bolsista };
@@ -14116,6 +14338,7 @@ app.post("/api/ic", async (req, res) => {
         quem: u.email,
         oQue: corrigidos.length
           ? `corrigiu o texto da proposta já submetida (${corrigidos.join(", ")})`
+          : trocasDeEmail.length ? `trocou o e-mail de aluno indicado (${trocasDeEmail.join("; ")}) — cadastro do aluno anterior removido do registro`
           : base ? "editou a proposta"
           : manual ? `incluiu o projeto manualmente em nome de ${projeto.orientador?.nome || projeto.orientador?.email || "quem orienta"}`
           : "abriu o projeto",
@@ -16476,6 +16699,12 @@ app.post("/api/ic/:id/relatorio/:rid/validar", async (req, res) => {
     const lista = projetos[i].relatorios || [];
     const j = lista.findIndex((x) => x.id === req.params.rid);
     if (j < 0) return { erro: [404, "Relatório não encontrado"], gravar: false };
+    /* Relatório com pedido de INTERRUPÇÃO pendente espera a PROPPEX, não a
+       validação comum (varredura de set/2026): a tela escondia o painel, mas
+       o servidor aceitava — e a recusa da PROPPEX, que "devolve o relatório ao
+       caminho normal", o encontrava já `validado`. */
+    if (lista[j].encerramento?.pedido && !lista[j].encerramento?.decisao)
+      return { erro: [409, "Este relatório traz um pedido de interrupção do projeto: quem decide é a PROPPEX, e a validação comum fica para depois da decisão."], gravar: false };
     // a PROPPEX pode validar EM NOME da orientação (decisão do dono,
     // ago/2026): orientadores desligados da instituição não voltam para
     // validar, e o relatório do aluno não pode ficar refém disso
@@ -19248,6 +19477,14 @@ app.post("/api/extensao/:id/evento/encerramento", async (req, res) => {
       if (!a?.evento) return { erro: [404, "Evento não encontrado"], gravar: false };
       if (situacaoEncerramento(a) !== "solicitado")
         return { erro: [400, "Não há pedido de encerramento aguardando decisão neste evento."], gravar: false };
+      /* VALIDAR EXIGE O RELATÓRIO ENTREGUE (varredura de set/2026): quando
+         `relatorio.entregueEm` tinha sumido (uma aba velha o apagara), a
+         validação passava em silêncio sem registrar a ação — os certificados
+         saíam, e o evento validado ficava excluível com os inscritos dentro.
+         Sem relatório não há o que validar: a resposta diz isso, e o
+         encerramento se reenvia. */
+      if (decisao === "validado" && !a.relatorio?.entregueEm)
+        return { erro: [400, "Este evento está sem o relatório final entregue — o encerramento não pode ser validado assim. Peça à coordenação que refaça o encerramento pelo ARCHÉ EV (relatório e fotos); se o relatório havia sido entregue, ele foi apagado por uma gravação antiga e precisa ser reenviado."], gravar: false };
       const agora = new Date().toISOString();
       a.evento.encerramento = {
         ...a.evento.encerramento, status: decisao,
@@ -19346,6 +19583,7 @@ app.listen(port, () => {
       // idempotente e nunca sobrescreve e-mail existente.
       fundirContasSolicitadas,     // as fusões de conta pedidas pelo dono
       corrigirCpfDaOrientadoraLuana, // o CPF da aluna sai do campo da orientação
+      desfazerOrientacaoCarimbadaPelaGestao, // o gestor que virou orientação ao salvar
       designarGestaoDaAvaliacao,   // as coordenações das pró-reitorias na Avaliação
       vincularPerfisIC,
     ]) {

@@ -641,7 +641,13 @@ const ICONE_REDE = {
    segundos, para e volta no toque/foco, e respeita quem pediu menos
    movimento no sistema. */
 function palestrantesDe(e) {
-  return (e.programacao || []).filter((p) => p.responsavel && (p.temFoto || p.miniBio || p.instituicao || p.tipo !== "outro"));
+  const todos = (e.programacao || []).filter((p) => p.responsavel && (p.temFoto || p.miniBio || p.instituicao || p.tipo !== "outro"));
+  /* Marcadas em DESTAQUE (pedido do dono, set/2026: "não é toda programação
+     que é interessante de ser destacada"), só elas giram no carrossel; sem
+     nenhuma marca, giram todas — o evento que nunca marcou nada não perde a
+     vitrine. */
+  const destacadas = todos.filter((p) => p.destaque === true);
+  return destacadas.length ? destacadas : todos;
 }
 let PAL = 0, PAL_TIMER = null;
 function secaoPalestrantes(e) {

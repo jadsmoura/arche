@@ -760,14 +760,31 @@ function limparSujo() {
   SUJO = false;
   document.querySelectorAll(".selo-sujo").forEach((s) => { s.textContent = "tudo salvo"; s.classList.remove("on"); });
 }
-/* Qualquer digitação dentro do editor suja o projeto. É um ouvinte só, na
-   captura: os campos são redesenhados o tempo todo (addAluno, addEtapa), e
-   um ouvinte por campo escaparia justamente nas linhas novas. */
+/* Qualquer digitação no EDITOR suja o projeto. É um ouvinte só, na captura:
+   os campos são redesenhados o tempo todo (addAluno, addEtapa), e um ouvinte
+   por campo escaparia justamente nas linhas novas.
+   Só o que ESCREVE em `ATUAL` suja (varredura de set/2026): a ficha do projeto
+   também abriga o relatório do aluno, o parecer, a nota, o comentário da
+   validação, a substituição e a designação — campos com botão PRÓPRIO, que
+   gravam por rota própria e terminam em `abrir()`. Sujar por eles fazia o
+   "Sair sem salvar?" aparecer logo DEPOIS de o relatório ter sido gravado, e
+   quem cancelava (o reflexo de quem acabou de escrever quatro páginas) ficava
+   com a tela velha: o formulário ainda preenchido, e "enviar" de novo
+   duplicava o anexo. Todo campo do editor tem um `oninput`/`onchange` inline
+   que escreve em `ATUAL` — é por ele que se reconhece o editor. */
+const ESCREVE_NO_PROJETO = /\b(campo|sub|mudouMes|mudouProducao|escolheuGrupo)\(|\bATUAL\b/;
+function escreveNoProjeto(el) {
+  for (const a of ["oninput", "onchange"]) {
+    const s = el?.getAttribute?.(a);
+    if (s && ESCREVE_NO_PROJETO.test(s)) return true;
+  }
+  return false;
+}
 for (const ev of ["input", "change"]) {
   document.addEventListener(ev, (e) => {
     if (!ATUAL) return;
     const v = e.target?.closest?.("#v-projeto, #v-submissao");
-    if (v) marcarSujo();
+    if (v && escreveNoProjeto(e.target)) marcarSujo();
   }, true);
 }
 window.addEventListener("beforeunload", (e) => {
@@ -877,7 +894,12 @@ async function cancelarCorrecao(id) {
 
 function novoProjeto() {
   return {
-    titulo: "", resumo: "", palavrasChave: "", curso: "", modalidade: "pibic", edital: "",
+    /* `modalidade` nasce VAZIA (varredura de set/2026): o padrão era o código
+       legado "pibic", que o catálogo lê como PIBIC/CNPq — o select não tem
+       essa opção e mostrava "— a definir na seleção —", mas o que ia ao
+       servidor era PIBIC/CNPq, e o professor mestre recebia "exige doutor"
+       sobre uma modalidade que nunca escolheu. */
+    titulo: "", resumo: "", palavrasChave: "", curso: "", modalidade: "", edital: "",
     linhaPesquisa: "", objetivos: "", metodologia: "", inicio: "", fim: "",
     // na inclusão manual quem orienta é outra pessoa: os campos nascem vazios
     orientador: MANUAL ? { nome: "", email: "", cpf: "", titulacao: "" }
@@ -4326,7 +4348,7 @@ function desenharAlunos() {
       <td><span class="${a.bolsista ? "badge b-aprovado" : "muted"}"
         title="Não se marca aqui: acompanha a bolsa concedida ao projeto, e quem concede é a PROPPEX (guia Bolsas)"
         >${a.bolsista ? "Bolsista" : "Voluntário(a)"}</span></td>
-      <td>${ger && !fixo && !(META.gestao && jaIndicado) ? `<button class="rm" title="remover" onclick="ATUAL.alunos.splice(${i},1);desenharAlunos();desenharEtapas()">×</button>`
+      <td>${ger && !fixo && !(META.gestao && jaIndicado) ? `<button class="rm" title="remover" onclick="ATUAL.alunos.splice(${i},1);marcarSujo();desenharAlunos();desenharEtapas()">×</button>`
         : (fixo ? `<span class="muted" title="Para trocar o bolsista, use a Substituição de bolsista — a coordenação aprova" style="font-size:11px">via substituição</span>` : "")}</td>
     </tr>
     ${/* A LINHA DE ESTADO DE CADA INDICADO (ago/2026, pedido do dono: "alguns
@@ -4441,14 +4463,29 @@ async function salvarIndicacao(i, bt) {
         telefone: v("telefone"), curso: v("curso"), periodo: v("periodo") }),
     });
     document.getElementById("ov-indic")?.remove();
-    ATUAL = r.projeto;
-    desenharAlunos(); desenharEtapas();
+    adotarQuadroDeAlunos(r.projeto);
     aviso(`Indicação corrigida (${(r.mudou || []).join(", ")})`
       + (r.convidou ? " — o convite foi reenviado para o endereço novo." : "."));
   } catch (e) {
     bt.disabled = false; bt.textContent = "Salvar a correção";
-    aviso(e.message, "erro");
+    aviso(e.message, "err");
   }
+}
+
+/* A correção e a remoção da indicação gravam por rota própria e voltam com o
+   projeto inteiro — e trocar `ATUAL` pela resposta DESCARTAVA em silêncio o
+   que estava editado no resto da ficha (varredura de set/2026: a atividade
+   do cronograma recém-digitada sumia da tela e da memória, com o selo ainda
+   dizendo "alterações não salvas"). Do servidor adotam-se só o quadro de
+   alunos e o histórico, que é o que essas rotas mexem; o que a pessoa tinha
+   digitado no cronograma e na produção fica onde estava, e o selo continua
+   dizendo a verdade. */
+function adotarQuadroDeAlunos(projeto) {
+  if (!projeto) return;
+  ATUAL.alunos = projeto.alunos || [];
+  if (projeto.historico) ATUAL.historico = projeto.historico;
+  if (projeto.indicacoesRemovidas) ATUAL.indicacoesRemovidas = projeto.indicacoesRemovidas;
+  desenharAlunos(); desenharEtapas();
 }
 
 /* REENVIAR o convite (pedido do dono, ago/2026): nem todo convite que não
@@ -4467,7 +4504,7 @@ async function reenviarConvite(i) {
       body: JSON.stringify({ de: a.email, reenviar: true }),
     });
     aviso(`Convite reenviado para ${a.email}. Peça para conferir também o spam.`);
-  } catch (e) { aviso(e.message, "erro"); }
+  } catch (e) { aviso(e.message, "err"); }
 }
 
 /* REMOVER A INDICAÇÃO — só a gestão (pedido do dono, set/2026: "professores
@@ -4481,16 +4518,15 @@ async function removerIndicacao(i) {
   const quem = a.nome || a.email || "este aluno";
   const motivo = prompt(`Remover a indicação de ${quem} deste projeto?\n\nEscreva o motivo — ele fica no histórico do projeto:`, "indicação feita por engano");
   if (motivo === null) return;
-  if (String(motivo).trim().length < 5) { aviso("Escreva o motivo da remoção (ao menos 5 letras).", "erro"); return; }
+  if (String(motivo).trim().length < 5) { aviso("Escreva o motivo da remoção (ao menos 5 letras).", "err"); return; }
   try {
     const r = await api(`/api/ic/${ATUAL.id}/indicacao/remover`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: a.email || "", nome: a.nome || "", motivo: String(motivo).trim() }),
     });
-    ATUAL = r.projeto;
-    desenharAlunos(); desenharEtapas();
+    adotarQuadroDeAlunos(r.projeto);
     aviso(`Indicação de ${quem} removida. A orientação já pode indicar o aluno certo.`);
-  } catch (e) { aviso(e.message, "erro"); }
+  } catch (e) { aviso(e.message, "err"); }
 }
 
 /* ------------------------- meses da vigência ---------------------------
@@ -4559,7 +4595,7 @@ function desenharEtapas() {
       <td><select ${ro} onchange="ATUAL.cronograma[${i}].situacao=this.value">
         ${["prevista", "andamento", "concluida"].map((s) => `<option value="${s}" ${e.situacao === s ? "selected" : ""}>${{ prevista: "prevista", andamento: "em andamento", concluida: "concluída" }[s]}</option>`).join("")}
       </select></td>
-      <td>${ger ? `<button class="rm" title="remover" onclick="ATUAL.cronograma.splice(${i},1);desenharEtapas()">×</button>` : ""}</td>
+      <td>${ger ? `<button class="rm" title="remover" onclick="ATUAL.cronograma.splice(${i},1);marcarSujo();desenharEtapas()">×</button>` : ""}</td>
     </tr>`).join("") || `<tr><td colspan="6" class="muted">Nenhuma atividade. O cronograma é obrigatório para submeter.</td></tr>`;
 }
 function addEtapa() { ATUAL.cronograma = [...(ATUAL.cronograma || []), { atividade: "", responsavel: "", inicio: "", fim: "", situacao: "prevista" }]; desenharEtapas(); }

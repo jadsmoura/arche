@@ -2347,7 +2347,7 @@ async function adicionarCola(id){
   const lista=a.participantes[cat]||(a.participantes[cat]=[]);
   const chave=(x)=>((x.cpf||"").replace(/\D/g,"")||x.matricula||x.nome||"").toLowerCase();
   const existentes=new Set(lista.map(chave));
-  let add=0,dup=0;
+  const novos=[]; let dup=0;
   for(const r of COLA.rows){
     const o={};
     COLA.mapa.forEach((m,i)=>{ if(m!=="ignorar"&&r[i]) o[m]=r[i]; });
@@ -2355,13 +2355,19 @@ async function adicionarCola(id){
     if(o.cpf) o.cpf=normCPF(o.cpf);
     const k=chave(o);
     if(existentes.has(k)){dup++;continue;}
-    existentes.add(k); lista.push(o); add++;
+    existentes.add(k); novos.push(o);
   }
-  a.atualizadoEm=new Date().toISOString();
-  await salvar();
+  /* A lista digitada entra por ROTA PRÓPRIA, dentro da fila (varredura de
+     set/2026): pelo POST em bloco ela viajava com a ação inteira, e uma aba
+     velha — desta ou de outra pessoa — a apagava ao salvar qualquer coisa. */
+  const r=await fetch(`/api/extensao/${encodeURIComponent(a.id)}/participantes`,{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({categoria:cat,adicionar:novos})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error||"Falha ao adicionar participantes");
+  if(j.acao){ const k=ACOES.findIndex(x=>x.id===a.id); if(k>=0) ACOES[k]=j.acao; }
   $("p-cola").value=""; $("p-preview").innerHTML=""; COLA=null;
-  renderTabelasPart(a);
-  alert(`✅ ${add} participante(s) adicionados${dup?` · ${dup} duplicado(s) ignorado(s)`:""}.`);
+  renderTabelasPart(ACOES.find(x=>x.id===a.id)||a);
+  alert(`✅ ${j.adicionados??novos.length} participante(s) adicionados${(dup+(j.duplicados||0))?` · ${dup+(j.duplicados||0)} duplicado(s) ignorado(s)`:""}.`);
 }
 /* As listas de participantes são LONGAS (um evento traz centenas de nomes):
    cada categoria fica recolhida, com busca e paginação — 30 por página por
@@ -2419,7 +2425,9 @@ function renderCorpoPart(id,c){
       <td>${esc(x.nome)}</td><td>${esc(x.matricula||"")}</td>
       <td class="${x.cpf&&!cpfValido(x.cpf)?"bad":""}">${esc(fmtCPF(x.cpf||""))}</td>
       <td>${esc(x.email||"")}</td><td>${esc(x.ch||"")}</td>
-      <td class="rm" title="remover" onclick="removerPart('${a.id}','${c}',${i})">✕</td></tr>`).join("")}</tbody></table>`
+      ${c==="inscritos"&&(x.token||x.origem==="online"||x.presente||(x.presencas||[]).length)
+        ? `<td class="muted" title="Inscrição feita pelo sistema (credencial/presença): não sai pela lista — cancelar é ato do ARCHÉ EV" style="font-size:11px">online</td>`
+        : `<td class="rm" title="remover" onclick="removerPart('${a.id}','${c}',${i})">✕</td>`}</tr>`).join("")}</tbody></table>`
     : `<div class="cnt">— ninguém encontrado com esta busca.</div>`)
     + (paginas>1?`<div class="part-pag">
       <button class="bt bt-ghost" ${st.p<=1?"disabled":""} onclick="pagPart('${a.id}','${c}',-1)">‹ anterior</button>
@@ -2434,7 +2442,15 @@ function pagPart(id,cat,d){
 }
 async function removerPart(id,cat,i){
   const a=ACOES.find(x=>x.id===id); if(!a)return;
-  a.participantes[cat].splice(i,1); await salvar(); renderTabelasPart(a);
+  const x=(a.participantes?.[cat]||[])[i]; if(!x)return;
+  const chave=((x.cpf||"").replace(/\D/g,"")||x.matricula||x.nome||"").trim().toLowerCase();
+  // rota própria, dentro da fila — o POST em bloco não toca mais na lista
+  const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/participantes/remover`,{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({categoria:cat,chave})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ alert(j.error||"Não foi possível remover."); return; }
+  if(j.acao){ const k=ACOES.findIndex(y=>y.id===id); if(k>=0) ACOES[k]=j.acao; }
+  renderTabelasPart(ACOES.find(y=>y.id===id)||a);
 }
 
 /* ------------------------- fluxo / status ------------------------------- */

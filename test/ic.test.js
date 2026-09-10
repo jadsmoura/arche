@@ -83,6 +83,29 @@ test("os campos de controle vêm do que está gravado, não do navegador", () =>
   assert.deepEqual(p.relatorios, [], "relatório não entra pela proposta");
 });
 
+test("quem salva um projeto JÁ GRAVADO sem e-mail de orientação não vira a orientação dele", () => {
+  // o projeto transcrito do edital chega só com o CPF do professor; a gestão
+  // abre e salva o cronograma — o e-mail dela NÃO pode entrar na orientação
+  const base = { ...novo(), id: "ic-imp", status: "submetido", criadoPor: "",
+    orientador: { nome: "Thiago Brito Steckelberg", email: "", cpf: "52998224725", titulacao: "doutor" } };
+  const p = normalizarProjeto({ ...base }, { base, autor: ALHEIO.email });
+  assert.equal(p.orientador.email, "", "o e-mail de quem salva não carimba a orientação");
+  assert.equal(p.criadoPor, "", "nem a autoria");
+  // e-mail escrito de propósito no formulário continua entrando
+  const q = normalizarProjeto({ ...base, orientador: { ...base.orientador, email: PROF.email } }, { base, autor: ALHEIO.email });
+  assert.equal(q.orientador.email, PROF.email);
+  // no projeto NOVO o autor é a orientação, como sempre
+  const n = normalizarProjeto(bruto({ orientador: { nome: "X", email: "" } }), { autor: PROF.email });
+  assert.equal(n.orientador.email, PROF.email);
+  assert.equal(n.criadoPor, PROF.email);
+});
+
+test("o rastro das indicações removidas sobrevive ao salvar seguinte", () => {
+  const base = { ...novo(), id: "ic-r", indicacoesRemovidas: [{ nome: "Ana", motivo: "engano" }] };
+  const p = normalizarProjeto({ ...base }, { base, autor: PROF.email });
+  assert.deepEqual(p.indicacoesRemovidas, base.indicacoesRemovidas);
+});
+
 test("normalização limpa listas e aceita só valores conhecidos", () => {
   const p = normalizarProjeto(bruto({
     modalidade: "inventada",

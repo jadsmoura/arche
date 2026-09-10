@@ -4597,6 +4597,79 @@ public/
   ficam fora do PDF de produção mas são lidos pelo app. É o acesso do avaliador do MEC, e a
   decisão de mantê-lo aberto é dele, não do código.
 
+- **O EVENTO QUE AMANHECEU SEM INSCRITOS: o POST em bloco não toca mais na lista, no número nem
+  no relatório** (varredura adversarial dos eventos, set/2026 — pedido do dono depois de um evento
+  da Veterinária aparecer com zero inscritos no dia seguinte: "esses módulos não podem conter
+  erros"). O agente reproduziu no servidor local uma cadeia de perdas que nasce toda no MESMO
+  lugar: o `POST /api/extensao` em bloco — o `salvar()` do ARCHÉ EX manda a lista INTEIRA de ações
+  da aba, e o "Dados do evento" do EV manda a ação inteira — gravava o retrato da ABA por cima do
+  que estava no servidor. (1) **A lista DIGITADA sumia**: `mesclarEventoEInscritos` protegia só o
+  inscrito online/com presença/com token, e numa ação sem nenhum online (as migradas do papel: 168,
+  73, 307 nomes) nem tocava em `participantes` — a aba aberta antes de a coordenação colar a lista
+  a apagava ao salvar qualquer coisa, inclusive a proposta de OUTRA ação. (2) **A gestão desfazia a
+  própria aprovação**: para quem gere o setor NADA era protegido — a aba do EX aberta de manhã
+  devolvia à tarde três eventos a `submetida` com `numeroAcao: null`, os números ficavam vagos e a
+  página pública seguia aceitando inscrições. (3) **Relatório entregue e fotos sumiam** (vinham de
+  `nova`), e daí a validação do encerramento passava em silêncio sem registrar a ação, liberava os
+  certificados e deixava o evento validado EXCLUÍVEL com os inscritos dentro — o retrato exato de
+  "evento de ontem, hoje com zero inscritos". O que mudou: `participantes.inscritos`, `portfolio` e
+  o `relatorio` já entregue vêm SEMPRE da base; a lista digitada ganhou rotas próprias, dentro da
+  fila (`POST /api/extensao/:id/participantes` com `{categoria, adicionar}` e `…/participantes/remover`
+  com `{categoria, chave}` — chave = CPF, matrícula ou nome, a mesma da tela), o EX as usa em
+  `adicionarCola`/`removerPart`, e o inscrito ONLINE não sai por elas (409; o × não se desenha para
+  ele — antes ele "sumia" da tela e voltava no carregar seguinte); número, aprovação, devolução e
+  autoria vêm da base para TODOS, gestão inclusive — o que a gestão ainda muda pelo bloco é a
+  `apreciacao` e as duas transições que sempre foram deste caminho, registrar e reabrir; validar o
+  encerramento sem `relatorio.entregueEm` é 400 (o encerramento se reenvia); e **o evento que
+  aconteceu não se exclui** — encerramento solicitado/validado ou presença lançada recusam, e o 🗑
+  do card não se desenha (`aconteceu` no EV). Na tela: os filtros da guia Inscritos zeram ao trocar
+  de evento (o filtro por campo extra do evento A escondia todos os inscritos do B, e o campo nem
+  existia lá para ser desmarcado), escolher um filtro redesenha a barra e o "✕ Limpar filtros"
+  (`mudouFiltroEv`, barra em contêiner próprio para não tirar o cursor da busca), a lista vazia
+  por filtro DIZ que é filtro, e o contador "Inscritos" da guia acompanha o poll (o id existia em
+  duas guias e `getElementById` atualizava só o escondido). E **desligar a cobrança libera quem
+  esperava pagar**: a reserva aguardando/expirada/recusada vira `isento` com o motivo no histórico
+  — antes ficava presa: "já inscrito", área do inscrito "liberado" e a porta recusando o crachá.
+  **O que a varredura NÃO achou** vale registrar: inscrição pública (com e sem conta), vagas,
+  simultâneas, duplicado, todas as gravações do EV, 20 inscrições em paralelo com gravações
+  concorrentes, reinício do servidor — nenhuma inscrição online se perdeu. Para o caso real, o
+  que responde é a produção: `sys-ex-exclusoes-v1` (quem excluiu o quê, quando, com quantos
+  inscritos) e o histórico de versões do `_estado.json` no Drive (30 dias), de onde a lista se
+  recupera.
+- **A PROGRAMAÇÃO MARCA O QUE VAI AO CARROSSEL** (`destaque` em `normalizarProgramacao` +
+  a caixa "★ destacar no carrossel" no bloco "quem ministra" da guia Programação + `palestrantesDe`
+  no hotsite, pedido do dono set/2026: "não é toda programação que é interessante de ser
+  destacada"). O carrossel "Palestrantes e convidados" girava por TODA atividade com responsável;
+  agora, marcada alguma, giram só as marcadas — e sem nenhuma marca ele segue como sempre foi,
+  para o evento que nunca marcou nada não perder a vitrine. A cópia de uma atividade (⧉) nasce
+  sem destaque, pela mesma razão pela qual nasce sem foto: é de quem ministra, e a cópia é de outra
+  pessoa.
+- **VARREDURA DAS "EDIÇÕES NÃO SALVAS" NO ARCHÉ IC** (set/2026, o dono: "notei algumas edições não
+  salvas também no módulo IC"). O agente gravou e releu cada campo da ficha nos três papéis — todos
+  os campos que a tela edita e salva SÃO gravados. O que se reproduziu de "não salva" era de outra
+  natureza, e dez coisas mudaram: (1) **a gestão que salvava um projeto importado sem e-mail de
+  orientação VIRAVA a orientação dele** — `normalizarProjeto` carimbava `email(autor)` mesmo com
+  `base`, e bastava "Salvar o cronograma" num dos 102 projetos transcritos só com CPF para o gestor
+  perder parecer e correção, o professor nunca mais se vincular pelo CPF e os certificados irem ao
+  gestor; `autor` só carimba o projeto NOVO, a orientação que chegou pelo CPF e salva ganha o
+  próprio e-mail (o único caso), e `desfazerOrientacaoCarimbadaPelaGestao` (marca
+  `sys-ic-orientacao-carimbada-v1`) desfaz no arranque o carimbo inequívoco — e-mail de gestor
+  geral num projeto importado cujo nome de orientação não é o dele; (2) `indicacoesRemovidas` sumia
+  no salvar seguinte (não estava na lista do que `normalizarProjeto` preserva); (3) `novoProjeto()`
+  nascia com `modalidade: "pibic"` — o select mostrava "a definir", o servidor gravava PIBIC/CNPq e
+  o professor mestre lia "exige doutor" sobre o que nunca escolheu; nasce vazia; (4) **"Sair sem
+  salvar?" aparecia DEPOIS de gravar** relatório, parecer, nota e validação: o ouvinte sujava por
+  qualquer campo da ficha, e esses blocos gravam por rota própria e terminam em `abrir()` — agora só
+  o que ESCREVE em `ATUAL` suja (`escreveNoProjeto` reconhece o editor pelo `oninput`/`onchange`
+  inline); (5) "Salvar a correção" e "Remover indicação" trocavam `ATUAL` pela resposta e
+  descartavam o cronograma editado (`adotarQuadroDeAlunos` adota só alunos e histórico); (6) o ×
+  de aluno/etapa não marcava alteração; (7) a gestão trocando o e-mail do aluno INLINE levava
+  CPF/RG/conta do anterior ao endereço novo — a troca se reconhece pelo CPF e o cadastro sai com
+  quem saiu, dito no histórico; (8) corrigir o NOME de aluno sem e-mail caía na trava de remoção
+  (a chave era o nome; passou a ser e-mail → matrícula → posição); (9) `aviso(…, "erro")` usava
+  classe inexistente; (10) o servidor validava relatório com pedido de interrupção pendente (409
+  agora — quem decide é a PROPPEX).
+
 - **O PRODUTO SE CHAMA CÁTEDRA; A INSTALAÇÃO SE CHAMA ARCHÉ** (`lib/produto.js`, decisão do dono
   set/2026: "Arché é uma referência direta ao fundador da AEE, Archibald — no contexto AEE é
   válido; mas estou vendo a possibilidade de comercializar o sistema com outras IES, e preciso de
