@@ -2742,7 +2742,7 @@ const faltaCert = (x, pal) => {
    pareceres, decidir. O autor e o revisor entram pelas páginas públicas, com
    o token do e-mail; aqui a gestão vê tudo — inclusive quem revisou —, e é a
    única que vê os dois lados. */
-let TR = null, TR_FILTRO = "";
+let TR = null, TR_FILTRO = "", TR_FILTRO_VINC = "";
 const TR_COR = { submetido:"info", "em-avaliacao":"warn", avaliado:"warn", correcao:"err", reenviado:"info", aceito:"ok", rejeitado:"err", retirado:"muted" };
 const trBadge = (e) => `<span class="badge s-${TR_COR[e]||"muted"}">${esc((TR.catalogos.estados.find(x=>x.codigo===e)||{}).nome||e)}</span>`;
 async function renderTrabalhos(a){
@@ -2805,6 +2805,9 @@ async function renderTrabalhos(a){
       </div>
       <div class="filtros" style="margin-bottom:8px"><select onchange="TR_FILTRO=this.value;trRenderLista()">
         <option value="">Situação: todas</option>${TR.catalogos.estados.map(e=>`<option value="${esc(e.codigo)}" ${TR_FILTRO===e.codigo?"selected":""}>${esc(e.nome)} (${rs.porEstado[e.codigo]||0})</option>`).join("")}
+      </select>
+      <select onchange="TR_FILTRO_VINC=this.value;trRenderLista()" title="Quais trabalhos são de bolsistas (pedido do dono, set/2026)">
+        <option value="">Vínculo: todos</option>${(TR.catalogos.vinculos||[]).map(v=>`<option value="${esc(v.codigo)}" ${TR_FILTRO_VINC===v.codigo?"selected":""}>${esc(v.nome)} (${(TR.trabalhos||[]).filter(t=>(t.vinculo||"livre")===v.codigo).length})</option>`).join("")}
       </select></div>
       <div id="tr-lista"></div>
     </div>`;
@@ -2840,13 +2843,14 @@ async function trConfigSalvar(id){
   }catch(e){ alert(e.message); }
 }
 const trRotMod = (m) => (TR.catalogos.modalidades.find(x=>x.codigo===m)||{}).nome||m;
+const trRotVinc = (v) => ((TR.catalogos.vinculos||[]).find(x=>x.codigo===v)||{}).nome||v;
 const trRotRec = (r) => (TR.catalogos.recomendacoes.find(x=>x.codigo===r)||{}).nome||r;
 const trRotTit = (c) => ((TR.catalogos.titulacoes||[]).find(x=>x.codigo===c)||{}).nome||c;
 function trRenderLista(){
   const el=$("tr-lista"); if(!el) return;
-  const lista=(TR.trabalhos||[]).filter(t=>!TR_FILTRO||t.estado===TR_FILTRO)
+  const lista=(TR.trabalhos||[]).filter(t=>(!TR_FILTRO||t.estado===TR_FILTRO)&&(!TR_FILTRO_VINC||(t.vinculo||"livre")===TR_FILTRO_VINC))
     .sort((a,b)=>String(a.numero).localeCompare(String(b.numero)));
-  if(!lista.length){ el.innerHTML=`<div class="muted">Nenhum trabalho${TR_FILTRO?" nesta situação":" submetido ainda"}.</div>`; return; }
+  if(!lista.length){ el.innerHTML=`<div class="muted">Nenhum trabalho${TR_FILTRO||TR_FILTRO_VINC?" neste recorte":" submetido ainda"}.</div>`; return; }
   el.innerHTML=lista.map(trCard).join("");
 }
 function trCard(t){
@@ -2861,7 +2865,8 @@ function trCard(t){
     <summary style="cursor:pointer;list-style:none;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <b style="font-family:Sora,sans-serif;color:var(--brand)">${esc(t.numero)}</b> ${trBadge(t.estado)}
       <span style="flex:1;min-width:200px;font-weight:600">${esc(t.titulo)}</span>
-      <span class="muted" style="font-size:12px">${esc(trRotMod(t.modalidade))}${t.area?` · ${esc(t.area)}`:""} · pareceres ${t.pareceresEntregues}/${t.pareceresEsperados}${t.notaMedia!=null?` · média ${t.notaMedia}`:""}</span>
+      ${t.vinculo&&t.vinculo!=="livre"?`<span class="badge s-info" title="trabalho de bolsista">${esc(trRotVinc(t.vinculo))}</span>`:""}
+      <span class="muted" style="font-size:12px">${esc(trRotMod(t.modalidade))}${!t.vinculo||t.vinculo==="livre"?" · submissão livre":""}${t.area?` · ${esc(t.area)}`:""} · pareceres ${t.pareceresEntregues}/${t.pareceresEsperados}${t.notaMedia!=null?` · média ${t.notaMedia}`:""}</span>
     </summary>
     <div style="margin-top:10px;font-size:13px;line-height:1.6">
       ${t.tituloEn?`<div style="font-style:italic;color:var(--muted)">${esc(t.tituloEn)}</div>`:""}

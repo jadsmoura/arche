@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  normalizarConfig, configPublica, podeSubmeter, validarSubmissao, novoTrabalho, proximoNumero,
+  normalizarConfig, configPublica, podeSubmeter, validarSubmissao, novoTrabalho, proximoNumero, rotuloVinculo,
   designar, registrarParecer, decidir, reenviar, retirar, paraRevisor, paraAutor, paraGestao,
   resumo, normalizarRevisores, CRITERIOS, todosPareceresEntregues, notaMedia, contarPalavras,
   autoriaCompleta, SECOES, normasPadrao,
@@ -14,7 +14,7 @@ const PESSOA = { nome: "Ana Souza", email: "ana@x.com", instituicao: "UNIEGO", t
 const ORI = { nome: "Carlos Lima", email: "carlos@x.com", instituicao: "UNIEGO", titulacao: "doutor" };
 const DADOS = {
   titulo: "Prevalência de anemia em gestantes atendidas na atenção básica", tituloEn: "Anemia prevalence in pregnant women",
-  modalidade: "resumo", area: "Saúde", curso: "Enfermagem",
+  modalidade: "resumo", area: "Saúde", curso: "Enfermagem", vinculo: "cnpq",
   resumo: palavras(210), abstract: palavras(200), palavrasChave: "anemia, gestação, atenção básica", keywords: "anemia; pregnancy; primary care",
   autores: [PESSOA, { nome: "Bia Lima", email: "", instituicao: "UNIEGO", titulacao: "graduando" }],
   orientador: ORI, revisor: { nome: "Rita Prado", email: "rita@x.com", instituicao: "UFG" }, consentimento: true,
@@ -80,6 +80,12 @@ test("o fluxo inteiro: submissão → decisão direta da PROPPEX, e o caminho pe
   assert.equal(t.numero, "TR-001");
   assert.equal(t.estado, "submetido");
   assert.equal(t.emailContato, "ana@x.com");
+  // o vínculo (bolsa CNPq · bolsa UNIEGO · submissão livre) é obrigatório e sai ao autor
+  assert.equal(t.vinculo, "cnpq");
+  assert.equal(paraAutor(t).vinculo, "cnpq");
+  assert.ok(validarSubmissao(CFG, { ...DADOS, vinculo: "" }, { cursos: CURSOS }).some((x) => /vínculo do trabalho/.test(x)));
+  assert.ok(validarSubmissao(CFG, { ...DADOS, vinculo: "capes" }, { cursos: CURSOS }).some((x) => /vínculo do trabalho/.test(x)));
+  assert.equal(rotuloVinculo("uniego"), "Bolsa UNIEGO");
   assert.deepEqual(t.revisorIndicado, { nome: "Rita Prado", email: "rita@x.com", instituicao: "UFG" });
   assert.equal(paraAutor(t).revisorIndicado.nome, "Rita Prado");
   assert.equal(JSON.stringify(paraRevisor(t, "x")), "null");

@@ -1508,6 +1508,15 @@ public/
   submissão" (que abre a janela do autor por `#normas`); sem bloco, a seção continua saindo sozinha
   quando o módulo está ligado (uma vez só — `blocoTrArche` decide). Bloco antigo com URL continua
   sendo o link externo (`ojs`), com os prazos digitados.
+- **O TRABALHO DIZ SE É DE BOLSISTA** (`VINCULOS`/`rotuloVinculo` em lib/trabalhos.js, pedido do dono
+  set/2026: "coloque uma pergunta se aquele trabalho é de Bolsas CNPq, Bolsa UNIEGO ou submissão
+  livre; preciso saber quais trabalhos são de bolsistas"): o formulário do autor ganhou o campo
+  **obrigatório** "Vínculo do trabalho" — *Bolsa CNPq · Bolsa UNIEGO · Submissão livre* —, porque a
+  apresentação no CONINT é obrigação do bolsista de IC e a PROPPEX confere quem cumpriu. Lista
+  fechada (`vinculo` no registro; o gravado antes do campo lê-se como `livre`), sai ao autor
+  (`paraAutor`), no card da gestão como etiqueta (só a bolsa; a livre vai em texto), no **filtro
+  "Vínculo"** da guia Trabalhos com a contagem por opção, na coluna "Vínculo" da planilha e na
+  área do inscrito.
 - **A ÁREA DO INSCRITO** (`public/eventos/participante.html` em `/eventos/<slug>/participante` +
   `GET /api/publico/eventos/:slug/participante` + `liberadoParaParticipar` em lib/eventos.js +
   `exigeInscricao` em lib/trabalhos.js, pedido do dono set/2026: "para eventos com site, crie a

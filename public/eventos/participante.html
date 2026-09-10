@@ -215,7 +215,7 @@ function cardTrabalhos(e, lib) {
     <div class="sec-s">${esc((c.modalidades || []).filter(Boolean).map((m) => m.nome).join(" · "))}${c.prazoSubmissao ? ` · submissões até ${fmt(c.prazoSubmissao)}` : ""}</div>
     ${!lib.ok ? `<div class="trava"><div class="ic">🔒</div><div>${esc(lib.motivo)}</div></div>` : `
     ${meus.length ? meus.map((t) => `<div class="trab">
-        <div class="n">${esc(t.numero)} · ${esc((c.modalidades || []).find((m) => m && m.codigo === t.modalidade)?.nome || t.modalidade)}</div>
+        <div class="n">${esc(t.numero)} · ${esc((c.modalidades || []).find((m) => m && m.codigo === t.modalidade)?.nome || t.modalidade)}${t.vinculo ? ` · ${esc(((c.vinculos || []).find((v) => v.codigo === t.vinculo) || {}).nome || "")}` : ""}</div>
         <div class="t">${esc(t.titulo)}</div>
         <div style="margin-top:6px"><span class="selo ${rot(t)}">${esc(t.rotulo)}</span>${t.decisao?.em ? ` <span style="font-size:12px;color:var(--muted)">decisão em ${esc(fmt(t.decisao.em))}</span>` : ""}</div>
         ${t.decisao?.mensagem ? `<p style="font-size:13px;line-height:1.55;margin-top:8px;white-space:pre-line">${esc(t.decisao.mensagem)}</p>` : ""}

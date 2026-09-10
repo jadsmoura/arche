@@ -166,6 +166,12 @@ function renderFormulario(j) {
         <div><label>Curso *</label>
           <select id="f-curso"><option value="">— escolha —</option>${c.cursos.map((x) => `<option>${esc(x)}</option>`).join("")}</select></div>
       </div>
+      <label>Vínculo do trabalho *</label>
+      <select id="f-vinculo" onchange="$('f-vinc-ajuda').textContent=((DADOS.config.vinculos||[]).find(v=>v.codigo===this.value)||{}).ajuda||''">
+        <option value="">— o trabalho é de bolsista? —</option>
+        ${(c.vinculos || []).map((v) => `<option value="${esc(v.codigo)}">${esc(v.nome)}</option>`).join("")}
+      </select>
+      <div class="ajuda" id="f-vinc-ajuda">Bolsista de iniciação científica (CNPq ou UNIEGO) apresenta o trabalho como obrigação do edital — marque a bolsa. Sem bolsa, é submissão livre.</div>
       ${c.areas.length ? `<label>Área temática *</label>
         <select id="f-area"><option value="">— escolha —</option>${c.areas.map((a) => `<option>${esc(a)}</option>`).join("")}</select>` : ""}
       <label>Título *</label>
@@ -260,7 +266,7 @@ function renderPessoas() {
 }
 function montarDados() {
   const g = (id) => ($(id) ? $(id).value : "");
-  return { titulo: g("f-titulo"), tituloEn: g("f-titulo-en"), modalidade: g("f-modalidade"), area: g("f-area"), curso: g("f-curso"),
+  return { titulo: g("f-titulo"), tituloEn: g("f-titulo-en"), modalidade: g("f-modalidade"), area: g("f-area"), curso: g("f-curso"), vinculo: g("f-vinculo"),
     autores: AUTORES, orientador: ORIENTADOR, revisor: REVISOR, ...lerConteudo(), consentimento: $("f-ok").checked };
 }
 async function enviar() {
@@ -301,6 +307,7 @@ const REC = { aceitar: "Aceitar", "aceitar-com-correcoes": "Aceitar com correç�
 function renderAcompanhamento(j) {
   const t = j.trabalho, crit = j.catalogos.criterios, c = j.config || {};
   const modal = (j.catalogos.modalidades.find((m) => m.codigo === t.modalidade) || {}).nome || t.modalidade;
+  const vinc = ((j.catalogos.vinculos || []).find((v) => v.codigo === t.vinculo) || {}).nome || "";
   const atual = t.versoes[t.versoes.length - 1] || {};
   const tit = (cod) => (j.catalogos.titulacoes.find((x) => x.codigo === cod) || {}).nome || "";
   const explica = {
@@ -320,7 +327,7 @@ function renderAcompanhamento(j) {
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <span class="selo ${COR[t.estado] || "muted"}">${esc(t.rotulo)}</span>
         <b style="font-family:Sora,sans-serif;color:var(--brand)">${esc(t.numero)}</b>
-        <span style="font-size:12.5px;color:var(--muted)">${esc(modal)}${t.area ? ` · ${esc(t.area)}` : ""}${t.curso ? ` · ${esc(t.curso)}` : ""}</span>
+        <span style="font-size:12.5px;color:var(--muted)">${esc(modal)}${vinc ? ` · ${esc(vinc)}` : ""}${t.area ? ` · ${esc(t.area)}` : ""}${t.curso ? ` · ${esc(t.curso)}` : ""}</span>
       </div>
       <h2 style="font-size:18px;margin:12px 0 4px;line-height:1.35">${esc(t.titulo)}</h2>
       ${t.tituloEn ? `<div style="font-size:14px;color:var(--ink-soft);font-style:italic">${esc(t.tituloEn)}</div>` : ""}

@@ -5987,7 +5987,7 @@ const dadosTr = (req) => { try { return JSON.parse(req.body?.dados || "{}") || {
 const cursosTrabalho = () => [...CURSOS.filter((c) => c.ativo !== false).map((c) => c.nome),
   "Mestrado em Sociedade, Tecnologia e Meio Ambiente", "Outro / instituição externa"];
 const catalogosTr = () => ({ modalidades: tr.MODALIDADES, criterios: tr.CRITERIOS, recomendacoes: tr.RECOMENDACOES,
-  decisoes: tr.DECISOES, estados: tr.ESTADOS, secoes: tr.SECOES, titulacoes: tr.TITULACOES_AUTOR, idiomas: tr.IDIOMAS });
+  decisoes: tr.DECISOES, estados: tr.ESTADOS, secoes: tr.SECOES, titulacoes: tr.TITULACOES_AUTOR, idiomas: tr.IDIOMAS, vinculos: tr.VINCULOS });
 async function pdfDoTrabalho(res, a, t, { anonimo = false, versao = null } = {}) {
   const { gerarTrabalhoPdf } = await import("./lib/pdf.js");
   const v = versao ? (t.versoes || []).find((x) => x.n === versao) : null;
@@ -6325,7 +6325,8 @@ app.get("/api/extensao/:id/trabalhos.xlsx", async (req, res) => {
     ws.columns = [
       { header: "Número", key: "numero", width: 10 }, { header: "Título", key: "titulo", width: 60 },
       { header: "Título em inglês", key: "tituloEn", width: 40 },
-      { header: "Modalidade", key: "modalidade", width: 18 }, { header: "Área", key: "area", width: 22 },
+      { header: "Modalidade", key: "modalidade", width: 18 }, { header: "Vínculo", key: "vinculo", width: 18 },
+      { header: "Área", key: "area", width: 22 },
       { header: "Curso", key: "curso", width: 26 }, { header: "Idioma", key: "idioma", width: 8 },
       { header: "Autores", key: "autores", width: 50 }, { header: "Orientador(a)", key: "orientador", width: 30 },
       { header: "E-mail de contato", key: "email", width: 30 },
@@ -6338,6 +6339,7 @@ app.get("/api/extensao/:id/trabalhos.xlsx", async (req, res) => {
       const g = tr.paraGestao(t);
       ws.addRow(linhaSegura({
         numero: t.numero, titulo: t.titulo, modalidade: tr.MODALIDADES.find((m) => m.codigo === t.modalidade)?.nome || t.modalidade,
+        vinculo: tr.rotuloVinculo(t.vinculo),
         tituloEn: t.tituloEn || "", area: t.area, curso: t.curso || "", idioma: (tr.versaoAtual(t)?.idioma || (t.modalidade === "completo" ? "pt" : "")),
         autores: (t.autores || []).map((a) => `${a.nome}${a.titulacao ? ` (${tr.rotuloTitulacao(a.titulacao)})` : ""}`).join("; "),
         orientador: t.orientador?.nome || "", email: t.emailContato,
