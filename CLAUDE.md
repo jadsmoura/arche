@@ -795,6 +795,28 @@ public/
   indicação de aluno, pedido de substituição, contestação e — no ICEM — escolha/troca de
   projeto e relatório final do bolsista. O aviso leva o essencial e o link do setor,
   nunca nota, parecer ou dado bancário.
+- **A FILA DA PÁGINA INICIAL É UM QUADRO SÓ, com um QUADRADO por setor** (`#painel-fila` +
+  `desenharFila`/`setoresDaFila` em public/index.html, pedido do dono set/2026: "acho que tem um
+  bug nesses dois painéis de alerta; não tem porque dois — condense num quadro com quadrados para
+  cada setor com o número de pendências, quando eu clicar, abre a lista"). Não era bug: eram os
+  dois painéis descritos abaixo, e a separação fazia sentido no servidor — um é o que espera um ATO
+  DA PESSOA (`/api/minhas-pendencias`), o outro o que espera uma DECISÃO dela nos setores que gere
+  (`/api/alertas`). Do lado de quem abre o portal, porém, é UMA pergunta: o que está parado
+  esperando por mim? Empilhados, os dois ainda repetiam o setor em dois lugares ("Monitoria" numa
+  lista e na outra) e empurravam os cartões para fora da tela.
+  Agora é um quadro: **o quadrado diz ONDE e QUANTO**, e o clique abre a lista daquele setor — o
+  mesmo clique a fecha. **O que separa as duas origens passou a ser a ETIQUETA da linha** (*você* ×
+  *decisão*), que é a informação que importa: de quem é o próximo passo. As duas rotas continuam
+  independentes e **falham sozinhas** (uma falha de rede na fila da gestão não pode tirar da tela o
+  relatório que a pessoa tem para entregar), o `info` segue fora daqui e dentro do sino, o recolher
+  continua ficando no `localStorage` (mesma chave) e sem nada pendente o quadro não se desenha.
+  **O que o quadro NÃO faz, de propósito: decidir por aqui.** O pedido dizia "que pode ser deferido
+  ali mesmo, ou abrir em detalhes", e o que a rota de alertas devolve são CONTAGENS com uma amostra
+  de nomes — não os documentos. Aprovar proposta, validar relatório ou deferir reserva é ato que se
+  pratica com o documento aberto, que é a régua que o portal já segue em todo lugar (o card do fim
+  da ficha do relatório, o botão que a barra do EX só desenha no documento certo). Um "deferir" na
+  página inicial decidiria sem ninguém ter lido. O que a lista entrega é o **caminho mais curto até
+  lá**: cada linha leva ao ponto em que aquilo se resolve.
 - **O QUE ESPERA VOCÊ: só decisões, e com "✓ visto"** (`info` nos alertas + `sys-alertas-vistos-v1`
   + `POST /api/alertas/visto`, pedido do dono ago/2026: "só deixe visível demandas em aberto que
   preciso me atentar — tem coisa ali que está só ocupando espaço"). Duas coisas.
@@ -818,10 +840,11 @@ public/
   `hidden` apaga pelo estilo do navegador, e a regra de classe (`display:flex`) vence dele — sem a
   linha, o painel recolhia no atributo e continuava na tela.
 - **O QUE VOCÊ PRECISA FAZER — a fila de CADA PESSOA na página inicial** (`lib/pendencias.js` +
-  `GET /api/minhas-pendencias` + `#painel-meu` em public/index.html, achado do dono ago/2026:
+  `GET /api/minhas-pendencias`, achado do dono ago/2026:
   "alguns alunos de ensino médio estão entrando pelo sistema e caindo em uma página vazia;
   coloca na página principal do usuário os itens que ele precisa fazer, algum atalho? por
-  exemplo, relatórios, indicação"). O painel de demandas logo abaixo é da **GESTÃO** — o que
+  exemplo, relatórios, indicação"). Desde set/2026 as duas filas dividem **um quadro só** (acima);
+  o que segue vale para a ROTA, que não mudou. O painel de demandas é da **GESTÃO** — o que
   espera decisão nos setores que ela gere, recortado por `modulosDe`. Este é de **toda pessoa
   logada**: o professor com um bolsista por indicar, a estudante do ICEM que precisa escolher o
   projeto, o monitor com o relatório a enviar. A informação sempre existiu; morava dentro de
