@@ -148,7 +148,7 @@ import {
   chaveNome, nomesCompativeis,
 } from "./lib/fusao.js";
 import {
-  INSTITUICAO_KEY, normalizarInstituicao, normalizarComposicao, aplicarNoCatalogo,
+  INSTITUICAO_KEY, normalizarInstituicao, normalizarComposicao, mesclarComposicao, aplicarNoCatalogo,
   cursosAtivos, cursosDaPessoa, equipeApDaComposicao, slugDeCursoNovo, siglaDeCursoNovo,
   CARGOS_REITORIA, normalizarReitoria,
 } from "./lib/instituicao.js";
@@ -10330,6 +10330,21 @@ app.post("/api/atas", async (req, res) => {
       const base = i >= 0 ? atas[i] : null;
       if (base && !podeEditar(u, base)) return { erro: [403, "Sem permissão para editar esta ata"], gravar: false };
       if (!base && b.id) return { erro: [404, "Ata não encontrada"], gravar: false };
+      /* A ata REGISTRADA é documento vigente (achado da revisão adversarial de
+         set/2026): a gravação AUTOMÁTICA nunca a toca — a guarda da tela olha
+         o status que a aba conhece, e uma aba aberta antes do registro ainda
+         a tinha como minuta, gravando sozinha por cima da ata que outra pessoa
+         acabara de registrar. E a gravação deliberada só passa se a tela viu a
+         VERSÃO registrada: `atualizadoEm` diferente é aba defasada, e o que ela
+         mandaria é o retrato de antes do registro. */
+      if (base && statusVigente(base.status) === "registrada") {
+        if (b.auto === true) {
+          return { erro: [409, "Esta ata já foi registrada e não se grava sozinha. Recarregue-a para continuar a edição."], gravar: false };
+        }
+        if (!b.atualizadoEm || String(b.atualizadoEm) !== String(base.atualizadoEm || "")) {
+          return { erro: [409, "Esta ata foi registrada ou alterada depois de a sua tela carregar. Recarregue-a antes de gravar, para não sobrescrever a versão registrada."], gravar: false };
+        }
+      }
 
       let ata = normalizarAta(b, { base, autor: u.email });
       if (!ata.id) ata.id = "ata_" + crypto.randomUUID().slice(0, 12);
@@ -12286,17 +12301,29 @@ app.get("/api/curso", async (req, res) => {
 
 /** A gravação da composição + a sincronia com o AP, num lugar só: é usada
     pela rota do painel e pela INCLUSÃO de curso (que já nomeia a dupla). */
+let filaInstituicao = Promise.resolve();
 async function gravarComposicaoDoCurso(slug, corpo, porEmail, { manterCoordenador = null } = {}) {
-  const inst = await lerInstituicao();
-  const nova = normalizarComposicao({ ...corpo, atualizadoEm: new Date().toISOString(), por: porEmail });
-  if (manterCoordenador) nova.coordenador = manterCoordenador;
-  inst.cursos[slug] = nova;
-  await salvarInstituicao(inst);
-  const equipe = await lerEquipeAP();
-  const equipeNova = normalizarEquipeAP(equipeApDaComposicao(equipe, slug, nova));
-  await storage.set(AP_EQUIPE_KEY, JSON.stringify(equipeNova));
-  await storage.flush?.();
-  return nova;
+  /* LER → MESCLAR → GRAVAR, numa fila (achado da revisão adversarial de
+     set/2026): a composição era substituída inteira pelo que a aba mandava,
+     e duas pessoas editando o mesmo curso — ou uma aba aberta antes de o NDE
+     entrar — apagavam uma à outra em silêncio. Campo ausente no corpo fica
+     como está (`mesclarComposicao`); a fila faz duas gravações simultâneas se
+     enxergarem. A tela passou a mandar SÓ a parte que editou. */
+  const r = filaInstituicao.then(async () => {
+    const inst = await lerInstituicao();
+    const nova = normalizarComposicao({ ...mesclarComposicao(inst.cursos[slug] || {}, corpo),
+      atualizadoEm: new Date().toISOString(), por: porEmail });
+    if (manterCoordenador) nova.coordenador = manterCoordenador;
+    inst.cursos[slug] = nova;
+    await salvarInstituicao(inst);
+    const equipe = await lerEquipeAP();
+    const equipeNova = normalizarEquipeAP(equipeApDaComposicao(equipe, slug, nova));
+    await storage.set(AP_EQUIPE_KEY, JSON.stringify(equipeNova));
+    await storage.flush?.();
+    return nova;
+  });
+  filaInstituicao = r.catch(() => {});
+  return r;
 }
 
 /** Grava a composição de UM curso — e os acessos acompanham (ap-equipe). */

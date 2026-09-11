@@ -959,3 +959,14 @@ test("os pares nome+e-mail que uma ata tem a ensinar", () => {
     { nome: "Elis Prado Neto", email: "elis@uniego.edu.br" },
   ]);
 });
+
+test("ata REGISTRADA não volta atrás por gravação nenhuma (a aba velha não a rebaixa)", () => {
+  const base = { ...nova(), id: "ata_reg", status: "registrada", numero: "ATA-NDE-ENF-2026-003" };
+  const a = normalizarAta({ ...bruta(), id: "ata_reg", status: "minuta" }, { base, autor: "camila@uniego.edu.br" });
+  assert.equal(a.status, "registrada");
+  const b = normalizarAta({ ...bruta(), id: "ata_reg", status: "rascunho" }, { base, autor: "camila@uniego.edu.br" });
+  assert.equal(b.status, "registrada");
+  // fora do registro, o status da aba continua valendo (minuta → rascunho é a rota /status, mas o POST aceita)
+  const c = normalizarAta({ ...bruta(), status: "minuta" }, { base: { ...nova(), status: "rascunho" } });
+  assert.equal(c.status, "minuta");
+});

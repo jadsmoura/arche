@@ -256,18 +256,23 @@ function lerLista(chave){
   })).filter(p=>p.nome);
 }
 
-/* salvar manda a composição INTEIRA: a tela edita uma parte por vez, e o que
-   está na outra guia viaja do estado — senão salvar os dados apagaria o NDE */
+/* salvar manda SÓ a parte que a guia editou: o servidor mescla com o que está
+   gravado (campo ausente = "não mexi"). Mandar a composição inteira, como
+   antes, fazia uma aba aberta antes de o NDE ser incluído apagá-lo ao salvar
+   os dados do curso — o retrato velho da aba vencia o registro. */
 async function salvarCurso(deOnde){
+  let parte;
   if(deOnde==="dados"){
     COMP.coordenador={nome:($("coordenador-nome")||{}).value||COMP.coordenador?.nome||"",
       email:($("coordenador-email")||{}).value||COMP.coordenador?.email||""};
     COMP.pedagogico={nome:$("pedagogico-nome").value,email:$("pedagogico-email").value};
+    parte={coordenador:COMP.coordenador,pedagogico:COMP.pedagogico};
   }else{
     COMP.nde=lerLista("nde"); COMP.colegiado=lerLista("colegiado");
+    parte={nde:COMP.nde,colegiado:COMP.colegiado};
   }
   const r=await fetch("/api/curso/"+encodeURIComponent(SEL),{method:"POST",
-    headers:{"Content-Type":"application/json"},body:JSON.stringify(COMP)});
+    headers:{"Content-Type":"application/json"},body:JSON.stringify(parte)});
   const j=await r.json().catch(()=>({}));
   if(!r.ok){ $("p-msg").innerHTML=`<div class="banner ba-err">${esc(j.error||"Não foi possível gravar.")}</div>`; return; }
   D.cursos[SEL]=j.composicao; COMP=JSON.parse(JSON.stringify(j.composicao));

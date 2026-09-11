@@ -4724,6 +4724,33 @@ public/
   cópia traz 0 na segunda). Ensaiado no local: 26 → 3 inscritos e sem página; a consulta apontou
   "faltam 22" na cópia do dia, e a restauração devolveu os 22 e a página.
 
+- **A ATA REGISTRADA NÃO VOLTA ATRÁS POR NENHUMA PORTA, e não se grava sozinha**
+  (`normalizarAta` em lib/atas.js + a guarda no `POST /api/atas`, segunda rodada da revisão
+  adversarial, set/2026 — o agente reproduziu no servidor local). A rota `/status` recusava o
+  rebaixamento ("Ata registrada não volta atrás"), mas o POST geral deixava o `status` da ABA
+  vencer o da base: um POST com `status:"minuta"` sobre uma ata registrada a rebaixava,
+  sobrescrevia a pauta com a cópia da aba e deixava `pdf` e `registro` dentro — a ata sumia da
+  prova de conformidade com o PDF ainda apontando para ela. E disparava na **gravação
+  automática**: a guarda da tela olha `ATUAL.status`, e a aba aberta ANTES do registro ainda o
+  tinha como minuta, gravando sozinha por cima do que outra pessoa acabara de registrar.
+  Agora `normalizarAta` mantém `registrada` seja o que for que a aba mande; a gravação com
+  `auto: true` sobre base registrada é 409; e a gravação DELIBERADA sobre a registrada exige o
+  `atualizadoEm` que a tela viu — diferente ou ausente é aba defasada, e o que ela mandaria é o
+  retrato de antes do registro (409 mandando recarregar). A ata registrada continua corrigível
+  pelo caminho de sempre: edita-se na tela atual, salva-se e gera-se o PDF corrigido.
+- **A COMPOSIÇÃO DO CURSO SE GRAVA POR MESCLA, numa fila** (`mesclarComposicao` em
+  lib/instituicao.js + `filaInstituicao` em `gravarComposicaoDoCurso`, mesma rodada): a tela
+  edita uma parte por vez — a dupla numa guia, NDE e Colegiado noutra — e a gravação era
+  substituição total do que a aba mandava; a aba carregada antes de o NDE ser incluído o apagava
+  ao salvar os dados do curso, sem aviso, e ainda reescrevia `ap-equipe-v1`. Campo AUSENTE no
+  corpo fica como está; campo presente (lista vazia inclusive) é decisão de quem gravou; e a tela
+  passou a mandar SÓ a parte que editou. A inclusão de curso continua chamando a mesma função.
+  **O que a rodada conferiu e passou** (registro para não retestar do zero): recorte por autor
+  das atas em ver/listar/editar/buscar; folha de assinaturas titular × terceiro (409/403, chave
+  por nome); a fusão da ficha do docente no servidor (edição da ficha do colega é descartada);
+  recorte por curso da Avaliação na leitura e na escrita; o selo `/avaliador` lendo tudo e
+  gravando nada; a cegueira do ARCHÉ TR nas três visões; o saneamento do texto rico; e o
+  recorte por curso dos Relatórios com a nota "recortado".
 - **O PRODUTO SE CHAMA CÁTEDRA; A INSTALAÇÃO SE CHAMA ARCHÉ** (`lib/produto.js`, decisão do dono
   set/2026: "Arché é uma referência direta ao fundador da AEE, Archibald — no contexto AEE é
   válido; mas estou vendo a possibilidade de comercializar o sistema com outras IES, e preciso de
