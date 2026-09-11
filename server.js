@@ -4981,6 +4981,36 @@ app.get("/api/publico/eventos/:slug", async (req, res) => {
   }
 });
 
+/* O CADASTRO SE COMPLETA PELA INSCRIÇÃO (pedido do dono, set/2026: "o sistema
+   deve pedir cadastro completo ao usuário, para que nas próximas vezes não
+   seja mais necessário"). O formulário do evento já pede nome, CPF, telefone e
+   curso — os mesmos campos do perfil. Quem se inscreve com conta e ainda não
+   tem esses dados no perfil os ganha AQUI, uma vez: só o que está vazio (o que
+   a pessoa já preencheu no /perfil/ nunca é sobrescrito), o CPF só quando
+   nenhuma outra conta o tem (CPF é único por conta, e a régua do perfil é a
+   mesma), e o curso só quando o texto casa com um curso do catálogo (o campo
+   público é "curso / instituição de origem", e "USP" não é curso do UNIEGO). */
+async function completarPerfilPelaInscricao(email, { nome, cpf, telefone, curso }) {
+  const e = String(email || "").trim().toLowerCase();
+  if (!e) return;
+  const perfis = await carregarPerfis();
+  const p = perfis[e] || {};
+  const novo = { ...p };
+  let mudou = false;
+  if (!nomeDePessoaValido(p.nome) && nomeDePessoaValido(nome)) { novo.nome = String(nome).trim(); mudou = true; }
+  const cpfLimpo = normalizarCpf(cpf);
+  if (!p.cpf && cpfLimpo && !Object.entries(perfis).some(([m, x]) => m !== e && x?.cpf === cpfLimpo)) { novo.cpf = cpfLimpo; mudou = true; }
+  if (!p.telefone && String(telefone || "").trim()) { novo.telefone = String(telefone).trim().slice(0, 40); mudou = true; }
+  if (!p.curso && curso) {
+    const alvo = chaveNome(curso);
+    const doCatalogo = CURSOS.find((c) => chaveNome(c.nome) === alvo || chaveNome(c.sigla || "") === alvo);
+    if (doCatalogo) { novo.curso = doCatalogo.nome; mudou = true; }
+  }
+  if (!mudou) return;
+  perfis[e] = novo;
+  await storage.set(PERFIS_KEY, JSON.stringify(perfis));
+}
+
 const RE_EMAIL_INSCRICAO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 /** Nome de gente para crachá e certificado: sem "@" e com ao menos duas palavras. */
 const nomeDePessoaValido = (nome) => {
@@ -5201,6 +5231,11 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     res.json({ ok: true, token: r.inscrito.token, codigo: codigoDe(r.inscrito.token),
       ...(r.inscrito.pagamento ? { pagamento: pagamentoPublico(r.inscrito, r.acao.evento) } : {}),
       ...(r.renovada ? { renovada: true } : {}) });
+    // O CADASTRO SE COMPLETA PELA INSCRIÇÃO (pedido do dono, set/2026): o que a
+    // pessoa digitou entra no perfil da conta onde ele ainda está vazio — na
+    // próxima inscrição já vem preenchido, e o portal não pede de novo.
+    if (conta) completarPerfilPelaInscricao(conta.email, { nome, cpf, telefone, curso })
+      .catch((e) => console.error("[eventos] completar perfil pela inscrição:", e.message));
 
     /* O E-MAIL É O RECIBO, e por isso ele sai DEPOIS de a inscrição estar
        gravada de verdade (raciocínio do dono, ago/2026): se algo falhar no

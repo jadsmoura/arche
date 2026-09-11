@@ -569,9 +569,20 @@ async function preencherComOUsuario() {
       põe("i-tel", p.telefone),
       põe("i-curso", p.curso),
     ].some(Boolean);
-    if (!algum) return;
     const form = $("f");
     if (!form) return;
+    /* CADASTRO UMA VEZ SÓ (pedido do dono, set/2026): o que a pessoa digita
+       aqui — nome, CPF, telefone, curso — vai para o cadastro da conta quando
+       ele ainda não tem, e na próxima inscrição já vem preenchido. Quem tem o
+       cadastro incompleto lê isso antes de digitar. */
+    const faltaNoCadastro = !nomeDeGente(p.nome) || String(p.cpf || "").replace(/\D/g, "").length !== 11 || !p.telefone;
+    if (faltaNoCadastro) {
+      const nota = document.createElement("div");
+      nota.className = "msg-ok";
+      nota.innerHTML = `Preencha os seus dados <b>uma vez</b>: eles ficam guardados no seu cadastro do portal (conta <b>${esc(u.email)}</b>) e, nas próximas inscrições, já vêm preenchidos.`;
+      form.insertBefore(nota, form.firstChild);
+    }
+    if (!algum) return;
     // o aviso entra RECOLHIDO (pedido do dono, ago/2026): quem reconhece os
     // próprios dados no formulário não precisa de um bloco explicando; quem
     // estranhar abre e encontra a conta usada e o "não sou eu"

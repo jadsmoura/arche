@@ -4698,6 +4698,17 @@ public/
   **perfil**: `faltaNoPerfil` passa a contar como faltando o nome que é e-mail ou palavra só — o
   perfil alimenta crachá, certificado, termo e ata, e a etapa de completar o cadastro aponta o
   campo.
+- **O CADASTRO SE COMPLETA PELA INSCRIÇÃO, uma vez** (`completarPerfilPelaInscricao` no server +
+  a nota "Preencha os seus dados uma vez" no hotsite, pedido do dono set/2026: "o sistema deve
+  pedir cadastro completo ao usuário, para que nas próximas vezes não seja mais necessário"). O
+  formulário do evento já pede os campos do perfil — nome, CPF, telefone, curso —, e quem se
+  inscreve com conta os ganha no perfil onde ainda estão vazios: o que a pessoa preencheu no
+  `/perfil/` nunca é sobrescrito, o CPF só entra quando nenhuma outra conta o tem (é único por
+  conta, a mesma régua do perfil) e o curso só quando o texto casa com o catálogo (o campo
+  público é "curso / instituição de origem"). Na inscrição seguinte o formulário já vem preenchido
+  pelo `/api/me`. A etapa de completar o cadastro nos setores protegidos (`faltaNoPerfil`) segue
+  como está — a página pública do evento não a impõe, porque o participante externo não tem
+  função nem curso do UNIEGO para declarar; o formulário do evento É o cadastro dele.
 - **RECUPERAR INSCRITOS PELA CÓPIA DIÁRIA** (`GET /api/extensao/recuperacao?acao=&dias=` +
   `POST /api/extensao/recuperacao/restaurar` + o card "Recuperar inscritos de um evento" em
   `/diagnostico/`, só gestor geral — set/2026, a ferramenta para o evento da Veterinária). O que
