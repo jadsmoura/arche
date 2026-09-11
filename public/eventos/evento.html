@@ -558,8 +558,12 @@ async function preencherComOUsuario() {
       return false;
     };
     const cpf = String(p.cpf || "").replace(/\D/g, "");
+    // o nome da conta só entra se for nome de GENTE: quem entra por código ou
+    // senha carrega o e-mail como nome, e ele ia parar no campo Nome (achado
+    // do dono, set/2026 — inscritos com o e-mail no lugar do nome)
+    const nomeDeGente = (v) => (v && !String(v).includes("@") ? v : "");
     const algum = [
-      põe("i-nome", p.nome || u.nome),
+      põe("i-nome", nomeDeGente(p.nome) || nomeDeGente(u.nome)),
       põe("i-cpf", cpf.length === 11 ? cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : cpf),
       põe("i-email", u.email),
       põe("i-tel", p.telefone),
@@ -1273,6 +1277,14 @@ async function inscrever(ev) {
   if (!$("i-lgpd").checked) {
     $("f-msg").innerHTML = '<div class="msg-erro">Para se inscrever, marque a caixa de ciência e concordância com o tratamento dos dados pessoais.</div>';
     $("i-lgpd").focus();
+    return;
+  }
+  // o nome sai no crachá e no certificado: nada de e-mail, e nome e sobrenome
+  // (o servidor recusa igual; a página explica antes)
+  const nomeDigitado = $("i-nome").value.trim();
+  if (nomeDigitado.includes("@") || nomeDigitado.split(/\s+/).filter((p) => p.length >= 2).length < 2) {
+    $("f-msg").innerHTML = `<div class="msg-erro">${nomeDigitado.includes("@") ? "O campo Nome está com um e-mail. " : ""}Escreva o seu nome completo — nome e sobrenome, como deve sair no certificado.</div>`;
+    $("i-nome").focus();
     return;
   }
   const bt = $("f-bt"); bt.disabled = true;

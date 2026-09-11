@@ -4680,6 +4680,24 @@ public/
   (`renderBolsistasCorpo` — redesenhar a barra tiraria o cursor), e a busca se lê a cada chamada de
   `passa`, não no desenho da barra. Os filtros são da GUIA: trocar de ciclo os mantém; "✕ Limpar
   filtros" zera. O agrupamento por orientador continua, e o orientador sem aluno no recorte some.
+- **O INSCRITO COM O E-MAIL NO LUGAR DO NOME** (achado do dono, set/2026, na lista de inscritos
+  do CONINT: "certifique que o sistema está coletando os dados corretamente"). A cadeia: quem entra
+  por **código ou senha** nasce com `nome: email` na sessão (`emitirCookie(res, { email, nome:
+  email })`), o `/api/me` repassava isso, e o hotsite preenchia o campo Nome com `p.nome ||
+  u.nome` — sem perfil, o e-mail; a pessoa enviava sem reparar, e o servidor aceitava qualquer
+  coisa com 3 letras. O nome sai no crachá e no certificado. Quatro pontos, mais um:
+  (1) `nomeDePessoaValido` no server — sem "@" e com ao menos duas palavras — vale na
+  **inscrição pública** (400 dizendo que o campo veio com um e-mail) e na rota de correção;
+  (2) o `/api/me` devolve o nome do PERFIL quando a sessão só tem o e-mail
+  (`nomeDaSessaoEhEmail`); (3) o hotsite só preenche o Nome com nome de gente (`nomeDeGente`) e
+  confere antes de enviar; (4) `corrigirNomesDeInscritosQueEramEmail` roda a **cada arranque**
+  (barata, idempotente): inscrito com "@" no nome recebe o nome do perfil da conta, quando o
+  perfil tem um nome de gente, com `nomeCorrigido` no registro; quem não tem perfil fica, e a
+  lista do EV o marca "**nome a corrigir**" com o **✎** que abre `POST
+  /api/extensao/:id/inscritos/:token/nome` (quem opera o evento; só o nome muda). E (5) o
+  **perfil**: `faltaNoPerfil` passa a contar como faltando o nome que é e-mail ou palavra só — o
+  perfil alimenta crachá, certificado, termo e ata, e a etapa de completar o cadastro aponta o
+  campo.
 - **RECUPERAR INSCRITOS PELA CÓPIA DIÁRIA** (`GET /api/extensao/recuperacao?acao=&dias=` +
   `POST /api/extensao/recuperacao/restaurar` + o card "Recuperar inscritos de um evento" em
   `/diagnostico/`, só gestor geral — set/2026, a ferramenta para o evento da Veterinária). O que

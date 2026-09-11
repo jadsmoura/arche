@@ -731,7 +731,15 @@ app.get("/api/me", async (req, res) => {
   const perfis = await carregarPerfis();
   const coordenaCursos = await cursosQueCoordenaDe(u.email);
   res.json({
-    ...u, perfil: perfis[u.email] || null, temSenha: await temSenha(storage, u.email),
+    ...u,
+    /* O nome da SESSÃO não é necessariamente nome de gente (achado do dono,
+       set/2026): quem entra por código ou senha nasce com `nome: email`, e as
+       telas que preenchem formulário com "o nome da conta" punham o e-mail no
+       campo Nome — foi assim que inscritos apareceram com o e-mail no lugar do
+       nome. Aqui sai o nome do PERFIL quando a sessão só tem o e-mail; sem
+       perfil, o e-mail continua (é o que a barra do topo mostra). */
+    nome: nomeDaSessaoEhEmail(u) ? (perfis[u.email]?.nome || u.nome || u.email) : u.nome,
+    perfil: perfis[u.email] || null, temSenha: await temSenha(storage, u.email),
     // os cursos que a pessoa coordena (composição institucional + cadastro do
     // AP): é o que abre o cartão "Seu Curso" no portal e a página /curso/
     coordenaCursos,
@@ -2719,6 +2727,36 @@ async function corrigirCpfDaOrientadoraLuana() {
     if (r.numeros.length) console.log(`[ic] CPF da orientação corrigido em ${r.numeros.length} projeto(s): ${r.numeros.join(", ")}`);
   } catch (e) {
     console.error("[ic] corrigirCpfDaOrientadoraLuana:", e.message);
+  }
+}
+
+/* O INSCRITO COM O E-MAIL NO LUGAR DO NOME (achado do dono, set/2026): a sessão
+   de quem entra por código ou senha nascia com `nome: email`, o formulário de
+   inscrição preenchia o Nome com isso, e a pessoa enviava sem reparar. Esta
+   passada roda a CADA arranque (é barata e idempotente): todo inscrito cujo
+   nome carrega "@" recebe o nome do PERFIL da conta, quando o perfil tem um
+   nome de gente. Quem não tem perfil fica como está — a lista do EV marca o
+   nome a corrigir e a coordenação corrige pelo ✎. */
+async function corrigirNomesDeInscritosQueEramEmail() {
+  try {
+    const perfis = await carregarPerfis();
+    const r = await comAcoes((acoes) => {
+      let n = 0;
+      for (const a of acoes) {
+        for (const i of a.participantes?.inscritos || []) {
+          if (!i || !String(i.nome || "").includes("@")) continue;
+          const doPerfil = String(perfis[String(i.email || "").toLowerCase()]?.nome || "").trim();
+          if (!nomeDePessoaValido(doPerfil)) continue;
+          i.nomeCorrigido = { de: i.nome, em: new Date().toISOString(), por: "sistema (perfil da conta)" };
+          i.nome = doPerfil; n++;
+          a.atualizadoEm = new Date().toISOString();
+        }
+      }
+      return { n, gravar: n > 0 };
+    });
+    if (r.n) console.log(`[eventos] ${r.n} inscrito(s) com e-mail no lugar do nome receberam o nome do perfil`);
+  } catch (e) {
+    console.error("[eventos] corrigirNomesDeInscritosQueEramEmail:", e.message);
   }
 }
 
@@ -4944,6 +4982,13 @@ app.get("/api/publico/eventos/:slug", async (req, res) => {
 });
 
 const RE_EMAIL_INSCRICAO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+/** Nome de gente para crachá e certificado: sem "@" e com ao menos duas palavras. */
+const nomeDePessoaValido = (nome) => {
+  const s = String(nome || "").trim();
+  return !s.includes("@") && s.split(/\s+/).filter((p) => p.length >= 2).length >= 2;
+};
+/** O nome que a sessão carrega vale como nome de pessoa? (código/senha entram com `nome: email`) */
+const nomeDaSessaoEhEmail = (u) => !u?.nome || String(u.nome).includes("@");
 
 /** Inscrição online — grava na MESMA lista de participantes da ação. */
 app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
@@ -4959,6 +5004,15 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     const conta = await usuarioDe(req, res);
     const curso = String(b.curso || "").trim().slice(0, 120);
     if (nome.length < 3) return res.status(400).json({ error: "Escreva o seu nome completo." });
+    /* O NOME NÃO É UM E-MAIL (achado do dono, set/2026: inscritos aparecendo com o
+       e-mail no lugar do nome). A sessão de quem entra por código ou senha
+       nascia com `nome: email`, o formulário a usava para preencher o campo, e
+       a pessoa enviava sem reparar. O nome sai impresso no crachá e no
+       certificado — a régua é do servidor: nada de "@", e ao menos duas palavras. */
+    if (!nomeDePessoaValido(nome))
+      return res.status(400).json({ error: nome.includes("@")
+        ? "O campo Nome veio com um e-mail — escreva o seu nome completo (nome e sobrenome), como deve sair no certificado."
+        : "Escreva o seu nome completo — nome e sobrenome, como deve sair no certificado." });
     if (!cpf) return res.status(400).json({ error: "O CPF informado não é válido — confira os números digitados." });
     if (!RE_EMAIL_INSCRICAO.test(email))
       return res.status(400).json({ error: "Informe um e-mail válido — é nele que chega a confirmação da inscrição." });
@@ -5692,6 +5746,37 @@ app.get("/api/extensao/:id/financeiro", async (req, res) => {
 });
 
 /** Isentar uma inscrição (cortesia, convidado, pagamento fora do sistema). */
+/* CORRIGIR O NOME DE UM INSCRITO (set/2026, o mesmo achado do "e-mail no lugar
+   do nome"): a coordenação vê na lista quem se inscreveu com o nome errado e
+   corrige ali — o nome sai no crachá e no certificado. Só o nome; e-mail, CPF
+   e presença ficam como estão. Quem opera o evento corrige. */
+app.post("/api/extensao/:id/inscritos/:token/nome", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const nome = String(req.body?.nome || "").trim().slice(0, 120);
+    if (!nomeDePessoaValido(nome)) return res.status(400).json({ error: "Escreva o nome completo (nome e sobrenome), sem e-mail." });
+    const tok = String(req.params.token || "").trim().toLowerCase();
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((x) => x.id === req.params.id);
+      if (!a || !podeOperarEvento(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      const i = (a.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === tok);
+      if (!i) return { erro: [404, "Inscrição não encontrada."], gravar: false };
+      const antes = i.nome || "";
+      if (antes === nome) return { antes, nome, gravar: false };
+      i.nome = nome;
+      i.nomeCorrigido = { de: antes, em: new Date().toISOString(), por: u.email };
+      a.atualizadoEm = new Date().toISOString();
+      return { antes, nome };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, antes: r.antes, nome: r.nome });
+  } catch (e) {
+    console.error("Erro ao corrigir o nome do inscrito:", e);
+    res.status(500).json({ error: "Falha ao corrigir o nome." });
+  }
+});
+
 app.post("/api/extensao/:id/inscritos/:token/isentar", async (req, res) => {
   try {
     const u = await sessaoEx(req, res);
@@ -19693,6 +19778,7 @@ app.listen(port, () => {
       fundirContasSolicitadas,     // as fusões de conta pedidas pelo dono
       corrigirCpfDaOrientadoraLuana, // o CPF da aluna sai do campo da orientação
       desfazerOrientacaoCarimbadaPelaGestao, // o gestor que virou orientação ao salvar
+      corrigirNomesDeInscritosQueEramEmail,  // inscrito com o e-mail no lugar do nome
       designarGestaoDaAvaliacao,   // as coordenações das pró-reitorias na Avaliação
       vincularPerfisIC,
     ]) {

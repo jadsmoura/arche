@@ -2759,6 +2759,21 @@ async function conferirPg(id,token){
 /* ISENTAR pela lista de inscritos (pedido do dono, set/2026: "monitores e
    professores não pagam — eles se inscrevem, não pagam, e eu confirmo à
    mão"): é a mesma rota do Financeiro; aqui só se redesenha a lista. */
+/* Corrigir o nome de um inscrito (set/2026 — inscritos com o e-mail no lugar
+   do nome): o nome sai no crachá e no certificado, e a coordenação o conserta
+   na própria linha. Só o nome muda; e-mail, CPF e presença ficam. */
+async function corrigirNomeInscrito(id,token,atual){
+  const nome=prompt(`Nome completo do inscrito (nome e sobrenome, como deve sair no certificado):`, String(atual||"").includes("@")?"":atual);
+  if(nome===null) return;
+  try{
+    const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/inscritos/${encodeURIComponent(token)}/nome`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({nome})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||"Falha ao corrigir.");
+    const a=ACOES.find(x=>x.id===id);
+    const i=(a?.participantes?.inscritos||[]).find(x=>x.token===token); if(i) i.nome=j.nome;
+    renderInscritosEv(a);
+  }catch(e){ alert("Não foi possível corrigir o nome: "+e.message); }
+}
 async function isentarInscrito(id,token,nome){
   const motivo=prompt(`Isentar a inscrição de ${nome}?\n\nA inscrição fica confirmada SEM pagamento e o e-mail com o QR sai agora. Escreva o motivo (fica no registro — ex.: monitor, professor, convidado):`);
   if(!motivo) return;
@@ -3954,7 +3969,7 @@ function renderInscritosEv(a){
       const marcadas=(x.atividades||[]).map(tituloAtv);
       const porAtv=(x.presencas||[]).filter(p=>p&&p.atividade);
       return `<tr>
-      <td>${esc(x.nome)}</td>
+      <td>${esc(x.nome)}${String(x.nome||"").includes("@")?' <span class="badge b-atrasada" title="O inscrito enviou o e-mail no lugar do nome — corrija: o nome sai no crachá e no certificado">nome a corrigir</span>':""}${x.token?` <button class="bt bt-ghost" style="padding:1px 6px;font-size:11px" title="Corrigir o nome deste inscrito (sai no crachá e no certificado)" onclick="corrigirNomeInscrito('${esc(a.id)}','${esc(x.token)}','${esc(x.nome||"")}')">✎</button>`:""}</td>
       <td>${esc(x.email||"")}${x.telefone?`<br><span class="muted">${esc(x.telefone)}</span>`:""}</td>
       <td>${x.origem==="online"?`online${x.inscritoEm?` <span class="muted">${esc(hora(x.inscritoEm))}</span>`:""}`:"lista da coordenação"}${x.curso?`<br><span class="muted" style="font-size:11.5px">${esc(x.curso)}</span>`:""}${x.pagamento?`<br>${badgePg(x.pagamento)}${["aguardando","expirado","recusado"].includes(x.pagamento.status)&&x.token?` <button class="bt bt-ok" style="padding:1px 8px;font-size:11px" title="Confirmar a inscrição SEM pagamento (monitor, professor, convidado): a credencial passa a valer e o e-mail com o QR sai agora" onclick="isentarInscrito('${esc(a.id)}','${esc(x.token)}','${esc(x.nome)}')">isentar</button>`:""}`
         :a.evento?.cobranca?.ativa?`<br><span class="badge" style="background:#eceff3;color:var(--muted)" title="Esta inscrição não tem cobrança: entrou antes de a cobrança ser ligada, ou veio da lista da coordenação. Vale como confirmada.">sem cobrança</span>`:""}</td>
