@@ -2721,7 +2721,7 @@ function renderBolsistas() {
     const metas = ETAPAS.filter((e) => e.projetoId === p.id && e.responsavel === a.email);
     const feitas = metas.filter((e) => e.situacao === "concluida").length;
     const atrasadas = metas.filter((e) => e.situacao !== "concluida" && e.fim && e.fim < hojeISO()).length;
-    const souEuMesmo = ehAluno() && a.email === META.eu;
+    const souEuMesmo = ehAluno() && souEu(a);
     const relDe = (tipo) => RELS.relatorios.find((x) => x.projetoId === p.id && x.aluno === a.email && x.tipo === tipo);
     const rel = (tipo) => {
       const r = relDe(tipo);
@@ -2981,8 +2981,29 @@ async function publicarTermos(ciclo, publicar) {
    chega pelo convite por e-mail sem saber o que o sistema espera dele —
    se não estiver escrito na primeira tela, não acontece. */
 
+/* É ESTE O REGISTRO DA PESSOA QUE ESTÁ OLHANDO? E-mail **OU CPF**, que é a
+   régua do SERVIDOR (`papelNoProjeto` em lib/ic.js, e `gravarCadastroDoAluno`
+   desde a revisão de set/2026 — "as duas funções precisam responder igual").
+   A tela casava só pelo e-mail, e aí a aluna cujo registro tem OUTRO endereço
+   — o escolar transcrito do formulário do edital, ou o que a gestão corrigiu
+   depois — via a guia Bolsa dizer "você ainda não foi indicado(a) em nenhum
+   projeto" e **não tinha formulário nenhum para preencher**, embora o servidor
+   já a reconhecesse (os projetos dela chegam na lista, e uma gravação dela
+   seria aceita). É a parede que faz alguém dizer "não estou conseguindo enviar
+   os meus dados".
+   Sem CPF na sessão (o "Ver como" não o entrega, de propósito) vale só o
+   e-mail — que é o lado seguro: a simulação nunca reconhece mais do que a
+   pessoa reconheceria. */
+const soDigitosIC = (v) => String(v || "").replace(/\D/g, "");
+const souEu = (a) => {
+  if (!a) return false;
+  const meu = String(META.eu || "").trim().toLowerCase();
+  if (a.email && String(a.email).trim().toLowerCase() === meu) return true;
+  const meuCpf = soDigitosIC(META.contato?.cpf);
+  return meuCpf.length === 11 && soDigitosIC(a.cpf) === meuCpf;
+};
 /** O registro do próprio aluno, dentro de um projeto. */
-const meuRegistro = (p) => (p.alunos || []).find((a) => a.email && a.email === META.eu);
+const meuRegistro = (p) => (p.alunos || []).find(souEu);
 /** Os projetos em que ele consta como aluno indicado. */
 const meusProjetos = () => PROJETOS.filter((p) => meuRegistro(p));
 
@@ -3071,7 +3092,10 @@ function renderMinhaBolsa() {
   $("v-bolsa").innerHTML = `<div class="card">
     <div class="card-t">Meu cadastro para o contrato</div>
     <div class="card-s">${comBolsa.length
-      ? `Você tem <b>${comBolsa.map((p) => fomentoNome(p.fomento.tipo)).join(", ")}</b> concedida.
+      ? /* a bolsa se nomeia UMA vez: quem tem dois projetos com a mesma cota lia
+           "você tem Bolsa CNPq, Bolsa CNPq concedida", que parece o sistema
+           contando a mesma pessoa duas vezes (print de uma bolsista, set/2026) */
+        `Você tem <b>${[...new Set(comBolsa.map((p) => fomentoNome(p.fomento.tipo)))].join(", ")}</b> concedida.
          São estes os dados que a PROPPEX usa para efetivar o pagamento — a conta e o Pix precisam
          estar <b>no seu nome</b>.`
       : `Você está indicado(a) como <b>voluntário(a)</b> — e mesmo assim preencha tudo, inclusive a
@@ -4940,7 +4964,7 @@ function renderIndicacaoBolsista(p, ger) {
   // na guia Bolsa, e não aqui: o cadastro é DA PESSOA, e repeti-lo em cada
   // projeto faria a mesma pessoa ter duas versões do próprio RG.
   if (PODE.papel === "aluno") {
-    const eu = (p.alunos || []).find((a) => a.email === META.eu);
+    const eu = (p.alunos || []).find(souEu);
     if (!eu || !eu.bolsista) return "";
     const falta = faltaNoCadastroLocal(eu);
     return `<div class="card">

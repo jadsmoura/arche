@@ -2882,6 +2882,30 @@ public/
   projetos CONCLUÍDOS — com `modalidadeHistorica` (PIBIC/FACEG etc., que não se
   recalcula pelo catálogo atual) e os bolsistas nomeados quando a fonte os traz.
   Concluído não tem prazo correndo (`prazosRelatorios` só vale para `aprovado`).
+- **A TELA DO ALUNO RECONHECE POR E-MAIL OU CPF, como o servidor** (`souEu`/`meuRegistro` na SPA
+  da IC, relato de uma bolsista set/2026: "não estou conseguindo enviar os meus dados"). O
+  SERVIDOR reconhece o aluno pelas duas chaves desde a revisão de set/2026 — `papelNoProjeto` e
+  `gravarCadastroDoAluno`, cujo próprio comentário diz "as duas funções precisam responder igual"
+  —, porque a indicação sai com o e-mail ESCOLAR transcrito do formulário do edital, ou a gestão o
+  corrige depois, e o CPF é o vínculo forte que sobrevive à troca. A TELA continuou casando só
+  pelo e-mail: a aluna cujo registro tem outro endereço recebia os projetos dela na lista (o
+  servidor os entrega) e lia, na guia Bolsa, **"você ainda não foi indicado(a) em nenhum
+  projeto"** — sem formulário nenhum para preencher, embora uma gravação dela fosse aceita. É a
+  parede exata que faz alguém dizer que não consegue enviar os próprios dados. Reproduzido no
+  servidor local: com o e-mail do registro trocado e o CPF mantido, `meusProjetos()` devolvia 0 de
+  2; com a correção, 2 de 2, e o salvamento alcança os dois registros. Vale nos três pontos que
+  perguntavam "este registro é meu?" (a guia Bolsa, o cartão do aluno no cronograma e o card do
+  contrato dentro do projeto). **Sem CPF na sessão vale só o e-mail** — o "Ver como" não entrega o
+  CPF, de propósito, e o lado seguro é a simulação reconhecer de menos, nunca de mais.
+  Duas coisas que o mesmo relato mostrou e que ficam registradas: a bolsa **se nomeia uma vez**
+  (quem tem dois projetos com a mesma cota lia "Você tem Bolsa CNPq, Bolsa CNPq concedida", que
+  parece o sistema contando a mesma pessoa duas vezes); e o relatório é gravado com o e-mail da
+  SESSÃO (`aluno: u.email`) enquanto `relatoriosPendentes` o procura pelo e-mail do REGISTRO
+  (`mesmo(x.aluno, a.email)`) — nesse caso a aluna envia, a tela dela diz "entregue" e a
+  orientação continua vendo "não enviado", com a cobrança semanal atrás dela. **Isso não foi
+  corrigido aqui**: a saída limpa é o registro adotar o e-mail da conta quando o CPF a reconhece
+  (o que `vincularPorCpf` já faz, mas só com o campo VAZIO — ele nunca sobrescreve), e a lição da
+  revisão do ICEM foi que a adoção tem de ser ADITIVA, não substituição. Decisão do dono.
 - **O QUE FOI DIGITADO NA FICHA DO PROJETO NÃO SE PERDE** (`SUJO`/`podeSair`/`selo-sujo` na SPA
   da IC, relato de um professor ago/2026: "os alunos que preenchi para o projeto de IC não estão
   ficando salvos"). Não estavam sendo perdidos na gravação — a gravação funciona, conferida ponta
