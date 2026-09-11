@@ -86,7 +86,10 @@
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
   .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-  @media(max-width:820px){.grid2,.grid3,.grid4{grid-template-columns:1fr}}
+  /* a barra de filtros ganhou o CURSO (set/2026) e passou de quatro campos:
+     auto-fit em vez de número fixo, senão o quinto cai sozinho numa linha */
+  .gridf{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:10px}
+  @media(max-width:820px){.grid2,.grid3,.grid4,.gridf{grid-template-columns:1fr}}
   label{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin:12px 0 5px}
   input,select,textarea{width:100%;border:1px solid #cfd6de;border-radius:8px;padding:10px 12px;
     font-family:Figtree,system-ui,sans-serif;font-size:14px;background:#fff;color:var(--ink);
@@ -180,6 +183,7 @@
   </div>
 </div>
 <script src="/assets/arche-paginacao.js"></script>
+<script src="/assets/arche-filtros.js"></script>
 <script src="/assets/arche-editais.js"></script>
 <script src="/assets/arche-vercomo.js"></script>
 <script>
@@ -206,7 +210,7 @@ const ROT = { rascunho: "Rascunho", enviado: "Aguardando validação",
 let D = null;                 // o que o servidor mandou
 let SECAO = "painel";
 let EDIT = null;              // o relatório aberto no formulário
-let F = { semestre: "", disciplina: "", professor: "", status: "" };
+let F = { semestre: "", disciplina: "", professor: "", status: "", curso: "" };
 
 const IC = {
   painel: "M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm9 0h7v-9h-7v9Zm0-16v5h7V4h-7Z",
@@ -397,22 +401,35 @@ const nomeCurso = (slug) => (D.catalogoCursos || []).find((c) => c.slug === slug
 
 /* ============================ RELATÓRIOS =============================== */
 function renderRelatorios() {
-  const lista = (D.relatorios || []).filter((r) =>
-    (r.tipo || "pratica") === "pratica"
-    && (!F.semestre || r.semestre === F.semestre)
+  /* A COORDENAÇÃO PEDAGÓGICA E A PROAC VEEM OS DOZE CURSOS (set/2026): a barra
+     filtrava semestre, disciplina, professor e situação — tudo menos o curso,
+     que é justamente como elas leem o acervo. `noSemestre` é a base do filtro
+     de curso: as opções e a contagem saem do semestre que está na tela. */
+  const noSemestre = (D.relatorios || []).filter((r) =>
+    (r.tipo || "pratica") === "pratica" && (!F.semestre || r.semestre === F.semestre));
+  const lista = noSemestre.filter((r) =>
+    ArcheFiltros.passa(r.curso, F.curso)
     && (!F.disciplina || r.disciplina === F.disciplina)
     && (!F.professor || (r.professor?.email || "") === F.professor)
     && (!F.status || r.status === F.status))
     .sort((a, b) => String(b.data).localeCompare(String(a.data)));
-  const disciplinas = [...new Set((D.relatorios || []).map((r) => r.disciplina).filter(Boolean))].sort();
-  const professores = [...new Map((D.relatorios || [])
+  const filtroCurso = ArcheFiltros.curso({
+    lista: noSemestre, de: "curso", nome: nomeCurso, valor: F.curso,
+    onchange: "F.curso=this.value;ArchePag.zerar('ap-relatorios');nav('relatorios')",
+  });
+  /* disciplina e professor se recortam pelo CURSO escolhido: oferecer a
+     disciplina de outro curso é oferecer um par que devolve lista vazia */
+  const doCurso = noSemestre.filter((r) => ArcheFiltros.passa(r.curso, F.curso));
+  const disciplinas = [...new Set(doCurso.map((r) => r.disciplina).filter(Boolean))].sort();
+  const professores = [...new Map(doCurso
     .filter((r) => r.professor?.email)
     .map((r) => [r.professor.email, r.professor.nome || r.professor.email])).entries()];
   const fila = lista.filter((r) => r.status === "enviado" && r.podeValidar !== false);
   return `
     <div class="card" style="padding:16px 18px">
-      <div class="grid4">
+      <div class="gridf">
         ${seletorSemestre()}
+        ${filtroCurso}
         <select onchange="F.disciplina=this.value;ArchePag.zerar('ap-relatorios');nav('relatorios')">
           <option value="">Disciplina: todas</option>
           ${disciplinas.map((d) => `<option ${F.disciplina === d ? "selected" : ""}>${esc(d)}</option>`).join("")}
@@ -498,15 +515,22 @@ function cartao(r) {
    para quem". Por isso os números do alto são os DELE — horas, acadêmicos,
    pessoas atendidas —, e não os do painel das aulas. */
 function renderEC() {
-  const todas = (D.relatorios || []).filter((r) => (r.tipo || "") === "extensao");
+  const todas = (D.relatorios || []).filter((r) => (r.tipo || "") === "extensao"
+    && (!F.semestre || r.semestre === F.semestre));
   const lista = todas.filter((r) =>
-    (!F.semestre || r.semestre === F.semestre)
+    ArcheFiltros.passa(r.curso, F.curso)
     && (!F.disciplina || r.disciplina === F.disciplina)
     && (!F.professor || (r.professor?.email || "") === F.professor)
     && (!F.status || r.status === F.status))
     .sort((a, b) => String(b.data).localeCompare(String(a.data)));
-  const disciplinas = [...new Set(todas.map((r) => r.disciplina).filter(Boolean))].sort();
-  const professores = [...new Map(todas.filter((r) => r.professor?.email)
+  // o mesmo recorte por curso da guia das aulas práticas (set/2026)
+  const filtroCurso = ArcheFiltros.curso({
+    lista: todas, de: "curso", nome: nomeCurso, valor: F.curso,
+    onchange: "F.curso=this.value;ArchePag.zerar('ap-ec');nav('ec')",
+  });
+  const doCurso = todas.filter((r) => ArcheFiltros.passa(r.curso, F.curso));
+  const disciplinas = [...new Set(doCurso.map((r) => r.disciplina).filter(Boolean))].sort();
+  const professores = [...new Map(doCurso.filter((r) => r.professor?.email)
     .map((r) => [r.professor.email, r.professor.nome || r.professor.email])).entries()];
   const fila = lista.filter((r) => r.status === "enviado" && r.podeValidar !== false);
   const e = D.panorama?.extensaoCurricular;
@@ -564,8 +588,9 @@ function renderEC() {
       </div>`;
     })() : ""}
     <div class="card" style="padding:16px 18px">
-      <div class="grid4">
+      <div class="gridf">
         ${seletorSemestre()}
+        ${filtroCurso}
         <select onchange="F.disciplina=this.value;ArchePag.zerar('ap-ec');nav('ec')">
           <option value="">Disciplina: todas</option>
           ${disciplinas.map((d) => `<option ${F.disciplina === d ? "selected" : ""}>${esc(d)}</option>`).join("")}

@@ -260,7 +260,7 @@ let PAINEL={usuarios:[],funcoes:[],cursos:[],modulos:[]};
 /* A paginação é a compartilhada do portal (assets/arche-paginacao.js): esta
    tela chegou a ter DUAS cópias quase iguais da mesma regra, e duas cópias
    acabam diferentes — uma lembrava o tamanho escolhido, a outra não. */
-let FU={q:"",funcao:"",setor:"",papel:"",conta:""};
+let FU={q:"",funcao:"",setor:"",papel:"",conta:"",curso:""};
 const SETOR_NOME={pesquisa:"Pesquisa · IC",extensao:"Extensão",atas:"Atas"};
 const funcaoNome=(c,outro)=>{
   const f=PAINEL.funcoes.find(x=>x.codigo===c);
@@ -444,6 +444,7 @@ function renderPainel(){
       :FU.conta==="externa"?u.externa
       :FU.conta==="institucional"?!u.externa
       :FU.conta==="removido"?u.removido:true))&&
+    ArcheFiltros.passa(u.curso,FU.curso)&&
     (!FU.q||`${u.nome} ${u.email} ${u.curso}`.toLowerCase().includes(FU.q.toLowerCase())));
   const semNome=PAINEL.usuarios.filter(u=>!u.temPerfil).length;
   const pg=ArchePag.recorte("us-painel",lista,renderPainel);
@@ -462,6 +463,10 @@ function renderPainel(){
           ${Object.entries(SETOR_NOME).map(([k,v])=>`<option value="${k}" ${FU.setor===k?"selected":""}>${esc(v)}</option>`).join("")}
           <option value="__nenhum" ${FU.setor==="__nenhum"?"selected":""}>Ainda não usou nenhum</option>
         </select>
+        ${/* o curso estava só na busca por texto: digitar "Enfermagem" não é
+              filtrar, e a gestão lê o quadro por curso (set/2026) */
+          ArcheFiltros.curso({ lista: PAINEL.usuarios, de: "curso", valor: FU.curso,
+            onchange: "FU.curso=this.value;ArchePag.zerar('us-painel');renderPainel()" })}
         <select onchange="FU.papel=this.value;ArchePag.zerar('us-painel');renderPainel()">
           <option value="">Papel: todos</option>
           ${["gestor","coordenador","aprovado","pendente"].map(p=>`<option value="${p}" ${FU.papel===p?"selected":""}>${p}</option>`).join("")}
@@ -632,6 +637,7 @@ fetch("/api/usuarios").then(async r=>{
 });
 </script>
 <script src="/assets/arche-paginacao.js"></script>
+<script src="/assets/arche-filtros.js"></script>
 <script src="/assets/arche-nav.js" defer></script>
 </body>
 </html>

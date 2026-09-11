@@ -61,10 +61,11 @@ padding:7px 12px;cursor:pointer;font-size:12.8px}
 </div>
 
 <script src="/assets/arche-paginacao.js"></script>
+<script src="/assets/arche-filtros.js"></script>
 <script>
 const $=(id)=>document.getElementById(id);
 const esc=(s)=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let D=null, F={q:"", filtro:""};
+let D=null, F={q:"", filtro:"", curso:""};
 
 async function carregar(){
   const r=await fetch("/api/assinaturas/banco");
@@ -162,6 +163,7 @@ function cardPessoas(){
   const q=F.q.trim().toLowerCase();
   let lista=(D.pessoas||[]).filter(p=>
     (!q || (p.nome||"").toLowerCase().includes(q) || (p.email||"").includes(q) || (p.cpf||"").includes(q))
+    && ArcheFiltros.passa(p.curso,F.curso)
     && (!F.filtro || (F.filtro==="titular"&&p.origem==="titular")
       || (F.filtro==="terceiro"&&p.origem==="terceiro") || (F.filtro==="sem"&&!p.tem)));
   const pag=ArchePag.recorte("banco-assinaturas",lista,render);
@@ -182,6 +184,11 @@ function cardPessoas(){
         <option value="terceiro" ${F.filtro==="terceiro"?"selected":""}>Digitalizada pela gestão</option>
         <option value="sem" ${F.filtro==="sem"?"selected":""}>Sem assinatura</option>
       </select></div>
+      ${(()=>{ /* o banco reúne as contas dos doze cursos; quem vai atrás da
+                  assinatura de um colegiado vai por curso */
+        const s=ArcheFiltros.curso({lista:D.pessoas||[],de:"curso",valor:F.curso,
+          onchange:"F.curso=this.value;ArchePag.zerar('banco-assinaturas');render()"});
+        return s?`<div><label>Curso</label>${s}</div>`:""; })()}
     </div>
     <div id="p-msg"></div>
     ${pag.barra}

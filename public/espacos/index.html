@@ -352,6 +352,7 @@
 </div>
 
 <script src="/assets/arche-paginacao.js"></script>
+<script src="/assets/arche-filtros.js"></script>
 <script src="/assets/arche-vercomo.js"></script>
 <script>
 /* "Ver como…" (decisão do dono, ago/2026): a gestão abre o setor pelos olhos
@@ -974,7 +975,7 @@ async function cancelar(id) {
    segunda é de controle: pede lista, filtro e contagem, não calendário.
    A etiqueta de cor é a MESMA do calendário — o olho reconhece o espaço sem
    ler o nome. */
-let AGD = { espaco: "", status: "", quando: "futuros", busca: "" };
+let AGD = { espaco: "", status: "", quando: "futuros", busca: "", orgao: "" };
 
 function renderAgendamentos() {
   const todas = (DADOS.reservas || []);
@@ -991,6 +992,7 @@ function renderAgendamentos() {
   };
   const lista = todas
     .filter((r) => (!AGD.espaco || (r.itens || []).some((i) => i.espaco === AGD.espaco))
+      && ArcheFiltros.passa(r.orgao, AGD.orgao)
       && (!AGD.status || r.status === AGD.status) && noPeriodo(r) && bate(r))
     .sort((a, b) => AGD.quando === "passados"
       ? String(b.dataInicio).localeCompare(String(a.dataInicio))
@@ -1053,7 +1055,8 @@ function renderAgendamentos() {
         <div><div class="card-t" style="margin:0">${lista.length} agendamento(s)</div>
           <div class="card-s" style="margin:2px 0 0">${
             AGD.quando === "futuros" ? "De hoje em diante" : AGD.quando === "passados" ? "Já realizados" : "Todo o histórico"
-          }${AGD.espaco ? ` · ${esc(nomeEspaco(AGD.espaco))}` : ""}</div></div>
+          }${AGD.espaco ? ` · ${esc(nomeEspaco(AGD.espaco))}` : ""}${
+            AGD.orgao ? ` · ${esc(AGD.orgao === ArcheFiltros.SEM ? "sem órgão" : nomeOrgao(AGD.orgao, ""))}` : ""}</div></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <select onchange="AGD.quando=this.value;ArchePag.zerar('esp-agendamentos');renderAgendamentos()" style="width:auto;padding:7px 10px;font-size:13px">
             <option value="futuros"${AGD.quando === "futuros" ? " selected" : ""}>de hoje em diante</option>
@@ -1064,6 +1067,16 @@ function renderAgendamentos() {
             <option value="">todos os espaços</option>
             ${(DADOS.espacos || []).map((e) => `<option value="${esc(e.id)}"${AGD.espaco === e.id ? " selected" : ""}>${esc(e.nome)}</option>`).join("")}
           </select>
+          ${/* O ÓRGÃO estava só na busca por texto (set/2026): a ocupação se lê
+                por curso — quantas vezes Enfermagem tomou o auditório —, e
+                digitar o nome não é filtrar. As opções saem do PERÍODO que
+                está na tela, como as contagens dos chips abaixo. */
+            ArcheFiltros.curso({
+              lista: doPeriodo, de: "orgao", rotulo: "Órgão",
+              nome: (c) => nomeOrgao(c, ""), valor: AGD.orgao,
+              estilo: "width:auto;padding:7px 10px;font-size:13px",
+              onchange: "AGD.orgao=this.value;ArchePag.zerar('esp-agendamentos');renderAgendamentos()",
+            })}
         </div>
       </div>
 

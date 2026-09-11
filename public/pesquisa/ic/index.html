@@ -289,6 +289,7 @@
   }
 </style>
 <script src="/assets/arche-paginacao.js"></script>
+<script src="/assets/arche-filtros.js"></script>
 <script src="/assets/arche-editais.js"></script>
 </head>
 <body>
@@ -398,6 +399,7 @@ const QUADROS_ABERTOS = new Set();
 let ORIGEM_LISTA = "gestao";
 // ciclo escolhido na guia Relatórios (gestão) — começa no vigente
 let CICLO_REL = "";
+let CURSO_REL = "";   // o recorte por curso da guia Relatórios (set/2026)
 // idem para a guia Bolsistas e Voluntários — começa no ciclo mais atual
 let CICLO_BV = "";
 /* Os filtros da guia Bolsistas e Voluntários (pedido do dono, set/2026:
@@ -3891,8 +3893,11 @@ function renderRelatoriosGestao() {
     CICLO_REL = (editais.find((e) => e.vigente) || editais[0] || {}).numero || "";
   }
   const cicloVigente = editais.find((e) => e.numero === CICLO_REL)?.vigente === true;
-  const emExec = PROJETOS.filter((p) => ["aprovado", "concluido"].includes(p.status)
+  /* o ciclo tem projetos dos doze cursos misturados, e quem cobra relatório
+     cobra por curso (set/2026): o mesmo filtro compartilhado das demais listas */
+  const doCiclo = PROJETOS.filter((p) => ["aprovado", "concluido"].includes(p.status)
     && (p.edital || META.edital?.numero) === CICLO_REL);
+  const emExec = doCiclo.filter((p) => ArcheFiltros.passa(p.curso, CURSO_REL));
   const fmtBr = (iso) => iso ? iso.split("-").reverse().join("/") : "—";
   const hoje = hojeISO();
 
@@ -3974,6 +3979,9 @@ function renderRelatoriosGestao() {
           ${editais.map((e) => `<option value="${esc(e.numero)}" ${CICLO_REL === e.numero ? "selected" : ""}>${esc(rotuloCiclo(e.numero))}${e.vigente ? " — vigente" : e.numero === "01/2025" ? " — em regularização" : " — encerrado"} · ${e.projetos} projeto(s)</option>`).join("")}
         </select>
       </label>
+      ${ArcheFiltros.curso({ lista: doCiclo, de: "curso", nome: cursoNome, valor: CURSO_REL,
+        estilo: "width:auto;min-width:0;max-width:100%",
+        onchange: "CURSO_REL=this.value;renderRelatorios()" })}
       <button class="bt bt-sec" onclick="icChamada()">📣 Chamar para os relatórios</button>
       <button class="bt bt-ghost" onclick="verModeloRelatorio('ic-parcial')" title="O formulário do relatório parcial, como o aluno o vê">👁 Parcial (aluno)</button>
       <button class="bt bt-ghost" onclick="verModeloRelatorio('ic-final')" title="O formulário do relatório final (artigo), como o aluno o vê">👁 Final (aluno)</button>

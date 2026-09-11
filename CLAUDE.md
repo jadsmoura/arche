@@ -4461,6 +4461,31 @@ public/
   `data-setor`/`aplicarVisibilidade` (o filtro por papel é o mesmo em qualquer layout); o
   protótipo fica como registro da escolha.
 
+- **ONDE OS CURSOS SE MISTURAM, O FILTRO DE CURSO É UM SÓ** (`public/assets/arche-filtros.js` —
+  `ArcheFiltros.curso/opcoes/passa` —, pedido do dono set/2026: "em todos os módulos, blocos,
+  lista, que houverem cursos misturados, precisamos implementar filtros e categorias, para
+  organizar melhor a visualização — exemplo, na lista de projetos de monitoria, cursos estão
+  misturados"). A PROPPEX e a PROAC enxergam os doze cursos ao mesmo tempo, e várias listas já
+  cresceram o bastante para que isso pese; cada tela tinha os seus filtros (semestre, situação,
+  disciplina) e nenhuma tinha o do CURSO, que é como a gestão pensa o acervo. **É UM componente**,
+  pela mesma razão da paginação: oito barras escritas à mão acabam diferentes — uma conta as
+  opções, outra não; uma some quando há um curso só, outra fica ocupando a linha.
+  Quatro decisões que ele carrega para as telas não repetirem: **as opções saem da própria
+  lista**, não do catálogo dos doze (um seletor com onze opções que devolvem zero resultados não
+  organiza nada); **cada opção diz quantas**, que é o número que faz escolher sem tentativa;
+  **some com um curso só** (ali não há mistura a desfazer — mas FICA se a pessoa já escolheu um,
+  senão ela ficaria presa no recorte); e **o item SEM curso não desaparece** — ganha a opção
+  "— sem curso", porque esconder registro é o oposto de organizar (o relatório retroativo e a
+  reserva de órgão institucional não podem sumir da lista da coordenação por não terem curso).
+  O `de:` aceita um valor ou uma LISTA: a ação de extensão tem curso principal e corealizadores,
+  e pertence aos dois. Onde entrou: projetos e relatórios da **monitoria** (mais os certificados
+  do arquivo), relatórios de **aula prática** e de **extensão curricular** — nestes, disciplina e
+  professor se **recortam pelo curso escolhido**, senão a tela ofereceria um par que devolve lista
+  vazia —, **agendamentos** do ARCHÉ ES (ali o eixo é o ÓRGÃO, que é como a reserva nomeia o
+  curso), guia **Relatórios** da IC (dentro do ciclo, que é o recorte que a guia já fazia), painel
+  de **usuários** e o **banco de assinaturas**. Onde a tela já tinha o seu (a guia Arquivo da
+  monitoria, os filtros do ARCHÉ EV), nada mudou.
+
 - **TODA LISTA NOVA NASCE PAGINADA, com 20 por página** (decisão do dono, ago/2026: "acho que
   uma lista padrão inicial de 20 fica bom; se eu quiser expandir escolho outras opções.
   Implemente esse padrão para próximas alterações e criações"). É regra do portal, não escolha de
