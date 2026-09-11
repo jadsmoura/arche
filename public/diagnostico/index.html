@@ -387,6 +387,23 @@ function render(d) {
     </div>
 
     <div class="card">
+      <div class="card-t">Recuperar inscritos de um evento</div>
+      <div class="card-s">Quando uma lista some: o rastro das exclusões e as cópias diárias do sistema.</div>
+      <div class="kv">Informe o <b>Número da Ação</b> (EXT-2026-001), o endereço da página (o
+        <i>slug</i>) ou o nome exato do evento. A consulta diz se houve exclusão registrada e, cópia a
+        cópia, quantos inscritos a ação tinha naquele dia e quantos deles <b>não estão</b> na lista de
+        hoje. Restaurar traz de volta só o que falta — ninguém é apagado nem sobrescrito — e devolve a
+        página do evento se ela tiver sido excluída.</div>
+      <div class="exp" style="align-items:center">
+        <input id="rec-ref" placeholder="EXT-2026-001, slug ou nome do evento" style="max-width:320px"
+          onkeydown="if(event.key==='Enter')consultarRecuperacao()">
+        <select id="rec-dias" style="width:auto"><option value="7">últimos 7 dias</option><option value="14">14 dias</option><option value="30">30 dias</option></select>
+        <button class="bt bt-ghost" onclick="consultarRecuperacao()">Consultar</button>
+      </div>
+      <div id="rec"></div>
+    </div>
+
+    <div class="card">
       <div class="card-t">Google Wallet</div>
       <div class="card-s">O passe do inscrito na carteira do celular: o que está configurado e
         o que o Google respondeu.</div>
@@ -477,6 +494,60 @@ async function migrar(executar) {
           : `<div class="kv" style="margin-top:12px">Nenhuma pasta antiga sobrou.</div>`}`;
   } catch (e) {
     alvo.innerHTML = `<div class="banner ba-err" style="margin-top:12px">${esc(e.message)}</div>`;
+  }
+}
+
+/* Recuperação de inscritos: consulta o rastro das exclusões e as cópias
+   diárias; restaurar é por cópia, com confirmação, e só traz o que falta. */
+const fmtDH = (iso) => (iso ? new Date(iso).toLocaleString("pt-BR") : "—");
+async function consultarRecuperacao() {
+  const ref = $("rec-ref").value.trim();
+  const alvo = $("rec");
+  if (!ref) { alvo.innerHTML = `<div class="banner ba-warn" style="margin-top:12px">Informe o número, o slug ou o nome do evento.</div>`; return; }
+  alvo.innerHTML = `<div class="kv">Lendo as cópias… cada uma é o estado inteiro de um dia, e isto pode levar um minuto.</div>`;
+  try {
+    const r = await fetch(`/api/extensao/recuperacao?acao=${encodeURIComponent(ref)}&dias=${$("rec-dias").value}`);
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Falha na consulta.");
+    const a = j.acao;
+    const cab = a
+      ? `<div class="banner ba-ok" style="margin-top:12px">Hoje: <b>${esc(a.numeroAcao || a.id)}</b> — ${esc(a.nome)} · situação <b>${esc(a.status)}</b> · página do evento ${a.temEvento ? "existe" : "<b>não existe</b> (excluída ou nunca criada)"} · <b>${a.inscritos}</b> inscrito(s) na lista de hoje.</div>`
+      : `<div class="banner ba-warn" style="margin-top:12px">Nenhuma ação com essa referência existe hoje — se ela aparecer numa cópia abaixo, restaurar traz a ação inteira de volta.</div>`;
+    const exc = j.exclusoes.length
+      ? `<div class="kv" style="margin-top:10px"><b>Exclusões registradas</b></div>` + j.exclusoes.map((x) => `<div class="kv" style="font-size:12px">• ${esc(fmtDH(x.em))} — <b>${esc(x.por)}</b> excluiu ${x.alcance === "acao" ? "a ação inteira" : "o evento (página, programação e inscritos)"} de <b>${esc(x.nome)}</b>${x.numeroAcao ? ` (${esc(x.numeroAcao)})` : ""}: ${x.inscritos} inscrito(s), ${x.presentes} presente(s).</div>`).join("")
+      : `<div class="kv" style="margin-top:10px">Nenhuma exclusão registrada para essa referência — a lista não saiu pelo 🗑.</div>`;
+    const bk = j.backups.length
+      ? `<div class="kv" style="margin-top:10px"><b>Cópias diárias</b> (mais recente primeiro)</div>` + j.backups.map((b) => {
+          if (b.erro) return `<div class="kv" style="font-size:12px">• ${esc(b.dia)} — ${esc(b.erro)}</div>`;
+          if (!b.existe) return `<div class="kv" style="font-size:12px">• ${esc(b.dia)} — a ação não estava nesta cópia.</div>`;
+          const podeRestaurar = b.faltamHoje > 0 || (!a) || (a && !a.temEvento && b.temEvento);
+          return `<div class="kv" style="font-size:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">• <b>${esc(b.dia)}</b> — ${b.inscritos} inscrito(s), ${b.presentes} presente(s), página ${b.temEvento ? "existia" : "não existia"};
+            <b style="color:${b.faltamHoje ? "var(--err)" : "var(--ok)"}">${b.faltamHoje} não estão na lista de hoje</b>
+            ${podeRestaurar ? `<button class="bt bt-sec" style="padding:3px 10px;font-size:12px" onclick="restaurar('${esc(b.fileId)}','${esc(b.dia)}',${b.faltamHoje},${!a})">Restaurar desta cópia</button>` : ""}</div>`;
+        }).join("")
+      : `<div class="kv" style="margin-top:10px">Nenhuma cópia diária no registro.</div>`;
+    const rec = (a?.recuperacoes || []).length
+      ? `<div class="kv" style="margin-top:10px"><b>Restaurações já feitas</b></div>` + a.recuperacoes.map((x) => `<div class="kv" style="font-size:12px">• ${esc(fmtDH(x.em))} — ${esc(x.por)} restaurou da cópia de ${esc(x.copia)}: ${x.acaoInteira ? "a ação inteira" : `${x.inscritos} inscrito(s)${x.eventoRestaurado ? ", e a página do evento" : ""}`}.</div>`).join("") : "";
+    alvo.innerHTML = cab + exc + bk + rec;
+  } catch (e) {
+    alvo.innerHTML = `<div class="banner ba-err" style="margin-top:12px">${esc(e.message)}</div>`;
+  }
+}
+async function restaurar(fileId, dia, faltam, inteira) {
+  const ref = $("rec-ref").value.trim();
+  if (!confirm(inteira
+    ? `Restaurar a ação inteira como estava na cópia de ${dia}?`
+    : `Trazer de volta os ${faltam} inscrito(s) que estão na cópia de ${dia} e não estão na lista de hoje?\n\nNinguém é apagado nem sobrescrito; a página do evento volta se tiver sido excluída.`)) return;
+  const alvo = $("rec");
+  try {
+    const r = await fetch("/api/extensao/recuperacao/restaurar", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileId, acao: ref }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Falha ao restaurar.");
+    alvo.insertAdjacentHTML("afterbegin", `<div class="banner ba-ok" style="margin-top:12px">Restaurado da cópia de ${esc(j.copia)}: ${j.restaurada === "acao" ? `a ação inteira, com ${j.inscritos} inscrito(s)` : `${j.inscritos} inscrito(s) de volta (lista com ${j.total})${j.eventoRestaurado ? ", página do evento restaurada" : ""}${j.portfolioRestaurado ? ", fotos do portfólio restauradas" : ""}`}.</div>`);
+    setTimeout(consultarRecuperacao, 800);
+  } catch (e) {
+    alvo.insertAdjacentHTML("afterbegin", `<div class="banner ba-err" style="margin-top:12px">${esc(e.message)}</div>`);
   }
 }
 

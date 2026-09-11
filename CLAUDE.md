@@ -4680,6 +4680,20 @@ public/
   (`renderBolsistasCorpo` — redesenhar a barra tiraria o cursor), e a busca se lê a cada chamada de
   `passa`, não no desenho da barra. Os filtros são da GUIA: trocar de ciclo os mantém; "✕ Limpar
   filtros" zera. O agrupamento por orientador continua, e o orientador sem aluno no recorte some.
+- **RECUPERAR INSCRITOS PELA CÓPIA DIÁRIA** (`GET /api/extensao/recuperacao?acao=&dias=` +
+  `POST /api/extensao/recuperacao/restaurar` + o card "Recuperar inscritos de um evento" em
+  `/diagnostico/`, só gestor geral — set/2026, a ferramenta para o evento da Veterinária). O que
+  responde "para onde foi a lista" estava em dois lugares que ninguém lia sem abrir JSON: o rastro
+  das exclusões (`sys-ex-exclusoes-v1`) e as cópias diárias em `_backups/`. A consulta aceita
+  número da ação, slug ou nome exato (`acharAcaoPorRef`), lista as exclusões registradas e, cópia a
+  cópia (7/14/30 dias — cada cópia é o estado inteiro de um dia, lido do Drive), diz quantos
+  inscritos a ação tinha e **quantos NÃO estão na lista de hoje** (união por CPF/matrícula/nome, a
+  mesma chave da lista digitada). Restaurar é por cópia, com confirmação: traz SÓ o que falta —
+  ninguém é apagado nem sobrescrito —, devolve o `evento` (página, programação) quando ele foi
+  excluído e o portfólio quando está vazio; a ação que sumiu inteira volta inteira. Cada restauração
+  fica em `recuperacoes` na própria ação, e a rota é idempotente (restaurar duas vezes da mesma
+  cópia traz 0 na segunda). Ensaiado no local: 26 → 3 inscritos e sem página; a consulta apontou
+  "faltam 22" na cópia do dia, e a restauração devolveu os 22 e a página.
 
 - **O PRODUTO SE CHAMA CÁTEDRA; A INSTALAÇÃO SE CHAMA ARCHÉ** (`lib/produto.js`, decisão do dono
   set/2026: "Arché é uma referência direta ao fundador da AEE, Archibald — no contexto AEE é

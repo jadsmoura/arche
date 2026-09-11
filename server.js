@@ -4027,6 +4027,115 @@ app.post("/api/extensao/:id/participantes/remover", async (req, res) => {
   }
 });
 
+/* RECUPERAÇÃO DE INSCRITOS PELA CÓPIA DIÁRIA (set/2026, o evento da Veterinária
+   que amanheceu sem inscritos). O que responde "para onde foi a lista" está em
+   dois lugares que o gestor não conseguia ler sem abrir JSON: o rastro das
+   exclusões (`sys-ex-exclusoes-v1` — quem excluiu o quê, quando, com quantos
+   inscritos) e as cópias diárias em `_backups/`. A consulta diz, cópia a cópia,
+   quantos inscritos a ação tinha naquele dia e quantos deles NÃO estão na lista
+   de hoje; restaurar traz de volta só o que falta — união por CPF/e-mail/nome,
+   sem apagar nem sobrescrever ninguém —, e devolve o `evento` (página,
+   programação) quando ele foi excluído. A ação que sumiu INTEIRA volta inteira.
+   Só gestor geral, e cada restauração fica anotada na própria ação. */
+async function lerAcoesDoBackup(fileId) {
+  const buf = await files.read(fileId);
+  if (!buf) return null;
+  const j = JSON.parse(buf.toString("utf8"));
+  const raw = j?.estado?.["ex-acoes-v1"];
+  return raw ? JSON.parse(raw) : [];
+}
+function acharAcaoPorRef(acoes, ref) {
+  const r = String(ref || "").trim().toLowerCase();
+  if (!r) return null;
+  return acoes.find((a) => a.id === ref)
+    || acoes.find((a) => String(a.numeroAcao || "").toLowerCase() === r)
+    || acoes.find((a) => String(a.evento?.slug || "").toLowerCase() === r)
+    || acoes.find((a) => String(a.proposta?.nomeAtividade || "").trim().toLowerCase() === r)
+    || null;
+}
+app.get("/api/extensao/recuperacao", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  try {
+    const ref = String(req.query.acao || "").trim();
+    const dias = Math.min(30, Math.max(1, Number(req.query.dias) || 7));
+    const acoes = await lerAcoes();
+    const atual = ref ? acharAcaoPorRef(acoes, ref) : null;
+    const exclusoes = JSON.parse((await storage.get("sys-ex-exclusoes-v1")) || "[]")
+      .filter((x) => !ref || x.id === atual?.id || String(x.nome || "").toLowerCase().includes(ref.toLowerCase()))
+      .slice(-50).reverse();
+    const registro = JSON.parse((await storage.get(BACKUP_KEY)) || "[]")
+      .sort((a, b) => String(b.dia).localeCompare(String(a.dia))).slice(0, dias);
+    const chavesHoje = new Set((atual?.participantes?.inscritos || []).map(chaveDeParticipante).filter(Boolean));
+    const backups = [];
+    for (const b of registro) {
+      const linha = { dia: b.dia, fileId: b.fileId, nome: b.nome };
+      try {
+        const lista = await lerAcoesDoBackup(b.fileId);
+        if (!lista) { linha.erro = "cópia não pôde ser lida"; backups.push(linha); continue; }
+        const a = atual ? lista.find((x) => x.id === atual.id) : acharAcaoPorRef(lista, ref);
+        if (!a) { linha.existe = false; backups.push(linha); continue; }
+        const ins = a.participantes?.inscritos || [];
+        Object.assign(linha, { existe: true, id: a.id, numeroAcao: a.numeroAcao || null, nome: a.proposta?.nomeAtividade || "",
+          temEvento: !!a.evento, inscritos: ins.length, presentes: ins.filter((x) => x?.presente).length,
+          faltamHoje: ins.filter((x) => !chavesHoje.has(chaveDeParticipante(x))).length });
+      } catch (e) { linha.erro = e.message; }
+      backups.push(linha);
+    }
+    res.json({ ok: true, ref, acao: atual ? { id: atual.id, numeroAcao: atual.numeroAcao || null, nome: atual.proposta?.nomeAtividade || "",
+      status: atual.status, temEvento: !!atual.evento, inscritos: (atual.participantes?.inscritos || []).length,
+      recuperacoes: atual.recuperacoes || [] } : null, exclusoes, backups });
+  } catch (e) {
+    console.error("Erro na consulta de recuperação:", e);
+    res.status(500).json({ error: "Falha ao consultar as cópias." });
+  }
+});
+app.post("/api/extensao/recuperacao/restaurar", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  try {
+    const fileId = String(req.body?.fileId || "").trim();
+    const ref = String(req.body?.acao || "").trim();
+    if (!fileId || !ref) return res.status(400).json({ error: "Informe a cópia e a ação." });
+    const registro = JSON.parse((await storage.get(BACKUP_KEY)) || "[]");
+    const copia = registro.find((b) => b.fileId === fileId);
+    if (!copia) return res.status(404).json({ error: "Esta cópia não está no registro de backups." });
+    const doBackup = await lerAcoesDoBackup(fileId);
+    if (!doBackup) return res.status(502).json({ error: "A cópia não pôde ser lida." });
+    const r = await comAcoes((acoes) => {
+      const atual = acharAcaoPorRef(acoes, ref);
+      const antiga = atual ? doBackup.find((x) => x.id === atual.id) : acharAcaoPorRef(doBackup, ref);
+      if (!antiga) return { erro: [404, "A ação não está nessa cópia."], gravar: false };
+      const em = new Date().toISOString();
+      const marca = { em, por: g.email, copia: copia.dia, fileId };
+      if (!atual) {
+        // sumiu inteira: volta inteira, como estava naquele dia
+        acoes.push({ ...antiga, atualizadoEm: em, recuperacoes: [...(antiga.recuperacoes || []), { ...marca, acaoInteira: true, inscritos: (antiga.participantes?.inscritos || []).length }] });
+        return { restaurada: "acao", inscritos: (antiga.participantes?.inscritos || []).length };
+      }
+      const i = acoes.indexOf(atual);
+      const hoje = atual.participantes?.inscritos || [];
+      const chaves = new Set(hoje.map(chaveDeParticipante).filter(Boolean));
+      const faltam = (antiga.participantes?.inscritos || []).filter((x) => !chaves.has(chaveDeParticipante(x)));
+      const eventoRestaurado = !atual.evento && !!antiga.evento;
+      const portfolioRestaurado = !(atual.portfolio?.anexos || []).length && !!(antiga.portfolio?.anexos || []).length;
+      acoes[i] = {
+        ...atual,
+        participantes: { ...(atual.participantes || {}), inscritos: [...hoje, ...faltam] },
+        ...(eventoRestaurado ? { evento: antiga.evento } : {}),
+        ...(portfolioRestaurado ? { portfolio: antiga.portfolio } : {}),
+        atualizadoEm: em,
+        recuperacoes: [...(atual.recuperacoes || []), { ...marca, inscritos: faltam.length, eventoRestaurado, portfolioRestaurado }].slice(-20),
+      };
+      return { restaurada: "inscritos", inscritos: faltam.length, eventoRestaurado, portfolioRestaurado, total: hoje.length + faltam.length };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    console.warn(`[extensao] ${g.email} restaurou da cópia de ${copia.dia}: ${JSON.stringify(r)}`);
+    res.json({ ok: true, ...r, copia: copia.dia });
+  } catch (e) {
+    console.error("Erro ao restaurar da cópia:", e);
+    res.status(500).json({ error: "Falha ao restaurar." });
+  }
+});
+
 /**
  * Quadro da curricularização, por curso — é a resposta à pergunta que o
  * avaliador do MEC faz: quais disciplinas do PPC esta instituição atende com
