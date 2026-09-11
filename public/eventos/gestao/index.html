@@ -1886,7 +1886,11 @@ function janelaComunicado(id,d){
       <button class="bt bt-ghost" id="cm-jan-nao">Cancelar</button>
     </div></div>`;
   document.body.appendChild(fundo);
-  const fechar=()=>fundo.remove();
+  // Esc fecha, como nos demais overlays do arquivo — a janela é de REVISÃO de
+  // um envio que não se recolhe: sair dela tem de ser a coisa mais fácil
+  const esc=(e)=>{ if(e.key==="Escape") fechar(); };
+  const fechar=()=>{ document.removeEventListener("keydown",esc); fundo.remove(); };
+  document.addEventListener("keydown",esc);
   fundo.querySelector("#cm-jan-nao").onclick=fechar;
   fundo.onclick=(e)=>{ if(e.target===fundo) fechar(); };
   fundo.querySelector("#cm-jan-ok").onclick=async()=>{
@@ -1957,7 +1961,7 @@ function renderInscricoes(a){
 
     <div class="exp" style="margin:0 0 18px">
       <button class="bt bt-pri" onclick="salvarInscricoes('${esc(a.id)}')">💾 Salvar inscrições</button>
-      <span class="muted" id="ev-msg" style="align-self:center"></span>
+      <span class="muted ev-msg" style="align-self:center"></span>
     </div>`;
   renderFormEv();
 }
@@ -2051,7 +2055,7 @@ function renderPagina(a){
 
     <div class="exp" style="margin:0 0 18px">
       <button class="bt bt-pri" onclick="salvarPagina('${esc(a.id)}')">💾 Salvar página</button>
-      <span class="muted" id="ev-msg" style="align-self:center"></span>
+      <span class="muted ev-msg" style="align-self:center"></span>
     </div>`;
 }
 
@@ -2091,7 +2095,7 @@ function renderProgramacao(a){
 
     <div class="exp" style="margin:0 0 18px">
       <button class="bt bt-pri" onclick="salvarProgramacao('${esc(a.id)}')">💾 Salvar programação</button>
-      <span class="muted" id="ev-msg" style="align-self:center"></span>
+      <span class="muted ev-msg" style="align-self:center"></span>
     </div>
 
     <div class="card">
@@ -2340,7 +2344,7 @@ function renderTransmissao(a){
           onclick="publicarTransmissaoEv('${esc(a.id)}',${tr.publicada?"false":"true"})">
           ${tr.publicada?"⏹ Recolher transmissão":"▶ Publicar transmissão"}</button>
         <button class="bt bt-pri" style="padding:7px 14px;font-size:12.5px" onclick="salvarTransmissao('${esc(a.id)}')">💾 Salvar transmissão</button>
-        <span class="muted" id="ev-msg"></span>
+        <span class="muted ev-msg"></span>
       </div>
       <div class="muted" style="font-size:12px;margin-top:8px">Publicada, cada inscrito ganha o botão
         <b>Assistir online</b> na própria credencial (e no e-mail de confirmação) — o endereço é
@@ -2470,7 +2474,7 @@ async function renderCobranca(a){
 
     <div class="exp" style="margin:0 0 18px">
       <button class="bt bt-pri" onclick="salvarCobranca('${esc(a.id)}')">💾 Salvar cobrança</button>
-      <span class="muted" id="ev-msg" style="align-self:center"></span>
+      <span class="muted ev-msg" style="align-self:center"></span>
     </div>
     <div class="tut">
       <b>Como funciona:</b> a pessoa se inscreve na página do evento, escolhe a categoria e ${prov?.nome==="picpay"
@@ -2598,6 +2602,11 @@ function gerarCodigoVoucher(){
   const b=crypto.getRandomValues(new Uint8Array(8)); for(const x of b) s+=alf[x%alf.length];
   return s;
 }
+// códigos de categoria a que o voucher está preso e que saíram da guia Cobrança
+function orfasDoVoucher(v,cats){
+  const vivos=new Set((cats||[]).map(k=>k.codigo));
+  return (v.categorias||[]).filter(c=>!vivos.has(c));
+}
 function renderVouLista(){
   const el=$("vou-lista"); if(!el) return;
   const a=ACOES.find(x=>x.id===ABERTO); const cats=a?.evento?.cobranca?.categorias||[];
@@ -2615,6 +2624,15 @@ function renderVouLista(){
       ${cats.map(k=>`<label class="chk" style="margin:0;font-size:12.5px"><input type="checkbox" ${v.categorias.includes(k.codigo)?"checked":""}
         onchange="const s=new Set(EV_VOU[${i}].categorias);this.checked?s.add('${esc(k.codigo)}'):s.delete('${esc(k.codigo)}');EV_VOU[${i}].categorias=[...s];renderVouLista()"> ${esc(k.nome)}</label>`).join("")}
     </div>
+    ${/* A RESTRIÇÃO SOBREVIVE À CATEGORIA REMOVIDA (set/2026), e por isso precisa
+         ser DITA: sem esta linha o voucher aparece sem nenhuma caixa marcada e
+         sem "todas", e ninguém entende por que ele parou de valer. */
+      orfasDoVoucher(v,cats).length?`<div class="cnt" style="margin-top:8px;border-left:3px solid var(--warn);padding-left:10px">
+      ⚠ Este voucher está preso a ${orfasDoVoucher(v,cats).length===1?"uma categoria que não existe":`${orfasDoVoucher(v,cats).length} categorias que não existem`} mais
+      (${esc(orfasDoVoucher(v,cats).join(", "))}) — enquanto for assim, ele não vale para ninguém.
+      Marque acima as categorias em que ele deve valer, ou
+      <a href="#" onclick="EV_VOU[${i}].categorias=EV_VOU[${i}].categorias.filter(c=>${JSON.stringify(cats.map(k=>k.codigo))}.includes(c));renderVouLista();return false">apague a restrição vencida</a>.
+    </div>`:""}
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:8px">
       <label class="chk" style="margin:0;font-size:12.5px"><input type="checkbox" ${v.ativo?"checked":""} onchange="EV_VOU[${i}].ativo=this.checked"> ativo</label>
       <input placeholder="observação (só a gestão vê — ex.: monitores da Enfermagem)" value="${esc(v.descricao)}" oninput="EV_VOU[${i}].descricao=this.value" style="flex:1;min-width:220px">
@@ -2830,7 +2848,7 @@ function renderExportacoes(a){
         sistema de certificados. O seletor recorta por atividade: quem a marcou (e, com "só
         presentes", quem tem presença NELA), com a CH declarada na atividade.</div>
       ${proprias.length?`<label style="margin:0 0 8px;display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--muted)">Atividade
-        <select id="ev-atv-sel" style="width:auto;max-width:280px;font-size:12.5px;padding:6px 30px 6px 8px">
+        <select id="ev-atv-exp" style="width:auto;max-width:280px;font-size:12.5px;padding:6px 30px 6px 8px">
           <option value="">evento inteiro (geral)</option>
           ${proprias.map(x=>`<option value="${esc(x.id)}">${esc(x.titulo)}</option>`).join("")}
         </select></label>`:""}
@@ -3085,11 +3103,15 @@ function trVerNormasPadrao(){
   const j = document.createElement("div");
   j.className = "modal-fundo"; j.style.cssText = "position:fixed;inset:0;background:rgba(24,38,50,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px";
   j.innerHTML = `<div style="background:#fff;border-radius:14px;max-width:760px;width:100%;max-height:90vh;overflow:auto;padding:22px 24px">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><b style="font-family:Sora,sans-serif;font-size:16px;color:var(--brand)">Normas padrão — como o autor as lê</b><button class="bt bt-ghost" onclick="this.closest('.modal-fundo').remove()">Fechar</button></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><b style="font-family:Sora,sans-serif;font-size:16px;color:var(--brand)">Normas padrão — como o autor as lê</b><button class="bt bt-ghost" id="tr-normas-fechar">Fechar</button></div>
     <div class="muted" style="font-size:12px;margin-top:4px">Montadas da configuração gravada (modalidades, limites, prazo). Salve a configuração para o texto acompanhar as mudanças.</div>
     <pre style="white-space:pre-wrap;font-family:inherit;font-size:13.5px;line-height:1.6;margin-top:12px">${esc(TR.normasPadraoTexto||"")}</pre></div>`;
-  j.onclick = (e) => { if (e.target === j) j.remove(); };
+  const fechar = () => { document.removeEventListener("keydown", esc2); j.remove(); };
+  const esc2 = (e) => { if (e.key === "Escape") fechar(); };
+  j.onclick = (e) => { if (e.target === j) fechar(); };
+  document.addEventListener("keydown", esc2);   // Esc fecha, como nos demais overlays
   document.body.appendChild(j);
+  j.querySelector("#tr-normas-fechar").onclick = fechar;
 }
 async function trConfigSalvar(id){
   const config={ ativo:$("tr-ativo").checked, modalidades:[...document.querySelectorAll(".tr-mod:checked")].map(x=>x.value),
@@ -4166,21 +4188,31 @@ async function versaoAindaVale(){
   return false;
 }
 
+/* A MENSAGEM VAI PARA O SPAN QUE ESTÁ NA TELA (achado de set/2026): cinco guias
+   desenham o próprio aviso de gravação e todas usavam o MESMO id, então o
+   `getElementById` pegava o primeiro do DOM — o da guia Inscrições, escondido.
+   Salvar na guia Página com o projeto incompleto recusava, a frase do servidor
+   era escrita fora da tela e a pessoa via a caixa marcada sem nada acontecer.
+   Sem nenhum visível cai no `alert`, que é o que existe para isso. */
+function spanMsgEvento(){
+  return [...document.querySelectorAll(".ev-msg")].find((e)=>e.offsetParent!==null)||null;
+}
 async function salvarParteEvento(id, body){
   if(!await versaoAindaVale()) return false;
-  const msg=$("ev-msg"); if(msg){ msg.textContent="Salvando…"; msg.style.color=""; }
+  const msg=spanMsgEvento(); if(msg){ msg.textContent="Salvando…"; msg.style.color=""; }
   try{
     const r=await fetch(`/api/extensao/${id}/evento`,{method:"POST",
       headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const j=await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error||r.status);
     await carregar(); montarSeletor(); nav(SECAO);
-    const m=$("ev-msg"); if(m){ m.textContent="✓ salvo"; setTimeout(()=>{ if($("ev-msg")) $("ev-msg").textContent=""; },3000); }
+    // o redesenho da guia troca o span: procura de novo, e limpa o que achar
+    const m=spanMsgEvento(); if(m){ m.textContent="✓ salvo"; setTimeout(()=>{ const x=spanMsgEvento(); if(x&&x.textContent==="✓ salvo") x.textContent=""; },3000); }
     return true;
   }catch(e){
     // a recusa do servidor sai COMO VEIO (é o caso da trava de publicação:
     // o 400 lista o que falta no projeto) — na tela quando há onde, senão no alerta
-    const m=$("ev-msg");
+    const m=spanMsgEvento();
     if(m){ m.textContent="✕ "+e.message; m.style.color="var(--err)"; }
     else alert("Não foi possível salvar o evento: "+e.message);
     return false;
@@ -4280,9 +4312,14 @@ function copiarTexto(txt,bt){
 
 /* -------------------------------- exports -------------------------------- */
 function exportarAee(id,soPresentes){
-  // o seletor de atividade recorta o export: quem marcou a atividade (e,
-  // com "só presentes", quem tem presença NELA), com a CH declarada nela
-  const atv=$("ev-atv-sel")?.value||"";
+  /* o seletor de atividade recorta o export: quem marcou a atividade (e,
+     com "só presentes", quem tem presença NELA), com a CH declarada nela.
+     O id é o DESTA guia (`ev-atv-exp`): ele era o mesmo da guia Inscritos, e
+     `getElementById` pegava o primeiro do DOM — a planilha saía recortada pela
+     oficina escolhida LÁ, ou inteira apesar da escolhida AQUI. É dela que os
+     certificados são emitidos, com a CH da atividade: o recorte errado é CH
+     errada no documento de alguém. */
+  const atv=$("ev-atv-exp")?.value||"";
   const q=[soPresentes?"presentes=1":"", atv?`atividade=${encodeURIComponent(atv)}`:""].filter(Boolean).join("&");
   window.open(`/api/extensao/${id}/inscritos.xlsx${q?"?"+q:""}`,"_blank");
 }
@@ -4435,7 +4472,19 @@ async function renderCertificados(a){
       ${enc.observacao?`<div class="tut" style="font-size:12.5px;margin-top:8px"><b>Observação da coordenação:</b> ${esc(enc.observacao)}</div>`:""}
       ${enc.parecer?`<div class="tut" style="font-size:12.5px;margin-top:8px"><b>Parecer da PROPPEX:</b> ${esc(enc.parecer)}</div>`:""}
       <div class="exp" style="margin-top:12px">
-        ${(st==="aberto"||st==="devolvido")?`<button class="bt bt-pri" onclick="encerrarEvento('${esc(a.id)}')">🏁 Encerrar evento</button>`:""}
+        ${/* A MESMA RÉGUA DO CARTÃO DO PAINEL (achado de set/2026): a guia oferecia
+             o botão sem olhar a data, e ele abria um formulário de 14 campos e 5
+             fotos obrigatórias para o servidor recusar com 400 no fim. Botão que
+             sempre falha é armadilha — no lugar dele, a data em que ele abre. */
+          (st==="aberto"||st==="devolvido")
+          ? (a.numeroAcao && a.proposta?.periodoFim && hojeISO() >= a.proposta.periodoFim
+            ? `<button class="bt bt-pri" onclick="encerrarEvento('${esc(a.id)}')">🏁 Encerrar evento</button>`
+            : `<span class="muted" style="font-size:12.5px;align-self:center">${!a.numeroAcao
+              ? "O encerramento abre depois que a PROPPEX aprovar o evento."
+              : a.proposta?.periodoFim
+                ? `O encerramento abre no último dia do evento — ${fmt(a.proposta.periodoFim)}.`
+                : "Informe as datas do evento em <b>Dados do evento</b> para poder encerrá-lo."}</span>`)
+          : ""}
         ${(st==="solicitado"&&GESTAO_EX)?`<button class="bt bt-pri" onclick="decidirEncerramento('${esc(a.id)}','validado')">✓ Validar e liberar certificados</button>
           <button class="bt bt-sec" onclick="decidirEncerramento('${esc(a.id)}','devolvido')">↩ Devolver para ajustes</button>`:""}
         ${(st==="solicitado"&&!GESTAO_EX)?`<span class="muted" style="font-size:12.5px;align-self:center">A PROPPEX foi avisada por e-mail — os certificados saem assim que ela validar.</span>`:""}

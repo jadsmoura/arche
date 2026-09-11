@@ -154,7 +154,13 @@ test("vouchers: código, desconto, categorias, limite e prazo — conferidos con
     { codigo: "MONITOR-2026", desconto: "1%" },      // repetido: não entra
   ] });
   assert.deepEqual(cob.vouchers.map((v) => v.codigo), ["MONITOR-2026", "DEZ"]);
-  assert.deepEqual(cob.vouchers[0].categorias, ["profissional"], "categoria que não existe sai");
+  /* A RESTRIÇÃO NÃO EVAPORA (decisão revista em set/2026): até aqui o código de
+     categoria fora do catálogo era descartado — e lista VAZIA quer dizer TODAS,
+     então remover a categoria na guia Cobrança transformava o voucher restrito
+     num universal. O que a pessoa declarou fica gravado; quem recusa é
+     `voucherValido`, e a guia mostra o aviso para a coordenação corrigir. */
+  assert.deepEqual(cob.vouchers[0].categorias, ["profissional", "inventada"],
+    "a categoria que saiu do catálogo continua restringindo");
   assert.equal(cob.vouchers[0].limite, 2);
   assert.deepEqual(cob.vouchers[1].desconto, { modo: "fixo", valor: 1000 });
   assert.equal(descontoTexto(cob.vouchers[0].desconto), "50%");
@@ -185,9 +191,25 @@ test("vouchers: código, desconto, categorias, limite e prazo — conferidos con
   ];
   assert.equal(usosDoVoucher(inscritos, "monitor-2026", new Date("2026-10-02T10:30:00Z")), 2);
   assert.equal(usosDoVoucher(inscritos, "monitor-2026", new Date("2026-10-02T12:00:00Z")), 1, "a reserva vencida devolve o uso");
+  // quem ocupa a VAGA ocupa o USO: o cartão recusado com a reserva ainda no prazo
+  // segurava a vaga e devolvia o código a outra pessoa (set/2026)
+  const comRecusado = [...inscritos, { pagamento: { ...pg, status: "recusado", expiraEm: "2026-10-02T11:00:00.000Z" } }];
+  assert.equal(usosDoVoucher(comRecusado, "monitor-2026", new Date("2026-10-02T10:30:00Z")), 3,
+    "o recusado ainda no prazo conta, como conta para a vaga");
+  assert.equal(usosDoVoucher(comRecusado, "monitor-2026", new Date("2026-10-02T12:00:00Z")), 1,
+    "vencido, devolve a vaga e o uso");
   assert.equal(resumoFinanceiro(inscritos).porVoucher["MONITOR-2026"].n, 2);
   assert.equal(linhasFinanceiro(inscritos)[0].voucher, "MONITOR-2026");
   assert.equal(normalizarVouchers(undefined).length, 0);
+  /* e o voucher preso SÓ a categorias que já não existem não vale para NINGUÉM,
+     dizendo por quê — antes ele virava universal, e a frase saía "vale só para: ." */
+  const cobOrfa = normalizarCobranca({ ...COB, vouchers: [{ codigo: "ORFAO", desconto: "100%", categorias: ["sumiu"] }] });
+  assert.deepEqual(cobOrfa.vouchers[0].categorias, ["sumiu"]);
+  for (const cat of cobOrfa.categorias) {
+    const r = voucherValido(cobOrfa, "ORFAO", { categoria: cat.codigo, hojeISO: "2026-09-20" });
+    assert.equal(r.ok, false, `não vale para ${cat.codigo}`);
+    assert.match(r.motivo, /categoria de inscrição que não existe mais/);
+  }
 });
 
 test("o pagamento nasce aguardando, com reserva, e só transita pelo que a régua permite", () => {

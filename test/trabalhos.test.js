@@ -116,6 +116,17 @@ test("o fluxo inteiro: submissão → decisão direta da PROPPEX, e o caminho pe
   assert.equal(JSON.stringify(vr).includes("ana@x.com"), false, "nenhum e-mail de autor vaza ao revisor");
   assert.equal(JSON.stringify(vr).includes("Carlos"), false, "nem o orientador");
   assert.equal(vr.versao.secoes.introducao.length > 0, true, "o revisor lê as seções");
+  /* NEM O NOME DO ARQUIVO (set/2026): o PDF gerado já saía anonimizado, mas o
+     anexo chegava com o nome que o autor deu — e é ali que vai o nome dele. */
+  const comArq = JSON.parse(JSON.stringify(t));
+  comArq.versoes[comArq.versoes.length - 1].arquivo =
+    { name: "TCC-ANA-PAULA-SOUZA-orientador-Carlos-Lima.PDF", link: "/api/files/abc", size: 1234 };
+  const vrArq = paraRevisor(comArq, novos[0].token);
+  assert.equal(JSON.stringify(vrArq).includes("ANA-PAULA"), false, "o nome do arquivo não entrega a autoria");
+  assert.match(vrArq.versao.arquivo.name, /arquivo enviado pelo autor\.pdf$/);
+  assert.equal(vrArq.versao.arquivo.link, "/api/files/abc", "e o link continua abrindo o documento");
+  assert.equal(paraAutor(comArq).versoes.at(-1).arquivo.name, "TCC-ANA-PAULA-SOUZA-orientador-Carlos-Lima.PDF",
+    "para o autor, o nome dele fica");
 
   assert.equal(registrarParecer(t, novos[0].token, parecerBom()).ok, true);
   assert.equal(t.estado, "em-avaliacao");

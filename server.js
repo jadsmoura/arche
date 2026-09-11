@@ -6212,8 +6212,18 @@ async function varrerPagamentosEventos() {
   const pendentes = [];
   for (const a of acoes) {
     if (!a?.evento?.cobranca) continue;
+    /* UM registro estranho não para a varredura INTEIRA (achado de set/2026):
+       ela expira reserva e concilia Pix de TODOS os eventos, e morria por
+       completo no primeiro inscrito fora do formato. Cada ação por sua conta. */
+    try {
     for (const i of a.participantes?.inscritos || []) {
       const pg = i?.pagamento;
+      /* INSCRITO SEM PAGAMENTO EXISTE, e é comum: a lista DIGITADA pela
+         coordenação, o isento antigo, o evento que ligou a cobrança depois.
+         A guarda vem ANTES de qualquer leitura de `pg` — sem ela, UM nome
+         colado na lista derrubava a varredura inteira, e aí nenhuma reserva
+         expirava (vaga presa) e nenhum Pix se conciliava. */
+      if (!pg) continue;
       /* O EXPIRADO RECENTE ainda se concilia (revisão adversarial de
          set/2026): a reserva vence, a varredura a marca `expirado` e a
          inscrição saía da conciliação para sempre — o Pix que o participante
@@ -6223,11 +6233,12 @@ async function varrerPagamentosEventos() {
          conciliação não tem mais o que procurar. */
       const expiradoRecente = pg.status === "expirado" && pg.expiraEm
         && (agora - new Date(pg.expiraEm)) < 7 * 24 * 3600_000;
-      if (!pg || !(["aguardando", "recusado"].includes(pg.status) || expiradoRecente)) continue;
+      if (!(["aguardando", "recusado"].includes(pg.status) || expiradoRecente)) continue;
       const idade = agora - new Date(pg.criadoEm || 0);
       if (expiradoRecente || reservaVencida(pg, agora) || (idade > 15 * 60_000 && pg.status === "aguardando"))
         pendentes.push({ a, i, vencida: reservaVencida(pg, agora) });
     }
+    } catch (e) { console.error(`[pagamentos] varredura da ação ${a.id}:`, e.message); }
   }
   if (!pendentes.length) return { expiradas: 0, conciliadas: 0 };
   const base = process.env.MP_WEBHOOK_URL ? process.env.MP_WEBHOOK_URL.replace(/\/api\/publico\/pagamentos\/mp\/?$/, "") : "https://arche.app.br";
@@ -6368,6 +6379,10 @@ const trabalhosDaConta = (reg, conta, inscrito) => (reg?.trabalhos || []).filter
 });
 app.get("/api/publico/eventos/:slug/participante", async (req, res) => {
   try {
+    /* A RESPOSTA É DE UMA CONTA, e leva o TOKEN da credencial: `no-store` como a
+       irmã `minha-inscricao`. Ela mora sob `/api/publico/*`, que o middleware do
+       topo isenta do padrão — e o cache da borda está sendo configurado. */
+    res.setHeader("Cache-Control", "private, no-store");
     const conta = await usuarioDe(req, res);
     if (!conta) return res.status(401).json({ error: "Entre com a sua conta do portal para abrir a área do inscrito." });
     const acoes = await lerAcoes();
@@ -6991,7 +7006,9 @@ app.get("/api/publico/eventos/:slug/trabalhos", async (req, res) => {
     if (!a) return res.status(404).json({ error: "Evento não encontrado." });
     const ev = a.evento || {};
     // quem está logado recebe a própria situação (inscrito? liberado?) — é o
-    // que a página usa para abrir o formulário ou apontar o caminho
+    // que a página usa para abrir o formulário ou apontar o caminho. A resposta
+    // varia POR CONTA sob uma URL sem segredo: `no-store`, como a área do inscrito
+    res.setHeader("Cache-Control", "private, no-store");
     const conta = await usuarioDe(req, res);
     const inscrito = conta ? (await inscricaoDaConta(a, conta))?.inscrito || null : null;
     const lib = liberadoParaParticipar(ev, inscrito);
@@ -7468,8 +7485,13 @@ function registrarPresenca(a, atv, inscrito, { fase = "entrada", por = "monitor"
       return { ja: true, completa: true, nome: inscrito.nome || "", presenteEm: anterior.em || "",
         saidaEm: anterior.saidaEm, permanencia: minutosEntre(anterior.em, anterior.saidaEm),
         ...extras, gravar: false };
+    /* SAÍDA LOGO DEPOIS DA ENTRADA É CRACHÁ RELIDO, não saída (a mesma razão do
+       "o mesmo QR não se lê duas vezes"): a câmera varre a cada 350 ms e o crachá
+       fica parado à frente dela. Dentro de um minuto a leitura não vira saída — e
+       a tela DIZ isso, senão o monitor sai achando que registrou a saída. */
     if (Date.parse(agora) - Date.parse(anterior.em || 0) < 60000)
-      return { ja: true, nome: inscrito.nome || "", presenteEm: anterior.em || "", ...extras, gravar: false };
+      return { ja: true, cedoParaSaida: true, nome: inscrito.nome || "",
+        presenteEm: anterior.em || "", ...extras, gravar: false };
     anterior.saidaEm = agora;
     anterior.saidaPor = por;
     a.atualizadoEm = agora;
@@ -7565,10 +7587,13 @@ app.post("/api/publico/eventos/:slug/checkin", async (req, res) => {
       ...(r.saida ? { saida: true } : {}),
       ...(r.completa ? { completa: true } : {}),
       ...(r.entradaSemRegistro ? { entradaSemRegistro: true } : {}),
+      ...(r.cedoParaSaida ? { cedoParaSaida: true } : {}),
       ...(r.saidaEm ? { saidaEm: r.saidaEm } : {}),
       ...(r.permanencia !== undefined ? { permanencia: r.permanencia, permanenciaTxt: duracaoBR(r.permanencia) } : {}),
       ...(r.atividade ? { atividade: r.atividade } : {}),
       ...(r.inscritoAgora ? { inscritoAgora: true } : {}),
+      // de qual simultânea ela saiu: é o que a tela do monitor DIZ a quem está na porta
+      ...(r.trocouDe ? { trocouDe: r.trocouDe } : {}),
       ...(r.naoInscritoNaAtividade ? { naoInscritoNaAtividade: true } : {}) });
   } catch (e) {
     console.error("Erro no check-in do evento:", e);
@@ -7767,10 +7792,13 @@ app.post("/api/publico/eventos/:slug/presenca/:aid", async (req, res) => {
     res.json({ ok: true, ja: r.ja === true, nome: r.nome, presenteEm: r.presenteEm, fase: r.fase,
       ...(r.saida ? { saida: true } : {}), ...(r.completa ? { completa: true } : {}),
       ...(r.entradaSemRegistro ? { entradaSemRegistro: true } : {}),
+      ...(r.cedoParaSaida ? { cedoParaSaida: true } : {}),
       ...(r.saidaEm ? { saidaEm: r.saidaEm } : {}),
       ...(r.permanencia !== undefined ? { permanencia: r.permanencia, permanenciaTxt: duracaoBR(r.permanencia) } : {}),
       ...(r.atividade ? { atividade: r.atividade } : {}),
       ...(r.inscritoAgora ? { inscritoAgora: true } : {}),
+      ...(r.trocouDe ? { trocouDe: r.trocouDe } : {}),
+      ...(r.naoInscritoNaAtividade ? { naoInscritoNaAtividade: true } : {}),
       ...(r.token ? { token: r.token } : {}) });
   } catch (e) {
     console.error("Erro na presença pelo telão:", e);

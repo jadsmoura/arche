@@ -143,7 +143,9 @@ function camposConteudo(c, v = {}, modalidade) {
     ${c.permiteArquivo ? `<div class="sec-t">Arquivo (opcional)</div>
     <label>Versão em PDF ou Word, se quiser anexar (até 15 MB)</label>
     <input id="f-arquivo" type="file" accept=".pdf,.doc,.docx">
-    <div class="ajuda">O formulário é o que vale: é dele que a comissão lê e que o PDF no modelo do evento é gerado.</div>` : ""}`;
+    <div class="ajuda">O formulário é o que vale: é dele que a comissão lê e que o PDF no modelo do evento é gerado.
+      A avaliação é cega — o sistema esconde do revisor o nome do seu arquivo, mas o que estiver DENTRO dele vai como está:
+      não escreva o seu nome nem o da orientação no documento anexado.</div>` : ""}`;
 }
 function renderFormulario(j) {
   const c = j.config;

@@ -4793,6 +4793,80 @@ public/
   envio é ESPERADO — e-mail que falha vira faixa vermelha, nunca "✓ enviado" sobre nada. O botão
   do hotsite continua levando à área (é lá que a pessoa resolve), mas a situação de pagamento de
   quem se inscreveu com outro e-mail não sai mais pelo `minha-inscricao`.
+
+- **VERIFICAÇÃO FUNCIONAL DO ARCHÉ EV — set/2026** (pedido do dono: "certifique que o sistema de
+  eventos esteja perfeito e sem falhas"). Três agentes percorreram o módulo em ambientes isolados:
+  o **ciclo** do evento gratuito de ponta a ponta (cadastro → aprovação → publicação → inscrição →
+  credenciamento → telão → encerramento → certificados → devolução), o **dinheiro** (cobrança,
+  lotes, vouchers, webhook, divergências, estorno, Financeiro) mais o ARCHÉ TR inteiro, e as
+  **telas** (18 guias × 2 eventos × 2 larguras, mais 14 páginas públicas, com Playwright). O que
+  eles NÃO acharam vale tanto quanto o que acharam, e fica registrado para não se retestar do zero:
+  **zero erro de JavaScript** em 32 telas, zero rolagem horizontal, nenhum campo abaixo de 16px no
+  celular; o ciclo completo, as três portas das simultâneas, a régua do preço dia a dia contra a
+  tabela de lotes anunciada, o webhook (assinatura, corpo mentiroso, idempotência), a reserva viva
+  que não se estende, o dinheiro que chega depois de isentar ou estornar, e as três visões do TR.
+  **Doze achados foram confirmados e corrigidos**, e o mais grave era regressão da rodada anterior:
+  - **A VARREDURA DOS PAGAMENTOS MORRIA NO PRIMEIRO INSCRITO SEM COBRANÇA** (`varrerPagamentosEventos`
+    em server.js — regressão do commit anterior, que já estava em produção): o `expiradoRecente` que
+    eu acrescentei lia `pg.status` UMA LINHA antes da guarda `if (!pg)`. E inscrito sem `pagamento` é
+    banal — a lista DIGITADA pela coordenação, o isento antigo, o evento que ligou a cobrança depois.
+    Bastava **um** nome colado para a varredura horária inteira morrer: **nenhuma reserva expirava**
+    (vaga presa, "a receber" contando dinheiro que não vem) e **nenhum Pix se conciliava** (o pagamento
+    cujo webhook se perdeu nunca confirmava). A guarda subiu para antes de qualquer leitura, e o laço
+    de cada ação ganhou o seu `try`: um registro estranho não para a varredura de TODOS os eventos.
+    Provado no servidor local com o inscrito manual presente: 6 reservas expiradas, 10 conciliadas.
+  - **O VOUCHER RESTRITO VIRAVA UNIVERSAL** (`normalizarVouchers` em lib/pagamentos.js): o código de
+    categoria que não estivesse mais no catálogo era **descartado** na normalização — e lista vazia
+    quer dizer TODAS. Remover ou renomear uma categoria na guia Cobrança transformava o voucher de
+    20% "só para Estudante" num voucher para qualquer um, e um de 100% em inscrição grátis. O que a
+    pessoa declarou agora FICA gravado; quem recusa é `voucherValido`, com a frase por extenso (antes
+    sairia "vale só para: ."), e a guia Vouchers mostra o aviso com o caminho para corrigir.
+  - **A REVISÃO CEGA NÃO COBRIA O ANEXO** (`paraRevisor` em lib/trabalhos.js): o PDF gerado pelo
+    sistema já saía anonimizado, mas o arquivo do autor chegava ao revisor com o NOME que o autor lhe
+    deu — "TCC-ANA-PAULA-SOUZA-orientador-Carlos-Lima.pdf" desfaz a cegueira antes de ela começar. O
+    link continua abrindo (o revisor precisa do documento); o nome sai neutro, com a extensão. O que
+    está DENTRO do arquivo é do autor, e o formulário passou a dizer-lhe isso.
+  - **O USO DO VOUCHER E A VAGA PASSARAM A TER A MESMA RÉGUA** (`usosDoVoucher` = `ocupaVaga`): a
+    inscrição com o cartão RECUSADO e a reserva ainda no prazo segurava a vaga e **devolvia** o
+    código — o último uso de um limite ficava livre para alguém que não teria vaga.
+  - **A TELA DO MONITOR NUNCA DIZIA DE QUAL SIMULTÂNEA A PESSOA SAIU**: o servidor calculava
+    `trocouDe` e as duas rotas (check-in e telão) não o repassavam; a frase existia na tela e nunca
+    se desenhava. O telão também não repassava `naoInscritoNaAtividade`, e a tela DELE — que é a do
+    próprio participante — passou a dizer de qual oficina ele saiu, senão vai à que acha que tem.
+  - **A SAÍDA LIDA NO PRIMEIRO MINUTO NÃO É SAÍDA, e agora a tela DIZ isso** (`cedoParaSaida`): a
+    guarda de 60 s existe pela mesma razão do "o mesmo QR não se lê duas vezes" — a câmera varre a
+    cada 350 ms e o crachá fica parado à frente dela —, mas respondia "já credenciado", e o monitor
+    saía achando que tinha gravado a saída.
+  - **DUAS ROTAS PÚBLICAS DE UMA CONTA SAÍAM SEM `Cache-Control`**: a área do inscrito
+    (`/participante`, que devolve o TOKEN da credencial) e o GET de trabalhos (que devolve o e-mail
+    da conta logada). Elas moram sob `/api/publico/*`, que o middleware do topo isenta do padrão
+    `private, no-store` — e o cache da borda está sendo configurado. Hoje não vaza (tudo sai
+    `DYNAMIC`); é defesa em profundidade, e a irmã `minha-inscricao` já fazia assim.
+  - **A RECUSA DO SERVIDOR SUMIA DA TELA** (`spanMsgEvento` no ARCHÉ EV): cinco guias desenham o
+    próprio aviso de gravação e todas usavam o MESMO `id`, então o `getElementById` pegava o
+    primeiro do DOM — o da guia Inscrições, escondido. Aberta aquela guia uma vez, salvar em Página,
+    Programação, Transmissão ou Cobrança escrevia a resposta FORA DA TELA: quem tentava publicar a
+    página de um evento não aprovado via a caixa marcada e **nada acontecer**. O `else alert()` nunca
+    socorria, porque o span existia. Agora são classe, e a mensagem vai para o que está à vista.
+  - **O RECORTE DA PLANILHA AEE MENTIA NAS DUAS DIREÇÕES** (`ev-atv-exp`): o seletor de atividade da
+    guia Inscritos e o das Exportações tinham o mesmo `id`. Escolher a oficina em Exportações abria a
+    planilha do evento INTEIRO; escolher em Inscritos fazia a de Exportações — dizendo "evento
+    inteiro" — sair recortada. É a planilha de onde saem os certificados, com a CH da atividade.
+  - **"🏁 Encerrar evento" abria antes da data** e o servidor recusava com 400 depois de a pessoa
+    preencher 14 campos e anexar 5 fotos. A guia passou a usar a MESMA régua do cartão do Painel, e
+    no lugar do botão diz quando ele abre.
+  - **NO CELULAR, AS CAIXAS DE MARCAR ENCOLHIAM ATÉ 4px** (`arche-celular.css`): `width` não defende
+    um item de flex — quem defende é `flex-shrink`/`min-width` —, e a regra `.card * { min-width: 0 }`,
+    que existe para a linha de filtro poder encolher, autorizava o aperto. Eram justamente os
+    interruptores de publicar, cobrar e aceitar submissões.
+  - **Esc fecha as duas janelas que ainda não fechavam** (normas padrão e revisão do comunicado),
+    como os outros três overlays do arquivo.
+  **O que ficou como decisão, não como defeito:** a rota de INSCRIÇÃO continua dizendo por que o
+  voucher foi recusado ("vale só para: Estudante", "venceu em…") — o oráculo que se fechou foi o da
+  rota GET, que respondia de graça; aqui quem pergunta já preencheu o formulário inteiro, passa pelo
+  mesmo freio, e a frase serve a quem tem o código de verdade. E `estornado` segue sendo estado final:
+  quem pediu reembolso e mudou de ideia se inscreve de novo.
+
 - **A PROGRAMAÇÃO MARCA O QUE VAI AO CARROSSEL** (`destaque` em `normalizarProgramacao` +
   a caixa "★ destacar no carrossel" no bloco "quem ministra" da guia Programação + `palestrantesDe`
   no hotsite, pedido do dono set/2026: "não é toda programação que é interessante de ser

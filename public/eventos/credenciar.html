@@ -282,7 +282,11 @@ function resultado(tipo, nome, quando, extras = {}) {
       ? `<div class="dt" style="font-weight:700">＋ inscrito nesta atividade agora</div>${extras.trocouDe
           ? `<div class="dt">saiu de: ${esc(extras.trocouDe)} — a vaga voltou para a fila</div>` : ""}`
       : extras.entradaSemRegistro
-        ? '<div class="dt" style="font-weight:700">⚠ não havia entrada registrada — registramos a ENTRADA agora</div>' : "";
+        ? '<div class="dt" style="font-weight:700">⚠ não havia entrada registrada — registramos a ENTRADA agora</div>'
+      /* a saída não se registra no primeiro minuto (crachá relido pela câmera):
+         sem esta linha o monitor sai achando que gravou a saída */
+      : extras.cedoParaSaida
+        ? '<div class="dt" style="font-weight:700">a entrada foi agora há pouco — a SAÍDA se registra depois, no fim da atividade</div>' : "";
   el.innerHTML = tipo === "saida"
     ? `<div class="ic">→</div><div class="tt">Saída registrada</div><div class="nm">${esc(nome)}</div>${linhaAtv}`
       + `<div class="dt">permaneceu ${esc(extras.permanencia || "—")}${quando ? " · entrou às " + esc(hora(quando)) : ""}</div>`
@@ -317,7 +321,7 @@ async function checkin(body, atividadeEscolhida, faseEscolhida) {
     resultado(j.saida ? "saida" : j.ja ? "ja" : "ok", j.nome, j.presenteEm,
       { atividade: j.atividade, naoInscrito: j.naoInscritoNaAtividade === true,
         inscritoAgora: j.inscritoAgora === true, trocouDe: j.trocouDe || "", entradaSemRegistro: j.entradaSemRegistro === true,
-        saidaEm: j.saidaEm, permanencia: j.permanenciaTxt });
+        cedoParaSaida: j.cedoParaSaida === true, saidaEm: j.saidaEm, permanencia: j.permanenciaTxt });
     return true;
   } catch {
     resultado("erro", "Sem conexão — tente de novo.");

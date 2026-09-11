@@ -122,11 +122,17 @@ function resultado(j) {
   let ic = "✅", tt = "Presença registrada", dt = j.presenteEm ? "às " + hora(j.presenteEm) : "";
   if (j.saida) { ic = "🏁"; tt = "Saída registrada"; dt = `entrada ${hora(j.presenteEm)} · saída ${hora(j.saidaEm)}${j.permanenciaTxt ? " · " + j.permanenciaTxt : ""}`; }
   else if (j.completa) { ic = "✅"; tt = "Entrada e saída já registradas"; dt = `entrada ${hora(j.presenteEm)} · saída ${hora(j.saidaEm)}`; }
+  // a saída não se registra no primeiro minuto (leitura repetida): diga o motivo,
+  // senão ela vai embora achando que a saída dela está gravada
+  else if (j.cedoParaSaida) { ic = "👍"; tt = "Entrada registrada"; dt = `às ${hora(j.presenteEm)} — a saída se registra no fim da atividade`; }
   else if (j.ja) { ic = "👍"; tt = "Você já estava registrado(a)"; }
   else if (j.entradaSemRegistro) { tt = "Presença registrada (entrada)"; }
   $("cartao").innerHTML = `<div class="res"><div class="ic">${ic}</div><div class="tt">${tt}</div>
     <div class="nm">${esc(j.nome || "")}</div><div class="dt">${esc(D.atividade.titulo)}${dt ? " · " + esc(dt) : ""}</div>
-    ${j.inscritoAgora ? `<div class="msg ok" style="text-align:left">Você foi incluído(a) nesta atividade — ela passa a constar na sua inscrição.</div>` : ""}
+    ${j.inscritoAgora ? `<div class="msg ok" style="text-align:left">Você foi incluído(a) nesta atividade — ela passa a constar na sua inscrição.${
+      /* no mesmo horário a escolha é UMA: quem entra numa sai da outra, e precisa
+         saber disso na hora — senão vai à oficina que acha que ainda tem */
+      j.trocouDe ? ` Você saiu de <b>${esc(j.trocouDe)}</b>, que acontece no mesmo horário.` : ""}</div>` : ""}
     ${cred}<a class="bt bt-ghost" href="${URL_EV}">Página do evento</a></div>`;
 }
 

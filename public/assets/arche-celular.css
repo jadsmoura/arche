@@ -66,6 +66,15 @@
   input[type="checkbox"],
   input[type="radio"] { width: 22px; height: 22px; }
 
+  /* E ELA NÃO ENCOLHE NA LINHA (achado de set/2026): `width` não defende um
+     item de flex — quem o defende é `flex-shrink`/`min-width`, e a regra
+     `.card * { min-width: 0 }` logo abaixo (que existe para a linha de filtro
+     poder encolher) autorizava o aperto. Num `<label>` flex com rótulo longo,
+     a caixa de "cobrança ativa" chegava a 11px e o rádio de modalidade a 4px:
+     justamente os interruptores de publicar, cobrar e aceitar submissões. */
+  input[type="checkbox"],
+  input[type="radio"] { flex: 0 0 auto; min-width: 22px; min-height: 22px; }
+
   /* --------------------------------------------------------------------
      2. ALVO DE TOQUE
      44px é a recomendação da Apple e ~48dp a do Google. O piso vale para o
