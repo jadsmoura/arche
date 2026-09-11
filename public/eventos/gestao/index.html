@@ -2681,7 +2681,8 @@ async function renderFinanceiro(a){
       <div class="s"><b>R$ ${reaisDe(R.bruto)}</b><span>Recebido (bruto)</span></div>
       <div class="s"><b style="color:var(--muted)">R$ ${reaisDe(R.taxa)}</b><span>Taxas do provedor</span></div>
       <div class="s"><b style="color:var(--ok)">R$ ${reaisDe(R.liquido)}</b><span>Líquido</span></div>
-      <div class="s"><b style="color:var(--warn)">R$ ${reaisDe(R.aReceber)}</b><span>A receber (reservas abertas)</span></div>
+      <div class="s"><b style="color:var(--warn)">R$ ${reaisDe(R.aReceber)}</b><span>A receber (reservas em aberto)</span></div>
+      ${R.vencidoSemPagar?`<div class="s"><b style="color:var(--muted)">R$ ${reaisDe(R.vencidoSemPagar)}</b><span>Reservas vencidas sem pagar</span></div>`:""}
     </div>
     ${Object.keys(R.porMeio||{}).length?`<div class="card"><div class="sec-t">Por meio de pagamento</div>
       <div class="scrollx" style="margin-top:8px"><table class="pt"><thead><tr><th>Meio</th><th>Pagamentos</th><th>Valor</th></tr></thead>
@@ -4397,11 +4398,19 @@ async function renderCertificados(a){
       </div></div>`;
   };
   const porTipo=(t)=>(j.certificados||[]).filter(c=>c.tipo===t);
-  const linha=(c)=>`<tr>
+  /* CARGA HORÁRIA NÃO APURADA (3ª rodada adversarial, set/2026): a pessoa tem
+     presença por atividade e as atividades em que ela esteve não dizem
+     quantas horas foram — nem no campo CH, nem no horário — ou saíram da
+     programação (salvar a grade reemite os ids). O documento não sai com zero
+     nem com a CH do evento inteiro: fica RETIDO e nomeado aqui, porque quem
+     pode consertar a grade é a coordenação. */
+  const retidos=(j.certificados||[]).filter(c=>c.chPendente);
+  const linha=(c)=>`<tr${c.chPendente?' style="background:#fdf3e3"':""}>
     <td>${esc(c.pessoa)}</td>
     <td class="muted">${esc(c.papel||(c.tipo==="participante"?"Participante":c.tipo==="palestrante"?"Palestrante":"Organização"))}</td>
-    <td class="muted">${c.ch?esc(String(c.ch))+" h":"—"}</td>
-    <td>${j.pode?`<a class="bt bt-sec" style="padding:3px 9px;font-size:12px"
+    <td class="muted">${c.chPendente?'<span class="badge" style="background:#fdf3e3;color:#a9701f">a apurar</span>':(c.ch?esc(String(c.ch))+" h":"—")}</td>
+    <td>${c.chPendente?`<span class="muted" style="font-size:12px">retido</span>`
+      :j.pode?`<a class="bt bt-sec" style="padding:3px 9px;font-size:12px"
       href="/api/extensao/${encodeURIComponent(a.id)}/certificado.pdf?ref=${encodeURIComponent(c.ref)}&tipo=${encodeURIComponent(c.tipo||"")}"
       target="_blank" rel="noopener">📄 Emitir</a>`:`<span class="muted" style="font-size:12px">—</span>`}</td></tr>`;
   const tabela=(t,rot)=>{
@@ -4430,6 +4439,7 @@ async function renderCertificados(a){
         ${(st==="solicitado"&&GESTAO_EX)?`<button class="bt bt-pri" onclick="decidirEncerramento('${esc(a.id)}','validado')">✓ Validar e liberar certificados</button>
           <button class="bt bt-sec" onclick="decidirEncerramento('${esc(a.id)}','devolvido')">↩ Devolver para ajustes</button>`:""}
         ${(st==="solicitado"&&!GESTAO_EX)?`<span class="muted" style="font-size:12.5px;align-self:center">A PROPPEX foi avisada por e-mail — os certificados saem assim que ela validar.</span>`:""}
+        ${(st==="validado"&&GESTAO_EX)?`<button class="bt bt-sec" onclick="decidirEncerramento('${esc(a.id)}','devolvido')">↩ Devolver o encerramento (reabrir o evento)</button>`:""}
       </div>
       ${!j.pode&&j.motivo?`<div class="muted" style="font-size:12.5px;margin-top:10px">${esc(j.motivo)}</div>`:""}
     </div>
@@ -4455,6 +4465,13 @@ async function renderCertificados(a){
       ${j.pode?`<div class="muted" style="margin:8px 0">A frente traz o texto do certificado; o verso,
         a programação do evento. A carga horária do participante é a das atividades em que ele teve
         presença registrada.</div>
+        ${retidos.length?`<div class="tut" style="font-size:12.5px;margin:0 0 10px;background:#fdf3e3;border-color:#e6c98a">⏳
+          <b>${retidos.length} certificado(s) retido(s): a carga horária não foi apurada.</b>
+          As atividades em que essas pessoas têm presença não dizem quantas horas foram — ou porque o campo
+          <b>CH</b> está em branco e não há <b>horário</b> na grade, ou porque a atividade saiu da programação
+          (salvar a grade reemite os ids das atividades). O documento não sai com zero nem com a carga horária
+          do evento inteiro. Corrija a programação na guia <b>Programação</b> e eles saem sozinhos:
+          ${esc(retidos.slice(0,8).map(c=>c.pessoa).join(", "))}${retidos.length>8?` e mais ${retidos.length-8}`:""}.</div>`:""}
         ${j.semCredenciamento?`<div class="tut" style="font-size:12.5px;margin:0 0 10px">👥 <b>Ninguém foi
           credenciado neste evento</b>, então a <b>lista de inscritos vale como lista de presença</b> e
           todos entram com a carga horária do evento. Credenciamento que não aconteceu não é registro de
@@ -4675,6 +4692,13 @@ async function decidirEncerramento(id,decisao){
     ? (prompt("O que precisa ser corrigido? (a coordenação vai ler)","")||"").trim()
     : (prompt("Observação da validação (opcional)","")||"").trim();
   if(decisao==="devolvido"&&parecer.length<10){ alert("Escreva o que precisa ser corrigido."); return; }
+  // devolver um encerramento JÁ VALIDADO reabre o evento: os certificados
+  // deixam de sair até a coordenação reencerrar, e quem já baixou o seu ficou
+  // com um documento que pode mudar — a confirmação diz isso
+  if(decisao==="devolvido"&&((ACOES.find(x=>x.id===id)||{}).evento?.encerramento||{}).status==="validado"
+    &&!confirm("Devolver um encerramento JÁ VALIDADO reabre o evento.\n\n"
+      +"Os certificados deixam de ser emitidos até a coordenação encerrar de novo e a PROPPEX validar. "
+      +"Quem já baixou o seu ficou com um documento que pode mudar.\n\nContinuar?")) return;
   if(decisao==="validado"&&!confirm("Validar o encerramento e LIBERAR os certificados deste evento?\n\n"
     +"Todos com direito a certificado — participantes, palestrantes e comissão — recebem um "
     +"e-mail avisando que o documento está pronto, com o link para baixá-lo.")) return;

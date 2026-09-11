@@ -4063,6 +4063,8 @@ app.post("/api/extensao/:id/excluir", async (req, res) => {
    validação existe justamente para conferir tudo isso ANTES de o documento
    existir. Para corrigir, a PROPPEX devolve o encerramento. */
 const eventoValidadoMsg = (a) => (eventoCongelado(a) ? MSG_EVENTO_CONGELADO : null);
+// o estado da INSCRIÇÃO, concordando com ela ("a inscrição já isenta")
+const ESTADO_FEM = { isento: "isenta", estornado: "estornada", pago: "paga", contestado: "em contestação", expirado: "expirada" };
 const CATEGORIAS_PART = ["inscritos", "palestrantes", "comissao"];
 const CAMPOS_INSCRITO_DIGITADO = ["nome", "cpf", "matricula", "email", "telefone", "curso", "periodo", "ch", "instituicao", "categoria"];
 const chaveDeParticipante = (x) => (soDigitos(x?.cpf) || String(x?.matricula || "").trim() || String(x?.nome || "").trim()).toLowerCase();
@@ -5010,14 +5012,28 @@ app.get("/api/publico/eventos", async (_req, res) => {
    código vale para a categoria escolhida e mostra quanto fica — o mesmo
    cálculo da inscrição, feito pelo servidor. Devolve só o resultado deste
    código; a lista de códigos nunca sai. */
+/* A rota que confere UM código. Dois cuidados que a revisão adversarial de
+   set/2026 apontou: ela não passava pelo FREIO da inscrição — 300 palpites
+   em 0,7 s, e o código tem de 2 a 30 caracteres, então dois caracteres são
+   1 296 possibilidades; e distinguia "não existe" de "esgotado", o que
+   confirma a existência de um código mesmo quando ele já não serve. Um
+   voucher de 100% torna a inscrição isenta, com credencial na hora: adivinhar
+   código é entrar de graça. Agora o freio vale, e a recusa é UMA frase só. */
+const RECUSA_VOUCHER = "Este código de desconto não existe, não vale para esta categoria ou já não está disponível.";
 app.get("/api/publico/eventos/:slug/voucher", async (req, res) => {
   try {
+    if (inscricaoExcedeu(req.ip))
+      return res.status(429).json({ error: "Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo." });
     const a = eventoPorSlug(await lerAcoes(), req.params.slug);
     if (!a?.evento?.ativo || !cobrancaAtiva(a.evento.cobranca)) return res.status(404).json({ error: "Evento sem cobrança." });
     const codigo = String(req.query.codigo || "").trim().slice(0, 30);
     const categoria = String(req.query.categoria || "").trim().slice(0, 40);
     const vv = voucherValido(a.evento.cobranca, codigo, { categoria, hojeISO: hojeLocalISO(), usos: usosDoVoucher(a.participantes?.inscritos || [], codigo) });
-    if (!vv.ok) return res.json({ ok: false, motivo: vv.motivo });
+    // "informe o código" fala do campo em branco e não revela nada; todo o
+    // resto — não existe, venceu, esgotou, é de outra categoria — confirmaria
+    // a existência do código, e sai como UMA frase só
+    if (!vv.ok) return res.json({ ok: false,
+      motivo: vv.motivo === "Informe o código do voucher." ? vv.motivo : RECUSA_VOUCHER });
     const preco = valorDaInscricao(a.evento.cobranca, { categoria, hojeISO: hojeLocalISO(), voucher: vv.voucher });
     if (!preco) return res.json({ ok: false, motivo: "Escolha a categoria antes de aplicar o voucher." });
     res.json({ ok: true, codigo: vv.voucher.codigo, desconto: preco.voucher?.desconto || 0, descontoTexto: descontoTexto(vv.voucher.desconto),
@@ -5160,6 +5176,9 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
          categoria; o valor sai da configuração gravada, com o lote de HOJE.
          Categoria com valor zero (ex.: aluno do UNIEGO) nasce ISENTA e segue
          o caminho do evento gratuito. */
+      // a inscrição que JÁ existe para este CPF/e-mail — usada em dois pontos
+      // (a contagem de usos do voucher e o ramo de renovação/recusa abaixo)
+      const ja = jaInscrito(parts.inscritos, { cpf, email });
       const cobra = cobrancaAtiva(a.evento.cobranca);
       let preco = null;
       if (cobra) {
@@ -5172,7 +5191,12 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
            sem saber. */
         let voucher = null;
         if (codigoVoucher) {
-          const vv = voucherValido(a.evento.cobranca, codigoVoucher, { categoria, hojeISO: hojeLocalISO(), usos: usosDoVoucher(parts.inscritos, codigoVoucher) });
+          // a PRÓPRIA inscrição não conta contra ela mesma (revisão de
+          // set/2026): quem tinha o último uso de um voucher de limite 1 e
+          // reenviava o formulário era barrado pelo próprio uso. É a mesma
+          // exclusão que a rota `/pagamento/pagar` já fazia.
+          const vv = voucherValido(a.evento.cobranca, codigoVoucher, { categoria, hojeISO: hojeLocalISO(),
+            usos: usosDoVoucher(parts.inscritos.filter((x) => x !== ja), codigoVoucher) });
           if (!vv.ok) return { erro: [400, `Voucher: ${vv.motivo}`], gravar: false };
           voucher = vv.voucher;
         }
@@ -5190,13 +5214,30 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
           : pg;
       };
       {
-        const ja = jaInscrito(parts.inscritos, { cpf, email });
         /* A inscrição que ficou SEM PAGAR não é parede: quem voltou para pagar
            (reserva vencida, cartão recusado, link perdido) renova a reserva
            na MESMA inscrição — com o preço de hoje, e só se for a mesma
            pessoa com o mesmo e-mail (é a prova de que conhece a inscrição).
            A vaga já foi conferida acima: a reserva vencida não a ocupa. */
-        if (ja && ja.pagamento && ["aguardando", "recusado", "expirado"].includes(ja.pagamento.status)
+        /* MAS A RESERVA VIVA NÃO SE ESTENDE (revisão adversarial de set/2026):
+           reenviar o formulário renovava o prazo, sem pagar nada e sem
+           limite — a vaga ficava presa enquanto a pessoa quisesse, o uso do
+           voucher limitado junto com ela, e o "a receber" do Financeiro
+           enchia de reservas que nunca venceriam. O prazo que o e-mail
+           anuncia tem de valer. É a MESMA régua que a rota `/pagamento/pagar`
+           já aplica ("renová-la aqui deixaria alguém estender o prazo
+           clicando de novo"): só renova o que está VENCIDO, `expirado` ou
+           `recusado`; com a reserva viva, a inscrição que existe é devolvida
+           como está, com o link e a credencial dela. */
+        const reservaViva = !!ja?.pagamento && ja.pagamento.status === "aguardando"
+          && !reservaVencida(ja.pagamento);
+        if (ja && ja.pagamento && reservaViva && String(ja.email || "").trim().toLowerCase() === email && cobra) {
+          const nasceuToken = !ja.token;
+          if (nasceuToken) ja.token = gerarToken(a.evento.chaveQr);
+          if (nasceuToken) a.atualizadoEm = new Date().toISOString();
+          return { acao: a, inscrito: ja, jaReservada: true, gravar: nasceuToken };
+        }
+        if (ja && ja.pagamento && !reservaViva && ["aguardando", "recusado", "expirado"].includes(ja.pagamento.status)
           && String(ja.email || "").trim().toLowerCase() === email && cobra) {
           const pg = pagamentoDe();
           const renovado = transitarPagamento(ja.pagamento, pg.status, { por: "inscrição", motivo: "reserva renovada",
@@ -5227,8 +5268,23 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
           // Quem digitou o próprio endereço errado continua tendo saída: a
           // recuperação pede CPF e e-mail juntos, e a coordenação vê a lista.
           const mesmoEmail = String(ja.email || "").trim().toLowerCase() === email;
+          /* E A FRASE TEM DE SER VERDADE (revisão adversarial de set/2026):
+             para quem teve o pagamento ESTORNADO ela dizia "o link da sua
+             credencial continua valendo", e não vale — `inscricaoValida` é
+             falsa, o check-in recusa com 409 e o certificado não sai. A
+             pessoa saía da tela acreditando ter crachá, e ainda podia pagar
+             de novo o link antigo. O estado final se diz por extenso, com o
+             caminho: quem decide reabrir é a coordenação. */
+          const estado = ja.pagamento?.status;
+          const frasePropria = estado === "estornado"
+            ? "Esta inscrição foi ESTORNADA — o valor foi devolvido e a credencial não vale mais. "
+              + "Para participar, fale com a coordenação do evento: a nova inscrição é feita por ela."
+            : estado === "contestado"
+              ? "Esta inscrição está com o pagamento em contestação e a credencial não vale enquanto isso. "
+                + "Fale com a coordenação do evento."
+              : "Você já está inscrito neste evento — o link da sua credencial continua valendo.";
           return { erro: [409, mesmoEmail
-            ? "Você já está inscrito neste evento — o link da sua credencial continua valendo."
+            ? frasePropria
             : "Já existe inscrição com este CPF neste evento, feita com outro e-mail. "
               + "Use “Já me inscrevi e perdi o link” com o CPF e o e-mail usados na inscrição — "
               + "ou fale com a coordenação do evento."],
@@ -5286,7 +5342,12 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
        existe, a vaga está reservada e a página de pagamento tenta criar a
        cobrança de novo — a pessoa não perde o que digitou. */
     const aguardaPagamento = r.inscrito.pagamento?.status === "aguardando";
-    if (aguardaPagamento) {
+    /* a reserva que JÁ existe não cria cobrança nova no provedor: o link
+       dela continua valendo, e um link novo a cada reenvio do formulário
+       encheria a conta de cobranças órfãs (e, no PicPay, deixaria o QR
+       antigo sem dono) */
+    const jaTemCobranca = !!(r.jaReservada && (r.inscrito.pagamento?.link || r.inscrito.pagamento?.qrCode));
+    if (aguardaPagamento && !jaTemCobranca) {
       let link = null;
       try { link = await criarLinkDePagamento(r.acao, r.inscrito, base); }
       catch (e) { console.error("[pagamentos] cobrança não criada na inscrição:", e.message); }
@@ -5307,7 +5368,8 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     // vale na tela.
     res.json({ ok: true, token: r.inscrito.token, codigo: codigoDe(r.inscrito.token),
       ...(r.inscrito.pagamento ? { pagamento: pagamentoPublico(r.inscrito, r.acao.evento) } : {}),
-      ...(r.renovada ? { renovada: true } : {}) });
+      ...(r.renovada ? { renovada: true } : {}),
+      ...(r.jaReservada ? { jaReservada: true } : {}) });
     // O CADASTRO SE COMPLETA PELA INSCRIÇÃO (pedido do dono, set/2026): o que a
     // pessoa digitou entra no perfil da conta onde ele ainda está vazio — na
     // próxima inscrição já vem preenchido, e o portal não pede de novo.
@@ -5434,13 +5496,24 @@ function guardarCobranca(pg, cobranca) {
   pg.linkCartao = String(cobranca?.cartao?.link || "");
   if (cobranca?.cartao?.valor) pg.valorCartao = Math.round(cobranca.cartao.valor);
 }
+/* O QUE SE GUARDA DA COBRANÇA ANTERIOR É TUDO O QUE A IDENTIFICA (revisão
+   adversarial de set/2026): guardava-se só o ID, e no PicPay o id gravado na
+   criação é o SLUG do endereço (a resposta da criação não traz id), enquanto
+   o webhook traz o `paymentLinkId` (uuid). Comparar slug com uuid nunca bate:
+   renovada a reserva UMA vez, quem pagasse o link ANTIGO — o que ficou no
+   WhatsApp, o QR já salvo na galeria — tinha o dinheiro recebido pela
+   instituição e não reconhecido pelo ARCHÉ. Agora vai também o ENDEREÇO e o
+   BR CODE, que são os três únicos por cobrança e os três que o pagador
+   carrega. (Com o Mercado Pago isto já não acontecia: ele casa por
+   `external_reference`, estável entre renovações.) */
+const listaDeCobranca = (pg) => [pg?.preferenciaId, pg?.pagamentoId, pg?.link, pg?.qrCode];
 function cobrancasAnteriores(pg) {
-  return [...new Set([...(pg?.cobrancasAnteriores || []), pg?.preferenciaId, pg?.pagamentoId]
-    .map((x) => String(x || "")).filter(Boolean))].slice(-6);
+  return [...new Set([...(pg?.cobrancasAnteriores || []), ...listaDeCobranca(pg)]
+    .map((x) => String(x || "")).filter(Boolean))].slice(-12);
 }
 function cobrancasAnterioresCartao(pg) {
-  return [...new Set([...(pg?.cobrancasAnterioresCartao || []), pg?.preferenciaCartaoId]
-    .map((x) => String(x || "")).filter(Boolean))].slice(-6);
+  return [...new Set([...(pg?.cobrancasAnterioresCartao || []), pg?.preferenciaCartaoId, pg?.linkCartao]
+    .map((x) => String(x || "")).filter(Boolean))].slice(-12);
 }
 
 /* A inscrição DONA de uma cobrança do PicPay: a API deles não devolve
@@ -5453,10 +5526,14 @@ function inscricaoDaCobranca(acoes, { cobrancaId, link, qrCode } = {}) {
   for (const a of acoes) {
     for (const i of a?.participantes?.inscritos || []) {
       const pg = i?.pagamento; if (!pg) continue;
-      const ids = [pg.preferenciaId, ...(pg.cobrancasAnteriores || [])].map((x) => String(x || "")).filter(Boolean);
-      const idsCartao = [pg.preferenciaCartaoId, ...(pg.cobrancasAnterioresCartao || [])].map((x) => String(x || "")).filter(Boolean);
-      if ((id && ids.includes(id)) || (l && pg.link && pg.link === l) || (q && pg.qrCode && pg.qrCode === q)) return { acao: a, inscrito: i, cartao: false };
-      if ((id && idsCartao.includes(id)) || (l && pg.linkCartao && pg.linkCartao === l)) return { acao: a, inscrito: i, cartao: true };
+      // a cobrança VIGENTE e todas as anteriores, cada uma por id, endereço
+      // e BR Code: quem paga o link velho tem de ser reconhecido igual
+      const seus = [pg.preferenciaId, pg.pagamentoId, pg.link, pg.qrCode, ...(pg.cobrancasAnteriores || [])]
+        .map((x) => String(x || "")).filter(Boolean);
+      const seusCartao = [pg.preferenciaCartaoId, pg.linkCartao, ...(pg.cobrancasAnterioresCartao || [])]
+        .map((x) => String(x || "")).filter(Boolean);
+      if ((id && seus.includes(id)) || (l && seus.includes(l)) || (q && seus.includes(q))) return { acao: a, inscrito: i, cartao: false };
+      if ((id && seusCartao.includes(id)) || (l && seusCartao.includes(l))) return { acao: a, inscrito: i, cartao: true };
     }
   }
   return null;
@@ -5527,6 +5604,27 @@ async function aplicarPagamentoDoProvedor(p, { por } = {}) {
       return { acao: a, inscrito: i, antes, depois: antes, divergente: true, leitura };
     }
     const novo = transitarPagamento(i.pagamento, leitura.estado, { por, extra: leitura.extra });
+    /* DINHEIRO CONFIRMADO NUNCA SE DESCARTA (revisão adversarial de set/2026):
+       a transição recusa `isento → pago` e `estornado → pago`, e com razão —
+       o estado da inscrição não deve mudar. Mas o Pix que a pessoa já tinha
+       no aplicativo do banco CAI depois da isenção da coordenação, depois de
+       a cobrança do evento ser desligada (que isenta em bloco) e depois do
+       estorno; e a rota jogava fora um pagamento que a API do provedor
+       CONFIRMOU, sem gravar valor, sem divergência, sem histórico. O crédito
+       existia no extrato e a instituição não sabia de quem devolver.
+       Vai para o MESMO lugar do segundo pagamento — `duplicados`, que é a
+       fila do que se devolve —, com a linha de histórico dizendo o estado em
+       que a inscrição estava, e a gestão recebe o aviso. O estado não muda:
+       o que não pode é o dinheiro sumir. */
+    if (!novo && leitura.estado === "pago" && leitura.extra?.pagoCentavos > 0) {
+      const dup = i.pagamento.duplicados || [];
+      if (dup.some((d) => d.pagamentoId === leitura.extra.pagamentoId)) return { gravar: false };
+      i.pagamento.duplicados = [...dup, { ...leitura.extra, em: new Date().toISOString(), sobre: antes }].slice(-10);
+      i.pagamento.historico = [...(i.pagamento.historico || []), { em: new Date().toISOString(), de: antes, para: antes, por,
+        motivo: `pagamento de ${fmtReais(leitura.extra.pagoCentavos)} (nº ${leitura.extra.pagamentoId}) recebido com a inscrição já ${ESTADO_FEM[antes] || antes} — devolver` }].slice(-30);
+      a.atualizadoEm = new Date().toISOString();
+      return { acao: a, inscrito: i, antes, depois: antes, duplicado: true, foraDeHora: antes, leitura };
+    }
     if (!novo) return { ignorado: `transição ${antes} → ${leitura.estado} não permitida`, gravar: false };
     // nada mudou de fato (aviso repetido do mesmo pagamento): não regrava
     if (novo.status === antes && String(i.pagamento.pagamentoId || "") === novo.pagamentoId
@@ -5549,11 +5647,15 @@ async function avisarDesfechoDoPagamento(r, base) {
   try {
     if (r.depois === "pago" && r.antes !== "pago") {
       await enviarConfirmacaoInscricao(r.acao, r.inscrito, base);
-    } else if (r.divergente) {
+    } else if (r.divergente || r.duplicado) {
+      /* o segundo pagamento e o que chegou com a inscrição já isenta ou
+         estornada também avisam: são dinheiro a DEVOLVER, e sem o aviso a
+         coordenação só descobriria conciliando o extrato no fim do mês */
       const { emailPagamentoDivergente } = await import("./lib/mailer.js");
       await enviarAviso("ev-pagamento-divergente", emailPagamentoDivergente(r.acao, r.inscrito, {
         pagoCentavos: r.leitura.extra.pagoCentavos, devidoCentavos: r.inscrito.pagamento.valor,
-        pagamentoId: r.leitura.extra.pagamentoId, provedor: provedorPg.de(r.inscrito.pagamento).rotulo }));
+        pagamentoId: r.leitura.extra.pagamentoId, provedor: provedorPg.de(r.inscrito.pagamento).rotulo,
+        duplicado: !!r.duplicado, sobre: r.foraDeHora || "" }));
     }
   } catch (e) { console.error("[pagamentos] aviso do desfecho não enviado:", e.message); }
 }
@@ -6112,9 +6214,19 @@ async function varrerPagamentosEventos() {
     if (!a?.evento?.cobranca) continue;
     for (const i of a.participantes?.inscritos || []) {
       const pg = i?.pagamento;
-      if (!pg || !["aguardando", "recusado"].includes(pg.status)) continue;
+      /* O EXPIRADO RECENTE ainda se concilia (revisão adversarial de
+         set/2026): a reserva vence, a varredura a marca `expirado` e a
+         inscrição saía da conciliação para sempre — o Pix que o participante
+         pagou depois (vale, e o sistema sabe marcá-lo `aposExpirar`) ficava
+         órfão a menos que ele voltasse à página e clicasse. Sete dias é o
+         tempo em que um Pix esquecido ainda aparece; passados eles, a
+         conciliação não tem mais o que procurar. */
+      const expiradoRecente = pg.status === "expirado" && pg.expiraEm
+        && (agora - new Date(pg.expiraEm)) < 7 * 24 * 3600_000;
+      if (!pg || !(["aguardando", "recusado"].includes(pg.status) || expiradoRecente)) continue;
       const idade = agora - new Date(pg.criadoEm || 0);
-      if (reservaVencida(pg, agora) || (idade > 15 * 60_000 && pg.status === "aguardando")) pendentes.push({ a, i, vencida: reservaVencida(pg, agora) });
+      if (expiradoRecente || reservaVencida(pg, agora) || (idade > 15 * 60_000 && pg.status === "aguardando"))
+        pendentes.push({ a, i, vencida: reservaVencida(pg, agora) });
     }
   }
   if (!pendentes.length) return { expiradas: 0, conciliadas: 0 };
@@ -19739,7 +19851,11 @@ app.get("/api/meus-certificados", async (req, res) => {
     // EXTENSÃO — participante, palestrante e comissão organizadora, dos
     // eventos geridos no ARCHÉ e das ações que correram por fora (a lista
     // digitada na Extensão): é o mesmo certificado, pelo mesmo motor
-    for (const c of certificadosDePessoa(await lerAcoes(), eu)) {
+    /* AUTO-SERVIÇO: só CPF ou e-mail (revisão adversarial de set/2026). O
+       nome do perfil é autodeclarado, e casar por ele entregava o
+       certificado de participante digitado sem chave forte a qualquer
+       homônimo. A GESTÃO segue emitindo pelo nome, com a lista à vista. */
+    for (const c of certificadosDePessoa(await lerAcoes(), eu, { porNome: false })) {
       out.push({
         origem: "evento", setor: c.slug ? "Eventos" : "Extensão",
         titulo: c.evento,
@@ -19829,7 +19945,7 @@ app.get("/api/meus-certificados/evento.pdf", async (req, res) => {
     const cert = certificadoDe(a,
       { cpf: perfil?.cpf || "", email: u.email, nome: perfil?.nome || "",
         tipo: String(req.query?.tipo || "") },
-      { hoje: hojeLocalISO() });
+      { hoje: hojeLocalISO(), porNome: false });   // auto-serviço: só chave forte
     if (!cert) return res.status(404).send("Você não tem certificado nesta ação.");
     const buf = await pdfDoCertificadoEvento(a, cert);
     res.setHeader("Content-Type", "application/pdf");
@@ -20009,8 +20125,23 @@ app.post("/api/extensao/:id/evento/encerramento", async (req, res) => {
     const r = await comAcoes((acoes) => {
       const a = acoes.find((x) => x.id === req.params.id);
       if (!a?.evento) return { erro: [404, "Evento não encontrado"], gravar: false };
-      if (situacaoEncerramento(a) !== "solicitado")
-        return { erro: [400, "Não há pedido de encerramento aguardando decisão neste evento."], gravar: false };
+      /* DEVOLVER TAMBÉM O QUE JÁ FOI VALIDADO (revisão adversarial de
+         set/2026): validado, o evento congela — lista, presenças, equipe,
+         CH, nome do inscrito — e a mensagem da recusa diz, em seis rotas,
+         "para corrigir, a PROPPEX devolve o encerramento". Só que não havia
+         rota que devolvesse um encerramento já validado: nome errado no
+         certificado, palestrante que faltou na equipe, presença lançada no
+         dia seguinte, tudo ficava em definitivo, e a coordenação lia uma
+         instrução que o sistema não cumpria. Devolver desfaz o registro da
+         ação pelo ramo que já existe, o relatório volta a ser editável e o
+         evento se reencerra pelo caminho de sempre. VALIDAR continua
+         exigindo o pedido — validar duas vezes não é ato nenhum. */
+      const enc = situacaoEncerramento(a);
+      const podeDecidir = decisao === "devolvido" ? ["solicitado", "validado"] : ["solicitado"];
+      if (!podeDecidir.includes(enc))
+        return { erro: [400, enc === "validado"
+          ? "Este encerramento já foi validado. Para reabrir o evento, devolva o encerramento com o que precisa ser corrigido."
+          : "Não há pedido de encerramento aguardando decisão neste evento."], gravar: false };
       /* VALIDAR EXIGE O RELATÓRIO ENTREGUE (varredura de set/2026): quando
          `relatorio.entregueEm` tinha sumido (uma aba velha o apagara), a
          validação passava em silêncio sem registrar a ação — os certificados

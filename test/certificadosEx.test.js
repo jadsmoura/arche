@@ -257,9 +257,29 @@ test("carga horária escrita como texto vale o número que ela diz", () => {
   assert.equal(ch("4"), 4);
   assert.equal(ch("4 h"), 4);
   assert.equal(ch("1,5h"), 1.5, "meia hora com vírgula, como se digita em português");
-  // sem número nenhum não há o que somar: vale a CH da ação, que é o
-  // fallback documentado — e não zero, que seria certificado sem horas
-  assert.equal(ch("a combinar"), 40);
+  /* "a combinar" numa atividade SEM horário: não há como apurar a carga
+     horária, e a régua mudou na 3ª rodada adversarial (set/2026) — antes
+     caía na CH da AÇÃO INTEIRA, e era por ali que saía o certificado de 40 h
+     para quem esteve numa oficina. Não é 40 nem 0: o certificado fica
+     RETIDO (`chPendente`), nomeado na guia Certificados, até a coordenação
+     declarar a CH ou o horário da atividade. */
+  const semApurar = certificadosDaAcao(comCh("a combinar"), { hoje: "2026-08-20" })[0];
+  assert.equal(semApurar.ch, 0);
+  assert.equal(semApurar.chPendente, true);
+  assert.equal(certificadoDe(comCh("a combinar"), { nome: "Ana" }, { hoje: "2026-08-20" }), null,
+    "retido: o documento não sai com hora que ninguém apurou");
+  // com HORÁRIO, a própria grade diz quantas horas foram — e é o caso comum,
+  // porque o campo de CH é texto livre e fica em branco o tempo todo
+  const comHora = comCh("");
+  comHora.evento.programacao[0].horaInicio = "08:00";
+  comHora.evento.programacao[0].horaFim = "10:30";
+  assert.equal(certificadosDaAcao(comHora, { hoje: "2026-08-20" })[0].ch, 2.5);
+  // presença apontando atividade que saiu da programação não vale o evento inteiro
+  const orfa = comCh("2");
+  orfa.participantes.inscritos[0].presencas = [{ atividade: "sumiu01" }];
+  const so = certificadosDaAcao(orfa, { hoje: "2026-08-20" })[0];
+  assert.equal(so.ch, 0);
+  assert.equal(so.chPendente, true);
   // a soma de atividades em formatos MISTOS não perde nenhuma parcela
   const misto = comCh("4h");
   misto.evento.programacao.push({ id: "aaaa0002", titulo: "Mesa", ch: "2" });
@@ -296,4 +316,30 @@ test("evento SEM controle de frequência segue certificando todo inscrito", () =
   const parts = certificadosDaAcao(a, { hoje: "2026-08-20" })
     .filter((c) => c.tipo === "participante").map((c) => c.pessoa);
   assert.deepEqual(parts, ["Ana", "Bruno"]);
+});
+
+/* O NOME É CHAVE DA GESTÃO, NÃO DO AUTO-SERVIÇO (3ª rodada adversarial,
+   set/2026): o nome do perfil é autodeclarado e não é único. Qualquer conta
+   cujo nome batesse com o de um participante digitado sem CPF e sem e-mail
+   baixava o certificado dele — emitido no nome do outro, com código de
+   validação legítimo. Há centenas de registros só com nome no acervo. */
+test("o nome só é chave para quem emite com a lista à vista", () => {
+  const daLista = {
+    id: "ext-nome", numeroAcao: "EXT-2026-030", status: "registrada",
+    proposta: { nomeAtividade: "Semana", periodoFim: "2026-08-12", cargaHoraria: "20" },
+    participantes: {
+      inscritos: [{ nome: "Antonia Ferreira dos Santos" }],   // sem CPF e sem e-mail
+      palestrantes: [], comissao: [],
+    },
+  };
+  const homonimo = { cpf: "11144477735", email: "impostor@x.com", nome: "Antonia Ferreira dos Santos" };
+  // a GESTÃO emite pelo nome: é ato de quem confere a lista
+  assert.ok(certificadoDe(daLista, homonimo, { hoje: "2026-08-20" }), "pela gestão, o nome vale");
+  // no AUTO-SERVIÇO, não: sem CPF nem e-mail casando, não há documento
+  assert.equal(certificadoDe(daLista, homonimo, { hoje: "2026-08-20", porNome: false }), null);
+  assert.equal(certificadosDePessoa([daLista], homonimo, { hoje: "2026-08-20", porNome: false }).length, 0);
+  // e quem TEM chave forte segue encontrando o seu pelos dois caminhos
+  const comCpf = { ...daLista, id: "ext-nome2",
+    participantes: { ...daLista.participantes, inscritos: [{ nome: "Bruno Gomes Lima", cpf: CPF_B }] } };
+  assert.ok(certificadoDe(comCpf, { cpf: CPF_B, nome: "" }, { hoje: "2026-08-20", porNome: false }));
 });

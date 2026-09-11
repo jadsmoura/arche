@@ -1244,7 +1244,15 @@ public/
   **O formato antigo continua sendo lido** (`lotesNormalizados` converte na leitura: o lote valia
   ATÉ a data dele, então o seguinte COMEÇA no dia posterior, e o primeiro — que valia desde sempre
   — deixa de existir, porque o preço antes do primeiro acréscimo é o da categoria). A conversão é
-  **neutra em preço** data a data; o que muda é só o defeito. E o dado gravado se converte UMA vez
+  **neutra em preço data a data enquanto os ajustes eram ZERO OU POSITIVOS**, que é o caso do
+  registro de produção (o CONINT: 50/60 → 60/70 → 70/80). **Ajuste NEGATIVO não se converte de
+  forma neutra** e é lido como zero (correção da 3ª rodada adversarial, set/2026: a afirmação
+  anterior de neutralidade era falsa para esse caso) — o modelo antigo permitia escrever o lote
+  como desconto ("−20,00 no 1º lote"), e devolver isso ao modelo de acréscimo exigiria rebaixar a
+  BASE da categoria, coisa que `lotesNormalizados` não vê. Na prática não há registro assim: a
+  migração de arranque já rodou. Mas `lotesNormalizados` roda NA LEITURA, então um registro legado
+  que reapareça (restauração de backup, lote importado) é lido pelo preço cheio — contra quem se
+  inscreve, e é por isso que o caso fica escrito aqui. E o dado gravado se converte UMA vez
   no arranque (marca `sys-ex-lotes-acrescimo-v1`) porque a régua ler os dois formatos não bastava:
   a guia Cobrança monta os campos do registro CRU, e o lote antigo aparecia com a **data em branco
   e o acréscimo zerado** — quem abrisse a guia e salvasse apagaria os lotes do evento sem perceber.
@@ -4654,6 +4662,116 @@ public/
   projetar o QR, porque botão que sempre falha é armadilha. `registrada` entra junto porque a ação
   SEM evento se congela pelo registro, que é o ato equivalente. Para corrigir, a PROPPEX devolve o
   encerramento — e é o que a mensagem diz.
+- **DINHEIRO CONFIRMADO NUNCA SE DESCARTA** (`aplicarPagamentoDoProvedor` no server +
+  `emailPagamentoDivergente` no mailer, 3ª rodada adversarial set/2026): a máquina de estados
+  recusa `isento → pago` e `estornado → pago`, e com razão — a inscrição não deve mudar de estado.
+  Só que o Pix que a pessoa já tinha no aplicativo do banco CAI depois: depois de a coordenação
+  isentar, depois de a cobrança do evento ser desligada (que isenta em bloco toda reserva aberta) e
+  depois do estorno — e este é o mais provável de todos, porque a própria página diz ao estornado
+  "faça uma nova inscrição" enquanto o QR antigo continua valendo no banco dele. A rota jogava fora
+  um pagamento que a API do provedor CONFIRMOU: não gravava `pagoCentavos`, não abria divergência,
+  não entrava em `duplicados`, não deixava uma linha de histórico. O único vestígio era uma linha
+  no log do Render, que ninguém lê. Na conciliação do mês, o extrato tinha um crédito que a
+  planilha não explicava, e ninguém sabia de quem devolver.
+  Agora o pagamento recusado pela transição vai para o MESMO lugar do segundo pagamento —
+  `duplicados`, que é a fila do que se devolve —, com `sobre` dizendo o estado em que a inscrição
+  estava, a linha de histórico por extenso ("recebido com a inscrição já isenta — devolver") e o
+  aviso `ev-pagamento-divergente` à gestão, que passou a servir aos dois fatos. **O estado não
+  muda**: o que não pode é o dinheiro sumir.
+- **A CARGA HORÁRIA DO CERTIFICADO É A DAS ATIVIDADES, E SÓ** (`chDaAtividade`/`chDoParticipante` +
+  `chPendente` em lib/certificadosEx.js, mesma rodada): `chDoParticipante` somava a CH das
+  atividades em que a pessoa teve presença e, **se a soma desse zero**, caía na CH da AÇÃO
+  INTEIRA. E a soma dá zero em dois casos comuns que não são "ausência de presença por atividade":
+  a atividade existe e o coordenador deixou o campo CH em branco (é texto livre), ou a presença
+  aponta uma atividade que **saiu da programação** — e salvar a grade REEMITE os ids, então
+  qualquer edição da programação depois do credenciamento produz presenças órfãs. Nos dois casos o
+  participante recebia um documento oficial declarando as 40 h do congresso. É o mesmo defeito que
+  este arquivo já registra como corrigido uma vez ("quem cumpriu 4 horas recebia um documento
+  afirmando 40"), por outro caminho.
+  Três decisões: (1) a CH de uma atividade é a **declarada** e, na falta dela, a **DURAÇÃO que a
+  própria grade anuncia** (`horaInicio`→`horaFim`) — é honesto, é o que a pessoa cumpriu, e resolve
+  o caso comum; (2) o fallback da CH da ação vale **só quando não há presença por atividade** (o
+  evento de atividade única, o sem controle de frequência) **ou quando não há programação nenhuma**
+  (a ação que correu fora do ARCHÉ, com a lista digitada na Extensão); (3) havendo grade e
+  presença, soma zero **não é a CH do evento inteiro**: é carga horária que ninguém apurou, e o
+  certificado fica **RETIDO** (`chPendente`) — não sai por rota nenhuma, e a guia Certificados o
+  mostra nomeado, em amarelo, com o que a coordenação precisa corrigir na guia Programação.
+  Corrigida a grade, ele sai sozinho.
+- **O NOME É CHAVE DE QUEM EMITE, NÃO DE QUEM PEDE** (`porNome` em `ehEstaPessoa`/`certificadoDe`/
+  `certificadosDePessoa`, mesma rodada): o vínculo com a pessoa é CPF, e-mail e — só onde não há
+  chave forte — o NOME, que é o que faz o acervo de papel (a lista digitada, sem CPF nem e-mail)
+  encontrar dono. Mas o nome do perfil é **AUTODECLARADO** e não é único: no auto-serviço
+  (`/certificados/` e o PDF que ele baixa), qualquer conta cujo nome batesse com o de um
+  participante digitado sem chave forte recebia o certificado dele — emitido no nome do outro, com
+  código de validação legítimo. O alvo não é teórico: há **190 participantes registrados só com o
+  nome** no acervo (178 na III Semana de Ciências Agrárias, 12 no Abril Laranja), em ações que
+  passam a certificar assim que a PROPPEX as registrar, e a lista de nomes circula em grupos.
+  `porNome` passou a ser escolha de quem chama: a **gestão** emite pelo nome (é ato de quem confere
+  a lista, com a lista à vista, e é como o acervo de papel se entrega), e o **auto-serviço** exige
+  CPF ou e-mail. Para o acervo antigo o caminho é a coordenação completar a chave forte, ou emitir
+  e entregar ela mesma. A credencial do participante (o token) continua casando pelo nome: ali a
+  pessoa já provou a posse da inscrição.
+- **A RESERVA VIVA NÃO SE ESTENDE, E A RENOVAÇÃO FICA NO HISTÓRICO** (`reservaViva` no
+  `POST …/inscrever` + `transitar` em lib/pagamentos.js, mesma rodada): reenviar o formulário de
+  inscrição com o mesmo CPF/e-mail caía no ramo de renovação e ganhava um **prazo novo**, sem pagar
+  nada e sem limite — a vaga ficava presa enquanto a pessoa quisesse, o uso do voucher limitado
+  preso junto com ela, uma cobrança nova criada no provedor a cada clique, e o "a receber" do
+  Financeiro enchendo de reservas que nunca venceriam. O prazo que o e-mail "recebemos, falta
+  pagar" anuncia tem de valer. É a MESMA régua que a rota `/pagamento/pagar` já aplicava
+  ("renová-la aqui deixaria alguém estender o prazo clicando de novo"): com a reserva **viva**, a
+  re-inscrição devolve a inscrição que existe, com o link e a credencial dela (`jaReservada`), sem
+  tocar em `criadoEm`/`expiraEm` e sem criar cobrança nova; só a reserva **vencida**, `expirado` ou
+  `recusado` renova. E `transitar` passou a registrar o histórico **quando há motivo**, mesmo sem
+  mudança de estado: a renovação é `aguardando → aguardando`, e por isso a coordenação não tinha
+  como ver que uma reserva fora renovada sete vezes.
+- **O ENCERRAMENTO VALIDADO SE DEVOLVE** (`POST …/evento/encerramento` com `decisao: "devolvido"`
+  sobre `validado`, mesma rodada): validado, o evento congela em seis rotas, e a mensagem da recusa
+  diz "para corrigir, a PROPPEX devolve o encerramento" — só que não existia rota que devolvesse um
+  encerramento já validado. Nome errado no certificado, palestrante que faltou na equipe, CH
+  digitada errada, presença lançada no dia seguinte: tudo ficava em definitivo, os certificados
+  continuavam a ser recalculados e emitidos com o erro, e a coordenação lia uma instrução que o
+  sistema não cumpria. Devolver desfaz o registro da ação pelo ramo que já existia
+  (`validadoPeloEncerramento`), o relatório volta a ser editável, os certificados deixam de sair e
+  o evento se reencerra pelo caminho de sempre. **Validar** continua exigindo o pedido — validar
+  duas vezes não é ato nenhum. Na tela, o botão só aparece para a gestão da Extensão e a
+  confirmação diz o que está em jogo: quem já baixou o certificado ficou com um documento que pode
+  mudar.
+- **A rota do voucher deixou de ser um oráculo** (mesma rodada): `GET …/voucher?codigo=` respondia
+  a qualquer um, sem sessão e **sem passar pelo freio** que a inscrição usa — 300 palpites em 0,7 s
+  —, e distinguia "não existe" de "já atingiu o limite", o que confirma a existência de um código
+  mesmo esgotado. O código tem de 2 a 30 caracteres: dois caracteres são 1 296 possibilidades, e um
+  voucher de 100% torna a inscrição ISENTA, com credencial na hora — adivinhar código é entrar de
+  graça. Agora ela passa pelo `inscricaoExcedeu` e toda recusa que revelaria existência (não
+  existe, venceu, esgotou, é de outra categoria) sai como **uma frase só**. No mesmo passo, a
+  contagem de usos na inscrição **exclui a própria inscrição** (quem tinha o último uso de um
+  voucher de limite 1 era barrado pelo próprio uso ao reenviar o formulário — a rota
+  `/pagamento/pagar` já fazia essa exclusão).
+- **Três redes de proteção que o arquivo dizia ter e não tinha** (mesma rodada): o **teto de
+  R$ 5.000** capava o valor da categoria e não o **acréscimo do lote** — como o preço é a soma dos
+  dois, um "999999" digitado onde se queria "9,99" publicava um evento cobrando R$ 1 milhão e
+  criava a preferência no provedor com esse valor; agora o acréscimo é capado no mesmo teto e o
+  **valor final** também, que é onde a garantia importa. O **`centavos()`** aceitava notação
+  exótica (`"1e3"` → mil reais, `"0x10"` → dezesseis): passou a exigir dinheiro escrito como
+  dinheiro. E o **"a receber"** do Financeiro somava reservas já VENCIDAS — a varredura que as
+  expira roda de hora em hora, e até ela passar a guia apresentava como dinheiro a entrar uma vaga
+  que já voltou à fila; agora `vencidoSemPagar` aparece à parte, na tela e na planilha.
+- **O link ANTERIOR do PicPay deixou de ficar órfão** (`cobrancasAnteriores`/`inscricaoDaCobranca`,
+  mesma rodada; dormente enquanto o provedor de produção é o Mercado Pago): a resposta da criação
+  do link no PicPay **não traz id**, então se guardava o SLUG do endereço, enquanto o webhook traz o
+  `paymentLinkId` (uuid) — comparar slug com uuid nunca bate. Renovada a reserva UMA vez, quem
+  pagasse o link antigo (o que ficou no WhatsApp, o QR já salvo na galeria) tinha o dinheiro
+  recebido pela instituição e **não reconhecido** pelo ARCHÉ. Agora a cobrança anterior guarda
+  também o **endereço** e o **BR Code**, e `inscricaoDaCobranca` casa pelos três; e a conciliação
+  horária passou a alcançar a reserva **expirada há menos de sete dias**, que antes saía da
+  varredura para sempre (o Mercado Pago nunca teve o problema: ele casa por `external_reference`,
+  estável entre renovações).
+- **A frase que recebe o estornado passou a ser verdade** (mesma rodada): para quem teve o
+  pagamento estornado, o "já inscrito" dizia "o link da sua credencial continua valendo" — e não
+  vale: `inscricaoValida` é falsa, o check-in recusa com 409 e o certificado não sai. A pessoa saía
+  acreditando ter crachá e ainda podia pagar o link velho. Agora o estado final se diz por extenso,
+  com o caminho (falar com a coordenação). **Reabrir uma inscrição estornada continua não existindo**
+  — `estornado` é estado final na máquina —, e é limitação conhecida: quem pediu reembolso e mudou
+  de ideia depende da coordenação.
 - **A CREDENCIAL DO INSCRITO SÓ SAI PARA QUEM PROVOU O E-MAIL** (`inscricaoDaConta` +
   `outroEmail` no `GET …/participante` + `POST …/participante/reenviar`, mesma rodada): a área do
   inscrito casa a conta logada com a inscrição por **e-mail OU CPF do perfil** — o casamento por

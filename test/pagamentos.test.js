@@ -496,3 +496,58 @@ test("o teste do Mercado Pago separa token inválido, meio desligado e conta que
     for (const [k, v] of [["MP_ACCESS_TOKEN", antes.T], ["MP_API_BASE", antes.B]]) if (v === undefined) delete process.env[k]; else process.env[k] = v;
   }
 });
+
+/* ====================================================================
+   3ª RODADA ADVERSARIAL (set/2026) — o que a régua passou a garantir
+   ==================================================================== */
+
+test("o dinheiro não escreve valor onde não é dinheiro", () => {
+  // `Number` aceita notação exótica, e a tabela de preços não é lugar para
+  // ela passar por engano: "1e3" viraria mil reais e "0x10", dezesseis
+  assert.equal(centavos("1e3"), 0);
+  assert.equal(centavos("0x10"), 0);
+  assert.equal(centavos("12abc"), 0);
+  assert.equal(centavos("-5"), 0);
+  // e o que É dinheiro continua lido igual
+  assert.equal(centavos("R$ 1.200,50"), 120050);
+  assert.equal(centavos("49,90"), 4990);
+  assert.equal(centavos("0.1"), 10);
+});
+
+test("o teto do valor vale para o acréscimo do lote e para o preço final", () => {
+  const c = normalizarCobranca({ ativa: true,
+    categorias: [{ nome: "Profissional", valor: "5000" }],
+    lotes: [{ nome: "2º", desde: "2026-01-01", acrescimo: "999999" }],
+    meios: { pix: true } });
+  // o acréscimo é capado no mesmo teto da categoria…
+  assert.equal(c.lotes[0].acrescimo, 5000 * 100);
+  // …e o PREÇO FINAL também, que é onde a garantia importa
+  const p = valorDaInscricao(c, { categoria: "profissional", hojeISO: "2026-06-01" });
+  assert.equal(p.valor, 5000 * 100);
+});
+
+test("o histórico registra a renovação da reserva, que não muda de estado", () => {
+  const pg = novoPagamento({ valor: 12000, categoria: { codigo: "p", nome: "Prof" }, reservaMinutos: 60 });
+  // aguardando → aguardando: antes não entrava no histórico, e a coordenação
+  // não tinha como ver que a reserva fora renovada sete vezes
+  const r = transitar(pg, "aguardando", { por: "inscrição", motivo: "reserva renovada" });
+  assert.equal(r.status, "aguardando");
+  assert.equal(r.historico.at(-1).motivo, "reserva renovada");
+  // sem motivo, a releitura idêntica do provedor não vira log de poll
+  const semMotivo = transitar(r, "aguardando", { por: "sistema" });
+  assert.equal(semMotivo.historico.length, r.historico.length);
+  // e `pagoEm` continua sendo carimbado só na PASSAGEM para pago
+  const pago = transitar(r, "pago", { por: "webhook" });
+  assert.ok(pago.pagoEm);
+  const dePagoParaPago = transitar(pago, "pago", { por: "webhook", motivo: "reconsulta" });
+  assert.equal(dePagoParaPago.pagoEm, pago.pagoEm, "não se remarca a hora do pagamento");
+});
+
+test("“a receber” não conta reserva já vencida", () => {
+  const viva = novoPagamento({ valor: 10000, categoria: { codigo: "a", nome: "A" }, reservaMinutos: 60 });
+  const morta = novoPagamento({ valor: 19000, categoria: { codigo: "a", nome: "A" }, reservaMinutos: 60,
+    agora: new Date("2026-01-01T10:00:00Z") });
+  const r = resumoFinanceiro([{ pagamento: viva }, { pagamento: morta }], new Date("2026-02-01T10:00:00Z"));
+  assert.equal(r.aReceber, 10000, "só a reserva viva é dinheiro a entrar");
+  assert.equal(r.vencidoSemPagar, 19000, "a vencida aparece nomeada, não escondida");
+});
