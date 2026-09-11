@@ -490,6 +490,12 @@ async function salvar(){
   if(!r.ok) throw new Error((await r.json().catch(()=>({}))).error || "Falha ao salvar");
   const j = await r.json();
   if(Array.isArray(j.acoes)) ACOES = j.acoes;
+  /* A ação que outra pessoa gravou depois de esta aba carregar fica de fora
+     (o servidor diz quais): a lista já voltou atualizada do servidor, e quem
+     estava editando justamente essa precisa saber que o que digitou não entrou. */
+  if(Array.isArray(j.defasadas) && j.defasadas.length){
+    alert("Atenção: "+j.defasadas.map(d=>`"${d.nome}"`).join(", ")+" foi alterada por outra pessoa depois de esta tela carregar, e o que você digitou nela NÃO foi gravado. A lista foi atualizada — abra a ação de novo e refaça a alteração.");
+  }
 }
 
 const $ = (id)=>document.getElementById(id);
@@ -1911,7 +1917,7 @@ function renderDetalhe(id){
   html += marcas(a) + barraAcoes(a,s,podeRelatorio,doc) + atalhoOutroDoc(a, doc, podeRelatorio)
     + '<div style="margin-bottom:10px"></div>';
   const c3 = completude(a);
-  if(PROPPEX && c3.completa && s==="relatorio-entregue")
+  if(PROPPEX && c3.completa && (s==="relatorio-entregue" || (r.entregueEm && s!=="registrada")))
     html += `<div class="banner ba-ok">✅ <b>Ação completa (3/3).</b> A lista de participantes está recolhida — exporte a planilha para emitir os certificados no sistema da instituição e depois finalize o fluxo abaixo.</div>`;
   if(s==="reprovada")
     html += `<div class="banner ba-err">✗ <b>Proposta reprovada pela PROPPEX.</b>${a.motivoReprovacao?` Motivo: ${esc(a.motivoReprovacao)}`:""}
@@ -1968,7 +1974,7 @@ function renderDetalhe(id){
   if(podeRelatorio && doc==="relatorio"){
     const lock = s==="registrada";
     html += `<div class="card"><div class="sec-t">Relatório final</div>${atalhoEncerrarEv(a)}<div id="r-sugestao"></div>`;
-    if(PROPPEX && s!=="relatorio-entregue" && s!=="registrada")
+    if(PROPPEX && s!=="relatorio-entregue" && s!=="registrada" && !r.entregueEm)
       html += `<div class="muted">O responsável ainda não enviou o relatório.</div>`;
     html += `
       <label>Conteúdo programático</label><textarea id="r-conteudo" ${lock?"disabled":""}>${esc(r.conteudoProgramatico||"")}</textarea>
@@ -2529,7 +2535,7 @@ async function enviarRelatorio(id){
   const antes = a.status, antesRel = a.relatorio;
   a.relatorio={...r, entregueEm:new Date().toISOString(),
     ...(pelaGestao ? { entreguePelaGestao:true, entreguePor: ME?.email||"" } : {})};
-  a.status="relatorio-entregue"; a.atualizadoEm=new Date().toISOString();
+  a.status="relatorio-entregue";
   try{
     await salvar();
   }catch(e){
@@ -2713,7 +2719,7 @@ function cancelarCorrecao(){
 async function salvarApreciacao(id){
   const a=ACOES.find(x=>x.id===id); if(!a)return;
   a.apreciacao=$("d-apreciacao")?.value.trim()||""; a.relatorio={...a.relatorio,...lerRelatorio()};
-  a.atualizadoEm=new Date().toISOString();
+ 
   await salvar(); alert("💾 Salvo.");
 }
 /* REGISTRAR é o último ato, e ele PRESSUPÕE o relatório (achado do dono,
@@ -2735,7 +2741,7 @@ async function registrarAcao(id){
     + "Encerra o ciclo e trava os campos."
     + (semEvento ? "\n\nOs certificados desta ação passam a existir e quem tem direito é avisado por e-mail." : ""))) return;
   a.apreciacao=$("d-apreciacao")?.value.trim()||a.apreciacao;
-  a.status="registrada"; a.atualizadoEm=new Date().toISOString();
+  a.status="registrada";
   await salvar(); renderLista(); renderDetalhe(id);
 }
 
@@ -2794,7 +2800,7 @@ async function entregarDaLista(id){
   const antes=a.status, antesRel=a.relatorio;
   a.relatorio={...a.relatorio, entregueEm:new Date().toISOString(),
     ...(pelaGestao?{entreguePelaGestao:true, entreguePor:ME?.email||""}:{})};
-  a.status="relatorio-entregue"; a.atualizadoEm=new Date().toISOString();
+  a.status="relatorio-entregue";
   try{ await salvar(); }
   catch(e){ alert("Não foi possível entregar: "+(e.message||e)); a.relatorio=antesRel; a.status=antes; return; }
   alert("✅ Relatório final entregue. Os PDFs saem pelos botões deste cartão.");
@@ -2811,7 +2817,7 @@ async function reabrirAcao(id){
   if(a.relatorio?.entregueEm){ alert("Esta ação já tem relatório entregue — não se reabre."); return; }
   if(!confirm(`Reabrir "${a.proposta?.nomeAtividade||"esta ação"}" para a entrega do relatório final?\n\n`
     + "Ela volta a aceitar anexos e edição, e sai da situação Registrada.")) return;
-  a.status="aprovada"; a.atualizadoEm=new Date().toISOString();
+  a.status="aprovada";
   try{ await salvar(); }
   catch(e){ alert("Não foi possível reabrir: "+(e.message||e)); a.status="registrada"; return; }
   alert("Ação reaberta. Preencha o relatório, anexe as fotos e entregue — depois finalize de novo.");

@@ -821,3 +821,12 @@ test("telão estático: vale até a hora marcada, nunca no passado", () => {
   assert.equal(codigoTelaoEstatico(chave, "abc12345", "2026-09-10T13:00:00Z", { agora }), null);
   assert.equal(codigoTelaoEstatico(chave, "abc12345", "nada", { agora }), null);
 });
+
+test("evento com encerramento validado não aceita inscrição, mesmo dentro do prazo", async () => {
+  const { podeInscrever } = await import("../lib/eventos.js");
+  const acao = { status: "registrada", proposta: { periodoInicio: "2026-09-01", periodoFim: "2026-12-31" },
+    evento: { ativo: true, encerramento: { status: "validado" }, inscricoesAte: "2026-12-31" }, participantes: { inscritos: [] } };
+  const r = podeInscrever(acao, "2026-09-11", "10:00");
+  assert.equal(r.ok, false);
+  assert.match(r.motivo, /encerrado e validado/);
+});

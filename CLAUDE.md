@@ -3787,7 +3787,10 @@ public/
   execução → o monitor entrega o **relatório** → o orientador **avalia a atuação** dele (as 4
   perguntas do Anexo III + parecer) e valida → a PROPPEX **homologa** e os certificados
   existem. Ninguém preenche a ficha pelo aluno (é declaração, e declaração tem dono), a
-  avaliação **nunca é da PROPPEX** (quem acompanhou o semestre foi a orientação) e o
+  avaliação **é da ORIENTAÇÃO** (quem acompanhou o semestre) — a gestão só valida EM NOME
+  dela, quando o professor não está mais para validar, e o ato fica marcado
+  (`validadoPelaGestao` no relatório, "pela PROPPEX, em nome da orientação" no histórico e
+  na tela; a mesma régua da IC, set/2026) — e o
   protocolo `MON-AAAA-NNN` é emitido pelo SERVIDOR, na submissão.
   **O relatório do monitor exige 3 fotos** (`MIN_FOTOS_MONITORIA`/`faltaNoRelatorio` em
   lib/monitoria.js): é a mesma razão do mínimo da Extensão — o registro fotográfico é o que
@@ -4751,6 +4754,71 @@ public/
   recorte por curso da Avaliação na leitura e na escrita; o selo `/avaliador` lendo tudo e
   gravando nada; a cegueira do ARCHÉ TR nas três visões; o saneamento do texto rico; e o
   recorte por curso dos Relatórios com a nota "recortado".
+- **SEGUNDA RODADA ADVERSARIAL DE SET/2026 — MONITORIA, AC, ESPAÇOS E EXTENSÃO** (três agentes
+  depois das correções do evento da Veterinária; cada achado reproduzido no servidor local antes
+  e depois da correção, e os que não se reproduziram ficaram de fora):
+  **Monitoria.** (1) Aluno (função `aluno`) criava e submetia projeto pela API, consumindo
+  protocolo da sequência oficial — a tela escondia o botão, o servidor só recusava conta
+  pendente; `MON_NAO_ORIENTA` (aluno · em · secretaria) recusa o projeto novo. (2) **A aba velha
+  do professor apagava o CPF e desfazia o nome que o MONITOR gravou na ficha** — em
+  `normalizarMonitor`, `""` não é nullish e o CPF em branco do formulário vencia o da ficha; a
+  ficha voltava a "inscrição pendente". Com `fichaDoMonitor(base)` (cadastrada ou declaração
+  firmada), nome, e-mail, CPF, matrícula, telefone, curso e período são do aluno e o formulário
+  do professor só ajusta o plano. (3) Projeto devolvido e ressubmetido com todas as fichas
+  completas ficava PRESO em "aguardando o monitor" (a transição para `submetido` só existia na
+  ficha) e a gestão recebia 403 ao decidir; `/submeter` vai direto à fila quando
+  `todosCadastrados`. (4) O monitor lia CPF e telefone do orientador: `visaoDoProjeto` recorta
+  o orientador a nome, e-mail e titulação. (5) A gestão editava projeto CONCLUÍDO e removia o
+  monitor homologado — o certificado sumia e a conta pendente dele perdia o setor; projeto
+  encerrado (concluído/reprovado/cancelado) é 409 para todos, monitor com relatório entregue não
+  sai pelo formulário (409) e toda remoção vai ao histórico. (6) A validação pela gestão fica
+  marcada (acima). (7) O painel da coordenação de CURSO saía vazio ("0 aguardando, nada
+  pendente" com projeto do curso na fila): `panorama`/`pendencias` agora se calculam sobre o
+  recorte dela, com a faixa "painel recortado". (8) A ficha do monitor dizia "o projeto seguiu
+  para a PROPPEX" quando o colega ainda não a preenchera: a mensagem lê o `status` que o servidor
+  devolve. (9) O monitor gravava `homologadoEm`/`validadoPor` pelo corpo e anexo com URL
+  arbitrária (`javascript:` desenhado na própria tela): os carimbos vêm do registro, e
+  `URL_DE_ANEXO` só aceita `/api/files/<id>`. (10) Ficha em projeto rascunho é 400 (o professor
+  a sobrescreveria), e o excluir confere o protocolo ANTES da permissão, para a mensagem certa.
+  **ARCHÉ AC.** (11) A guarda de função só cobria a CE — um estudante enviava aula prática
+  RETROATIVA para a fila da coordenação; vale também para o retroativo. (12) **Professor de
+  DOIS cursos: a aula do segundo ia à coordenação do primeiro**, marcada "fora do cadastro"
+  (`cursoDoProfessor` pega o primeiro curso): o curso sai da DISCIPLINA escolhida, e a tela
+  manda o `data-curso` da opção (com o nome do curso na lista quando há mais de um). (13) O
+  `curso` do corpo vencia a base na criação (`bruto.curso ?? b.curso`): relatório gravado em
+  curso inexistente, invisível à coordenação; o resolvido é o que entra. (14) A coordenação de
+  curso apagava rascunho de professor: DELETE é do autor ou da gestão. (15) "N copiados"
+  reportava o tamanho da origem: devolve o que ENTROU e quantos já estavam. (16)
+  `foraDoCadastro` se recalcula quando a disciplina muda na edição.
+  **Espaços.** (17) O ofício "obrigatório" da parceira externa se satisfazia com qualquer link
+  digitado: `normalizarOficio` só aceita `/api/files/<id>`, o que a rota de upload devolve. (18)
+  Reserva confirmada era "recusada" por uma segunda decisão (e-mail de recusa depois da
+  confirmação): decidir só `solicitada`/`encaminhada`; desfazer é cancelar.
+  **Extensão/Eventos** (as oito regressões das correções anteriores passaram; oito achados
+  novos): (19) **A aba velha do EX ainda apagava TEXTO** — `salvar()` manda a lista inteira, e a
+  gestão gravando a apreciação de X numa aba antiga devolvia a justificativa e a CH que o
+  professor reescrevera em Y, e a avaliação escrita no encerramento pelo EV. Agora o POST em
+  bloco compara o `atualizadoEm` que a aba carregou com o da base: diferente é aba defasada, e a
+  ação fica DE FORA (`defasadas` na resposta; a tela avisa nomeando a ação e recarrega a lista);
+  e **o que não mudou não se regrava** (`canonJson`, sem `atualizadoEm`) — senão a lista inteira
+  ganharia carimbo novo e a aba correta do professor viraria "defasada" por uma gravação que não
+  a tocou. As telas deixaram de carimbar `atualizadoEm` antes de salvar (era o servidor quem o
+  faria, e o carimbo da tela faria a própria gravação parecer defasada). (20) Regressão: com o
+  status vindo da base, a entrega pelo bloco não passava mais a `relatorio-entregue`, e a ficha
+  dizia à PROPPEX "o responsável ainda não enviou" sobre o formulário preenchido — a transição
+  voltou a este caminho, a tela decide por `entregueEm`, e `corrigirStatusDeRelatorioEntregue`
+  (a cada arranque) destrava as que ficaram presas. (21) **Depois do encerramento VALIDADO o
+  dono ainda mudava o que o certificado afirma** (lista digitada, presença manual, equipe com
+  80 h, CH das atividades, nome do inscrito, e a página seguia aceitando inscrição):
+  `eventoValidadoMsg` recusa as seis rotas com 400 e `podeInscrever` fecha a inscrição — para
+  corrigir, a PROPPEX devolve o encerramento. (22) `/comunicado` sem `alvo` (ou `constructor`)
+  era 500: `Object.hasOwn`. (23) Encerramento DEVOLVIDO: o card oferecia 🗑 e o servidor
+  recusava dizendo "solicitado" — `aconteceu` inclui devolvido e a mensagem diz devolvido. (24)
+  A lista digitada aceitava QUALQUER chave, inclusive `token` (o manual virava "online" e não
+  saía): `CAMPOS_INSCRITO_DIGITADO` é lista fechada. (25) A proposta REPROVADA continuava
+  editável (o motivo passava a se referir a outro texto): `proposta` vem da base na reprovada e
+  na registrada. (26) `/excluir` em ação SEM evento numerada zerava a lista digitada e mantinha a
+  ação: 400.
 - **O PRODUTO SE CHAMA CÁTEDRA; A INSTALAÇÃO SE CHAMA ARCHÉ** (`lib/produto.js`, decisão do dono
   set/2026: "Arché é uma referência direta ao fundador da AEE, Archibald — no contexto AEE é
   válido; mas estou vendo a possibilidade de comercializar o sistema com outras IES, e preciso de

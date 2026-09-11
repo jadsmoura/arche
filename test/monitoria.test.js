@@ -102,7 +102,7 @@ test("o segundo salvamento preserva o que o monitor já gravou", () => {
   antes.monitores[0] = {
     ...antes.monitores[0], matricula: "20231234", cpf: CPF_A, telefone: "62999990000",
     curso: "enfermagem", periodo: "6º", declaracao: { aceita: true, em: "2026-09-05" },
-    documentos: { historico: { url: "https://drive/h", nome: "historico.pdf" } },
+    documentos: { historico: { url: "/api/files/h", nome: "historico.pdf" } },
   };
   // o professor salva o projeto de novo, mandando só o que o formulário DELE tem
   const depois = normalizarProjeto(
@@ -113,6 +113,29 @@ test("o segundo salvamento preserva o que o monitor já gravou", () => {
   assert.equal(depois.monitores[0].declaracao.aceita, true);
   assert.equal(depois.monitores[0].periodo, "6º");
   assert.ok(depois.monitores[0].documentos.historico, "o anexo do aluno sobrevive ao salvamento do professor");
+});
+
+test("a ficha preenchida pelo MONITOR não se sobrescreve pela aba velha do professor", () => {
+  const antes = projetoBase();
+  antes.monitores[0] = {
+    ...antes.monitores[0], nome: "Marina Duarte Corrigido", cpf: CPF_A, matricula: "G2199001",
+    cadastradoEm: "2026-09-05T10:00:00.000Z", declaracao: { aceita: true, em: "2026-09-05" },
+  };
+  // a aba do professor, aberta antes da ficha, manda o nome antigo e cpf: ""
+  const depois = normalizarProjeto(
+    { ...antes, monitores: [{ id: "m1", nome: "Marina Duarte", email: "marina@aluno.uniego.edu.br", cpf: "" }] },
+    { anterior: antes });
+  assert.equal(depois.monitores[0].cpf, CPF_A);
+  assert.equal(depois.monitores[0].nome, "Marina Duarte Corrigido");
+  assert.equal(depois.monitores[0].matricula, "G2199001");
+});
+
+test("anexo do relatório só vale se subiu pela rota do sistema", () => {
+  const antes = projetoBase();
+  const depois = normalizarProjeto({ ...antes, monitores: [{ ...antes.monitores[0],
+    relatorio: { atividades: "x", anexos: [{ url: "javascript:alert(1)" }, { url: "/api/files/ok1", nome: "foto.jpg" }] } }] },
+    { anterior: antes });
+  assert.deepEqual(depois.monitores[0].relatorio.anexos.map((a) => a.url), ["/api/files/ok1"]);
 });
 
 test("CPF inválido não entra no cadastro do monitor", () => {
@@ -187,7 +210,7 @@ test("a ficha do monitor cobra os dados e UM anexo: o histórico escolar", () =>
   Object.assign(m, {
     matricula: "20231234", cpf: CPF_A, telefone: "62999990000", curso: "enfermagem",
     periodo: "6º", declaracao: { aceita: true, em: "2026-09-05" },
-    documentos: { historico: { url: "https://drive/h", nome: "historico.pdf" } },
+    documentos: { historico: { url: "/api/files/h", nome: "historico.pdf" } },
   });
   assert.deepEqual(faltaNoCadastroDoMonitor(m), []);
   assert.ok(monitorCadastrado(m));

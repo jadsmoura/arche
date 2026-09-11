@@ -683,8 +683,8 @@ function renderNova() {
       return `<div><label>${esc(c.rotulo)} *</label>
         <select id="f-disciplina" onchange="modoManualDisc(this.value)">
           <option value="">Selecione…</option>
-          ${minhas.map((d) => `<option value="${esc(d.disciplina)}" ${v === d.disciplina ? "selected" : ""}>
-            ${esc(d.disciplina)}</option>`).join("")}
+          ${minhas.map((d) => `<option value="${esc(d.disciplina)}" data-curso="${esc(d.curso)}" ${v === d.disciplina ? "selected" : ""}>
+            ${esc(d.disciplina)}${minhas.some((o) => o.curso !== d.curso) ? ` — ${esc(nomeCurso(d.curso))}` : ""}</option>`).join("")}
           <option value="__manual" ${manual || (semCadastro && !minhas.length) ? "selected" : ""}>
             Outra — disciplina de semestre anterior (digitar)</option>
         </select><div class="ajuda">${esc(c.ajuda)}</div>
@@ -847,6 +847,11 @@ function corpoDoForm() {
   } else if (b.disciplina === "__manual") {
     b.disciplina = ($("f-disciplina-manual") || {}).value || "";
     b.curso = ($("f-curso-manual") || {}).value || "";
+  } else {
+    // o curso vai junto da disciplina escolhida: o professor de dois cursos
+    // tinha a aula do segundo indo à coordenação do primeiro
+    const opt = ($("f-disciplina") || {}).selectedOptions?.[0];
+    if (opt?.dataset?.curso) b.curso = opt.dataset.curso;
   }
   return b;
 }
@@ -1173,7 +1178,9 @@ async function copiarCadastro(slug) {
     body: JSON.stringify({ semestre: F.semestre, curso: slug }) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { alert(j.error || "Não foi possível copiar."); return; }
-  alert(`${j.copiados} professor(es) copiado(s) de ${j.de}.`);
+  alert(j.copiados
+    ? `${j.copiados} professor(es) copiado(s) de ${j.de}${j.jaEstavam ? ` (${j.jaEstavam} já estava(m) aqui)` : ""}.`
+    : `Nada a copiar: os ${j.jaEstavam || 0} professor(es) de ${j.de} já estão neste semestre.`);
   await carregar(); nav("cadastro");
 }
 

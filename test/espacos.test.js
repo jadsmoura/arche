@@ -236,7 +236,7 @@ test("o Colégio Couto é um órgão da lista, e como parceira EXTERNA exige of�
 
   // com o ofício anexado, o pedido do Colégio passa como qualquer outro
   const comOficio = pedido({ orgao: "colegio-couto", interessado: "setor",
-    oficio: { link: "https://drive/x", name: "oficio.pdf" } });
+    oficio: { link: "/api/files/drive-x", name: "oficio.pdf" } });
   assert.deepEqual(validarReserva(comOficio, { espacos: ESP, hoje: HOJE, cursos: CURSOS_TESTE }), []);
 });
 
@@ -259,7 +259,7 @@ test("pedido de fora exige ofício; de dentro, o anexo é opcional", () => {
   assert.ok(validarReserva(externo, { espacos: ESP, hoje: HOJE }).some((e) => /ofício/i.test(e)));
 
   const comDoc = pedido({ interessado: "comunidade", orgao: "comunidade",
-    oficio: { nome: "oficio.pdf", link: "https://drive.google.com/file/d/abc" } });
+    oficio: { nome: "oficio.pdf", link: "/api/files/abc" } });
   assert.deepEqual(validarReserva(comDoc, { espacos: ESP, hoje: HOJE }), []);
   assert.equal(comDoc.oficio.nome, "oficio.pdf");
 
@@ -275,9 +275,14 @@ test("pedido de fora exige ofício; de dentro, o anexo é opcional", () => {
 test("ofício sem link não é ofício, e o gravado não some ao reeditar", () => {
   assert.equal(normalizarOficio({ nome: "so-o-nome.pdf" }), null);
   assert.equal(normalizarOficio(null), null);
-  const base = { ...pedido({ id: "r9" }), oficio: { nome: "a.pdf", link: "https://x/y", enviadoEm: "2026-08-01T00:00:00Z" } };
+  // só vale o que subiu pela rota do sistema: link digitado não é documento
+  assert.equal(normalizarOficio({ nome: "forjado.pdf", link: "https://exemplo.com/x.pdf" }), null);
+  const forjado = pedido({ interessado: "comunidade", orgao: "comunidade",
+    oficio: { nome: "forjado.pdf", link: "https://exemplo.com/x.pdf" } });
+  assert.ok(validarReserva(forjado, { espacos: ESP, hoje: HOJE }).some((e) => /ofício/i.test(e)));
+  const base = { ...pedido({ id: "r9" }), oficio: { nome: "a.pdf", link: "/api/files/y", enviadoEm: "2026-08-01T00:00:00Z" } };
   const reeditada = normalizarReserva({ id: "r9", atividade: "Outro nome" }, { espacos: ESP, base });
-  assert.equal(reeditada.oficio.link, "https://x/y", "editar o pedido não descarta o documento");
+  assert.equal(reeditada.oficio.link, "/api/files/y", "editar o pedido não descarta o documento");
   const removida = normalizarReserva({ id: "r9", oficio: null }, { espacos: ESP, base });
   assert.equal(removida.oficio, null, "mas dá para tirá-lo de propósito");
 });

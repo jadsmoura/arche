@@ -513,8 +513,11 @@ function painel() {
       </div>
       ${cardCronograma()}`;
   }
+  const recorte = DADOS.painelRecortado
+    ? `<div class="banner ba-ok">Painel recortado ao(s) curso(s) que você coordena.</div>` : "";
   const st = p?.porStatus || {};
   return `
+    ${recorte}
     <div class="kpis">
       <div class="kpi"><div class="l">Projetos no ciclo</div><div class="v">${p?.total || 0}</div>
         <div class="d">Edital ${esc(p?.edital || "")}</div></div>
@@ -875,7 +878,7 @@ function cardMonitor(p, m, papel) {
     </div>` : ""}
     ${r ? `<div class="sec-t">Relatório</div>
       <div class="kv"><b>Situação:</b> ${esc({ rascunho: "não enviado", enviado: "entregue, aguardando a orientação",
-        devolvido: "devolvido para ajuste", validado: "validado pela orientação, aguardando a PROPPEX",
+        devolvido: "devolvido para ajuste", validado: r.validadoPelaGestao ? "validado pela PROPPEX, em nome da orientação — aguardando homologação" : "validado pela orientação, aguardando a PROPPEX",
         homologado: "homologado — certificado liberado" }[r.status] || r.status)}</div>
       ${r.comentario && r.status === "devolvido" ? `<div class="banner ba-warn">${esc(r.comentario)}</div>` : ""}
       ${papel !== "monitor" && r.atividades ? `<div class="kv" style="white-space:pre-wrap;margin-top:8px">${esc(r.atividades)}</div>` : ""}
@@ -1139,7 +1142,11 @@ async function salvarInscricao(id) {
   if (!r.ok) return alert(j.error || "Falha ao gravar.");
   HISTORICO = null;
   if (j.falta?.length) alert("Gravado. Ainda falta:\n\n• " + j.falta.join("\n• "));
-  else alert("Inscrição completa. O projeto seguiu para a PROPPEX.");
+  // quem diz se o projeto seguiu é o STATUS que o servidor devolve — com dois
+  // monitores, a ficha de um completa e o projeto continua esperando o outro
+  else if (j.projeto?.status === "submetido") alert("Inscrição completa. O projeto seguiu para a PROPPEX.");
+  else if (j.projeto?.status === "aguardando-aluno") alert("Inscrição completa. O projeto segue aguardando a ficha de outro monitor indicado.");
+  else alert("Inscrição gravada.");
   await carregar(); abrirMinha(id);
 }
 

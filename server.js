@@ -228,7 +228,7 @@ import {
   ENTREGUE as AP_ENTREGUE,
   normalizarRelatorio as normalizarRelatorioAP, normalizarFoto as normalizarFotoAP,
   normalizarCadastro as normalizarCadastroAP, normalizarEquipe as normalizarEquipeAP,
-  faltaNoRelatorio as apFalta, podeVer as apPodeVer, podeEditar as apPodeEditar,
+  faltaNoRelatorio as apFalta, podeVer as apPodeVer, podeEditar as apPodeEditar, papelNoRelatorio as apPapel,
   podeValidar as apPodeValidar, visaoDoRelatorio as apVisao, anotar as apAnotar,
   quemNoModulo as quemNoModuloAP, coordenaCurso as apCoordenaCurso,
   professoresDoSemestre as apProfessoresDoSemestre, minhasDisciplinas as apMinhasDisciplinas,
@@ -2737,6 +2737,24 @@ async function corrigirCpfDaOrientadoraLuana() {
    nome carrega "@" recebe o nome do PERFIL da conta, quando o perfil tem um
    nome de gente. Quem não tem perfil fica como está — a lista do EV marca o
    nome a corrigir e a coordenação corrige pelo ✎. */
+/* O relatório entregue com o status preso em "aprovada" (regressão entre
+   bac4a21 e esta correção, set/2026): o bloco deixou de gravar a transição,
+   e a ficha dizia "o responsável ainda não enviou". Roda a cada arranque,
+   barata e idempotente: entregue e não registrada → relatorio-entregue. */
+async function corrigirStatusDeRelatorioEntregue() {
+  try {
+    let n = 0;
+    await comAcoes((acoes) => {
+      for (const a of acoes) {
+        if (a?.relatorio?.entregueEm && ["aprovada", "submetida"].includes(String(a.status || ""))
+          && a.numeroAcao) { a.status = "relatorio-entregue"; n++; }
+      }
+      return { gravar: n > 0 };
+    });
+    if (n) console.log(`[extensao] ${n} ação(ões) com relatório entregue passaram a "relatorio-entregue"`);
+  } catch (e) { console.error("[extensao] corrigirStatusDeRelatorioEntregue:", e.message); }
+}
+
 async function corrigirNomesDeInscritosQueEramEmail() {
   try {
     const perfis = await carregarPerfis();
@@ -3662,6 +3680,19 @@ app.get("/api/extensao", async (req, res) => {
  * recorte, e um "salvar" do professor não pode sumir com as ações alheias.
  */
 const base_ok_id = (v) => /^[a-zA-Z0-9_-]{1,60}$/.test(String(v || ""));
+/** JSON com as chaves em ordem e sem `atualizadoEm`: é o que diz se a ação MUDOU. */
+function canonJson(v) {
+  const ordena = (x) => {
+    if (Array.isArray(x)) return x.map(ordena);
+    if (x && typeof x === "object") {
+      const o = {};
+      for (const k of Object.keys(x).sort()) { if (k === "atualizadoEm" || x[k] === undefined) continue; o[k] = ordena(x[k]); }
+      return o;
+    }
+    return x;
+  };
+  return JSON.stringify(ordena(v));
+}
 app.post("/api/extensao", async (req, res) => {
   try {
     const u = await sessaoEx(req, res);
@@ -3669,8 +3700,8 @@ app.post("/api/extensao", async (req, res) => {
     const entrada = Array.isArray(req.body?.acoes) ? req.body.acoes : [];
     if (!entrada.length) return res.status(400).json({ error: "Nada a gravar" });
     const r = await comAcoes((acoes) => {
-      let gravadas = 0, recusadas = 0;
-      const registradas = [];
+      let gravadas = 0, recusadas = 0, inalteradas = 0;
+      const registradas = [], defasadas = [];
       for (const nova of entrada) {
         if (!nova?.id) { recusadas++; continue; }
         /* O id vira atributo onclick em DEZENAS de templates das duas SPAs:
@@ -3682,6 +3713,17 @@ app.post("/api/extensao", async (req, res) => {
         const base = i >= 0 ? acoes[i] : null;
         // ação nova: quem submete é o dono. Ação existente: só o dono ou a gestão
         if (base ? !podeVerAcao(u, base) : !minhaAcao(u, nova)) { recusadas++; continue; }
+        /* A ABA VELHA NÃO SOBRESCREVE TEXTO (revisão adversarial de set/2026):
+           o salvar do EX manda a lista INTEIRA da aba, e a gestão gravando a
+           apreciação de X numa aba antiga devolvia a justificativa e a CH que
+           o professor acabara de reescrever em Y — e apagava a avaliação escrita
+           no encerramento pelo EV. A cópia que a tela carregou traz o
+           `atualizadoEm` de então: se a base tem outro, alguém gravou no meio, e
+           a ação fica DE FORA (dita na resposta), em vez de voltar no tempo. */
+        if (base && nova.atualizadoEm && base.atualizadoEm && String(nova.atualizadoEm) !== String(base.atualizadoEm)) {
+          defasadas.push({ id: base.id, nome: base.proposta?.nomeAtividade || base.id });
+          continue;
+        }
         // O número da ação e a situação são decisão da GESTÃO, nunca do
         // formulário — e isso vale também na CRIAÇÃO (achado da varredura de
         // ago/2026): o recorte só existia quando havia `base`, então uma ação
@@ -3731,6 +3773,10 @@ app.post("/api/extensao", async (req, res) => {
           controlado.reprovadaEm = base.reprovadaEm;
           controlado.reprovadaPor = base.reprovadaPor;
         }
+        // "Reprovada e registrada continuam intocáveis": a PROPOSTA vem da base
+        // nas duas — editar o texto de uma reprovada faria o motivo se referir a
+        // outro documento (revisão adversarial de set/2026)
+        if (["reprovada", "registrada"].includes(String(base?.status || ""))) controlado.proposta = base.proposta;
         // A CONFIG do evento e as INSCRIÇÕES ONLINE/PRESENÇAS têm escrita
         // própria (rota /:id/evento e o credenciamento público) e escritores
         // CONCORRENTES: o salvar comum do formulário carrega um snapshot que
@@ -3840,6 +3886,13 @@ app.post("/api/extensao", async (req, res) => {
           if (snapshot) final.relatorio = { ...final.relatorio, numerosEvento: snapshot };
           else if (final.relatorio.numerosEvento) delete final.relatorio.numerosEvento;
         }
+        /* A ENTREGA muda o status (regressão apontada em set/2026): com o
+           status vindo sempre da base, a transição `aprovada →
+           relatorio-entregue` deixou de acontecer pelo bloco, e a ficha dizia
+           à PROPPEX "o responsável ainda não enviou" por cima do formulário
+           preenchido. A transição sempre foi deste caminho, como registrar. */
+        if (final.relatorio?.entregueEm && !base?.relatorio?.entregueEm && final.status !== "registrada")
+          final.status = "relatorio-entregue";
         // Registrada NÃO se desfaz por um salvar comum — nem por uma aba
         // velha que carregou a ação antes do registro: registrar trava os
         // campos e libera os certificados. A ÚNICA saída é a REABERTURA da
@@ -3872,10 +3925,15 @@ app.post("/api/extensao", async (req, res) => {
         // direito é avisado agora, do mesmo jeito que no evento — sem isso,
         // o documento existiria e ninguém saberia.
         if (!final.evento && registrouAgora) registradas.push(final);
+        /* O que NÃO mudou não se regrava (mesma revisão): a lista inteira
+           passava por aqui e toda ação ganhava `atualizadoEm` novo — a aba do
+           professor, correta e aberta ao mesmo tempo, passaria a ser "defasada"
+           por uma gravação que não tocou na ação dele. */
+        if (base && canonJson(final) === canonJson(base)) { inalteradas++; continue; }
         if (i >= 0) acoes[i] = final; else acoes.push(final);
         gravadas++;
       }
-      return { gravadas, recusadas, registradas, gravar: gravadas > 0 };
+      return { gravadas, recusadas, inalteradas, defasadas, registradas, gravar: gravadas > 0 };
     });
     // recusa com MOTIVO (hoje só a falta das fotos na entrega do relatório):
     // nada é gravado e a tela diz exatamente o que falta
@@ -3943,7 +4001,11 @@ app.post("/api/extensao/:id/excluir", async (req, res) => {
          página do ar despublica. */
       const enc = situacaoEncerramento(a);
       if (a.evento && enc !== "aberto")
-        return { erro: [400, `Este evento tem o encerramento ${enc === "validado" ? "validado" : "solicitado à PROPPEX"} — não se exclui um evento em encerramento. Para tirar a página do ar, despublique.`], gravar: false };
+        return { erro: [400, `Este evento tem o encerramento ${enc === "validado" ? "validado" : enc === "devolvido" ? "devolvido pela PROPPEX (o evento aconteceu e o relatório foi entregue)" : "solicitado à PROPPEX"} — não se exclui um evento em encerramento. Para tirar a página do ar, despublique.`], gravar: false };
+      // ação SEM evento e já numerada não tem "evento" a apagar: a rota
+      // zerava a lista digitada e mantinha a ação (revisão adversarial de set/2026)
+      if (!a.evento && (a.numeroAcao || a.relatorio?.entregueEm))
+        return { erro: [400, "Esta ação não tem evento cadastrado e já está numerada — não há o que excluir por aqui."], gravar: false };
       const presentes = (a.participantes?.inscritos || []).filter((x) => x?.presente || (x?.presencas || []).length).length;
       if (a.evento && presentes)
         return { erro: [400, `Este evento tem ${presentes} presença(s) registrada(s): ele aconteceu, e o registro não se apaga. Para tirar a página do ar, despublique.`], gravar: false };
@@ -3993,7 +4055,17 @@ app.post("/api/extensao/:id/excluir", async (req, res) => {
    origem online, presença) não sai por esta porta: ele tem crachá e presença,
    e apagá-lo da lista de um evento que aconteceu é o tipo de perda que esta
    varredura existe para impedir. */
+/* O EVENTO VALIDADO NÃO MUDA O QUE O CERTIFICADO AFIRMA (revisão adversarial
+   de set/2026): depois de a PROPPEX validar o encerramento, a lista digitada,
+   a presença manual, a equipe, a programação (CH) e até o nome do inscrito
+   continuavam abertos — e o certificado é recalculado a cada pedido. O ato de
+   validação existe justamente para conferir tudo isso ANTES de o documento
+   existir. Para corrigir, a PROPPEX devolve o encerramento. */
+const eventoValidadoMsg = (a) => (a?.status === "registrada" || situacaoEncerramento(a) === "validado")
+  ? "Este evento já foi encerrado e validado pela PROPPEX — o que consta é o que os certificados afirmam. Para corrigir, a PROPPEX devolve o encerramento."
+  : null;
 const CATEGORIAS_PART = ["inscritos", "palestrantes", "comissao"];
+const CAMPOS_INSCRITO_DIGITADO = ["nome", "cpf", "matricula", "email", "telefone", "curso", "periodo", "ch", "instituicao", "categoria"];
 const chaveDeParticipante = (x) => (soDigitos(x?.cpf) || String(x?.matricula || "").trim() || String(x?.nome || "").trim()).toLowerCase();
 const ehOnline = (x) => !!(x?.token || x?.origem === "online" || x?.presente || (x?.presencas || []).length);
 app.post("/api/extensao/:id/participantes", async (req, res) => {
@@ -4008,14 +4080,19 @@ app.post("/api/extensao/:id/participantes", async (req, res) => {
       const i = acoes.findIndex((x) => x.id === req.params.id);
       if (i < 0 || !podeVerAcao(u, acoes[i])) return { erro: [404, "Ação não encontrada"], gravar: false };
       const a = acoes[i];
+      if (eventoValidadoMsg(a)) return { erro: [400, eventoValidadoMsg(a)], gravar: false };
       a.participantes = a.participantes || {};
       const lista = Array.isArray(a.participantes[categoria]) ? a.participantes[categoria] : [];
       const existentes = new Set(lista.map(chaveDeParticipante).filter(Boolean));
       let add = 0, dup = 0;
       for (const bruto of entrada) {
         if (!bruto || typeof bruto !== "object") continue;
+        // lista FECHADA de campos (revisão adversarial de set/2026): a coluna
+        // "token" colada da planilha tornava o registro "online" — o ✕ sumia e
+        // a remoção recusava; origem, presença e pagamento também não vêm daqui
         let x = categoria === "inscritos"
-          ? Object.fromEntries(Object.entries(bruto).filter(([k, v]) => typeof v === "string" && k.length <= 40).map(([k, v]) => [k, v.trim().slice(0, 300)]))
+          ? Object.fromEntries(CAMPOS_INSCRITO_DIGITADO.filter((k) => typeof bruto[k] === "string")
+            .map((k) => [k, bruto[k].trim().slice(0, 300)]))
           : normalizarPessoaEvento(bruto, { palestrante: categoria === "palestrantes" });
         if (x.cpf) x.cpf = cpfValido(x.cpf) ? soDigitos(x.cpf) : "";
         if (!x.nome) continue;
@@ -4048,6 +4125,7 @@ app.post("/api/extensao/:id/participantes/remover", async (req, res) => {
       const i = acoes.findIndex((x) => x.id === req.params.id);
       if (i < 0 || !podeVerAcao(u, acoes[i])) return { erro: [404, "Ação não encontrada"], gravar: false };
       const a = acoes[i];
+      if (eventoValidadoMsg(a)) return { erro: [400, eventoValidadoMsg(a)], gravar: false };
       const lista = Array.isArray(a.participantes?.[categoria]) ? a.participantes[categoria] : [];
       const j = lista.findIndex((x) => chaveDeParticipante(x) === chave);
       if (j < 0) return { erro: [404, "Participante não encontrado na lista"], gravar: false };
@@ -5795,6 +5873,7 @@ app.post("/api/extensao/:id/inscritos/:token/nome", async (req, res) => {
     const r = await comAcoes((acoes) => {
       const a = acoes.find((x) => x.id === req.params.id);
       if (!a || !podeOperarEvento(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (eventoValidadoMsg(a)) return { erro: [400, eventoValidadoMsg(a)], gravar: false };
       const i = (a.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === tok);
       if (!i) return { erro: [404, "Inscrição não encontrada."], gravar: false };
       const antes = i.nome || "";
@@ -5936,7 +6015,8 @@ app.post("/api/extensao/:id/comunicado", async (req, res) => {
     if (!u) return;
     const a = (await lerAcoes()).find((x) => x.id === req.params.id);
     if (!a || !podeOperarEvento(u, a)) return res.status(404).json({ error: "Ação não encontrada" });
-    const alvo = ALVOS_COMUNICADO[String(req.body?.alvo || "todos")] ? String(req.body.alvo) : "todos";
+    const alvoPedido = String(req.body?.alvo || "todos");
+    const alvo = Object.hasOwn(ALVOS_COMUNICADO, alvoPedido) ? alvoPedido : "todos";
     const assunto = String(req.body?.assunto || "").trim().slice(0, 120);
     const mensagem = String(req.body?.mensagem || "").trim().slice(0, 8000);
     const inscritos = (a.participantes?.inscritos || []).filter(ALVOS_COMUNICADO[alvo].filtro);
@@ -7780,6 +7860,7 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
     const r = await comAcoes((acoes) => {
       const a = acoes.find((x) => x.id === req.params.id);
       if (!a || !podeOperarEvento(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (eventoValidadoMsg(a)) return { erro: [400, eventoValidadoMsg(a)], gravar: false };
       const primeiraVez = !a.evento;
       const estavaAtivo = a.evento?.ativo === true;
       const ev = { ...(a.evento || {}) };
@@ -8024,6 +8105,7 @@ app.post("/api/extensao/:id/presenca", async (req, res) => {
     const r = await comAcoes((acoes) => {
       const a = acoes.find((x) => x.id === req.params.id);
       if (!a || !podeOperarEvento(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (eventoValidadoMsg(a)) return { erro: [400, eventoValidadoMsg(a)], gravar: false };
       const ins = a.participantes?.inscritos || [];
       // casa pela chave mais forte que vier: token → CPF → e-mail → nome
       const i = ins.find((x) => alvoTok && String(x.token || "").toLowerCase() === alvoTok)
@@ -8522,6 +8604,11 @@ app.post("/api/espacos/reservas/:id/decidir", async (req, res) => {
       if (i < 0) return { erro: [404, "Reserva não encontrada."], gravar: false };
       const atual = reservas[i];
       if (!VIVA(atual)) return { erro: [400, `Esta reserva está ${ROTULO_STATUS[atual.status].toLowerCase()}.`], gravar: false };
+      // reserva CONFIRMADA não se "recusa" por uma segunda decisão (revisão
+      // adversarial de set/2026): desfazer a confirmação é cancelar, com o
+      // motivo e o e-mail próprios — a tela já não oferecia os botões
+      if (atual.status === "confirmada")
+        return { erro: [400, "Esta reserva já foi confirmada. Para desfazê-la, cancele-a."], gravar: false };
       /* Pedido já encaminhado é da PROPPEX. Se a responsável pudesse decidi-lo,
          ela confirmaria o que acabou de escalar — e a escalada, que existe
          para o caso que foge da autonomia dela, não valeria nada. */
@@ -8940,9 +9027,15 @@ app.get("/api/monitoria", async (req, res) => {
         }, euReal(req, u)),
         verComo: String(req.query?.como || ""),
       } : {}),
+      /* A coordenação de CURSO recebe o painel calculado sobre o recorte dela
+         (revisão adversarial de set/2026): a tela ligava o painel de gestão
+         por `gestao: true` e o desenhava vazio — "0 aguardando análise, nada
+         pendente" com projeto do curso na fila. */
       ...(quem.gestao
         ? { panorama: monPanorama(lista), pendencias: monPendencias(lista) }
-        : {}),
+        : quem.cursos.length
+          ? { panorama: monPanorama(meus), pendencias: monPendencias(meus), painelRecortado: true }
+          : {}),
       meta: await monMeta(),
     });
   } catch (e) {
@@ -9238,6 +9331,8 @@ app.get("/api/monitoria/:id", async (req, res) => {
     (rascunho e devolvido) ou a gestão; o conteúdo do MONITOR nunca vem por
     aqui — ele grava a própria ficha em /inscricao, e a normalização preserva
     o que ele já tinha gravado. */
+// quem NÃO orienta monitoria (a mesma lista da CE do ARCHÉ AC)
+const MON_NAO_ORIENTA = new Set(["aluno", "em", "secretaria"]);
 app.post("/api/monitoria", async (req, res) => {
   try {
     const u = await sessaoMon(req, res);
@@ -9251,6 +9346,16 @@ app.post("/api/monitoria", async (req, res) => {
     const r = await comMonitorias((lista) => {
       const i = lista.findIndex((x) => x.id === String(body.id || ""));
       if (i < 0) {
+        /* Projeto de monitoria é de quem LECIONA (revisão adversarial de
+           set/2026): a tela escondia o botão do aluno, mas o servidor só
+           recusava conta pendente — um estudante criava e submetia projeto,
+           consumindo protocolo da sequência oficial, com ele mesmo como
+           "orientador". A mesma lista da CE do ARCHÉ AC; a função é
+           autodeclarada, então isto estreita, não blinda. */
+        if (!quem.gestao && MON_NAO_ORIENTA.has(String(perfil.funcao || ""))) {
+          return { erro: [403, "O projeto de monitoria é do professor da disciplina. "
+            + "Se você leciona, declare a função no seu perfil."], gravar: false };
+        }
         // projeto novo: a orientação sai do PERFIL de quem submete — pedir de
         // novo o que já está cadastrado é convite a divergência
         const novo = normalizarProjetoMon({
@@ -9271,7 +9376,26 @@ app.post("/api/monitoria", async (req, res) => {
       }
       if (!monPodeEditar(lista[i], quem))
         return { erro: [403, "Este projeto não está mais aberto para edição."], gravar: false };
+      /* Projeto ENCERRADO não se edita, nem pela gestão (revisão adversarial
+         de set/2026): salvar o formulário de um projeto concluído sem um dos
+         monitores apagava o monitor homologado — o certificado sumia e a
+         conta pendente dele perdia o acesso ao setor. E em qualquer status,
+         monitor com relatório entregue não sai pelo formulário: o relatório
+         ficaria órfão. Toda remoção de monitor fica no histórico. */
+      if (["concluido", "reprovado", "cancelado"].includes(lista[i].status)) {
+        return { erro: [409, "Este projeto já foi encerrado e não se edita mais."], gravar: false };
+      }
+      const antes = lista[i].monitores || [];
+      const idsNovos = new Set((Array.isArray(body.monitores) ? body.monitores : antes).map((m) => String(m?.id || "")));
+      const removidos = antes.filter((m) => !idsNovos.has(m.id));
+      const comRelatorio = removidos.find((m) => m.relatorio && m.relatorio.status !== "rascunho");
+      if (comRelatorio) {
+        return { erro: [409, `${comRelatorio.nome} já entregou relatório e não sai do projeto por aqui.`], gravar: false };
+      }
       const atualizado = normalizarProjetoMon(body, { anterior: lista[i] });
+      for (const m of removidos) {
+        monAnotar(atualizado, { acao: "Monitor removido do projeto", por: u.email, detalhe: m.nome });
+      }
       lista[i] = atualizado;
       return { ok: true, projeto: atualizado, casar: true };
     });
@@ -9362,13 +9486,20 @@ app.post("/api/monitoria/:id/submeter", async (req, res) => {
       // rascunho aberto antes de o edital do ciclo sair fica sem número; é na
       // submissão que ele ganha o do edital que passou a existir
       if (!p.edital) p.edital = monEditalVigente().numero;
-      p.status = "aguardando-aluno";
+      /* O projeto DEVOLVIDO e ressubmetido com todas as fichas completas vai
+         direto à fila (revisão adversarial de set/2026): a transição para
+         "submetido" só existia na ficha do monitor, e o projeto ficava preso
+         em "aguardando o monitor" com todos já cadastrados — a gestão recebia
+         403 ao decidir, e ninguém na tela sabia por quê. */
+      const pronto = (p.monitores || []).length > 0 && monTodosCadastrados(p);
+      p.status = pronto ? "submetido" : "aguardando-aluno";
       p.submetidoEm = new Date().toISOString();
       const agora = new Date().toISOString();
       convites = (p.monitores || []).filter((m) => !m.convidadoEm && m.email);
       for (const m of convites) m.convidadoEm = agora;
       monAnotar(p, { acao: "Projeto submetido", por: u.email,
-        detalhe: `Protocolo ${p.protocolo} · ${(p.monitores || []).length} monitor(es) indicado(s)` });
+        detalhe: `Protocolo ${p.protocolo} · ${(p.monitores || []).length} monitor(es) indicado(s)`
+          + (pronto ? " · fichas completas, encaminhado à PROPPEX" : "") });
       return { ok: true, projeto: p };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
@@ -9426,8 +9557,12 @@ app.post("/api/monitoria/:id/inscricao", async (req, res) => {
       if (!p || !monPodeVer(p, quem)) return { erro: [404, "Projeto não encontrado."], gravar: false };
       const eu = monMonitorDe(p, quem);
       if (!eu) return { erro: [403, "Esta ficha é do acadêmico indicado."], gravar: false };
-      if (["reprovado", "cancelado"].includes(p.status))
+      if (["reprovado", "cancelado", "concluido"].includes(p.status))
         return { erro: [400, "Este projeto foi encerrado."], gravar: false };
+      // a ficha só existe depois da submissão: antes disso o projeto é rascunho
+      // do professor, e o que o monitor gravasse seria sobrescrito
+      if (p.status === "rascunho")
+        return { erro: [400, "O projeto ainda não foi submetido pelo professor — a ficha abre depois da submissão."], gravar: false };
       const d = req.body || {};
       Object.assign(eu, {
         nome: String(d.nome || eu.nome || "").trim().slice(0, 160) || eu.nome,
@@ -9544,8 +9679,12 @@ app.post("/api/monitoria/:id/relatorio", async (req, res) => {
         return { erro: [400, "Este relatório já foi validado."], gravar: false };
       const novo = normalizarRelatorioMon({
         ...atual, ...(req.body?.relatorio || {}),
-        // a avaliação é do orientador: nada que venha do aluno a toca
+        // a avaliação é do orientador, e os carimbos de validação, devolução e
+        // homologação são da gestão: nada que venha do aluno os toca
         avaliacao: atual.avaliacao, status: atual.status,
+        validadoEm: atual.validadoEm, validadoPor: atual.validadoPor,
+        devolvidoEm: atual.devolvidoEm, comentario: atual.comentario,
+        homologadoEm: atual.homologadoEm, homologadoPor: atual.homologadoPor,
       });
       if (enviar) {
         const falta = monFaltaRelatorio(novo);
@@ -9614,8 +9753,15 @@ app.post("/api/monitoria/:id/relatorio/validar", async (req, res) => {
       m.relatorio = normalizarRelatorioMon({ ...m.relatorio, avaliacao: av, status: "validado" });
       m.relatorio.validadoEm = new Date().toISOString();
       m.relatorio.validadoPor = u.email;
-      monAnotar(p, { acao: "Relatório validado pela orientação", por: u.email,
-        detalhe: `${m.nome} — parecer ${av.parecer}`, sigilo: true });
+      /* A avaliação é da ORIENTAÇÃO. A gestão valida EM NOME dela só quando o
+         professor não está mais para validar (a mesma régua da IC), e o ato
+         fica marcado — no registro e no histórico — para quem lê o documento
+         depois saber que ali não foi quem acompanhou o semestre que assinou
+         (revisão adversarial de set/2026). */
+      const emNome = !monSouOrientador(p, quem);
+      if (emNome) m.relatorio.validadoPelaGestao = true;
+      monAnotar(p, { acao: emNome ? "Relatório validado pela PROPPEX, em nome da orientação" : "Relatório validado pela orientação",
+        por: u.email, detalhe: `${m.nome} — parecer ${av.parecer}`, sigilo: true });
       return { ok: true, projeto: p, monitor: m };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
@@ -9708,9 +9854,11 @@ app.delete("/api/monitoria/:id", async (req, res) => {
     const r = await comMonitorias((lista) => {
       const i = lista.findIndex((x) => x.id === req.params.id);
       if (i < 0 || !monPodeVer(lista[i], quem)) return { erro: [404, "Projeto não encontrado."], gravar: false };
-      if (!monPodeEditar(lista[i], quem)) return { erro: [403, "Sem permissão."], gravar: false };
+      // o protocolo se confere ANTES da permissão: a mensagem certa para o
+      // orientador do projeto já submetido é "peça o cancelamento", não "sem permissão"
       if (lista[i].protocolo)
         return { erro: [400, "Projeto com protocolo emitido não é excluído — peça o cancelamento à PROPPEX."], gravar: false };
+      if (!monPodeEditar(lista[i], quem)) return { erro: [403, "Sem permissão."], gravar: false };
       lista.splice(i, 1);
       return { ok: true };
     });
@@ -17077,6 +17225,7 @@ app.post("/api/extensao/:id/equipe", async (req, res) => {
       const a = acoes.find((x) => x.id === req.params.id);
       if (!a) return { erro: [404, "Ação não encontrada"], gravar: false };
       if (!podeOperarEvento(u, a)) return { erro: [403, "Sem permissão para operar este evento"], gravar: false };
+      if (eventoValidadoMsg(a)) return { erro: [400, eventoValidadoMsg(a)], gravar: false };
       a.participantes = a.participantes || { inscritos: [], palestrantes: [], comissao: [] };
       if (palestrantes) a.participantes.palestrantes = palestrantes;
       if (comissao) a.participantes.comissao = comissao;
@@ -17606,9 +17755,13 @@ app.post("/api/praticas", async (req, res) => {
            autodeclarada, então isto não é porta blindada; mas fecha a que
            estava escancarada, e o relatório continua passando pela validação. */
         const NAO_RELATA_CE = new Set(["aluno", "em", "secretaria"]);
-        if (ehCE && !quem.gestao && !minhasEC.length && NAO_RELATA_CE.has(String(perfil.funcao || ""))) {
-          return { erro: [403, "O relatório de extensão curricular é do professor da disciplina. "
-            + "Se você leciona, declare a função no seu perfil."], gravar: false };
+        // vale para a CE sem cadastro E para o registro RETROATIVO, que também
+        // dispensa o cadastro (revisão adversarial de set/2026: um estudante
+        // enviava aula prática de semestre passado para a fila da coordenação)
+        if (!quem.gestao && !minhas.length && !minhasEC.length && (ehCE || retroativo)
+          && NAO_RELATA_CE.has(String(perfil.funcao || ""))) {
+          return { erro: [403, "O relatório de " + (ehCE ? "extensão curricular" : "aula prática")
+            + " é do professor da disciplina. Se você leciona, declare a função no seu perfil."], gravar: false };
         }
         if (!minhas.length && !quem.gestao && !retroativo && !ehCE) {
           return { erro: [403, `Você ainda não está no cadastro de ${semestre}. `
@@ -17619,12 +17772,24 @@ app.post("/api/praticas", async (req, res) => {
         }
         // na CE o curso vem SEMPRE do formulário: o do cadastro (das aulas
         // práticas) pode não ser o da disciplina que curriculariza
-        let cursoNovo = (ehCE ? String(b.curso || "").trim() : "") || curso || String(b.curso || "").trim();
+        /* O curso da aula prática sai da DISCIPLINA escolhida (revisão
+           adversarial de set/2026): o professor de DOIS cursos tinha a aula do
+           segundo indo à coordenação do primeiro, marcada "fora do cadastro" —
+           `cursoDoProfessor` devolve o primeiro curso. O `curso` do corpo só
+           desempata quando a mesma disciplina está em dois cursos dele. */
+        const discNova = String(b.disciplina || "").trim();
+        const cursoDoCorpo = String(b.curso || "").trim();
+        const daDisciplina = minhas.find((d) => d.disciplina === discNova && (!cursoDoCorpo || d.curso === cursoDoCorpo))?.curso
+          || minhas.find((d) => d.disciplina === discNova)?.curso || "";
+        let cursoNovo = (ehCE ? cursoDoCorpo : "") || daDisciplina || curso || cursoDoCorpo;
         if (!CURSOS.some((c) => c.slug === cursoNovo)) {
           return { erro: [400, "Escolha o curso da disciplina: é ele que define a "
             + "coordenação que valida este relatório."], gravar: false };
         }
-        const novo = normalizarRelatorioAP(b, { base: {
+        // o curso é o RESOLVIDO acima, nunca o do corpo: `normalizarRelatorioAP`
+        // deixa o corpo vencer a base, e um `curso` inventado no payload mandava
+        // o relatório a uma fila inexistente (revisão adversarial de set/2026)
+        const novo = normalizarRelatorioAP({ ...b, curso: cursoNovo }, { base: {
           id: `ap-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
           curso: cursoNovo,
           // o TIPO se fixa aqui e não muda depois: é ele que escolhe os
@@ -17661,7 +17826,21 @@ app.post("/api/praticas", async (req, res) => {
          do número da ação e da situação na Extensão: campo de fluxo vem do
          que está gravado. A gestão, que é o suporte, muda. */
       const corpo = quem.gestao ? b : { ...b, curso: atual.curso };
-      lista[i] = normalizarRelatorioAP(corpo, { base: atual });
+      /* A marca `foraDoCadastro` se recalcula quando a disciplina muda
+         (revisão adversarial de set/2026): nascia na criação e não acompanhava
+         a edição — a coordenação lia como disciplina do cadastro o que fora
+         trocado por uma inventada. A régua é a MESMA da criação: a lista do
+         tipo, do professor do relatório, no semestre da aula. */
+      let base = atual;
+      const discEditada = String(b.disciplina ?? atual.disciplina ?? "").trim();
+      if (discEditada !== String(atual.disciplina || "").trim()) {
+        const semestreDaAula = semestreDe(String(b.data || atual.data || "")) || atual.semestre;
+        const tipoEC = apTipoDe(atual.tipo).codigo === "extensao";
+        const doTipo = apMinhasDisciplinas(cadastro, semestreDaAula, atual.professor?.email || atual.criadoPor, tipoEC ? "extensao" : "pratica");
+        const cursoFinal = quem.gestao ? String(b.curso || atual.curso || "").trim() : atual.curso;
+        base = { ...atual, foraDoCadastro: !doTipo.some((d) => d.disciplina === discEditada && d.curso === cursoFinal) };
+      }
+      lista[i] = normalizarRelatorioAP(corpo, { base });
       return { relatorio: lista[i] };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
@@ -17904,6 +18083,10 @@ app.delete("/api/praticas/:id", async (req, res) => {
     const r = await comPraticas((lista) => {
       const i = lista.findIndex((x) => x.id === req.params.id);
       if (i < 0 || !apPodeVer(lista[i], quem)) return { erro: [404, "Relatório não encontrado."], gravar: false };
+      // apagar é do AUTOR (ou da gestão, como suporte): a coordenação do curso
+      // vê o rascunho do professor, mas não o apaga (revisão adversarial de set/2026)
+      if (apPapel(lista[i], quem) === "coordenador")
+        return { erro: [403, "O rascunho é do professor que o registrou; a coordenação valida ou devolve o que foi enviado."], gravar: false };
       // só rascunho se apaga: o que foi enviado tem protocolo, e protocolo
       // emitido não se apaga — devolve-se
       if (lista[i].status !== "rascunho" && !quem.gestao)
@@ -17999,14 +18182,17 @@ app.post("/api/praticas/cadastro/copiar", async (req, res) => {
          em duplicidade, em vez de descartar.) */
       const chave = (p) => String(p.email || "").toLowerCase() || `nome:${apChaveDeNome(p.nome)}`;
       const jaTem = new Set((cadastro[destino][curso]?.professores || []).map(chave));
+      const entram = antes.filter((p) => !jaTem.has(chave(p)));
       cadastro[destino][curso] = { professores: [
         ...(cadastro[destino][curso]?.professores || []),
-        ...antes.filter((p) => !jaTem.has(chave(p))),
+        ...entram,
       ] };
-      return { copiados: antes.length };
+      // o que ENTROU, não o tamanho da origem: repetir a cópia dizia
+      // "2 copiados" sobre 2 que já estavam lá (revisão adversarial de set/2026)
+      return { copiados: entram.length, jaEstavam: antes.length - entram.length };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-    res.json({ ok: true, copiados: r.copiados, de: origem,
+    res.json({ ok: true, copiados: r.copiados, jaEstavam: r.jaEstavam, de: origem,
       cadastro: recorteDoCadastroAP(r.limpo, quem) });
   } catch (e) {
     console.error("Erro ao copiar o cadastro:", e);
@@ -19841,6 +20027,7 @@ app.listen(port, () => {
       corrigirCpfDaOrientadoraLuana, // o CPF da aluna sai do campo da orientação
       desfazerOrientacaoCarimbadaPelaGestao, // o gestor que virou orientação ao salvar
       corrigirNomesDeInscritosQueEramEmail,  // inscrito com o e-mail no lugar do nome
+      corrigirStatusDeRelatorioEntregue,     // relatório entregue preso em "aprovada"
       designarGestaoDaAvaliacao,   // as coordenações das pró-reitorias na Avaliação
       vincularPerfisIC,
     ]) {

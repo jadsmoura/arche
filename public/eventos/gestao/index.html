@@ -1399,7 +1399,7 @@ function atalhosCard(a){
    encerramento solicitado/validado ou presença lançada o servidor recusa, e
    o botão não se desenha — quem quer tirar a página do ar despublica. */
 const aconteceu = (a) => !!a.evento && (
-  ["solicitado","validado"].includes(String(a.evento?.encerramento?.status||""))
+  ["solicitado","devolvido","validado"].includes(String(a.evento?.encerramento?.status||""))
   || (a.participantes?.inscritos||[]).some(x=>x?.presente||(x?.presencas||[]).length));
 const podeExcluir = (a) => !aconteceu(a) && (GESTAO_EX || (!a.numeroAcao && ehMinha(a)));
 const ehMinha = (a) => !!EU && (a.criadoPor === EU || a.proposta?.respEmail === EU);
@@ -1757,7 +1757,7 @@ async function salvarDados(id){
   for(const c of DD_CAMPOS) proposta[c]=String(DD[c]??"").trim();
   const final={...a, curso:String(DD.curso||"").trim(), cursosExtras:[...(DD.cursosExtras||[])],
     numeroAcao:a.numeroAcao??null, status:a.status, apreciacao:a.apreciacao,
-    proposta, atualizadoEm:new Date().toISOString()};
+    proposta};
   try{
     const r=await fetch("/api/extensao",{method:"POST",
       headers:{"Content-Type":"application/json"},body:JSON.stringify({acoes:[final]})});
