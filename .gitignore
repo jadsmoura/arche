@@ -23,3 +23,11 @@ docs/inpi/arche-codigo-fonte-*.txt
 # de banco de trabalho, e uma ferramenta de forjar sessão no repositório é
 # convite a que alguém a aponte para produção.
 forjar.mjs
+
+# Banco de trabalho das verificações (scripts de reprodução, relatórios dos
+# agentes, PDFs e planilhas de teste). Pela MESMA razão do `forjar.mjs`, e por
+# uma segunda: ali se forja sessão e se copia o estado INTEIRO para um ambiente
+# isolado — CPF, telefone e e-mail de gente de verdade, inclusive dos bolsistas
+# do ICEM, que são menores. Nada disso entra no repositório. O que fica do
+# trabalho de uma verificação é a correção, o teste e o parágrafo no CLAUDE.md.
+scratchpad/
