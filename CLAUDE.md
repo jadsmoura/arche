@@ -4639,6 +4639,42 @@ public/
   que responde é a produção: `sys-ex-exclusoes-v1` (quem excluiu o quê, quando, com quantos
   inscritos) e o histórico de versões do `_estado.json` no Drive (30 dias), de onde a lista se
   recupera.
+- **O EVENTO VALIDADO CONGELA TAMBÉM A PORTA PÚBLICA** (`eventoCongelado`/`MSG_EVENTO_CONGELADO`
+  em lib/certificadosEx.js + a trava dentro de `registrarPresenca` e em `acaoDoTelao`, 3ª rodada
+  adversarial set/2026): a trava do encerramento validado nasceu na varredura anterior para
+  congelar "o que os certificados afirmam", e ficou só nas rotas da GESTÃO. A presença MANUAL da
+  pró-reitoria recusava; o **check-in do monitor** e a **presença pelo telão**, que entram por rota
+  PÚBLICA, continuavam gravando. Quem tivesse o código do monitor (secreto curto, falado no dia) ou
+  o do telão punha, DEPOIS de os certificados existirem e de todos os participantes terem sido
+  avisados por e-mail, um inscrito sem presença dentro da certificação — o certificado é
+  recalculado a cada pedido, então ele nasce válido na hora. A régua passou a morar em
+  lib/certificadosEx.js, **junto de quem emite o documento**, e não nas rotas: era justamente por
+  estar escrita numa rota que ela cobria umas e não outras. `registrarPresenca` é o núcleo
+  compartilhado do monitor e do telão, e é o primeiro teste dele; o `acaoDoTelao` recusa antes de
+  projetar o QR, porque botão que sempre falha é armadilha. `registrada` entra junto porque a ação
+  SEM evento se congela pelo registro, que é o ato equivalente. Para corrigir, a PROPPEX devolve o
+  encerramento — e é o que a mensagem diz.
+- **A CREDENCIAL DO INSCRITO SÓ SAI PARA QUEM PROVOU O E-MAIL** (`inscricaoDaConta` +
+  `outroEmail` no `GET …/participante` + `POST …/participante/reenviar`, mesma rodada): a área do
+  inscrito casa a conta logada com a inscrição por **e-mail OU CPF do perfil** — o casamento por
+  CPF existe para quem se inscreveu com um endereço e entra no portal por outro (o caso da
+  bolsista do ICEM). Só que o CPF do perfil é **AUTODECLARADO**, e a unicidade dele é conferida
+  contra as outras CONTAS, nunca contra os inscritos dos eventos: bastava criar uma conta,
+  reivindicar ali o CPF de um participante SEM conta — o público dos eventos abertos, o CONINT, as
+  semanas de curso — e a rota devolvia o **token** da vítima. O token É a credencial: com ele se lê
+  a inscrição, se trocam as atividades escolhidas, se escreve no mural em nome dela e se baixa o
+  certificado dela. CPF é dado semipúblico e não prova posse de nada — a mesma razão pela qual a
+  pista do e-mail mascarado já não saía no casamento por CPF.
+  Agora o CPF abre o CAMINHO, não a porta: casando só por ele, a área não devolve token, nome,
+  pagamento nem atividades — diz que a inscrição foi feita com outro endereço e oferece
+  **✉ Reenviar a credencial**, que manda o e-mail de sempre (com o QR) **PARA O ENDEREÇO DA
+  PRÓPRIA INSCRIÇÃO**, nunca para um que venha no pedido. É a mesma regra do reenvio da
+  recuperação, e é o que faz a trava não virar parede: quem é dono das duas contas recebe o
+  e-mail na outra caixa; quem reivindicou um CPF alheio manda a credencial para a caixa da
+  vítima. A resposta **não diz o endereço** (dizê-lo devolveria o oráculo que a trava fechou) e o
+  envio é ESPERADO — e-mail que falha vira faixa vermelha, nunca "✓ enviado" sobre nada. O botão
+  do hotsite continua levando à área (é lá que a pessoa resolve), mas a situação de pagamento de
+  quem se inscreveu com outro e-mail não sai mais pelo `minha-inscricao`.
 - **A PROGRAMAÇÃO MARCA O QUE VAI AO CARROSSEL** (`destaque` em `normalizarProgramacao` +
   a caixa "★ destacar no carrossel" no bloco "quem ministra" da guia Programação + `palestrantesDe`
   no hotsite, pedido do dono set/2026: "não é toda programação que é interessante de ser

@@ -123,6 +123,7 @@ import {
   ASSINANTES_DO_EVENTO, assinanteDoEventoValido, assinaturasDoCertificado,
   caixaCertificado, certificadoDe, certificadosDePessoa, certificadosDaAcao, acaoCertificavel,
   eventoEncerrado, podeEncerrar, programacaoDoCertificado, situacaoEncerramento,
+  eventoCongelado, MSG_EVENTO_CONGELADO,
 } from "./lib/certificadosEx.js";
 import { situacaoDaAcao } from "./lib/situacao.js";
 import {
@@ -4061,9 +4062,7 @@ app.post("/api/extensao/:id/excluir", async (req, res) => {
    continuavam abertos — e o certificado é recalculado a cada pedido. O ato de
    validação existe justamente para conferir tudo isso ANTES de o documento
    existir. Para corrigir, a PROPPEX devolve o encerramento. */
-const eventoValidadoMsg = (a) => (a?.status === "registrada" || situacaoEncerramento(a) === "validado")
-  ? "Este evento já foi encerrado e validado pela PROPPEX — o que consta é o que os certificados afirmam. Para corrigir, a PROPPEX devolve o encerramento."
-  : null;
+const eventoValidadoMsg = (a) => (eventoCongelado(a) ? MSG_EVENTO_CONGELADO : null);
 const CATEGORIAS_PART = ["inscritos", "palestrantes", "comissao"];
 const CAMPOS_INSCRITO_DIGITADO = ["nome", "cpf", "matricula", "email", "telefone", "curso", "periodo", "ch", "instituicao", "categoria"];
 const chaveDeParticipante = (x) => (soDigitos(x?.cpf) || String(x?.matricula || "").trim() || String(x?.nome || "").trim()).toLowerCase();
@@ -6222,12 +6221,33 @@ app.get("/api/publico/eventos/:slug/inscricao/:token", async (req, res) => {
    `jaInscrito`). Devolve o que é DELA: a inscrição (com o token, que é a
    credencial dela mesma), o pagamento, a programação com as vagas de agora
    e os trabalhos que ela submeteu. `liberado` diz se a programação e a
-   submissão abrem — pagamento confirmado ou evento gratuito. */
+   submissão abrem — pagamento confirmado ou evento gratuito.
+
+   O TOKEN SÓ SAI PARA QUEM PROVOU O E-MAIL (revisão adversarial de set/2026):
+   o casamento por CPF existe para quem se inscreveu com um endereço e entra
+   no portal por outro (o caso da bolsista do ICEM), e o CPF do perfil é
+   AUTODECLARADO — a unicidade dele é conferida contra as outras CONTAS, nunca
+   contra os inscritos dos eventos. Quem criasse uma conta e reivindicasse
+   ali o CPF de um participante SEM conta (o público dos eventos abertos)
+   recebia por esta rota o `token` da vítima — e o token É a credencial: com
+   ele se lê a inscrição, se trocam as atividades escolhidas, se escreve no
+   mural em nome dela e se baixa o certificado dela. CPF é dado semipúblico e
+   não prova posse de nada.
+   Agora o CPF abre o CAMINHO, não a porta: casando só por ele, a área não
+   devolve token, nome, pagamento nem atividades — diz que a inscrição foi
+   feita com outro endereço e oferece o reenvio da credencial PARA ESSE
+   endereço (nunca para um que venha no pedido), que é a mesma regra da
+   recuperação. Quem é dono das duas contas recebe o e-mail; quem só
+   reivindicou o CPF alheio manda a credencial para a caixa da própria
+   vítima. */
 async function inscricaoDaConta(a, conta) {
   if (!conta?.email) return null;
   const perfis = await carregarPerfis();
   const cpf = perfis[conta.email]?.cpf || "";
-  return jaInscrito(a.participantes?.inscritos || [], { email: conta.email, cpf });
+  const i = jaInscrito(a.participantes?.inscritos || [], { email: conta.email, cpf });
+  if (!i) return null;
+  const e = String(conta.email).trim().toLowerCase();
+  return { inscrito: i, peloEmail: !!i.email && String(i.email).trim().toLowerCase() === e };
 }
 const trabalhosDaConta = (reg, conta, inscrito) => (reg?.trabalhos || []).filter((t) => {
   const e = String(conta?.email || "").toLowerCase();
@@ -6242,7 +6262,10 @@ app.get("/api/publico/eventos/:slug/participante", async (req, res) => {
     const a = eventoPorSlug(acoes, req.params.slug);
     if (!a) return res.status(404).json({ error: "Evento não encontrado." });
     const ev = a.evento || {};
-    const inscrito = await inscricaoDaConta(a, conta);
+    const achado = await inscricaoDaConta(a, conta);
+    // casou só pelo CPF: a credencial não sai por aqui (ver o bloco acima)
+    const outroEmail = !!achado && !achado.peloEmail;
+    const inscrito = achado?.peloEmail ? achado.inscrito : null;
     const liberado = liberadoParaParticipar(ev, inscrito);
     const pub = eventoPublico(a, { detalhe: true });
     const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
@@ -6266,11 +6289,61 @@ app.get("/api/publico/eventos/:slug/participante", async (req, res) => {
       pagamento: inscrito ? pagamentoPublico(inscrito, ev) : null,
       liberado,
       trabalhos,
+      outroEmail,
       podeTrocarAtividades: !!ev.ativo && !prazoInscricaoVencido(a, hojeLocalISO(), horaLocalHHMM()),
     });
   } catch (e) {
     console.error("Erro na área do inscrito:", e);
     res.status(500).json({ error: "Não foi possível abrir a área do inscrito agora." });
+  }
+});
+
+/* A SAÍDA de quem se inscreveu com OUTRO endereço (set/2026): a área
+   reconheceu a inscrição pelo CPF do perfil e não entrega a credencial por
+   isso — aqui ela é REENVIADA ao e-mail da própria inscrição, nunca a um que
+   venha no pedido. É a mesma regra do reenvio da recuperação, e é o que faz a
+   trava não virar parede: quem é dono das duas contas recebe o e-mail na
+   outra caixa; quem reivindicou um CPF alheio manda a credencial para a caixa
+   da vítima. A resposta não diz o endereço — dizê-lo devolveria o oráculo que
+   a trava fechou. */
+app.post("/api/publico/eventos/:slug/participante/reenviar", async (req, res) => {
+  try {
+    if (inscricaoExcedeu(req.ip))
+      return res.status(429).json({ error: "Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo." });
+    const conta = await usuarioDe(req, res);
+    if (!conta) return res.status(401).json({ error: "Entre com a sua conta do portal." });
+    const perfis = await carregarPerfis();
+    const cpf = soDigitos(perfis[conta.email]?.cpf || "");
+    const r = await comAcoes((acoes) => {
+      const a = eventoPorSlug(acoes, req.params.slug);
+      if (!a) return { erro: [404, "Evento não encontrado."], gravar: false };
+      const i = jaInscrito(a.participantes?.inscritos || [], { email: conta.email, cpf });
+      if (!i || !i.email) return { erro: [404, "Não encontramos inscrição sua neste evento."], gravar: false };
+      // inscrição lançada à mão pela gestão ainda não tem token: ele nasce aqui
+      if (!i.token) { i.token = gerarToken(a.evento.chaveQr); return { inscrito: i, acao: a }; }
+      return { inscrito: i, acao: a, gravar: false };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    const { emailInscricaoEvento } = await import("./lib/mailer.js");
+    let qrPng = null;
+    try {
+      const { default: QRCode } = await import("qrcode");
+      qrPng = await QRCode.toBuffer(String(r.inscrito.token), { type: "png", errorCorrectionLevel: "M", margin: 1, width: 440 });
+    } catch (e) { console.error("[eventos] QR do reenvio não gerado:", e.message); }
+    /* o envio é ESPERADO, e a falha dele é a resposta (nunca "✓ enviado" em
+       verde sobre um e-mail que não saiu — é o mesmo defeito do "salvo"
+       depois do upload recusado): aqui o e-mail É a entrega. */
+    try {
+      await enviarAviso("ev-inscricao", emailInscricaoEvento(r.acao, r.inscrito,
+        { baseUrl: `${req.protocol}://${req.get("host")}`, qrPng, wallet: walletConfigurada() }));
+    } catch (e) {
+      console.error("[eventos] reenvio da credencial falhou:", e.message);
+      return res.status(502).json({ error: "Não foi possível enviar o e-mail agora. Tente de novo em alguns minutos." });
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Erro ao reenviar a credencial:", e);
+    res.status(500).json({ error: "Não foi possível reenviar agora. Tente de novo em instantes." });
   }
 });
 
@@ -6289,11 +6362,15 @@ app.get("/api/publico/eventos/:slug/minha-inscricao", async (req, res) => {
     if (!conta) return res.json({ logado: false, inscrito: false });
     const a = eventoPorSlug(await lerAcoes(), req.params.slug);
     if (!a) return res.status(404).json({ error: "Evento não encontrado." });
-    const inscrito = await inscricaoDaConta(a, conta);
+    const achado = await inscricaoDaConta(a, conta);
+    // casando só pelo CPF, o botão leva à área do inscrito (é lá que a pessoa
+    // resolve), mas a situação de pagamento de quem se inscreveu com outro
+    // e-mail não sai por aqui — ela é da inscrição, não de quem reivindicou o CPF
+    const inscrito = achado?.peloEmail ? achado.inscrito : null;
     const pg = inscrito ? pagamentoPublico(inscrito, a.evento || {}) : null;
     res.json({
       logado: true,
-      inscrito: !!inscrito,
+      inscrito: !!achado,
       valida: !!inscrito && inscricaoValida(inscrito),
       pagamentoPendente: !!pg && ["aguardando", "recusado", "expirado"].includes(pg.status),
     });
@@ -6804,7 +6881,7 @@ app.get("/api/publico/eventos/:slug/trabalhos", async (req, res) => {
     // quem está logado recebe a própria situação (inscrito? liberado?) — é o
     // que a página usa para abrir o formulário ou apontar o caminho
     const conta = await usuarioDe(req, res);
-    const inscrito = conta ? await inscricaoDaConta(a, conta) : null;
+    const inscrito = conta ? (await inscricaoDaConta(a, conta))?.inscrito || null : null;
     const lib = liberadoParaParticipar(ev, inscrito);
     res.json({ evento: eventoResumoTr(a), config: tr.configPublica(ev.trabalhos, hojeLocalISO(), { cursos: cursosTrabalho() }),
       lgpdTexto: textoLgpd(ev), catalogos: catalogosTr(),
@@ -6829,7 +6906,7 @@ app.post("/api/publico/eventos/:slug/trabalhos", uploadTr.single("arquivo"), asy
     const conta = await usuarioDe(req, res);
     if (cfg.exigeInscricao) {
       if (!conta) return res.status(401).json({ error: "Para submeter, entre com a conta do portal usada na sua inscrição." });
-      const inscrito = await inscricaoDaConta(pre, conta);
+      const inscrito = (await inscricaoDaConta(pre, conta))?.inscrito || null;
       const lib = liberadoParaParticipar(pre.evento, inscrito);
       if (!lib.ok) return res.status(403).json({ error: lib.motivo });
     }
@@ -6875,7 +6952,7 @@ app.post("/api/publico/eventos/:slug/trabalhos/imagem", uploadTr.single("imagem"
     const conta = await usuarioDe(req, res);
     if (cfg.exigeInscricao) {
       if (!conta) return res.status(401).json({ error: "Entre com a conta do portal usada na sua inscrição." });
-      const lib = liberadoParaParticipar(a.evento, await inscricaoDaConta(a, conta));
+      const lib = liberadoParaParticipar(a.evento, (await inscricaoDaConta(a, conta))?.inscrito || null);
       if (!lib.ok) return res.status(403).json({ error: lib.motivo });
     }
     const f = req.file;
@@ -7197,6 +7274,17 @@ app.get("/api/extensao/:id/trabalhos.xlsx", async (req, res) => {
  * `gravar: false` diz à fila que nada mudou.
  */
 function registrarPresenca(a, atv, inscrito, { fase = "entrada", por = "monitor", agora = new Date().toISOString() } = {}) {
+  /* O EVENTO VALIDADO TAMBÉM FECHA A PORTA (revisão adversarial de set/2026):
+     a trava do encerramento validado nasceu para congelar "o que os
+     certificados afirmam", e estava só nas rotas da GESTÃO — a presença
+     manual recusava, mas o check-in do monitor e o telão, que entram por
+     rota PÚBLICA, continuavam gravando. Quem tivesse o código do monitor
+     (falado no dia) ou o do telão punha, depois de emitidos os certificados,
+     um inscrito sem presença dentro da certificação: o certificado é
+     recalculado a cada pedido. Para corrigir, a PROPPEX devolve o
+     encerramento — e é o que a mensagem diz. */
+  const congelado = eventoValidadoMsg(a);
+  if (congelado) return { erro: [409, congelado], gravar: false };
   /* EVENTO PAGO: a credencial só vale PAGA (ou isenta). Crachá de
      inscrição sem pagamento confirmado é recusado na porta com o nome e
      o motivo — o monitor sabe o que dizer, e a pessoa regulariza pela
@@ -7432,6 +7520,10 @@ async function acaoDoTelao(req, res) {
   const a = (await lerAcoes()).find((x) => x.id === req.params.id);
   if (!a || !podeOperarEvento(u, a)) { res.status(404).json({ error: "Ação não encontrada" }); return null; }
   if (!a.evento?.slug || !a.evento?.chaveQr) { res.status(400).json({ error: "O credenciamento é emitido na primeira ativação da página do evento." }); return null; }
+  // evento encerrado e validado não projeta mais código: a presença que ele
+  // abriria é recusada na gravação, e botão que sempre falha é armadilha
+  const congelado = eventoValidadoMsg(a);
+  if (congelado) { res.status(409).json({ error: congelado }); return null; }
   return a;
 }
 /** O código de agora (ou o estático) e o endereço que ele abre. A página de

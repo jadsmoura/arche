@@ -94,6 +94,20 @@ const cabecalho = (e) => `<div class="cab">
 
 function render() {
   const e = D.evento, i = D.inscricao, pg = D.pagamento, lib = D.liberado;
+  if (!i && D.outroEmail) {
+    // a inscrição foi reconhecida pelo CPF do perfil, e não pelo e-mail da
+    // conta: a credencial não sai por aqui (ela é da inscrição), mas o
+    // reenvio ao endereço da própria inscrição resolve para quem é dono das
+    // duas contas — e não entrega nada a quem apenas reivindicou o CPF
+    $("tela").innerHTML = `<div class="card">${cabecalho(e)}
+      <div class="trava"><div class="ic">✉</div><div><b>Encontramos uma inscrição com o seu CPF</b>, feita com um
+        e-mail diferente do desta conta (<b>${esc(D.conta.email)}</b>). A credencial é da inscrição: entre com o
+        endereço que você usou, ou reenvie a credencial para ele — o e-mail sai com o QR e o link da sua área.</div></div>
+      <div class="linha"><button class="bt bt-pri" id="bt-reenviar" onclick="reenviarCredencial()">✉ Reenviar a credencial</button>
+        <button class="bt bt-ghost" onclick="trocarConta()">Entrar com outra conta</button></div>
+      <div id="msg-reenvio" class="s" style="margin-top:10px"></div></div>`;
+    return;
+  }
   if (!i) {
     $("tela").innerHTML = `<div class="card">${cabecalho(e)}
       <div class="trava"><div class="ic">🎫</div><div><b>Você ainda não está inscrito neste evento</b> com a conta
@@ -300,6 +314,23 @@ function cardTrabalhos(e, lib) {
 async function trocarConta() {
   try { await fetch("/auth/sair", { method: "POST" }); } catch { /* a tela de entrada resolve */ }
   location.href = "/entrar/?next=" + encodeURIComponent(location.pathname);
+}
+
+async function reenviarCredencial() {
+  const bt = $("bt-reenviar"), msg = $("msg-reenvio");
+  if (bt) { bt.disabled = true; bt.textContent = "Enviando…"; }
+  try {
+    const r = await fetch(`${API}/participante/reenviar`, { method: "POST" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "Não foi possível reenviar agora.");
+    // o endereço NÃO se diz aqui: quem é dono dele o reconhece na caixa
+    msg.innerHTML = '<span class="selo ok">✓ enviado</span> A credencial saiu para o e-mail usado na inscrição. '
+      + "Se ela não chegar em alguns minutos, confira a caixa de spam.";
+    if (bt) bt.textContent = "✉ Reenviar de novo";
+  } catch (e) {
+    msg.innerHTML = `<span class="selo err">não enviado</span> ${esc(e.message)}`;
+    if (bt) bt.textContent = "✉ Reenviar a credencial";
+  } finally { if (bt) bt.disabled = false; }
 }
 
 async function carregar() {

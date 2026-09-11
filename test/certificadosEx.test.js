@@ -9,6 +9,7 @@ import {
   certificadoDe, certificadosDePessoa, certificadosDaAcao, chDoParticipante,
   codigoCertificadoEvento, acaoCertificavel, eventoEncerrado, podeEncerrar,
   programacaoDoCertificado, situacaoEncerramento, caixaCertificado,
+  eventoCongelado, MSG_EVENTO_CONGELADO,
 } from "../lib/certificadosEx.js";
 
 const CPF_A = "52998224725", CPF_B = "11144477735";
@@ -55,6 +56,22 @@ test("o certificado não existe antes de a PROPPEX validar o encerramento", () =
 
   assert.equal(acaoCertificavel(acao(), "2026-08-20").ok, true);
   assert.equal(eventoEncerrado(acao()), true);
+});
+
+test("validado, o evento CONGELA — e a porta pública também", () => {
+  // a régua vale enquanto o documento existe: é ela que as rotas da gestão E
+  // as da porta (check-in do monitor, telão) consultam antes de gravar
+  assert.equal(eventoCongelado(acao({ encerramento: null })), false, "evento em andamento não congela");
+  assert.equal(eventoCongelado(acao({ encerramento: { status: "solicitado" } })), false, "esperando a PROPPEX ainda muda");
+  assert.equal(eventoCongelado(acao({ encerramento: { status: "devolvido" } })), false, "devolvido volta a ser editável");
+  assert.equal(eventoCongelado(acao()), true, "validado congela");
+  // a ação SEM evento se congela pelo registro, que é o ato equivalente
+  const registrada = { ...acao({ encerramento: null }), status: "registrada" };
+  assert.equal(eventoCongelado(registrada), true);
+  // e nada de objeto solto derrubar a régua
+  assert.equal(eventoCongelado(null), false);
+  assert.equal(eventoCongelado({}), false);
+  assert.match(MSG_EVENTO_CONGELADO, /devolve o encerramento/i);
 });
 
 test("encerrar só depois de o evento acontecer, e uma vez só", () => {
