@@ -5119,6 +5119,65 @@ public/
   editável (o motivo passava a se referir a outro texto): `proposta` vem da base na reprovada e
   na registrada. (26) `/excluir` em ação SEM evento numerada zerava a lista digitada e mantinha a
   ação: 400.
+- **VARREDURA DO PORTAL INTEIRO — set/2026** (pedido do dono: "mais uma vez rode os testes em busca
+  de problemas no sistema; seja criterioso, tudo deve funcionar perfeitamente"). Seis varreduras
+  contra um servidor isolado, com uma cópia do estado: TODA página (logado como gestor e deslogado),
+  TODA guia de cada setor clicada uma a uma (~100 cliques), os setores pelos olhos de **cinco
+  papéis** (professor, orientador com bolsista, aluno de IC, bolsista do ICEM e conta comum), as 15
+  páginas PÚBLICAS do evento com slug e token de verdade, as **144 rotas GET** e as **171 rotas de
+  escrita** — tudo a 1280 e a 390 px, colhendo erro de JavaScript, resposta 4xx/5xx e rolagem
+  horizontal. **O que passou de pé** vale registrar para não se retestar do zero: nenhuma escrita
+  aceitou `?como=` (as 171), nenhuma aceitou pedido sem sessão, o estado não mudou durante a
+  varredura de escrita, e as páginas públicas não vazaram nada. **Sete achados, todos corrigidos:**
+  (1) **`somaDias` NUNCA FOI IMPORTADA no server.js** — `GET /api/espacos/agenda` respondia **500
+  sempre que `ate` não vinha no endereço**, e a rota existe justamente para poder ser chamada assim
+  (o padrão são 30 dias). A tela sempre manda as duas datas, então o defeito ficou invisível; quem
+  o encontraria é o primeiro link de agenda que alguém montasse à mão. (2) **`/usuarios/` e
+  `/curso/` carregavam `arche-paginacao.js`/`arche-filtros.js` DEPOIS do script que os usa** — como
+  o uso está dentro de um `fetch().then()`, é uma CORRIDA: passa com a rede rápida e falha na
+  primeira visita de quem tem rede lenta, com "ArchePag is not defined" e a lista **em branco**.
+  Tag clássica ANTES do uso resolve por construção (o navegador segura o inline até o componente
+  chegar), e uma medição com o componente atrasado 2,5 s prova as dez páginas. (3) **O `onerror` do
+  cartão da vitrine pública de eventos era JavaScript quebrado**: `JSON.stringify` põe aspas DUPLAS
+  num atributo já delimitado por aspas duplas, a primeira fechava o atributo, e o navegador recusava
+  o resto ("Unexpected end of input") — a capa que não abrisse ficava como **imagem quebrada** em
+  vez de cair na inicial. É o MESMO defeito que travou a paginação do portal inteiro em ago/2026, e
+  ele tinha um irmão: o link "apague a restrição vencida" da guia Vouchers, que não fazia nada. A
+  inicial passou a viajar num `data-`, e a lista de categorias vivas se lê do estado
+  (`limparOrfasVou`), não de dentro do `onclick`. (4) **A barra do topo não ocupava a largura da
+  página em `/entrar/`**: ela é injetada no `<body>`, o body do portal é `display:flex` em coluna, e
+  quem escreve `align-items:center` ali (a tela de entrar, para centralizar a caixa de login)
+  centralizava TAMBÉM a barra — no computador um retângulo flutuante de 977px no meio da tela, e no
+  telefone 637px numa tela de 390, com os **123px da esquerda inalcançáveis** (marca e "Portal"). É
+  a tela que TODO usuário vê, e a que o estudante barrado recebe. `align-self:stretch` no próprio
+  componente desfaz o alinhamento do pai; o recuo do `/entrar/` passou do body para os filhos, e
+  `justify-content:center` deu lugar a `margin:auto` na caixa, senão a barra descia junto.
+  (5) **Seis guias rolavam de lado no telefone**, e por duas causas: o `<label>` que embrulha os
+  seletores de ciclo da IC é `display:flex` e vive fora de `.card`, então a regra de `min-width:0`
+  não o alcançava (o seletor estava capado, o rótulo não); e quatro tabelas de 5-6 colunas (o
+  Acompanhamento das atas, os Agendamentos, o catálogo de cursos) estavam **sem a caixa de
+  rolagem** — a regra do portal é a tabela larga ir dentro de um `.rolo`/`.rolagem`, e o comentário
+  do `arche-celular.css` que se dizia "rede automática" não era: não dá para fazer rede em CSS puro
+  (`display:block` numa tabela faria a estreita deixar de ocupar os 100% que declara, e separar
+  `thead` de `tbody` desalinharia as colunas). (6) **Um `style` inline repetia o padrão do desktop e
+  cancelava as duas consultas de largura** (`.kpis` das atas com `repeat(5,1fr)` inline): no
+  telefone o quadro ficava com 473px em vez de descer para 2 colunas. O da Extensão virou classe
+  `.kpis.q4` — e as consultas de largura ganharam `.kpis.q4` junto, senão a classe (especificidade
+  0,2,0) venceria delas e o defeito só mudaria de lugar. (7) **`PUT`/`DELETE /api/estado` sem chave
+  respondiam 500 com a mensagem crua da exceção** — erro de quem chama é 400, e um 500 na rota que o
+  app compilado da Avaliação usa para TODA gravação é o que faz um defeito de chamada parecer
+  sistema fora do ar. Os quatro manipuladores do estado passaram a honrar `e.status`, registrar o
+  inesperado no log e devolver frase genérica. (8) O **`proto.css` dos protótipos** não tinha a
+  regra `min-width:0` que todos os setores escrevem: `1fr` tem mínimo `auto`, então a coluna cresce
+  até o conteúdo mais largo — a `.duplo` do protótipo das Ligas ficava com 502px dentro de 358 e a
+  página rolava de lado.
+  **E os dois primeiros viraram teste** (`test/imports.test.js`, os únicos dois achados que se
+  repetem sozinhos): um confere que tudo o que o server.js CHAMA e que é nome exportado por uma lib
+  do projeto está de fato importado — restringir os candidatos aos nomes exportados é o que torna a
+  conferência utilizável, senão a prosa dos comentários entra como "identificador não declarado" —,
+  e o outro confere, em toda página de `public/` (menos o app compilado), que a tag do componente
+  compartilhado vem ANTES do primeiro uso dele. Os dois foram provados contra o defeito real,
+  reintroduzido e removido.
 - **O PRODUTO SE CHAMA CÁTEDRA; A INSTALAÇÃO SE CHAMA ARCHÉ** (`lib/produto.js`, decisão do dono
   set/2026: "Arché é uma referência direta ao fundador da AEE, Archibald — no contexto AEE é
   válido; mas estou vendo a possibilidade de comercializar o sistema com outras IES, e preciso de

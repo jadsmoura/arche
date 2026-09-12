@@ -8,7 +8,15 @@
 <link rel="stylesheet" href="/assets/arche-ui.css">
 <style>
   :root{--teal:var(--brand);--teal2:var(--brand-3);--cyan:var(--brand-2);--cyan-soft:var(--accent-wash)}
-  body{align-items:center;justify-content:center;padding:20px}
+  /* O recuo é dos FILHOS, não do body: a barra do topo é injetada aqui dentro
+     por arche-nav.js, e padding no body a descolaria das bordas — barra de topo
+     que não encosta na borda parece painel solto (set/2026). */
+  body{align-items:center}
+  body>div{margin:20px;max-width:calc(100% - 40px)}
+  /* a caixa fica no MEIO da sobra, e não o body inteiro centralizado: com
+     `justify-content:center` a barra do topo descia junto e ficava boiando */
+  .box{margin-top:auto}
+  .rodape{margin-bottom:auto}
   .box{position:relative;overflow:hidden;background:var(--card);border:1px solid var(--line);
     border-radius:18px;padding:36px 34px 30px;max-width:430px;width:100%;box-shadow:var(--shadow-lg);text-align:center}
   .box::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;

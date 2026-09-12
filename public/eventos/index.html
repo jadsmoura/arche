@@ -77,10 +77,16 @@ fetch("/api/publico/eventos").then(async (r) => {
     .sort((a, b) => String(b.periodoFim || "").localeCompare(String(a.periodoFim || "")));
   const cartao = (e) => `
     <a class="card" href="/eventos/${encodeURIComponent(e.slug)}" style="display:flex">
+      ${/* A inicial viaja num data-, não dentro do onerror: JSON.stringify põe
+            aspas DUPLAS num atributo já delimitado por aspas duplas — a
+            primeira delas fechava o atributo, o navegador recusava o resto
+            ("Unexpected end of input") e a capa que não abria ficava como
+            imagem quebrada em vez de cair na inicial. */""}
       ${e.temCapa
         ? `<div class="ev-capa"><img src="/api/publico/eventos/${encodeURIComponent(e.slug)}/capa"
-            alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),
-              {className:'ini', textContent:${JSON.stringify(String(e.nome || "?").trim().charAt(0).toUpperCase())}}))"></div>`
+            alt="" loading="lazy" data-ini="${esc(String(e.nome || "?").trim().charAt(0).toUpperCase())}"
+            onerror="this.replaceWith(Object.assign(document.createElement('span'),
+              {className:'ini', textContent:this.dataset.ini}))"></div>`
         : `<div class="ev-capa"><span class="ini">${esc(String(e.nome || "?").trim().charAt(0).toUpperCase())}</span></div>`}
       <div class="card-t" style="font-size:18px">${esc(e.nome)}</div>
       <div class="card-sub">${esc(e.curso)} · ${fmt(e.periodoInicio)} a ${fmt(e.periodoFim)}</div>

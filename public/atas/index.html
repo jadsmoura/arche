@@ -900,13 +900,13 @@ function renderEncaminhamentos() {
     <div class="card">
       <div class="card-t">Tarefas deliberadas em sessão</div>
       <div class="card-s">Extraídas automaticamente dos pontos de pauta das atas.</div>
-      ${ord.length ? `<table class="pt"><thead><tr><th>Ação</th><th>Responsável</th><th>Prazo</th><th>Origem</th></tr></thead>
+      ${ord.length ? `<div class="rolagem"><table class="pt"><thead><tr><th>Ação</th><th>Responsável</th><th>Prazo</th><th>Origem</th></tr></thead>
         <tbody>${ord.map((e) => `<tr>
           <td>${esc(e.acao)}<div class="muted">${esc(e.ponto)}</div></td>
           <td>${esc(e.responsavel || "—")}</td>
           <td class="${e.atrasado ? "bad" : ""}">${fmtD(e.prazo)}${e.atrasado ? " ⚠" : ""}</td>
           <td><a onclick="abrir('${e.ataId}')" style="cursor:pointer">${esc(e.numero || "ata")}</a>
-            <div class="muted">${esc(e.orgao)}</div></td></tr>`).join("")}</tbody></table>`
+            <div class="muted">${esc(e.orgao)}</div></td></tr>`).join("")}</tbody></table></div>`
         : '<div class="vazio">Nenhum encaminhamento registrado.</div>'}
     </div>`;
 }
@@ -1108,7 +1108,10 @@ async function renderConformidade() {
   const cicloInst = d.ciclos.filter((c) => !c.curso);
 
   el.innerHTML = `
-    <div class="kpis" style="grid-template-columns:repeat(5,1fr)">
+    ${/* sem style inline aqui: `.kpis` JÁ é repeat(5,1fr), e o inline vencia as
+         duas consultas de largura que descem para 2 colunas — no telefone as
+         cinco colunas ficavam com 473px e a página inteira rolava de lado. */""}
+    <div class="kpis">
       <div class="kpi"><div class="l">Checklist do semestre ${esc(d.janela)}</div><div class="v">${d.percentual}%</div>
         <div class="d">${d.emDia} de ${d.total} temas cobrados até ${fmtD(d.fimDaJanela)}</div></div>
       <div class="kpi"><div class="l">Sessões em falta</div>
@@ -1171,13 +1174,13 @@ async function renderConformidade() {
       <div class="card-t">Ciclo de sessões — semestre ${esc(d.janela)}</div>
       <div class="card-s">NDE, Colegiado e CPA devem registrar duas sessões ordinárias (abertura e encerramento);
         os demais órgãos, uma. Extraordinárias entram por demanda e não contam para o ciclo.</div>
-      <table class="pt"><thead><tr><th>Órgão</th><th>Ordinárias</th><th>Extraordinárias</th><th>Próxima sessão do ciclo</th><th>Situação</th></tr></thead>
+      <div class="rolagem"><table class="pt"><thead><tr><th>Órgão</th><th>Ordinárias</th><th>Extraordinárias</th><th>Próxima sessão do ciclo</th><th>Situação</th></tr></thead>
         <tbody>${cicloInst.map((c) => `<tr>
           <td>${esc(nomeOrgao(c.orgao))}</td>
           <td>${c.ordinarias}/${c.exigidas}</td><td>${c.extraordinarias}</td>
           <td>${c.completo ? "—" : esc(MOM_ROT(c.proximoMomento))}</td>
           <td><span class="badge ${c.completo ? "e-em-dia" : "e-nunca"}">${c.completo ? "ciclo cumprido" : "faltam " + c.faltam}</span></td>
-        </tr>`).join("")}</tbody></table>
+        </tr>`).join("")}</tbody></table></div>
       <div class="cnt">Por curso:</div>
       <div class="rolagem"><table class="matriz">
         <thead><tr><th class="esq">Órgão</th>${cursos.map((c) => `<th title="${esc(c.nome)}">${esc(c.sigla)}</th>`).join("")}</tr></thead>
@@ -1223,13 +1226,13 @@ async function renderConformidade() {
     <div class="card">
       <div class="card-t">Temas institucionais</div>
       <div class="card-s">CONSU, CONSEPE, CPA, PROPPEX, PROAC e Reitoria.</div>
-      <table class="pt"><thead><tr><th>Tema</th><th>Órgão</th><th>Quando</th><th>Última sessão</th><th>Situação</th></tr></thead>
+      <div class="rolagem"><table class="pt"><thead><tr><th>Tema</th><th>Órgão</th><th>Quando</th><th>Última sessão</th><th>Situação</th></tr></thead>
       <tbody>${inst.map((l) => { const c = l.celulas[0]; return `<tr>
         <td>${chipMomento(l.momento)}${esc(l.titulo)}
           <div class="muted">${l.refs.map((r) => `${r.inst === "curso" ? "Curso" : "IES"} ${r.num}`).join(" · ")}</div></td>
         <td>${esc(l.orgao)}</td><td>${esc(cadTexto(l))}</td>
         <td>${c?.ultima ? fmtD(c.ultima.data) : "—"}</td>
-        <td><span class="badge e-${c?.estado || "nunca"}">${ROT_ESTADO[c?.estado || "nunca"]}</span></td></tr>`; }).join("")}</tbody></table>
+        <td><span class="badge e-${c?.estado || "nunca"}">${ROT_ESTADO[c?.estado || "nunca"]}</span></td></tr>`; }).join("")}</tbody></table></div>
     </div>`;
 }
 const ritualTexto = (o) => {
@@ -1325,9 +1328,9 @@ function renderEditor(alvo) {
     <div class="card">
       <div class="card-t">Presenças</div>
       <div class="card-s">Membros, suplentes e convidados. O quórum e a lista de assinaturas da ata saem daqui.</div>
-      <table class="pt"><thead><tr><th style="width:30%">Nome</th><th style="width:22%">Cargo</th>
+      <div class="rolagem"><table class="pt"><thead><tr><th style="width:30%">Nome</th><th style="width:22%">Cargo</th>
         <th style="width:22%">E-mail</th><th style="width:12%">Condição</th><th style="width:14%">Presença</th><th></th></tr></thead>
-        <tbody id="tb-part"></tbody></table>
+        <tbody id="tb-part"></tbody></table></div>
       <div class="exp">
         <button class="bt bt-sec" ${ro} onclick="addParticipante()">＋ Adicionar participante</button>
         <button class="bt bt-ghost" ${ro} onclick="colarParticipantes()">📋 Colar lista de nomes</button>
@@ -1824,10 +1827,10 @@ function renderAssinaturas() {
     <div class="cnt" style="margin:2px 0 10px">${lista.length} assinante(s) ·
       ${comImagem} com assinatura guardada${semChave
         ? ` · ${semChave} sem e-mail e com nome de uma palavra só (assina à caneta)` : ""}</div>
-    ${lista.length ? `<table class="pt"><thead><tr>
+    ${lista.length ? `<div class="rolagem"><table class="pt"><thead><tr>
         <th style="width:32%">Assinante</th><th style="width:28%">Vínculo</th>
         <th style="width:40%">Assinatura</th></tr></thead><tbody>
-      ${lista.map((x) => linhaAssinatura(x, salvo)).join("")}</tbody></table>`
+      ${lista.map((x) => linhaAssinatura(x, salvo)).join("")}</tbody></table></div>`
       : `<div class="muted">Registre os presentes acima — a folha sai deles.</div>`}
     ${ASS_MSG ? `<div class="banner ba-${ASS_MSG.tipo}" style="margin-top:12px">${esc(ASS_MSG.texto)}</div>` : ""}
     <input type="file" id="as-arq" accept="image/png,image/jpeg" style="display:none">`;

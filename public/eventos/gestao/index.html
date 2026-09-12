@@ -2607,6 +2607,19 @@ function orfasDoVoucher(v,cats){
   const vivos=new Set((cats||[]).map(k=>k.codigo));
   return (v.categorias||[]).filter(c=>!vivos.has(c));
 }
+/* Apaga do voucher a restrição vencida. A lista das categorias VIVAS se lê aqui,
+   do estado, e não se escreve dentro do onclick: JSON.stringify de uma lista põe
+   aspas DUPLAS num atributo já delimitado por aspas duplas — a primeira delas
+   fechava o atributo e o link não fazia nada (é o mesmo defeito que travou a
+   paginação do portal inteiro em ago/2026). */
+function limparOrfasVou(i){
+  const v=EV_VOU[i]; if(!v) return false;
+  const a=ACOES.find(x=>x.id===ABERTO);
+  const vivos=new Set((a?.evento?.cobranca?.categorias||[]).map(k=>k.codigo));
+  v.categorias=(v.categorias||[]).filter(c=>vivos.has(c));
+  renderVouLista();
+  return false;
+}
 function renderVouLista(){
   const el=$("vou-lista"); if(!el) return;
   const a=ACOES.find(x=>x.id===ABERTO); const cats=a?.evento?.cobranca?.categorias||[];
@@ -2631,7 +2644,7 @@ function renderVouLista(){
       ⚠ Este voucher está preso a ${orfasDoVoucher(v,cats).length===1?"uma categoria que não existe":`${orfasDoVoucher(v,cats).length} categorias que não existem`} mais
       (${esc(orfasDoVoucher(v,cats).join(", "))}) — enquanto for assim, ele não vale para ninguém.
       Marque acima as categorias em que ele deve valer, ou
-      <a href="#" onclick="EV_VOU[${i}].categorias=EV_VOU[${i}].categorias.filter(c=>${JSON.stringify(cats.map(k=>k.codigo))}.includes(c));renderVouLista();return false">apague a restrição vencida</a>.
+      <a href="#" onclick="return limparOrfasVou(${i})">apague a restrição vencida</a>.
     </div>`:""}
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:8px">
       <label class="chk" style="margin:0;font-size:12.5px"><input type="checkbox" ${v.ativo?"checked":""} onchange="EV_VOU[${i}].ativo=this.checked"> ativo</label>

@@ -72,7 +72,18 @@
     var s = document.createElement("style");
     s.id = "arche-nav-css";
     s.textContent =
+      /* A BARRA OCUPA A LARGURA INTEIRA, QUALQUER QUE SEJA A PÁGINA (set/2026).
+         Ela é injetada no <body> de páginas que não a conhecem, e o `body` do
+         portal é `display:flex;flex-direction:column` — quem escreve
+         `align-items:center` ali (a tela de entrar, para centralizar a caixa
+         de login) centraliza TAMBÉM a barra, que então se dimensiona pelo
+         conteúdo: no computador virava um retângulo flutuante de 977px no meio
+         da tela, e no telefone ficava com 637px numa tela de 390, sobrando 123
+         para cada lado — e os 123 da ESQUERDA (a marca e o "Portal") não se
+         alcançam rolando. `align-self:stretch` desfaz o alinhamento do pai só
+         para ela; `box-sizing` é o par disso com o padding de 22px. */
       ".arche-topnav{position:sticky;top:0;z-index:9999;display:flex;align-items:center;gap:8px;" +
+      "align-self:stretch;width:100%;box-sizing:border-box;" +
       "padding:9px 22px;background:#1c3742;border-bottom:2px solid #40717e;" +
       "font-family:'Figtree','IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;flex-wrap:wrap}" +
       ".arche-topnav a{color:#fff;text-decoration:none;font-size:13px;font-weight:500;padding:6px 12px;" +

@@ -61,6 +61,9 @@ padding:7px 12px;cursor:pointer;font-size:12.8px}
 .ba-info{background:var(--wash);border:1px solid #bfe3ef;color:var(--brand)}
 .muted{color:var(--muted)}
 .tabela{width:100%;border-collapse:collapse}
+/* a tabela larga rola DENTRO da caixa; sem isto a página inteira rolava de lado
+   no telefone (o catálogo de cursos, com seis colunas) */
+.rolagem{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .tabela td,.tabela th{padding:8px 6px;border-top:1px solid var(--line);text-align:left;font-size:13.3px}
 .tabela th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-top:0}
 .selo{font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px}
@@ -116,6 +119,9 @@ text-transform:none;letter-spacing:0;border:1px solid var(--line);border-radius:
   </div>
 </div>
 
+<!-- a paginação vem ANTES do script que a usa: o atalho #acessos abre a guia
+     no carregamento, e carregá-la depois era uma corrida com a rede. -->
+<script src="/assets/arche-paginacao.js"></script>
 <script>
 const $=(id)=>document.getElementById(id);
 const esc=(s)=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -406,7 +412,7 @@ function vCursos(){
       e projetos gravados com ele: <b>desativar</b> o tira dos formulários novos e o histórico
       continua legível.</div>
     <div id="c-msg"></div>
-    <table class="tabela"><tr><th>Curso</th><th>Sigla</th><th>Coordenação</th><th>Pedagógico(a)</th><th>Situação</th><th></th></tr>
+    <div class="rolagem"><table class="tabela"><tr><th>Curso</th><th>Sigla</th><th>Coordenação</th><th>Pedagógico(a)</th><th>Situação</th><th></th></tr>
       ${D.catalogo.map(c=>{
         const comp=D.cursos[c.slug]||{};
         return `<tr>
@@ -420,7 +426,7 @@ function vCursos(){
           <button class="bt bt-xs ${c.ativo?"bt-err":""}" onclick="mudarAtivo('${esc(c.slug)}',${c.ativo?"false":"true"})">
           ${c.ativo?"desativar":"reativar"}</button></td>
       </tr>`;}).join("")}
-    </table>
+    </table></div>
   </div>
   <div class="card">
     <div class="card-t">Incluir curso</div>
@@ -625,7 +631,6 @@ async function gravarRel(email,setores,cursos){
 
 carregar();
 </script>
-<script src="/assets/arche-paginacao.js"></script>
 <script src="/assets/arche-nav.js"></script>
 </body>
 </html>

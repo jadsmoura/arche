@@ -159,13 +159,29 @@
      -------------------------------------------------------------------- */
   label { font-size: 12px; letter-spacing: .05em; }
 
+  /* E O RÓTULO QUE EMBRULHA O CAMPO TAMBÉM PRECISA ENCOLHER (set/2026, a
+     varredura por GUIA — o carregamento da página não alcançava estas telas).
+     Capar o seletor não bastou nos filtros da IC: o `<label>` que o contém é
+     `display:flex` (rótulo e caixa lado a lado) e vive numa linha `.filtros`
+     fora de qualquer `.card`, então a regra de baixo não o alcançava. Item de
+     flex nasce com `min-width:auto` e se recusa a ficar menor que o próprio
+     conteúdo: o rótulo ficava com 508px dentro de uma linha de 358 e a página
+     inteira rolava de lado nas guias Projetos, Bolsistas e Ensino Médio. Em
+     caixa comum `min-width:0` não muda nada (ali `auto` já vale 0) — ele só
+     age onde o defeito mora. */
+  label { min-width: 0; }
+
   /* --------------------------------------------------------------------
      4. O QUE É LARGO ROLA NO PRÓPRIO CONTÊINER
-     A medição não achou página rolando de lado — as tabelas grandes já
-     vivem dentro de caixas com rolagem. Esta regra é a rede: uma tabela
-     nova, escrita amanhã sem a caixa, rola dentro do card em vez de
-     empurrar a página inteira. `-webkit-overflow-scrolling` é o que dá
-     inércia à rolagem no iOS.
+     A tabela larga vai DENTRO de uma caixa com rolagem — é a regra do
+     portal, e o `.rolo` que o ARCHÉ IC já usa em toda tabela grande é a
+     forma dela. Aqui essa caixa ganha inércia no iOS.
+     Isto NÃO é uma rede automática, e não dá para ser: `display:block` numa
+     tabela faria a tabela estreita deixar de ocupar os 100% que ela declara,
+     e separar `thead` de `tbody` desalinharia as colunas. Quem escreve uma
+     tabela larga embrulha; a varredura por guia é o que encontra as que
+     ficaram sem embrulho (foi assim que saíram as do Acompanhamento das
+     atas, dos Agendamentos e do catálogo de cursos, em set/2026).
      -------------------------------------------------------------------- */
   .rolo, .rolo-tab, .tab-rolo {
     overflow-x: auto; -webkit-overflow-scrolling: touch;

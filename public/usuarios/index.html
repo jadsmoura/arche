@@ -129,6 +129,11 @@
   <div id="v-avisos" class="muted hide">Carregando…</div>
   <div id="ficha"></div>
 </main>
+<!-- os dois componentes vêm ANTES do script que os usa: render() e renderPainel()
+     rodam no carregamento, e carregá-los depois era uma corrida que a rede às
+     vezes ganhava ("ArchePag is not defined", lista em branco). -->
+<script src="/assets/arche-paginacao.js"></script>
+<script src="/assets/arche-filtros.js"></script>
 <script>
 const $=(id)=>document.getElementById(id);
 const esc=(s)=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -636,8 +641,6 @@ fetch("/api/usuarios").then(async r=>{
   render(await r.json());
 });
 </script>
-<script src="/assets/arche-paginacao.js"></script>
-<script src="/assets/arche-filtros.js"></script>
 <script src="/assets/arche-nav.js" defer></script>
 </body>
 </html>

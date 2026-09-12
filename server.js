@@ -161,7 +161,7 @@ import {
 } from "./lib/edital.js";
 import { gerarAlertas, resumoAlertas, porResponsavel } from "./lib/alertas.js";
 import { dataCivil, diaSerial, hojeLocalISO, horaLocalHHMM, semestreAnterior,
-  semestreCorrente, semestreDe } from "./lib/datas.js";
+  semestreCorrente, semestreDe, somaDias } from "./lib/datas.js";
 import { classificar as classificarBanda } from "./lib/banda.js";
 import { medir as medirBanda, diagnostico as diagnosticoBanda, zerar as zerarBanda,
   fecharMedicao } from "./lib/medidor.js";
@@ -275,7 +275,11 @@ app.use(express.text({ type: "text/plain", limit: "50mb" }));
 
 function stateKey(req) {
   const key = String(req.query.chave || req.body?.chave || "").trim();
-  if (!key) throw new Error("chave obrigatória");
+  // pedido sem chave é erro de QUEM CHAMA, não do servidor: 400. Antes caía no
+  // catch genérico e virava 500 — e um 500 na rota que o app compilado da
+  // Avaliação usa para TODA gravação é justamente o que faz um defeito de
+  // chamada parecer sistema fora do ar (set/2026).
+  if (!key) { const e = new Error("Informe a chave do estado."); e.status = 400; throw e; }
   return key;
 }
 
@@ -3008,7 +3012,9 @@ app.get("/api/estado", async (req, res) => {
     if (valor === null) return res.status(404).json({ error: "nf" });
     res.json({ key: chave, value: valor });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    console.error("Erro no estado:", error);
+    res.status(500).json({ error: "Não foi possível acessar o estado agora." });
   }
 });
 
@@ -3071,7 +3077,9 @@ app.put("/api/estado", async (req, res) => {
     await storage.set(chave, valor);
     res.json({ key: chave, value: valor || "" });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    console.error("Erro no estado:", error);
+    res.status(500).json({ error: "Não foi possível acessar o estado agora." });
   }
 });
 
@@ -3104,7 +3112,9 @@ app.delete("/api/estado", async (req, res) => {
     await storage.del(chave);
     res.json({ key: chave, deleted: true });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    console.error("Erro no estado:", error);
+    res.status(500).json({ error: "Não foi possível acessar o estado agora." });
   }
 });
 
@@ -3115,7 +3125,9 @@ app.get("/api/estado/list", async (req, res) => {
       .filter((k) => !CHAVES_INTERNAS.test(k));
     res.json({ keys });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    console.error("Erro no estado:", error);
+    res.status(500).json({ error: "Não foi possível acessar o estado agora." });
   }
 });
 
