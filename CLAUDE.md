@@ -3461,6 +3461,28 @@ public/
   registro dele só ganha CPF quando ele mesmo preenche a guia Bolsa), então entrar pela conta que
   tem o CPF não lhe mostraria o projeto nenhum. A promessa de que "os seus projetos estão lá" vale
   para o professor com projeto importado, não para quem chegou por convite.
+  **E O CASO DELA SE RESOLVEU PELO PEDIDO DE ARRANQUE** (`removerPorNome`/`manterExato` em
+  `FUSOES_SOLICITADAS`, marca `sys-fusao-mariana-v1` — o dono, set/2026: "resolva o caso"). A
+  correção acima abre o caminho para quem CHEGAR daqui em diante; ela já estava travada, e a
+  conta dela nem aparecia em "Cadastros repetidos" para a gestão juntar. O mecanismo de fusão
+  pedida ao sistema existia para o oposto — a ORIGEM conhecida e o destino a encontrar (Claudia,
+  Luana) —, e aqui o conhecido é o **DESTINO**: ela escreveu pela joaninha ESTANDO na conta do
+  convite (`marianapaiva1@icloud.com`), e o endereço da outra ninguém sabe. Daí as duas marcas
+  novas do pedido: `removerPorNome` procura a origem entre as contas do portal pelo NOME dela e
+  pelo fato que define a queixa — **ter CPF gravado** —, com a régua de sempre
+  (`nomesCompativeis`, o nome curto cabendo no longo), e `manterExato` recusa adivinhar o destino
+  por domínio. **Só com UMA candidata**: zero ou duas e nada acontece, o pedido fica de pé e o
+  card de `/usuarios/` nomeia as candidatas para a gestão escolher — fundir a conta de um
+  homônimo não se desfaz.
+  O destino é o do CONVITE por uma razão que o caso dela deixa clara: **ela é bolsista do ICEM**
+  (turma 2026/2027, 2º ano do ensino médio), e o registro do ICEM conhece o e-mail dela e **não
+  tem CPF** — juntar na outra conta a deixaria fora do próprio programa, com o painel vazio de
+  docente que este arquivo já registra. Ensaiado em servidor isolado nos três retratos: destino
+  SEM perfil (o real — ela nunca conseguiu salvar), destino com perfil e sem CPF (depois da
+  correção acima) e duas contas com o mesmo nome. Nos dois primeiros o CPF passa para a conta do
+  convite, a outra sai das listas, `GET /pesquisa/ic/` responde 200 (antes: 302 para
+  `/perfil/?completar=1`) e `perfilIC` devolve **"em"** — a guia do Ensino Médio, que é para onde
+  o e-mail a mandava. No terceiro nada se move.
 - **O PRÉ-CADASTRO QUE NÃO É DA PESSOA SE DESMENTE COM O PRÓPRIO CPF** (`desligarPreCadastro` +
   `emailDoFormularioEhDeAluno` em lib/ic.js, o ramo `preCadastroAlheio` do `POST /api/perfil`,
   o cartão `#pre-cadastro` do `/perfil/` e a chave `sys-precadastros-desligados-v1` — relato de

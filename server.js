@@ -2709,6 +2709,32 @@ const FUSOES_SOLICITADAS = [{
        orientação e a autoria se movem — o vínculo de aluno, se houver, é da
        estudante e fica. */
     contasExplicitas: true, semCpfDaOrigem: true, soOrientacao: true,
+  }, {
+    /* A estudante Mariana (set/2026, relato pela joaninha): "criei uma conta
+       aqui com o meu CPF em outro e-mail, sem ser o pedido, e agora não estou
+       conseguindo criar a conta com o e-mail que vocês pediram".
+
+       Aqui o conhecido é o DESTINO, não a origem — o contrário dos dois
+       pedidos acima. Ela escreveu ESTANDO na conta do convite
+       (marianapaiva1@icloud.com, o endereço que o relato carrega), e a conta
+       que sai é a que ela criou antes, cujo endereço ninguém sabe. Por isso
+       `removerPorNome`: a origem se procura entre as contas do portal pelo
+       NOME dela e pelo fato que define a queixa — **ter um CPF gravado** —,
+       nunca por endereço adivinhado, e só com UMA candidata. Zero ou duas e
+       NADA acontece: o pedido fica de pé, dito no log e no card de
+       /usuarios/, onde a gestão resolve com o nome à vista.
+
+       O destino FICA sendo o do convite: é por esse e-mail que o registro
+       dela existe na IC (o aluno indicado se reconhece pelo e-mail — o CPF
+       só entra no registro quando ele mesmo preenche a guia Bolsa), então
+       juntar na outra conta a deixaria fora do próprio projeto. */
+    marca: "sys-fusao-mariana-v1",
+    remover: "",
+    removerPorNome: true,
+    manter: "marianapaiva1@icloud.com",
+    manterExato: true,
+    nomeCompleto: "Mariana Almeida Paiva",
+    nome: ["mariana", "paiva"],
   }];
 /* O que aconteceu com cada pedido na ÚLTIMA tentativa (arranque ou pedido da
    gestão pela rota): fica em memória e sai em GET /api/usuarios/fusoes. É o que
@@ -2745,6 +2771,36 @@ async function tentarFusaoSolicitada(f, por = "arranque (pedido do dono)") {
       // projetos dela dizem de quem orienta
       const nomeDe = (e) => perfis[e]?.nome
         || projetos.find((p) => baixo(p.orientador?.email) === e || baixo(p.criadoPor) === e)?.orientador?.nome || "";
+      /* Origem por NOME (quando quem se conhece é o DESTINO): a conta que sai
+         é a que carrega o nome da pessoa E tem CPF gravado — que é o fato da
+         queixa, "o meu CPF está na outra conta". Nunca o endereço adivinhado,
+         e só com UMA candidata: fundir a conta de um homônimo é irreversível,
+         e esperar custa um pedido de pé. O nome se compara pela régua de
+         sempre (`nomesCompativeis`: o mais curto cabe no mais longo, na mesma
+         ordem), senão "Mariana Paiva" no cadastro não casaria com o nome
+         completo do relato. */
+      if (!f.remover && f.removerPorNome) {
+        const alvo = chaveNome(f.nomeCompleto || "");
+        const cand = [...conhecidas].filter((e) => e !== baixo(f.manter)
+          && String(perfis[e]?.cpf || "").replace(/\D/g, "").length === 11
+          && nomesCompativeis(chaveNome(nomeDe(e)), alvo));
+        if (cand.length === 1) f.remover = cand[0];
+        else {
+          console.log(`[fusao] ${f.marca}: ${cand.length} conta(s) com o nome "${f.nomeCompleto}" e CPF`
+            + ` (${cand.join(", ") || "nenhuma"}) — pedido mantido`);
+          return registrar("mantido", cand.length
+            ? `${cand.length} contas com esse nome e CPF (${cand.join(", ")}) — a gestão escolhe qual sai`
+            : `nenhuma outra conta com o nome "${f.nomeCompleto}" e CPF gravado`);
+        }
+      }
+      /* Destino EXATO: o endereço veio do próprio relato da pessoa, que
+         escreveu estando nele. Não existindo no portal, o pedido espera — a
+         busca por domínio acharia "alguma conta @icloud.com", que é
+         exatamente o que não se quer. */
+      if (f.manterExato && !conhecidas.has(baixo(f.manter))) {
+        console.log(`[fusao] ${f.marca}: destino ${f.manter} não encontrado — pedido mantido`);
+        return registrar("mantido", `destino ${f.manter} não encontrado entre as contas do portal`);
+      }
       /* Origem por PREFIXO (quando o endereço veio de um print): a conta
          que sai é a que começa com o prefixo, no domínio dito, e tem o
          NOME da pessoa — e só com UMA candidata. */
