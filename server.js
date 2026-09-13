@@ -1162,6 +1162,7 @@ app.post("/api/perfil", async (req, res) => {
      o titular do CPF. Fica registrado e a coordenação é avisada. */
   const preCadastroAlheio = !!antes.preCadastro && !!antes.cpf;
   let desligado = null;
+  let duplicado = null;
   if (b.cpf !== undefined && soDigitos(b.cpf) !== soDigitos(antes.cpf)) {
     const novo = normalizarCpf(b.cpf);
     if (soDigitos(b.cpf) && !novo) return res.status(400).json({ error: "CPF inválido" });
@@ -1194,14 +1195,22 @@ app.post("/api/perfil", async (req, res) => {
       delete perfis[dono[0]];
       console.log(`[perfil] pré-cadastro de ${dono[0]} transferido para ${u.email} (mesmo CPF)`);
     } else if (novo && dono) {
-      return res.status(409).json({
-        error: `Este CPF já está cadastrado na conta ${mascararEmail(dono[0])}. Se ela é sua, entre por `
-          + "ela — os seus projetos estão lá. Se você tem duas contas no portal, a PROPPEX junta as duas "
-          + "sem perder nada (gestão de acessos → juntar cadastros). E se você está tentando cadastrar "
-          + "outra pessoa, é ela quem entra com o e-mail dela e preenche o próprio perfil.",
-      });
+      /* O CPF É DE OUTRA CONTA — e o que não pode acontecer é a recusa levar
+         junto tudo o que a pessoa digitou (relato de uma estudante, set/2026:
+         "criei uma conta com o meu CPF em outro e-mail, e agora não consigo
+         criar a conta com o e-mail que vocês pediram"). A recusa devolvia 409
+         ANTES de gravar qualquer coisa: o nome dela nunca chegava ao portal —
+         e sem nome a conta não aparece em "Cadastros repetidos" nem passa por
+         `podeFundir`, que exige o nome dos dois lados. Ou seja: a saída que a
+         própria mensagem anunciava ("a PROPPEX junta as duas") era a única
+         que o defeito tornava impossível.
+         Agora o cadastro é GRAVADO sem o CPF. Não destrava nada — `faltaNoPerfil`
+         continua exigindo o CPF, e a etapa segue barrando os setores —, mas a
+         conta passa a ter nome: a duplicidade aparece para a gestão, a fusão
+         fica possível e a pessoa não redigita o formulário inteiro. */
+      duplicado = { conta: dono[0] };
     }
-    cpf = novo;
+    if (!duplicado) cpf = novo;
   }
 
   // o pré-cadastro de OUTRA pessoa não deixa nada na conta de quem a desmentiu
@@ -1233,6 +1242,24 @@ app.post("/api/perfil", async (req, res) => {
     atualizadoEm: new Date().toISOString(),
   };
   await storage.set(PERFIS_KEY, JSON.stringify(perfis));
+
+  /* Gravado o resto, a recusa do CPF é dita com as DUAS saídas: entrar pela
+     outra conta (é o caminho mais curto — o CPF está lá, e é por ele que os
+     setores reconhecem a pessoa) ou pedir que a PROPPEX junte as contas. A
+     outra conta sai MASCARADA: o CPF pode ser de outra pessoa mesmo, e a
+     tela não pode virar um jeito de descobrir o e-mail de quem o tem. */
+  if (duplicado) {
+    return res.status(409).json({
+      guardado: true,
+      duplicada: { conta: mascararEmail(duplicado.conta) },
+      falta: ["cpf"],
+      error: `Guardamos o resto do seu cadastro, mas o CPF não entrou: ele já está na conta `
+        + `${mascararEmail(duplicado.conta)}. Se as duas contas são suas, peça abaixo que a PROPPEX `
+        + "junte as duas — nada se perde, e o CPF passa para a conta que você quiser usar. Se você "
+        + "prefere usar a outra conta, basta entrar por ela. E se você está cadastrando OUTRA "
+        + "pessoa, é ela quem entra com o e-mail dela e preenche o próprio perfil.",
+    });
+  }
 
   // Com o CPF conhecido, os projetos importados da submissão anterior passam
   // a ter dono: o e-mail é escrito no projeto e ele aparece para o professor
@@ -1292,6 +1319,79 @@ app.post("/api/perfil", async (req, res) => {
     }
   }
   res.json({ ok: true, perfil: perfis[u.email], projetosVinculados: vinculados, preCadastroDesligado });
+});
+
+/* ================== PEDIDO DE JUNÇÃO DE DUAS CONTAS =====================
+   A recusa acima explica que a PROPPEX junta as contas — e, até aqui, não
+   havia como PEDIR isso. A pessoa ficava com uma instrução endereçada a
+   outro alguém: ou descobria a joaninha do feedback (foi assim que o caso
+   chegou), ou desistia.
+
+   O pedido é DELIBERADO, nunca automático: o CPF que ela digitou pode ser
+   mesmo de outra pessoa (o caso que a própria mensagem prevê — alguém
+   cadastrando o aluno indicado no próprio perfil), e declarar sozinho que
+   duas contas são a mesma pessoa seria decidir por ela. Quem aperta o botão
+   afirma que as duas são suas.
+
+   E o pedido não funde nada: ele chega à gestão NO LUGAR onde a fusão
+   acontece (o card de /usuarios/, ao lado do botão que já existia), com as
+   duas contas nomeadas. A diferença entre "a PROPPEX leu uma mensagem" e
+   "a PROPPEX tem um clique para resolver". */
+const JUNCOES_KEY = "sys-juncoes-pedidas-v1";
+const lerJuncoes = async () => {
+  try { return JSON.parse((await storage.get(JUNCOES_KEY)) || "[]") || []; } catch { return []; }
+};
+/* o nome é autodeclarado: vai escapado no corpo do e-mail que a gestão abre */
+const escHtml = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+app.post("/api/perfil/juntar-contas", async (req, res) => {
+  const u = await usuarioDe(req);
+  if (!u) return res.status(401).json({ error: "não autenticado" });
+  const cpf = normalizarCpf(req.body?.cpf);
+  if (!cpf) return res.status(400).json({ error: "Informe o CPF da outra conta." });
+
+  const perfis = await carregarPerfis();
+  const dono = Object.entries(perfis).find(([mail, p]) => mail !== u.email && p?.cpf && p.cpf === cpf);
+  /* Sem dono não há o que juntar — e a resposta não diz mais do que isso: uma
+     mensagem diferente para "existe mas não é seu" faria desta rota um jeito
+     de descobrir, por tentativa, de quem é um CPF. */
+  if (!dono) return res.status(400).json({ error: "Nenhuma outra conta tem este CPF." });
+  if (perfis[u.email]?.cpf === cpf) return res.status(400).json({ error: "O CPF já está nesta conta." });
+
+  const lista = await lerJuncoes();
+  const igual = (x) => x.conta === u.email && x.outra === dono[0];
+  const antes = lista.find(igual);
+  const registro = {
+    conta: u.email, outra: dono[0],
+    nome: String(perfis[u.email]?.nome || u.nome || "").slice(0, 120),
+    nomeOutra: String(dono[1]?.nome || "").slice(0, 120),
+    em: new Date().toISOString(), desde: antes?.desde || new Date().toISOString(),
+  };
+  await storage.set(JUNCOES_KEY,
+    JSON.stringify([registro, ...lista.filter((x) => !igual(x))].slice(0, 200)));
+
+  /* Pedir de novo não manda outro e-mail no mesmo dia: o registro em
+     /usuarios/ já está de pé, e repetir a cobrança na caixa da gestão não
+     apressa nada. */
+  const repetido = antes && (Date.now() - Date.parse(antes.em || 0)) < 24 * 3600 * 1000;
+  if (!repetido) {
+    const base = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
+    enviarAviso("auth-juntar-contas", {
+      para: process.env.FEEDBACK_EMAIL || "jadson.moura@uniego.edu.br",
+      assunto: `[ARCHÉ] Pedido de junção de contas — ${registro.nome || u.email}`,
+      corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:640px">
+        <p><b>${escHtml(registro.nome || u.email)}</b> diz que estas duas contas são dela e pede que sejam juntadas:</p>
+        <ul>
+          <li>conta em que está agora: <b>${escHtml(u.email)}</b></li>
+          <li>conta com o CPF: <b>${escHtml(dono[0])}</b>${dono[1]?.nome ? ` (${escHtml(dono[1].nome)})` : ""}</li>
+        </ul>
+        <p>O pedido está em <a href="${base}/usuarios/">gestão de acessos</a>, com o botão de juntar ao lado.
+          A junção mostra antes o que passa de uma conta para a outra, e não se desfaz sozinha.</p></div>`,
+    }).catch((e) => console.error("[juncao] e-mail não enviado:", e.message));
+  }
+  console.log(`[juncao] ${u.email} pediu a junção com ${dono[0]}`);
+  res.json({ ok: true, outra: mascararEmail(dono[0]) });
 });
 
 // Foto do perfil. O navegador já envia a imagem redimensionada; aqui só
@@ -2292,6 +2392,11 @@ app.get("/api/usuarios/painel", async (req, res) => {
       // uma decisão registrada do dono.
       duplicidades: duplicidadesPorNome(lista)
         .filter((d) => !d.contas.every((c) => ehGestorFixo(c.email))),
+      /* Os pedidos de junção feitos pelas próprias pessoas. Vêm à parte da
+         detecção por nome: aqui não é o sistema que suspeita, é alguém que
+         AFIRMOU que as duas contas são dela — e por isso a lista continua
+         valendo mesmo quando os nomes não se parecem. */
+      juncoes: (await lerJuncoes()).slice(0, 50),
     });
   } catch (e) {
     console.error("Erro no painel de usuários:", e);
@@ -2448,6 +2553,14 @@ async function executarFusao({ manter, remover, por, simular = false, destinoSem
     const semEla = novos.filter((c) => String(c?.email || "").trim().toLowerCase() !== remover);
     if (semEla.length !== novos.length) await storage.set(CADASTROS_KEY, JSON.stringify(semEla));
   } catch { /* lista ilegível não trava a fusão */ }
+  /* O pedido de junção que envolvia qualquer uma das duas contas está
+     atendido: sai da fila da gestão, senão ficaria pedindo o que já foi
+     feito. */
+  try {
+    const pedidos = await lerJuncoes();
+    const abertos = pedidos.filter((x) => ![x.conta, x.outra].some((e) => e === manter || e === remover));
+    if (abertos.length !== pedidos.length) await storage.set(JUNCOES_KEY, JSON.stringify(abertos));
+  } catch { /* fila ilegível não trava a fusão */ }
   // o registro do que foi feito, com o perfil removido inteiro: fusão não se
   // desfaz sozinha, e sem isto não haveria como reconstruir à mão
   const log = JSON.parse((await storage.get(FUSOES_KEY)) || "[]");
@@ -2467,6 +2580,21 @@ app.post("/api/usuarios/fundir", async (req, res) => {
   const r = await executarFusao({ manter, remover, por: g.email, simular });
   if (r.error) return res.status(400).json({ error: r.error });
   res.json(simular ? { simulado: true, ...r.resumo } : { ok: true, ...r.resumo });
+});
+
+/* Nem todo pedido de junção procede: o CPF pode ser mesmo de outra pessoa.
+   Dispensar tira o pedido da fila sem fundir nada — a conta continua como
+   está, e quem pediu continua podendo pedir de novo. */
+app.delete("/api/usuarios/juncao", async (req, res) => {
+  const g = await exigirGestor(req, res); if (!g) return;
+  const conta = String(req.query?.conta || "").trim().toLowerCase();
+  const outra = String(req.query?.outra || "").trim().toLowerCase();
+  const pedidos = await lerJuncoes();
+  const restam = pedidos.filter((x) => !(x.conta === conta && x.outra === outra));
+  if (restam.length === pedidos.length) return res.status(404).json({ error: "Pedido não encontrado." });
+  await storage.set(JUNCOES_KEY, JSON.stringify(restam));
+  console.log(`[juncao] pedido de ${conta} dispensado por ${g.email}`);
+  res.json({ ok: true });
 });
 
 /* "Verifique se fundiu" (o dono, set/2026): a fusão de arranque escreve no LOG

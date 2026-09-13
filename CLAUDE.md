@@ -3423,6 +3423,44 @@ public/
   `propagarCpfOrientadores` espalha o CPF conhecido do professor pelos ciclos antigos
   (transcritos só com o nome), trocando o vínculo fraco por nome pela chave forte.
   O painel de usuários marca quem ainda não reivindicou.
+- **O CPF QUE ESTÁ EM OUTRA CONTA: A RECUSA GUARDA O CADASTRO E CARREGA O PEDIDO DE JUNÇÃO**
+  (`duplicado` no `POST /api/perfil` + `POST /api/perfil/juntar-contas` + `sys-juncoes-pedidas-v1`
+  + o card "Junções pedidas pelos usuários" em `/usuarios/`, aviso `auth-juntar-contas` — relato de
+  uma estudante pela joaninha, set/2026: "criei uma conta aqui com o meu CPF em outro e-mail, sem
+  ser o pedido, e agora não estou conseguindo criar a conta com o e-mail que vocês pediram"). É o
+  caminho mais comum de quem chega por convite: o e-mail do edital vai para um endereço, a pessoa
+  cria conta por outro, e o CPF — único por conta, que é o que impede a segunda conta de herdar os
+  projetos da primeira — fica do lado errado. A recusa estava certa; o que estava errado era o que
+  ela fazia com o resto.
+  **Ela devolvia 409 ANTES de gravar qualquer coisa.** O nome da estudante nunca chegava ao portal —
+  e sem nome a conta não aparece em "Cadastros repetidos" (`duplicidadesPorNome` só agrupa nome com
+  duas palavras ou mais) nem passa por `podeFundir`, que exige o nome dos DOIS lados. Ou seja: a
+  saída que a própria mensagem anunciava ("a PROPPEX junta as duas — gestão de acessos → juntar
+  cadastros") era exatamente a que o defeito tornava impossível. Reproduzido no servidor local com o
+  código anterior: perfil não gravado, par ausente do card da gestão, e a fusão pedida à mão
+  recusada com "As duas contas precisam ter o nome preenchido para serem fundidas".
+  Agora o cadastro é **GRAVADO sem o CPF**. Não destrava nada — `faltaNoPerfil` continua exigindo o
+  CPF e a etapa segue barrando os setores —, mas a conta passa a ter nome: a duplicidade aparece
+  para a gestão, a fusão fica possível, e a pessoa não redigita o formulário inteiro. E a recusa
+  ganhou o que faltava: o botão **"As duas contas são minhas — pedir a junção"**, que registra o
+  pedido e o entrega à PROPPEX **no lugar onde a fusão acontece** — o card de `/usuarios/`, ao lado
+  do botão que já existia, com as duas contas nomeadas e o "Dispensar" para o pedido que não
+  procede. É a diferença entre "a PROPPEX leu uma mensagem" e "a PROPPEX tem um clique para
+  resolver".
+  Quatro decisões: o pedido é **DELIBERADO, nunca automático** (o CPF digitado pode ser mesmo de
+  outra pessoa — é o caso que a própria mensagem prevê, alguém cadastrando o aluno indicado no
+  próprio perfil —, e declarar sozinho que duas contas são a mesma pessoa seria decidir por ela);
+  a outra conta sai **MASCARADA** na tela e a rota do pedido responde a mesma frase para "não
+  existe" e "não é seu", senão ela viraria um jeito de descobrir, por tentativa, de quem é um CPF;
+  **pedir de novo não manda outro e-mail no mesmo dia** (o registro já está de pé); e o pedido
+  **não funde nada** — some da fila quando a gestão funde ou dispensa. O card vem **antes** da
+  detecção por nome e é outra coisa: ali o sistema suspeita, aqui alguém AFIRMOU — por isso o
+  pedido aparece mesmo quando os nomes não se parecem, e por isso ele tem de ser conferido.
+  A ordem do texto na tela também é decisão: **juntar vem primeiro**. Trocar de conta só resolve
+  para quem prefere mesmo a outra — o aluno INDICADO é reconhecido no projeto pelo **e-mail** (o
+  registro dele só ganha CPF quando ele mesmo preenche a guia Bolsa), então entrar pela conta que
+  tem o CPF não lhe mostraria o projeto nenhum. A promessa de que "os seus projetos estão lá" vale
+  para o professor com projeto importado, não para quem chegou por convite.
 - **O PRÉ-CADASTRO QUE NÃO É DA PESSOA SE DESMENTE COM O PRÓPRIO CPF** (`desligarPreCadastro` +
   `emailDoFormularioEhDeAluno` em lib/ic.js, o ramo `preCadastroAlheio` do `POST /api/perfil`,
   o cartão `#pre-cadastro` do `/perfil/` e a chave `sys-precadastros-desligados-v1` — relato de

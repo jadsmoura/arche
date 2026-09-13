@@ -224,6 +224,11 @@
     <button class="bt bt-ghost" onclick="sair()">Sair da conta</button>
     <span class="msg" id="msg"></span>
   </div>
+
+  <!-- O CPF está em OUTRA conta: a recusa precisa carregar as saídas, senão
+       ela é uma instrução endereçada a outro alguém ("a PROPPEX junta as
+       duas") e quem lê fica sem clique nenhum. -->
+  <div id="dup" class="oculto"></div>
 </main>
 
 <footer>
@@ -467,8 +472,12 @@ async function salvar(){
     if(!r.ok){
       // o servidor diz exatamente o que falta: a tela aponta nos campos
       if(Array.isArray(j.falta)) marcarEtapa(j.falta.map(c=>({campo:c,rotulo:c})));
+      // o caso do CPF duplicado se explica no card abaixo: repetir o texto
+      // inteiro aqui em vermelho enterraria o próprio card
+      if(j.duplicada){ mostrarDuplicada(j.duplicada,dados.cpf); throw new Error("O CPF não entrou — veja abaixo."); }
       throw new Error(j.error||"falha ao salvar");
     }
+    mostrarDuplicada(null);
     ME.perfil=j.perfil;
     marcarEtapa([]);                 // completo: a etapa some
     mostrarPreCadastro(j.perfil);    // reivindicado ou desligado: o aviso some
@@ -486,6 +495,46 @@ async function salvar(){
   }catch(e){
     $("bt").disabled=false; $("msg").style.color="var(--err)"; $("msg").textContent=e.message;
   }
+}
+
+/* ------------------- o CPF está em outra conta -------------------------- *
+   Duas saídas, e a ordem importa: JUNTAR vem primeiro porque é o que resolve
+   o caso comum — quem chegou aqui foi convidado NESTE e-mail (o edital, a
+   indicação do orientador, o convite do monitor), e é por ele que o registro
+   dela existe; o CPF está do outro lado por engano. Trocar de conta só
+   resolve para quem prefere mesmo a outra. O botão AFIRMA que as duas são
+   suas — ninguém pede em nome de ninguém, e o pedido não funde nada sozinho:
+   quem decide, vendo as duas contas, é a PROPPEX. */
+function mostrarDuplicada(d,cpf){
+  const cx=$("dup");
+  if(!d){ cx.classList.add("oculto"); cx.innerHTML=""; return; }
+  cx.innerHTML=`<div class="card" style="border-color:#c98a2b;background:#fffdf7">
+    <h2 style="margin-top:0">O seu CPF está em outra conta</h2>
+    <p style="font-size:13.5px">Ele está em <b>${escHtml(d.conta)}</b>. Guardamos o resto do cadastro que
+      você acabou de preencher — só o CPF não entrou, e um CPF não pode estar em duas contas.</p>
+    <p style="font-size:13.5px"><b>Se as duas contas são suas</b>, peça abaixo que a PROPPEX junte as
+      duas: nada se perde — projetos, ações e atas passam para a conta que ficar, e o CPF vem junto.
+      É o caminho de quem foi convidado <i>neste</i> e-mail e quer continuar nele.</p>
+    <p style="font-size:13.5px"><b>Se você prefere usar a outra conta</b>, basta entrar por ela.</p>
+    <div class="barra" style="margin-top:12px">
+      <button class="bt bt-pri" id="bt-jun" onclick="pedirJuncao('${String(cpf||"").replace(/\D/g,"")}')">As duas contas são minhas — pedir a junção</button>
+      <button class="bt bt-ghost" onclick="sair()">Entrar pela outra conta</button>
+      <span class="msg" id="msg-jun"></span>
+    </div></div>`;
+  cx.classList.remove("oculto");
+  cx.scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+async function pedirJuncao(cpf){
+  const b=$("bt-jun"), m=$("msg-jun");
+  b.disabled=true; m.style.color="var(--muted)"; m.textContent="Enviando…";
+  try{
+    const r=await fetch("/api/perfil/juntar-contas",{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify({cpf})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||"falha ao enviar");
+    m.style.color="var(--ok)";
+    m.textContent="✓ Pedido enviado à PROPPEX. Você será avisado quando as contas forem juntadas.";
+  }catch(e){ b.disabled=false; m.style.color="var(--err)"; m.textContent=e.message; }
 }
 
 /* ------------------------------ foto ---------------------------------- */

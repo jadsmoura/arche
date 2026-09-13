@@ -454,7 +454,7 @@ function renderPainel(){
   const semNome=PAINEL.usuarios.filter(u=>!u.temPerfil).length;
   const pg=ArchePag.recorte("us-painel",lista,renderPainel);
 
-  $("v-usuarios").innerHTML=blocoFusoesPedidas()+blocoDuplicidades()+`
+  $("v-usuarios").innerHTML=blocoFusoesPedidas()+blocoJuncoes()+blocoDuplicidades()+`
     <div class="card">
       <div class="filtros-u">
         <input placeholder="🔎 Buscar por nome, e-mail ou curso" value="${esc(FU.q)}"
@@ -514,6 +514,41 @@ function renderPainel(){
    institucional; pré-cadastro do edital num endereço que ela não usa mais).
    O sistema APONTA pelo nome — quem funde é a gestão, dizendo qual conta
    fica, depois de ver o que sai de uma para a outra. */
+/* ------------------- junções pedidas pelas pessoas ---------------------- *
+   Vem ANTES da detecção por nome, e é outra coisa: ali o sistema suspeita
+   (mesmo nome em duas contas); aqui alguém AFIRMOU que as duas são dela,
+   depois de esbarrar no CPF ao completar o cadastro. Por isso o pedido
+   aparece mesmo quando os nomes não se parecem — e por isso ele tem de ser
+   conferido antes de fundir: quem pediu pode ter digitado o CPF de outra
+   pessoa. O botão é o MESMO da fusão, com a prévia do que se move. */
+function blocoJuncoes(){
+  const js=PAINEL.juncoes||[];
+  if(!js.length) return "";
+  const quando=(s)=>{ const d=new Date(s); return isNaN(d)?"":d.toLocaleDateString("pt-BR"); };
+  return `<div class="card" style="border-color:#c98a2b;background:#fffdf7">
+    <div class="card-t">Junções pedidas pelos usuários — ${js.length}</div>
+    <div class="card-s">Quem tentou completar o cadastro e esbarrou no próprio CPF, já gravado em
+      outra conta, pediu daqui que as duas fossem juntadas. Confira que é mesmo a mesma pessoa:
+      um CPF digitado errado chega aqui igual. A junção mostra antes o que passa de uma para a outra.</div>
+    ${js.map(j=>`<div class="linha-dup">
+      <div style="flex:1;min-width:0">
+        <div class="nm">${esc(j.nome||j.conta)}${j.em?` <span class="muted" style="font-weight:400">· pedido em ${quando(j.em)}</span>`:""}</div>
+        <div class="em">está em <b>${esc(j.conta)}</b> &nbsp;|&nbsp; CPF na conta <b>${esc(j.outra)}</b>${
+          j.nomeOutra?` (${esc(j.nomeOutra)})`:""}</div>
+      </div>
+      <button class="bt bt-sec" onclick="abrirFusao('${esc(j.conta)}','${esc(j.outra)}')">Juntar…</button>
+      <button class="bt bt-ghost" onclick="dispensarJuncao('${esc(j.conta)}','${esc(j.outra)}')">Dispensar</button>
+    </div>`).join("")}
+  </div>`;
+}
+async function dispensarJuncao(conta,outra){
+  if(!confirm(`Dispensar o pedido de ${conta}?\n\nNada é fundido e as contas ficam como estão.`)) return;
+  const r=await fetch(`/api/usuarios/juncao?conta=${encodeURIComponent(conta)}&outra=${encodeURIComponent(outra)}`,
+    {method:"DELETE"});
+  if(!r.ok){ const j=await r.json().catch(()=>({})); alert(j.error||"Não foi possível dispensar."); return; }
+  await carregarPainel();
+}
+
 function blocoDuplicidades(){
   const dups=PAINEL.duplicidades||[];
   if(!dups.length) return "";
