@@ -2134,14 +2134,19 @@ app.get("/api/publico/ic/resultado.pdf", async (req, res) => {
     const projetos = todos
       .filter((p) => String(p.edital || EDITAL.numero) === numero && p.status !== "rascunho")
       .map((p) => resumirProjeto(p, neutro));
-    const { gerarResultadoEditalPdf } = await import("./lib/pdf.js");
+    const assinaturas = await assinaturasParaPdf();
+    const fase = pub.fase || "final";
     // o público baixa a fase que a PROPPEX publicou: preliminar ou final
-    const buffer = await gerarResultadoEditalPdf({
-      edital: numero === EDITAL.numero ? EDITAL : { numero }, projetos, emitidoPor: "",
-      fase: pub.fase || "final", assinaturas: await assinaturasParaPdf(),
-    });
-    arquivarDocumento({ buffer, pasta: `Iniciação Científica/Resultados/${anoDaPasta(numero)}`,
-      nome: `resultado-${slug(numero)}-${slug(pub.fase || "final")}.pdf` });
+    const { buffer, novo: gerado } = await pdfPublicoEmCache("ic-resultado",
+      [numero, fase, projetos, marcaDasAssinaturas(assinaturas)], async () => {
+        const { gerarResultadoEditalPdf } = await import("./lib/pdf.js");
+        return gerarResultadoEditalPdf({
+          edital: numero === EDITAL.numero ? EDITAL : { numero }, projetos, emitidoPor: "",
+          fase, assinaturas });
+      });
+    if (gerado) arquivarDocumento({ buffer, pasta: `Iniciação Científica/Resultados/${anoDaPasta(numero)}`,
+      nome: `resultado-${slug(numero)}-${slug(fase)}.pdf` });
+    res.setHeader("Cache-Control", "public, max-age=300");
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(numero)}.pdf"`);
     res.send(buffer);
@@ -2162,11 +2167,16 @@ app.get("/api/publico/ic/em/resultado.pdf", async (req, res) => {
     if (!pub)
       return res.status(404).send("O resultado deste edital ainda não foi publicado.");
     const bolsistas = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo);
-    const { gerarResultadoEMPdf } = await import("./lib/pdf.js");
-    const buffer = await gerarResultadoEMPdf({ turma, bolsistas, emitidoPor: "",
-      fase: pub.fase || "final", assinaturas: await assinaturasParaPdf() });
-    arquivarDocumento({ buffer, pasta: `Iniciação Científica/Resultados/${anoDaPasta(turma.edital, turma.ciclo)}`,
-      nome: `resultado-icem-${slug(turma.edital)}-${slug(pub.fase || "final")}.pdf` });
+    const assinaturas = await assinaturasParaPdf();
+    const fase = pub.fase || "final";
+    const { buffer, novo: gerado } = await pdfPublicoEmCache("em-resultado",
+      [turma, fase, bolsistas, marcaDasAssinaturas(assinaturas)], async () => {
+        const { gerarResultadoEMPdf } = await import("./lib/pdf.js");
+        return gerarResultadoEMPdf({ turma, bolsistas, emitidoPor: "", fase, assinaturas });
+      });
+    if (gerado) arquivarDocumento({ buffer, pasta: `Iniciação Científica/Resultados/${anoDaPasta(turma.edital, turma.ciclo)}`,
+      nome: `resultado-icem-${slug(turma.edital)}-${slug(fase)}.pdf` });
+    res.setHeader("Cache-Control", "public, max-age=300");
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(turma.edital)}.pdf"`);
     res.send(buffer);
@@ -9809,12 +9819,16 @@ app.get("/api/publico/monitoria/resultado.pdf", async (req, res) => {
     if (!ed) return res.status(404).send("Edital não encontrado.");
     if (!(await resultadoMonPublico(numero)))
       return res.status(404).send("O resultado deste ciclo ainda não foi publicado.");
-    const { gerarResultadoMonitoriaPdf } = await import("./lib/pdf.js");
-    const buf = await gerarResultadoMonitoriaPdf({
-      edital: ed, projetos: await projetosDoResultadoMon(numero), emitidoPor: "",
-      assinaturas: await assinaturasParaPdf() });
-    arquivarDocumento({ buffer: buf, pasta: `Monitoria/Resultados/${anoDaPasta(numero)}`,
+    const projetos = await projetosDoResultadoMon(numero);
+    const assinaturas = await assinaturasParaPdf();
+    const { buffer: buf, novo } = await pdfPublicoEmCache("mon-resultado",
+      [ed, projetos, marcaDasAssinaturas(assinaturas)], async () => {
+        const { gerarResultadoMonitoriaPdf } = await import("./lib/pdf.js");
+        return gerarResultadoMonitoriaPdf({ edital: ed, projetos, emitidoPor: "", assinaturas });
+      });
+    if (novo) arquivarDocumento({ buffer: buf, pasta: `Monitoria/Resultados/${anoDaPasta(numero)}`,
       nome: `resultado-${slug(numero)}.pdf` });
+    res.setHeader("Cache-Control", "public, max-age=300");
     enviarPdfMon(res, buf, `resultado-monitoria-${slug(numero)}.pdf`);
   } catch (e) {
     console.error("Erro no resultado público da monitoria:", e);
@@ -10536,16 +10550,72 @@ const enviarPdfMon = (res, buf, nome) => {
   res.send(buf);
 };
 
+/* O EDITAL DA MONITORIA FICA EM CACHE (set/2026, a partir do alerta de health
+   check que o Render mandou ao dono): a rota é PÚBLICA — é o botão da vitrine
+   `/editais`, que circula em grupos de WhatsApp — e cada GET anônimo
+   redesenhava o documento inteiro E o arquivava no Drive. O custo não está no
+   texto: está nas TRÊS assinaturas digitalizadas. São PNG com transparência, e
+   o PDFKit precisa separá-los em imagem + máscara pixel a pixel e recomprimir
+   os dois fluxos — 0,4 s nesta máquina com assinaturas de 294 KB, 7,3 s na
+   instância do Render, com o laço de eventos preso o tempo todo (é trabalho
+   síncrono). Sete segundos de CPU travada é mais que os cinco da sondagem de
+   saúde: UMA visita à vitrine bastava para o Render declarar a instância fora
+   do ar. A chave é o que o GERADOR recebe — edital, texto, cronograma e as
+   assinaturas —, então trocar a assinatura no banco ou lançar outro edital
+   simplesmente não acha a entrada antiga; e o Drive recebe o arquivo só quando
+   o documento é REDESENHADO, não a cada visita. É a mesma decisão já tomada
+   em `/api/publico/editais/:id/edital.pdf`, pela mesma razão. */
+/** As assinaturas viram uma impressão curta: o Buffer inteiro num JSON seria enorme. */
+const marcaDasAssinaturas = (ass = {}) => {
+  const h = crypto.createHash("sha1");
+  for (const quem of Object.keys(ass).sort()) h.update(quem).update(ass[quem]);
+  return h.digest("hex");
+};
+/* A chave é o que o GERADOR recebe: mudou qualquer entrada, a entrada antiga
+   simplesmente não é achada — não há invalidação a lembrar de fazer. O teto é
+   por NÚMERO e por BYTES: são poucos documentos vivos por rota, mas uma
+   assinatura digitalizada entra com até 2 MB e três delas num documento fazem
+   o PDF passar de 6 MB — um teto só de entradas deixaria o cache maior que a
+   memória da instância. Sai sempre a mais velha (o Map preserva a ordem de
+   inserção). */
+const CACHES_PDF_PUBLICO = new Map();   // rota → Map(chave → Buffer)
+const PDF_CACHE_ITENS = 8, PDF_CACHE_BYTES = 24 * 1024 * 1024;
+async function pdfPublicoEmCache(rota, entradas, gerar) {
+  const h = crypto.createHash("sha1");
+  for (const x of entradas) h.update(String(x === undefined ? "" : typeof x === "string" ? x : JSON.stringify(x)));
+  const chave = h.digest("hex");
+  let cache = CACHES_PDF_PUBLICO.get(rota);
+  if (!cache) { cache = new Map(); CACHES_PDF_PUBLICO.set(rota, cache); }
+  const guardado = cache.get(chave);
+  if (guardado) return { buffer: guardado, novo: false };
+  const buffer = await gerar();
+  cache.set(chave, buffer);
+  let bytes = 0;
+  for (const b of cache.values()) bytes += b.length;
+  while (cache.size > 1 && (cache.size > PDF_CACHE_ITENS || bytes > PDF_CACHE_BYTES)) {
+    const velha = cache.keys().next().value;
+    bytes -= cache.get(velha).length;
+    cache.delete(velha);
+  }
+  return { buffer, novo: true };
+}
+
 /** O edital vigente é PÚBLICO: é ele que convoca. */
 app.get("/api/publico/monitoria/edital.pdf", async (req, res) => {
   try {
-    const { gerarEditalMonitoriaPdf } = await import("./lib/pdf.js");
-    const buf = await gerarEditalMonitoriaPdf({
-      edital: monEditalVigente(), texto: TEXTO_EDITAL_MON, cronograma: MON_CRONOGRAMA,
-      acessos: ACESSOS_MON, assinaturas: await assinaturasParaPdf() });
-    arquivarDocumento({ buffer: buf, pasta: `Monitoria/Editais/${anoDaPasta(monEditalVigente().numero)}`,
-      nome: `edital-${monEditalVigente().numero.replace("/", "-")}.pdf` });
-    enviarPdfMon(res, buf, `edital-monitoria-${monEditalVigente().numero.replace("/", "-")}.pdf`);
+    const edital = monEditalVigente();
+    const assinaturas = await assinaturasParaPdf();
+    const { buffer: buf, novo } = await pdfPublicoEmCache("mon-edital",
+      [edital, TEXTO_EDITAL_MON, MON_CRONOGRAMA, ACESSOS_MON, marcaDasAssinaturas(assinaturas)],
+      async () => {
+        const { gerarEditalMonitoriaPdf } = await import("./lib/pdf.js");
+        return gerarEditalMonitoriaPdf({ edital, texto: TEXTO_EDITAL_MON,
+          cronograma: MON_CRONOGRAMA, acessos: ACESSOS_MON, assinaturas });
+      });
+    if (novo) arquivarDocumento({ buffer: buf, pasta: `Monitoria/Editais/${anoDaPasta(edital.numero)}`,
+      nome: `edital-${edital.numero.replace("/", "-")}.pdf` });
+    res.setHeader("Cache-Control", "public, max-age=300");
+    enviarPdfMon(res, buf, `edital-monitoria-${edital.numero.replace("/", "-")}.pdf`);
   } catch (e) {
     console.error("Erro no edital da monitoria:", e);
     res.status(500).send("Não foi possível gerar o edital.");
@@ -12868,6 +12938,13 @@ async function editalEmPdf(e) {
     assinaturas: await lerAssinaturas(),
   });
 }
+/** A impressão das assinaturas como o gerador de edital as recebe (base64, não Buffer). */
+async function marcaDasAssinaturasGuardadas() {
+  const todas = await lerAssinaturas();
+  const h = crypto.createHash("sha1");
+  for (const quem of Object.keys(todas).sort()) h.update(quem).update(String(todas[quem]?.base64 || ""));
+  return h.digest("hex");
+}
 
 /* O PDF gerado fica em CACHE por versão do edital (revisão adversarial,
    set/2026): a rota é pública e cada GET renderizava um PDF de até 60 mil
@@ -12876,20 +12953,23 @@ async function editalEmPdf(e) {
    quisesse repetir a URL. A chave inclui `atualizadoEm`: editado o texto, a
    entrada antiga simplesmente não é mais achada. O arquivo no Drive sai na
    GRAVAÇÃO (POST), que é quando o documento muda. */
-const CACHE_PDF_EDITAL = new Map();   // `${id}|${atualizadoEm}` → Buffer
+/* A CHAVE É O CONTEÚDO, não o carimbo de hora (set/2026): ela era
+   `id|atualizadoEm`, e `normalizarEdital` escreve `atualizadoEm` com a hora de
+   AGORA — `lerEditaisCadastrados` o roda a cada leitura, então o carimbo era o
+   da LEITURA, não o da última edição. A chave mudava a cada visita e o cache
+   NUNCA acertava: o mapa só crescia até o teto com entradas mortas. Agora
+   entra o edital inteiro MENOS esse campo, mais as assinaturas — que também
+   faltavam: trocar a assinatura no banco não mexe no edital, e o documento
+   público seguiria saindo com a imagem antiga até alguém editar o texto. */
 app.get("/api/publico/editais/:id/edital.pdf", async (req, res) => {
   try {
     const e = (await lerEditaisCadastrados()).find((x) => x.id === req.params.id);
     if (!e) return res.status(404).send("Edital não encontrado");
     if (!temTextoDeEdital(e))
       return res.status(404).send("Este edital não tem texto no ARCHÉ — o documento é o PDF anexado.");
-    const chave = `${e.id}|${e.atualizadoEm}`;
-    let buf = CACHE_PDF_EDITAL.get(chave);
-    if (!buf) {
-      buf = await editalEmPdf(e);
-      if (CACHE_PDF_EDITAL.size > 40) CACHE_PDF_EDITAL.delete(CACHE_PDF_EDITAL.keys().next().value);
-      CACHE_PDF_EDITAL.set(chave, buf);
-    }
+    const { atualizadoEm: _ignora, ...conteudo } = e;
+    const { buffer: buf } = await pdfPublicoEmCache("edital",
+      [conteudo, await marcaDasAssinaturasGuardadas()], () => editalEmPdf(e));
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Cache-Control", "public, max-age=300");
     res.setHeader("Content-Disposition", `inline; filename="edital-${nomeSeguro(e.numero)}.pdf"`);

@@ -2737,6 +2737,34 @@ public/
   de assinaturas da ATA (dezenas de assinantes por página) e os dois blocos de certificado.
   Foto de portfólio, foto de docente e figura de trabalho ficam fora porque cada uma é
   desenhada UMA vez — e as duas últimas já abriam a imagem antes de desenhar.
+- **OS PDFs PÚBLICOS FICAM EM CACHE, e a chave é o CONTEÚDO** (`pdfPublicoEmCache` +
+  `marcaDasAssinaturas` no server, set/2026 — investigando o alerta de health check do Render
+  a partir da correção acima). Medindo a produção, o edital da monitoria — um GET **anônimo**,
+  o botão "Edital" da vitrine `/editais`, que circula em grupos de WhatsApp — levava **7,3 s**
+  e redesenhava o documento inteiro E o arquivava no Drive a CADA visita. O custo não está no
+  texto: está nas assinaturas digitalizadas. São PNG com transparência, e o PDFKit precisa
+  separá-los em imagem + máscara **pixel a pixel** e recomprimir os dois fluxos — trabalho
+  SÍNCRONO, com o laço de eventos preso o tempo todo. Sete segundos de CPU travada é mais que
+  os cinco da sondagem de saúde: **uma visita à vitrine bastava para o Render declarar a
+  instância fora do ar**. São **cinco rotas** com essa forma (edital da monitoria, edital
+  lançado pelo portal, e os resultados da IC, do ICEM e da monitoria), todas públicas e todas
+  arquivando no Drive por pedido anônimo — `files.list` + `files.update` e cota da API do
+  Drive nas mãos de quem repetisse a URL.
+  A chave é **o que o GERADOR recebe** (edital, texto, cronograma, projetos, bolsistas e a
+  impressão das assinaturas): mudou qualquer entrada, a entrada antiga simplesmente não é
+  achada — não há invalidação a lembrar de fazer, e é por isso que trocar a assinatura no
+  banco redesenha os cinco documentos sozinha. O Drive recebe o arquivo **só quando o
+  documento é redesenhado**, não a cada visita, e a resposta sai com `public, max-age=300`.
+  Medido: primeira visita 0,4–1,1 s, as seguintes **5–20 ms**, bytes idênticos.
+  **E o cache que já existia NUNCA ACERTAVA** (achado ao medir): a rota do edital lançado
+  pelo portal foi cacheada na revisão adversarial com a chave `id|atualizadoEm` — mas
+  `normalizarEdital` escreve `atualizadoEm` com a hora de AGORA, e `lerEditaisCadastrados` o
+  roda **a cada leitura**; o carimbo era o da LEITURA, não o da última edição. A chave mudava
+  a cada visita, o mapa só crescia até o teto com entradas mortas, e o documento era
+  redesenhado do mesmo jeito. Daí a régua: **chave por conteúdo, nunca por carimbo de hora** —
+  e o edital entra na chave MENOS esse campo. O teto é por número **e por bytes** (8 entradas,
+  24 MB por rota): uma assinatura entra com até 2 MB e três delas num documento passam de
+  6 MB — um teto só de entradas deixaria o cache maior que a memória da instância.
 - **Quatro acessos na IC** (`papelNoProjeto` em `lib/ic.js`), e três deles nascem do
   próprio projeto — não há cadastro de papel à parte:
   1. **gestão** — pró-reitor e coordenação de pesquisa (gestor geral ou coordenador do
