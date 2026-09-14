@@ -5352,6 +5352,40 @@ public/
   se ele já está lá, para elas não o carregarem duas vezes. O corte é **760px**, que é o que o
   `arche-ui.css` e seis das oito SPAs já usavam.
 
+- **CABEÇALHOS DE SEGURANÇA** (o middleware no alto do server.js + `app.disable("x-powered-by")`,
+  pedido do dono set/2026: "rodei um teste de segurança, podemos melhorar isso?" — o
+  securityheaders.com devolvia **F** para arche.app.br, com os seis cabeçalhos ausentes). Nenhum
+  deles muda o que o sistema FAZ: são instruções ao navegador sobre o que ele pode fazer com a
+  nossa página, e num portal que carrega CPF de menor de idade, conta bancária e dossiê de MEC a
+  defesa em profundidade custa quinze linhas. **HSTS** (1 ano, `includeSubDomains`, **sem
+  `preload`** — entrar na lista embutida dos navegadores é praticamente irreversível, e essa é
+  decisão do dono, não efeito colateral de uma correção de cabeçalho) sai **só na conexão HTTPS**
+  (`req.secure`, que enxerga o `x-forwarded-proto` porque o `trust proxy` está ligado); **nosniff**;
+  **X-Frame-Options: SAMEORIGIN** (o `/diagnostico` é emoldurado pelo ARCHÉ RE, que é a mesma
+  origem); **Referrer-Policy: strict-origin-when-cross-origin** — esta não é formalidade: a
+  credencial do inscrito e o link de acesso do avaliador **carregam o segredo no próprio
+  endereço**, e sem ela o navegador mandava a URL inteira como referência ao abrir o YouTube da
+  transmissão, o mapa do local ou a fonte do Google; e **Permissions-Policy** com `camera=(self)`
+  (o PWA de credenciamento lê o QR na porta) e o resto desligado.
+  **O CSP é o único que pode quebrar tela**, e o que ele pode ser aqui foi decidido por
+  levantamento, não por presunção: o portal só carrega de fora **Google Fonts**, **cdnjs** (jsPDF,
+  o gerador de emergência do dossiê, e o PDF.js), **accounts.google.com** (o botão de login, que é
+  script E moldura) e o **YouTube** (transmissão e chat da live) — nenhuma imagem de outro site,
+  nenhum formulário que POSTa para fora, nenhum `eval` e nenhum `<object>`, e por isso
+  `form-action` e `object-src` podem fechar. **`'unsafe-inline'` nos scripts é inevitável**: são
+  **311 `onclick=` e 234 `<script>`** escritos dentro do HTML — as SPAs são assim desde o primeiro
+  dia, e o app COMPILADO da Avaliação não se refatora. O que sobra ainda não é pouco: script
+  injetado não pode VIR de outro servidor, a página não se emoldura, formulário não posta para
+  fora e `<base>` não se troca — que é como um XSS refletido costuma virar roubo de sessão.
+  Dois detalhes que o arquivo precisa guardar: **`object-src 'self'`, não `'none'`** — o Chrome
+  desenha PDF num `<embed>` interno e aplica a ele o CSP da RESPOSTA, então `'none'` faria o visor
+  do navegador parar de abrir os documentos de `/api/files`, que é o que a PROPPEX abre o dia
+  inteiro; e **`worker-src blob:`** — o PDF.js busca o worker no cdnjs e o executa como blob,
+  porque worker de outra origem o navegador não roda direto. E há a **saída de emergência**:
+  `CSP_DESLIGADO=1` no Render devolve tudo ao que era em um deploy, sem tocar em código, com os
+  demais cabeçalhos continuando de pé — o portal está em produção com gente usando, e um cabeçalho
+  que pode quebrar um canto não previsto precisa de um caminho de volta que não dependa de mim.
+
 ## Identidade visual
 
 Paleta (mesma do sistema de Avaliação): fundo `#eef1f4`, marca `#1c3742`, hover `#2d535c`,

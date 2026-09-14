@@ -254,6 +254,94 @@ console.log(`ARCHÉ · persistência: ${storage.mode} · arquivos: ${files.mode}
 // atrás do proxy do Render/Cloudflare: necessário para reconhecer o IP real
 app.set("trust proxy", 1);
 
+/* ========================================================================
+   CABEÇALHOS DE SEGURANÇA (pedido do dono set/2026, depois de um teste no
+   securityheaders.com devolver F para arche.app.br).
+
+   Nenhum deles muda uma linha do que o sistema faz: são instruções ao
+   NAVEGADOR sobre o que ele pode fazer com a nossa página. O portal carrega
+   dado de menor de idade, CPF, conta bancária e dossiê de MEC — a defesa em
+   profundidade aqui custa quinze linhas e vale por elas.
+
+   `x-powered-by: Express` sai junto: dizer ao mundo qual servidor roda aqui
+   não ajuda ninguém além de quem procura alvo por versão.
+   ======================================================================== */
+
+/* O QUE O PORTAL CARREGA DE FORA — levantado no código, não presumido:
+   Google Fonts (estilo + fonte), cdnjs (jsPDF e PDF.js: o gerador de
+   emergência do dossiê e a leitura do comprovante), accounts.google.com (o
+   botão de login do Google, que é script E moldura) e o YouTube (a
+   transmissão do evento e o chat da live). Nada além disso: nenhuma imagem
+   de outro site, nenhum formulário que POSTa para fora, nenhum `eval` e
+   nenhum `<object>` — por isso `object-src` e `form-action` podem fechar.
+
+   `'unsafe-inline'` nos scripts é INEVITÁVEL e é preciso dizer por quê: o
+   portal tem 311 `onclick=` e 234 `<script>` escritos dentro do HTML — as
+   SPAs são assim desde o primeiro dia. Tirá-lo exigiria reescrever as oito
+   telas e o app COMPILADO da Avaliação, que por decisão não se refatora.
+   O que o CSP ainda entrega, e não é pouco: script injetado não pode VIR de
+   outro servidor, a página não pode ser emoldurada por ninguém, formulário
+   não posta para fora e `<base>` não se troca — que é como um XSS refletido
+   costuma virar roubo de sessão.
+
+   `object-src 'self'` e não `'none'` de propósito: o Chrome desenha PDF num
+   `<embed>` interno e aplica a ele o CSP da RESPOSTA — com `'none'` o visor
+   de PDF do navegador para de abrir os documentos servidos em `/api/files`.
+   Como não existe um `<object>` sequer no portal, `'self'` fecha o mesmo
+   buraco sem quebrar o que a PROPPEX abre o dia inteiro. */
+const CSP = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'self'",
+  "frame-ancestors 'self'",
+  "form-action 'self'",
+  "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://accounts.google.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  // data: é a foto e a assinatura em base64; blob:, a imagem que o navegador
+  // reduz antes de subir e o QR desenhado na tela
+  "img-src 'self' data: blob:",
+  "media-src 'self' data: blob:",
+  "connect-src 'self' blob: https://accounts.google.com https://cdnjs.cloudflare.com",
+  "frame-src 'self' https://accounts.google.com https://www.youtube-nocookie.com https://www.youtube.com",
+  // o PDF.js busca o worker no cdnjs e o executa como blob (worker de outra
+  // origem o navegador não roda direto)
+  "worker-src 'self' blob:",
+  "upgrade-insecure-requests",
+].join("; ");
+
+app.disable("x-powered-by");
+app.use((req, res, next) => {
+  /* HSTS só na conexão HTTPS — o navegador ignora o cabeçalho em texto
+     aberto, e mandá-lo no desenvolvimento local seria ruído. `req.secure`
+     enxerga o `x-forwarded-proto` porque o `trust proxy` está ligado acima.
+     SEM `preload`: entrar na lista embutida dos navegadores é praticamente
+     irreversível, e essa é decisão do dono, não efeito colateral de uma
+     correção de cabeçalho. */
+  if (req.secure) res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  // o /diagnostico é emoldurado pelo ARCHÉ RE, que é a MESMA origem
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  /* O endereço da credencial do inscrito e o link de acesso do avaliador
+     CARREGAM O SEGREDO no próprio endereço. Sem esta linha, o navegador
+     mandaria a URL inteira como referência ao abrir o YouTube da
+     transmissão, o mapa do local ou a fonte do Google — o token vazaria no
+     log de outra empresa. Assim sai só "https://arche.app.br/". */
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  /* A câmera é do PWA de credenciamento (ler o QR na porta), e por isso
+     `self`. O resto o portal não usa, e o que não se usa se desliga: assim
+     um script injetado não pede microfone nem localização em nome do ARCHÉ. */
+  res.setHeader("Permissions-Policy",
+    "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), "
+    + "magnetometer=(), gyroscope=(), accelerometer=(), midi=(), serial=()");
+  /* A saída de emergência: o CSP é o único destes que pode quebrar uma tela
+     num canto não previsto, e o portal está em produção com gente usando.
+     `CSP_DESLIGADO=1` no Render devolve tudo ao que era em um deploy, sem
+     mexer em código — os demais cabeçalhos continuam valendo. */
+  if (process.env.CSP_DESLIGADO !== "1") res.setHeader("Content-Security-Policy", CSP);
+  next();
+});
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 },
