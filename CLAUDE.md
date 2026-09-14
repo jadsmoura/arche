@@ -2704,6 +2704,39 @@ public/
   **fomento do projeto**, e sem bolsa concedida o padrão é o voluntário — o projeto aprovado
   sem cota é voluntário, não é projeto sem termo. Lote vazio sai **nomeando o conjunto**
   ("nenhum termo de voluntário a emitir"): PDF em branco parece documento que falhou.
+- **"OS TERMOS NÃO ESTÃO GERANDO" ERAM DUAS COISAS: o lote vazio e a imagem reembutida**
+  (`loteTermos` na guia Bolsistas + `imagemDoDoc` em lib/pdf.js, relato do dono set/2026:
+  "estou clicando em gerar os termos dos bolsistas, professores e voluntários em pdf, e não
+  estão gerando" — e, com o print do alerta do Render, "tem a ver com esse e-mail que
+  recebi?"). Tinha, e é a segunda metade.
+  (1) **O BOTÃO NÃO DIZIA QUANTAS FOLHAS SAEM.** Lote vazio abre um PDF de UMA página
+  dizendo "nenhum termo de voluntário a emitir"; é honesto por dentro e, do lado de quem
+  clica, indistinguível de botão quebrado — ainda mais no telefone, onde o PDF abre noutra
+  aba. Cada botão passou a trazer a contagem (`contaLote`, pela MESMA régua de
+  `alunosDoLote`/`fomentoDoProjeto`: o fomento do PROJETO escolhe a pilha, e o aluno entra
+  com nome ou e-mail), e **com zero ele não é link** — vira texto apagado dizendo por que
+  não há o que emitir. Contar na tela pelo mesmo critério do servidor é o que impede o
+  número de prometer um PDF que sai vazio.
+  (2) **A MESMA ASSINATURA ERA DECODIFICADA E EMBUTIDA A CADA PÁGINA.** O PDFKit só
+  REAPROVEITA imagem quando a fonte é uma **string** (caminho de arquivo ou data URI, que
+  ele guarda em `_imageRegistry`); recebendo um **Buffer** ele cai em `openImage()` e embute
+  um XObject NOVO a cada chamada. As assinaturas vêm do estado como base64 → Buffer
+  (`assinaturasParaPdf`) e se desenham uma vez POR PÁGINA: um lote de 54 termos com duas
+  assinaturas eram 108 decodificações e 108 cópias da mesma imagem dentro do arquivo. Medido
+  aqui com assinaturas de tamanho real: o lote dos bolsistas caiu de **5.246 KB / 652 ms
+  para 318 KB / 248 ms**, e o lote "todos" (116 páginas) de **14.191 KB / 1.169 ms para
+  532 KB / 534 ms**. Em produção — CPU fatiada e assinaturas digitalizadas maiores — o mesmo
+  PDF que sai em 0,05 s aqui levava **6,5 s** lá, e é isso que o Render vinha reclamando por
+  e-mail ("HTTP health check failed, timed out after 5 seconds"): o processo ficava preso
+  decodificando PNG e não respondia nem à sondagem de saúde. `imagemDoDoc` abre a imagem UMA
+  vez e passa o objeto adiante — o PDFKit entra no ramo `src.width && src.height` e só
+  REFERENCIA o XObject já embutido. O cache é **por documento** (`WeakMap` na instância),
+  porque `image.embed(doc)` liga a imagem àquele documento, e **string passa direto**, que é
+  o caso dos logotipos do timbre (esses o PDFKit já cacheava sozinho). Vale nos quatro
+  lugares que desenham a mesma imagem mais de uma vez: as assinaturas sobre a linha, a folha
+  de assinaturas da ATA (dezenas de assinantes por página) e os dois blocos de certificado.
+  Foto de portfólio, foto de docente e figura de trabalho ficam fora porque cada uma é
+  desenhada UMA vez — e as duas últimas já abriam a imagem antes de desenhar.
 - **Quatro acessos na IC** (`papelNoProjeto` em `lib/ic.js`), e três deles nascem do
   próprio projeto — não há cadastro de papel à parte:
   1. **gestão** — pró-reitor e coordenação de pesquisa (gestor geral ou coordenador do
