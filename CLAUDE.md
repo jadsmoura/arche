@@ -2707,6 +2707,25 @@ public/
   **fomento do projeto**, e sem bolsa concedida o padrão é o voluntário — o projeto aprovado
   sem cota é voluntário, não é projeto sem termo. Lote vazio sai **nomeando o conjunto**
   ("nenhum termo de voluntário a emitir"): PDF em branco parece documento que falhou.
+- **O TERMO DE UMA PESSOA É DE UMA PESSOA** (`chaveDoAluno` + o `aluno=` em
+  `GET /api/ic/termos.pdf`, relato do dono set/2026: "quando eu clico pra abrir um termo
+  individual de um bolsista, estão abrindo todos"). Estavam mesmo: o botão **"📝 Termo"**
+  nasce no cartão de UM aluno, na guia Bolsistas, e mandava ao servidor só o `projeto=` —
+  o lote saía com **todos os alunos daquele projeto** e, como `tipo` sem valor cai em
+  "todos", ainda com a **folha da orientação** junto. Medido no fixture: 8 páginas e 4
+  folhas onde se queria uma. Quem clica ali está com o aluno à frente e vai assinar aquela
+  folha. O recorte é por `aluno=`, com a **MESMA chave do quadro de alunos**
+  (`chaveDoAluno`: e-mail → matrícula → POSIÇÃO — a posição serve ao aluno transcrito sem
+  e-mail, e vale porque `alunosVisiveis` nunca tira ninguém da lista: ela apaga campos,
+  nunca elementos). A chave era escrita em dois lugares — a trava de remoção do POST já
+  tinha a dela — e passou a ser **uma só**. Duas decisões: nomear alguém **já diz que a
+  folha da orientação não foi pedida**, então `todos` vira `aluno` quando há `aluno=`; e é
+  `aluno`, não `bolsista`, senão o voluntário baixaria a própria via vazia (a régua que a
+  via individual já seguia). No mesmo passo o botão passou a existir **para o voluntário**:
+  ele assina o termo do PVIC, e a tela o oferecia só a quem tem bolsa. O arquivo sai com o
+  **nome da pessoa** (`termo-Ana-Paula-Souza.pdf`), que é como a coordenação o encontra
+  depois de baixar vinte. Chave que não acha ninguém é **404 por extenso** — o lote inteiro
+  seria a resposta errada. Os botões do LOTE não mudam.
 - **"OS TERMOS NÃO ESTÃO GERANDO" ERAM DUAS COISAS: o lote vazio e a imagem reembutida**
   (`loteTermos` na guia Bolsistas + `imagemDoDoc` em lib/pdf.js, relato do dono set/2026:
   "estou clicando em gerar os termos dos bolsistas, professores e voluntários em pdf, e não

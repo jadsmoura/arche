@@ -14004,6 +14004,16 @@ app.post("/api/ic/termos/publicar", async (req, res) => {
   res.json({ ok: true, publicado: !!atual[numero], edital: numero });
 });
 
+/* A CHAVE DE UM ALUNO DENTRO DO PROJETO: e-mail → matrícula → POSIÇÃO na
+   lista. É a mesma régua que a trava de remoção usa (o aluno transcrito sem
+   e-mail não tem outra chave, e o nome se corrige), e `alunosVisiveis` nunca
+   tira ninguém da lista — só apaga campos —, então a posição que a tela vê é
+   a mesma que o servidor conta. */
+const chaveDoAluno = (a, i) => (a?.email
+  ? "e:" + String(a.email).toLowerCase()
+  : a?.matricula ? "m:" + String(a.matricula).trim().toLowerCase()
+  : "i:" + i);
+
 /** Projetos de um ciclo que geram termo: aprovados, com aluno indicado. */
 async function projetosComTermo(numero, so = "") {
   return (await lerProjetos()).filter((p) =>
@@ -14025,8 +14035,29 @@ app.get("/api/ic/termos.pdf", async (req, res) => {
     if (!gereIC(u)) return res.status(403).send("Somente a coordenação de pesquisa emite os termos de compromisso.");
     const numero = String(req.query.edital || EDITAL.numero).trim();
     const so = String(req.query.projeto || "").trim();
-    const tipo = TIPOS_TERMO.includes(String(req.query.tipo)) ? String(req.query.tipo) : "todos";
-    const projetos = await projetosComTermo(numero, so);
+    /* A VIA DE UMA PESSOA (correção do dono, set/2026: "quando eu clico pra
+       abrir um termo individual de um bolsista, estão abrindo todos"). O
+       botão "📝 Termo" nasce no cartão DE UM ALUNO, na guia Bolsistas, e
+       mandava só o `projeto=`: o PDF saía com TODOS os alunos daquele
+       projeto e, como `tipo` sem valor cai em "todos", ainda com a folha da
+       orientação junto — quem clica ali quer UMA folha, para assinar. Agora
+       o `aluno=` recorta, pela MESMA chave do quadro de alunos, e nomear
+       alguém já diz que a folha da orientação não foi pedida: por isso
+       "todos" vira "aluno" quando há `aluno=` (e é "aluno" de propósito,
+       não "bolsista" — senão o voluntário baixaria a própria via vazia). */
+    const quem = String(req.query.aluno || "").trim();
+    let tipo = TIPOS_TERMO.includes(String(req.query.tipo)) ? String(req.query.tipo) : "todos";
+    if (quem && tipo === "todos") tipo = "aluno";
+    let projetos = await projetosComTermo(numero, so);
+    let umNome = "";
+    if (quem) {
+      projetos = projetos
+        .map((p) => ({ ...p, alunos: (p.alunos || []).filter((a, i) => chaveDoAluno(a, i) === quem) }))
+        .filter((p) => p.alunos.length);
+      umNome = projetos[0]?.alunos?.[0]?.nome || "";
+      if (!projetos.length)
+        return res.status(404).send("Aluno indicado não encontrado neste ciclo.");
+    }
 
     const { gerarTermoCompromissoPdf } = await import("./lib/pdf.js");
     const buffer = await gerarTermoCompromissoPdf({
@@ -14036,8 +14067,9 @@ app.get("/api/ic/termos.pdf", async (req, res) => {
       emitidoPor: u.nome || u.email,
     });
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition",
-      `inline; filename="termos-${tipo}-${slug(so ? (projetos[0]?.numero || so) : numero)}.pdf"`);
+    res.setHeader("Content-Disposition", quem
+      ? `inline; filename="termo-${slug(umNome || projetos[0]?.numero || so)}.pdf"`
+      : `inline; filename="termos-${tipo}-${slug(so ? (projetos[0]?.numero || so) : numero)}.pdf"`);
     res.send(buffer);
   } catch (e) {
     console.error("Erro no termo de compromisso:", e);
@@ -15776,11 +15808,10 @@ app.post("/api/ic", async (req, res) => {
            removido (nem ter o e-mail trocado)" sobre um campo que a tela
            deixa editar e que só se quis consertar. A lista não se reordena
            na tela (o × é a única saída, e aqui ele é recusado), então a
-           posição é chave estável para quem não tem outra. */
-        const chaveAluno = (a, i) => (a.email
-          ? "e:" + String(a.email).toLowerCase()
-          : a.matricula ? "m:" + String(a.matricula).trim().toLowerCase()
-          : "i:" + i);
+           posição é chave estável para quem não tem outra. É a MESMA chave
+           com que a guia Bolsistas pede o termo de uma pessoa
+           (`chaveDoAluno`): duas cópias dela acabariam diferentes. */
+        const chaveAluno = chaveDoAluno;
         const antigos = new Map((base.alunos || []).map((a, i) => [chaveAluno(a, i), a]));
         const chavesNovas = new Set(p.alunos.map(chaveAluno));
         for (const [k, a] of antigos) {

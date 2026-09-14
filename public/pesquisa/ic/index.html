@@ -357,6 +357,14 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const fmtD = (iso) => (iso ? String(iso).split("-").reverse().join("/") : "—");
 const fmtDH = (iso) => { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—"; };
 const hojeISO = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+/* A chave de um aluno DENTRO do projeto — e-mail → matrícula → POSIÇÃO —, a
+   mesma que o servidor usa (`chaveDoAluno` no server.js). A posição serve ao
+   aluno transcrito sem e-mail e vale porque `alunosVisiveis` nunca tira
+   ninguém da lista: ela apaga campos, nunca elementos. */
+const chaveDoAluno = (p, a) => (a?.email
+  ? "e:" + String(a.email).toLowerCase()
+  : a?.matricula ? "m:" + String(a.matricula).trim().toLowerCase()
+  : "i:" + (p?.alunos || []).indexOf(a));
 
 let META = { cursos: [], modalidades: [], status: [], rotulos: {}, gestao: false, eu: "", perfil: "orientador",
   linhas: [], certificados: [], informados: [], fomentos: [], titulacoes: [], blocosProducao: [],
@@ -3208,9 +3216,15 @@ function renderBolsistas() {
         </div>
       </details>` : ""}
       <div class="exp"><button class="bt bt-ghost" onclick="abrir('${esc(p.id)}')">Abrir o projeto</button>
-        ${META.gestao && a.bolsista ? `<a class="bt bt-ghost" target="_blank" rel="noopener"
-          href="/api/ic/termos.pdf?edital=${encodeURIComponent(p.edital || META.edital?.numero || "")}&projeto=${encodeURIComponent(p.id)}"
-          title="Termo de compromisso deste projeto, para assinatura">📝 Termo</a>` : ""}
+        ${/* A VIA DESTA PESSOA, não a do projeto (correção do dono, set/2026): o
+             botão nasce no cartão de UM aluno e mandava só o `projeto=` — vinham
+             todos os alunos daquele projeto mais a folha da orientação. O `aluno=`
+             é a chave do quadro (e-mail → matrícula → posição), e o servidor
+             recorta por ela. Vale também para o VOLUNTÁRIO: ele assina o termo do
+             PVIC, e o botão só existia para quem tem bolsa. */""}
+        ${META.gestao ? `<a class="bt bt-ghost" target="_blank" rel="noopener"
+          href="/api/ic/termos.pdf?edital=${encodeURIComponent(p.edital || META.edital?.numero || "")}&projeto=${encodeURIComponent(p.id)}&aluno=${encodeURIComponent(chaveDoAluno(p, a))}"
+          title="Termo de compromisso de ${esc(a.nome || "quem está neste cartão")}, para assinatura">📝 Termo</a>` : ""}
       </div>
     </div>`;
   };
