@@ -1813,6 +1813,21 @@ function abrirBancoEM(id) {
       fica registrado que quem digitou foi a PROPPEX, e a gravação dele depois substitui o que
       você puser.</div>
 
+    <div class="card-t" style="margin-top:14px;font-size:14px">Dados do estudante</div>
+    <div class="card-s">São os que o selo do cartão cobra e que saem impressos no termo. Deixe em
+      branco o que não quiser mudar.</div>
+    <div class="grid2">
+      <div><label>Nome completo</label><input id="gb-em-nome" value="${esc(b.nome || "")}"></div>
+      <div><label>CPF</label><input id="gb-em-cpf" placeholder="000.000.000-00"
+        value="${esc(b.cpf ? String(b.cpf).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "")}"></div>
+    </div>
+    <div class="grid3">
+      <div><label>Telefone</label><input id="gb-em-telefone" value="${esc(b.telefone || "")}"></div>
+      <div><label>Escola</label><input id="gb-em-escola" value="${esc(b.escola || "")}"></div>
+      <div><label>Série</label><input id="gb-em-serie" value="${esc(b.serie || "")}" placeholder="2º ano"></div>
+    </div>
+    <div><label>RG</label><input id="gb-em-rg" value="${esc(b.rg || "")}" placeholder="Opcional"></div>
+
     <div class="card-t" style="margin-top:14px;font-size:14px">Responsável (autorização do Anexo 01)</div>
     <div class="grid2">
       <div><label>Nome completo *</label><input id="gb-em-rnome" value="${esc(b.responsavel?.nome || "")}"></div>
@@ -1850,6 +1865,8 @@ function abrirBancoEM(id) {
       const r = await api(`/api/ic/em/${encodeURIComponent(id)}/cadastro`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          nome: v("nome"), cpf: v("cpf"), rg: v("rg"),
+          telefone: v("telefone"), escola: v("escola"), serie: v("serie"),
           banco: v("banco"), agencia: v("agencia"), conta: v("conta"), pix: v("pix"),
           responsavel: { nome: v("rnome"), cpf: v("rcpf") },
         }),
@@ -2437,7 +2454,7 @@ async function meuEmCadastro(id) {
     const r = await api("/api/ic/em/meu/cadastro", { method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        nome: v("nome"), cpf: v("cpf"), telefone: v("telefone"),
+        id, nome: v("nome"), cpf: v("cpf"), telefone: v("telefone"),
         escola: v("escola"), serie: v("serie"),
         responsavel: { nome: v("rnome"), cpf: v("rcpf") },
         banco: v("banco"), agencia: v("agencia"), conta: v("conta"), pix: v("pix"),

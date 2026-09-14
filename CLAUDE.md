@@ -3166,6 +3166,33 @@ public/
   estudante sem perfil clica no link → cai no formulário → salva → perfil completo e
   `falta: []`; CPF errado recusado por extenso; conta de outro banco recusada na bolsa do CNPq;
   voluntário que manda conta recusado dizendo por quê.
+- **O ALERTA QUE NÃO SAÍA: A COORDENAÇÃO NÃO TINHA ONDE DIGITAR O QUE O SELO COBRAVA**
+  (os campos do estudante em `POST /api/ic/em/:id/cadastro` + a seção "Dados do estudante" na
+  janela `abrirBancoEM`, relato do dono set/2026: "mesmo depois de preenchendo e salvando os
+  dados, o alerta de dados faltante continua"). Continuava, e não havia como não continuar. Ao
+  unificar a régua (`faltaNoBolsistaEM` passou a compor `faltaDosSeusDadosEM`), o selo do cartão
+  passou a contar **CPF, telefone e escola** — o que era certo, porque o formulário do ESTUDANTE
+  os oferece. Mas do lado da COORDENAÇÃO não havia campo nenhum: o "👤 Dados do aluno" do cartão
+  é uma lista de LEITURA, a janela "Preencher em nome do bolsista" só tinha responsável e conta,
+  e a rota que grava o cadastro (`POST /api/ic/em`) está no servidor desde o começo com
+  **nenhuma tela chamando-a**. A coordenação preenchia o que tinha, salvava, e lia "⚠ falta CPF"
+  para sempre. Reproduzido no servidor local: antes `["CPF","tipo de bolsa"]`, depois de salvar a
+  janela inteira `["CPF","tipo de bolsa"]` — idêntico.
+  A janela ganhou **nome, CPF, RG, telefone, escola e série**, com o mesmo argumento que já a
+  tinha aberto para a conta e para o responsável: a coordenação tem o **termo de compromisso na
+  mesa**, com esses campos escritos à mão. Campo em branco preserva o gravado; campo preenchido e
+  malformado é recusa NOMEANDO (CPF que não valida, nome de uma palavra só) — a mesma régua da
+  rota do estudante, senão o inválido viraria "" e o alerta continuaria pela terceira razão.
+  **A régua fechou o ciclo**: tudo o que o selo cobra tem agora onde ser digitado por alguém —
+  só "tipo de bolsa" e "projeto acompanhado" ficam de fora, e os dois têm seletor no próprio
+  cartão. **O E-MAIL fica fora de propósito**: é o vínculo que reconhece o estudante
+  (`casaComEM`), e trocá-lo por aqui apontaria o registro para outra conta em silêncio — a
+  adoção aditiva pelo CPF é o caminho que existe para isso.
+  **E escola e série são do ANO, não da pessoa** (achado ao aplicar): nome, CPF, RG e telefone
+  alcançam todos os registros da pessoa — quem esteve em duas turmas não tem dois CPFs —, mas a
+  série muda a cada turma, e escrevê-la no registro de 2025 falsearia o que o termo daquele ano
+  imprimiu. Vale nos dois formulários: o do estudante passou a mandar o `id` do registro aberto
+  (provado com um bolsista em duas turmas — o CPF entrou nos dois, a série de cada um ficou).
 - **O CARTÃO DIZ, NA CARA, O QUE FALTA NO CADASTRO** (`faltaNoBolsistaEM(b, { incluirProjeto })` em
   lib/em.js + `falta` no payload do `GET /api/ic/em` + `faltaCadastro`/`dadosCompletos` em
   `alunosVisiveis` de lib/ic.js + o selo, a faixa e o filtro nas guias Ensino Médio e Bolsistas,

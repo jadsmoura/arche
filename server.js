@@ -14618,6 +14618,8 @@ async function gravarCadastroDoEstudanteEM(req, res, u, b) {
   };
   const temConta = !!(conta.banco || conta.agencia || conta.conta || conta.pix);
   const temResp = !!(rNome || rCpfCru);
+  // qual registro a tela abriu — escola e série são do ano dele (ver abaixo)
+  const idPedido = txt(b.id, 60);
   if (!nome && !cpfCru && !telefone && !escola && !serie && !temResp && !temConta) {
     return res.status(400).json({ error: "Nenhum dado foi informado — preencha ao menos um campo antes de salvar." });
   }
@@ -14672,8 +14674,14 @@ async function gravarCadastroDoEstudanteEM(req, res, u, b) {
       if (nome) novo.nome = nome;
       if (cpfCru) novo.cpf = normalizarCpf(cpfCru);
       if (telefone) novo.telefone = telefone;
-      if (escola) novo.escola = escola;
-      if (serie) novo.serie = serie;
+      /* Escola e série são do ANO, não da pessoa: a série muda a cada turma, e
+         escrevê-la no registro de 2025 falsearia o que o termo daquele ano
+         imprimiu. Sem `id` no corpo (as duas rotas antigas não o mandam, e elas
+         não trazem estes campos) vale o registro que a busca achou primeiro. */
+      if (!idPedido || x.id === idPedido || meus.length === 1) {
+        if (escola) novo.escola = escola;
+        if (serie) novo.serie = serie;
+      }
       if (temResp) {
         novo.responsavel = {
           nome: rNome || x.responsavel?.nome || "",
@@ -14778,6 +14786,32 @@ app.post("/api/ic/em/:id/cadastro", async (req, res) => {
   if (querResp && rCpf && !cpfValido(rCpf))
     return res.status(400).json({ error: "O CPF do responsável não confere — confira os números." });
   const semBanco = !conta.banco && !conta.agencia && !conta.conta && !conta.pix;
+
+  /* OS DADOS DO PRÓPRIO ESTUDANTE ENTRAM AQUI (set/2026, relato do dono: "mesmo
+     depois de preencher e salvar, o alerta de dados faltantes continua").
+     Continuava, e não havia como não continuar: o selo do cartão passou a
+     contar CPF, telefone e escola — a régua é a mesma que o formulário do
+     estudante oferece —, e do lado da COORDENAÇÃO não existia campo nenhum
+     para eles. A rota `POST /api/ic/em` que os grava está no servidor desde o
+     começo e NENHUMA tela a chama; o cartão mostra "👤 Dados do aluno" como
+     LEITURA, e esta janela só tinha responsável e conta. Quem preenchia o que
+     tinha, salvava, e lia "⚠ falta CPF" para sempre.
+     A coordenação tem o termo de compromisso na mesa, com estes campos
+     escritos à mão — é o mesmo argumento que abriu esta janela para a conta e
+     para o responsável. Campo em branco preserva o gravado; campo preenchido e
+     malformado é recusa nomeando, como na rota do estudante. */
+  const txt = (v, n) => String(v ?? "").trim().slice(0, n);
+  const dados = {
+    nome: txt(b.nome, 120), cpf: txt(b.cpf, 20), rg: txt(b.rg, 40),
+    telefone: txt(b.telefone, 30), escola: txt(b.escola, 120), serie: txt(b.serie, 20),
+  };
+  if (dados.nome && !nomeDePessoaValido(dados.nome)) {
+    return res.status(400).json({ error: "Informe o NOME COMPLETO do estudante (nome e sobrenome) — "
+      + "é ele que sai impresso no termo de compromisso e no certificado." });
+  }
+  if (dados.cpf && !cpfValido(dados.cpf)) {
+    return res.status(400).json({ error: "O CPF do estudante não confere — confira os números." });
+  }
   const r = await comBolsistasEM((lista) => {
     const alvo = lista.find((x) => x.id === req.params.id);
     if (!alvo) return { erro: [404, "Bolsista não encontrado"], gravar: false };
@@ -14810,10 +14844,29 @@ app.post("/api/ic/em/:id/cadastro", async (req, res) => {
       || casaComEM(x, String(alvo.email || "").toLowerCase(), cpfDeBusca(alvo.cpf)));
     const marca = { por: u.email, em: new Date().toISOString() };
     const gravouResp = querResp && (rNome || rCpf);
-    const oQue = [!semBanco && "os dados bancários", gravouResp && "os dados do responsável"]
-      .filter(Boolean).join(" e ") || "o cadastro";
+    const gravouDados = Object.values(dados).some(Boolean);
+    const oQue = [gravouDados && "os dados do estudante", !semBanco && "os dados bancários",
+      gravouResp && "os dados do responsável"].filter(Boolean).join(", ") || "o cadastro";
     const alvos = new Map();
     if (!semBanco) for (const [x, i] of meus) alvos.set(i, { ...x, ...conta, cadastroPelaGestao: marca });
+    if (gravouDados) {
+      /* Nome, CPF, RG e telefone são DA PESSOA e alcançam todos os registros
+         dela — quem esteve em duas turmas não tem dois CPFs. **Escola e série
+         ficam no registro ABERTO**: a série muda a cada ano, e escrever a de
+         2026 no registro de 2025 falsearia o histórico que o termo daquele ano
+         imprimiu. */
+      for (const [x, i] of daPessoa) {
+        const novo = alvos.get(i) || { ...x };
+        for (const c of ["nome", "cpf", "rg", "telefone"]) {
+          if (dados[c]) novo[c] = c === "cpf" ? normalizarCpf(dados.cpf) : dados[c];
+        }
+        if (x.id === alvo.id) {
+          if (dados.escola) novo.escola = dados.escola;
+          if (dados.serie) novo.serie = dados.serie;
+        }
+        alvos.set(i, novo);
+      }
+    }
     if (gravouResp) {
       for (const [x, i] of daPessoa) {
         const novo = alvos.get(i) || { ...x };
