@@ -2278,9 +2278,7 @@ async function renderMeuEM() {
           : "Assim que os projetos de Iniciação Científica e Inovação Tecnológica do ciclo entrarem em execução, eles aparecem aqui."}
       </div>` : ""}
 
-      ${blocoResponsavelEM(r)}
-
-      ${blocoBancoEM(r)}
+      ${blocoCadastroEM(r)}
 
       ${blocoPedidoProjetoEM(r)}
 
@@ -2340,108 +2338,114 @@ async function renderMeuEM() {
     || '<div class="card"><div class="vazio">Nenhum registro do ICEM ligado à sua conta.</div></div>';
 }
 let FILTRO_CURSO_EM = "";
-/* O RESPONSÁVEL, informado pelo PRÓPRIO estudante (pedido do dono set/2026:
-   "inclua esses campos no formulário que eles precisam preencher"). Até aqui
-   NENHUM formulário do ARCHÉ gravava este dado — ele só existia na ficha como
-   leitura, vindo dos termos assinados que foram transcritos. A turma nova veio
-   do resultado da seleção, onde ninguém pergunta responsável, e o selo cobrava
-   o que não havia onde informar.
-   O bloco vale para TODOS, voluntário inclusive: a autorização do Anexo 01 é
-   da IDADE, não da bolsa — ela permite ao menor acessar as dependências da
-   instituição e desenvolver as atividades. São só os dois campos que o termo
-   imprime; pedir mais seria coletar dado de um terceiro que nada usa. */
-function blocoResponsavelEM(r) {
+/* UM FORMULÁRIO SÓ, COM TUDO O QUE O ESTUDANTE PREENCHE (pedido do dono
+   set/2026: "o sistema cobra mas não aparece pro aluno preencher. Isso tem
+   que ser fácil. Em um único formulário, todos os dados. O mesmo enviado por
+   e-mail. O aluno só entra e completa").
+
+   Eram dois cartões com dois botões — responsável e conta —, e nenhum campo
+   para os dados que o selo da coordenação mais cobrava: CPF, telefone e
+   escola. Eles existiam só no PERFIL, noutra página, e o que se digitava lá
+   nunca chegava ao registro do ICEM. São adolescentes com o e-mail da escola:
+   cada botão a mais é uma chance de o cadastro ficar pela metade.
+
+   Três seções e UM botão. A do responsável vale para TODOS, voluntário
+   inclusive — a autorização do Anexo 01 é da IDADE, não da bolsa: ela permite
+   ao menor acessar as dependências da instituição e desenvolver as
+   atividades. A da conta só existe havendo bolsa a pagar. */
+function blocoCadastroEM(r) {
+  if (r.situacao === "desligado") return "";
   const p = r.responsavel || {};
-  const falta = r.faltaResponsavel || [];
-  const ok = !falta.length;
-  return `<div class="card" style="margin-top:10px">
-    <div class="card-t">Autorização do seu responsável
-      ${ok ? '<span class="badge b-validado">completo</span>'
-        : '<span class="badge b-atrasada">falta preencher</span>'}</div>
-    <div class="card-s">O seu termo de compromisso vai acompanhado de uma <b>autorização assinada
-      pelo seu responsável</b> — e é ali que estes dois dados são impressos.</div>
-    ${!ok ? `<div class="kv" style="margin-top:8px;color:var(--err)">Falta: <b>${esc(falta.join(", "))}</b>.</div>` : ""}
-    <div class="grid2" style="margin-top:8px">
-      <div><label>Nome completo do responsável *</label>
-        <input id="emr-nome-${esc(r.id)}" value="${esc(p.nome || "")}" placeholder="Como está no documento dele(a)"></div>
-      <div><label>CPF do responsável *</label>
-        <input id="emr-cpf-${esc(r.id)}" value="${esc(p.cpf ? String(p.cpf).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "")}"
-          placeholder="000.000.000-00" inputmode="numeric"></div>
-    </div>
-    <div class="exp" style="margin-top:8px">
-      <button class="bt bt-pri" onclick="meuEmResponsavel('${esc(r.id)}')">Salvar os dados do responsável</button>
-      <span class="muted" style="align-self:center">Você pode corrigir depois, se algo mudar.</span>
-    </div>
-  </div>`;
-}
-async function meuEmResponsavel(id) {
-  const v = (c) => ($(`emr-${c}-${id}`)?.value || "").trim();
-  try {
-    const r = await api("/api/ic/em/meu/responsavel", { method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: v("nome"), cpf: v("cpf") }) });
-    MEU_EM = null; await renderMeuEM();
-    aviso(r.falta?.length
-      ? `Responsável salvo, mas ainda falta: ${r.falta.join(", ")}.`
-      : "Cadastro completo — obrigado! A coordenação já tem tudo o que precisa de você.",
-      r.falta?.length ? "warn" : undefined);
-  } catch (e) { aviso(e.message, "err"); }
-}
-/* OS DADOS BANCÁRIOS, preenchidos pelo PRÓPRIO bolsista (pedido do dono,
-   ago/2026). Conta corrente é o campo que mais custa caro errado — um dígito
-   trocado é um pagamento que não cai e ninguém sabe por quê —, e quem tem o
-   cartão na mão é ele. A exigência do Banco do Brasil no CNPq aparece ANTES
-   de ele digitar: descobri-la só no erro da gravação seria mandá-lo abrir
-   uma conta depois de já ter preenchido tudo. Voluntário não vê o bloco:
-   não há bolsa a pagar. */
-function blocoBancoEM(r) {
-  if (!r.bolsa || r.bolsa.codigo === "voluntario") return "";
   const c = r.conta || {};
-  const falta = r.faltaBanco || [];
+  const temBolsa = !!(r.bolsa && r.bolsa.codigo !== "voluntario");
+  const falta = r.falta || [];
   const ok = !falta.length;
+  const cpfFmt = (v) => esc(v ? String(v).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "");
+  const id = esc(r.id);
   return `<div class="card" style="margin-top:10px">
-    <div class="card-t">Dados bancários da sua bolsa
+    <div class="card-t">Complete o seu cadastro
       ${ok ? '<span class="badge b-validado">completo</span>'
         : '<span class="badge b-atrasada">falta preencher</span>'}</div>
-    <div class="card-s">É nesta conta que a <b>${esc(r.bolsa.nome)}</b>${r.bolsa.valor
-      ? ` — R$ ${r.bolsa.valor} mensais` : ""} vai ser paga. A conta precisa estar
-      <b>no seu nome</b>.</div>
-    ${r.exigeBB ? `<div class="banner ba-warn" style="margin-top:8px">
+    <div class="card-s">É um formulário só: confira os seus dados, informe o seu responsável${temBolsa
+      ? " e a conta em que a sua bolsa será paga" : ""}. Depois é só salvar — dá para voltar
+      e corrigir quando quiser.</div>
+    ${!ok ? `<div class="banner ba-warn" style="margin-top:8px">Ainda falta: <b>${esc(falta.join(", "))}</b>.</div>` : ""}
+
+    <div style="font-weight:700;margin-top:12px">Os seus dados</div>
+    <div class="grid2" style="margin-top:6px">
+      <div><label>Nome completo *</label>
+        <input id="emc-nome-${id}" value="${esc(r.nome || "")}" placeholder="Como está no seu documento"></div>
+      <div><label>Seu CPF *</label>
+        <input id="emc-cpf-${id}" value="${cpfFmt(r.cpf)}" placeholder="000.000.000-00" inputmode="numeric"></div>
+    </div>
+    <div class="grid2">
+      <div><label>Telefone (WhatsApp) *</label>
+        <input id="emc-telefone-${id}" value="${esc(r.telefone || "")}" placeholder="(62) 90000-0000" inputmode="tel"></div>
+      <div><label>Sua escola *</label>
+        <input id="emc-escola-${id}" value="${esc(r.escola || "")}" placeholder="Nome da escola onde você estuda"></div>
+    </div>
+    <div class="grid2">
+      <div><label>Série</label>
+        <input id="emc-serie-${id}" value="${esc(r.serie || "")}" placeholder="2º ano, 3º ano…"></div>
+      <div></div>
+    </div>
+
+    <div style="font-weight:700;margin-top:14px">O seu responsável</div>
+    <div class="card-s" style="margin-top:2px">Como você é menor de idade, o seu termo de compromisso
+      vai acompanhado de uma <b>autorização assinada pelo seu responsável</b> — e é nela que estes
+      dois dados são impressos.</div>
+    <div class="grid2" style="margin-top:6px">
+      <div><label>Nome completo do responsável *</label>
+        <input id="emc-rnome-${id}" value="${esc(p.nome || "")}" placeholder="Como está no documento dele(a)"></div>
+      <div><label>CPF do responsável *</label>
+        <input id="emc-rcpf-${id}" value="${cpfFmt(p.cpf)}" placeholder="000.000.000-00" inputmode="numeric"></div>
+    </div>
+
+    ${temBolsa ? `<div style="font-weight:700;margin-top:14px">A conta da sua bolsa</div>
+    <div class="card-s" style="margin-top:2px">É nesta conta que a <b>${esc(r.bolsa.nome)}</b>${r.bolsa.valor
+      ? ` — R$ ${esc(r.bolsa.valor)} mensais` : ""} vai ser paga. A conta precisa estar <b>no seu nome</b>.</div>
+    ${r.exigeBB ? `<div class="banner ba-warn" style="margin-top:6px">
       <b>Bolsa do CNPq: a conta tem de ser do Banco do Brasil.</b> Quem paga é a agência, e ela
       deposita só em conta do BB. Se você ainda não tem, abra uma conta no Banco do Brasil
-      (há conta gratuita para menores, com o seu responsável) e volte aqui.</div>`
-      : `<div class="banner ba-info" style="margin-top:8px">
+      (há conta gratuita para menores, com o seu responsável) — os outros dados você já pode
+      salvar agora e voltar depois só para informar a conta.</div>`
+      : `<div class="banner ba-info" style="margin-top:6px">
       A bolsa do UNIEGO é paga em <b>qualquer banco</b> — informe a conta que você já usa.</div>`}
-    ${!ok ? `<div class="kv" style="margin-top:8px;color:var(--err)">Falta: <b>${esc(falta.join(", "))}</b>.</div>` : ""}
-    <div class="grid2" style="margin-top:8px">
+    <div class="grid2" style="margin-top:6px">
       <div><label>Banco *</label>
-        <input id="emb-banco-${esc(r.id)}" value="${esc(c.banco || "")}"
+        <input id="emc-banco-${id}" value="${esc(c.banco || "")}"
           placeholder="${r.exigeBB ? "Banco do Brasil" : "Ex.: Banco do Brasil, Caixa, Nubank…"}"></div>
       <div><label>Agência *</label>
-        <input id="emb-agencia-${esc(r.id)}" value="${esc(c.agencia || "")}" placeholder="0000-0"></div>
+        <input id="emc-agencia-${id}" value="${esc(c.agencia || "")}" placeholder="0000-0"></div>
     </div>
     <div class="grid2">
       <div><label>Conta (com o dígito) *</label>
-        <input id="emb-conta-${esc(r.id)}" value="${esc(c.conta || "")}" placeholder="00000-0"></div>
+        <input id="emc-conta-${id}" value="${esc(c.conta || "")}" placeholder="00000-0"></div>
       <div><label>Chave Pix *</label>
-        <input id="emb-pix-${esc(r.id)}" value="${esc(c.pix || "")}" placeholder="CPF, telefone ou e-mail"></div>
-    </div>
-    <div class="exp" style="margin-top:8px">
-      <button class="bt bt-pri" onclick="meuEmBanco('${esc(r.id)}')">Salvar os meus dados bancários</button>
-      <span class="muted" style="align-self:center">Você pode corrigir depois, se algo mudar.</span>
+        <input id="emc-pix-${id}" value="${esc(c.pix || "")}" placeholder="CPF, telefone ou e-mail"></div>
+    </div>` : ""}
+
+    <div class="exp" style="margin-top:12px">
+      <button class="bt bt-pri" onclick="meuEmCadastro('${id}')">Salvar o meu cadastro</button>
+      <span class="muted" style="align-self:center">Você pode salvar o que já tem e voltar depois.</span>
     </div>
   </div>`;
 }
-async function meuEmBanco(id) {
-  const v = (c) => ($(`emb-${c}-${id}`)?.value || "").trim();
+async function meuEmCadastro(id) {
+  const v = (c) => ($(`emc-${c}-${id}`)?.value || "").trim();
   try {
-    const r = await api("/api/ic/em/meu/banco", { method: "POST",
+    const r = await api("/api/ic/em/meu/cadastro", { method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ banco: v("banco"), agencia: v("agencia"), conta: v("conta"), pix: v("pix") }) });
+      body: JSON.stringify({
+        nome: v("nome"), cpf: v("cpf"), telefone: v("telefone"),
+        escola: v("escola"), serie: v("serie"),
+        responsavel: { nome: v("rnome"), cpf: v("rcpf") },
+        banco: v("banco"), agencia: v("agencia"), conta: v("conta"), pix: v("pix"),
+      }) });
     MEU_EM = null; await renderMeuEM();
     aviso(r.falta?.length
-      ? `Dados salvos, mas ainda falta: ${r.falta.join(", ")}.`
-      : "Dados bancários salvos — a coordenação já pode incluir você na folha de pagamento.",
+      ? `Salvo! Ainda falta: ${r.falta.join(", ")}. É só voltar aqui quando tiver esses dados.`
+      : "Cadastro completo — obrigado! A coordenação já tem tudo o que precisa de você.",
       r.falta?.length ? "warn" : undefined);
   } catch (e) { aviso(e.message, "err"); }
 }

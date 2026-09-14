@@ -106,7 +106,8 @@ public/
   está aberto por vez); no PORTAL ele aparece **uma vez**, em Serviços.
 - **O portal mostra a cada um os seus setores** (`aplicarVisibilidade` em
   `assets/arche-nav.js` + `data-setor` nos cartões de `public/index.html`, decisão do
-  dono ago/2026): **aluno** (função `aluno` no perfil) vê só Extensão e Pesquisa·IC;
+  dono ago/2026): **aluno** (função `aluno` ou `em` no perfil — o bolsista do ICEM é estudante
+  como o de graduação) vê só Extensão e Pesquisa·IC;
   **professor e demais** veem tudo menos a Avaliação; **gestor geral e coordenadores**
   (qualquer módulo em `modulosDe`) veem tudo; **visitante sem login** (revisão do dono,
   ago/2026) NÃO vê mais o portal completo: a página inicial mostra só a visão pública —
@@ -779,7 +780,9 @@ public/
   Usuários cadastrados, some sem pedido pendente) mostra pedido a pedido a última tentativa com o
   motivo e tem **"Executar agora"** — o dono não precisa abrir JSON nem esperar deploy.
 - **Função na instituição** (`FUNCOES`/`normalizarFuncao` em lib/auth.js): o que a pessoa
-  FAZ — professor, professor pesquisador, coordenador de curso, coordenador pedagógico,
+  FAZ — estudante de graduação (`aluno`), **estudante do ensino médio (`em`, o bolsista do
+  ICEM — sem titulação, sem matrícula e sem curso)**, professor, professor pesquisador,
+  coordenador de curso, coordenador pedagógico,
   secretaria, as coordenações da PROPPEX (Pesquisa e Inovação, Extensão, Ação Comunitária)
   e da PROAC (Ensino, Políticas Institucionais), mais `outro` com texto livre
   (`funcaoOutro`). É diferente do **papel** no sistema (gestor > coordenador > aprovado >
@@ -3116,6 +3119,53 @@ public/
   na etapa de completar o PERFIL (`faltaNoPerfil` pede CPF, telefone, função e curso, e o lote da
   seleção não trouxe CPF) — eles preenchem o perfil e caem no setor, mas é um passo a mais no
   caminho. Medido no servidor local: 2025/2026 entra direto em 21 de 24; 2026/2027, em 1 de 24.
+- **UM FORMULÁRIO SÓ, COM TODOS OS DADOS — e o e-mail leva direto a ele**
+  (`faltaDosSeusDadosEM` em lib/em.js + `POST /api/ic/em/meu/cadastro` +
+  `blocoCadastroEM`/`meuEmCadastro` na SPA da IC + a função `em` em lib/auth.js, pedido do dono
+  set/2026: "sobre os docs do responsável, o sistema cobra mas não aparece pro aluno preencher.
+  Verifique. Isso tem que ser fácil. Em um único formulário, todos os dados. O mesmo enviado por
+  e-mail. O aluno só entra e completa"). O formulário do responsável EXISTIA — e reproduzindo o
+  caminho do estudante num servidor isolado apareceram **três paredes em série**, cada uma
+  suficiente para ele desistir:
+  (1) **a etapa do PERFIL o interceptava na porta** — o botão do e-mail vai a `/pesquisa/ic/` e o
+  guarda o devolvia a `/perfil/?completar=1`, onde ele tinha de se declarar **"Estudante (aluno de
+  graduação)"**, que não é, e escolher um **curso do UNIEGO**, que não tem; medido, ela pegava 23
+  dos 24 da turma 2026/2027;
+  (2) vencida a etapa, o painel dele tinha **dois cartões e dois botões** (responsável e conta) e
+  **nenhum campo para CPF, telefone ou escola** — que são justamente o que o selo da coordenação
+  mais cobrava (`faltaNoBolsistaEM` os conta desde sempre, e o lote da seleção de 2026/2027 veio
+  com **0 CPFs em 24**: colocação, nota e presença na entrevista é o que uma seleção pergunta);
+  (3) o CPF que ele digitava no PERFIL **nunca entrava no registro do ICEM** (`adotarEmailNoEM` só
+  adota o e-mail, e ainda exige que o registro já tenha o CPF) — a coordenação seguia lendo
+  "⚠ falta CPF" sobre quem já o informara ao portal.
+  Agora é **um cartão, três seções e UM botão** — os seus dados · o seu responsável · a conta da
+  bolsa (só havendo bolsa a pagar) —, servido por uma rota só. Cinco decisões que ele carrega:
+  **campo em branco é "ainda não informei"** e preserva o gravado, **campo preenchido e malformado
+  é recusa NOMEANDO o campo** (o inválido viraria "" na normalização e o estudante sairia achando
+  que preencheu) — junto, é o que lhe permite salvar o que já tem e voltar depois com a conta do
+  banco, que o bolsista do CNPq quase sempre ainda vai abrir; a gravação **COMPLETA O PERFIL**
+  (`completarPerfilPelaInscricao` ganhou `funcao`), que é o que faz "o aluno só entra e completa"
+  ser verdade — sem isso ele digitaria nome, CPF e telefone duas vezes; a régua é **UMA**
+  (`faltaDoEstudanteEM` = seus dados + responsável + conta, e `faltaNoBolsistaEM` a compõe), senão
+  o selo da gestão voltaria a cobrar o que o formulário dele não oferece, que foi o defeito de
+  origem; e as **duas rotas anteriores** (`/meu/responsavel`, `/meu/banco`) ficam como recortes do
+  MESMO caminho — uma aba aberta desde antes do deploy não pode deixar de gravar, e duas
+  implementações do mesmo fato divergiriam no primeiro campo novo.
+  **A FUNÇÃO `em` — "Estudante do Ensino Médio (ICEM)"** — existe para a etapa do perfil parar de
+  lhe cobrar o impossível: sem titulação, sem matrícula (a exceção nominal que já havia) e **sem
+  curso** (`SEM_CURSO` em lib/auth.js — o campo é o recorte dos setores da graduação, e o que ele
+  fazia era escolher um curso qualquer para sair da etapa, sujando o recorte de todo mundo; o
+  curso que ele PRETENDE cursar é outra coisa e vive em `cursoInteresse`). Ele entra entre os
+  **estudantes** no portal e no "Ver como", e a barra do topo o chama de **Estudante**, não de
+  "Docente". E **o portão do perfil não o barra em `/pesquisa`**: o formulário único pede os mesmos
+  dados e os grava no perfil, então a etapa deixou de ser o único caminho — ele completa o cadastro
+  onde foi chamado a completá-lo. A exceção é **estreita**: só `/pesquisa`, só para quem
+  `souBolsistaEM` (provado: `/monitoria`, `/extensao` e `/espacos` seguem redirecionando).
+  O **e-mail** (`emailCadastroEM`) passou a nomear também os dados dele e a numerar os blocos
+  conforme quantos existem — é a MESMA lista, na MESMA ordem da tela. Ensaiado de ponta a ponta:
+  estudante sem perfil clica no link → cai no formulário → salva → perfil completo e
+  `falta: []`; CPF errado recusado por extenso; conta de outro banco recusada na bolsa do CNPq;
+  voluntário que manda conta recusado dizendo por quê.
 - **O CARTÃO DIZ, NA CARA, O QUE FALTA NO CADASTRO** (`faltaNoBolsistaEM(b, { incluirProjeto })` em
   lib/em.js + `falta` no payload do `GET /api/ic/em` + `faltaCadastro`/`dadosCompletos` em
   `alunosVisiveis` de lib/ic.js + o selo, a faixa e o filtro nas guias Ensino Médio e Bolsistas,

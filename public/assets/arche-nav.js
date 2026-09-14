@@ -449,8 +449,10 @@
       + '<span class="nav-av">' + (foto ? '<img src="' + esc(foto) + '" alt="">' : esc(inicial)) + "</span>"
       + '<span class="nav-id"><b>' + esc(curto) + "</b><span>"
       // "Docente" é o rótulo de quem foi aprovado — mas o aluno indicado para
-      // a IC também tem conta aprovada, e chamá-lo de docente é errado
-      + esc((me.perfil && me.perfil.funcao === "aluno" && me.papel === "aprovado")
+      // a IC e o bolsista do ICEM também têm conta aprovada, e chamá-los de
+      // docente é errado (o do ICEM é estudante do ensino médio)
+      + esc((me.perfil && (me.perfil.funcao === "aluno" || me.perfil.funcao === "em")
+        && me.papel === "aprovado")
         ? "Estudante" : (PAPEL[me.papel] || me.papel)) + "</span></span></a>"
       + '<button class="nav-sair" type="button">sair</button>';
     sino(caixa, me);
@@ -558,7 +560,10 @@
           // Aluno não organiza evento (participa pela página pública) — o setor
           // EV é de quem propõe e opera. Relatórios é da gestão: quem não
           // coordena setor nenhum não tem o que emitir, e a rota o recusaria.
-          esconder = (me.perfil && me.perfil.funcao === "aluno")
+          // o bolsista do ICEM é estudante como o de graduação: mesma visão,
+          // senão declarar-se "ensino médio" lhe abriria MAIS setores do que
+          // declarar-se aluno, que é o contrário do que a régua quer dizer
+          esconder = (me.perfil && (me.perfil.funcao === "aluno" || me.perfil.funcao === "em"))
             ? ["/atas/", "/inovacao/", "/arche/", "/eventos/gestao/", "/relatorios/", "/praticas/"]
             : ["/arche/", "/relatorios/"];
           /* ...MENOS quem tem guia de relatório: a coordenação de CURSO abre

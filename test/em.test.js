@@ -8,7 +8,7 @@ import {
   TURMAS_EM, BOLSAS_EM, turmaDe, turmaVigente, bolsaEmDe, normalizarBolsistaEM,
   projetoAtual, trocarProjeto, cotasDaTurma, faltaNoBolsistaEM, relatoriosExigidos,
   CRITERIOS_AVALIACAO_EM, ESCALA_AVALIACAO_EM, RECOMENDACAO_EM, avaliacaoEMCompleta,
-  faltaDadosBancariosEM, faltaDoResponsavelEM, faltaDoEstudanteEM, desligarEM,
+  faltaDadosBancariosEM, faltaDoResponsavelEM, faltaDosSeusDadosEM, faltaDoEstudanteEM, desligarEM,
 } from "../lib/em.js";
 import { termoDoAlunoEM, autorizacaoResponsavelEM } from "../lib/termos.js";
 import { MARCAS } from "../lib/marca.js";
@@ -100,7 +100,10 @@ test("a régua do cadastro cobra responsável e projeto — o bolsista é menor"
 });
 
 test("o responsável é exigido do VOLUNTÁRIO igual — a autorização é da idade, não da bolsa", () => {
-  const vol = normalizarBolsistaEM({ nome: "Ana", turma: "2026/2027", bolsa: "voluntario" });
+  const vol = normalizarBolsistaEM({
+    nome: "Ana", turma: "2026/2027", bolsa: "voluntario",
+    cpf: "11144477735", telefone: "(62) 90000-0000", escola: "Couto Magalhães",
+  });
   // o voluntário não tem conta a informar…
   assert.deepEqual(faltaDadosBancariosEM(vol), []);
   // …mas tem a mesma autorização, e por isso ENTRA na cobrança do estudante
@@ -313,4 +316,38 @@ test("quem entra aponta para quem saiu, e o e-mail do registro reconhece as duas
   const estranho = normalizarBolsistaEM({ nome: "X Y", turma: "2026/2027",
     substituicao: { papel: "sei-la", id: "z", nome: "W" } });
   assert.equal(estranho.substituicao.papel, "saiu");
+});
+
+/* O FORMULÁRIO ÚNICO DO ESTUDANTE (set/2026): a régua que a tela, o e-mail e
+   o selo da coordenação passaram a compartilhar. O defeito que estes testes
+   guardam é o de origem — a gestão cobrar um campo que o estudante não tinha
+   onde informar. */
+test("o que o estudante preenche é UMA lista — e o selo da gestão conta a mesma", () => {
+  // o retrato real da turma 2026/2027: veio do resultado da seleção, sem CPF
+  const b = normalizarBolsistaEM({
+    nome: "Lara Luísa Avelino Silva", turma: "2026/2027", bolsa: "cnpq",
+    email: "lara@exemplo.com", telefone: "(62) 98476-7686", escola: "Couto Magalhães",
+    serie: "3° ano",
+  });
+  assert.deepEqual(faltaDosSeusDadosEM(b), ["CPF"],
+    "o CPF é o que falta — e era o que não tinha campo nenhum na tela dele");
+  assert.deepEqual(faltaDoEstudanteEM(b), [
+    "CPF", "nome do responsável", "CPF do responsável", "banco", "agência", "conta", "Pix",
+  ]);
+  // a lista da GESTÃO contém a do estudante: cobrar o que ele não pode
+  // preencher foi exatamente o defeito que isto impede de voltar
+  const daGestao = faltaNoBolsistaEM(b, { incluirProjeto: false });
+  for (const x of faltaDoEstudanteEM(b).filter((y) => !y.startsWith("banco") && y !== "agência" && y !== "conta" && y !== "Pix")) {
+    assert.ok(daGestao.includes(x), `a gestão cobra "${x}", e o formulário do estudante o oferece`);
+  }
+});
+
+test("a série não é cobrada — nenhum documento a imprime", () => {
+  const b = normalizarBolsistaEM({
+    nome: "Theo Lima", turma: "2026/2027", cpf: "11144477735",
+    telefone: "(62) 90000-0000", escola: "Couto Magalhães", serie: "",
+    responsavel: { nome: "Maria Souza", cpf: "11144477735" },
+  });
+  assert.deepEqual(faltaDosSeusDadosEM(b), []);
+  assert.deepEqual(faltaDoEstudanteEM(b), []);
 });

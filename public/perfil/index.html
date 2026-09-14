@@ -136,7 +136,7 @@
     <div class="sec">Vínculo institucional</div>
     <div class="grid2">
       <div><label for="funcao">Função / cargo *</label><select id="funcao"></select></div>
-      <div><label for="curso">Curso / departamento *</label><select id="curso"></select></div>
+      <div><label for="curso" id="curso-rot">Curso / departamento *</label><select id="curso"></select></div>
     </div>
     <div id="funcao-outro-w" class="oculto">
       <label for="funcaoOutro">Especifique a função</label>
@@ -260,6 +260,9 @@ const CAMPOS=["nome","tratamento","titulacao","vinculo","funcao","funcaoOutro","
    com "outro" para o que não couber. */
 const FUNCOES=[
   ["aluno","Estudante (aluno de graduação)"],
+  // o bolsista do ICEM é do ENSINO MÉDIO: não tem matrícula no UNIEGO nem
+  // curso, e declarar-se "aluno de graduação" lhe cobrava os dois
+  ["em","Estudante do Ensino Médio (ICEM)"],
   ["professor","Professor(a)"],["professor-pesquisador","Professor(a) Pesquisador(a)"],
   ["coord-curso","Coordenador(a) de Curso"],["coord-pedagogico","Coordenador(a) Pedagógico(a)"],
   ["secretaria","Secretaria"],
@@ -313,7 +316,16 @@ const verMatricula=()=>{
   $("matricula").placeholder=aluno?"Ex.: G2410026":"Opcional";
   $("matricula-dica").classList.toggle("oculto",!aluno);
 };
-$("funcao").addEventListener("change",()=>{ verOutro(); verMatricula(); });
+/* O ESTUDANTE DO ENSINO MÉDIO NÃO TEM CURSO NO UNIEGO (set/2026): o campo é
+   o recorte dos setores da graduação, e cobrá-lo dele é exigência impossível
+   de cumprir — o que ele fazia era escolher um curso qualquer para sair da
+   etapa, sujando o recorte de todo mundo. O servidor já não o cobra; aqui a
+   tela deixa de dizer que é obrigatório. */
+const verCurso=()=>{
+  const em=$("funcao").value==="em";
+  $("curso-rot").textContent=em?"Curso / departamento":"Curso / departamento *";
+};
+$("funcao").addEventListener("change",()=>{ verOutro(); verMatricula(); verCurso(); });
 $("resumo").addEventListener("input",()=>{ $("resumo-cont").textContent=$("resumo").value.length; });
 $("cpf").addEventListener("input",function(){
   this.value=fmtCPF(this.value);
@@ -369,7 +381,7 @@ fetch("/api/me").then(async r=>{
     else if(porTexto){ $("funcao").value=porTexto; }
     else { $("funcao").value="outro"; if(!$("funcaoOutro").value) $("funcaoOutro").value=p.funcao; }
   }
-  verOutro(); verMatricula();
+  verOutro(); verMatricula(); verCurso();
   if($("cpf").value) $("cpf").value=fmtCPF($("cpf").value);   // guardado só em dígitos
   $("resumo-cont").textContent=$("resumo").value.length;
   PRE_CADASTRO = !!p.preCadastro;
@@ -420,7 +432,7 @@ function mostrarPreCadastro(p){
 }
 function naoSouEu(){
   for(const c of CAMPOS){ const el=$(c); if(!el) continue; el.value=""; }
-  verOutro(); verMatricula(); pintarAvatar();
+  verOutro(); verMatricula(); verCurso(); pintarAvatar();
   $("pre-cadastro").querySelector("button")?.remove();
   $("pc-nome").insertAdjacentHTML("afterend"," <span style=\"font-weight:400\">— campos limpos: preencha os seus dados e salve.</span>");
   $("nome").focus();

@@ -143,7 +143,7 @@ import {
   normalizarBolsistaEM, trocarProjeto, anotarEM, cotasDaTurma, projetoAtual as projetoAtualEM,
   RELATORIOS_EM, CAMPOS_RELATORIO_EM, relatoriosExigidos,
   exigeBancoDoBrasil, ehBancoDoBrasil, faltaDadosBancariosEM, faltaNoBolsistaEM,
-  faltaDoResponsavelEM, faltaDoEstudanteEM, desligarEM,
+  faltaDoResponsavelEM, faltaDosSeusDadosEM, faltaDoEstudanteEM, desligarEM,
 } from "./lib/em.js";
 import {
   duplicidadesPorNome, podeFundir, fundirPerfil, fundirProjeto, fundirAcao, fundirAta, fundirPapeis,
@@ -564,9 +564,24 @@ app.use(async (req, res, next) => {
   // não encontra os próprios projetos, sem titulação a proposta não se
   // enquadra na modalidade. Só barra quem realmente tem algo faltando, e a
   // própria tela de perfil fica de fora (senão o caminho não teria saída).
-  const falta = await faltaNoPerfilDe(u, (await carregarPerfis())[u.email]);
+  const perfilDele = (await carregarPerfis())[u.email];
+  const falta = await faltaNoPerfilDe(u, perfilDele);
   if (falta.length) {
-    return res.redirect("/perfil/?completar=1&next=" + encodeURIComponent(req.originalUrl));
+    /* O BOLSISTA DO ICEM NÃO PASSA PELA ETAPA PARA ENTRAR NA PESQUISA
+       (set/2026): o e-mail o manda a `/pesquisa/ic/` para completar o
+       cadastro, e a etapa o desviava para uma tela onde ele tinha de se
+       declarar "aluno de graduação" e escolher um curso do UNIEGO que não
+       tem — uma parede logo no primeiro clique, e ela pegava 23 dos 24 da
+       turma 2026/2027. O formulário único da guia dele pede os MESMOS dados
+       (nome, CPF, telefone) e os grava no perfil, então a etapa deixou de
+       ser o único caminho: ele completa o cadastro onde foi chamado a
+       completá-lo. Vale só para `/pesquisa` — nos demais setores ele não tem
+       o que fazer, e a régua continua inteira para todo mundo. */
+    const bolsistaEM = req.caminho.startsWith("/pesquisa")
+      && await souBolsistaEM(u.email, perfilDele?.cpf);
+    if (!bolsistaEM) {
+      return res.redirect("/perfil/?completar=1&next=" + encodeURIComponent(req.originalUrl));
+    }
   }
   next();
 });
@@ -3669,7 +3684,8 @@ function gruposDoPortal(perfis, u) {
   for (const [email, p] of Object.entries(perfis || {})) {
     if (!email) continue;
     const f = normalizarFuncao(p?.funcao || "");
-    const alvo = f === "aluno" ? g.portalAluno
+    // o bolsista do ICEM entra entre os ESTUDANTES: ele é aluno do ensino médio
+    const alvo = (f === "aluno" || f === "em") ? g.portalAluno
       : FUNCOES_DOCENTES.has(f) ? g.portalDocente : g.portalOutro;
     alvo.push({ email, nome: p?.nome || "" });
   }
@@ -5378,7 +5394,7 @@ app.get("/api/publico/eventos/:slug", async (req, res) => {
    nenhuma outra conta o tem (CPF é único por conta, e a régua do perfil é a
    mesma), e o curso só quando o texto casa com um curso do catálogo (o campo
    público é "curso / instituição de origem", e "USP" não é curso do UNIEGO). */
-async function completarPerfilPelaInscricao(email, { nome, cpf, telefone, curso }) {
+async function completarPerfilPelaInscricao(email, { nome, cpf, telefone, curso, funcao }) {
   const e = String(email || "").trim().toLowerCase();
   if (!e) return;
   const perfis = await carregarPerfis();
@@ -5389,6 +5405,13 @@ async function completarPerfilPelaInscricao(email, { nome, cpf, telefone, curso 
   const cpfLimpo = normalizarCpf(cpf);
   if (!p.cpf && cpfLimpo && !Object.entries(perfis).some(([m, x]) => m !== e && x?.cpf === cpfLimpo)) { novo.cpf = cpfLimpo; mudou = true; }
   if (!p.telefone && String(telefone || "").trim()) { novo.telefone = String(telefone).trim().slice(0, 40); mudou = true; }
+  /* A FUNÇÃO só se declara quando o perfil não tem nenhuma: quem já se
+     declarou professor ou aluno de graduação não vira outra coisa porque
+     preencheu um formulário de setor. Quem a passa é o bolsista do ICEM, e
+     é ela que faz a etapa do perfil parar de lhe cobrar matrícula e curso. */
+  if (!String(p.funcao || "").trim() && funcao && FUNCOES.some((f) => f.codigo === funcao)) {
+    novo.funcao = funcao; mudou = true;
+  }
   if (!p.curso && curso) {
     const alvo = chaveNome(curso);
     const doCatalogo = CURSOS.find((c) => chaveNome(c.nome) === alvo || chaveNome(c.sigla || "") === alvo);
@@ -11822,7 +11845,7 @@ function pessoasDoSetor(projetos, perfis = null, u = null) {
     for (const [email, p] of Object.entries(perfis || {})) {
       if (!email) continue;
       const f = normalizarFuncao(p?.funcao || "");
-      põe(f === "aluno" ? estudantes : FUNCOES_DOCENTES.has(f) ? docentes : outros,
+      põe((f === "aluno" || f === "em") ? estudantes : FUNCOES_DOCENTES.has(f) ? docentes : outros,
         { email, cpf: "", nome: p?.nome || "" });
     }
   }
@@ -14279,7 +14302,13 @@ app.get("/api/ic/em/meu", async (req, res) => {
     registros: meus.map((b) => {
       const minha = turmaEmDe(b.turma) || { ciclo: b.turma };
       return {
-        id: b.id, nome: b.nome, escola: b.escola, serie: b.serie,
+        /* OS DADOS DELE VOLTAM PREENCHIDOS (set/2026): o formulário é UM só e
+           é aqui que ele confere e corrige o que a coordenação transcreveu do
+           resultado da seleção. O CPF e o telefone não saíam — e não havia
+           campo nenhum para eles na tela, que é a razão de o selo da gestão
+           cobrar "falta CPF" de quem não tinha onde informá-lo. */
+        id: b.id, nome: b.nome, cpf: b.cpf || "", telefone: b.telefone || "",
+        escola: b.escola, serie: b.serie,
         cursoInteresse: b.cursoInteresse, situacao: b.situacao,
         turma: minha,
         bolsa: bolsaEmDe(b.bolsa) || null,
@@ -14293,6 +14322,9 @@ app.get("/api/ic/em/meu", async (req, res) => {
            da bolsa. */
         responsavel: { nome: b.responsavel?.nome || "", cpf: b.responsavel?.cpf || "" },
         faltaResponsavel: faltaDoResponsavelEM(b),
+        // o que falta no formulário INTEIRO — a mesma lista que o e-mail
+        // nomeia e que o selo da coordenação conta
+        faltaSeusDados: faltaDosSeusDadosEM(b), falta: faltaDoEstudanteEM(b),
         projetoAtual: projetoAtualEM(b), trajetoria: b.trajetoria,
         // os pedidos de alteração DELE — o pendente e os já decididos
         pedidosProjeto: b.pedidosProjeto || [],
@@ -14546,124 +14578,164 @@ app.post("/api/ic/em/meu/relatorio", async (req, res) => {
   res.json({ ok: true, bolsista: r.bolsista });
 });
 
-/* OS DADOS BANCÁRIOS SÃO DIGITADOS PELO PRÓPRIO BOLSISTA (pedido do dono,
-   ago/2026). Até aqui o cadastro do ICEM era todo da coordenação — e conta
-   corrente é o campo que mais custa caro errado: um dígito trocado é um
-   pagamento que não cai e ninguém sabe por quê. Quem tem o cartão na mão é
-   ele. A rota grava SÓ os quatro campos da conta: nome, CPF, escola e bolsa
-   continuam sendo da coordenação, e um formulário do estudante que pudesse
-   reescrevê-los seria outra porta para o mesmo registro. */
-app.post("/api/ic/em/meu/banco", async (req, res) => {
-  const u = await sessaoIC(req, res);
-  if (!u) return;
-  const b = req.body || {};
+/* ---- O FORMULÁRIO ÚNICO DO ESTUDANTE DO ICEM (set/2026) ------------------
+ *
+ * UM FORMULÁRIO SÓ, COM TODOS OS DADOS (pedido do dono: "o sistema cobra mas
+ * não aparece pro aluno preencher. Isso tem que ser fácil. Em um único
+ * formulário, todos os dados. O mesmo enviado por e-mail. O aluno só entra e
+ * completa").
+ *
+ * Eram TRÊS paredes em série, e cada uma sozinha bastava para o estudante
+ * desistir:
+ *   1. o e-mail levava a `/pesquisa/ic/` e a ETAPA DO PERFIL o desviava para
+ *      `/perfil/?completar=1` — onde ele tinha de se declarar "aluno de
+ *      graduação", que não é, e escolher um CURSO do UNIEGO, que não tem;
+ *   2. vencida a etapa, o painel dele oferecia DOIS cartões com DOIS botões
+ *      (responsável e conta) e nenhum campo para CPF, telefone ou escola —
+ *      que são, justamente, o que o selo da coordenação mais cobrava (a turma
+ *      2026/2027 veio do resultado da seleção, com 0 CPFs em 24);
+ *   3. o CPF que ele digitava no PERFIL nunca entrava no registro do ICEM, e
+ *      a coordenação seguia lendo "⚠ falta CPF" sobre quem já o informara.
+ *
+ * Agora é UMA rota, com tudo o que `faltaDoEstudanteEM` cobra, e ela também
+ * COMPLETA O PERFIL: preencher uma vez serve aos dois cadastros, e a etapa do
+ * perfil não reaparece.
+ *
+ * Régua da gravação: campo EM BRANCO é "ainda não informei" e preserva o que
+ * está gravado; campo PREENCHIDO e malformado é recusa NOMEANDO o campo. É o
+ * que permite salvar o que já se tem e voltar depois com a conta do banco —
+ * o bolsista do CNPq quase sempre ainda vai abri-la —, em vez de perder tudo
+ * o que digitou porque um campo faltava.
+ */
+async function gravarCadastroDoEstudanteEM(req, res, u, b) {
+  const txt = (v, n) => String(v ?? "").trim().slice(0, n);
+  const nome = txt(b.nome, 120), cpfCru = txt(b.cpf, 20);
+  const telefone = txt(b.telefone, 30), escola = txt(b.escola, 120), serie = txt(b.serie, 20);
+  const rNome = txt(b.responsavel?.nome, 120), rCpfCru = txt(b.responsavel?.cpf, 20);
   const conta = {
-    banco: String(b.banco || "").trim().slice(0, 60),
-    agencia: String(b.agencia || "").trim().slice(0, 20),
-    conta: String(b.conta || "").trim().slice(0, 30),
-    pix: String(b.pix || "").trim().slice(0, 120),
+    banco: txt(b.banco, 60), agencia: txt(b.agencia, 20),
+    conta: txt(b.conta, 30), pix: txt(b.pix, 120),
   };
+  const temConta = !!(conta.banco || conta.agencia || conta.conta || conta.pix);
+  const temResp = !!(rNome || rCpfCru);
+  if (!nome && !cpfCru && !telefone && !escola && !serie && !temResp && !temConta) {
+    return res.status(400).json({ error: "Nenhum dado foi informado — preencha ao menos um campo antes de salvar." });
+  }
+  /* O que veio PREENCHIDO tem de estar certo: `normalizarCpf` devolve "" para
+     o inválido, então um dígito trocado viraria "não informado" e o estudante
+     sairia daqui achando que preencheu. */
+  if (nome && !nomeDePessoaValido(nome)) {
+    return res.status(400).json({ error: "Informe o seu NOME COMPLETO (nome e sobrenome) — "
+      + "é ele que sai impresso no seu termo de compromisso e no seu certificado." });
+  }
+  if (cpfCru && !cpfValido(cpfCru)) {
+    return res.status(400).json({ error: "O seu CPF não confere. Confira os números e digite de novo." });
+  }
+  if (rNome && !nomeDePessoaValido(rNome)) {
+    return res.status(400).json({ error: "Informe o NOME COMPLETO do seu responsável — "
+      + "é ele que sai impresso na autorização que acompanha o seu termo de compromisso." });
+  }
+  if (rCpfCru && !cpfValido(rCpfCru)) {
+    return res.status(400).json({ error: "O CPF do responsável não confere. "
+      + "Confira os números e digite de novo — ele sai impresso na autorização." });
+  }
   const r = await comBolsistasEM((lista) => {
-    /* A conta é DA PESSOA, não da turma — a mesma decisão de
+    /* O cadastro é DA PESSOA, não da turma — a mesma decisão de
        `POST /api/ic/meus-dados` na graduação: quem participou de duas turmas
-       não digita o número da conta duas vezes. Por isso a gravação vale para
-       TODOS os registros dele com bolsa a pagar, e não para o primeiro que a
-       busca encontrar. */
+       não digita os próprios dados duas vezes. */
     const meus = lista.map((x, i) => [x, i])
       .filter(([x]) => casaComEM(x, String(u.email).toLowerCase(), cpfDeBusca(u.cpf)));
     if (!meus.length) return { erro: [404, "Registro do ICEM não encontrado para a sua conta"], gravar: false };
     const comBolsa = meus.filter(([x]) => x.bolsa && x.bolsa !== "voluntario");
-    if (!comBolsa.length)
-      return { erro: [400, "A sua participação é voluntária — não há bolsa a pagar, e por isso o ARCHÉ não pede a sua conta bancária."], gravar: false };
+    if (temConta && !comBolsa.length) {
+      return { erro: [400, "A sua participação é voluntária — não há bolsa a pagar, "
+        + "e por isso o ARCHÉ não pede a sua conta bancária."], gravar: false };
+    }
     /* A exigência do BANCO DO BRASIL é do CNPq, não nossa: a agência paga em
-       conta do BB, e uma conta de outro banco simplesmente não recebe. Por
-       isso ela é régua da GRAVAÇÃO, e não recado no e-mail — o estudante
-       digitaria a conta que tem, e o erro só apareceria na folha de pagamento.
-       Tendo ele bolsa do CNPq em qualquer turma, vale a régua mais estrita. */
-    if (comBolsa.some(([x]) => exigeBancoDoBrasil(x.bolsa)) && conta.banco && !ehBancoDoBrasil(conta.banco)) {
+       conta do BB, e conta de outro banco simplesmente não recebe. Por isso
+       ela é régua da GRAVAÇÃO, e não recado no e-mail — o estudante digitaria
+       a conta que tem e o erro só apareceria na folha de pagamento. Tendo ele
+       bolsa do CNPq em qualquer turma, vale a régua mais estrita. */
+    if (temConta && comBolsa.some(([x]) => exigeBancoDoBrasil(x.bolsa))
+        && conta.banco && !ehBancoDoBrasil(conta.banco)) {
       return { erro: [400, "A bolsa do CNPq é paga obrigatoriamente em conta do Banco do Brasil. "
         + "Informe uma conta do Banco do Brasil em seu nome — se você ainda não tiver, "
         + "abra uma conta (o BB tem conta gratuita para menores) e volte aqui."], gravar: false };
     }
-    for (const [x, i] of comBolsa) {
-      /* A marca de "preenchido pela PROPPEX" SAI quando o próprio estudante
-         grava: o cadastro é dele, e a coordenação só o preencheu porque ele
-         não conseguia. Quem escreveu por último é quem responde pelo número
-         da conta. */
-      const { cadastroPelaGestao, ...semMarca } = x;
-      lista[i] = anotarEM({ ...semMarca, ...conta },
-        { quem: u.email, oQue: "informou os próprios dados bancários" });
-    }
-    return { bolsista: lista[comBolsa[0][1]] };
-  });
-  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-  const falta = faltaDadosBancariosEM(r.bolsista);
-  if (!falta.length) {
-    avisarPesquisa(`ICEM: ${r.bolsista.nome} informou os dados bancários`, [
-      ["Bolsista", `${r.bolsista.nome} (turma ${r.bolsista.turma})`],
-      ["Bolsa", bolsaEmDe(r.bolsista.bolsa)?.nome || r.bolsista.bolsa],
-      ["Banco", `${r.bolsista.banco} · ag. ${r.bolsista.agencia} · c/c ${r.bolsista.conta}`],
-    ], "Dados bancários informados pelo bolsista do Ensino Médio");
-  }
-  res.json({ ok: true, bolsista: r.bolsista, falta });
-});
-
-/**
- * O RESPONSÁVEL, INFORMADO PELO PRÓPRIO ESTUDANTE (pedido do dono set/2026:
- * "todos os bolsistas EM faltam dados dos responsáveis; esses dados foram
- * cobrados? havia espaço para lançamento no formulário que eles responderam?
- * […] inclua esses campos no formulário que eles precisam preencher").
- *
- * Não havia: até aqui NENHUM formulário do ARCHÉ gravava `responsavel` — nem o
- * do estudante (que só tinha os quatro campos da conta) nem o da coordenação.
- * O campo só existia como LEITURA: o cartão da gestão o mostrava, a planilha o
- * exportava e o Anexo 01 do termo o imprimia. A turma 2025/2026 o tinha porque
- * foi transcrito dos 24 termos assinados; a 2026/2027 veio do resultado da
- * seleção — colocação, nota, presença na entrevista —, e responsável não é
- * coisa que se pergunte numa seleção. O selo "⚠ faltam dados" estava certo e
- * cobrava algo que ninguém tivera onde informar.
- *
- * Duas regras, e a segunda é o que separa esta rota da dos dados bancários:
- * o dado é DA PESSOA (grava em todos os registros dela, como a conta), e vale
- * para TODO bolsista — **o voluntário inclusive**. A conta existe por causa da
- * bolsa; a autorização do responsável existe por causa da IDADE, e o Anexo 01
- * autoriza o menor a acessar as dependências da instituição e a desenvolver as
- * atividades, receba ele bolsa ou não.
- *
- * O CPF é conferido aqui em vez de cair no chão: `normalizarCpf` devolve ""
- * para o inválido, então um dígito trocado viraria "não informado" e o
- * estudante salvaria achando que preencheu.
- */
-app.post("/api/ic/em/meu/responsavel", async (req, res) => {
-  const u = await sessaoIC(req, res);
-  if (!u) return;
-  const nome = String(req.body?.nome || "").trim().slice(0, 120);
-  const cpfCru = String(req.body?.cpf || "").trim();
-  if (!nomeDePessoaValido(nome)) {
-    return res.status(400).json({ error: "Informe o NOME COMPLETO do seu responsável — "
-      + "é ele que sai impresso na autorização que acompanha o seu termo de compromisso." });
-  }
-  if (!cpfValido(cpfCru)) {
-    return res.status(400).json({ error: "O CPF do responsável não confere. "
-      + "Confira os números e digite de novo — ele sai impresso na autorização." });
-  }
-  const responsavel = { nome, cpf: normalizarCpf(cpfCru) };
-  const r = await comBolsistasEM((lista) => {
-    const meus = lista.map((x, i) => [x, i])
-      .filter(([x]) => casaComEM(x, String(u.email).toLowerCase(), cpfDeBusca(u.cpf)));
-    if (!meus.length) return { erro: [404, "Registro do ICEM não encontrado para a sua conta"], gravar: false };
     for (const [x, i] of meus) {
-      lista[i] = anotarEM({ ...x, responsavel },
-        { quem: u.email, oQue: "informou os dados do responsável" });
+      /* A marca de "preenchido pela PROPPEX" SAI quando o próprio estudante
+         escreve o que ela cobre — a conta e o responsável. O cadastro é dele,
+         e a coordenação só o preencheu porque ele não conseguia: quem escreveu
+         por último é quem responde pelo número da conta. */
+      const { cadastroPelaGestao, ...semMarca } = x;
+      const novo = temConta || temResp ? { ...semMarca } : { ...x };
+      if (nome) novo.nome = nome;
+      if (cpfCru) novo.cpf = normalizarCpf(cpfCru);
+      if (telefone) novo.telefone = telefone;
+      if (escola) novo.escola = escola;
+      if (serie) novo.serie = serie;
+      if (temResp) {
+        novo.responsavel = {
+          nome: rNome || x.responsavel?.nome || "",
+          cpf: (rCpfCru ? normalizarCpf(rCpfCru) : "") || x.responsavel?.cpf || "",
+        };
+      }
+      // a conta só entra nos registros COM bolsa a pagar: o voluntário não
+      // recebe, e guardar-lhe conta corrente seria coletar o que nada usa
+      if (temConta && x.bolsa && x.bolsa !== "voluntario") Object.assign(novo, conta);
+      lista[i] = anotarEM(novo, { quem: u.email, oQue: "completou o próprio cadastro" });
     }
     return { bolsista: lista[meus[0][1]], tocados: meus.length };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-  avisarPesquisa(`ICEM: ${r.bolsista.nome} informou os dados do responsável`, [
+
+  /* O MESMO PREENCHIMENTO COMPLETA O PERFIL (é o que faz "o aluno só entra e
+     completa" ser verdade): sem isto ele digitaria nome, CPF e telefone aqui
+     e de novo na etapa do perfil, que é a parede que o esperava na porta do
+     setor. A função "em" existe para essa etapa parar de lhe cobrar matrícula
+     e curso do UNIEGO, que ele não tem. Ela nunca sobrescreve o que a pessoa
+     já preencheu, e o CPF só entra quando nenhuma outra conta o tem. */
+  await completarPerfilPelaInscricao(u.email, {
+    nome: r.bolsista.nome, cpf: r.bolsista.cpf, telefone: r.bolsista.telefone, funcao: "em",
+  }).catch(() => {});
+
+  const falta = faltaDoEstudanteEM(r.bolsista);
+  const informou = [
+    nome && "nome", cpfCru && "CPF", telefone && "telefone",
+    escola && "escola", serie && "série", temResp && "responsável", temConta && "conta bancária",
+  ].filter(Boolean);
+  avisarPesquisa(`ICEM: ${r.bolsista.nome} completou o próprio cadastro`, [
     ["Bolsista", `${r.bolsista.nome} (turma ${r.bolsista.turma})`],
-    ["Responsável", responsavel.nome],
-  ], "Autorização do responsável — dados informados pelo bolsista do Ensino Médio");
-  res.json({ ok: true, bolsista: r.bolsista, falta: faltaDoEstudanteEM(r.bolsista) });
+    ["Informou", informou.join(", ")],
+    ["Responsável", r.bolsista.responsavel?.nome || "—"],
+    ...(temConta ? [["Conta", `${r.bolsista.banco} · ag. ${r.bolsista.agencia} · c/c ${r.bolsista.conta}`]] : []),
+    ["Ainda falta", falta.length ? falta.join(", ") : "nada — cadastro completo"],
+  ], "Cadastro informado pelo bolsista do Ensino Médio");
+  res.json({ ok: true, bolsista: r.bolsista, falta });
+}
+
+app.post("/api/ic/em/meu/cadastro", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  await gravarCadastroDoEstudanteEM(req, res, u, req.body || {});
+});
+
+/* As duas rotas ANTERIORES continuam de pé como recortes do mesmo formulário
+   — uma aba aberta desde antes do deploy não pode deixar de gravar —, e
+   passam pelo MESMO caminho: duas implementações do mesmo fato acabariam
+   divergindo no primeiro campo novo. */
+app.post("/api/ic/em/meu/responsavel", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  await gravarCadastroDoEstudanteEM(req, res, u,
+    { responsavel: { nome: req.body?.nome, cpf: req.body?.cpf } });
+});
+app.post("/api/ic/em/meu/banco", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const b = req.body || {};
+  await gravarCadastroDoEstudanteEM(req, res, u,
+    { banco: b.banco, agencia: b.agencia, conta: b.conta, pix: b.pix });
 });
 
 /**
@@ -14958,6 +15030,7 @@ async function pedirDadosBancariosEM(bolsistas, { mensagem = "", forcar = false 
         baseUrl: base, bolsa: bolsaEmDe(b.bolsa), mensagem,
         exigeBB: exigeBancoDoBrasil(b.bolsa), lembrete: !!ja[marcaBancoEM(b)],
         faltaBanco: faltaDadosBancariosEM(b), faltaResponsavel: faltaDoResponsavelEM(b),
+        faltaSeusDados: faltaDosSeusDadosEM(b),
       }));
       enviados.push(b);
     } catch (e) { falhas.push(`${b.nome || b.email}: ${e.message}`); }
@@ -15007,6 +15080,7 @@ app.post("/api/ic/em/chamada-banco", async (req, res) => {
         bolsa: bolsaEmDe(p.bolsa), mensagem: String(req.body?.mensagem || ""),
         exigeBB: exigeBancoDoBrasil(p.bolsa), lembrete: true,
         faltaBanco: faltaDadosBancariosEM(p), faltaResponsavel: faltaDoResponsavelEM(p),
+        faltaSeusDados: faltaDosSeusDadosEM(p),
       }).corpoHtml : "" });
   }
   // pelo botão o reenvio é DELIBERADO: a marca não segura quem já foi avisado
@@ -17188,8 +17262,13 @@ async function criarPreCadastrosEM() {
         nome: b.nome,
         cpf: cpf && !Object.values(perfis).some((p) => p?.cpf === cpf) ? cpf : "",
         telefone: b.telefone || "",
-        curso: b.cursoInteresse || "",
-        funcao: "aluno",
+        /* O CURSO fica VAZIO e a função é "em" (set/2026): ele é estudante do
+           ENSINO MÉDIO — não tem curso no UNIEGO, e `cursoInteresse` é o que
+           ele PRETENDE cursar, que gravado aqui o faria constar do recorte de
+           um curso a que não pertence. A função "em" é o que dispensa curso e
+           matrícula na etapa de completar o cadastro. */
+        curso: "",
+        funcao: "em",
         preCadastro: true, criadoEm: new Date().toISOString(),
         criadoPor: "sistema (pré-cadastro do ICEM, a partir dos termos assinados)",
       };
