@@ -11651,13 +11651,29 @@ function perfilIC(u, projetos, quem = null, { bolsistaEM = false } = {}) {
   if (meu.perfilGenerico) return meu.perfilGenerico;   // visão genérica do "ver como"
   if (meu.gestao) return "gestao";
   const papeis = projetos.map((p) => papelNoProjeto(meu, p)).filter(Boolean);
-  if (papeis.includes("orientador")) return "orientador";
+  /* O BOLSISTA DO ICEM NÃO VIRA "ORIENTADOR" POR UM RASCUNHO QUE ELE ABRIU
+     (relato da bolsista Mariana, set/2026: "eu escolhi o meu projeto tb e
+     está dando como rascunho" — e o print era o painel do PROFESSOR, com um
+     projeto "Direito internacional" em rascunho). Resolvida a conta dela, o
+     setor lhe mostrou a tela do docente (era o que `perfilIC` fazia com quem
+     não tem papel nenhum), e ali o botão à mão é "novo projeto": ela clicou
+     achando que era assim que se escolhe o projeto a acompanhar. Daí em
+     diante o rascunho lhe dava o papel de `orientador`, que vencia ANTES do
+     `bolsistaEM` — e a guia "Meu ICEM" desaparecia para sempre, trancada por
+     um rascunho que ela mesma criou sem querer.
+     Um estudante do ensino médio não orienta projeto de graduação: sendo
+     bolsista do ICEM, orientação não conta. O que continua contando é ser
+     ALUNO ou AVALIADOR — o ex-bolsista do ICEM que entra na graduação e é
+     indicado num projeto precisa da guia Bolsa, e o registro do ICEM dele
+     não se apaga quando a turma encerra. */
+  const papeisReais = bolsistaEM ? papeis.filter((x) => x !== "orientador") : papeis;
+  if (papeisReais.includes("orientador")) return "orientador";
   // o bolsista do ICEM sem projeto de graduação é ESTUDANTE do programa, não
   // docente: a cara do setor para ele é a guia do Ensino Médio (dono, ago/2026)
-  if (!papeis.length && bolsistaEM) return "em";
-  if (!papeis.length) return "orientador";     // docente ainda sem projeto: pode submeter
-  if (papeis.every((x) => x === "aluno")) return "aluno";
-  if (papeis.every((x) => x === "avaliador")) return "avaliador";
+  if (!papeisReais.length && bolsistaEM) return "em";
+  if (!papeisReais.length) return "orientador";     // docente ainda sem projeto: pode submeter
+  if (papeisReais.every((x) => x === "aluno")) return "aluno";
+  if (papeisReais.every((x) => x === "avaliador")) return "avaliador";
   return "orientador";                          // acumula papéis: vê o setor inteiro
 }
 
@@ -14473,7 +14489,12 @@ app.post("/api/ic/em/meu/banco", async (req, res) => {
         + "abra uma conta (o BB tem conta gratuita para menores) e volte aqui."], gravar: false };
     }
     for (const [x, i] of comBolsa) {
-      lista[i] = anotarEM({ ...x, ...conta },
+      /* A marca de "preenchido pela PROPPEX" SAI quando o próprio estudante
+         grava: o cadastro é dele, e a coordenação só o preencheu porque ele
+         não conseguia. Quem escreveu por último é quem responde pelo número
+         da conta. */
+      const { cadastroPelaGestao, ...semMarca } = x;
+      lista[i] = anotarEM({ ...semMarca, ...conta },
         { quem: u.email, oQue: "informou os próprios dados bancários" });
     }
     return { bolsista: lista[comBolsa[0][1]] };
@@ -14488,6 +14509,61 @@ app.post("/api/ic/em/meu/banco", async (req, res) => {
     ], "Dados bancários informados pelo bolsista do Ensino Médio");
   }
   res.json({ ok: true, bolsista: r.bolsista, falta });
+});
+
+/**
+ * A COORDENAÇÃO PREENCHE OS DADOS BANCÁRIOS EM NOME DO BOLSISTA DO ICEM
+ * (pedido do dono set/2026: "inclua a opção de preencher pelo aluno também no
+ * módulo de IC ensino médio" — a mesma que a graduação acabara de ganhar).
+ *
+ * No ICEM a coordenação já digita tudo: nome, escola, série, bolsa. A ÚNICA
+ * coisa que só o estudante escreve é a CONTA, e por uma razão boa — quem tem o
+ * cartão na mão é ele, e um dígito trocado é um pagamento que não cai. Só que
+ * são adolescentes: o e-mail vai para a caixa da escola, cai no spam, e a
+ * folha do mês fecha sem eles. A coordenação ficava olhando "falta banco,
+ * agência, conta, Pix" com o termo de compromisso na mesa — onde esses quatro
+ * campos estão escritos à mão — e sem lugar nenhum para digitá-los.
+ *
+ * Mesmas regras da graduação: a régua do BANCO DO BRASIL continua valendo (é
+ * do CNPq, não nossa), a gravação alcança TODOS os registros da pessoa com
+ * bolsa a pagar (a conta é dela, não da turma), o ato fica MARCADO no registro
+ * e no histórico, e o estudante continua dono — a gravação dele desfaz a marca.
+ */
+app.post("/api/ic/em/:id/cadastro", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "Só a coordenação de pesquisa preenche em nome do bolsista." });
+  const b = req.body || {};
+  const conta = {
+    banco: String(b.banco || "").trim().slice(0, 60),
+    agencia: String(b.agencia || "").trim().slice(0, 20),
+    conta: String(b.conta || "").trim().slice(0, 30),
+    pix: String(b.pix || "").trim().slice(0, 120),
+  };
+  const r = await comBolsistasEM((lista) => {
+    const alvo = lista.find((x) => x.id === req.params.id);
+    if (!alvo) return { erro: [404, "Bolsista não encontrado"], gravar: false };
+    if (!alvo.bolsa || alvo.bolsa === "voluntario") {
+      return { erro: [400, `${alvo.nome || "Este bolsista"} é voluntário(a) — não há bolsa a pagar, `
+        + "e por isso o ARCHÉ não guarda conta bancária dele(a)."], gravar: false };
+    }
+    // a conta é DA PESSOA: quem esteve em duas turmas não a tem em duas versões
+    const meus = lista.map((x, i) => [x, i]).filter(([x]) => x.id === alvo.id
+      || (x.bolsa && x.bolsa !== "voluntario"
+        && casaComEM(x, String(alvo.email || "").toLowerCase(), cpfDeBusca(alvo.cpf))));
+    if (meus.some(([x]) => exigeBancoDoBrasil(x.bolsa)) && conta.banco && !ehBancoDoBrasil(conta.banco)) {
+      return { erro: [400, "A bolsa do CNPq é paga obrigatoriamente em conta do Banco do Brasil — "
+        + "uma conta de outro banco não recebe o pagamento da agência."], gravar: false };
+    }
+    const marca = { por: u.email, em: new Date().toISOString() };
+    for (const [x, i] of meus) {
+      lista[i] = anotarEM({ ...x, ...conta, cadastroPelaGestao: marca },
+        { quem: u.email, oQue: `preencheu os dados bancários em nome de ${x.nome || "um bolsista"} (pela PROPPEX)` });
+    }
+    return { bolsista: lista[meus.find(([x]) => x.id === alvo.id)[1]], tocados: meus.length };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  res.json({ ok: true, bolsista: r.bolsista, registros: r.tocados, falta: faltaDadosBancariosEM(r.bolsista) });
 });
 
 /* A validação do relatório do EM é da PROPPEX (decisão do dono, ago/2026):
@@ -17359,6 +17435,152 @@ async function pedirDadosBancariosIC(projeto, alunos, { mensagem = "", forcar = 
    com a mesma janela de revisão dos demais chamamentos. Pelo botão o ato é
    deliberado, então ele FORÇA o reenvio — é justamente para o e-mail que
    caiu no spam que ele existe. */
+/**
+ * COMUNICADO DA COORDENAÇÃO AOS BOLSISTAS E VOLUNTÁRIOS (pedido do dono,
+ * set/2026: "inclua nos dois módulos, IC e ICEM, um botão de enviar e-mail a
+ * todos os bolsistas e voluntários").
+ *
+ * As chamadas que já existiam são do SISTEMA — "falta o seu relatório",
+ * "informe a sua conta" —, com texto pronto e uma lista calculada a partir do
+ * que está pendente. Isto é outra coisa: é a coordenação FALANDO com os
+ * estudantes (a data da entrega dos termos, o horário do CONINT, um aviso de
+ * mudança), e hoje isso corre por WhatsApp numa lista que ninguém tem
+ * inteira — enquanto o sistema tem a lista certa.
+ *
+ * As quatro decisões são as do comunicado dos eventos, e pelas mesmas razões:
+ * **SIMULA antes** (e-mail mandado não se recolhe, e dizer o número ANTES é o
+ * que separa um comunicado de um engano irreversível); o recorte é por
+ * VÍNCULO (todos · só bolsistas · só voluntários), porque são perguntas
+ * diferentes da coordenação; o envio é sequencial e fire-and-forget,
+ * devolvendo quantos ficaram **sem e-mail no cadastro** — o buraco precisa ser
+ * conhecido, não escondido; e **nenhum e-mail saído é FALHA** (502), nunca
+ * "✓ enviado a 0" em verde.
+ */
+const COMUNICADOS_IC_KEY = "sys-ic-comunicados-v1";
+const ALVOS_COMUNICADO_IC = {
+  todos: { rotulo: "todos os bolsistas e voluntários", filtro: () => true },
+  bolsistas: { rotulo: "só os bolsistas", filtro: (a) => !!a.bolsista },
+  voluntarios: { rotulo: "só os voluntários", filtro: (a) => !a.bolsista },
+};
+
+/** Registro comum aos dois comunicados: o histórico responde depois "isso já
+ *  foi avisado?", e e-mail mandado não se desfaz. */
+async function registrarComunicadoIC(chave, entrada) {
+  const reg = JSON.parse((await storage.get(COMUNICADOS_IC_KEY)) || "{}");
+  const lista = Array.isArray(reg[chave]) ? reg[chave] : [];
+  lista.unshift(entrada);
+  reg[chave] = lista.slice(0, 50);
+  await storage.set(COMUNICADOS_IC_KEY, JSON.stringify(reg));
+}
+
+/** O envio em si — sequencial, com a falha de um não derrubando os demais. */
+async function dispararComunicadoIC({ pessoas, assunto, mensagem, contexto, base }) {
+  const { emailComunicadoIC } = await import("./lib/mailer.js");
+  let enviados = 0;
+  for (const p of pessoas) {
+    try {
+      await enviarAviso("ic-comunicado",
+        emailComunicadoIC({ para: p.email, nome: p.nome, assunto, mensagem, contexto, base }));
+      enviados++;
+    } catch (e) { console.error(`Comunicado da IC não enviado a ${p.email}:`, e.message); }
+  }
+  return enviados;
+}
+
+app.post("/api/ic/comunicado", async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    if (!gereIC(u)) return res.status(403).json({ error: "O comunicado é da coordenação de pesquisa." });
+    const b = req.body || {};
+    const alvo = Object.hasOwn(ALVOS_COMUNICADO_IC, String(b.alvo)) ? String(b.alvo) : "todos";
+    const assunto = String(b.assunto || "").trim().slice(0, 120);
+    const mensagem = String(b.mensagem || "").trim().slice(0, 8000);
+    const ciclo = String(b.ciclo || "").trim();
+    /* A MESMA régua da folha de pagamento e da chamada: só projeto EM
+       EXECUÇÃO. Sem ela um clique alcançaria os noventa bolsistas de 2022 a
+       2025, transcritos dos resultados publicados, sobre ciclos encerrados. */
+    const projetos = (await lerProjetos()).filter((p) => ["aprovado", "concluido"].includes(p.status)
+      && (!ciclo || editalDe(p) === ciclo));
+    // uma pessoa, um e-mail: quem está em dois projetos não recebe duas vezes
+    const porEmail = new Map();
+    let semEmail = 0;
+    for (const p of projetos) {
+      for (const a of p.alunos || []) {
+        if (!ALVOS_COMUNICADO_IC[alvo].filtro(a)) continue;
+        const e = String(a.email || "").trim().toLowerCase();
+        if (!e || !RE_EMAIL_INSCRICAO.test(e)) { semEmail++; continue; }
+        if (!porEmail.has(e)) porEmail.set(e, { nome: a.nome, email: e });
+      }
+    }
+    const pessoas = [...porEmail.values()];
+    const contexto = `Iniciação Científica${ciclo ? ` · Edital ${ciclo}` : ""}`;
+    if (b.simular === true) {
+      const { emailComunicadoIC } = await import("./lib/mailer.js");
+      const previa = pessoas[0] ? emailComunicadoIC({ para: pessoas[0].email, nome: pessoas[0].nome,
+        assunto: assunto || "(assunto)", mensagem: mensagem || "(a sua mensagem)", contexto, base: baseDe(req) }) : null;
+      return res.json({ ok: true, simulado: true, alvo, rotulo: ALVOS_COMUNICADO_IC[alvo].rotulo,
+        destinatarios: pessoas.length, semEmail,
+        lista: pessoas.slice(0, 200).map((p) => `${p.nome || p.email} — ${p.email}`),
+        previaHtml: previa?.corpoHtml || "" });
+    }
+    if (assunto.length < 3) return res.status(400).json({ error: "Escreva o assunto do comunicado." });
+    if (mensagem.length < 10) return res.status(400).json({ error: "Escreva a mensagem do comunicado." });
+    if (!pessoas.length) return res.status(409).json({ error: "Ninguém deste recorte tem e-mail no cadastro." });
+    const enviados = await dispararComunicadoIC({ pessoas, assunto, mensagem, contexto, base: baseDe(req) });
+    await registrarComunicadoIC(`ic:${ciclo || "todos"}`, { em: new Date().toISOString(), por: u.email,
+      alvo, assunto, enviados, semEmail, destinatarios: pessoas.length, trecho: mensagem.slice(0, 240) });
+    if (!enviados) return res.status(502).json({ error: "Nenhum e-mail saiu — o servidor de e-mail recusou o envio. A tentativa ficou registrada; tente de novo em instantes.", enviados: 0 });
+    res.json({ ok: true, enviados, semEmail, destinatarios: pessoas.length });
+  } catch (e) {
+    console.error("Erro no comunicado da IC:", e);
+    res.status(500).json({ error: "Não foi possível enviar o comunicado agora." });
+  }
+});
+
+app.post("/api/ic/em/comunicado", async (req, res) => {
+  try {
+    const u = await sessaoIC(req, res);
+    if (!u) return;
+    if (!gereIC(u)) return res.status(403).json({ error: "O comunicado é da coordenação de pesquisa." });
+    const b = req.body || {};
+    const alvo = Object.hasOwn(ALVOS_COMUNICADO_IC, String(b.alvo)) ? String(b.alvo) : "todos";
+    const assunto = String(b.assunto || "").trim().slice(0, 120);
+    const mensagem = String(b.mensagem || "").trim().slice(0, 8000);
+    const turma = String(b.turma || "").trim();
+    // desligado não recebe: ele saiu do programa, e o comunicado é da turma
+    const naTurma = (await lerBolsistasEM()).filter((x) => x.situacao !== "desligado"
+      && (!turma || x.turma === turma));
+    const comBolsa = (x) => !!x.bolsa && x.bolsa !== "voluntario";
+    const recorte = naTurma.filter((x) => (alvo === "todos" ? true
+      : alvo === "bolsistas" ? comBolsa(x) : !comBolsa(x)));
+    const pessoas = recorte.filter((x) => RE_EMAIL_INSCRICAO.test(String(x.email || "").trim()))
+      .map((x) => ({ nome: x.nome, email: String(x.email).trim().toLowerCase() }));
+    const semEmail = recorte.length - pessoas.length;
+    const contexto = `ICEM — Iniciação Científica no Ensino Médio${turma ? ` · Turma ${turma}` : ""}`;
+    if (b.simular === true) {
+      const { emailComunicadoIC } = await import("./lib/mailer.js");
+      const previa = pessoas[0] ? emailComunicadoIC({ para: pessoas[0].email, nome: pessoas[0].nome,
+        assunto: assunto || "(assunto)", mensagem: mensagem || "(a sua mensagem)", contexto, base: baseDe(req) }) : null;
+      return res.json({ ok: true, simulado: true, alvo, rotulo: ALVOS_COMUNICADO_IC[alvo].rotulo,
+        destinatarios: pessoas.length, semEmail,
+        lista: pessoas.slice(0, 200).map((p) => `${p.nome || p.email} — ${p.email}`),
+        previaHtml: previa?.corpoHtml || "" });
+    }
+    if (assunto.length < 3) return res.status(400).json({ error: "Escreva o assunto do comunicado." });
+    if (mensagem.length < 10) return res.status(400).json({ error: "Escreva a mensagem do comunicado." });
+    if (!pessoas.length) return res.status(409).json({ error: "Ninguém deste recorte tem e-mail no cadastro." });
+    const enviados = await dispararComunicadoIC({ pessoas, assunto, mensagem, contexto, base: baseDe(req) });
+    await registrarComunicadoIC(`em:${turma || "todas"}`, { em: new Date().toISOString(), por: u.email,
+      alvo, assunto, enviados, semEmail, destinatarios: pessoas.length, trecho: mensagem.slice(0, 240) });
+    if (!enviados) return res.status(502).json({ error: "Nenhum e-mail saiu — o servidor de e-mail recusou o envio. A tentativa ficou registrada; tente de novo em instantes.", enviados: 0 });
+    res.json({ ok: true, enviados, semEmail, destinatarios: pessoas.length });
+  } catch (e) {
+    console.error("Erro no comunicado do ICEM:", e);
+    res.status(500).json({ error: "Não foi possível enviar o comunicado agora." });
+  }
+});
+
 app.post("/api/ic/chamada-banco", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;

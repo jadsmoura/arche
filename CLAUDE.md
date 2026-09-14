@@ -2930,6 +2930,56 @@ public/
   CPF errado se corrige pela indicação, no projeto; e **o aluno continua dono**: a gravação dele
   desfaz a marca, e a guia Bolsa dele DIZ que a PROPPEX preencheu, pedindo que confira a conta e o
   Pix antes de salvar — quem recebe o pagamento é ele.
+  **E O ICEM GANHOU O MESMO** (`POST /api/ic/em/:id/cadastro` + `cadastroPelaGestao` em
+  `normalizarBolsistaEM` + o botão no cartão da guia Ensino Médio, pedido do dono set/2026:
+  "inclua a opção de preencher pelo aluno também no módulo de IC ensino médio"). Lá o buraco é o
+  ESPELHO do da graduação: a coordenação já digita tudo — nome, escola, série, bolsa — e a única
+  coisa que só o estudante escrevia é a **CONTA**, por uma razão boa (quem tem o cartão na mão é
+  ele, e um dígito trocado é um pagamento que não cai). Só que são **adolescentes**, com e-mail da
+  escola que ninguém abre: a folha do mês fechava sem eles, e a coordenação olhava "falta banco,
+  agência, conta, Pix" com o **termo de compromisso na mesa**, onde os quatro campos estão
+  escritos à mão, sem lugar nenhum para digitá-los. Mesmas regras: a régua do **Banco do Brasil**
+  continua valendo (é do CNPq, não nossa), a gravação alcança todos os registros da pessoa com
+  bolsa a pagar, o ato fica marcado no registro e no histórico, e a **gravação do estudante desfaz
+  a marca** — quem escreveu por último é quem responde pelo número da conta. O botão **não se
+  desenha para o voluntário nem para quem ainda não tem bolsa atribuída** (não há o que pagar, e a
+  rota recusa): na turma recém-selecionada ele só aparece depois da concessão.
+- **O BOLSISTA DO ICEM NÃO VIRA "ORIENTADOR" POR UM RASCUNHO QUE ELE ABRIU** (`perfilIC` no
+  server, relato da bolsista Mariana set/2026: "e eu escolhi o meu projeto tb e está dando como
+  rascunho" — e o print era o **painel do PROFESSOR**, com um projeto "Direito internacional" em
+  rascunho, numa estudante do 2º ano do ensino médio). Resolvida a conta dela, o setor lhe mostrou
+  a tela do docente (era o que `perfilIC` fazia com quem não tem papel nenhum), e ali o botão à
+  mão é "novo projeto": ela clicou achando que era assim que se escolhe o projeto a acompanhar.
+  Daí em diante o rascunho lhe dava o papel de `orientador`, que era testado ANTES do
+  `bolsistaEM` — e a guia **"Meu ICEM" desaparecia para sempre**, trancada por um rascunho que ela
+  mesma criou sem querer. Um estudante do ensino médio não orienta projeto de graduação: sendo
+  bolsista do ICEM, **orientação não conta**. O que continua contando é ser **aluno** ou
+  **avaliador** — o ex-bolsista do ICEM que entra na graduação e é indicado num projeto precisa da
+  guia Bolsa, e o registro do ICEM dele não se apaga quando a turma encerra. Reproduzido no
+  servidor local com o retrato do print: com o código anterior, `perfil = orientador`; com a
+  correção, `perfil = em`.
+- **COMUNICADO DA COORDENAÇÃO AOS BOLSISTAS E VOLUNTÁRIOS** (`emailComunicadoIC` em lib/mailer.js
+  + `POST /api/ic/comunicado` e `/api/ic/em/comunicado` + `sys-ic-comunicados-v1` + o aviso
+  `ic-comunicado` + o botão nas guias Bolsistas e Ensino Médio, pedido do dono set/2026: "inclua
+  nos dois módulos, IC e ICEM, um botão de enviar e-mail a todos os bolsistas e voluntários"). As
+  chamadas que já existiam são do SISTEMA — "falta o seu relatório", "informe a sua conta" —, com
+  texto pronto e lista calculada do que está pendente. Isto é outra coisa: é a coordenação
+  **falando** (a data da entrega dos termos, o horário do CONINT, uma mudança de sala), e hoje
+  isso corre por WhatsApp numa lista que ninguém tem inteira — enquanto o sistema tem a lista
+  certa. As quatro decisões são as do comunicado dos eventos, pelas mesmas razões: **SIMULA
+  antes** (e-mail mandado não se recolhe, e dizer o número ANTES é o que separa um comunicado de
+  um engano irreversível); o recorte é por **vínculo** (todos · só bolsistas · só voluntários);
+  o envio é sequencial e fire-and-forget, devolvendo **quantos ficaram sem e-mail no cadastro** —
+  o buraco precisa ser conhecido, não escondido; e **nenhum e-mail saído é FALHA** (502, faixa
+  vermelha), nunca "✓ enviado a 0" em verde. Duas réguas próprias da IC: só **projeto em
+  EXECUÇÃO** (a mesma da folha de pagamento — sem ela um clique alcançaria os noventa bolsistas de
+  2022 a 2025, transcritos dos resultados publicados, sobre ciclos encerrados há anos) e **uma
+  pessoa, um e-mail** (quem está em dois projetos não recebe duas vezes); no ICEM, quem foi
+  **desligado** fica de fora. O texto vai ESCAPADO com as quebras preservadas — não é HTML
+  colável —, e o link leva `conta=`, que é o que faz o bolsista cair na conta certa quando lê no
+  celular. A janela de revisão é a de sempre (`janelaEnvio`), com `semMensagem: true`: ali o corpo
+  do e-mail JÁ é o que a coordenação escreveu, e uma segunda caixa de "mensagem da coordenação"
+  faria a pessoa achar que precisa escrever de novo.
 - **O QUE FOI DIGITADO NA FICHA DO PROJETO NÃO SE PERDE** (`SUJO`/`podeSair`/`selo-sujo` na SPA
   da IC, relato de um professor ago/2026: "os alunos que preenchi para o projeto de IC não estão
   ficando salvos"). Não estavam sendo perdidos na gravação — a gravação funciona, conferida ponta
