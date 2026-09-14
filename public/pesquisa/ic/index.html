@@ -3167,6 +3167,24 @@ function renderBolsistas() {
        concessão, mas e-mail cai em spam e o aluno esquece — e quem fecha a
        folha precisa VER quantos faltam antes de mandar de novo. Conta só
        bolsista de projeto COM bolsa: voluntário não tem conta a informar. */
+    /* Quantas folhas cada lote de termos produz — a MESMA régua do servidor
+       (lib/termos.js: `fomentoDoProjeto` decide o modelo, e aluno sem nome e
+       sem e-mail não entra no lote). Sem isto o botão não sabia dizer que ia
+       abrir um PDF vazio. */
+    const fomentoDe = (p) => (p?.fomento?.tipo === "cnpq" ? "cnpq"
+      : p?.fomento?.tipo === "uniego" ? "uniego" : "voluntario");
+    const contaLote = (t) => projetos.reduce((soma, p) => {
+      const f = fomentoDe(p);
+      if (t === "voluntario" && f !== "voluntario") return soma;
+      if (t === "bolsista" && f === "voluntario") return soma;
+      return soma + (p.alunos || []).filter((a) => a.nome || a.email).length;
+    }, 0);
+    const loteTermos = {
+      bolsista: contaLote("bolsista"), voluntario: contaLote("voluntario"),
+      // um termo por PROFESSOR, não por projeto — quem orienta dois assina um
+      orientador: new Set(projetos.map((p) => String(p.orientador?.email || p.orientador?.nome || "").toLowerCase())
+        .filter(Boolean)).size,
+    };
     const devendo = comAlunos.flatMap((p) => {
       const tipo = String(p.fomento?.tipo || "");
       if (!tipo || tipo === "voluntario") return [];
@@ -3192,17 +3210,26 @@ function renderBolsistas() {
         <a class="bt bt-pri" href="/api/ic/pagamento.xlsx?edital=${encodeURIComponent(ciclo)}"
           title="Bolsas do UNIEGO em execução — graduação e Ensino Médio juntos, com banco, agência, conta e Pix. Duas abas: para pagamento e pendentes.">
           💰 Folha de pagamento do mês (Excel)</a>
-        <a class="bt bt-ghost" href="/api/ic/termos.pdf?tipo=bolsista&edital=${encodeURIComponent(ciclo)}" target="_blank" rel="noopener"
-          title="Modelo institucional, uma folha por bolsista — para imprimir e assinar na cerimônia">
-          📝 Termos dos bolsistas (PDF)</a>
-        <!-- O voluntário assina OUTRO modelo (PVIC: 8h semanais, sem bolsa e
-             sem conta bancária), e por isso a pilha é outra. -->
-        <a class="bt bt-ghost" href="/api/ic/termos.pdf?tipo=voluntario&edital=${encodeURIComponent(ciclo)}" target="_blank" rel="noopener"
-          title="Modelo do PVIC — 8 horas semanais, sem bolsa e sem conta bancária no documento">
-          📝 Termos dos voluntários (PDF)</a>
-        <a class="bt bt-ghost" href="/api/ic/termos.pdf?tipo=orientador&edital=${encodeURIComponent(ciclo)}" target="_blank" rel="noopener"
-          title="Um termo por professor, com os projetos que ele orienta">
-          📝 Termos dos orientadores (PDF)</a>
+        ${/* O BOTÃO DIZ QUANTAS FOLHAS SAEM — e some quando não sai nenhuma
+             (achado do dono set/2026: "estou clicando em gerar os termos dos
+             bolsistas, professores e voluntários e não estão gerando"). O
+             lote vazio abre um PDF de UMA página dizendo "nenhum termo a
+             emitir", o que é honesto por dentro e, do lado de fora, é
+             indistinguível de um botão quebrado — ainda mais no telefone,
+             onde o PDF abre noutra aba. A régua é a MESMA do servidor
+             (`alunosDoLote` + `fomentoDoProjeto`): quem decide o modelo é o
+             fomento do PROJETO, e aluno sem nome e sem e-mail não entra. */
+          ""}
+        ${[["bolsista", "bolsistas", "Modelo institucional, uma folha por bolsista — para imprimir e assinar na cerimônia", loteTermos.bolsista],
+           ["voluntario", "voluntários", "Modelo do PVIC — 8 horas semanais, sem bolsa e sem conta bancária no documento", loteTermos.voluntario],
+           ["orientador", "orientadores", "Um termo por professor, com os projetos que ele orienta", loteTermos.orientador]]
+          .map(([t, rot, dica, n]) => n
+            ? `<a class="bt bt-ghost" href="/api/ic/termos.pdf?tipo=${t}&edital=${encodeURIComponent(ciclo)}" target="_blank" rel="noopener"
+                title="${esc(dica)}">📝 Termos dos ${rot} (${n}) — PDF</a>`
+            : `<span class="muted" style="align-self:center;font-size:12.5px"
+                title="${esc(dica)}">📝 Termos dos ${rot}: ${t === "orientador"
+                  ? "nenhum projeto neste ciclo"
+                  : `nenhum ${t === "bolsista" ? "bolsista" : "voluntário"} indicado neste ciclo`}</span>`).join("")}
       </div>
       ${blocoPublicarTermos(ciclo)}` : ""}
       ${corpo || `<div class="vazio">Nenhum aluno indicado neste ciclo ainda — a indicação abre com a aprovação do projeto.</div>`}
