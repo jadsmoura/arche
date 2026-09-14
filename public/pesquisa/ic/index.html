@@ -2788,6 +2788,13 @@ function renderBolsistas() {
           ${linhaDado("Banco", a.banco)} ${linhaDado("Agência", a.agencia)}
           ${linhaDado("Conta", a.conta)} ${linhaDado("Pix", a.pix)}
           ${!a.cpf && !a.banco ? '<div class="kv muted">O aluno ainda não enviou o cadastro (guia Bolsa).</div>' : ""}
+          ${a.cadastroPelaGestao?.em ? `<div class="kv muted" style="margin-top:4px">✎ Preenchido
+            <b>pela PROPPEX</b>, em nome do aluno — ${esc(a.cadastroPelaGestao.por || "")} em
+            ${fmtDH(a.cadastroPelaGestao.em)}.</div>` : ""}
+          <div class="exp" style="margin-top:8px">
+            <button class="bt bt-sec" onclick="abrirCadastroPeloGestor('${esc(p.id)}','${esc(a.email || "")}','${esc(a.cpf || "")}')">
+              ✎ Preencher em nome do bolsista</button>
+          </div>
         </div>
       </details>` : ""}
       <div class="exp"><button class="bt bt-ghost" onclick="abrir('${esc(p.id)}')">Abrir o projeto</button>
@@ -3105,6 +3112,10 @@ function renderMinhaBolsa() {
 
     ${falta.length ? `<div class="banner ba-warn">Falta informar: <b>${esc(falta.join(", "))}</b>.</div>`
       : `<div class="banner ba-ok">Cadastro completo — obrigado. Qualquer alteração, é só salvar de novo.</div>`}
+    ${eu.cadastroPelaGestao?.em ? `<div class="banner ba-info">Parte deste cadastro foi preenchida
+      <b>pela PROPPEX em seu nome</b> (${fmtDH(eu.cadastroPelaGestao.em)}), a partir do que você
+      informou. <b>Confira</b> — principalmente a conta e o Pix — e salve: o contrato sai exatamente
+      do que estiver aqui.</div>` : ""}
 
     <div class="sec-t">Identificação</div>
     <div class="grid3">
@@ -3199,6 +3210,106 @@ async function salvarMinhaBolsa() {
     aviso(falta.length
       ? `Cadastro salvo. Ainda falta: ${falta.join(", ")}.`
       : "Cadastro completo e salvo — a PROPPEX usa exatamente o que você informou para montar o contrato.",
+      falta.length ? "warn" : "ok");
+  } catch (e) { aviso(e.message, "err"); }
+}
+
+/* ---------- a PROPPEX preenche o cadastro EM NOME do bolsista ------------ */
+/* O cadastro é do aluno e quase sempre é ele quem o preenche. Quando não
+   consegue — e as razões são banais e não se resolvem por código: o convite
+   foi para um endereço que ele não abre, o celular não colabora, o prazo da
+   folha está em cima —, a coordenação ficava olhando "aguardando o aluno",
+   com os dados do termo na mão e sem lugar nenhum onde digitá-los. É a mesma
+   saída da Avaliação ("editar em nome do docente") e da Extensão (a gestão
+   entrega o relatório em nome do responsável), com a mesma condição: o ato
+   fica MARCADO, aqui e no histórico do projeto. O aluno continua dono do
+   cadastro — quando ele grava, a marca some. */
+function abrirCadastroPeloGestor(projetoId, email, cpf) {
+  const p = PROJETOS.find((x) => x.id === projetoId) || {};
+  const chave = String(email || "").trim().toLowerCase();
+  const dig = soDigitosIC(cpf);
+  const a = (p.alunos || []).find((x) => (chave && String(x.email || "").trim().toLowerCase() === chave)
+    || (dig.length === 11 && soDigitosIC(x.cpf) === dig)) || {};
+  const falta = faltaNoCadastroLocal(a);
+  const cnpq = p.fomento && p.fomento.tipo === "cnpq";
+
+  document.getElementById("ov-cadastro")?.remove();
+  const div = document.createElement("div");
+  div.className = "ov"; div.id = "ov-cadastro";
+  div.onclick = (e) => { if (e.target === div) div.remove(); };
+  div.innerHTML = `<div class="ov-cx" style="max-width:720px">
+    <div class="ov-cab"><div class="t">Preencher em nome de ${esc(a.nome || a.email || "bolsista")}</div>
+      <button class="ov-x" onclick="document.getElementById('ov-cadastro').remove()">×</button></div>
+    <div class="card-s">Vale para <b>todos os projetos</b> desta pessoa, como se ela mesma tivesse
+      preenchido — e fica registrado que quem digitou foi a PROPPEX. Use os dados do termo de
+      compromisso ou do que o aluno enviou por e-mail; ele continua podendo corrigir na guia Bolsa.</div>
+    ${falta.length ? `<div class="banner ba-warn">Falta informar: <b>${esc(falta.join(", "))}</b>.</div>`
+      : `<div class="banner ba-ok">Cadastro completo — aqui é só correção.</div>`}
+
+    <div class="sec-t">Identificação</div>
+    <div class="grid3">
+      <div><label>Nome completo *</label><input id="gb-nome" value="${esc(a.nome || "")}"></div>
+      <div><label>CPF *</label><input id="gb-cpf" value="${esc(a.cpf || "")}" placeholder="000.000.000-00"
+        ${a.cpf ? 'disabled title="O CPF gravado só se corrige pela indicação do aluno, no projeto"' : ""}></div>
+      <div><label>RG *</label><input id="gb-rg" value="${esc(a.rg || "")}" placeholder="Número e órgão emissor"></div>
+    </div>
+    <div class="grid3">
+      <div><label>Data de nascimento *</label><input id="gb-nascimento" type="date" value="${esc(a.nascimento || "")}"></div>
+      <div><label>Telefone (WhatsApp) *</label><input id="gb-telefone" value="${esc(a.telefone || "")}" placeholder="(62) 90000-0000"></div>
+      <div><label>Vínculo empregatício *</label>
+        <select id="gb-vinculo">
+          <option value="" ${!a.vinculo ? "selected" : ""}>selecione</option>
+          <option value="nao" ${a.vinculo === "nao" ? "selected" : ""}>Não</option>
+          <option value="sim" ${a.vinculo === "sim" ? "selected" : ""}>Sim</option>
+        </select></div>
+    </div>
+    <div class="grid3">
+      <div style="grid-column:span 2"><label>Endereço completo *</label>
+        <input id="gb-endereco" value="${esc(a.endereco || "")}" placeholder="Rua, número, bairro, cidade e CEP"></div>
+      <div><label>Onde trabalha</label><input id="gb-vinculoOnde" value="${esc(a.vinculoOnde || "")}"
+        placeholder="só se o vínculo for sim"></div>
+    </div>
+
+    <div class="sec-t">Conta para o pagamento</div>
+    ${cnpq ? `<div class="banner ba-warn">A bolsa do <b>CNPq</b> é paga em <b>conta corrente do Banco
+      do Brasil</b>, de titularidade do próprio bolsista.</div>` : ""}
+    <div class="grid3">
+      <div><label>Banco *</label><input id="gb-banco" value="${esc(a.banco || "")}"></div>
+      <div><label>Agência *</label><input id="gb-agencia" value="${esc(a.agencia || "")}"></div>
+      <div><label>Conta corrente *</label><input id="gb-conta" value="${esc(a.conta || "")}"></div>
+    </div>
+    <label>Pix (vinculado à conta acima) *</label>
+    <input id="gb-pix" value="${esc(a.pix || "")}" placeholder="CPF, e-mail ou chave aleatória">
+
+    <div class="exp" style="margin-top:14px">
+      <button class="bt bt-pri" id="gb-ok">Salvar em nome do bolsista</button>
+      <button class="bt bt-ghost" onclick="document.getElementById('ov-cadastro').remove()">Cancelar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+  div.querySelector("#gb-ok").onclick = () => salvarCadastroPeloGestor(a.email || email, a.cpf || cpf);
+}
+
+async function salvarCadastroPeloGestor(email, cpf) {
+  const v = (id) => ($(id) ? $(id).value.trim() : "");
+  const corpo = {
+    aluno: email || "", alunoCpf: cpf || "",
+    nome: v("gb-nome"), cpf: v("gb-cpf") || cpf || "", rg: v("gb-rg"), nascimento: v("gb-nascimento"),
+    telefone: v("gb-telefone"), endereco: v("gb-endereco"),
+    vinculo: v("gb-vinculo"), vinculoOnde: v("gb-vinculoOnde"),
+    banco: v("gb-banco"), agencia: v("gb-agencia"), conta: v("gb-conta"), pix: v("gb-pix"),
+  };
+  if (!corpo.nome) return aviso("Informe o nome completo do bolsista.", "warn");
+  try {
+    const r = await api("/api/ic/cadastro-bolsista", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
+    });
+    document.getElementById("ov-cadastro")?.remove();
+    await carregar(); renderBolsistas();
+    const falta = faltaNoCadastroLocal(corpo);
+    aviso(falta.length
+      ? `Cadastro de ${r.nome || corpo.nome} salvo em ${r.projetos} projeto(s). Ainda falta: ${falta.join(", ")}.`
+      : `Cadastro de ${r.nome || corpo.nome} completo, salvo em ${r.projetos} projeto(s) — fica registrado que quem preencheu foi a PROPPEX.`,
       falta.length ? "warn" : "ok");
   } catch (e) { aviso(e.message, "err"); }
 }

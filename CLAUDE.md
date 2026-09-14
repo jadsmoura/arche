@@ -2906,6 +2906,30 @@ public/
   corrigido aqui**: a saída limpa é o registro adotar o e-mail da conta quando o CPF a reconhece
   (o que `vincularPorCpf` já faz, mas só com o campo VAZIO — ele nunca sobrescreve), e a lição da
   revisão do ICEM foi que a adoção tem de ser ADITIVA, não substituição. Decisão do dono.
+- **A PROPPEX PREENCHE O CADASTRO EM NOME DO BOLSISTA** (`POST /api/ic/cadastro-bolsista` +
+  `cadastroPelaGestao` no registro do aluno + o botão "✎ Preencher em nome do bolsista" na guia
+  Bolsistas e Voluntários, pedido do dono set/2026: "continuo com problemas no usuário da Hellen;
+  ela não consegue entrar com os dados"). O cadastro do contrato tinha **uma porta só** — o próprio
+  aluno, na guia Bolsa —, e para a gestão havia apenas a vitrine: "aguardando o aluno". Nem pelo
+  formulário do projeto ela alcançava esses campos, ao contrário do que este arquivo dizia: os
+  `CAMPOS_DO_ALUNO_PROTEGIDOS` vêm da BASE para todos os papéis, gestão inclusive (é a trava que
+  impede o salvamento da orientação de apagar o RG e a conta de quem já preencheu). A coordenação
+  ficava olhando um contrato que não sai, **com os dados do termo na mão e sem lugar onde
+  digitá-los** — e as razões pelas quais um aluno não consegue são banais e não se resolvem por
+  código: o convite foi para um endereço que ele não abre, o celular não colabora, o prazo da folha
+  está em cima. É a mesma decisão já tomada na Avaliação ("editar em nome do docente": *"alguns têm
+  dificuldades com o sistema"*) e na Extensão (a gestão entrega o relatório em nome do responsável):
+  quem responde pelo processo precisa de um caminho quando a ponta trava.
+  A gravação é a MESMA do aluno (`gravarCadastroDoAluno` passou a receber QUEM é o bolsista e QUEM
+  está gravando): busca por e-mail OU CPF e alcança **todos os projetos da pessoa**, porque o
+  cadastro é dela, não do projeto. Três regras: o ato fica **MARCADO** — `cadastroPelaGestao` no
+  registro e uma linha no histórico de cada projeto ("preencheu o cadastro do contrato em nome de
+  X"), porque um cadastro que sustenta contrato e pagamento precisa dizer de quem é a mão que o
+  escreveu; **o CPF já gravado não se troca por aqui** (409) — preencher em nome de alguém não pode
+  virar apontar a ficha inteira, com o RG, a conta e os certificados dentro, para outra pessoa, e
+  CPF errado se corrige pela indicação, no projeto; e **o aluno continua dono**: a gravação dele
+  desfaz a marca, e a guia Bolsa dele DIZ que a PROPPEX preencheu, pedindo que confira a conta e o
+  Pix antes de salvar — quem recebe o pagamento é ele.
 - **O QUE FOI DIGITADO NA FICHA DO PROJETO NÃO SE PERDE** (`SUJO`/`podeSair`/`selo-sujo` na SPA
   da IC, relato de um professor ago/2026: "os alunos que preenchi para o projeto de IC não estão
   ficando salvos"). Não estavam sendo perdidos na gravação — a gravação funciona, conferida ponta

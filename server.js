@@ -15281,33 +15281,71 @@ function aplicarCadastroDoAluno(aluno, b, cpf) {
   return saida;
 }
 
-async function gravarCadastroDoAluno(u, b, res) {
+/**
+ * A gravação do cadastro do contrato — do próprio aluno ou, quando ele não
+ * consegue, da PROPPEX em nome dele.
+ *
+ * `alvo` é QUEM é o bolsista (e-mail e/ou CPF) e `quem` é a CONTA que está
+ * gravando: nos dois caminhos a busca é a mesma (e-mail OU CPF, como
+ * `papelNoProjeto` — o aluno que vê o projeto pelo CPF, depois de a gestão
+ * trocar o e-mail da indicação, recebia 403 ao editar o próprio cadastro,
+ * porque só o e-mail casava aqui; as duas funções precisam responder igual)
+ * e o registro alcança TODOS os projetos da pessoa, porque o cadastro é DA
+ * PESSOA, não do projeto.
+ */
+async function gravarCadastroDoAluno(alvo, b, res, { quem, pelaGestao = false } = {}) {
   const cpf = normalizarCpf(b.cpf);
   if (String(b.cpf || "").trim() && !cpf) {
     res.status(400).json({ error: "CPF inválido — confira os 11 dígitos." });
     return null;
   }
-  const eu = String(u.email || "").toLowerCase();
+  const eu = String(alvo?.email || "").trim().toLowerCase();
+  const alvoCpf = normalizarCpf(alvo?.cpf || "");
+  if (!eu && !alvoCpf) {
+    res.status(400).json({ error: "Informe o e-mail ou o CPF do bolsista." });
+    return null;
+  }
   const r = await comProjetos((projetos) => {
     let tocados = 0;
+    let nome = "";
     for (let i = 0; i < projetos.length; i++) {
       const p = projetos[i];
-      /* E-MAIL OU CPF, como `papelNoProjeto` (revisão de set/2026): o aluno
-         que vê o projeto pelo CPF — depois de a gestão trocar o e-mail da
-         indicação — recebia 403 ao editar o próprio cadastro, porque só o
-         e-mail casava aqui. As duas funções precisam responder igual. */
-      const meuCpf = normalizarCpf(u.cpf || "");
-      const idx = (p.alunos || []).findIndex((a) => (a.email && String(a.email).toLowerCase() === eu)
-        || (meuCpf && normalizarCpf(a.cpf) === meuCpf));
+      const idx = (p.alunos || []).findIndex((a) => (a.email && eu && String(a.email).trim().toLowerCase() === eu)
+        || (alvoCpf && normalizarCpf(a.cpf) === alvoCpf));
       if (idx < 0) continue;
+      const antes = p.alunos[idx];
+      /* A PROPPEX preenche o cadastro, não troca de pessoa: se o registro já
+         tem CPF e o digitado é outro, isto deixaria de ser "preencher em nome
+         de" para virar apontar a ficha — com o RG, a conta e os certificados
+         dentro — para outra pessoa. Corrigir CPF errado continua sendo edição
+         da indicação, com o histórico dizendo o que mudou. */
+      if (pelaGestao && cpf && normalizarCpf(antes.cpf) && normalizarCpf(antes.cpf) !== cpf) {
+        return { erro: [409, `O CPF gravado para ${antes.nome || "este bolsista"} é outro. `
+          + "Se o CPF está errado, corrija-o pela indicação do aluno, no projeto — "
+          + "trocá-lo por aqui apontaria a ficha inteira para outra pessoa."], gravar: false };
+      }
+      nome = nome || antes.nome || antes.email || "";
       const alunos = p.alunos.slice();
-      alunos[idx] = aplicarCadastroDoAluno(alunos[idx], b, cpf);
-      projetos[i] = anotarProjeto(normalizarProjeto({ ...p, alunos }, { base: p }),
-        { quem: u.email, oQue: "completou o próprio cadastro para o contrato da bolsa" });
+      const depois = aplicarCadastroDoAluno(antes, b, cpf);
+      // a marca é de QUEM ESCREVEU por último: o aluno que volta e grava o
+      // próprio cadastro a desfaz, que é o desfecho que se quer
+      if (pelaGestao) depois.cadastroPelaGestao = { por: quem, em: new Date().toISOString() };
+      else delete depois.cadastroPelaGestao;
+      alunos[idx] = depois;
+      projetos[i] = anotarProjeto(normalizarProjeto({ ...p, alunos }, { base: p }), {
+        quem,
+        oQue: pelaGestao
+          ? `preencheu o cadastro do contrato em nome de ${antes.nome || antes.email || "um bolsista"} (pela PROPPEX)`
+          : "completou o próprio cadastro para o contrato da bolsa",
+      });
       tocados += 1;
     }
-    if (!tocados) return { erro: [403, "Só o próprio aluno indicado preenche os seus dados"], gravar: false };
-    return { tocados };
+    if (!tocados) {
+      return { erro: pelaGestao
+        ? [404, "Não encontrei esse bolsista em nenhum projeto."]
+        : [403, "Só o próprio aluno indicado preenche os seus dados"], gravar: false };
+    }
+    return { tocados, nome };
   });
   if (r.erro) { res.status(r.erro[0]).json({ error: r.erro[1] }); return null; }
   return r;
@@ -15317,7 +15355,7 @@ async function gravarCadastroDoAluno(u, b, res) {
 app.post("/api/ic/meus-dados", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
-  const r = await gravarCadastroDoAluno(u, req.body || {}, res);
+  const r = await gravarCadastroDoAluno(u, req.body || {}, res, { quem: u.email });
   if (!r) return;
   const projetos = (await lerProjetos()).filter((p) => podeVerProjeto(quemIC(u), p));
   res.json({ ok: true, projetos: r.tocados, lista: projetos.map((p) => verProjeto(u, p)) });
@@ -15327,11 +15365,46 @@ app.post("/api/ic/meus-dados", async (req, res) => {
 app.post("/api/ic/:id/meus-dados", async (req, res) => {
   const u = await sessaoIC(req, res);
   if (!u) return;
-  const r = await gravarCadastroDoAluno(u, req.body || {}, res);
+  const r = await gravarCadastroDoAluno(u, req.body || {}, res, { quem: u.email });
   if (!r) return;
   const p = (await lerProjetos()).find((x) => x.id === req.params.id);
   if (!p) return res.status(404).json({ error: "Projeto não encontrado" });
   res.json({ ok: true, projeto: verProjeto(u, p) });
+});
+
+/**
+ * A PROPPEX PREENCHE O CADASTRO EM NOME DO BOLSISTA (pedido do dono,
+ * set/2026: "continuo com problemas no usuário da Hellen; ela não consegue
+ * entrar com os dados").
+ *
+ * Até aqui o cadastro do contrato só tinha UMA porta: o próprio aluno, na
+ * guia Bolsa. Para a gestão havia só a vitrine — "aguardando o aluno" —, e
+ * nem pelo formulário do projeto ela alcançava esses campos (os
+ * CAMPOS_DO_ALUNO_PROTEGIDOS vêm da base para todos, gestão inclusive). Quando
+ * o aluno não consegue — e as razões são banais e não se resolvem por código:
+ * o convite foi para um endereço que ele não abre, o celular não colabora, o
+ * prazo da folha está em cima —, a coordenação ficava olhando um contrato que
+ * não sai, com os dados na mão, sem lugar onde digitá-los.
+ *
+ * É a mesma decisão já tomada na Avaliação ("editar em nome do docente") e na
+ * Extensão (a gestão entrega o relatório em nome do responsável): quem
+ * responde pelo processo precisa de um caminho quando a ponta trava. E, como
+ * lá, o ato fica MARCADO — no registro (`cadastroPelaGestao`) e no histórico
+ * de cada projeto —, porque um cadastro que sustenta contrato e pagamento
+ * precisa dizer de quem é a mão que o escreveu. O aluno continua dono: a
+ * gravação dele, depois, desfaz a marca.
+ */
+app.post("/api/ic/cadastro-bolsista", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "Só a coordenação de pesquisa preenche em nome do bolsista." });
+  const b = req.body || {};
+  const r = await gravarCadastroDoAluno(
+    { email: b.aluno, cpf: b.alunoCpf }, b, res, { quem: u.email, pelaGestao: true },
+  );
+  if (!r) return;
+  const projetos = (await lerProjetos()).filter((p) => podeVerProjeto(quemIC(u), p));
+  res.json({ ok: true, projetos: r.tocados, nome: r.nome, lista: projetos.map((p) => verProjeto(u, p)) });
 });
 
 /**
