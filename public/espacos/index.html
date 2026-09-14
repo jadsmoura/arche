@@ -857,6 +857,12 @@ function cartaoReserva(r, { comAcoes = false } = {}) {
       : `${fmt(r.dataInicio)} a ${fmt(r.dataFim)}, ${hora}`;
   const meu = r.solicitante?.email === DADOS.eu;
   const podeCancelar = (meu || DADOS.gestao) && ["solicitada", "encaminhada", "confirmada"].includes(r.status);
+  /* CANCELAR e EXCLUIR não são a mesma coisa: cancelar registra que a reserva
+     existiu e o espaço vagou; excluir tira do registro o que não deveria estar
+     lá (o duplicado, o teste, a linha errada da planilha migrada). Por isso
+     excluir é da GESTÃO e vale em QUALQUER situação — inclusive na recusada e
+     na já cancelada, que são justamente as que se acumulam na lista. */
+  const podeExcluir = !!DADOS.gestao;
   /* Quem decide o quê (pedido do dono, ago/2026). As duas gestões CONFIRMAM —
      a responsável pela reserva resolve o dia a dia, e a PROPPEX também. O que
      as separa são os outros dois botões:
@@ -897,7 +903,10 @@ function cartaoReserva(r, { comAcoes = false } = {}) {
     </details>` : ""}
     ${r.decisao?.motivo ? `<div class="banner ba-warn" style="margin:10px 0 0">${esc(r.decisao.motivo)}</div>` : ""}
     ${acoes}
-    ${podeCancelar ? `<button class="bt bt-ghost" style="margin-top:10px" onclick="cancelar('${r.id}')">Cancelar reserva</button>` : ""}
+    ${podeCancelar || podeExcluir ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      ${podeCancelar ? `<button class="bt bt-ghost" onclick="cancelar('${r.id}')">Cancelar reserva</button>` : ""}
+      ${podeExcluir ? `<button class="bt bt-ghost" onclick="excluirReserva('${r.id}')">🗑 Excluir do registro</button>` : ""}
+    </div>` : ""}
   </div>`;
 }
 
@@ -968,6 +977,32 @@ async function cancelar(id) {
     headers: { "Content-Type": "application/json" }, body: JSON.stringify({ motivo }) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { alert(j.error || "Não foi possível cancelar."); return; }
+  await carregar(); AGENDA = null; nav(SECAO);
+}
+
+/* Excluir NOMEIA a reserva antes de perguntar — atividade, espaço e data —,
+   porque a linha da tabela é curta e o clique errado cai na vizinha. E diz o
+   que se perde quando ela estava confirmada: a hora que sai da ocupação do
+   espaço é o número que a gestão leva ao conselho. */
+async function excluirReserva(id) {
+  const r = (DADOS.reservas || []).find((x) => x.id === id);
+  if (!r) return;
+  const locais = (r.itens || []).map((i) => nomeEspaco(i.espaco)).join(" · ");
+  const quando = r.dataInicio === r.dataFim ? fmt(r.dataInicio) : `${fmt(r.dataInicio)} a ${fmt(r.dataFim)}`;
+  const peso = r.status === "confirmada"
+    ? "\n\nEla está CONFIRMADA: o espaço volta a ficar livre e as horas dela saem da ocupação do relatório."
+    : "";
+  const motivo = prompt(`Excluir esta reserva do registro?\n\n${r.atividade || "(sem atividade)"}`
+    + `\n${locais} · ${quando}${r.protocolo ? ` · ${r.protocolo}` : ""}${peso}`
+    + `\n\nExcluir é para o que não deveria estar no registro (duplicado, engano, teste).`
+    + ` Para desistir de um pedido em andamento, o caminho é cancelar.`
+    + `\n\nDiga o motivo:`);
+  if (motivo === null) return;
+  if (motivo.trim().length < 3) { alert("O motivo é obrigatório — é o que explica depois por que a reserva sumiu."); return; }
+  const resp = await fetch(`/api/espacos/reservas/${encodeURIComponent(id)}/excluir`, { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ motivo }) });
+  const j = await resp.json().catch(() => ({}));
+  if (!resp.ok) { alert(j.error || "Não foi possível excluir."); return; }
   await carregar(); AGENDA = null; nav(SECAO);
 }
 
@@ -1045,10 +1080,12 @@ function renderAgendamentos() {
       <td style="white-space:nowrap">
         ${r.status === "solicitada" || (r.status === "encaminhada" && DADOS.gestorGeral)
           ? `<button class="lk" onclick="decidir('${r.id}','confirmar')">confirmar</button> ·
-             <button class="lk" onclick="decidir('${r.id}','recusar')">recusar</button>`
+             <button class="lk" onclick="decidir('${r.id}','recusar')">recusar</button> ·
+             <button class="lk" onclick="excluirReserva('${r.id}')">excluir</button>`
           : r.status === "confirmada" && !passou
-            ? `<button class="lk" onclick="cancelar('${r.id}')">cancelar</button>`
-            : ""}
+            ? `<button class="lk" onclick="cancelar('${r.id}')">cancelar</button> ·
+               <button class="lk" onclick="excluirReserva('${r.id}')">excluir</button>`
+            : `<button class="lk" onclick="excluirReserva('${r.id}')">excluir</button>`}
       </td></tr>`;
   }).join("");
 
@@ -1099,7 +1136,38 @@ function renderAgendamentos() {
         <tr><th>Espaço</th><th>Quando</th><th>Atividade</th><th>Solicitante</th><th>Situação</th><th></th></tr>
         ${linhas}
       </table></div>` : '<div class="vazio">Nenhum agendamento com esses filtros.</div>'}</div>
-    </div>`;
+    </div>
+    ${blocoExclusoes()}`;
+}
+
+/* O que foi EXCLUÍDO, recolhido no pé da guia. Reserva que some da agenda é a
+   pergunta que a coordenação faz meses depois ("o auditório estava reservado
+   no dia 12, o que houve?"), e o registro só responde se alguém puder lê-lo.
+   Nasce fechado: é consulta, não fila. */
+function blocoExclusoes() {
+  const ex = DADOS.exclusoes || [];
+  if (!ex.length) return "";
+  return `<div class="card">
+    <details>
+      <summary style="cursor:pointer"><b>Reservas excluídas do registro</b>
+        <span class="muted"> — ${ex.length} mais recente(s)</span></summary>
+      <div class="card-s" style="margin-top:8px">Excluir tira a reserva do registro; cancelar a
+        mantém, dizendo que ela existiu e foi desfeita. Aqui ficam as excluídas, com o motivo.</div>
+      <div class="rolagem"><table class="pt agd">
+        <tr><th>Reserva</th><th>Quando era</th><th>Motivo</th><th>Excluída por</th></tr>
+        ${ex.map((x) => `<tr>
+          <td>${esc(x.atividade || "(sem atividade)")}
+            <div class="p2">${esc((x.espacos || []).join(" · "))}${x.protocolo ? ` · ${esc(x.protocolo)}` : ""}</div></td>
+          <td style="white-space:nowrap">${esc(x.dataInicio === x.dataFim ? fmt(x.dataInicio)
+            : `${fmt(x.dataInicio)}–${fmt(x.dataFim)}`)}
+            <div class="p2">${esc(ROT_STATUS[x.status] || x.status || "")}${
+              x.horas ? ` · ${esc(String(x.horas))} h fora da ocupação` : ""}</div></td>
+          <td>${esc(x.motivo || "")}</td>
+          <td style="white-space:nowrap">${esc(x.por || "")}<div class="p2">${esc(fmt(String(x.em).slice(0, 10)))}</div></td>
+        </tr>`).join("")}
+      </table></div>
+    </details>
+  </div>`;
 }
 
 /* Redesenha SÓ a lista enquanto se digita: refazer o cartão inteiro tiraria o

@@ -188,7 +188,7 @@ import {
   ESPACOS_PADRAO, BLOCOS as BLOCOS_ESP, INTERESSADOS, ROTULO_STATUS as ROTULO_STATUS_ESP,
   OCUPA, VIVA, normalizarEspacos, normalizarReserva, normalizarBloqueio, validarReserva,
   conflitos, impedimentos, agenda, reservaPublica, ocupacaoPorEspaco, minhaReserva,
-  gruposDeOrgao, rotuloOrgao, ORGAOS_EXTERNOS,
+  gruposDeOrgao, rotuloOrgao, ORGAOS_EXTERNOS, horasDaReserva, rotuloItem,
 } from "./lib/espacos.js";
 import { CREDENCIAMENTO, MARCAS, UNIEGO_DESDE } from "./lib/marca.js";
 import { APP, PRODUTO, vestir } from "./lib/produto.js";
@@ -8983,6 +8983,17 @@ async function sessaoEsp(req, res) {
 
 const podeVerReserva = (u, r) => gereEsp(u) || minhaReserva(u.email, r);
 
+/** As últimas reservas excluídas, da mais recente para a mais antiga. Registro
+    que ninguém lê não explica nada: é ele que responde, meses depois, por que
+    uma reserva sumiu da agenda. Falha na leitura devolve lista vazia — o
+    rastro é útil, mas não pode derrubar a tela do setor. */
+async function exclusoesDeReservas(n = 30) {
+  try {
+    const lista = JSON.parse((await storage.get("sys-esp-exclusoes-v1")) || "[]");
+    return Array.isArray(lista) ? lista.slice(-n).reverse() : [];
+  } catch { return []; }
+}
+
 /** Quem coordena o módulo `espacos` — a responsável pela reserva, no
     vocabulário do setor. Devolve nome e e-mail, nada além: é uma lista de
     quem decide, não uma porta para o cadastro de ninguém. */
@@ -9026,6 +9037,11 @@ app.get("/api/espacos", async (req, res) => {
          recepção não consegue confirmar nada. O sistema tem de dizer isso, em
          vez de deixar a pró-reitoria descobrir pelo silêncio. */
       ...(u.papel === "gestor" ? { responsaveis: await responsaveisDosEspacos() } : {}),
+      /* O rastro das exclusões (set/2026). Guardá-lo e não mostrá-lo seria um
+         registro que ninguém lê: é ELE que responde "por que a reserva do
+         auditório sumiu?" depois, e por isso fica à vista de quem decide, na
+         guia Agendamentos, com o motivo por extenso. */
+      ...(gereEsp(u) ? { exclusoes: await exclusoesDeReservas() } : {}),
       // quem já pediu espaço alguma vez — é por esses olhos que a
       // responsável confere o que o solicitante enxerga da agenda
       ...(gereEsp(euReal(req, u))
@@ -9209,6 +9225,74 @@ app.post("/api/espacos/reservas/:id/cancelar", async (req, res) => {
   } catch (e) {
     console.error("Erro ao cancelar a reserva:", e);
     res.status(500).json({ error: "Não foi possível cancelar agora." });
+  }
+});
+
+/**
+ * POST /api/espacos/reservas/:id/excluir — tira a reserva do registro.
+ *
+ * CANCELAR e EXCLUIR não são a mesma coisa, e é por isso que existem os dois.
+ * Cancelar é um FATO do processo: a reserva existiu, o espaço vagou, e a linha
+ * fica na lista dizendo isso — é o caminho de quem desistiu, e é o que a
+ * responsável precisa ver para saber que a sala voltou. Excluir é para o
+ * registro que NÃO DEVERIA EXISTIR: o pedido duplicado, o teste, a linha que
+ * entrou errada na migração da planilha do auditório (o lote de 2026 já veio
+ * com quatro datas corrigidas à mão). Cancelar uma reserva que nunca deveria
+ * ter sido lançada deixa na agenda uma pergunta que ninguém consegue
+ * responder depois.
+ *
+ * Três regras, todas do SERVIDOR:
+ *  · É ATO DA GESTÃO (coordenação do módulo `espacos` ou gestor geral). Quem
+ *    pediu tem o cancelar, que é o ato DELE; apagar o registro de um pedido
+ *    que já chegou à mesa de alguém é decisão de quem responde pela agenda.
+ *  · O MOTIVO é obrigatório. Reserva que some sem explicação é exatamente o
+ *    que o registro do setor existe para impedir.
+ *  · O que sumiu fica em `sys-esp-exclusoes-v1`, fora do /api/estado — com as
+ *    horas que saem da ocupação quando a reserva estava confirmada, que é o
+ *    número levado ao conselho e o que explica depois a queda.
+ */
+app.post("/api/espacos/reservas/:id/excluir", async (req, res) => {
+  try {
+    const u = await sessaoEsp(req, res);
+    if (!u) return;
+    if (!gereEsp(u) && u.papel !== "gestor")
+      return res.status(403).json({
+        error: "Só a gestão dos espaços exclui uma reserva. Para desistir do seu pedido, use “Cancelar reserva”.",
+      });
+    const motivo = String(req.body?.motivo || "").trim().slice(0, 500);
+    if (motivo.length < 3)
+      return res.status(400).json({ error: "Diga o motivo da exclusão — é o que explica depois por que a reserva sumiu." });
+    const espacos = await lerEspacos();
+    const r = await comReservas((reservas) => {
+      const i = reservas.findIndex((x) => x.id === req.params.id);
+      if (i < 0) return { erro: [404, "Reserva não encontrada."], gravar: false };
+      const x = reservas[i];
+      const resumo = {
+        em: new Date().toISOString(), por: u.email, motivo,
+        id: x.id, protocolo: x.protocolo || "", status: x.status,
+        atividade: x.atividade || "", orgao: rotuloOrgao(x.orgao, CURSOS, x.orgaoOutro),
+        solicitante: x.solicitante?.nome || "",
+        espacos: (x.itens || []).map((it) => rotuloItem(espacos, it)),
+        dataInicio: x.dataInicio, dataFim: x.dataFim || x.dataInicio,
+        horaInicio: x.horaInicio || "", horaFim: x.horaFim || "",
+        // só a confirmada ocupava agenda: é a hora que sai do relatório
+        horas: OCUPA(x) ? Number(horasDaReserva(x).toFixed(1)) : 0,
+      };
+      reservas.splice(i, 1);
+      return { resumo };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    try {
+      const chave = "sys-esp-exclusoes-v1";
+      const lista = JSON.parse((await storage.get(chave)) || "[]");
+      lista.push(r.resumo);
+      await storage.set(chave, JSON.stringify(lista.slice(-500)));
+    } catch (e) { console.error("[espacos] registro da exclusão falhou:", e.message); }
+    console.warn(`[espacos] ${u.email} excluiu a reserva ${r.resumo.protocolo || r.resumo.id} — ${motivo}`);
+    res.json({ ok: true, excluida: r.resumo });
+  } catch (e) {
+    console.error("Erro ao excluir a reserva:", e);
+    res.status(500).json({ error: "Não foi possível excluir agora." });
   }
 });
 

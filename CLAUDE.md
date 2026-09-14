@@ -4168,6 +4168,29 @@ public/
   Pedidos aguardando entram no **sino** da gestão. `GET /api/espacos/ocupacao` conta horas
   por espaço (só confirmadas) — o número que se leva ao conselho.
   Ao mexer no catálogo, **preserve os `id`**: são a chave do que já está reservado.
+- **CANCELAR E EXCLUIR SÃO DOIS ATOS, e faltava o segundo**
+  (`POST /api/espacos/reservas/:id/excluir` + `sys-esp-exclusoes-v1` + o botão na guia
+  Agendamentos e no cartão do pedido, pedido do dono set/2026: "no sistema de reserva de
+  espaços, não tem a opção de excluir reserva"). **Cancelar** é um FATO do processo: a reserva
+  existiu, o espaço vagou, e a linha fica na lista dizendo isso — é o ato de quem desistiu, e é
+  o que a responsável precisa ver para saber que a sala voltou. **Excluir** é para o registro
+  que NÃO DEVERIA EXISTIR: o pedido duplicado, o teste, a linha que entrou errada na migração
+  da planilha do auditório (o lote de 2026 já veio com quatro datas corrigidas à mão). Cancelar
+  o que nunca deveria ter sido lançado deixa na agenda uma pergunta que ninguém responde
+  depois. Três regras, todas do SERVIDOR: (1) é **ato da GESTÃO** — coordenação do módulo
+  `espacos` ou gestor geral; quem pediu tem o cancelar, que é o ato DELE, e apagar o registro
+  de um pedido que já chegou à mesa de alguém é decisão de quem responde pela agenda (a recusa
+  ao solicitante nomeia o caminho); (2) o **motivo é obrigatório** — reserva que some sem
+  explicação é justamente o que o registro do setor existe para impedir; (3) o que sumiu fica
+  em **`sys-esp-exclusoes-v1`** (teto 500, fora do `/api/estado`) com as **horas que saem da
+  ocupação** quando a reserva estava confirmada, que é o número levado ao conselho e o que
+  explica depois a queda. Excluir vale em QUALQUER situação, inclusive na recusada e na já
+  cancelada — são elas que se acumulam na lista. A confirmação **NOMEIA** a reserva (atividade,
+  espaço, data, protocolo) antes de perguntar: a linha da tabela é curta e o clique errado cai
+  na vizinha; e diz o que se perde quando ela está confirmada. E o rastro **se lê na tela** —
+  um bloco recolhido no pé da guia Agendamentos, com o motivo por extenso (`exclusoes` no
+  `GET /api/espacos`, só para a gestão): registro que ninguém lê não responde "por que a
+  reserva do auditório sumiu?".
   **A agenda é MENSAL, com filtro de mês e etiqueta de cor por espaço** (pedido do dono,
   ago/2026): com o registro do auditório migrado há ocupação em todos os meses do semestre, e
   a janela corrida de quatro semanas escondia o resto. O seletor traz os meses que TÊM
