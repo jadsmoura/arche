@@ -143,7 +143,7 @@ import {
   normalizarBolsistaEM, trocarProjeto, anotarEM, cotasDaTurma, projetoAtual as projetoAtualEM,
   RELATORIOS_EM, CAMPOS_RELATORIO_EM, relatoriosExigidos,
   exigeBancoDoBrasil, ehBancoDoBrasil, faltaDadosBancariosEM, faltaNoBolsistaEM,
-  faltaDoResponsavelEM, faltaDoEstudanteEM,
+  faltaDoResponsavelEM, faltaDoEstudanteEM, desligarEM,
 } from "./lib/em.js";
 import {
   duplicidadesPorNome, podeFundir, fundirPerfil, fundirProjeto, fundirAcao, fundirAta, fundirPapeis,
@@ -15175,6 +15175,150 @@ app.post("/api/ic/em/:id/bolsa", async (req, res) => {
     pedirDadosBancariosEM([r.bolsista])
       .catch((e) => console.error("[ic-em] pedido de dados bancários:", e.message));
   }
+  res.json({ ok: true, bolsista: r.bolsista });
+});
+
+/* ============== SUBSTITUIR O BOLSISTA DO ICEM (set/2026) ==============
+   Pedido do dono: "insira a opção de substituir bolsista de EM — precisamos
+   fazer uma troca antes da assinatura, houve uma desistência."
+
+   É UM ato, não dois, e a razão é a cota: são 12 CNPq + 12 UNIEGO por turma,
+   e enquanto o desistente estiver ativo a bolsa dele está ocupada — atribuí-la
+   ao substituto seria recusado. Feito em duas telas separadas (desligar, depois
+   incluir, depois atribuir), o processo teria três chances de parar pela metade
+   e a turma ficaria com uma vaga aberta que ninguém sabe de quem era. Aqui a
+   saída e a entrada acontecem dentro da MESMA passagem pela fila.
+
+   O substituto é DIGITADO: a turma tem exatamente os selecionados do edital, e
+   quem entra é o próximo classificado, que não está no sistema. Se ele já
+   estiver (era voluntário e recebeu a bolsa que vagou), o caminho continua
+   sendo o seletor de bolsa do cartão.
+
+   O SUBSTITUTO É OPCIONAL de propósito: a urgência é tirar o desistente da
+   pilha de assinaturas, e nem sempre o nome de quem entra já está decidido.
+   Sem ele, a vaga fica aberta e a cota volta a ter espaço.
+
+   Nada se apaga: o desligado continua no registro com o motivo e a data, fora
+   dos termos, da folha, das cotas, dos comunicados e das chamadas — todos já
+   filtravam por `desligado`. É isso que torna a troca segura na véspera. */
+app.post("/api/ic/em/:id/substituir", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "A substituição é feita pela coordenação de pesquisa." });
+  const motivo = String(req.body?.motivo || "").trim();
+  if (motivo.length < 5) {
+    return res.status(400).json({ error: "Escreva o motivo da saída — ele fica no registro do estudante." });
+  }
+  const ent = req.body?.entrante && typeof req.body.entrante === "object" ? req.body.entrante : null;
+  if (ent) {
+    if (!nomeDePessoaValido(ent.nome)) {
+      return res.status(400).json({ error: "Informe o nome completo de quem entra — é ele que sai impresso no termo." });
+    }
+    // CPF inválido vira "" na normalização: o termo sairia com a linha
+    // pontilhada e a folha de pagamento sem a chave, sem ninguém saber
+    if (String(ent.cpf || "").trim() && !cpfValido(ent.cpf)) {
+      return res.status(400).json({ error: "O CPF de quem entra não é válido — confira os dígitos." });
+    }
+    if (ent.bolsa && !bolsaEmDe(String(ent.bolsa))) {
+      return res.status(400).json({ error: "Tipo de bolsa desconhecido" });
+    }
+  }
+  const r = await comBolsistasEM((lista) => {
+    const i = lista.findIndex((x) => x.id === req.params.id);
+    if (i < 0) return { erro: [404, "Bolsista não encontrado"], gravar: false };
+    const saindo = lista[i];
+    if (saindo.situacao === "desligado") {
+      return { erro: [400, `${saindo.nome || "Este bolsista"} já está desligado da turma.`], gravar: false };
+    }
+    let entrante = null;
+    if (ent) {
+      const email = String(ent.email || "").trim().toLowerCase();
+      // duas fichas com o mesmo e-mail na MESMA turma respondem ao mesmo
+      // login e o estudante veria as duas; em turmas DIFERENTES é legítimo —
+      // quem foi bolsista em dois anos é a mesma pessoa
+      if (email && lista.some((x) => x.turma === saindo.turma && x.id !== saindo.id
+        && emailsDoRegistroEM(x).includes(email))) {
+        return { erro: [400, `Já existe um registro nesta turma com o e-mail ${email}.`], gravar: false };
+      }
+      const bolsa = ent.bolsa === undefined ? saindo.bolsa : String(ent.bolsa || "");
+      if (bolsa) {
+        const tipo = bolsaEmDe(bolsa);
+        // o saindo não conta: ele sai no MESMO ato, e a vaga dele é a que o
+        // substituto ocupa — é isto que faz a troca caber numa cota fechada
+        const usadas = lista.filter((x) => x.turma === saindo.turma && x.id !== saindo.id
+          && x.situacao !== "desligado" && x.bolsa === bolsa).length;
+        if (tipo.cota != null && usadas >= tipo.cota) {
+          return { erro: [400, `A cota de ${tipo.nome} (${tipo.cota}) está completa — desfaça uma atribuição antes.`], gravar: false };
+        }
+      }
+      entrante = normalizarBolsistaEM({
+        turma: saindo.turma, nome: ent.nome, cpf: ent.cpf, escola: ent.escola, serie: ent.serie,
+        email: ent.email, telefone: ent.telefone, cursoInteresse: ent.cursoInteresse,
+        colocacao: ent.colocacao, notaSelecao: ent.notaSelecao, bolsa, situacao: "ativo",
+      });
+      entrante.id = "em_" + crypto.randomUUID().slice(0, 12);
+      entrante.substituicao = { papel: "entrou", id: saindo.id, nome: saindo.nome,
+        em: new Date().toISOString(), por: u.email, motivo };
+      entrante = anotarEM(entrante, { quem: u.email,
+        oQue: `entrou na turma no lugar de ${saindo.nome || "outro bolsista"} — ${motivo.slice(0, 200)}` });
+    }
+    let fora = desligarEM(saindo, { motivo, por: u.email });
+    if (entrante) {
+      fora.substituicao = { papel: "saiu", id: entrante.id, nome: entrante.nome,
+        em: new Date().toISOString(), por: u.email, motivo };
+      fora = anotarEM(fora, { quem: u.email, oQue: `substituído(a) por ${entrante.nome}` });
+    }
+    lista[i] = fora;
+    if (entrante) lista.push(entrante);
+    return { saindo: fora, entrante };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  /* Entrando com bolsa a pagar, o pedido do cadastro sai no mesmo instante em
+     que sairia pela atribuição comum — é agora que a exigência nasce para ele,
+     e o prazo da folha não espera. Fire-and-forget: e-mail que falha não
+     desfaz a troca, e a coordenação reenvia pelo botão da guia. */
+  if (r.entrante?.bolsa && r.entrante.bolsa !== "voluntario") {
+    pedirDadosBancariosEM([r.entrante])
+      .catch((e) => console.error("[ic-em] pedido de cadastro ao substituto:", e.message));
+  }
+  const comBolsa = (b) => `${b.nome || "—"}${b.bolsa ? ` — ${bolsaEmDe(b.bolsa)?.nome || b.bolsa}` : " — sem bolsa"}`;
+  avisarPesquisa(`ICEM: substituição na turma ${r.saindo.turma}`, [
+    ["Saiu", comBolsa(r.saindo)],
+    ["Entrou", r.entrante ? comBolsa(r.entrante) : "ninguém por ora — a vaga ficou aberta"],
+    ["Turma", r.saindo.turma],
+    ["Motivo", motivo],
+  ], "Substituição de bolsista no ICEM");
+  res.json({ ok: true, saindo: r.saindo, entrante: r.entrante });
+});
+
+/* Desfazer o desligamento — o engano de um clique não pode custar o cadastro
+   inteiro. A cota volta a contar a pessoa, então reativar quem tinha bolsa
+   numa cota já cheia é RECUSADO com o caminho: é melhor dizer do que devolver
+   em silêncio alguém sem a bolsa que ele tinha. */
+app.post("/api/ic/em/:id/reativar", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  if (!gereIC(u)) return res.status(403).json({ error: "Restrito à coordenação de pesquisa." });
+  const r = await comBolsistasEM((lista) => {
+    const i = lista.findIndex((x) => x.id === req.params.id);
+    if (i < 0) return { erro: [404, "Bolsista não encontrado"], gravar: false };
+    const b = lista[i];
+    if (b.situacao !== "desligado") return { erro: [400, "Este bolsista não está desligado."], gravar: false };
+    if (b.bolsa) {
+      const tipo = bolsaEmDe(b.bolsa);
+      const usadas = lista.filter((x) => x.turma === b.turma && x.id !== b.id
+        && x.situacao !== "desligado" && x.bolsa === b.bolsa).length;
+      if (tipo?.cota != null && usadas >= tipo.cota) {
+        return { erro: [400, `A cota de ${tipo.nome} (${tipo.cota}) já está completa com outros bolsistas.`
+          + " Desfaça uma atribuição — ou tire a bolsa deste registro — antes de reativá-lo."], gravar: false };
+      }
+    }
+    const { desligamento, ...semMarca } = b;
+    lista[i] = anotarEM({ ...semMarca, situacao: "ativo" }, { quem: u.email,
+      oQue: "reativado na turma (desligamento desfeito)" });
+    return { bolsista: lista[i] };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
   res.json({ ok: true, bolsista: r.bolsista });
 });
 

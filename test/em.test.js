@@ -8,7 +8,7 @@ import {
   TURMAS_EM, BOLSAS_EM, turmaDe, turmaVigente, bolsaEmDe, normalizarBolsistaEM,
   projetoAtual, trocarProjeto, cotasDaTurma, faltaNoBolsistaEM, relatoriosExigidos,
   CRITERIOS_AVALIACAO_EM, ESCALA_AVALIACAO_EM, RECOMENDACAO_EM, avaliacaoEMCompleta,
-  faltaDadosBancariosEM, faltaDoResponsavelEM, faltaDoEstudanteEM,
+  faltaDadosBancariosEM, faltaDoResponsavelEM, faltaDoEstudanteEM, desligarEM,
 } from "../lib/em.js";
 import { termoDoAlunoEM, autorizacaoResponsavelEM } from "../lib/termos.js";
 import { MARCAS } from "../lib/marca.js";
@@ -230,4 +230,87 @@ test("aprovar a troca fecha o acompanhamento anterior e abre o novo", () => {
   assert.equal(depois.trajetoria[0].ate, hoje, "o anterior fecha na data da decisão");
   assert.equal(depois.trajetoria[1].ate, "", "o novo fica em curso");
   assert.equal(depois.trajetoria[1].numero, "IC-2026-004");
+});
+
+/* ---------------- A SUBSTITUIÇÃO DO BOLSISTA (set/2026) ----------------
+   "Houve uma desistência e precisamos fazer a troca antes da assinatura."
+   Quem sai tem de sair da pilha de termos sem apagar o registro, e a vaga
+   dele — com a bolsa — tem de caber ao substituto numa cota fechada. */
+
+test("desligar fecha o acompanhamento aberto e guarda o motivo", () => {
+  const b = normalizarBolsistaEM({
+    nome: "Desistente Um", turma: "2026/2027", bolsa: "cnpq",
+    trajetoria: [
+      { projetoId: "p1", numero: "IC-2026-001", titulo: "Antigo", de: "2026-09-01", ate: "2026-10-01" },
+      { projetoId: "p2", numero: "IC-2026-002", titulo: "Vigente", de: "2026-10-02", ate: "" },
+    ],
+  });
+  assert.equal(projetoAtual(b)?.projetoId, "p2", "antes há um acompanhamento aberto");
+
+  const fora = desligarEM(b, { motivo: "desistiu antes da assinatura", por: "coord@uniego.edu.br",
+    hoje: "2026-11-20" });
+  assert.equal(fora.situacao, "desligado");
+  assert.equal(fora.desligamento.motivo, "desistiu antes da assinatura");
+  assert.equal(fora.desligamento.por, "coord@uniego.edu.br");
+  assert.equal(projetoAtual(fora), null, "o professor deixa de estar recebendo o estudante");
+  assert.equal(fora.trajetoria[1].ate, "2026-11-20", "a data de hoje diz até quando aquilo valeu");
+  assert.equal(fora.trajetoria[0].ate, "2026-10-01", "o que já se encerrou não se toca");
+  assert.equal(fora.trajetoria.length, 2, "a trajetória nunca se apaga");
+  assert.equal(fora.bolsa, "cnpq", "a bolsa fica: ela diz qual cota a pessoa ocupava");
+  assert.match(fora.historico.at(-1).oQue, /desligou da turma/);
+});
+
+test("o desligado sai das cotas — é o que faz a troca caber em 12 + 12", () => {
+  const turma = "2026/2027";
+  const lista = Array.from({ length: 12 }, (_, i) =>
+    normalizarBolsistaEM({ nome: `Bolsista ${i + 1}`, turma, bolsa: "cnpq" }));
+  assert.equal(cotasDaTurma(lista, turma).find((c) => c.codigo === "cnpq").usadas, 12,
+    "a cota do CNPq está cheia");
+
+  lista[3] = desligarEM(lista[3], { motivo: "desistiu", por: "coord@uniego.edu.br" });
+  assert.equal(cotasDaTurma(lista, turma).find((c) => c.codigo === "cnpq").usadas, 11,
+    "desligar devolve a vaga");
+
+  lista.push(normalizarBolsistaEM({ nome: "Substituta Nova", turma, bolsa: "cnpq" }));
+  assert.equal(cotasDaTurma(lista, turma).find((c) => c.codigo === "cnpq").usadas, 12,
+    "o substituto ocupa a vaga que vagou, e não uma 13ª");
+});
+
+test("editar o cadastro não apaga o desligamento, a substituição nem os e-mails adotados", () => {
+  /* Estes campos são escritos por ROTA PRÓPRIA, e o formulário do cadastro
+     não os manda — sem o `base`, salvar um telefone desfazia a troca e
+     devolvia o estudante ao painel vazio (a conta reconhecida pelo CPF). */
+  const base = normalizarBolsistaEM({
+    nome: "Quem Saiu", turma: "2026/2027", email: "escolar@escola.com",
+    emails: ["pessoal@gmail.com"], emailAnterior: "antigo@escola.com",
+    desligamento: { em: "2026-11-20T12:00:00.000Z", por: "coord@uniego.edu.br", motivo: "desistiu" },
+    substituicao: { papel: "saiu", id: "em_x", nome: "Quem Entrou",
+      em: "2026-11-20T12:00:00.000Z", por: "coord@uniego.edu.br", motivo: "desistiu" },
+    situacao: "desligado",
+  });
+  // o formulário da coordenação manda só o que ele tem na tela
+  const depois = normalizarBolsistaEM({
+    id: base.id, nome: "Quem Saiu", turma: "2026/2027", telefone: "(62) 90000-0000",
+  }, { base });
+
+  assert.deepEqual(depois.emails, ["pessoal@gmail.com"], "o e-mail adotado pelo CPF fica");
+  assert.equal(depois.emailAnterior, "antigo@escola.com");
+  assert.equal(depois.desligamento.motivo, "desistiu");
+  assert.equal(depois.substituicao.nome, "Quem Entrou");
+  assert.equal(depois.telefone, "(62) 90000-0000", "o que a tela mandou entra");
+});
+
+test("quem entra aponta para quem saiu, e o e-mail do registro reconhece as duas contas", () => {
+  const entrou = normalizarBolsistaEM({
+    nome: "Quem Entrou", turma: "2026/2027", bolsa: "cnpq",
+    substituicao: { papel: "entrou", id: "em_y", nome: "Quem Saiu",
+      em: "2026-11-20T12:00:00.000Z", por: "coord@uniego.edu.br", motivo: "desistiu" },
+  });
+  assert.equal(entrou.substituicao.papel, "entrou");
+  assert.equal(entrou.substituicao.nome, "Quem Saiu");
+  assert.equal(entrou.situacao, "ativo");
+  // papel desconhecido não passa: os dois lados só existem nestes dois nomes
+  const estranho = normalizarBolsistaEM({ nome: "X Y", turma: "2026/2027",
+    substituicao: { papel: "sei-la", id: "z", nome: "W" } });
+  assert.equal(estranho.substituicao.papel, "saiu");
 });

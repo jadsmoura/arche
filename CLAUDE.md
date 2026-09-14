@@ -3005,6 +3005,43 @@ public/
   a marca** — quem escreveu por último é quem responde pelo número da conta. O botão **não se
   desenha para o voluntário nem para quem ainda não tem bolsa atribuída** (não há o que pagar, e a
   rota recusa): na turma recém-selecionada ele só aparece depois da concessão.
+- **SUBSTITUIR O BOLSISTA DO ICEM É UM ATO SÓ** (`desligarEM` em lib/em.js +
+  `POST /api/ic/em/:id/substituir` e `/reativar` + a janela "⇄ Substituir" no cartão da guia
+  Ensino Médio, pedido do dono set/2026: "insira a opção de substituir bolsista de EM — não
+  estou achando, e precisamos fazer uma troca antes da assinatura; houve uma desistência").
+  O registro já sabia o que fazer com quem sai: `desligado` tira a pessoa dos **termos de
+  compromisso**, da folha de pagamento, das cotas, dos comunicados e das chamadas — todos já
+  filtravam por ela. O que não existia era o **ATO**: nenhuma tela chamava a rota que muda a
+  situação, e a coordenação não tinha como tirar da pilha de assinaturas quem desistira.
+  **É um ato, não três, e a razão é a COTA**: são 12 CNPq + 12 UNIEGO por turma, e enquanto o
+  desistente está ativo a bolsa dele está ocupada — atribuí-la ao substituto seria recusada.
+  Feita em telas separadas (desligar → incluir → atribuir), a troca teria três chances de parar
+  pela metade, e a turma ficaria com uma vaga aberta que ninguém sabe de quem era. Aqui a saída
+  e a entrada acontecem na MESMA passagem pela fila, e a conta da cota **exclui o saindo**, que
+  é o que faz a troca caber numa cota cheia (provado: 12/12 antes e 12/12 depois).
+  **O substituto é DIGITADO**: a turma tem exatamente os selecionados do edital, e quem entra é o
+  próximo classificado, que não está no sistema (o registro guarda `colocacao`/`notaSelecao` para
+  dizer de onde ele veio). Quem JÁ está na turma — o voluntário que recebe a bolsa que vagou —
+  continua pelo seletor de bolsa do cartão. E o substituto é **OPCIONAL**: a urgência é tirar o
+  desistente da pilha de assinaturas, e o nome de quem entra nem sempre está decidido; sem ele a
+  vaga fica aberta e a cota volta a ter espaço.
+  Três regras: **nada se apaga** — o desligado fica no registro com a data e o motivo (obrigatório),
+  e os dois lados apontam um para o outro (`substituicao.papel`: *saiu* / *entrou*), que é o que
+  responde, meses depois, por que o termo assinado não traz o nome do resultado publicado;
+  desligar **fecha o trecho aberto da trajetória** com a data de hoje (o professor que estava
+  recebendo o estudante deixa de estar), sem tocar no que já se encerrou; e o **CPF inválido é
+  recusado por extenso** — ele viraria "" em silêncio, e o termo sairia com a linha pontilhada e a
+  folha sem a chave. O e-mail repetido é recusado **dentro da turma**, nunca entre turmas: quem foi
+  bolsista em dois anos é a mesma pessoa. Entrando com bolsa a pagar, o pedido do cadastro
+  (responsável + conta) sai no mesmo instante em que sairia pela atribuição comum.
+  **↩ Reativar desfaz o desligamento** — o engano de um clique não pode custar o cadastro inteiro
+  —, e é **recusado quando a cota já está cheia** com outros, nomeando o caminho: devolver alguém
+  sem a bolsa que ele tinha, em silêncio, seria pior.
+  No mesmo passo, `normalizarBolsistaEM` passou a **preservar os e-mails adotados**
+  (`emails`/`emailAnterior`): ela devolve um conjunto FIXO de campos, e esses dois nunca estiveram
+  nele — a adoção aditiva pelo CPF (a correção de set/2026) seria desfeita na primeira gravação do
+  cadastro pela coordenação, devolvendo o estudante ao painel vazio. Era defeito dormente (nenhuma
+  tela chamava aquele POST) e deixaria de ser agora.
 - **O BOLSISTA DO ICEM NÃO VIRA "ORIENTADOR" POR UM RASCUNHO QUE ELE ABRIU** (`perfilIC` no
   server, relato da bolsista Mariana set/2026: "e eu escolhi o meu projeto tb e está dando como
   rascunho" — e o print era o **painel do PROFESSOR**, com um projeto "Direito internacional" em

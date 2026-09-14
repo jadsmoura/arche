@@ -1256,6 +1256,16 @@ async function renderEM() {
       ${b.situacao !== "desligado" && (b.falta || []).length ? `<div class="banner ba-warn" style="margin-bottom:6px">
         <b>Falta no cadastro:</b> ${esc(b.falta.join(", "))}.
         ${b.exigeBB ? " A bolsa do CNPq é paga só em conta do Banco do Brasil." : ""}</div>` : ""}
+      ${b.situacao === "desligado" ? `<div class="banner ba-warn" style="margin-bottom:6px">
+        <b>Desligado(a) da turma${b.desligamento?.em ? " em " + fmtD(b.desligamento.em.slice(0, 10)) : ""}.</b>
+        ${b.desligamento?.motivo ? ` ${esc(b.desligamento.motivo)}${/[.!?…]$/.test(b.desligamento.motivo.trim()) ? "" : "."}` : ""}
+        ${b.substituicao?.papel === "saiu" && b.substituicao.nome
+          ? ` Substituído(a) por <b>${esc(b.substituicao.nome)}</b>.` : ""}
+        <div class="muted" style="margin-top:4px">Fica fora dos termos, da folha de pagamento,
+          das cotas e dos comunicados — o registro permanece.</div></div>` : ""}
+      ${b.substituicao?.papel === "entrou" && b.substituicao.nome ? `<div class="banner ba-info" style="margin-bottom:6px">
+        Entrou na turma no lugar de <b>${esc(b.substituicao.nome)}</b>${b.substituicao.em
+          ? ` em ${fmtD(b.substituicao.em.slice(0, 10))}` : ""}.</div>` : ""}
       <div class="muted" style="margin-bottom:6px">
         ${esc(b.escola || "escola não informada")}${b.serie ? ` · ${esc(b.serie)}` : ""}
         ${b.cursoInteresse ? ` · interesse: ${esc(b.cursoInteresse)}` : ""}
@@ -1312,6 +1322,12 @@ async function renderEM() {
           ${b.conint?.participou ? "✓ CONINT — desfazer" : "Participou do CONINT"}</button>
         <a class="bt bt-ghost" href="/api/ic/em/bolsistas.xlsx?turma=${encodeURIComponent(TURMA_EM)}&bolsista=${encodeURIComponent(b.email || b.id)}"
           title="Planilha só deste bolsista — CPF, contato, responsável e dados bancários, para o pedido de pagamento">⬇ Exportar dados do aluno</a>
+        ${b.situacao === "desligado"
+          ? `<button class="bt bt-ghost" onclick="emReativar('${esc(b.id)}')"
+              title="Desfaz o desligamento: volta às cotas, aos termos, à folha e aos comunicados">↩ Reativar</button>`
+          : turma.encerrada ? ""
+            : `<button class="bt bt-ghost" onclick="abrirSubstituirEM('${esc(b.id)}')"
+              title="Desistência, transferência: tira este bolsista da turma — e, havendo substituto, põe o novo no lugar com a mesma bolsa">⇄ Substituir</button>`}
       </div>
     </div>`;
   };
@@ -1847,6 +1863,118 @@ function abrirBancoEM(id) {
     } catch (e) { aviso(e.message, "err"); }
   };
 }
+
+/* ============ SUBSTITUIR O BOLSISTA DO ICEM (set/2026) ============
+   Pedido do dono: "precisamos fazer uma troca antes da assinatura, houve uma
+   desistência". A janela faz as duas pontas num ato só, porque é assim que o
+   servidor as faz: com o desistente ainda ativo, a bolsa dele está ocupada e
+   a cota (12 + 12) recusaria o substituto.
+
+   O substituto é OPCIONAL: a urgência é tirar quem desistiu da pilha de
+   assinaturas, e o nome de quem entra nem sempre já está decidido. */
+function abrirSubstituirEM(id) {
+  const b = (EM.bolsistas || []).find((x) => x.id === id);
+  if (!b) return aviso("Bolsista não encontrado.", "err");
+  const bolsaNome = (c) => (EM.bolsas.find((x) => x.codigo === c) || {}).nome || "";
+  document.getElementById("ov-subst")?.remove();
+  const div = document.createElement("div");
+  div.className = "ov"; div.id = "ov-subst"; div.tabIndex = -1;
+  div.onclick = (e) => { if (e.target === div) div.remove(); };
+  div.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); div.remove(); } });
+  div.innerHTML = `<div class="ov-cx" style="max-width:680px">
+    <div class="ov-cab"><div class="t">Substituir ${esc(b.nome || "bolsista")}</div>
+      <button class="ov-x" onclick="document.getElementById('ov-subst').remove()">×</button></div>
+    <div class="card-s">Quem sai deixa de aparecer nos <b>termos de compromisso</b>, na folha de
+      pagamento, nas cotas e nos comunicados da turma — o registro dele fica, com o motivo.
+      ${b.bolsa && b.bolsa !== "voluntario"
+        ? `A <b>${esc(bolsaNome(b.bolsa))}</b> que ele ocupa passa a quem entrar.`
+        : "Ele não tem bolsa a repassar."}</div>
+
+    <label style="margin-top:14px">Motivo da saída * <span class="muted">(fica no registro)</span></label>
+    <textarea id="sb-motivo" rows="2" placeholder="Ex.: desistiu antes da assinatura do termo"></textarea>
+
+    <label style="margin:14px 0 0;display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13.5px;font-weight:600;color:var(--ink)">
+      <input type="checkbox" id="sb-sem" style="width:auto;margin:0" onchange="
+        document.getElementById('sb-quem').hidden = this.checked;">
+      Não há substituto por ora — a vaga fica aberta
+    </label>
+
+    <div id="sb-quem">
+      <div class="card-t" style="margin-top:14px;font-size:14px">Quem entra no lugar</div>
+      <div class="grid2">
+        <div><label>Nome completo *</label><input id="sb-nome" placeholder="Como sai impresso no termo"></div>
+        <div><label>CPF</label><input id="sb-cpf" placeholder="000.000.000-00"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Escola</label><input id="sb-escola" value="${esc(b.escola || "")}"></div>
+        <div><label>Série</label><input id="sb-serie" placeholder="Ex.: 2º ano"></div>
+      </div>
+      <div class="grid2">
+        <div><label>E-mail</label><input id="sb-email" type="email" placeholder="por onde o convite e a cobrança chegam"></div>
+        <div><label>Telefone</label><input id="sb-telefone" placeholder="(62) 90000-0000"></div>
+      </div>
+      <div class="grid3">
+        <div><label>Curso de interesse</label><input id="sb-curso"></div>
+        <div><label>Colocação na seleção</label><input id="sb-colocacao" type="number" min="1" step="1"></div>
+        <div><label>Nota da seleção</label><input id="sb-nota" type="number" step="0.01"></div>
+      </div>
+      <label>Bolsa</label>
+      <select id="sb-bolsa">
+        <option value="">— sem bolsa —</option>
+        ${EM.bolsas.map((x) => `<option value="${x.codigo}" ${b.bolsa === x.codigo ? "selected" : ""}>${esc(x.nome)} — R$ ${x.valor}</option>`).join("")}
+      </select>
+      <div class="muted" style="margin-top:6px">O restante do cadastro — responsável, autorização
+        e conta — é do próprio estudante: entrando com bolsa a pagar, o pedido sai por e-mail na hora.</div>
+    </div>
+
+    <div class="exp" style="margin-top:16px">
+      <button class="bt bt-pri" id="sb-ok">Confirmar a substituição</button>
+      <button class="bt bt-ghost" onclick="document.getElementById('ov-subst').remove()">Cancelar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+  div.querySelector("#sb-motivo").focus();
+  div.querySelector("#sb-ok").onclick = async () => {
+    const v = (x) => (div.querySelector("#sb-" + x)?.value || "").trim();
+    const sem = div.querySelector("#sb-sem").checked;
+    const motivo = v("motivo");
+    if (motivo.length < 5) return aviso("Escreva o motivo da saída.", "err");
+    if (!sem && v("nome").split(/\s+/).filter((p) => p.length >= 2).length < 2) {
+      return aviso("Informe o nome completo de quem entra.", "err");
+    }
+    const num = (x) => (v(x) === "" ? null : Number(v(x)));
+    // a confirmação NOMEIA as duas pontas: quem sai some da pilha de
+    // assinaturas, e é isso que o clique faz de irreversível na véspera
+    if (!confirm(sem
+      ? `Desligar ${b.nome} da turma ${b.turma}? A vaga fica aberta e ele sai dos termos.`
+      : `Substituir ${b.nome} por ${v("nome")} na turma ${b.turma}?`)) return;
+    try {
+      const r = await api(`/api/ic/em/${encodeURIComponent(id)}/substituir`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          motivo,
+          entrante: sem ? null : {
+            nome: v("nome"), cpf: v("cpf"), escola: v("escola"), serie: v("serie"),
+            email: v("email"), telefone: v("telefone"), cursoInteresse: v("curso"),
+            colocacao: num("colocacao"), notaSelecao: num("nota"),
+            bolsa: div.querySelector("#sb-bolsa").value,
+          },
+        }),
+      });
+      div.remove();
+      EM = null; await renderEM();
+      aviso(r.entrante
+        ? `${r.entrante.nome} entrou no lugar de ${r.saindo.nome}. Os termos já saem com o nome novo.`
+        : `${r.saindo.nome} foi desligado(a) — a vaga ficou aberta.`);
+    } catch (e) { aviso(e.message, "err"); }
+  };
+}
+
+const emReativar = (id) => {
+  const b = (EM.bolsistas || []).find((x) => x.id === id);
+  if (!confirm(`Reativar ${b?.nome || "este bolsista"} na turma? Ele volta às cotas, aos termos, à folha e aos comunicados.`)) return;
+  return emAcao(`/api/ic/em/${id}/reativar`, {}, "Bolsista reativado na turma.");
+};
 
 async function emChamada() {
   const simular = (mensagem) => api("/api/ic/em/chamada-relatorio", { method: "POST",
