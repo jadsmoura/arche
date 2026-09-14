@@ -2910,7 +2910,17 @@ public/
   pela gestão (bolsa, situacao, cadastro) — **menos a CONTA, que é do bolsista** (ver o
   parágrafo dos dados bancários abaixo) —, e o termo (5º modelo em lib/termos.js,
   `termoDoAlunoEM`) sai com o **Anexo 01 — autorização do responsável** na página
-  seguinte, assinado por aluno, responsável e coordenação de pesquisa (`gerarTermosEMPdf`). As turmas sobem no arranque (`subirTurmasEM`,
+  seguinte (`gerarTermosEMPdf`). **O termo é assinado pelo aluno, pelo responsável e,
+  PELA INSTITUIÇÃO, pelo pró-reitor e pelo reitor** — os mesmos dos termos da graduação
+  (correção do dono set/2026: "nos termos do ensino médio tem a assinatura só do Wagner").
+  Saía com a linha única da **coordenação de pesquisa**, e isso lia mal duas vezes: o termo
+  de compromisso é contrato da INSTITUIÇÃO com o bolsista — quem o firma por ela é quem
+  firma os demais —, e a linha da coordenação nem imagem tinha (`ASSINA.coordPesquisa` sem
+  `img`), então a via digital saía em branco onde as da graduação já vinham assinadas. São
+  **duas réguas de duas colunas**, não uma de quatro: as partes em cima (assinam à caneta na
+  cerimônia) e a instituição embaixo, com as imagens do banco — em quatro colunas de 120 pt o
+  cargo do pró-reitor sairia em cinco linhas. O **Anexo 01 não muda**: é declaração do
+  responsável, e continua com as linhas dele e do aluno, e só. As turmas sobem no arranque (`subirTurmasEM`,
   `dados/ic-em-{2025,2026}-turma.json`): a trajetória aponta `origem.lote/id` do projeto
   (o id real é de cada ambiente e resolve-se na importação). A remoção dos 22 dos projetos
   de 01/2025 (`removerAlunosEnsinoMedio`, `sys-ic-em-removidos-v1`) usa
