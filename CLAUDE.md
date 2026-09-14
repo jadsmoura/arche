@@ -2980,6 +2980,44 @@ public/
   celular. A janela de revisão é a de sempre (`janelaEnvio`), com `semMensagem: true`: ali o corpo
   do e-mail JÁ é o que a coordenação escreveu, e uma segunda caixa de "mensagem da coordenação"
   faria a pessoa achar que precisa escrever de novo.
+- **O RESPONSÁVEL NÃO TINHA FORMULÁRIO NENHUM** (`faltaDoResponsavelEM`/`faltaDoEstudanteEM` em
+  lib/em.js + `POST /api/ic/em/meu/responsavel` + o bloco "Autorização do seu responsável" na guia
+  do estudante + os dois campos na janela "Preencher em nome do bolsista" + `emailCadastroEM` em
+  lib/mailer.js — pergunta do dono set/2026, vendo o selo novo acender na turma inteira: "todos os
+  bolsistas do EM faltam dados dos responsáveis. Esses dados foram cobrados? havia espaço para
+  lançamento no formulário que eles responderam do e-mail? Não faz sentido faltar esses dados se
+  eles entraram com outros").
+  **Não foram cobrados, e não havia espaço**: nenhum formulário do ARCHÉ gravava `responsavel` —
+  nem o do estudante (que tinha os quatro campos da conta e mais nada) nem o da coordenação. O
+  campo só existia como LEITURA: a ficha da gestão o mostrava, a planilha o exportava e o Anexo 01
+  do termo o imprimia. A turma **2025/2026** o tinha porque foi transcrito dos 24 termos assinados
+  (`ic-em-2025-turma.json`, 22 de 22 com o nome); a **2026/2027** veio do resultado da seleção —
+  colocação, nota, presença na entrevista —, e responsável não é coisa que se pergunte numa
+  seleção. O selo estava certo e cobrava o que ninguém tivera onde informar.
+  **A régua é dos DOIS campos que o Anexo 01 imprime** — nome e CPF —, e não mais: pedir telefone
+  ou endereço do responsável seria coletar dado de um terceiro que nenhum documento usa. O CPF
+  entrou junto do nome em `faltaNoBolsistaEM` porque o termo imprime os dois, e é conferido na
+  gravação (`normalizarCpf` devolve "" para o inválido, então um dígito trocado viraria "não
+  informado" e o estudante salvaria achando que preencheu).
+  **A distinção que organiza tudo**: a conta existe por causa da BOLSA; a autorização existe por
+  causa da IDADE. Daí o bloco do responsável aparecer para TODOS — o voluntário inclusive, que
+  antes não recebia cobrança nenhuma porque `faltaDadosBancariosEM` devolve lista vazia para quem
+  não tem bolsa a pagar —, e daí `faltaDoEstudanteEM` (responsável + conta) ser a lista que o
+  e-mail nomeia, o cartão da gestão mostra (`faltaEstudante`) e o botão **"✉ Cobrar o cadastro do
+  estudante"** conta. Na janela da coordenação a recusa passou a ser da PARTE bancária, não da
+  chamada inteira: recusar tudo deixaria a coordenação sem onde digitar a autorização de quem não
+  recebe bolsa. O responsável alcança **todos** os registros da pessoa; a conta, só os que têm
+  bolsa a pagar — dois recortes porque são dois dados de naturezas diferentes.
+  **O e-mail virou um só** (`emailCadastroEM`, o antigo `emailDadosBancariosEM`; o código do aviso
+  `em-dados-bancarios` fica, que é a chave gravada da escolha da gestão): monta os blocos que a
+  pessoa tem a preencher e nomeia o que falta a ELA — dois e-mails dobrariam o que já cai no spam
+  da caixa da escola. E `normalizarBolsistaEM` passou a **preservar o responsável** quando o corpo
+  não o traz (a lição da ficha do monitor): sem isso, salvar o cadastro pela coordenação apagaria
+  em silêncio a autorização que o estudante acabara de informar.
+  **O que o dono precisa saber antes de reenviar**: na turma 2026/2027, **23 dos 24** batem antes
+  na etapa de completar o PERFIL (`faltaNoPerfil` pede CPF, telefone, função e curso, e o lote da
+  seleção não trouxe CPF) — eles preenchem o perfil e caem no setor, mas é um passo a mais no
+  caminho. Medido no servidor local: 2025/2026 entra direto em 21 de 24; 2026/2027, em 1 de 24.
 - **O CARTÃO DIZ, NA CARA, O QUE FALTA NO CADASTRO** (`faltaNoBolsistaEM(b, { incluirProjeto })` em
   lib/em.js + `falta` no payload do `GET /api/ic/em` + `faltaCadastro`/`dadosCompletos` em
   `alunosVisiveis` de lib/ic.js + o selo, a faixa e o filtro nas guias Ensino Médio e Bolsistas,

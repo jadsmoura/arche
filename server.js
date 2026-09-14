@@ -143,6 +143,7 @@ import {
   normalizarBolsistaEM, trocarProjeto, anotarEM, cotasDaTurma, projetoAtual as projetoAtualEM,
   RELATORIOS_EM, CAMPOS_RELATORIO_EM, relatoriosExigidos,
   exigeBancoDoBrasil, ehBancoDoBrasil, faltaDadosBancariosEM, faltaNoBolsistaEM,
+  faltaDoResponsavelEM, faltaDoEstudanteEM,
 } from "./lib/em.js";
 import {
   duplicidadesPorNome, podeFundir, fundirPerfil, fundirProjeto, fundirAcao, fundirAta, fundirPapeis,
@@ -14134,6 +14135,9 @@ app.get("/api/ic/em", async (req, res) => {
     // o que falta na CONTA vem calculado: a guia precisa poder dizer de quem
     // se está esperando o dado bancário sem refazer a régua no cliente
     ...b, faltaBanco: faltaDadosBancariosEM(b), exigeBB: exigeBancoDoBrasil(b.bolsa),
+    // o que só o ESTUDANTE preenche — a conta e a autorização do responsável;
+    // é esta a lista que a cobrança por e-mail nomeia
+    faltaEstudante: faltaDoEstudanteEM(b),
     /* O QUE FALTA, NUMA LISTA SÓ (pedido do dono set/2026: "só consigo ver os
        alunos que faltam dados se eu abrir um por um; com um ícone de alerta
        me ajuda a identificar"). A régua do cadastro já existia em
@@ -14203,6 +14207,12 @@ app.get("/api/ic/em/meu", async (req, res) => {
         // que ainda falta e a exigência do CNPq dita na própria resposta
         conta: { banco: b.banco || "", agencia: b.agencia || "", conta: b.conta || "", pix: b.pix || "" },
         faltaBanco: faltaDadosBancariosEM(b), exigeBB: exigeBancoDoBrasil(b.bolsa),
+        /* O RESPONSÁVEL volta preenchido pelo mesmo motivo da conta: é dado
+           DELE, e conferir o que está gravado é metade do trabalho. Vale para
+           todo bolsista, voluntário inclusive — a autorização é da idade, não
+           da bolsa. */
+        responsavel: { nome: b.responsavel?.nome || "", cpf: b.responsavel?.cpf || "" },
+        faltaResponsavel: faltaDoResponsavelEM(b),
         projetoAtual: projetoAtualEM(b), trajetoria: b.trajetoria,
         // os pedidos de alteração DELE — o pendente e os já decididos
         pedidosProjeto: b.pedidosProjeto || [],
@@ -14519,6 +14529,64 @@ app.post("/api/ic/em/meu/banco", async (req, res) => {
 });
 
 /**
+ * O RESPONSÁVEL, INFORMADO PELO PRÓPRIO ESTUDANTE (pedido do dono set/2026:
+ * "todos os bolsistas EM faltam dados dos responsáveis; esses dados foram
+ * cobrados? havia espaço para lançamento no formulário que eles responderam?
+ * […] inclua esses campos no formulário que eles precisam preencher").
+ *
+ * Não havia: até aqui NENHUM formulário do ARCHÉ gravava `responsavel` — nem o
+ * do estudante (que só tinha os quatro campos da conta) nem o da coordenação.
+ * O campo só existia como LEITURA: o cartão da gestão o mostrava, a planilha o
+ * exportava e o Anexo 01 do termo o imprimia. A turma 2025/2026 o tinha porque
+ * foi transcrito dos 24 termos assinados; a 2026/2027 veio do resultado da
+ * seleção — colocação, nota, presença na entrevista —, e responsável não é
+ * coisa que se pergunte numa seleção. O selo "⚠ faltam dados" estava certo e
+ * cobrava algo que ninguém tivera onde informar.
+ *
+ * Duas regras, e a segunda é o que separa esta rota da dos dados bancários:
+ * o dado é DA PESSOA (grava em todos os registros dela, como a conta), e vale
+ * para TODO bolsista — **o voluntário inclusive**. A conta existe por causa da
+ * bolsa; a autorização do responsável existe por causa da IDADE, e o Anexo 01
+ * autoriza o menor a acessar as dependências da instituição e a desenvolver as
+ * atividades, receba ele bolsa ou não.
+ *
+ * O CPF é conferido aqui em vez de cair no chão: `normalizarCpf` devolve ""
+ * para o inválido, então um dígito trocado viraria "não informado" e o
+ * estudante salvaria achando que preencheu.
+ */
+app.post("/api/ic/em/meu/responsavel", async (req, res) => {
+  const u = await sessaoIC(req, res);
+  if (!u) return;
+  const nome = String(req.body?.nome || "").trim().slice(0, 120);
+  const cpfCru = String(req.body?.cpf || "").trim();
+  if (!nomeDePessoaValido(nome)) {
+    return res.status(400).json({ error: "Informe o NOME COMPLETO do seu responsável — "
+      + "é ele que sai impresso na autorização que acompanha o seu termo de compromisso." });
+  }
+  if (!cpfValido(cpfCru)) {
+    return res.status(400).json({ error: "O CPF do responsável não confere. "
+      + "Confira os números e digite de novo — ele sai impresso na autorização." });
+  }
+  const responsavel = { nome, cpf: normalizarCpf(cpfCru) };
+  const r = await comBolsistasEM((lista) => {
+    const meus = lista.map((x, i) => [x, i])
+      .filter(([x]) => casaComEM(x, String(u.email).toLowerCase(), cpfDeBusca(u.cpf)));
+    if (!meus.length) return { erro: [404, "Registro do ICEM não encontrado para a sua conta"], gravar: false };
+    for (const [x, i] of meus) {
+      lista[i] = anotarEM({ ...x, responsavel },
+        { quem: u.email, oQue: "informou os dados do responsável" });
+    }
+    return { bolsista: lista[meus[0][1]], tocados: meus.length };
+  });
+  if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+  avisarPesquisa(`ICEM: ${r.bolsista.nome} informou os dados do responsável`, [
+    ["Bolsista", `${r.bolsista.nome} (turma ${r.bolsista.turma})`],
+    ["Responsável", responsavel.nome],
+  ], "Autorização do responsável — dados informados pelo bolsista do Ensino Médio");
+  res.json({ ok: true, bolsista: r.bolsista, falta: faltaDoEstudanteEM(r.bolsista) });
+});
+
+/**
  * A COORDENAÇÃO PREENCHE OS DADOS BANCÁRIOS EM NOME DO BOLSISTA DO ICEM
  * (pedido do dono set/2026: "inclua a opção de preencher pelo aluno também no
  * módulo de IC ensino médio" — a mesma que a graduação acabara de ganhar).
@@ -14547,12 +14615,33 @@ app.post("/api/ic/em/:id/cadastro", async (req, res) => {
     conta: String(b.conta || "").trim().slice(0, 30),
     pix: String(b.pix || "").trim().slice(0, 120),
   };
+  /* O RESPONSÁVEL entra por aqui também (set/2026): a coordenação tem o termo
+     assinado na mesa, com os dois campos escritos à mão, e era esse o buraco
+     que este caminho existe para fechar. Só que ele NÃO é dado de bolsa —
+     vale para o voluntário igual —, e por isso o que se pede é opcional aqui:
+     manda-se o que se tem, e o que não vier fica como está. */
+  const querResp = req.body?.responsavel != null;
+  const rNome = String(req.body?.responsavel?.nome || "").trim().slice(0, 120);
+  const rCpf = String(req.body?.responsavel?.cpf || "").trim();
+  if (querResp && rCpf && !cpfValido(rCpf))
+    return res.status(400).json({ error: "O CPF do responsável não confere — confira os números." });
+  const semBanco = !conta.banco && !conta.agencia && !conta.conta && !conta.pix;
   const r = await comBolsistasEM((lista) => {
     const alvo = lista.find((x) => x.id === req.params.id);
     if (!alvo) return { erro: [404, "Bolsista não encontrado"], gravar: false };
-    if (!alvo.bolsa || alvo.bolsa === "voluntario") {
-      return { erro: [400, `${alvo.nome || "Este bolsista"} é voluntário(a) — não há bolsa a pagar, `
-        + "e por isso o ARCHÉ não guarda conta bancária dele(a)."], gravar: false };
+    const voluntario = !alvo.bolsa || alvo.bolsa === "voluntario";
+    /* Voluntário não tem conta — mas pode ter responsável. A recusa passou a
+       ser da PARTE bancária, não da chamada inteira: recusar tudo deixaria a
+       coordenação sem onde digitar a autorização de quem não recebe bolsa. */
+    if (voluntario && !semBanco) {
+      // "sem bolsa atribuída" não é "voluntário": na turma recém-selecionada
+      // ninguém tem bolsa ainda, e chamar todos de voluntários confundiria
+      // justamente quem está decidindo a distribuição das cotas
+      return { erro: [400, alvo.bolsa === "voluntario"
+        ? `${alvo.nome || "Este bolsista"} é voluntário(a) — não há bolsa a pagar, `
+          + "e por isso o ARCHÉ não guarda conta bancária dele(a)."
+        : `A coordenação ainda não atribuiu bolsa a ${alvo.nome || "este bolsista"} — `
+          + "sem bolsa não há conta a informar. Atribua a bolsa e volte aqui."], gravar: false };
     }
     // a conta é DA PESSOA: quem esteve em duas turmas não a tem em duas versões
     const meus = lista.map((x, i) => [x, i]).filter(([x]) => x.id === alvo.id
@@ -14562,15 +14651,33 @@ app.post("/api/ic/em/:id/cadastro", async (req, res) => {
       return { erro: [400, "A bolsa do CNPq é paga obrigatoriamente em conta do Banco do Brasil — "
         + "uma conta de outro banco não recebe o pagamento da agência."], gravar: false };
     }
+    /* O responsável alcança TODOS os registros da pessoa, com bolsa ou sem —
+       a conta só alcança os que têm bolsa a pagar. São dois recortes porque
+       são dois dados de naturezas diferentes. */
+    const daPessoa = lista.map((x, i) => [x, i]).filter(([x]) => x.id === alvo.id
+      || casaComEM(x, String(alvo.email || "").toLowerCase(), cpfDeBusca(alvo.cpf)));
     const marca = { por: u.email, em: new Date().toISOString() };
-    for (const [x, i] of meus) {
-      lista[i] = anotarEM({ ...x, ...conta, cadastroPelaGestao: marca },
-        { quem: u.email, oQue: `preencheu os dados bancários em nome de ${x.nome || "um bolsista"} (pela PROPPEX)` });
+    const gravouResp = querResp && (rNome || rCpf);
+    const oQue = [!semBanco && "os dados bancários", gravouResp && "os dados do responsável"]
+      .filter(Boolean).join(" e ") || "o cadastro";
+    const alvos = new Map();
+    if (!semBanco) for (const [x, i] of meus) alvos.set(i, { ...x, ...conta, cadastroPelaGestao: marca });
+    if (gravouResp) {
+      for (const [x, i] of daPessoa) {
+        const novo = alvos.get(i) || { ...x };
+        novo.responsavel = { nome: rNome || x.responsavel?.nome || "",
+          cpf: (rCpf ? normalizarCpf(rCpf) : "") || x.responsavel?.cpf || "" };
+        alvos.set(i, novo);
+      }
     }
-    return { bolsista: lista[meus.find(([x]) => x.id === alvo.id)[1]], tocados: meus.length };
+    for (const [i, novo] of alvos) {
+      lista[i] = anotarEM(novo, { quem: u.email,
+        oQue: `preencheu ${oQue} em nome de ${novo.nome || "um bolsista"} (pela PROPPEX)` });
+    }
+    return { bolsista: lista[daPessoa.find(([x]) => x.id === alvo.id)[1]], tocados: alvos.size };
   });
   if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
-  res.json({ ok: true, bolsista: r.bolsista, registros: r.tocados, falta: faltaDadosBancariosEM(r.bolsista) });
+  res.json({ ok: true, bolsista: r.bolsista, registros: r.tocados, falta: faltaDoEstudanteEM(r.bolsista) });
 });
 
 /* A validação do relatório do EM é da PROPPEX (decisão do dono, ago/2026):
@@ -14747,22 +14854,30 @@ async function avisarResultadoEM(turma) {
 const AVISOS_BANCO_EM_KEY = "sys-ic-em-avisos-banco-v1";
 const marcaBancoEM = (b) => `${b.id}|${b.bolsa}`;
 
+/* O PEDIDO DO QUE O ESTUDANTE PREENCHE — conta bancária E autorização do
+   responsável (set/2026). Era só da conta, e por isso o voluntário nunca
+   recebia nada: `faltaDadosBancariosEM` devolve lista vazia para quem não tem
+   bolsa a pagar. Só que a autorização do Anexo 01 é da IDADE, não da bolsa —
+   e o campo do responsável não tinha, até aqui, formulário nenhum onde ser
+   informado. A marca continua sendo por bolsista + bolsa: remarcar a mesma
+   bolsa não reenvia, remanejar reenvia, e o botão da guia força. */
 async function pedirDadosBancariosEM(bolsistas, { mensagem = "", forcar = false } = {}) {
   const base = (process.env.PUBLIC_BASE_URL || "https://arche.app.br").replace(/\/$/, "");
   let ja = {};
   try { ja = JSON.parse((await storage.get(AVISOS_BANCO_EM_KEY)) || "{}") || {}; } catch { /* avisa todos */ }
   const alvo = bolsistas.filter((b) => b.situacao !== "desligado"
-    && faltaDadosBancariosEM(b).length && (forcar || !ja[marcaBancoEM(b)]));
+    && faltaDoEstudanteEM(b).length && (forcar || !ja[marcaBancoEM(b)]));
   const semEmail = alvo.filter((b) => !String(b.email || "").trim()).length;
   const fila = alvo.filter((b) => String(b.email || "").trim());
-  const { emailDadosBancariosEM } = await import("./lib/mailer.js");
+  const { emailCadastroEM } = await import("./lib/mailer.js");
   const enviados = [];
   const falhas = [];
   for (const b of fila) {
     try {
-      await enviarAviso("em-dados-bancarios", emailDadosBancariosEM(b, turmaEmDe(b.turma) || { ciclo: b.turma }, {
+      await enviarAviso("em-dados-bancarios", emailCadastroEM(b, turmaEmDe(b.turma) || { ciclo: b.turma }, {
         baseUrl: base, bolsa: bolsaEmDe(b.bolsa), mensagem,
         exigeBB: exigeBancoDoBrasil(b.bolsa), lembrete: !!ja[marcaBancoEM(b)],
+        faltaBanco: faltaDadosBancariosEM(b), faltaResponsavel: faltaDoResponsavelEM(b),
       }));
       enviados.push(b);
     } catch (e) { falhas.push(`${b.nome || b.email}: ${e.message}`); }
@@ -14777,7 +14892,7 @@ async function pedirDadosBancariosEM(bolsistas, { mensagem = "", forcar = false 
   }
   return { enviados: enviados.length, semEmail, falhas, fila: fila.map((b) => ({
     nome: b.nome, email: b.email, bolsa: bolsaEmDe(b.bolsa)?.nome || b.bolsa,
-    falta: faltaDadosBancariosEM(b).join(", ") })) };
+    falta: faltaDoEstudanteEM(b).join(", ") })) };
 }
 
 /* A chamada manual: quem falta, e o reenvio com a janela de revisão. */
@@ -14792,21 +14907,27 @@ app.post("/api/ic/em/chamada-banco", async (req, res) => {
   // precisa exigir o que a tela promete
   if (!turma) return res.status(400).json({ error: "Informe a turma." });
   if (turmaEmDe(turma)?.encerrada)
-    return res.status(400).json({ error: `A turma ${turma} está encerrada — não há bolsa a pagar.` });
+    return res.status(400).json({ error: `A turma ${turma} está encerrada.` });
+  /* A chamada cobre TUDO O QUE O ESTUDANTE PREENCHE (set/2026), não só a
+     conta: o responsável falta a todo mundo da turma nova, e o VOLUNTÁRIO,
+     que ficava de fora por não ter bolsa a pagar, tem a mesma autorização a
+     informar que os demais. */
   const lista = (await lerBolsistasEM()).filter((b) =>
-    b.turma === turma && b.situacao !== "desligado" && faltaDadosBancariosEM(b).length);
+    b.turma === turma && b.situacao !== "desligado" && faltaDoEstudanteEM(b).length);
   const quem = lista.map((b) => ({
     id: b.id, nome: b.nome, email: b.email, turma: b.turma,
     bolsa: bolsaEmDe(b.bolsa)?.nome || b.bolsa,
-    exigeBB: exigeBancoDoBrasil(b.bolsa), falta: faltaDadosBancariosEM(b),
+    exigeBB: exigeBancoDoBrasil(b.bolsa), falta: faltaDoEstudanteEM(b),
   }));
   if (req.body?.simular) {
-    const { emailDadosBancariosEM } = await import("./lib/mailer.js");
+    const { emailCadastroEM } = await import("./lib/mailer.js");
     const p = lista[0];
     return res.json({ ok: true, simulacao: true, quem,
-      previewHtml: p ? emailDadosBancariosEM(p, turmaEmDe(p.turma) || { ciclo: p.turma }, {
+      previewHtml: p ? emailCadastroEM(p, turmaEmDe(p.turma) || { ciclo: p.turma }, {
         bolsa: bolsaEmDe(p.bolsa), mensagem: String(req.body?.mensagem || ""),
-        exigeBB: exigeBancoDoBrasil(p.bolsa), lembrete: true }).corpoHtml : "" });
+        exigeBB: exigeBancoDoBrasil(p.bolsa), lembrete: true,
+        faltaBanco: faltaDadosBancariosEM(p), faltaResponsavel: faltaDoResponsavelEM(p),
+      }).corpoHtml : "" });
   }
   // pelo botão o reenvio é DELIBERADO: a marca não segura quem já foi avisado
   const r = await pedirDadosBancariosEM(lista, { mensagem: String(req.body?.mensagem || ""), forcar: true });

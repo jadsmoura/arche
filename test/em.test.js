@@ -8,6 +8,7 @@ import {
   TURMAS_EM, BOLSAS_EM, turmaDe, turmaVigente, bolsaEmDe, normalizarBolsistaEM,
   projetoAtual, trocarProjeto, cotasDaTurma, faltaNoBolsistaEM, relatoriosExigidos,
   CRITERIOS_AVALIACAO_EM, ESCALA_AVALIACAO_EM, RECOMENDACAO_EM, avaliacaoEMCompleta,
+  faltaDadosBancariosEM, faltaDoResponsavelEM, faltaDoEstudanteEM,
 } from "../lib/em.js";
 import { termoDoAlunoEM, autorizacaoResponsavelEM } from "../lib/termos.js";
 import { MARCAS } from "../lib/marca.js";
@@ -87,12 +88,48 @@ test("os relatórios do EM: parcial e final com os 3 campos, e o legado migra pa
 test("a régua do cadastro cobra responsável e projeto — o bolsista é menor", () => {
   const falta = faltaNoBolsistaEM(normalizarBolsistaEM({ nome: "Theo", turma: "2026/2027" }));
   assert.ok(falta.includes("nome do responsável"));
+  // o Anexo 01 imprime NOME e CPF do responsável: os dois são régua (set/2026)
+  assert.ok(falta.includes("CPF do responsável"));
   assert.ok(falta.includes("projeto acompanhado"), "ativo sem projeto é pendência");
   const ok = trocarProjeto(normalizarBolsistaEM({
     nome: "Theo", turma: "2026/2027", cpf: "52998224725", escola: "Couto Magalhães",
-    telefone: "62 9", email: "t@x.com", bolsa: "cnpq", responsavel: { nome: "Maria" },
+    telefone: "62 9", email: "t@x.com", bolsa: "cnpq",
+    responsavel: { nome: "Maria", cpf: "11144477735" },
   }), { projetoId: "p1", titulo: "X" });
   assert.deepEqual(faltaNoBolsistaEM(ok), []);
+});
+
+test("o responsável é exigido do VOLUNTÁRIO igual — a autorização é da idade, não da bolsa", () => {
+  const vol = normalizarBolsistaEM({ nome: "Ana", turma: "2026/2027", bolsa: "voluntario" });
+  // o voluntário não tem conta a informar…
+  assert.deepEqual(faltaDadosBancariosEM(vol), []);
+  // …mas tem a mesma autorização, e por isso ENTRA na cobrança do estudante
+  assert.deepEqual(faltaDoResponsavelEM(vol), ["nome do responsável", "CPF do responsável"]);
+  assert.deepEqual(faltaDoEstudanteEM(vol), ["nome do responsável", "CPF do responsável"]);
+  const cheio = normalizarBolsistaEM({ ...vol, responsavel: { nome: "Maria", cpf: "11144477735" } });
+  assert.deepEqual(faltaDoEstudanteEM(cheio), []);
+});
+
+test("o CPF do responsável que não valida NÃO passa por preenchido", () => {
+  const b = normalizarBolsistaEM({ nome: "Theo", responsavel: { nome: "Maria", cpf: "11111111111" } });
+  assert.equal(b.responsavel.cpf, "", "CPF inválido não entra no registro");
+  assert.ok(faltaDoResponsavelEM(b).includes("CPF do responsável"),
+    "e por isso continua sendo cobrado — senão o estudante salvaria achando que preencheu");
+});
+
+test("salvar o cadastro pela coordenação NÃO apaga o responsável que o estudante informou", () => {
+  const base = normalizarBolsistaEM({
+    id: "em_1", nome: "Theo", turma: "2026/2027",
+    responsavel: { nome: "Maria Souza", cpf: "11144477735" },
+  });
+  // o formulário da coordenação não manda `responsavel` — e não pode zerá-lo
+  const depois = normalizarBolsistaEM({ id: "em_1", nome: "Theo", escola: "Couto" }, { base });
+  assert.equal(depois.responsavel.nome, "Maria Souza");
+  assert.equal(depois.responsavel.cpf, "11144477735");
+  // corrigir continua possível: campo preenchido vence o da base
+  const corrigido = normalizarBolsistaEM({ id: "em_1", responsavel: { nome: "Maria S. Lima" } }, { base });
+  assert.equal(corrigido.responsavel.nome, "Maria S. Lima");
+  assert.equal(corrigido.responsavel.cpf, "11144477735", "o que não veio fica");
 });
 
 test("o termo ICEM leva 2h semanais, os dois valores de bolsa e o anexo do responsável", () => {

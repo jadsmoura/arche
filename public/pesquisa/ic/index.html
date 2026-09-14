@@ -1202,7 +1202,10 @@ async function renderEM() {
   const entregues = da.filter((b) => ["entregue", "validado"].includes(b.relatorios?.final?.situacao));
   // quem tem bolsa a receber e ainda não informou a conta (a régua é do
   // servidor: `faltaBanco` já vem pronto, com a exigência do BB no CNPq)
-  const semBanco = ativos.filter((b) => (b.faltaBanco || []).length);
+  /* Quem ainda deve algo QUE ELE MESMO PREENCHE — a conta e a autorização do
+     responsável. Era só a conta, e por isso o voluntário nunca era cobrado:
+     ele não tem bolsa a pagar, mas tem a mesma autorização a informar. */
+  const semBanco = ativos.filter((b) => (b.faltaEstudante || []).length);
   /* Quem está com o cadastro incompleto — a régua é do SERVIDOR (`falta`, que
      junta o cadastro e a conta). Desligado fica de fora: ele saiu do programa,
      e cobrar-lhe dado seria fila que não anda. */
@@ -1294,18 +1297,17 @@ async function renderEM() {
             ["Banco", b.banco], ["Agência", b.agencia], ["Conta", b.conta], ["Pix", b.pix]]
             .filter(([, v]) => v).map(([k, v]) => `<div class="kv muted">• ${k}: <b>${esc(v)}</b></div>`).join("")
             || '<div class="kv muted">Cadastro ainda vazio.</div>'}
-          ${(b.faltaBanco || []).length ? `<div class="kv" style="color:var(--err)">•
-            <b>Falta nos dados bancários:</b> ${esc(b.faltaBanco.join(", "))}
+          ${(b.faltaEstudante || []).length ? `<div class="kv" style="color:var(--err)">•
+            <b>Falta o que só o estudante preenche:</b> ${esc(b.faltaEstudante.join(", "))}
             ${b.exigeBB ? " — a bolsa do CNPq é paga só em conta do Banco do Brasil" : ""}.
-            O pedido já foi enviado a ele; para reenviar, use “Cobrar os dados bancários”.</div>` : ""}
+            Para pedir a ele, use “Cobrar o cadastro do estudante”; ou preencha em nome dele, com o termo na mão.</div>` : ""}
         </div>
       </details>
       ${pedidoTrocaGestao(b)}
       <div class="exp" style="margin-top:8px;gap:6px">
-        ${b.bolsa && b.bolsa !== "voluntario" ? `<button class="bt bt-sec"
-          onclick="abrirBancoEM('${esc(b.id)}')"
-          title="A conta é do estudante, mas quando ele não consegue informá-la a coordenação preenche em nome dele — com o termo na mão">
-          ✎ Preencher em nome do bolsista</button>` : ""}
+        <button class="bt bt-sec" onclick="abrirBancoEM('${esc(b.id)}')"
+          title="Responsável e conta são do estudante, mas quando ele não consegue informá-los a coordenação preenche em nome dele — com o termo na mão">
+          ✎ Preencher em nome do bolsista</button>
         <button class="bt bt-ghost" onclick="emConint('${esc(b.id)}',${b.conint?.participou ? "false" : "true"})">
           ${b.conint?.participou ? "✓ CONINT — desfazer" : "Participou do CONINT"}</button>
         <a class="bt bt-ghost" href="/api/ic/em/bolsistas.xlsx?turma=${encodeURIComponent(TURMA_EM)}&bolsista=${encodeURIComponent(b.email || b.id)}"
@@ -1333,7 +1335,7 @@ async function renderEM() {
       ${da.length ? `<button class="bt bt-sec" onclick="emChamada()"
         title="Vai a TODO bolsista da turma com relatório ainda não validado — mesmo quem já foi convidado">📣 Chamar para os relatórios</button>` : ""}
       ${semBanco.length ? `<button class="bt bt-sec" onclick="emChamadaBanco()"
-        title="Pede a conta a quem ainda não a informou. O pedido já sai sozinho ao atribuir a bolsa; isto é o reenvio.">💳 Cobrar os dados bancários (${semBanco.length})</button>` : ""}
+        title="Pede a quem ainda não informou o que só ele preenche: os dados do responsável e, havendo bolsa, a conta. O pedido já sai sozinho ao atribuir a bolsa; isto é o reenvio.">✉ Cobrar o cadastro do estudante (${semBanco.length})</button>` : ""}
       ${da.length ? `<button class="bt bt-sec" onclick="comunicadoEM()"
         title="Um e-mail escrito por você a todos os bolsistas e voluntários da turma">✉️ Comunicado à turma</button>` : ""}
       <button class="bt bt-ghost" onclick="verModeloRelatorio('em')"
@@ -1784,12 +1786,26 @@ function abrirBancoEM(id) {
   const div = document.createElement("div");
   div.className = "ov"; div.id = "ov-banco";
   div.onclick = (e) => { if (e.target === div) div.remove(); };
+  /* O VOLUNTÁRIO também abre esta janela (set/2026) — sem a parte da conta,
+     que não existe para ele, e com a do responsável, que existe para todos. */
+  const temBolsa = !!b.bolsa && b.bolsa !== "voluntario";
   div.innerHTML = `<div class="ov-cx" style="max-width:620px">
-    <div class="ov-cab"><div class="t">Dados bancários de ${esc(b.nome || "bolsista")}</div>
+    <div class="ov-cab"><div class="t">Cadastro de ${esc(b.nome || "bolsista")}</div>
       <button class="ov-x" onclick="document.getElementById('ov-banco').remove()">×</button></div>
-    <div class="card-s">A conta é <b>do estudante</b> e o normal é ele mesmo informá-la — quem tem o
-      cartão na mão é ele. Preencha aqui quando ele não conseguir: fica registrado que quem digitou
-      foi a PROPPEX, e a gravação dele depois substitui o que você puser.</div>
+    <div class="card-s">Estes dados são <b>do estudante</b> e o normal é ele mesmo informá-los.
+      Preencha aqui quando ele não conseguir — com o termo de compromisso na mão, por exemplo:
+      fica registrado que quem digitou foi a PROPPEX, e a gravação dele depois substitui o que
+      você puser.</div>
+
+    <div class="card-t" style="margin-top:14px;font-size:14px">Responsável (autorização do Anexo 01)</div>
+    <div class="grid2">
+      <div><label>Nome completo *</label><input id="gb-em-rnome" value="${esc(b.responsavel?.nome || "")}"></div>
+      <div><label>CPF *</label><input id="gb-em-rcpf"
+        value="${esc(b.responsavel?.cpf ? String(b.responsavel.cpf).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "")}"
+        placeholder="000.000.000-00"></div>
+    </div>
+
+    ${temBolsa ? `<div class="card-t" style="margin-top:14px;font-size:14px">Conta da bolsa</div>
     ${cnpq ? `<div class="banner ba-warn">A bolsa do <b>CNPq</b> é paga só em <b>conta corrente do
       Banco do Brasil</b>, de titularidade do próprio bolsista.</div>` : ""}
     <div class="grid3">
@@ -1799,7 +1815,13 @@ function abrirBancoEM(id) {
       <div><label>Conta corrente *</label><input id="gb-em-conta" value="${esc(b.conta || "")}"></div>
     </div>
     <label>Pix (vinculado à conta acima) *</label>
-    <input id="gb-em-pix" value="${esc(b.pix || "")}" placeholder="CPF, e-mail ou chave aleatória">
+    <input id="gb-em-pix" value="${esc(b.pix || "")}" placeholder="CPF, e-mail ou chave aleatória">`
+      : `<div class="banner ba-info" style="margin-top:14px">${b.bolsa === "voluntario"
+          ? `${esc(b.nome || "Este bolsista")} é <b>voluntário(a)</b> — não há bolsa a pagar`
+          : `A coordenação ainda <b>não atribuiu bolsa</b> a ${esc(b.nome || "este bolsista")}`},
+        e por isso o ARCHÉ não guarda conta bancária dele(a) aqui. A autorização do responsável
+        continua sendo exigida: ela é da idade, não da bolsa.</div>`}
+
     <div class="exp" style="margin-top:14px">
       <button class="bt bt-pri" id="gb-em-ok">Salvar em nome do bolsista</button>
       <button class="bt bt-ghost" onclick="document.getElementById('ov-banco').remove()">Cancelar</button>
@@ -1807,17 +1829,20 @@ function abrirBancoEM(id) {
   </div>`;
   document.body.appendChild(div);
   div.querySelector("#gb-em-ok").onclick = async () => {
-    const v = (x) => div.querySelector("#gb-em-" + x).value.trim();
+    const v = (x) => (div.querySelector("#gb-em-" + x)?.value || "").trim();
     try {
       const r = await api(`/api/ic/em/${encodeURIComponent(id)}/cadastro`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ banco: v("banco"), agencia: v("agencia"), conta: v("conta"), pix: v("pix") }),
+        body: JSON.stringify({
+          banco: v("banco"), agencia: v("agencia"), conta: v("conta"), pix: v("pix"),
+          responsavel: { nome: v("rnome"), cpf: v("rcpf") },
+        }),
       });
       div.remove();
       EM = await api("/api/ic/em"); renderEM();
       aviso(r.falta.length
         ? `Dados de ${b.nome} salvos. Ainda falta: ${r.falta.join(", ")}.`
-        : `Dados bancários de ${b.nome} completos — fica registrado que quem preencheu foi a PROPPEX.`,
+        : `Cadastro de ${b.nome} completo — fica registrado que quem preencheu foi a PROPPEX.`,
         r.falta.length ? "warn" : "ok");
     } catch (e) { aviso(e.message, "err"); }
   };
@@ -1862,7 +1887,7 @@ async function emChamadaBanco() {
     const s = await simular("");
     if (!s.quem.length) return aviso("Todos os bolsistas desta turma já informaram os dados bancários.", "ok");
     janelaEnvio({
-      titulo: `Cobrar os dados bancários — turma ${TURMA_EM}`,
+      titulo: `Cobrar o cadastro do estudante — turma ${TURMA_EM}`,
       itens: s.quem.map((x) => `${x.nome} — ${x.email || "sem e-mail no cadastro"} · ${x.bolsa}`
         + `${x.exigeBB ? " (CNPq: exige Banco do Brasil)" : ""} · falta: ${x.falta.join(", ")}`),
       semEmail: s.quem.filter((x) => !x.email).length,
@@ -2125,6 +2150,8 @@ async function renderMeuEM() {
           : "Assim que os projetos de Iniciação Científica e Inovação Tecnológica do ciclo entrarem em execução, eles aparecem aqui."}
       </div>` : ""}
 
+      ${blocoResponsavelEM(r)}
+
       ${blocoBancoEM(r)}
 
       ${blocoPedidoProjetoEM(r)}
@@ -2185,6 +2212,53 @@ async function renderMeuEM() {
     || '<div class="card"><div class="vazio">Nenhum registro do ICEM ligado à sua conta.</div></div>';
 }
 let FILTRO_CURSO_EM = "";
+/* O RESPONSÁVEL, informado pelo PRÓPRIO estudante (pedido do dono set/2026:
+   "inclua esses campos no formulário que eles precisam preencher"). Até aqui
+   NENHUM formulário do ARCHÉ gravava este dado — ele só existia na ficha como
+   leitura, vindo dos termos assinados que foram transcritos. A turma nova veio
+   do resultado da seleção, onde ninguém pergunta responsável, e o selo cobrava
+   o que não havia onde informar.
+   O bloco vale para TODOS, voluntário inclusive: a autorização do Anexo 01 é
+   da IDADE, não da bolsa — ela permite ao menor acessar as dependências da
+   instituição e desenvolver as atividades. São só os dois campos que o termo
+   imprime; pedir mais seria coletar dado de um terceiro que nada usa. */
+function blocoResponsavelEM(r) {
+  const p = r.responsavel || {};
+  const falta = r.faltaResponsavel || [];
+  const ok = !falta.length;
+  return `<div class="card" style="margin-top:10px">
+    <div class="card-t">Autorização do seu responsável
+      ${ok ? '<span class="badge b-validado">completo</span>'
+        : '<span class="badge b-atrasada">falta preencher</span>'}</div>
+    <div class="card-s">O seu termo de compromisso vai acompanhado de uma <b>autorização assinada
+      pelo seu responsável</b> — e é ali que estes dois dados são impressos.</div>
+    ${!ok ? `<div class="kv" style="margin-top:8px;color:var(--err)">Falta: <b>${esc(falta.join(", "))}</b>.</div>` : ""}
+    <div class="grid2" style="margin-top:8px">
+      <div><label>Nome completo do responsável *</label>
+        <input id="emr-nome-${esc(r.id)}" value="${esc(p.nome || "")}" placeholder="Como está no documento dele(a)"></div>
+      <div><label>CPF do responsável *</label>
+        <input id="emr-cpf-${esc(r.id)}" value="${esc(p.cpf ? String(p.cpf).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "")}"
+          placeholder="000.000.000-00" inputmode="numeric"></div>
+    </div>
+    <div class="exp" style="margin-top:8px">
+      <button class="bt bt-pri" onclick="meuEmResponsavel('${esc(r.id)}')">Salvar os dados do responsável</button>
+      <span class="muted" style="align-self:center">Você pode corrigir depois, se algo mudar.</span>
+    </div>
+  </div>`;
+}
+async function meuEmResponsavel(id) {
+  const v = (c) => ($(`emr-${c}-${id}`)?.value || "").trim();
+  try {
+    const r = await api("/api/ic/em/meu/responsavel", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome: v("nome"), cpf: v("cpf") }) });
+    MEU_EM = null; await renderMeuEM();
+    aviso(r.falta?.length
+      ? `Responsável salvo, mas ainda falta: ${r.falta.join(", ")}.`
+      : "Cadastro completo — obrigado! A coordenação já tem tudo o que precisa de você.",
+      r.falta?.length ? "warn" : undefined);
+  } catch (e) { aviso(e.message, "err"); }
+}
 /* OS DADOS BANCÁRIOS, preenchidos pelo PRÓPRIO bolsista (pedido do dono,
    ago/2026). Conta corrente é o campo que mais custa caro errado — um dígito
    trocado é um pagamento que não cai e ninguém sabe por quê —, e quem tem o
