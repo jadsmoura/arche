@@ -203,6 +203,12 @@
   .bloco.meu{border-color:#cfe6f2;background:#f7fbfd}
   .bloco-cab{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
   .bloco-cab .t{font-weight:600;font-size:14px;color:var(--ink);flex:1;min-width:0}
+  /* NO TELEFONE O NOME TOMA A LINHA INTEIRA e os selos descem para a de
+     baixo: `flex:1` com `min-width:0` deixa o nome encolher até a largura
+     de uma palavra, e com três selos ao lado "Lara Luísa Avelino Silva"
+     saía em quatro linhas de uma palavra cada. O nome é o que se procura
+     na lista — quem cede é o selo, que já vem depois. */
+  @media (max-width:760px){ .bloco-cab .t{flex:1 1 100%} }
   .prazo{font-size:12px;color:var(--muted);white-space:nowrap}
   .tut{background:var(--info-soft);border:1px solid #cfe6f2;border-radius:10px;padding:14px 16px;margin:12px 0;font-size:13px}
   .tut summary{font-family:Sora,sans-serif;font-weight:700;color:var(--brand);cursor:pointer;font-size:13.5px}
@@ -1173,7 +1179,7 @@ async function carregarUsuariosDoPortal() {
    é a coordenação — o aluno é menor e não tem conta no portal. A guia é o
    posto de trabalho disso: bolsas 12+12, projeto acompanhado com a
    trajetória, relatório simplificado e CONINT. */
-let EM = null, TURMA_EM = "";
+let EM = null, TURMA_EM = "", EM_SO_FALTA = false;
 
 async function renderEM() {
   const el = $("v-em");
@@ -1197,6 +1203,11 @@ async function renderEM() {
   // quem tem bolsa a receber e ainda não informou a conta (a régua é do
   // servidor: `faltaBanco` já vem pronto, com a exigência do BB no CNPq)
   const semBanco = ativos.filter((b) => (b.faltaBanco || []).length);
+  /* Quem está com o cadastro incompleto — a régua é do SERVIDOR (`falta`, que
+     junta o cadastro e a conta). Desligado fica de fora: ele saiu do programa,
+     e cobrar-lhe dado seria fila que não anda. */
+  const pendentes = ativos.filter((b) => (b.falta || []).length);
+  const naTela = EM_SO_FALTA ? da.filter((b) => (b.falta || []).length && b.situacao !== "desligado") : da;
 
   // projetos que podem ser acompanhados: os do ciclo da graduação em execução
   const acompanhaveis = PROJETOS.filter((p) => ["aprovado", "concluido"].includes(p.status))
@@ -1234,7 +1245,14 @@ async function renderEM() {
         ${b.bolsa ? `<span class="badge b-${b.bolsa === "cnpq" ? "aprovado" : "validado"}">${esc((EM.bolsas.find((x) => x.codigo === b.bolsa) || {}).nome || b.bolsa)}</span>` : '<span class="badge b-rascunho">sem bolsa</span>'}
         ${b.situacao === "desligado" ? '<span class="badge b-atrasada">desligado</span>' : ""}
         ${b.compareceu === false ? '<span class="badge b-atrasada" title="Não compareceu à entrevista da seleção">NC na seleção</span>' : ""}
+        ${b.situacao === "desligado" ? ""
+          : (b.falta || []).length
+            ? `<span class="badge b-atrasada" title="Falta: ${esc(b.falta.join(", "))}">⚠ faltam ${b.falta.length} dado(s)</span>`
+            : '<span class="badge b-validado">✓ cadastro completo</span>'}
       </div>
+      ${b.situacao !== "desligado" && (b.falta || []).length ? `<div class="banner ba-warn" style="margin-bottom:6px">
+        <b>Falta no cadastro:</b> ${esc(b.falta.join(", "))}.
+        ${b.exigeBB ? " A bolsa do CNPq é paga só em conta do Banco do Brasil." : ""}</div>` : ""}
       <div class="muted" style="margin-bottom:6px">
         ${esc(b.escola || "escola não informada")}${b.serie ? ` · ${esc(b.serie)}` : ""}
         ${b.cursoInteresse ? ` · interesse: ${esc(b.cursoInteresse)}` : ""}
@@ -1342,7 +1360,19 @@ async function renderEM() {
       <div class="card-s">${turma.encerrada
         ? "Turma encerrada: o que resta é a entrega do relatório simplificado e o registro do CONINT."
         : "Em curso: bolsa, projeto acompanhado e trajetória de cada bolsista."}</div>
-      ${da.map(cartao).join("") || '<div class="vazio">Nenhum bolsista nesta turma.</div>'}
+      ${/* O RECORTE DE QUEM FALTA DADO (pedido do dono, set/2026): com 24
+            cartões na turma, achar os incompletos com o olho é o trabalho que
+            o selo já evita — mas um clique que deixa SÓ eles na tela é o que
+            transforma "identificar" em "resolver". A contagem fica à vista
+            mesmo com o filtro desligado, senão ninguém sabe que há o que ver. */
+        pendentes.length ? `<div class="exp" style="margin-bottom:10px">
+        <button class="bt ${EM_SO_FALTA ? "bt-pri" : "bt-sec"}" onclick="EM_SO_FALTA=!EM_SO_FALTA;renderEM()">
+          ${EM_SO_FALTA ? `✓ mostrando só os ${pendentes.length} com dado faltando — ver todos`
+            : `⚠ ${pendentes.length} com dado faltando — ver só eles`}</button>
+      </div>` : ativos.length ? `<div class="banner ba-ok" style="margin-bottom:10px">Todos os
+        ${ativos.length} bolsista(s) ativo(s) desta turma estão com o cadastro completo.</div>` : ""}
+      ${naTela.map(cartao).join("") || `<div class="vazio">${EM_SO_FALTA
+        ? "Ninguém com dado faltando nesta turma." : "Nenhum bolsista nesta turma."}</div>`}
     </div>`;
 }
 
@@ -2894,10 +2924,21 @@ function renderBolsistas() {
           : "";
       return chip + (acao ? " " + acao : "");
     };
+    /* O SELO DO CONTRATO DIZ O QUE FALTA (set/2026): "aguardando o aluno"
+       avisa que o cadastro não fechou e não diz o que pedir a ele. A lista
+       vem do SERVIDOR (`faltaCadastro`) — são nomes de campo, não valores. */
+    const faltaC = a.faltaCadastro || [];
+    /* A régua do "completo" é a do SERVIDOR e, na falta dela, a MESMA conta
+       local que o resto da tela usa (`cadastroCompletoLocal`). Aqui havia
+       uma terceira, mais frouxa — CPF + banco + conta + Pix —, e ela dizia
+       "dados completos" sobre um cadastro sem RG, sem nascimento e sem
+       endereço, que é justamente o que o termo de compromisso cobra. */
+    const contratoOk = a.dadosCompletos ?? cadastroCompletoLocal(a);
     const contrato = a.bolsista
-      ? ((a.dadosCompletos ?? !!(a.cpf && a.banco && a.conta && a.pix))
+      ? (contratoOk
         ? '<span class="badge b-validado">contrato: dados completos</span>'
-        : '<span class="badge b-enviado">contrato: aguardando o aluno</span>')
+        : `<span class="badge b-atrasada"${faltaC.length ? ` title="Falta: ${esc(faltaC.join(", "))}"` : ""}>⚠ contrato: ${
+          faltaC.length ? `faltam ${faltaC.length} dado(s)` : "aguardando o aluno"}</span>`)
       : "";
     const linhaDado = (rot, v) => v ? `<div class="kv muted">• ${rot}: <b>${esc(v)}</b></div>` : "";
     return `<div class="bloco">
@@ -2919,6 +2960,8 @@ function renderBolsistas() {
               : `<span class="badge b-${atrasadas ? "atrasada" : "validado"}">metas: ${feitas}/${metas.length} concluída(s)${atrasadas ? ` · ${atrasadas} atrasada(s)` : ""}</span>`}
         ${rel("parcial")} ${rel("final")}`} ${contrato}
       </div>
+      ${a.bolsista && !contratoOk && faltaC.length ? `<div class="banner ba-warn" style="margin-top:8px">
+        <b>Falta no cadastro do contrato:</b> ${esc(faltaC.join(", "))}.</div>` : ""}
       ${META.gestao ? `<details style="margin-top:6px">
         <summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">👤 Ver dados do aluno (cadastro do contrato, com os dados bancários)</summary>
         <div style="margin-top:6px">

@@ -142,7 +142,7 @@ import {
   ESCALA_AVALIACAO_EM, CRITERIOS_AVALIACAO_EM, RECOMENDACAO_EM, avaliacaoEMCompleta,
   normalizarBolsistaEM, trocarProjeto, anotarEM, cotasDaTurma, projetoAtual as projetoAtualEM,
   RELATORIOS_EM, CAMPOS_RELATORIO_EM, relatoriosExigidos,
-  exigeBancoDoBrasil, ehBancoDoBrasil, faltaDadosBancariosEM,
+  exigeBancoDoBrasil, ehBancoDoBrasil, faltaDadosBancariosEM, faltaNoBolsistaEM,
 } from "./lib/em.js";
 import {
   duplicidadesPorNome, podeFundir, fundirPerfil, fundirProjeto, fundirAcao, fundirAta, fundirPapeis,
@@ -14134,6 +14134,13 @@ app.get("/api/ic/em", async (req, res) => {
     // o que falta na CONTA vem calculado: a guia precisa poder dizer de quem
     // se está esperando o dado bancário sem refazer a régua no cliente
     ...b, faltaBanco: faltaDadosBancariosEM(b), exigeBB: exigeBancoDoBrasil(b.bolsa),
+    /* O QUE FALTA, NUMA LISTA SÓ (pedido do dono set/2026: "só consigo ver os
+       alunos que faltam dados se eu abrir um por um; com um ícone de alerta
+       me ajuda a identificar"). A régua do cadastro já existia em
+       `faltaNoBolsistaEM` e nunca fora ligada a lugar nenhum — a guia só
+       mostrava o que falta na CONTA, e dentro de um `<details>` fechado. O
+       cálculo é do SERVIDOR, como o `faltaBanco`: o cliente não refaz régua. */
+    falta: [...faltaNoBolsistaEM(b, { incluirProjeto: false }), ...faltaDadosBancariosEM(b)],
   }));
   res.json({
     bolsistas, turmas: TURMAS_EM, bolsas: BOLSAS_EM,

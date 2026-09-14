@@ -224,6 +224,34 @@
   .side-nav { padding: 6px 8px; }
   .topbar { padding-left: 16px; padding-right: 16px; }
 
+  /* A BARRA DE CIMA CABE EM DUAS LINHAS NO TELEFONE. Ela é flex `nowrap`
+     com o caminho à esquerda e, à direita, o "Ver como" mais uma nota do
+     setor ("Submissões encerradas em 04/09/2026"). Nenhum dos três tinha
+     regra de encolhimento, e quem cedia era o BOTÃO — um `inline-flex` de
+     texto, que não encolhe de verdade: ele estourava a direita da tela e a
+     PÁGINA INTEIRA passava a rolar de lado (medido a 390px: 2px no ARCHÉ IC
+     ao abrir uma guia de nome longo como "Ensino Médio", 45px no ARCHÉ MO,
+     8px no ARCHÉ EV — e ficava assim mesmo depois de mudar de guia).
+     Truncar não servia: sobravam 187px para a nota, e "Submissões encerradas
+     em 04/0…" perde justamente o ano. Então a barra deixa de ter altura
+     fixa e QUEBRA: caminho + botão na primeira linha, a nota inteira na
+     segunda — 76px onde há nota, 52 onde não há. Cada peça ainda tem
+     `overflow` como rede, para nada escapar quando o texto for maior que a
+     própria linha. As dez SPAs escrevem `.crumb`/`.dir` com os mesmos
+     nomes, então isto é uma regra, não dez. */
+  .topbar { height: auto; min-height: 52px; flex-wrap: wrap;
+    padding-block: 7px; gap: 6px 12px; justify-content: flex-start; }
+  /* `display:contents` dissolve a caixa da direita: caminho, botão e nota
+     passam a ser itens da PRÓPRIA barra, e aí cada um pode ir para a linha
+     que lhe cabe — o que dentro de uma caixa só nunca seria possível. */
+  .topbar .dir { display: contents; }
+  .topbar .crumb { order: 1; flex: 1 1 auto; }
+  .topbar .dir > * { order: 3; flex: 1 1 100%; }
+  .topbar .crumb, .topbar .dir > * {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar .dir > *:has(.vc-bt) { order: 2; flex: 0 0 auto; overflow: visible; }
+  .topbar .dir > *:empty { display: none; }
+
   /* E A FAIXA É UMA FILEIRA DE GUIAS, IGUAL NOS OITO SETORES. Seis SPAs
      já escrevem estas mesmas linhas por dentro; duas não — e nelas o menu
      continuava EM PÉ, empilhado: no ARCHÉ AC a faixa media 423px, metade da

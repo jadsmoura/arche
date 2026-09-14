@@ -2980,6 +2980,44 @@ public/
   celular. A janela de revisão é a de sempre (`janelaEnvio`), com `semMensagem: true`: ali o corpo
   do e-mail JÁ é o que a coordenação escreveu, e uma segunda caixa de "mensagem da coordenação"
   faria a pessoa achar que precisa escrever de novo.
+- **O CARTÃO DIZ, NA CARA, O QUE FALTA NO CADASTRO** (`faltaNoBolsistaEM(b, { incluirProjeto })` em
+  lib/em.js + `falta` no payload do `GET /api/ic/em` + `faltaCadastro`/`dadosCompletos` em
+  `alunosVisiveis` de lib/ic.js + o selo, a faixa e o filtro nas guias Ensino Médio e Bolsistas,
+  pedido do dono set/2026: "inclua um ícone de marcação nos alunos que faltam dados; no ICEM só
+  consigo ver os alunos que faltam dados se eu abrir um por um — com um ícone de alerta me ajuda a
+  identificar"). A informação existia e estava escondida em dois lugares diferentes: no **ICEM**
+  não havia sinal nenhum no cartão (a régua `faltaNoBolsistaEM` estava escrita e ligada a nada —
+  era preciso abrir os campos de cada um dos 24 e conferir com o olho); na **graduação** havia
+  selo, mas ele dizia só "contrato: aguardando o aluno", que avisa que o cadastro não fechou e não
+  diz o que pedir. Agora cada cartão traz **⚠ faltam N dado(s)** com a lista por extenso — no
+  `title` e numa faixa visível, porque em telefone não existe passar o mouse —, e quem está
+  completo traz **✓**, senão "sem selo" ficaria ambíguo entre "está tudo certo" e "ninguém
+  conferiu". No ICEM, um botão acima dos cartões **deixa só os incompletos na tela** ("⚠ 4 com
+  dado faltando — ver só eles"), com a contagem à vista mesmo desligado — senão ninguém sabe que
+  há o que ver; na graduação o filtro "Cadastro do contrato" já existia.
+  Três decisões que a régua carrega: o **projeto acompanhado fica FORA** do sinal
+  (`incluirProjeto: false`) — é pendência de outra natureza, do próprio estudante, e no começo de
+  uma turma acenderia o alerta em quase todos, apagando o que o selo existe para mostrar;
+  **desligado não tem selo** (saiu do programa, e cobrar-lhe dado seria fila que não anda); e quem
+  responde é o **SERVIDOR**, não a tela — a lista chega pronta, e é a MESMA que o e-mail de
+  cobrança nomeia. No mesmo passo caiu uma **terceira régua de "completo"** que só existia no
+  cartão da graduação (CPF + banco + conta + Pix): ela dizia "dados completos" sobre cadastro sem
+  RG, sem nascimento e sem endereço — que é o que o termo de compromisso cobra —, e o cartão
+  contradizia o contador de "Cobrar o cadastro" logo acima. Vale a de sempre,
+  `faltaNoCadastroDoBolsista`, agora também no `dadosCompletos` que a gestão recebe.
+  Dois acertos de tela que a medição a 390px trouxe. (1) **A barra de cima passa a QUEBRAR no
+  telefone** (`arche-celular.css`, vale nos dez setores): ela é flex `nowrap` com o caminho à
+  esquerda e, à direita, o "Ver como" mais a nota do setor, e nenhum dos três tinha régua de
+  encolhimento — quem cedia era o BOTÃO, que é `inline-flex` de texto e não encolhe de verdade;
+  ele estourava para fora da tela e **a página inteira passava a rolar de lado** (2px no ARCHÉ IC
+  ao abrir uma guia de nome longo como "Ensino Médio", 45px no ARCHÉ MO, 8px no ARCHÉ EV), e
+  ficava assim mesmo depois de mudar de guia. Truncar não servia: sobravam 187px para a nota, e
+  "Submissões encerradas em 04/0…" perde justamente o ano. Então a barra perde a altura fixa e se
+  parte em duas linhas — caminho + botão em cima, a nota inteira embaixo (76px onde há nota, 52
+  onde não há) —, com `display:contents` na caixa da direita, que é o que deixa o botão e a nota
+  irem para linhas diferentes sem serem irmãos no HTML. (2) No cartão, o **nome toma a linha
+  inteira no telefone**, com os selos abaixo (com três selos ao lado, "Lara Luísa Avelino Silva"
+  saía em quatro linhas de uma palavra cada).
 - **O QUE FOI DIGITADO NA FICHA DO PROJETO NÃO SE PERDE** (`SUJO`/`podeSair`/`selo-sujo` na SPA
   da IC, relato de um professor ago/2026: "os alunos que preenchi para o projeto de IC não estão
   ficando salvos"). Não estavam sendo perdidos na gravação — a gravação funciona, conferida ponta
