@@ -4525,8 +4525,31 @@ public/
   figuras e dois registros: coordenar o módulo `praticas` (em `/usuarios/`) é ser a **coordenação
   pedagógica**, que vê todos os cursos; o **coordenador de curso** vive no cadastro do próprio
   módulo (`ap-equipe-v1`), designado na guia Coordenação. `papelNoRelatorio` testa **professor
-  ANTES de gestão**, e é só isso que impede alguém de validar o próprio relatório — nem o gestor
-  geral valida o que é dele.
+  ANTES de gestão** — é o que faz o autor ser tratado como autor mesmo coordenando o curso.
+  **QUEM COORDENA VALIDA O PRÓPRIO RELATÓRIO** (`autoValidacao`/`souAutorDo`/
+  `decisaoSobreORelatorioProprio` em lib/praticas.js, pedido do dono set/2026: "permita aos
+  coordenadores auto validar seus próprios relatórios de aulas práticas e curricularização de
+  extensão"), revendo a regra anterior de que ninguém valida o que é seu. A razão é a mesma da
+  monitoria (`decisaoSobreProjetoProprio`) e do `atoDeGestao` da IC: **quem coordena também
+  leciona**, e aqui o fluxo TERMINA na coordenação do curso — não há degrau acima dela. Com a
+  trava, a aula do próprio coordenador ficava parada para sempre em "enviado" ou dependia de a
+  PROAC decidir por ele: um processo que não fecha por causa de quem o conduz.
+  A régua é **ESTREITA**: valida o próprio só quem já validaria aquele relatório se ele fosse de
+  outra pessoa — a coordenação DAQUELE curso, a coordenação do módulo (a PROAC) e o gestor geral.
+  Professor que não coordena nada continua sem validar o que é seu, e é isso que sustenta o fluxo;
+  a coordenadora de Enfermagem que dá aula em Direito também não (provado no servidor local).
+  O ato fica **MARCADO** — `parecer.proprioRelatorio`, a linha do histórico ("pelo próprio
+  responsável, na condição de coordenação do curso") e o PDF, no "Validado por" —, porque o
+  documento sai com as DUAS assinaturas do modelo e elas serão da mesma pessoa: quem o lê no MEC
+  precisa saber que é um ato de dois papéis, não de duas pessoas.
+  Duas consequências que a mudança arrastou: **`podeValidar` passou a viajar com cada relatório**
+  (em `visaoDoRelatorio`), porque a tela repetia a régua à mão (`ehCoord() && !meu`) e duas cópias
+  acabam divergindo — aqui a que erra esconde um botão que o servidor aceitaria; e **`podeReabrir`
+  olha o ALCANCE, não o papel** (`!!quem.gestao`): `papelNoRelatorio` devolve "professor" para o
+  autor, e sem isso o gestor ganharia o poder de decidir o próprio relatório sem o de desfazer.
+  `decisaoNoLugarDaCoordenacao` mudou pela mesma razão — olha o alcance, para o gestor que valida
+  um relatório SEU de curso que não coordena continuar saindo marcado como quem decidiu no lugar
+  dela.
   **Professores e disciplinas mudam a cada semestre; a coordenação, não.** O cadastro
   (`ap-cadastro-v1`) é **por semestre**, refeito à mão pela coordenação, com **"copiar do semestre
   anterior"** (sem sobrescrever quem já foi incluído); quem coordena é o quadro de AGORA

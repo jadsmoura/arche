@@ -424,7 +424,7 @@ function renderRelatorios() {
   const professores = [...new Map(doCurso
     .filter((r) => r.professor?.email)
     .map((r) => [r.professor.email, r.professor.nome || r.professor.email])).entries()];
-  const fila = lista.filter((r) => r.status === "enviado" && r.podeValidar !== false);
+  const fila = lista.filter((r) => r.status === "enviado" && r.podeValidar);
   return `
     <div class="card" style="padding:16px 18px">
       <div class="gridf">
@@ -495,8 +495,11 @@ function cartao(r) {
       ${r.protocolo || r.status !== "rascunho"
         ? `<a class="bt bt-ghost bt-xs" target="_blank" rel="noopener"
             href="/api/praticas/${encodeURIComponent(r.id)}/pdf">📄 PDF</a>` : ""}
-      ${r.status === "enviado" && ehCoord() && !meu
-        ? `<button class="bt bt-ok bt-xs" onclick="decidir('${esc(r.id)}','validado')">✓ Validar</button>
+      ${r.podeValidar
+        ? `<button class="bt bt-ok bt-xs" title="${r.autoValidacao
+              ? "Este relatório é seu — você decide na condição de coordenação do curso, e o ato fica registrado assim"
+              : "Validar o relatório"}"
+             onclick="decidir('${esc(r.id)}','validado')">✓ Validar${r.autoValidacao ? " (seu)" : ""}</button>
            <button class="bt bt-sec bt-xs" onclick="decidir('${esc(r.id)}','devolvido')">↩ Devolver</button>
            <button class="bt bt-err bt-xs" onclick="decidir('${esc(r.id)}','reprovado')">✕ Reprovar</button>` : ""}
       ${["validado", "reprovado"].includes(r.status) && D.gestao
@@ -532,7 +535,7 @@ function renderEC() {
   const disciplinas = [...new Set(doCurso.map((r) => r.disciplina).filter(Boolean))].sort();
   const professores = [...new Map(doCurso.filter((r) => r.professor?.email)
     .map((r) => [r.professor.email, r.professor.nome || r.professor.email])).entries()];
-  const fila = lista.filter((r) => r.status === "enviado" && r.podeValidar !== false);
+  const fila = lista.filter((r) => r.status === "enviado" && r.podeValidar);
   const e = D.panorama?.extensaoCurricular;
   return `
     <div class="card">
@@ -994,7 +997,15 @@ async function decidir(id, decisao) {
     comentario = prompt("Motivo da reprovação (o professor lê este texto, e ele fica no registro):") || "";
     if (!comentario.trim()) return;
   } else {
-    comentario = prompt("Observação da coordenação (opcional):") || "";
+    /* Validando o PRÓPRIO relatório, a pessoa precisa saber COMO o ato é
+       registrado: o documento sai com as duas assinaturas dela, e o parecer
+       e o histórico dizem que foi ela, na condição de coordenação. */
+    const r0 = (D.relatorios || []).find((x) => x.id === id);
+    comentario = prompt(r0?.autoValidacao
+      ? "Este relatório é SEU. Você valida na condição de coordenação do curso, e o "
+        + "documento sai dizendo isso — as duas assinaturas serão as suas.\n\n"
+        + "Observação da coordenação (opcional):"
+      : "Observação da coordenação (opcional):") || "";
   }
   const r = await fetch(`/api/praticas/${encodeURIComponent(id)}/validar`, { method: "POST",
     headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decisao, comentario }) });

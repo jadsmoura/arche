@@ -227,6 +227,7 @@ import {
   ROTULO_STATUS as AP_ROTULO_STATUS,
   DECISOES as AP_DECISOES, podeReabrir as apPodeReabrir,
   decisaoNoLugarDaCoordenacao as apDecisaoNoLugar, ehExtensao as apEhExtensao,
+  decisaoSobreORelatorioProprio as apDecisaoPropria,
   ENTREGUE as AP_ENTREGUE,
   normalizarRelatorio as normalizarRelatorioAP, normalizarFoto as normalizarFotoAP,
   normalizarCadastro as normalizarCadastroAP, normalizarEquipe as normalizarEquipeAP,
@@ -19381,7 +19382,7 @@ app.post("/api/praticas/:id/validar", async (req, res) => {
       if (!apPodeValidar(p, quem)) {
         return { erro: [403, p.status !== "enviado"
           ? "Só se valida relatório enviado."
-          : "A validação é da coordenação do curso — e ninguém valida o próprio relatório."], gravar: false };
+          : "A validação é da coordenação do curso."], gravar: false };
       }
       /* A PROAC e a PROPPEX decidem NO LUGAR da coordenação do curso (pedido
          da PROAC, ago/2026) — e o ato fica marcado, no parecer e no
@@ -19389,13 +19390,20 @@ app.post("/api/praticas/:id/validar", async (req, res) => {
          não foi a coordenação do curso que assinou. O processo continua
          terminando no coordenador: não há degrau depois deste. */
       const noLugar = apDecisaoNoLugar(p, quem);
+      /* O PRÓPRIO autor decidindo, por coordenar o curso (pedido do dono,
+         set/2026). Marca-se porque o documento sai com as DUAS assinaturas —
+         responsável e coordenação —, e elas serão da mesma pessoa: quem lê
+         precisa saber que é um ato de dois papéis, não de duas pessoas. */
+      const proprio = apDecisaoPropria(p, quem);
       p.status = decisao;
       p.parecer = { decisao, comentario, por: u.email,
         nome: perfil.nome || u.nome || "", em: new Date().toISOString(),
-        ...(noLugar ? { noLugarDaCoordenacao: true } : {}) };
+        ...(noLugar ? { noLugarDaCoordenacao: true } : {}),
+        ...(proprio ? { proprioRelatorio: true } : {}) };
       apAnotar(p, {
         acao: { validado: "Relatório validado", devolvido: "Relatório devolvido",
           reprovado: "Relatório reprovado" }[decisao]
+          + (proprio ? " — pelo próprio responsável, na condição de coordenação do curso" : "")
           + (noLugar ? " — pela PROAC/PROPPEX, no lugar da coordenação do curso" : ""),
         por: u.email, detalhe: comentario.slice(0, 200) });
       return { relatorio: p };

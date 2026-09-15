@@ -18,7 +18,8 @@ import {
   professoresSemEmail, pendenciasCobrancaExtensao, ehPrimeiroDoMes,
   PAPEIS_COORDENACAO, coordenacaoDoCurso,
   TIPOS, tipoDe, ehExtensao, camposDo, CAMPOS_EXTENSAO, DECISOES, ENCERRADO,
-  podeReabrir, decisaoNoLugarDaCoordenacao, ODS, rotuloOds,
+  podeReabrir, decisaoNoLugarDaCoordenacao, decisaoSobreORelatorioProprio, autoValidacao,
+  ODS, rotuloOds,
 } from "../lib/praticas.js";
 
 const CADASTRO = {
@@ -141,27 +142,66 @@ test("cada figura enxerga o que lhe cabe", () => {
   assert.equal(visaoDoRelatorio(r, quem("carla@uniego.edu.br")).meuPapel, "coordenador");
 });
 
-test("NINGUÉM valida o próprio relatório — nem o gestor geral", () => {
+test("quem COORDENA valida o próprio relatório; quem só leciona, não", () => {
   const enviado = { ...completo(), status: "enviado" };
   assert.equal(podeValidar(enviado, quem("carla@uniego.edu.br")), true);
   assert.equal(podeValidar(enviado, quem("ped@uniego.edu.br")), true);
+  // a professora que não coordena nada não valida o que é dela: é isso que
+  // sustenta o fluxo (o relatório de alguém precisa passar por outra pessoa)
   assert.equal(podeValidar(enviado, quem("ana@uniego.edu.br")), false, "é o relatório dela");
 
-  // e o caso que a ordem de papelNoRelatorio existe para impedir: a
-  // coordenadora registrando a PRÓPRIA aula. Ela coordena o curso e, ainda
-  // assim, não valida o que é dela — quem valida é outra pessoa.
+  /* A COORDENADORA REGISTRANDO A PRÓPRIA AULA (pedido do dono, set/2026).
+     O fluxo TERMINA nela — sem isto, o relatório da aula de quem coordena
+     ficava parado para sempre ou dependia de a PROAC decidir por ele. */
   const dela = { ...completo(), status: "enviado",
     professor: { email: "carla@uniego.edu.br", nome: "Carla" } };
-  assert.equal(podeValidar(dela, quem("carla@uniego.edu.br")), false);
+  assert.equal(podeValidar(dela, quem("carla@uniego.edu.br")), true, "coordena o curso");
+  assert.equal(autoValidacao(dela, quem("carla@uniego.edu.br")), true, "e o ato sai marcado");
+  assert.equal(visaoDoRelatorio(dela, quem("carla@uniego.edu.br")).autoValidacao, true);
   assert.equal(podeValidar(dela, quem("ped@uniego.edu.br")), true, "outra pessoa, sim");
   assert.equal(podeValidar(dela, quem("jadson@uniego.edu.br", true)), true,
     "a PROPPEX é suporte: destrava o que a coordenação não pode decidir sozinha");
 
-  // o gestor geral que dá aula também não valida a aula DELE
+  // a pedagógica e o gestor geral também validam a própria aula — o alcance
+  // deles cobre o curso, e é o alcance que decide
   const doGestor = { ...completo(), status: "enviado",
     professor: { email: "jadson@uniego.edu.br", nome: "Jadson" } };
-  assert.equal(podeValidar(doGestor, quem("jadson@uniego.edu.br", true)), false,
-    "ninguém valida a si mesmo, seja qual for o papel");
+  assert.equal(podeValidar(doGestor, quem("jadson@uniego.edu.br", true)), true);
+  assert.equal(autoValidacao(doGestor, quem("jadson@uniego.edu.br", true)), true);
+
+  // e a coordenadora de OUTRO curso segue sem validar a própria aula ali:
+  // ela não teria poder sobre aquele relatório se ele fosse de outra pessoa
+  const noutroCurso = { ...completo(), curso: "direito", status: "enviado",
+    professor: { email: "carla@uniego.edu.br", nome: "Carla" } };
+  assert.equal(podeValidar(noutroCurso, quem("carla@uniego.edu.br")), false);
+
+  // a visão diz à tela o que o servidor aceitaria — a régua é UMA
+  assert.equal(visaoDoRelatorio(enviado, quem("ana@uniego.edu.br")).podeValidar, false);
+  assert.equal(visaoDoRelatorio(enviado, quem("carla@uniego.edu.br")).podeValidar, true);
+});
+
+test("quem decide no lugar da coordenação, e quem decide sobre o que é seu", () => {
+  const dela = { ...completo(), status: "enviado",
+    professor: { email: "carla@uniego.edu.br", nome: "Carla" } };
+  // a coordenadora do curso decidindo o próprio: é auto, não "no lugar"
+  assert.equal(decisaoSobreORelatorioProprio(dela, quem("carla@uniego.edu.br")), true);
+  assert.equal(decisaoNoLugarDaCoordenacao(dela, quem("carla@uniego.edu.br")), false);
+  // a PROPPEX decidindo o relatório de Enfermagem: no lugar da coordenação
+  assert.equal(decisaoNoLugarDaCoordenacao(dela, quem("jadson@uniego.edu.br", true)), true);
+  assert.equal(decisaoSobreORelatorioProprio(dela, quem("jadson@uniego.edu.br", true)), false);
+  // quem só leciona não dispara marca nenhuma (nem valida)
+  assert.equal(decisaoSobreORelatorioProprio(completo(), quem("ana@uniego.edu.br")), false);
+});
+
+test("reabrir é do ALCANCE, não do papel — o gestor reabre o que é dele", () => {
+  const meuValidado = { ...completo(), status: "validado",
+    professor: { email: "jadson@uniego.edu.br", nome: "Jadson" } };
+  assert.equal(podeReabrir(meuValidado, quem("jadson@uniego.edu.br", true)), true,
+    "quem pôde decidir precisa poder desfazer");
+  assert.equal(podeReabrir(meuValidado, quem("carla@uniego.edu.br")), false,
+    "reabrir continua sendo da PROAC e da PROPPEX");
+  assert.equal(podeReabrir({ ...meuValidado, status: "enviado" }, quem("ped@uniego.edu.br")), false,
+    "só processo encerrado se reabre");
 });
 
 test("validado não se edita; devolvido volta a ser editável", () => {
