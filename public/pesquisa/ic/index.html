@@ -1330,6 +1330,9 @@ async function renderEM() {
           ${b.conint?.participou ? "✓ CONINT — desfazer" : "Participou do CONINT"}</button>
         <a class="bt bt-ghost" href="/api/ic/em/bolsistas.xlsx?turma=${encodeURIComponent(TURMA_EM)}&bolsista=${encodeURIComponent(b.email || b.id)}"
           title="Planilha só deste bolsista — CPF, contato, responsável e dados bancários, para o pedido de pagamento">⬇ Exportar dados do aluno</a>
+        ${b.situacao === "desligado" ? "" : `<a class="bt bt-ghost" target="_blank" rel="noopener"
+          href="/api/ic/em/termos.pdf?turma=${encodeURIComponent(TURMA_EM)}&bolsista=${encodeURIComponent(b.id)}"
+          title="Só o termo de ${esc(b.nome || "quem está neste cartão")}, com o Anexo 01 (autorização do responsável)">📝 Termo</a>`}
         ${b.situacao === "desligado"
           ? `<button class="bt bt-ghost" onclick="emReativar('${esc(b.id)}')"
               title="Desfaz o desligamento: volta às cotas, aos termos, à folha e aos comunicados">↩ Reativar</button>`

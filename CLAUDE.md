@@ -2726,6 +2726,17 @@ public/
   **nome da pessoa** (`termo-Ana-Paula-Souza.pdf`), que é como a coordenação o encontra
   depois de baixar vinte. Chave que não acha ninguém é **404 por extenso** — o lote inteiro
   seria a resposta errada. Os botões do LOTE não mudam.
+  **E O ICEM GANHOU O MESMO** (`bolsista=` em `GET /api/ic/em/termos.pdf` + o "📝 Termo" no
+  cartão da guia Ensino Médio, pedido do dono set/2026: "estamos fazendo algumas correções, e
+  não há necessidade de gerar todos os 24 termos toda vez"). Lá o lote é a TURMA — 24 pessoas,
+  três páginas cada (o termo mais o **Anexo 01**, a autorização do responsável) —, e corrigir o
+  nome de uma fazia imprimir setenta páginas para conferir três. O recorte é o **mesmo da
+  planilha individual** (id, e-mail ou CPF), o arquivo sai com o nome da pessoa
+  (`termo-Ana-Acompanha.pdf`), e chave que não acha ninguém é **404 por extenso**. Duas
+  diferenças da graduação: não há "tipo" a escolher (o modelo do ICEM é UM), e o **desligado
+  continua fora** — o botão não se desenha no cartão dele e a rota recusa NOMEANDO o motivo
+  (quem saiu do programa não assina termo), em vez de responder "não encontrado" sobre alguém
+  que está ali na tela.
 - **"OS TERMOS NÃO ESTÃO GERANDO" ERAM DUAS COISAS: o lote vazio e a imagem reembutida**
   (`loteTermos` na guia Bolsistas + `imagemDoDoc` em lib/pdf.js, relato do dono set/2026:
   "estou clicando em gerar os termos dos bolsistas, professores e voluntários em pdf, e não
@@ -2926,7 +2937,11 @@ public/
   vale o ÚLTIMO** — quem foi desligado não tem um, e apagar a linha esconderia o projeto que
   ele de fato acompanhou —, e o período distingue os dois casos ("desde 01/09" × "01/09 a
   10/09"); e a coluna **Situação** entrou junto, porque sem ela projeto em branco diria duas
-  coisas — "ainda não escolheu" e "saiu do programa". A turma 2025/2026 foi **alinhada pelos 24 termos assinados**
+  coisas — "ainda não escolheu" e "saiu do programa". **E o NOME E O CPF do professor**
+  (pedido do dono set/2026): o CPF **não existe no retrato do trecho** — ele guarda só o nome —,
+  então sai do projeto e, na falta dele, do **PERFIL de quem orienta** (é a mesma pessoa, e o
+  número é o que a coordenação precisa para o papel do programa); projeto que já não está na
+  base sai com o nome do retrato e sem CPF, que é o que se sabe. A turma 2025/2026 foi **alinhada pelos 24 termos assinados**
   (`completarTurmaEM2025`, dados/ic-em-2025-termos.json): completou registros, incluiu
   Ellisa Vitórya e Letícia Lopes (termos manuscritos; CPFs inválidos na fonte ficaram de
   fora, como o da Anna Gabrielly) e corrigiu a bolsa de Rebeca (UNIEGO) e Anna Júlia

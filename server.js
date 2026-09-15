@@ -15627,7 +15627,12 @@ app.get("/api/ic/em/bolsistas.xlsx", async (req, res) => {
       { header: "Situação", key: "situacao", width: 12 },
       { header: "Projeto acompanhado", key: "projNumero", width: 16 },
       { header: "Título do projeto", key: "projTitulo", width: 44 },
-      { header: "Orientação", key: "projOrientador", width: 28 },
+      /* O NOME E O CPF DO PROFESSOR do projeto acompanhado (pedido do dono,
+         set/2026). O CPF não existe no retrato do trecho — só o nome —, então
+         ele sai do projeto e, na falta, do PERFIL de quem orienta: é a mesma
+         pessoa, e a coordenação precisa do número para o papel do programa. */
+      { header: "Professor(a) orientador(a)", key: "projOrientador", width: 28 },
+      { header: "CPF do orientador(a)", key: "projOrientadorCpf", width: 18 },
       { header: "Acompanha desde", key: "projDesde", width: 22 },
       { header: "Responsável", key: "respNome", width: 30 },
       { header: "CPF do Responsável", key: "respCpf", width: 16 },
@@ -15638,6 +15643,13 @@ app.get("/api/ic/em/bolsistas.xlsx", async (req, res) => {
     ];
     ws.getRow(1).font = { bold: true };
     const projetos = new Map((await lerProjetos()).map((p) => [p.id, p]));
+    const perfis = await carregarPerfis();
+    const cpfDoOrientador = (p) => {
+      const o = p?.orientador || {};
+      if (soDigitos(o.cpf)) return formatarCpf(o.cpf);
+      const perf = o.email ? perfis[String(o.email).toLowerCase()] : null;
+      return formatarCpf(perf?.cpf) || "";
+    };
     const dia = (x) => (/^\d{4}-\d{2}-\d{2}$/.test(String(x || "")) ? x.split("-").reverse().join("/") : "");
     const ROTULO_SIT = { ativo: "Ativo", concluido: "Concluído", desligado: "Desligado" };
     /* O trecho vigente e, na falta dele, o ÚLTIMO da trajetória: quem foi
@@ -15660,6 +15672,7 @@ app.get("/api/ic/em/bolsistas.xlsx", async (req, res) => {
         projNumero: p?.numero || tr?.numero || "",
         projTitulo: p?.titulo || tr?.titulo || "",
         projOrientador: p?.orientador?.nome || tr?.orientador || "",
+        projOrientadorCpf: p ? cpfDoOrientador(p) : "",
         projDesde: !tr ? ""
           : tr.ate ? `${dia(tr.de)} a ${dia(tr.ate)}` : (dia(tr.de) ? `desde ${dia(tr.de)}` : ""),
         respNome: b.responsavel?.nome || "", respCpf: formatarCpf(b.responsavel?.cpf) || "",
@@ -15700,15 +15713,32 @@ app.get("/api/ic/em/termos.pdf", async (req, res) => {
     if (!u) return;
     if (!gereIC(u)) return res.status(403).send("Os termos do ICEM são emitidos pela coordenação.");
     const turma = turmaEmDe(String(req.query.turma || "")) || turmaEmVigente();
-    const bolsistas = (await lerBolsistasEM())
-      .filter((b) => b.turma === turma.ciclo && b.situacao !== "desligado")
+    /* A VIA DE UM ESTUDANTE (pedido do dono, set/2026: "não há necessidade de
+       gerar todos os 24 termos toda vez"). O recorte é o MESMO da planilha
+       individual — id, e-mail ou CPF —, e o desligado continua fora: ele saiu
+       do programa e não assina. Chave que não acha ninguém é 404 por extenso:
+       devolver a turma inteira seria a resposta errada. */
+    const alvo = String(req.query.bolsista || "").trim().toLowerCase();
+    const daTurma = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo);
+    const bolsistas = daTurma
+      .filter((b) => b.situacao !== "desligado"
+        && (!alvo || b.id === alvo || String(b.email || "").toLowerCase() === alvo
+          || (soDigitos(alvo) && soDigitos(b.cpf) === soDigitos(alvo))))
       .sort((a, b) => (a.colocacao ?? 999) - (b.colocacao ?? 999) || a.nome.localeCompare(b.nome, "pt-BR"));
+    if (alvo && !bolsistas.length) {
+      const saiu = daTurma.some((b) => b.id === alvo || String(b.email || "").toLowerCase() === alvo);
+      return res.status(404).send(saiu
+        ? "Bolsista desligado da turma — quem saiu do programa não assina termo."
+        : "Bolsista não encontrado nesta turma.");
+    }
     const { gerarTermosEMPdf } = await import("./lib/pdf.js");
     const buffer = await gerarTermosEMPdf({
       turma, bolsistas, assinaturas: await assinaturasParaPdf(), emitidoPor: u.nome || u.email,
     });
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="termos-icem-${slug(turma.ciclo)}.pdf"`);
+    res.setHeader("Content-Disposition", alvo
+      ? `inline; filename="termo-${slug(bolsistas[0].nome || turma.ciclo)}.pdf"`
+      : `inline; filename="termos-icem-${slug(turma.ciclo)}.pdf"`);
     res.send(buffer);
   } catch (e) {
     console.error("Erro nos termos do ICEM:", e);
