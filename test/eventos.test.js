@@ -822,6 +822,36 @@ test("telão estático: vale até a hora marcada, nunca no passado", () => {
   assert.equal(codigoTelaoEstatico(chave, "abc12345", "nada", { agora }), null);
 });
 
+test("passe de projeção: vence, é de UMA atividade e se revoga em bloco", async () => {
+  const { passeDeProjecao, lerPasseDeProjecao, versaoDoPasse } = await import("../lib/eventos.js");
+  const chave = gerarChaveQr();
+  const agora = Date.parse("2026-09-10T14:00:00Z");
+  const p = passeDeProjecao(chave, "abc12345", "2026-09-10T22:00:00Z", { versao: 0, agora });
+  assert.match(p.passe, /^p[0-9a-z]+\.0\.[0-9a-f]{16}$/);
+  assert.equal(p.validoAte, "2026-09-10T22:00:00.000Z");
+  assert.equal(lerPasseDeProjecao(chave, "abc12345", p.passe, { versao: 0, agora: agora + 7 * 3600_000 }).ok, true);
+  // vence na hora marcada
+  assert.equal(lerPasseDeProjecao(chave, "abc12345", p.passe, { versao: 0, agora: agora + 9 * 3600_000 }).motivo, "expirado");
+  // é de UMA atividade e de UM evento
+  assert.equal(lerPasseDeProjecao(chave, "outra000", p.passe, { versao: 0, agora }).motivo, "invalido");
+  assert.equal(lerPasseDeProjecao(gerarChaveQr(), "abc12345", p.passe, { versao: 0, agora }).motivo, "invalido");
+  assert.equal(lerPasseDeProjecao(chave, "abc12345", p.passe.replace(/.$/, (c) => (c === "0" ? "1" : "0")), { versao: 0, agora }).motivo, "invalido");
+  assert.equal(lerPasseDeProjecao(chave, "abc12345", "", { agora }).motivo, "invalido");
+  // incrementar a versão mata TODOS os passes emitidos
+  assert.equal(lerPasseDeProjecao(chave, "abc12345", p.passe, { versao: 1, agora }).motivo, "revogado");
+  const p2 = passeDeProjecao(chave, "abc12345", "2026-09-10T22:00:00Z", { versao: 1, agora });
+  assert.equal(lerPasseDeProjecao(chave, "abc12345", p2.passe, { versao: 1, agora }).ok, true);
+  // validade no passado não gera passe
+  assert.equal(passeDeProjecao(chave, "abc12345", "2026-09-10T13:00:00Z", { agora }), null);
+  assert.equal(passeDeProjecao(chave, "abc12345", "nada", { agora }), null);
+  // e um passe NUNCA vale como código de presença (nem o contrário)
+  assert.equal(lerCodigoTelao(chave, "abc12345", p.passe, { agora, janela: 60 }).ok, false);
+  const cod = codigoTelaoEstatico(chave, "abc12345", "2026-09-10T22:00:00Z", { agora });
+  assert.equal(lerPasseDeProjecao(chave, "abc12345", cod.codigo, { versao: 0, agora }).ok, false);
+  assert.equal(versaoDoPasse({ telaoPasseVersao: 3 }), 3);
+  assert.equal(versaoDoPasse({}), 0);
+});
+
 test("evento com encerramento validado não aceita inscrição, mesmo dentro do prazo", async () => {
   const { podeInscrever } = await import("../lib/eventos.js");
   const acao = { status: "registrada", proposta: { periodoInicio: "2026-09-01", periodoFim: "2026-12-31" },

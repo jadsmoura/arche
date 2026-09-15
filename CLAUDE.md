@@ -1950,6 +1950,35 @@ public/
   (`.side-sel{min-width:0}`): item de flex nasce com `min-width:auto` e se recusa a ficar menor que o
   próprio conteúdo, então nome comprido — "AULA MAGNA — DIA MUNDIAL DO AGRÔNOMO" — estourava 14 px
   da tela; quem trunca é o `text-overflow` do botão, que só age quando ele pode encolher.
+- **O LINK PARA QUEM PROJETA — o passe de projeção** (`passeDeProjecao`/`lerPasseDeProjecao`/
+  `versaoDoPasse` em lib/eventos.js + `POST /api/extensao/:id/telao/:aid/passe` e
+  `…/telao/passes/invalidar` + as gêmeas públicas `GET /api/publico/eventos/:slug/telao/:aid[/qr.png]`
+  + o `?p=` em public/eventos/telao.html, pedido do dono set/2026: "um botão pra gerar um link da
+  projeção do QR, para enviar ao responsável pela projeção e ele poder abrir, sem a necessidade de
+  logar no sistema"). Quem opera o som e o projetor num congresso raramente é quem organiza o evento,
+  e exigir conta do portal para abrir uma tela que só mostra um QR é a burocracia que faz a
+  coordenação projetar do próprio notebook a tarde inteira.
+  **O que o passe dá é EXATAMENTE a projeção** — o código da atividade, renovado a cada janela —, e
+  isso é poder de verdade: quem o tem pode gerar código válido enquanto ele durar, e dar presença a
+  quem não está na sala. Daí as **quatro travas**, que são o que torna o pedido seguro de atender:
+  ele **VENCE** numa hora escolhida por quem o gera (a mesma régua do QR estático; link sem prazo é
+  o único jeito de isto virar porta permanente); vale para **UMA atividade** (o HMAC é por
+  atividade, como os códigos de presença — passe de um evento não abre a atividade de outro); é
+  **REVOGÁVEL EM BLOCO** (`telaoPasseVersao` entra na assinatura, e o botão "⛔ Invalidar todos os
+  links de projeção" a incrementa — é a régua do `AV_LINK_VERSAO`, e **não** mexe na `chaveQr`, que
+  derrubaria os crachás dos inscritos e o código do monitor); e **não abre mais nada**: a rota
+  devolve nome, atividade, o código e as CONTAGENS — nunca a lista de inscritos, nunca um dado
+  pessoal.
+  Duas decisões de desenho: o passe **não carrega fase** (quem projeta a entrada projeta a saída; a
+  fase é escolha da tela), e o `tipo` da assinatura é outro (`proj`), então **um passe nunca vale
+  como código de presença nem o contrário** — `lerCodigoTelao` só aceita prefixo `r`/`e` e o passe
+  nasce com `p`. Vale tudo o que já valia: o evento com encerramento VALIDADO continua congelado
+  (`acaoPeloPasse` testa `eventoValidadoMsg` antes de qualquer coisa), a atividade tem de estar em
+  modo telão, e passe inválido conta no `freioOnline`. **A página é a MESMA** (um retrato só,
+  `retratoDoTelao` no servidor): com `?p=` ela fala pelas rotas públicas e, no erro, **não manda ao
+  login** — quem entra por ali não tem conta, e o login seria a parede que o link existe para
+  remover; sem `?p=`, nada muda. O erro também zera o relógio da janela e tenta de novo em 15 s:
+  sem isso, `ATE` vencido faria a tela pedir o código a cada segundo com um passe morto.
 - **QR de inscrição para projetar** (`/api/publico/eventos/:slug/qr-inscricao.png`, botão na
   guia Credenciamento): nem toda reunião dá para inscrever antes — o QR da página do evento
   vai ao telão no encerramento e quem estava ali se inscreve na hora. Tem versão em tela

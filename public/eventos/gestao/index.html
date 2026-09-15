@@ -2273,6 +2273,15 @@ function cardTelao(a){
           </div>
           <div class="muted" style="font-size:12px;margin-top:6px">Abre uma página para projetar: QR grande, o endereço escrito
             e quantos já registraram. Precisa ficar aberta no computador que projeta.</div>
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:10px">
+            <div><label style="margin-top:0;font-size:11px">Link para quem projeta — vale até</label>
+              <input type="datetime-local" id="telao-passe-ate-${i}" value="${esc(validadePadrao(p))}" style="max-width:220px"></div>
+            <button class="bt bt-sec" style="padding:8px 12px" onclick="gerarPasseTelao('${esc(a.id)}','${esc(p.id)}',${i})"
+              title="Um endereço que abre esta projeção sem login — para mandar a quem opera o projetor">🔗 Gerar link</button>
+          </div>
+          <div id="telao-passe-${i}"></div>
+          <div class="muted" style="font-size:12px;margin-top:6px">Quem tem o link <b>gera o QR válido desta atividade</b> até a
+            hora marcada — mande só a quem vai projetar. Vencido, ele para de funcionar.</div>
         </div>
         <div style="border-top:1px dashed var(--line);margin-top:10px;padding-top:10px">
           <div style="font-size:12px;font-weight:700;color:var(--brand-3)">📌 Estático <span class="muted" style="font-weight:400">— para o slide que não se atualiza</span></div>
@@ -2289,7 +2298,50 @@ function cardTelao(a){
       </div>`).join("")
       :""}
       ${blocoLigarTelao(a,prog.filter(p=>!/^telao/.test(String(p.frequencia||""))),atvs.length)}
+      ${atvs.length?`<div class="muted" style="font-size:12px;margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+        Link de projeção que vazou ou foi para a pessoa errada?
+        <button class="bt bt-ghost" style="padding:4px 10px;font-size:12px;margin-left:6px"
+          onclick="invalidarPassesTelao('${esc(a.id)}')">⛔ Invalidar todos os links de projeção</button>
+        <span style="display:block;margin-top:4px">Os crachás dos inscritos e o código do monitor não são afetados — só os links de projeção já enviados.</span>
+      </div>`:""}
     </div>`;
+}
+/* O LINK PARA QUEM PROJETA (pedido do dono, set/2026: "um botão pra gerar um
+   link da projeção do QR, para enviar ao responsável pela projeção e ele
+   poder abrir, sem a necessidade de logar no sistema"). Quem assina é o
+   SERVIDOR — a chaveQr do evento nunca chega ao cliente. */
+async function gerarPasseTelao(id,aid,i){
+  const ate=$(`telao-passe-ate-${i}`).value;
+  if(!ate){ alert("Informe até quando o link vale."); return; }
+  const iso=new Date(ate).toISOString();
+  if(Date.parse(iso)<=Date.now()){ alert("A validade precisa estar no futuro."); return; }
+  const cx=$(`telao-passe-${i}`);
+  cx.innerHTML=`<div class="muted" style="font-size:12px;margin-top:8px">gerando…</div>`;
+  try{
+    const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/telao/${encodeURIComponent(aid)}/passe`,
+      {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({validoAte:iso})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||("HTTP "+r.status));
+    cx.innerHTML=`<div class="banner ba-ok" style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px">
+      <b>Link gerado</b> — vale até ${esc(fmtDataHora(j.validoAte))}
+      <a href="${esc(j.link)}" target="_blank" rel="noopener" style="word-break:break-all;flex:1 1 260px;min-width:0">${esc(j.link)}</a>
+      <button class="bt bt-sec" style="padding:5px 10px;font-size:12px" onclick="copiarTexto('${esc(j.link)}',this)">⧉ copiar</button>
+    </div>`;
+  }catch(e){
+    cx.innerHTML=`<div class="banner ba-err" style="margin-top:8px;font-size:12.5px">Não foi possível gerar o link: ${esc(e.message)}</div>`;
+  }
+}
+async function invalidarPassesTelao(id){
+  if(!confirm("Invalidar TODOS os links de projeção já enviados deste evento?\n\n"
+    +"Quem estiver com um link aberto para de receber o QR na próxima renovação, e será preciso gerar e reenviar.\n\n"
+    +"Os crachás dos inscritos e o código do monitor continuam valendo.")) return;
+  try{
+    const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/telao/passes/invalidar`,{method:"POST"});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||("HTTP "+r.status));
+    alert("Pronto — os links de projeção anteriores deixaram de valer.");
+    await carregar(); nav(SECAO);
+  }catch(e){ alert("Não foi possível invalidar: "+e.message); }
 }
 
 /* LIGAR O TELÃO DAQUI (pedido do dono, set/2026: "eventos de uma única

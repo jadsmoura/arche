@@ -59,10 +59,18 @@ const m = location.pathname.match(/^\/eventos\/([^/]+)\/telao\/([^/]+)/) || [];
 const SLUG = decodeURIComponent(m[1] || ""), AID = decodeURIComponent(m[2] || "");
 const Q = new URLSearchParams(location.search);
 const ACAO = Q.get("acao") || "";
+/* O PASSE (set/2026): com `?p=` a página fala pelas rotas PÚBLICAS e quem
+   manda é o passe — é isso que faz o projetor abrir a tela sem conta no
+   portal. Sem ele, nada muda: são as rotas da gestão, com sessão. */
+const PASSE = Q.get("p") || "";
 let FASE = Q.get("fase") === "saida" ? "saida" : "entrada";
-let ATE = 0, JANELA = 60, TIMER = null, D = null;
+let ATE = 0, JANELA = 60, TIMER = null, RETRY = null, D = null;
 
-const api = () => `/api/extensao/${encodeURIComponent(ACAO)}/telao/${encodeURIComponent(AID)}?fase=${FASE}`;
+const base = () => PASSE
+  ? `/api/publico/eventos/${encodeURIComponent(SLUG)}/telao/${encodeURIComponent(AID)}`
+  : `/api/extensao/${encodeURIComponent(ACAO)}/telao/${encodeURIComponent(AID)}`;
+const cred = () => (PASSE ? `p=${encodeURIComponent(PASSE)}&` : "") + `fase=${FASE}`;
+const api = () => `${base()}?${cred()}`;
 
 function desenharAcoes() {
   if (!D) return;
@@ -71,15 +79,30 @@ function desenharAcoes() {
        <button class="${FASE === "saida" ? "on" : ""}" onclick="trocarFase('saida')">SAÍDA</button>` : "")
     + `<button onclick="telaCheia()">⛶ Tela cheia</button>`;
 }
-function trocarFase(f) { FASE = f; history.replaceState(null, "", `?acao=${encodeURIComponent(ACAO)}&fase=${f}`); atualizar(); }
+function trocarFase(f) {
+  FASE = f;
+  const q = PASSE ? `?p=${encodeURIComponent(PASSE)}&fase=${f}` : `?acao=${encodeURIComponent(ACAO)}&fase=${f}`;
+  history.replaceState(null, "", q);
+  atualizar();
+}
 function telaCheia() { (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}); }
 
 async function atualizar() {
   try {
     const r = await fetch(api(), { cache: "no-store" });
-    if (r.status === 401 || r.status === 403) { location.href = "/entrar/?next=" + encodeURIComponent(location.pathname + location.search); return; }
+    // sem passe, 401/403 é falta de sessão e o caminho é o login; COM passe,
+    // quem entra não tem conta — mandá-lo ao login seria uma parede
+    if (!PASSE && (r.status === 401 || r.status === 403)) { location.href = "/entrar/?next=" + encodeURIComponent(location.pathname + location.search); return; }
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { $("erro").innerHTML = `<div class="erro">${esc(j.error || "Não foi possível gerar o código.")} <a href="/eventos/gestao">Voltar à gestão</a></div>`; $("qr").hidden = true; return; }
+    if (!r.ok) {
+      $("erro").innerHTML = `<div class="erro">${esc(j.error || "Não foi possível gerar o código.")}`
+        + (PASSE ? "" : ` <a href="/eventos/gestao">Voltar à gestão</a>`) + `</div>`;
+      $("qr").hidden = true; $("barra").hidden = true; $("url").hidden = true;
+      // ATE zerado faz o tique parar de pedir; uma tentativa a cada 15 s
+      // recupera a falha passageira sem martelar o servidor com o passe morto
+      ATE = 0; clearTimeout(RETRY); RETRY = setTimeout(atualizar, 15000);
+      return;
+    }
     D = j;
     JANELA = j.janela; ATE = Date.parse(j.validoAte);
     $("ev").textContent = j.evento.nome;
@@ -90,7 +113,7 @@ async function atualizar() {
       ? "Antes de sair, aponte a câmera do celular para o código e registre a sua saída"
       : "Aponte a câmera do celular para o código e registre a sua presença";
     $("qr").classList.add("trocando");
-    $("img").src = `/api/extensao/${encodeURIComponent(ACAO)}/telao/${encodeURIComponent(AID)}/qr.png?fase=${FASE}&t=${Date.now()}`;
+    $("img").src = `${base()}/qr.png?${cred()}&t=${Date.now()}`;
     $("img").onload = () => $("qr").classList.remove("trocando");
     $("qr").hidden = false; $("barra").hidden = false; $("url").hidden = false;
     $("url").textContent = j.url.replace(/\?c=.*$/, "");
@@ -111,7 +134,7 @@ function tique() {
   $("bi").style.width = Math.min(100, (resta / (JANELA * 1000)) * 100) + "%";
   if (resta <= 0) atualizar();
 }
-if (!ACAO) {
+if (!ACAO && !PASSE) {
   $("erro").innerHTML = `<div class="erro">Abra a projeção pela guia Credenciamento do ARCHÉ EV — é lá que o sistema sabe de que evento se trata.</div>`;
   $("tit").textContent = "Presença pelo telão";
 } else {

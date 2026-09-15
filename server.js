@@ -90,6 +90,7 @@ import {
   normalizarBlocos, TIPOS_BLOCO, CATEGORIAS_APOIO, REDES_SOCIAIS, FREQUENCIAS,
   minutosEntre, duracaoBR, eventoControlaFrequencia, temHotsiteEvento, liberadoParaParticipar,
   leEmTelao, duasLeituras, janelaDoTelao, codigoTelaoRotativo, codigoTelaoEstatico, lerCodigoTelao,
+  passeDeProjecao, lerPasseDeProjecao, versaoDoPasse,
   TELAO_JANELA_MIN, TELAO_JANELA_MAX,
 } from "./lib/eventos.js";
 import {
@@ -7982,6 +7983,23 @@ async function acaoDoTelao(req, res) {
   if (congelado) { res.status(409).json({ error: congelado }); return null; }
   return a;
 }
+/* O retrato que a tela de projeção consome. É UM só, porque a mesma página
+   serve a quem opera o evento e a quem abriu pelo PASSE — dois montadores
+   divergiriam no primeiro campo novo. Vai o código, as CONTAGENS e os nomes;
+   nunca a lista de inscritos. */
+function retratoDoTelao(req, a, atv, c) {
+  // quantos já registraram nesta atividade (e quantos já saíram): é o
+  // número que a pessoa no palco olha para saber se dá para fechar
+  const inscritos = (a.participantes?.inscritos || []).filter((i) => inscricaoValida(i));
+  const pres = inscritos.map((i) => (i.presencas || []).find((p) => String(p?.atividade || "") === atv.id)).filter(Boolean);
+  return { ok: true, codigo: c.codigo, url: urlDaPresenca(req, a, atv, c.codigo), validoAte: c.validoAte,
+    fase: c.fase, tipo: c.tipo, janela: janelaDoTelao(a.evento),
+    registradas: pres.length, saidas: pres.filter((p) => p.saidaEm).length, inscritos: inscritos.length,
+    evento: { nome: a.proposta?.nomeAtividade || "", slug: a.evento.slug },
+    atividade: { id: atv.id, titulo: atv.titulo, dia: atv.dia, horaInicio: atv.horaInicio, horaFim: atv.horaFim,
+      frequencia: atv.frequencia, duasLeituras: duasLeituras(atv.frequencia) } };
+}
+
 /** O código de agora (ou o estático) e o endereço que ele abre. A página de
  *  projeção chama de novo a cada janela. */
 app.get("/api/extensao/:id/telao/:aid", async (req, res) => {
@@ -7992,17 +8010,8 @@ app.get("/api/extensao/:id/telao/:aid", async (req, res) => {
     if (erro) return res.status(erro[0]).json({ error: erro[1] });
     const c = codigoDoTelao(a, atv, req.query);
     if (c.erro) return res.status(c.erro[0]).json({ error: c.erro[1] });
-    // quantos já registraram nesta atividade (e quantos já saíram): é o
-    // número que a pessoa no palco olha para saber se dá para fechar
-    const inscritos = (a.participantes?.inscritos || []).filter((i) => inscricaoValida(i));
-    const pres = inscritos.map((i) => (i.presencas || []).find((p) => String(p?.atividade || "") === atv.id)).filter(Boolean);
     res.setHeader("Cache-Control", "no-store");
-    res.json({ ok: true, codigo: c.codigo, url: urlDaPresenca(req, a, atv, c.codigo), validoAte: c.validoAte,
-      fase: c.fase, tipo: c.tipo, janela: janelaDoTelao(a.evento),
-      registradas: pres.length, saidas: pres.filter((p) => p.saidaEm).length, inscritos: inscritos.length,
-      evento: { nome: a.proposta?.nomeAtividade || "", slug: a.evento.slug },
-      atividade: { id: atv.id, titulo: atv.titulo, dia: atv.dia, horaInicio: atv.horaInicio, horaFim: atv.horaFim,
-        frequencia: atv.frequencia, duasLeituras: duasLeituras(atv.frequencia) } });
+    res.json(retratoDoTelao(req, a, atv, c));
   } catch (e) {
     console.error("Erro no código do telão:", e);
     res.status(500).json({ error: "Não foi possível gerar o código agora." });
@@ -8027,6 +8036,105 @@ app.get("/api/extensao/:id/telao/:aid/qr.png", async (req, res) => {
     res.send(png);
   } catch (e) {
     console.error("Erro no QR do telão:", e);
+    res.status(500).send("Erro ao gerar o QR");
+  }
+});
+
+/* O LINK PARA QUEM PROJETA (pedido do dono, set/2026) — ver `passeDeProjecao`
+   em lib/eventos.js para o porquê e as quatro travas. Gerar é ato de quem
+   opera o evento; `validoAte` é obrigatório, porque um link sem prazo é o
+   único jeito de isto virar uma porta permanente. */
+app.post("/api/extensao/:id/telao/:aid/passe", async (req, res) => {
+  try {
+    const a = await acaoDoTelao(req, res);
+    if (!a) return;
+    const { atv, erro } = atividadeDoTelao(a, req.params.aid);
+    if (erro) return res.status(erro[0]).json({ error: erro[1] });
+    const p = passeDeProjecao(a.evento.chaveQr, atv.id, String(req.body?.validoAte || ""),
+      { versao: versaoDoPasse(a.evento) });
+    if (!p) return res.status(400).json({ error: "A validade do link precisa ser uma data e hora no futuro." });
+    const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    res.json({ ok: true, validoAte: p.validoAte,
+      link: `${base}/eventos/${encodeURIComponent(a.evento.slug)}/telao/${encodeURIComponent(atv.id)}?p=${encodeURIComponent(p.passe)}` });
+  } catch (e) {
+    console.error("Erro ao gerar o passe do telão:", e);
+    res.status(500).json({ error: "Não foi possível gerar o link agora." });
+  }
+});
+
+/** Invalida EM BLOCO todos os passes já enviados deste evento (a régua do
+ *  `AV_LINK_VERSAO`): o link que vazou morre sem trocar a chaveQr, que
+ *  derrubaria também os crachás dos inscritos. */
+app.post("/api/extensao/:id/telao/passes/invalidar", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((x) => x.id === req.params.id);
+      if (!a || !podeOperarEvento(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      if (!a.evento?.slug) return { erro: [400, "Este evento ainda não tem credenciamento emitido."], gravar: false };
+      a.evento.telaoPasseVersao = versaoDoPasse(a.evento) + 1;
+      a.atualizadoEm = new Date().toISOString();
+      return { valor: versaoDoPasse(a.evento), gravar: true };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, versao: r.valor });
+  } catch (e) {
+    console.error("Erro ao invalidar os passes do telão:", e);
+    res.status(500).json({ error: "Não foi possível invalidar os links agora." });
+  }
+});
+
+/* As DUAS rotas que o passe abre — as gêmeas públicas das de cima. Elas não
+   têm sessão: quem manda é o passe, e a régua está toda em `acaoPeloPasse`,
+   um lugar só. Tudo o mais é idêntico, inclusive o congelamento do evento
+   validado: passe não fura o que o crachá do monitor já não fura. */
+async function acaoPeloPasse(req) {
+  const a = eventoPorSlug(await lerAcoes(), req.params.slug);
+  if (!a?.evento?.slug || !a.evento.chaveQr) return { erro: [404, "Evento não encontrado."] };
+  const congelado = eventoValidadoMsg(a);
+  if (congelado) return { erro: [409, congelado] };
+  const { atv, erro } = atividadeDoTelao(a, req.params.aid);
+  if (erro) return { erro };
+  const p = lerPasseDeProjecao(a.evento.chaveQr, atv.id, req.query.p, { versao: versaoDoPasse(a.evento) });
+  if (!p.ok) {
+    if (freioOnline.excedeu(req.ip)) return { erro: [429, "Muitas tentativas. Aguarde alguns minutos."] };
+    freioOnline.falhou(req.ip);
+    return { erro: [403, p.motivo === "expirado"
+      ? "Este link de projeção venceu — peça um novo à coordenação do evento."
+      : p.motivo === "revogado"
+        ? "Este link de projeção foi invalidado pela coordenação do evento."
+        : "Link de projeção inválido."] };
+  }
+  return { a, atv };
+}
+app.get("/api/publico/eventos/:slug/telao/:aid", async (req, res) => {
+  try {
+    const { a, atv, erro } = await acaoPeloPasse(req);
+    if (erro) return res.status(erro[0]).json({ error: erro[1] });
+    // o passe NÃO escolhe a fase: quem projeta a entrada projeta a saída
+    const c = codigoDoTelao(a, atv, { fase: req.query.fase });
+    if (c.erro) return res.status(c.erro[0]).json({ error: c.erro[1] });
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ...retratoDoTelao(req, a, atv, c), porPasse: true });
+  } catch (e) {
+    console.error("Erro no código do telão (passe):", e);
+    res.status(500).json({ error: "Não foi possível gerar o código agora." });
+  }
+});
+app.get("/api/publico/eventos/:slug/telao/:aid/qr.png", async (req, res) => {
+  try {
+    const { a, atv, erro } = await acaoPeloPasse(req);
+    if (erro) return res.status(erro[0]).send(erro[1]);
+    const c = codigoDoTelao(a, atv, { fase: req.query.fase });
+    if (c.erro) return res.status(c.erro[0]).send(c.erro[1]);
+    const { default: QRCode } = await import("qrcode");
+    const png = await QRCode.toBuffer(urlDaPresenca(req, a, atv, c.codigo), { type: "png", errorCorrectionLevel: "M", margin: 2, width: 900 });
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "no-store");
+    res.send(png);
+  } catch (e) {
+    console.error("Erro no QR do telão (passe):", e);
     res.status(500).send("Erro ao gerar o QR");
   }
 });
