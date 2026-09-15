@@ -27,7 +27,6 @@
   .qr.trocando img{opacity:.35}
   .barra{height:6px;border-radius:3px;background:rgba(255,255,255,.15);width:min(58vh,84vw);overflow:hidden}
   .barra i{display:block;height:100%;background:var(--accent);transition:width 1s linear}
-  code{font-size:clamp(12px,1.3vw,17px);background:rgba(255,255,255,.12);padding:7px 12px;border-radius:10px;word-break:break-all;max-width:90vw}
   .cont{font-size:clamp(14px,1.6vw,20px)}
   .cont b{color:var(--ok);font-size:1.4em}
   .acoes{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px}
@@ -47,7 +46,11 @@
 <p class="chamada" id="chamada"></p>
 <div class="qr" id="qr" hidden><img id="img" alt="QR de presença"></div>
 <div class="barra" id="barra" hidden><i id="bi" style="width:100%"></i></div>
-<code id="url" hidden></code>
+<!-- O ENDEREÇO NÃO SE PROJETA (pedido do dono, set/2026: "abaixo do QR está
+     aparecendo o link; se alguém copiar pode divulgar com colegas"). Ele saía
+     sem o `?c=` — o código, que é o que vale, nunca esteve ali —, mas um
+     endereço escrito no telão se fotografa e se digita, e na projeção ele não
+     serve a ninguém: quem está na sala aponta a câmera. -->
 <div class="cont" id="cont"></div>
 <div class="acoes" id="acoes"></div>
 <div id="erro"></div>
@@ -97,7 +100,7 @@ async function atualizar() {
     if (!r.ok) {
       $("erro").innerHTML = `<div class="erro">${esc(j.error || "Não foi possível gerar o código.")}`
         + (PASSE ? "" : ` <a href="/eventos/gestao">Voltar à gestão</a>`) + `</div>`;
-      $("qr").hidden = true; $("barra").hidden = true; $("url").hidden = true;
+      $("qr").hidden = true; $("barra").hidden = true;
       // ATE zerado faz o tique parar de pedir; uma tentativa a cada 15 s
       // recupera a falha passageira sem martelar o servidor com o passe morto
       ATE = 0; clearTimeout(RETRY); RETRY = setTimeout(atualizar, 15000);
@@ -115,8 +118,7 @@ async function atualizar() {
     $("qr").classList.add("trocando");
     $("img").src = `${base()}/qr.png?${cred()}&t=${Date.now()}`;
     $("img").onload = () => $("qr").classList.remove("trocando");
-    $("qr").hidden = false; $("barra").hidden = false; $("url").hidden = false;
-    $("url").textContent = j.url.replace(/\?c=.*$/, "");
+    $("qr").hidden = false; $("barra").hidden = false;
     $("cont").innerHTML = j.fase === "saida"
       ? `<b>${j.saidas}</b> saídas registradas · ${j.registradas} entradas`
       : `<b>${j.registradas}</b> presenças registradas${j.inscritos ? ` · ${j.inscritos} inscritos` : ""}`;

@@ -1917,10 +1917,15 @@ public/
   no evento pago vale `liberadoParaParticipar` (só inscrição paga ou isenta), a mesma régua da porta.
   Código inválido e identificação errada contam no `freioOnline`. A projeção exige sessão de quem opera
   o evento e recusa atividade fora do modo telão (botão que o servidor recusaria é armadilha); a página
-  mostra fase (ENTRADA/SAÍDA nas de início e fim), a barra da janela, o endereço escrito e **quantos já
+  mostra fase (ENTRADA/SAÍDA nas de início e fim), a barra da janela e **quantos já
   registraram**, que é o número que quem está no palco olha para saber se dá para fechar. Gravação com
   `flushJa: false`, como a porta: cinquenta celulares lendo o telão ao mesmo tempo não podem esperar o
   Drive cinquenta vezes.
+  **O ENDEREÇO NÃO SE PROJETA** (pedido do dono set/2026, com o print da projeção: "abaixo do QR está
+  aparecendo o link; se alguém copiar pode divulgar com colegas"). A linha saía **sem o `?c=`** — o
+  código, que é o que vale, nunca esteve nela, e o endereço sozinho responde "código inválido" —, mas
+  um endereço escrito no telão se fotografa e se digita, e na projeção ele não serve a ninguém: quem
+  está na sala aponta a câmera. Ficam o título, a chamada, o QR, a barra da janela e a contagem.
 - **O TELÃO SE LIGA NA PRÓPRIA GUIA CREDENCIAMENTO, e a escolha entre DINÂMICO e ESTÁTICO está à
   vista** (`POST /api/extensao/:id/telao/modo` + `blocoLigarTelao` no ARCHÉ EV, pedido do dono
   set/2026, com o print de uma AULA MAGNA recém-cadastrada: "eventos de uma única atividade também
