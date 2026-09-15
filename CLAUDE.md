@@ -1979,6 +1979,37 @@ public/
   login** — quem entra por ali não tem conta, e o login seria a parede que o link existe para
   remover; sem `?p=`, nada muda. O erro também zera o relógio da janela e tenta de novo em 15 s:
   sem isso, `ATE` vencido faria a tela pedir o código a cada segundo com um passe morto.
+- **QUEM NÃO ESTÁ INSCRITO SE INSCREVE E REGISTRA A PRESENÇA NO MESMO ATO**
+  (`TELAO_TOLERANCIA_INSCRICAO` + o parâmetro `tolerancia` de `lerCodigoTelao` em lib/eventos.js +
+  `presencaDoTelaoNaInscricao` e os campos `presenca`/`c` no `POST …/inscrever` + o
+  `?presenca=&c=` que a página de presença passa à ficha — pedido do dono set/2026: "se um usuário
+  não inscrito abrir o QR code de presença, ele deve registrar presença e se inscrever ao mesmo
+  tempo; ao testar, fui levado à página de inscrição, mas minha presença não foi computada — tive
+  que fazer novamente o processo"). A página dizia **"volte e leia o QR do telão de novo"**, e é
+  exatamente esse passo que se perde: quem acabou de preencher a ficha está com a credencial nova
+  na tela, não olhando para o telão — e, no caso mais comum, o QR já mudou ou a pessoa já saiu da
+  sala. O ato é UM só e estava partido em dois, com a metade que importa dependendo de a pessoa
+  refazer o caminho.
+  Agora a leitura do telão **VIAJA** com ela: o botão de "Inscrever-me" leva `presenca=<atividade>`
+  e `c=<código>` à ficha (`/eventos/<slug>/inscrever`), a ficha os manda no corpo da inscrição, e o
+  servidor grava a presença **dentro da MESMA passagem pela fila** em que cria o inscrito — sem
+  segunda rota, sem segunda leitura. O obstáculo real era o **tempo**: o código rotativo vale a
+  janela corrente e a anterior (dois minutos no padrão), e preencher a ficha leva mais que isso —
+  nome, CPF, telefone, a LGPD e, quase sempre, criar a conta e esperar o código por e-mail. Daí a
+  **tolerância de 20 minutos**, que vale **só neste caminho**: a leitura comum (a pessoa já
+  inscrita, o QR lido na hora) não muda, porque é ali que a foto do telão que circula no WhatsApp
+  tem de morrer em minutos. O que a folga concede é a presença no ato de uma inscrição NOVA, feita
+  do zero dentro desses 20 minutos. Ela **recua, nunca adianta** (código de janela futura continua
+  inválido) e não afrouxa nada mais — assinatura, atividade e fase seguem como estavam.
+  Três regras que `presencaDoTelaoNaInscricao` carrega: **presença que falha NUNCA derruba a
+  inscrição** (a inscrição é o ato caro — cadastro, LGPD, vaga, cobrança — e perdê-la por um código
+  vencido seria trocar um problema por outro pior); o que não deu certo **volta dito**, e a tela do
+  pós-inscrição escreve o motivo em vez de só "inscrição confirmada", que a deixaria achando que a
+  presença também ficou; e a régua do **evento PAGO é a mesma da porta** (`liberadoParaParticipar`)
+  — inscrição ainda não paga não ganha presença por ter vindo por aqui, e a frase diz que ela se
+  registra quando o pagamento confirmar. O link de "entrar com a conta" da ficha passou a levar a
+  QUERY junto (`location.pathname + location.search`): sem isso, quem veio do telão perdia o código
+  no login, que é metade do caminho.
 - **QR de inscrição para projetar** (`/api/publico/eventos/:slug/qr-inscricao.png`, botão na
   guia Credenciamento): nem toda reunião dá para inscrever antes — o QR da página do evento
   vai ao telão no encerramento e quem estava ali se inscreve na hora. Tem versão em tela

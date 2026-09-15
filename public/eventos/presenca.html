@@ -64,6 +64,13 @@ const SLUG = decodeURIComponent(m[1] || ""), AID = decodeURIComponent(m[2] || ""
 const CODIGO = new URLSearchParams(location.search).get("c") || "";
 const API = `/api/publico/eventos/${encodeURIComponent(SLUG)}/presenca/${encodeURIComponent(AID)}`;
 const URL_EV = `/eventos/${encodeURIComponent(SLUG)}`;
+/* INSCREVER-SE E REGISTRAR A PRESENÇA SÃO UM ATO SÓ (pedido do dono,
+   set/2026: "fui levado à página de inscrição, mas minha presença não foi
+   computada; tive que fazer novamente o processo"). Quem não está inscrito
+   vai à ficha LEVANDO a leitura do telão — atividade e código —, e a rota da
+   inscrição grava a presença na mesma passagem. Voltar aqui para ler o QR de
+   novo era justamente o passo em que a presença se perdia. */
+const URL_INSCREVER = `${URL_EV}/inscrever?presenca=${encodeURIComponent(AID)}&c=${encodeURIComponent(CODIGO)}`;
 $("lk-evento").href = URL_EV;
 let D = null;
 
@@ -104,7 +111,7 @@ function render() {
        ${formCpf(false)}`)
     + `<button class="bt bt-pri" id="bt-ok" onclick="registrar()">✓ Registrar minha presença</button>
        <div id="msg"></div>
-       <div class="peq">A presença entra na sua inscrição e vale para o certificado desta atividade. Ainda não se inscreveu? <a href="${URL_EV}">Inscreva-se aqui</a> e depois leia o QR de novo.</div>`;
+       <div class="peq">A presença entra na sua inscrição e vale para o certificado desta atividade. Ainda não se inscreveu? <a href="${URL_INSCREVER}">Inscreva-se aqui</a> — a presença fica registrada no mesmo ato.</div>`;
   const cpf = $("f-cpf");
   if (cpf) cpf.addEventListener("input", () => {
     const d = cpf.value.replace(/\D/g, "").slice(0, 11);
@@ -147,8 +154,9 @@ async function registrar() {
     if (r.ok) { resultado(j); return; }
     if (j.naoInscrito) {
       $("msg").innerHTML = `<div class="msg err">${esc(j.error)}</div>
-        <a class="bt bt-sec" href="${URL_EV}">Inscrever-me no evento</a>
-        <div class="peq">Depois de se inscrever, volte e leia o QR do telão de novo.</div>`;
+        <a class="bt bt-pri" href="${URL_INSCREVER}">Inscrever-me e registrar a presença</a>
+        <div class="peq">A sua presença nesta atividade fica registrada junto com a inscrição —
+          você não precisa voltar aqui nem ler o QR de novo.</div>`;
     } else {
       $("msg").innerHTML = `<div class="msg err">${esc(j.error || "Não foi possível registrar agora.")}</div>`;
     }

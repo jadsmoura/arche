@@ -273,6 +273,16 @@ const SLUG = decodeURIComponent((location.pathname.match(/^\/eventos\/([^/]+)/) 
    LGPD — era metade da poluição. Aqui não se duplica nada: é o modo em que a
    página já desenhava o evento SEM hotsite. */
 const FICHA = /^\/eventos\/[^/]+\/inscrever\/?$/.test(location.pathname);
+/* A LEITURA DO TELÃO QUE CHEGOU ATÉ AQUI (pedido do dono, set/2026: "se um
+   usuário não inscrito abrir o QR code de presença, ele deve registrar
+   presença e se inscrever ao mesmo tempo"). A página de presença manda quem
+   ainda não está inscrito para esta ficha com `presenca=<atividade>&c=<código>`;
+   os dois viajam no corpo da inscrição e o servidor grava a presença na mesma
+   passagem pela fila. Nada aqui concede nada — quem confere o código, a
+   atividade e a régua do evento pago é ele. */
+const PRESENCA = { atv: new URLSearchParams(location.search).get("presenca") || "",
+  cod: new URLSearchParams(location.search).get("c") || "" };
+const COM_PRESENCA = !!(PRESENCA.atv && PRESENCA.cod);
 let EV = null;
 let ME = null;   // a conta logada (o /api/me), consultada ANTES de desenhar: decide se o formulário aparece
 /* A SITUAÇÃO DA CONTA NESTE EVENTO (set/2026, pedido do dono: "se não estiver
@@ -495,6 +505,9 @@ function render() {
       ${encerrado ? `<div class="msg-ok" style="background:var(--wash);color:var(--ink-soft)">
         Este evento já foi realizado.</div>` : ""}
       <div class="card" id="card-inscricao" style="margin-top:14px">
+        ${COM_PRESENCA ? `<div class="msg-ok" style="margin-top:0;margin-bottom:12px">
+          <b>Você leu o QR de presença.</b> Preencha a inscrição aqui: a sua presença nesta atividade
+          fica registrada no mesmo ato — não é preciso voltar ao telão.</div>` : ""}
         ${jaTem && !MINHA.inscrito ? `<div class="msg-ok" style="margin-top:0;margin-bottom:12px">Você já se inscreveu neste evento por este aparelho.
           <a href="/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(jaTem)}" style="text-decoration:underline">Abrir minha inscrição →</a></div>` : ""}
         ${abertas ? formInscricao(e) : `<p style="font-size:13.5px;color:var(--muted)">As inscrições deste evento
@@ -995,7 +1008,9 @@ function formInscricao(e) {
      a conta na hora — e volta a esta página. Quem barra é o servidor (401);
      aqui é só o caminho. */
   if (e.inscricaoComConta && !ME) {
-    const volta = encodeURIComponent(location.pathname);
+    // a volta leva a QUERY junto: sem ela, quem veio do telão perderia o
+    // código da presença ao passar pelo login, que é a metade do caminho
+    const volta = encodeURIComponent(location.pathname + location.search);
     return `<div id="f" class="entrar-insc">
       <p style="font-size:14.5px;line-height:1.65">Para se inscrever, <b>entre com a sua conta do ARCHÉ</b>. Se ainda não tem,
         crie uma na hora com o seu e-mail — leva um minuto, e a sua inscrição e o certificado ficam ligados a ela.</p>
@@ -1219,9 +1234,24 @@ function lerRespostas() {
 }
 
 /* ------ 5. pós-inscrição ------ */
-function pos(token, pagamento) {
+function pos(token, pagamento, presenca) {
   const url = `/eventos/${encodeURIComponent(SLUG)}/inscricao/${encodeURIComponent(token)}`;
   const marcadas = [...ESCOLHIDAS].map(atvPorId).filter(Boolean);
+  /* O DESFECHO DA PRESENÇA, quando a pessoa veio do telão: ela precisa LER
+     que a presença ficou registrada — é para isso que fez o caminho. E
+     quando não ficou (código vencido no meio do preenchimento, evento pago
+     aguardando pagamento), o aviso diz o quê e o que fazer: "inscrição
+     confirmada" sozinho a deixaria achando que a presença também está. */
+  const blocoPresenca = !presenca ? "" : presenca.ok
+    ? `<div class="msg-ok" style="margin-top:0;margin-bottom:12px">✅ <b>Presença registrada</b>${
+        presenca.atividade ? ` em <b>${esc(presenca.atividade)}</b>` : ""}${
+        presenca.saida ? " (saída)" : ""}.${
+        presenca.trocouDe ? ` Você saiu de <b>${esc(presenca.trocouDe)}</b>, que acontece no mesmo horário.` : ""}</div>`
+    : `<div class="msg-erro" style="margin-top:0;margin-bottom:12px">A inscrição está feita, mas a
+        <b>presença não foi registrada</b>${presenca.atividade ? ` em ${esc(presenca.atividade)}` : ""}:
+        ${esc(presenca.motivo || "")}${presenca.aguardaPagamento
+          ? " Assim que o pagamento for confirmado, leia o QR do telão para registrar a presença."
+          : ""}</div>`;
   /* EVENTO PAGO: a inscrição está RESERVADA, não confirmada — sem QR de
      credencial aqui. O botão leva à página de pagamento do ARCHÉ, que mostra
      o QR Pix (PicPay) ou encaminha ao provedor (Mercado Pago), confere a
@@ -1231,6 +1261,7 @@ function pos(token, pagamento) {
     const hora = (iso) => { try { return new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
     $("card-inscricao").innerHTML = `
       <div id="pos-inscricao">
+      ${blocoPresenca}
       <div class="card-t" style="font-size:17px">Inscrição recebida — falta o pagamento</div>
       <p style="font-size:13.5px;margin-top:8px">Reservamos a sua vaga <b>até ${esc(hora(pagamento.expiraEm))}</b>.
         Categoria <b>${esc(pagamento.categoriaNome)}</b>${pagamento.lote ? ` (${esc(pagamento.lote)})` : ""}: <b>${reais(pagamento.valor)}</b>.</p>
@@ -1248,6 +1279,7 @@ function pos(token, pagamento) {
   }
   $("card-inscricao").innerHTML = `
     <div id="pos-inscricao">
+    ${blocoPresenca}
     <div class="card-t" style="font-size:17px">Inscrição confirmada ✓</div>
     <p style="font-size:13.5px;margin-top:8px"><b>Guarde este endereço</b> — o link abaixo é a sua credencial,
       e enviamos uma cópia para o seu e-mail. No dia, apresente este QR na entrada:</p>
@@ -1311,12 +1343,15 @@ async function inscrever(ev) {
         voucher: ($("i-voucher")?.value || "").trim().toUpperCase(),
         consentimento: $("i-lgpd").checked === true,
         comunicacoes: $("i-comunic").checked === true,
+        // a leitura do telão, quando a pessoa veio de lá: o servidor grava a
+        // presença na mesma passagem em que cria a inscrição
+        ...(COM_PRESENCA ? { presenca: PRESENCA.atv, c: PRESENCA.cod } : {}),
       }),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { const err = new Error(j.error || "Não foi possível concluir a inscrição."); err.ja = j.jaInscrito; throw err; }
     localStorage.setItem("arche-ev-" + SLUG, j.token);
-    pos(j.token, j.pagamento);
+    pos(j.token, j.pagamento, j.presenca);
   } catch (e2) {
     // JÁ INSCRITO não é uma parede: quem não recebeu o e-mail volta aqui e
     // precisa de um caminho, não de um erro (pergunta do dono, ago/2026). A

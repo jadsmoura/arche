@@ -90,6 +90,7 @@ import {
   normalizarBlocos, TIPOS_BLOCO, CATEGORIAS_APOIO, REDES_SOCIAIS, FREQUENCIAS,
   minutosEntre, duracaoBR, eventoControlaFrequencia, temHotsiteEvento, liberadoParaParticipar,
   leEmTelao, duasLeituras, janelaDoTelao, codigoTelaoRotativo, codigoTelaoEstatico, lerCodigoTelao,
+  TELAO_TOLERANCIA_INSCRICAO,
   passeDeProjecao, lerPasseDeProjecao, versaoDoPasse,
   TELAO_JANELA_MIN, TELAO_JANELA_MAX,
 } from "./lib/eventos.js";
@@ -5474,6 +5475,14 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     const categoria = String(b.categoria || "").trim().slice(0, 40);
     const codigoVoucher = String(b.voucher || "").trim().slice(0, 30);
     const base = `${req.protocol}://${req.get("host")}`;
+    /* INSCREVER-SE E REGISTRAR A PRESENÇA SÃO UM ATO SÓ (pedido do dono,
+       set/2026): quem leu o QR do telão sem estar inscrito era mandado à
+       ficha e voltava para ler o QR de novo — e, no teste do próprio dono, a
+       presença simplesmente não foi computada. A leitura do telão chega aqui
+       nestes dois campos, e a presença se grava na MESMA passagem pela fila
+       da inscrição, logo depois de o inscrito existir. */
+    const presencaAtv = String(b.presenca || "").trim().slice(0, 40);
+    const presencaCod = String(b.c || "").trim().slice(0, 40);
 
     // dedupe, vagas e prazo se conferem DENTRO da fila: entre a leitura e a
     // gravação não pode entrar outra inscrição que fure a checagem
@@ -5648,7 +5657,7 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       }
       parts.inscritos.push(inscrito);
       a.atualizadoEm = new Date().toISOString();
-      return { acao: a, inscrito };
+      return { acao: a, inscrito, presenca: presencaDoTelaoNaInscricao(a, inscrito, presencaAtv, presencaCod) };
     // a subida do estado NÃO trava a fila (o QR projetado no telão faz
     // cinquenta pessoas se inscreverem ao mesmo tempo, e cada `flush`
     // reescreve o arquivo inteiro no Drive). O que garante a inscrição é o
@@ -5689,7 +5698,8 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     res.json({ ok: true, token: r.inscrito.token, codigo: codigoDe(r.inscrito.token),
       ...(r.inscrito.pagamento ? { pagamento: pagamentoPublico(r.inscrito, r.acao.evento) } : {}),
       ...(r.renovada ? { renovada: true } : {}),
-      ...(r.jaReservada ? { jaReservada: true } : {}) });
+      ...(r.jaReservada ? { jaReservada: true } : {}),
+      ...(r.presenca ? { presenca: r.presenca } : {}) });
     // O CADASTRO SE COMPLETA PELA INSCRIÇÃO (pedido do dono, set/2026): o que a
     // pessoa digitou entra no perfil da conta onde ele ainda está vazio — na
     // próxima inscrição já vem preenchido, e o portal não pede de novo.
@@ -7971,6 +7981,45 @@ const urlDaPresenca = (req, a, atv, codigo) => {
   const base = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
   return `${base}/eventos/${encodeURIComponent(a.evento.slug)}/presenca/${encodeURIComponent(atv.id)}?c=${encodeURIComponent(codigo)}`;
 };
+
+/* A PRESENÇA DENTRO DA INSCRIÇÃO (pedido do dono, set/2026: "se um usuário
+   não inscrito abrir o QR code de presença, ele deve registrar presença e se
+   inscrever ao mesmo tempo"). Roda DENTRO da fila da inscrição, com o
+   inscrito recém-criado na mão — é o que faz os dois atos caberem numa
+   passagem só, sem a pessoa voltar ao telão.
+
+   Três decisões que ela carrega: (1) presença que falha NUNCA derruba a
+   inscrição — a inscrição é o ato caro (cadastro, LGPD, vaga, cobrança) e
+   perdê-la por causa de um código vencido seria trocar um problema por outro
+   pior; o que não deu certo volta DITO, para a tela dizer o que fazer;
+   (2) a régua do EVENTO PAGO é a mesma da porta (`liberadoParaParticipar`):
+   inscrição que ainda não foi paga não ganha presença por ter vindo por
+   aqui — e a frase diz que ela se registra quando o pagamento confirmar;
+   (3) o código é lido com a tolerância do caminho da inscrição (20 min, ver
+   lib/eventos.js), porque preencher a ficha leva mais que a janela do QR. */
+function presencaDoTelaoNaInscricao(a, inscrito, aid, codigo) {
+  if (!aid || !codigo) return null;
+  try {
+    const { atv, erro } = atividadeDoTelao(a, aid);
+    if (erro) return { ok: false, motivo: erro[1] };
+    const cod = lerCodigoTelao(a.evento.chaveQr, atv.id, codigo,
+      { janela: janelaDoTelao(a.evento), tolerancia: TELAO_TOLERANCIA_INSCRICAO });
+    if (!cod.ok)
+      return { ok: false, atividade: atv.titulo, motivo: cod.motivo === "expirado"
+        ? "O código do telão venceu enquanto você preenchia a inscrição — leia o QR de novo para registrar a presença."
+        : "O código do telão não vale para esta atividade — leia o QR diretamente do telão." };
+    const lib = liberadoParaParticipar(a.evento, inscrito);
+    if (!lib.ok) return { ok: false, atividade: atv.titulo, aguardaPagamento: true, motivo: lib.motivo };
+    const p = registrarPresenca(a, atv, inscrito, { fase: cod.fase, por: "telão" });
+    if (p.erro) return { ok: false, atividade: atv.titulo, motivo: p.erro[1] };
+    return { ok: true, atividade: atv.titulo, fase: cod.fase,
+      presenteEm: p.presenteEm || "", ...(p.saida ? { saida: true } : {}),
+      ...(p.inscritoAgora ? { inscritoAgora: true } : {}), ...(p.trocouDe ? { trocouDe: p.trocouDe } : {}) };
+  } catch (e) {
+    console.error("[eventos] presença junto da inscrição:", e.message);
+    return { ok: false, motivo: "Não foi possível registrar a presença agora — leia o QR do telão de novo." };
+  }
+}
 async function acaoDoTelao(req, res) {
   const u = await sessaoEx(req, res);
   if (!u) return null;

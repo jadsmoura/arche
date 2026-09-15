@@ -822,6 +822,34 @@ test("telão estático: vale até a hora marcada, nunca no passado", () => {
   assert.equal(codigoTelaoEstatico(chave, "abc12345", "nada", { agora }), null);
 });
 
+test("tolerância do caminho da inscrição: recua, nunca adianta, e não vaza na leitura comum", async () => {
+  const { TELAO_TOLERANCIA_INSCRICAO } = await import("../lib/eventos.js");
+  const chave = gerarChaveQr();
+  const t0 = Date.parse("2026-09-10T14:00:05Z");
+  const tol = TELAO_TOLERANCIA_INSCRICAO;
+  assert.equal(tol, 20 * 60);
+  const { codigo } = codigoTelaoRotativo(chave, "abc12345", { agora: t0, janela: 60 });
+  // a LEITURA COMUM não muda: duas janelas depois já morreu
+  assert.equal(lerCodigoTelao(chave, "abc12345", codigo, { agora: t0 + 150_000, janela: 60 }).motivo, "expirado");
+  // o caminho da INSCRIÇÃO aceita o mesmo código por 20 min — é o tempo de
+  // preencher a ficha (e, quase sempre, de criar a conta)
+  assert.equal(lerCodigoTelao(chave, "abc12345", codigo, { agora: t0 + 10 * 60_000, janela: 60, tolerancia: tol }).ok, true);
+  assert.equal(lerCodigoTelao(chave, "abc12345", codigo, { agora: t0 + 19 * 60_000, janela: 60, tolerancia: tol }).ok, true);
+  // passada a folga, morre também ali
+  assert.equal(lerCodigoTelao(chave, "abc12345", codigo, { agora: t0 + 25 * 60_000, janela: 60, tolerancia: tol }).motivo, "expirado");
+  // a folga recua, NUNCA adianta: o código de uma janela futura não vale
+  const futuro = codigoTelaoRotativo(chave, "abc12345", { agora: t0 + 10 * 60_000, janela: 60 }).codigo;
+  assert.equal(lerCodigoTelao(chave, "abc12345", futuro, { agora: t0, janela: 60, tolerancia: tol }).ok, false);
+  // e a tolerância não afrouxa assinatura, atividade nem fase
+  assert.equal(lerCodigoTelao(chave, "outra000", codigo, { agora: t0, janela: 60, tolerancia: tol }).motivo, "invalido");
+  assert.equal(lerCodigoTelao(gerarChaveQr(), "abc12345", codigo, { agora: t0, janela: 60, tolerancia: tol }).motivo, "invalido");
+  // o estático segue a mesma régua: vence na hora, com a folga só no caminho da inscrição
+  const e = codigoTelaoEstatico(chave, "abc12345", "2026-09-10T18:00:00Z", { agora: t0 });
+  const venceu = Date.parse("2026-09-10T18:05:00Z");
+  assert.equal(lerCodigoTelao(chave, "abc12345", e.codigo, { agora: venceu }).motivo, "expirado");
+  assert.equal(lerCodigoTelao(chave, "abc12345", e.codigo, { agora: venceu, tolerancia: tol }).ok, true);
+});
+
 test("passe de projeção: vence, é de UMA atividade e se revoga em bloco", async () => {
   const { passeDeProjecao, lerPasseDeProjecao, versaoDoPasse } = await import("../lib/eventos.js");
   const chave = gerarChaveQr();
