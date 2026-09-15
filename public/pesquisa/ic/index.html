@@ -2763,12 +2763,20 @@ async function renderCertificados() {
 function renderAssinaturas() {
   const a = CERTS?.assinaturas || {};
   const lista = CERTS?.quemAssina || [];
-  const com = lista.filter((q) => a[q.chave]).length;
+  /* O que conta é o cargo que SAI ASSINADO, não o que tem envio institucional:
+     o slot vazio se completa pela imagem que a própria pessoa enviou no
+     perfil (set/2026), e contar só os envios diria "falta" sobre um documento
+     que já sai com a assinatura. */
+  const assinado = (q) => !!a[q.chave] || q.origem === "pessoal";
+  const com = lista.filter(assinado).length;
+  const doPerfil = lista.filter((q) => !a[q.chave] && q.origem === "pessoal");
   return `<div class="card">
     <div class="card-t">Assinaturas do certificado</div>
-    <div class="card-s">${com} de ${lista.length} assinatura(s) institucional(is) no banco —
-      ${lista.filter((q) => !a[q.chave]).map((q) => esc(q.rotulo)).join(", ") || "todas enviadas"}
+    <div class="card-s">${com} de ${lista.length} cargo(s) com assinatura —
+      ${lista.filter((q) => !assinado(q)).map((q) => esc(q.rotulo)).join(", ") || "todos assinados"}
       ${com < lista.length ? "sem imagem (o documento sai com a linha em branco)." : "."}
+      ${doPerfil.length ? `${doPerfil.map((q) => esc(q.rotulo)).join(", ")} ${doPerfil.length > 1
+        ? "assinam" : "assina"} pela imagem que a própria pessoa enviou no perfil.` : ""}
       Enviar, trocar e remover é no <a href="/assinaturas/"><b>banco de assinaturas</b></a>, a
       página única das assinaturas do portal.</div>
   </div>`;

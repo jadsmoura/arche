@@ -12469,9 +12469,15 @@ app.get("/api/ic/certificados", async (req, res) => {
       /* O card do banco se desenha DESTA lista — cargo, nome e onde a
          assinatura entra —, em vez de repetir os nomes à mão na tela. */
       const { ASSINA } = await import("./lib/pdf.js");
+      /* E DIZ de onde sai cada uma: o slot sem envio institucional pode já
+         estar assinado pela imagem que a própria pessoa mandou no perfil, e
+         um card dizendo "falta" sobre um documento que sai assinado é
+         contador que mente. */
+      const origens = await origemDasInstitucionais();
       resp.quemAssina = Object.entries(QUEM_ASSINA).map(([chave, rotulo]) => ({
         chave, rotulo, onde: ONDE_ASSINA[chave] || "",
         nome: ASSINA[CARGO_NO_PDF[chave]]?.nome || "",
+        origem: origens[chave] || "",
       }));
     }
     res.json(resp);
@@ -12684,12 +12690,70 @@ async function lerAssinaturas() {
   const raw = await storage.get(ASSINATURAS_KEY);
   return raw ? JSON.parse(raw) : {};
 }
+/* A ASSINATURA QUE A PESSOA ENVIOU VALE NO CARGO DELA (achado do dono
+   set/2026: "o prof. Wagner, coordenador de Pesquisa, anexou sua assinatura
+   no sistema, e alguns documentos que deveriam ser assinados por ele saem em
+   branco — está dividindo a assinatura do usuário de coordenador com o
+   usuário de professor?"). Não eram duas contas: eram dois REGISTROS.
+
+   `sys-assinaturas-v1` guarda por CARGO (`coordpesquisa`, `proreitor`…) e só
+   o gestor geral o alimenta; `sys-assinaturas-usuario-v1` guarda por PESSOA e
+   é onde a própria pessoa envia a sua, no /perfil/. Wagner não é gestor geral
+   — a rota do card institucional lhe responde 403 —, então tudo o que ele
+   podia fazer era enviar a própria, no banco de usuários. E o resultado dos
+   editais de IC e do ICEM, que é o que ele assina, lê só o registro de cargo:
+   a linha saía em branco, e o sistema não tinha como dizer por quê.
+
+   Promessa do banco de usuários, escrita quando ele nasceu: "envia-se uma vez
+   e ela serve onde a pessoa assinar". O cargo faltava nela. Agora o slot
+   VAZIO se completa pelo NOME do catálogo `ASSINA` — que é justamente onde se
+   declara quem ocupa cada cargo.
+
+   Três freios: o envio institucional VENCE (é ato deliberado do gestor geral,
+   e é dele a última palavra sobre o documento oficial); só a de TITULAR
+   completa — a de `terceiro` é imagem que outra pessoa digitalizou, e aceitá-la
+   aqui faria a assinatura do REITOR entrar num documento do MEC porque alguém
+   a subiu com o nome certo numa ata; e a régua do nome é a de sempre
+   (`nomeServeDeChave`: duas palavras, uma candidata). */
+async function assinaturaInstitucionalDoBanco(nome) {
+  if (!nomeServeDeChave(nome)) return null;
+  const reg = indicePorNome(await lerAssinaturasDeUsuarios()).get(chaveDoNome(nome));
+  if (!reg?.base64 || origemDaAssinatura(reg) !== "titular") return null;
+  try { return Buffer.from(reg.base64, "base64"); } catch { return null; }
+}
+
+/** De onde sai a imagem de cada cargo: "institucional", "pessoal" ou nada.
+ *  A tela usa isto para não dizer "falta" sobre o que o documento já assina. */
+async function origemDasInstitucionais() {
+  const guardadas = await lerAssinaturas();
+  const { ASSINA } = await import("./lib/pdf.js");
+  const out = {};
+  for (const chave of Object.keys(QUEM_ASSINA)) {
+    if (guardadas[chave]?.base64) { out[chave] = "institucional"; continue; }
+    const nome = ASSINA[CARGO_NO_PDF[chave]]?.nome || "";
+    if (await assinaturaInstitucionalDoBanco(nome)) out[chave] = "pessoal";
+  }
+  return out;
+}
+
 /** As imagens como Buffer, do jeito que o gerador de PDF precisa. */
 async function assinaturasParaPdf() {
   const guardadas = await lerAssinaturas();
   const out = {};
   for (const [quem, a] of Object.entries(guardadas)) {
     if (a?.base64) { try { out[quem] = Buffer.from(a.base64, "base64"); } catch { /* ignora */ } }
+  }
+  // o slot vazio se completa pela assinatura que a própria pessoa enviou
+  try {
+    const { ASSINA } = await import("./lib/pdf.js");
+    for (const chave of Object.keys(QUEM_ASSINA)) {
+      if (out[chave]) continue;
+      const img = await assinaturaInstitucionalDoBanco(ASSINA[CARGO_NO_PDF[chave]]?.nome || "");
+      if (img) out[chave] = img;
+    }
+  } catch (e) {
+    // completar é um acréscimo: falhando, o documento sai como saía antes
+    console.error("[assinaturas] não foi possível completar pelo banco pessoal:", e.message);
   }
   return out;
 }
@@ -13615,8 +13679,15 @@ app.get("/api/assinaturas/banco", async (req, res) => {
       ...(g.gestorGeral ? {
         institucionais: await (async () => {
           const guardadas = await lerAssinaturas();
+          const { ASSINA } = await import("./lib/pdf.js");
+          // `origem: "pessoal"` é o cargo que sai assinado pela imagem que a
+          // PRÓPRIA pessoa enviou no perfil: não há envio institucional, e o
+          // documento já não sai com a linha em branco. Dizer "sem imagem"
+          // ali mandaria o gestor resolver o que já está resolvido.
+          const origens = await origemDasInstitucionais();
           return Object.entries(QUEM_ASSINA).map(([chave, rotulo]) => ({
             chave, rotulo, tem: !!guardadas[chave]?.base64, em: guardadas[chave]?.em || "",
+            origem: origens[chave] || "", nome: ASSINA[CARGO_NO_PDF[chave]]?.nome || "",
           }));
         })(),
       } : {}),

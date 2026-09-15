@@ -251,14 +251,21 @@ function cardInstitucionais(){
       até 2 MB.</div>
     <div id="i-msg"></div>
     ${D.institucionais.map(a=>`<div class="linha">
-      <div class="quem"><div class="nm">${esc(a.rotulo)}</div>
-        <div class="dt">${a.tem?`enviada${a.em?` em ${fmt(a.em)}`:""}`:"sem imagem — sai a linha em branco"}</div></div>
+      <div class="quem"><div class="nm">${esc(a.rotulo)}${a.nome?` · ${esc(a.nome)}`:""}</div>
+        <div class="dt">${a.tem?`enviada${a.em?` em ${fmt(a.em)}`:""}`
+          :a.origem==="pessoal"?"assinada pela imagem que a própria pessoa enviou no perfil"
+          :"sem imagem — sai a linha em branco"}</div></div>
       ${a.tem?`<img src="/api/ic/assinatura/${esc(a.chave)}?t=${Date.now()}" alt="assinatura"
         style="height:34px;max-width:140px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px">`:""}
-      ${a.tem?'<span class="selo s-titular">✓ no banco</span>':'<span class="selo s-sem">sem imagem</span>'}
+      ${a.tem?'<span class="selo s-titular">✓ no banco</span>'
+        :a.origem==="pessoal"?'<span class="selo s-terceiro" title="O documento já sai assinado. Enviar aqui substitui esta imagem.">✓ do perfil</span>'
+        :'<span class="selo s-sem">sem imagem</span>'}
       <button class="bt bt-xs" onclick="enviarInstitucional('${esc(a.chave)}')">⬆ ${a.tem?"Substituir":"Enviar"}</button>
       ${a.tem?`<button class="bt bt-xs bt-err" title="Remover" onclick="removerInstitucional('${esc(a.chave)}')">✕</button>`:""}
     </div>`).join("")}
+    <div class="card-s" style="margin-top:10px">O cargo <b>sem envio aqui</b> ainda sai assinado quando a
+      própria pessoa mandou a dela no perfil — é o “✓ do perfil”. Enviar por aqui substitui essa imagem
+      naquele cargo; a do perfil dela continua valendo nos documentos dela.</div>
   </div>`;
 }
 async function removerInstitucional(quem){

@@ -4745,6 +4745,38 @@ public/
   identidade (`assinaturaPorIdentidade`: e-mail → CPF → nome completo, sempre a de TITULAR, e só
   com UMA conta casando — duas contas candidatas não se decide): o relatório de aula prática de
   quem tem a assinatura na OUTRA conta da mesma pessoa deixa de sair com a linha em branco.
+- **A ASSINATURA QUE A PESSOA ENVIOU VALE NO CARGO DELA** (`assinaturaInstitucionalDoBanco` +
+  `origemDasInstitucionais` + o complemento em `assinaturasParaPdf` no server, achado do dono
+  set/2026: "o prof. Wagner, coordenador de Pesquisa, anexou sua assinatura no sistema, e alguns
+  documentos que deveriam ser assinados por ele saem em branco — está dividindo a assinatura do
+  usuário de coordenador com o usuário de professor?"). **Não eram duas contas: eram dois
+  REGISTROS.** `sys-assinaturas-v1` guarda por CARGO (`coordpesquisa`, `proreitor`, `reitor`…) e
+  **só o gestor geral o alimenta** — `POST /api/ic/assinatura` responde 403 a qualquer outro;
+  `sys-assinaturas-usuario-v1` guarda por PESSOA e é onde a própria pessoa envia a sua, no
+  `/perfil/`. Wagner não é gestor geral, então **tudo o que ele podia fazer era o segundo** — e o
+  resultado dos editais de IC e do ICEM, que é justamente o que ele assina, lia só o primeiro: a
+  linha saía em branco e nada na tela dizia por quê (o card do banco ainda mostrava "sem imagem",
+  mandando resolver o que ele não tinha como resolver). Reproduzido em servidor isolado: com a
+  assinatura dele no perfil, o PDF saía com 24.698 bytes; só depois do envio do gestor no card
+  institucional ia a 25.517.
+  O banco de usuários nasceu com a promessa de que "envia-se uma vez e ela serve onde a pessoa
+  assinar" — **o cargo faltava nela**. Agora o slot VAZIO se completa pelo NOME do catálogo
+  `ASSINA` (lib/pdf.js), que é onde se declara quem ocupa cada cargo. Três freios: o **envio
+  institucional VENCE** (é ato deliberado do gestor geral, e a última palavra sobre o documento
+  oficial é dele — provado: a imagem dele troca a do perfil); só a de **TITULAR** completa — a de
+  `terceiro` é imagem que outra pessoa digitalizou, e aceitá-la aqui faria a assinatura do
+  **REITOR** entrar num documento do MEC porque alguém a subiu com o nome certo de dentro de uma
+  ata (provado: a de terceiro no nome do reitor não entra no cargo); e a régua do nome é a de
+  sempre (duas palavras, uma candidata). Completar é ACRÉSCIMO: falhando, o documento sai como
+  saía. Isso também resolve o caso que o dono suspeitou — pessoa com DUAS contas —, porque a
+  chave é o nome, não o e-mail.
+  **E as duas telas passaram a dizer de onde sai cada uma** (`origem` no payload): o banco mostra
+  "✓ do perfil" na linha do cargo sem envio institucional, e o card do ARCHÉ IC conta **cargos com
+  assinatura**, não envios — contar envios diria "falta" sobre um documento que já sai assinado, e
+  contador que mente é o defeito que este arquivo já corrigiu noutros lugares. **O caminho inverso
+  NÃO existe de propósito**: a imagem que o gestor põe num cargo não assina os documentos
+  individuais da pessoa (relatório de aula prática, anexos da monitoria) — lá vale a régua do
+  titular e do ato registrado, e uma imagem enviada por outro não pode afirmar um ato de alguém.
 - **O envio nos fluxos ALIMENTA o banco, e os documentos BUSCAM no banco**
   (`alimentarBancoDeAssinatura` + `assinaturaDoBancoPorNome` no server, pedido do dono
   ago/2026: "ao submeter ou gerenciar uma proposta, o professor pode subir sua assinatura e
