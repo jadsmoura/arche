@@ -8031,6 +8031,82 @@ app.get("/api/extensao/:id/telao/:aid/qr.png", async (req, res) => {
   }
 });
 
+/* LIGAR O TELÃO PELA PRÓPRIA GUIA CREDENCIAMENTO (pedido do dono, set/2026:
+   "eventos de uma única atividade também podem ter aquela opção do QR code
+   que atualiza e muda a cada ciclo; permita isso nessa página"). O modo do
+   telão se escolhe POR ATIVIDADE, na guia Programação — e a aula magna, a
+   palestra de uma tarde, a reunião não têm grade nenhuma: a guia
+   Credenciamento mandava a coordenadora montar uma programação para depois
+   voltar ali. Agora ela liga daqui, e o servidor faz o caminho inteiro num
+   ato: sem programação, CRIA a atividade que espelha o próprio evento (a
+   mesma régua do "⧉ Programação única" — nome, data, local, responsável e CH
+   da proposta, nascendo `geral`); com uma atividade, é ela; com várias, a
+   tela manda qual. Ligar o telão LIGA O CONTROLE DE FREQUÊNCIA do evento,
+   porque sem ele a presença seria recusada na gravação — o botão diz isso
+   antes. A mesma rota DESLIGA (volta a atividade para a leitura do monitor),
+   porque desfazer um clique não pode custar uma viagem a outra guia; o que
+   ela não faz é CRIAR atividade fora do modo telão — sem grade não há o que
+   desligar. Quem manda continua sendo o servidor: `atividadeDoTelao` recusa
+   projetar o que não está em modo telão. */
+const MODOS_TELAO_ROTA = new Set(["telao", "telao_entrada_saida", "entrada", "entrada_saida"]);
+app.post("/api/extensao/:id/telao/modo", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const modo = String(req.body?.modo || "telao");
+    if (!MODOS_TELAO_ROTA.has(modo))
+      return res.status(400).json({ error: "Modo de frequência inválido." });
+    const alvo = String(req.body?.atividade || "").trim();
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((x) => x.id === req.params.id);
+      if (!a || !podeOperarEvento(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      const congelado = eventoValidadoMsg(a);
+      if (congelado) return { erro: [409, congelado], gravar: false };
+      if (!a.evento?.slug)
+        return { erro: [400, "O credenciamento é emitido na primeira ativação da página do evento."], gravar: false };
+      const prog = Array.isArray(a.evento.programacao) ? a.evento.programacao : [];
+      let atv = null, criada = false;
+      if (alvo) {
+        atv = prog.find((p) => p?.id === alvo);
+        if (!atv) return { erro: [404, "Atividade não encontrada na programação."], gravar: false };
+      } else if (prog.length === 1) {
+        atv = prog[0];
+      } else if (prog.length > 1) {
+        return { erro: [400, "Este evento tem mais de uma atividade — escolha em qual delas o QR será projetado."], gravar: false };
+      } else {
+        if (!leEmTelao(modo))
+          return { erro: [400, "Este evento não tem programação — não há atividade a desligar."], gravar: false };
+        // sem grade nenhuma: a atividade que espelha o evento. Normalizo UM
+        // item sozinho (a lista está vazia, então o id não colide) — passar a
+        // lista inteira por aqui mexeria na foto de quem ministra das outras.
+        const p = a.proposta || {};
+        atv = normalizarProgramacao([{
+          tipo: "palestra", titulo: p.nomeAtividade || "Atividade do evento",
+          dia: p.periodoInicio || "", local: p.local || "", responsavel: p.respNome || "",
+          ch: String(p.cargaHoraria || ""), inscricao: "geral", modalidade: "presencial",
+          frequencia: modo,
+        }])[0];
+        a.evento.programacao = [atv];
+        criada = true;
+      }
+      atv.frequencia = modo;
+      // o telão É controle de frequência: sem isto, `registrarPresenca`
+      // recusaria toda leitura do QR que esta tela acabou de oferecer.
+      // Desligar o telão não desliga o controle — a porta continua de pé.
+      const ligouControle = leEmTelao(modo) && a.evento.controleFrequencia === false;
+      if (leEmTelao(modo)) a.evento.controleFrequencia = true;
+      a.atualizadoEm = new Date().toISOString();
+      return { valor: { acao: a, atividade: atv.id, criada, ligouControle }, gravar: true };
+    });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, atividade: r.valor.atividade, criada: r.valor.criada,
+      ligouControle: r.valor.ligouControle, acao: acaoSemSegredos(r.valor.acao) });
+  } catch (e) {
+    console.error("Erro ao ligar o telão:", e);
+    res.status(500).json({ error: "Não foi possível ligar o telão agora." });
+  }
+});
+
 /** O que a página de presença precisa ANTES de gravar: o evento e a
  *  atividade, se o código ainda vale, e quem está logado (para preencher). */
 app.get("/api/publico/eventos/:slug/presenca/:aid", async (req, res) => {

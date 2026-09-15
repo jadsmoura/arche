@@ -1921,6 +1921,35 @@ public/
   registraram**, que é o número que quem está no palco olha para saber se dá para fechar. Gravação com
   `flushJa: false`, como a porta: cinquenta celulares lendo o telão ao mesmo tempo não podem esperar o
   Drive cinquenta vezes.
+- **O TELÃO SE LIGA NA PRÓPRIA GUIA CREDENCIAMENTO, e a escolha entre DINÂMICO e ESTÁTICO está à
+  vista** (`POST /api/extensao/:id/telao/modo` + `blocoLigarTelao` no ARCHÉ EV, pedido do dono
+  set/2026, com o print de uma AULA MAGNA recém-cadastrada: "eventos de uma única atividade também
+  podem ter aquela opção do QR code que atualiza e muda a cada ciclo; permita isso nessa página.
+  Entre escolher um estático e um dinâmico"). O modo é POR ATIVIDADE e se escolhia só na guia
+  Programação — e a aula magna, a palestra de uma tarde, a reunião **não têm grade nenhuma**: a guia
+  Credenciamento mandava a coordenadora montar uma programação noutra guia para depois voltar ali, e
+  com o evento declarado "sem credenciamento" no assistente o card do telão nem se desenhava. Agora o
+  caminho inteiro cabe nesta página, e quem faz o trajeto é o SERVIDOR, num ato só: **sem programação
+  ele CRIA a atividade que espelha o evento** (a mesma régua do "⧉ Programação única" — nome, data,
+  local, responsável e CH da proposta, nascendo `geral`, para ninguém ter de marcá-la no formulário);
+  com uma atividade, é ela; com várias, a tela manda qual, e **recusa adivinhar** quando não mandam.
+  Três decisões: ligar o telão **LIGA O CONTROLE DE FREQUÊNCIA** do evento — sem ele
+  `registrarPresenca` recusaria toda leitura do QR que a tela acabou de oferecer —, e o botão diz
+  isso antes, nomeando a consequência (hoje todo inscrito conta presente; a partir daí, só quem
+  registrar); a MESMA rota **desliga** (a atividade volta ao credenciamento pela porta), porque
+  desfazer um clique não pode custar uma viagem a outra guia — e desligar o telão **não** desliga o
+  controle, que é da porta; e a régua continua sendo do servidor — `atividadeDoTelao` recusa projetar
+  o que não está em modo telão, então o botão nunca promete o que a rota negaria. O card deixou de
+  esconder a escolha em duas linhas de letra miúda: são **dois blocos nomeados** — 🔄 *Dinâmico*
+  (troca a cada `telaoJanela`; abre a página de projeção) e 📌 *Estático* (vale até a hora marcada,
+  para o slide que não se atualiza) —, e a validade padrão do estático passou a ser o **dia da
+  atividade**, não o de hoje, que é o que ela sugeria à atividade sem horário. Com o telão já ligado
+  em alguma, o bloco vira "ligar em outra atividade" e **some quando não sobra nenhuma**: campo sem
+  resposta é pior que bloco nenhum.
+  No mesmo passo, o **seletor de evento parou de fazer a página rolar de lado no telefone**
+  (`.side-sel{min-width:0}`): item de flex nasce com `min-width:auto` e se recusa a ficar menor que o
+  próprio conteúdo, então nome comprido — "AULA MAGNA — DIA MUNDIAL DO AGRÔNOMO" — estourava 14 px
+  da tela; quem trunca é o `text-overflow` do botão, que só age quando ele pode encolher.
 - **QR de inscrição para projetar** (`/api/publico/eventos/:slug/qr-inscricao.png`, botão na
   guia Credenciamento): nem toda reunião dá para inscrever antes — o QR da página do evento
   vai ao telão no encerramento e quem estava ali se inscreve na hora. Tem versão em tela
