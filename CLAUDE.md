@@ -2917,7 +2917,16 @@ public/
   não se reenvia). Registro legado com `relatorio.texto` migra para o FINAL
   (`normalizarRelatoriosEM`). A gestão exporta a turma ou UM bolsista em
   `GET /api/ic/em/bolsistas.xlsx?turma=&bolsista=` (botões na guia, com o quadro "Dados
-  do aluno" no cartão). A turma 2025/2026 foi **alinhada pelos 24 termos assinados**
+  do aluno" no cartão). **A planilha diz o PROJETO ACOMPANHADO** (pedido do dono set/2026:
+  "inclua no excel também o projeto escolhido"): nº, título, orientação e o período, do
+  trecho VIGENTE da trajetória — o mesmo vínculo que o cartão da guia mostra, sem segundo
+  lugar a consultar. Três decisões: o valor sai do **PROJETO como ele está hoje** (o trecho
+  guarda um retrato feito no dia da escolha, e a gestão corrige o texto da proposta depois),
+  com o retrato como reserva para o projeto que já não existe na base; **sem trecho aberto
+  vale o ÚLTIMO** — quem foi desligado não tem um, e apagar a linha esconderia o projeto que
+  ele de fato acompanhou —, e o período distingue os dois casos ("desde 01/09" × "01/09 a
+  10/09"); e a coluna **Situação** entrou junto, porque sem ela projeto em branco diria duas
+  coisas — "ainda não escolheu" e "saiu do programa". A turma 2025/2026 foi **alinhada pelos 24 termos assinados**
   (`completarTurmaEM2025`, dados/ic-em-2025-termos.json): completou registros, incluiu
   Ellisa Vitórya e Letícia Lopes (termos manuscritos; CPFs inválidos na fonte ficaram de
   fora, como o da Anna Gabrielly) e corrigiu a bolsa de Rebeca (UNIEGO) e Anna Júlia

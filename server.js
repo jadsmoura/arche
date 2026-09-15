@@ -15615,6 +15615,20 @@ app.get("/api/ic/em/bolsistas.xlsx", async (req, res) => {
       { header: "Telefone", key: "telefone", width: 16 },
       { header: "E-mail", key: "email", width: 30 },
       { header: "Curso de interesse", key: "curso", width: 20 },
+      /* O PROJETO QUE ELE ACOMPANHA (pedido do dono set/2026). O vínculo é o
+         trecho VIGENTE da trajetória, o mesmo que o cartão da guia mostra —
+         não há segundo lugar a consultar. O trecho guarda um retrato do
+         projeto (nº, título, orientação) feito no dia da escolha, e a gestão
+         corrige o texto da proposta depois: por isso o valor sai do PROJETO
+         como ele está hoje, com o retrato como reserva para o projeto que já
+         não existe. E a coluna Situação entra junto porque, sem ela, projeto
+         em branco diria duas coisas — "ainda não escolheu" e "saiu do
+         programa" (desligar fecha o trecho aberto). */
+      { header: "Situação", key: "situacao", width: 12 },
+      { header: "Projeto acompanhado", key: "projNumero", width: 16 },
+      { header: "Título do projeto", key: "projTitulo", width: 44 },
+      { header: "Orientação", key: "projOrientador", width: 28 },
+      { header: "Acompanha desde", key: "projDesde", width: 22 },
       { header: "Responsável", key: "respNome", width: 30 },
       { header: "CPF do Responsável", key: "respCpf", width: 16 },
       { header: "Banco", key: "banco", width: 18 },
@@ -15623,12 +15637,31 @@ app.get("/api/ic/em/bolsistas.xlsx", async (req, res) => {
       { header: "Pix", key: "pix", width: 24 },
     ];
     ws.getRow(1).font = { bold: true };
+    const projetos = new Map((await lerProjetos()).map((p) => [p.id, p]));
+    const dia = (x) => (/^\d{4}-\d{2}-\d{2}$/.test(String(x || "")) ? x.split("-").reverse().join("/") : "");
+    const ROTULO_SIT = { ativo: "Ativo", concluido: "Concluído", desligado: "Desligado" };
+    /* O trecho vigente e, na falta dele, o ÚLTIMO da trajetória: quem foi
+       desligado (ou trocou e ficou sem) não tem trecho aberto, e deixar a
+       linha vazia apagaria o projeto que ele de fato acompanhou. O período
+       diz qual é o caso — "desde …" para o aberto, "… a …" para o fechado. */
+    const acompanhamento = (b) => {
+      const t = b?.trajetoria || [];
+      return t.find((e) => !e.ate) || t[t.length - 1] || null;
+    };
     for (const b of lista) {
+      const tr = acompanhamento(b);
+      const p = tr?.projetoId ? projetos.get(tr.projetoId) : null;
       ws.addRow(linhaSegura({
         turma: b.turma, bolsa: bolsaEmDe(b.bolsa)?.nome || (b.bolsa || "—"),
         nome: b.nome, cpf: formatarCpf(b.cpf) || "", rg: b.rg || "",
         escola: b.escola || "", serie: b.serie || "", telefone: b.telefone || "",
         email: b.email || "", curso: b.cursoInteresse || "",
+        situacao: ROTULO_SIT[b.situacao] || b.situacao || "",
+        projNumero: p?.numero || tr?.numero || "",
+        projTitulo: p?.titulo || tr?.titulo || "",
+        projOrientador: p?.orientador?.nome || tr?.orientador || "",
+        projDesde: !tr ? ""
+          : tr.ate ? `${dia(tr.de)} a ${dia(tr.ate)}` : (dia(tr.de) ? `desde ${dia(tr.de)}` : ""),
         respNome: b.responsavel?.nome || "", respCpf: formatarCpf(b.responsavel?.cpf) || "",
         banco: b.banco || "", agencia: b.agencia || "", conta: b.conta || "", pix: b.pix || "",
       }));
