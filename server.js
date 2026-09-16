@@ -2151,7 +2151,11 @@ app.get("/api/publico/ic/resultado.pdf", async (req, res) => {
     const numero = String(req.query.edital || EDITAL.numero).trim();
     if (RESULTADOS_EDITAIS[numero]) return res.redirect(RESULTADOS_EDITAIS[numero]);
     const pub = (await resultadosPublicados())[numero];
-    if (!pub)
+    // o público baixa QUALQUER fase que a PROPPEX tenha publicado — a em
+    // vigor por padrão, o preliminar por `?fase=`, que fica na página ao
+    // lado do final; fase não publicada não existe por aqui
+    const alvo = faseServivel(pub, req.query.fase);
+    if (!alvo)
       return res.status(404).send("O resultado deste edital ainda não foi publicado.");
     const todos = await lerProjetos();
     const neutro = { email: "", cpf: "", gestao: true };
@@ -2159,14 +2163,13 @@ app.get("/api/publico/ic/resultado.pdf", async (req, res) => {
       .filter((p) => String(p.edital || EDITAL.numero) === numero && p.status !== "rascunho")
       .map((p) => resumirProjeto(p, neutro));
     const assinaturas = await assinaturasParaPdf();
-    const fase = pub.fase || "final";
-    // o público baixa a fase que a PROPPEX publicou: preliminar ou final
+    const { fase, em: publicadoEm } = alvo;
     const { buffer, novo: gerado } = await pdfPublicoEmCache("ic-resultado",
-      [numero, fase, projetos, marcaDasAssinaturas(assinaturas)], async () => {
+      [numero, fase, publicadoEm, projetos, marcaDasAssinaturas(assinaturas)], async () => {
         const { gerarResultadoEditalPdf } = await import("./lib/pdf.js");
         return gerarResultadoEditalPdf({
           edital: numero === EDITAL.numero ? EDITAL : { numero }, projetos, emitidoPor: "",
-          fase, assinaturas });
+          fase, publicadoEm, assinaturas });
       });
     if (gerado) arquivarDocumento({ buffer, pasta: `Iniciação Científica/Resultados/${anoDaPasta(numero)}`,
       nome: `resultado-${slug(numero)}-${slug(fase)}.pdf` });
@@ -2188,15 +2191,16 @@ app.get("/api/publico/ic/em/resultado.pdf", async (req, res) => {
     if (!turma) return res.status(404).send(`Edital ${numeroPedido} não encontrado no ICEM.`);
     if (turma.resultado) return res.redirect(turma.resultado);
     const pub = (await resultadosPublicadosEM())[turma.edital];
-    if (!pub)
+    const alvo = faseServivel(pub, req.query.fase);       // preliminar e final, como na graduação
+    if (!alvo)
       return res.status(404).send("O resultado deste edital ainda não foi publicado.");
     const bolsistas = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo);
     const assinaturas = await assinaturasParaPdf();
-    const fase = pub.fase || "final";
+    const { fase, em: publicadoEm } = alvo;
     const { buffer, novo: gerado } = await pdfPublicoEmCache("em-resultado",
-      [turma, fase, bolsistas, marcaDasAssinaturas(assinaturas)], async () => {
+      [turma, fase, publicadoEm, bolsistas, marcaDasAssinaturas(assinaturas)], async () => {
         const { gerarResultadoEMPdf } = await import("./lib/pdf.js");
-        return gerarResultadoEMPdf({ turma, bolsistas, emitidoPor: "", fase, assinaturas });
+        return gerarResultadoEMPdf({ turma, bolsistas, emitidoPor: "", fase, publicadoEm, assinaturas });
       });
     if (gerado) arquivarDocumento({ buffer, pasta: `Iniciação Científica/Resultados/${anoDaPasta(turma.edital, turma.ciclo)}`,
       nome: `resultado-icem-${slug(turma.edital)}-${slug(fase)}.pdf` });
@@ -12539,6 +12543,39 @@ async function resultadosPublicados() {
   return raw ? JSON.parse(raw) : {};
 }
 
+/**
+ * AS FASES PUBLICADAS de um resultado, da EM VIGOR para as anteriores
+ * (pedido do dono, set/2026: "mantenha na página de editais os PDF de
+ * resultados preliminares também, além dos finais"). Publicado o final, o
+ * preliminar sumia da página — e ele é documento do processo: é a lista com
+ * que a PROPPEX foi à presidência definir as cotas, e o marco de onde correu
+ * o prazo de contestação. Não é preciso arquivar nada: o registro da
+ * publicação já guarda a data de CADA fase (`desde`) e o documento se gera
+ * na hora; o que faltava era a página oferecer as duas.
+ *
+ * Duas regras: só sai a fase que foi MESMO publicada — o preliminar que a
+ * gestão pulou não existe, e servi-lo por `?fase=` seria publicar pela URL;
+ * e nunca sai fase POSTERIOR à que está em vigor, senão a gestão que recuou
+ * do final ao preliminar voltaria a divulgar o final que retirou. É a MESMA
+ * função na tela e na rota: a página não oferece link que a rota recuse.
+ * Registro antigo, anterior ao `desde`, tem só a fase em vigor.
+ */
+const ORDEM_FASES = ["final", "preliminar"];          // da mais recente para a mais antiga
+function fasesDoResultado(pub) {
+  if (!pub?.fase) return [];
+  const datas = { ...(pub.desde || {}) };
+  if (datas[pub.fase] === undefined) datas[pub.fase] = pub.em || "";
+  return ORDEM_FASES.slice(ORDEM_FASES.indexOf(pub.fase))
+    .filter((f) => datas[f] !== undefined)
+    .map((f) => ({ fase: f, em: datas[f] || "" }));
+}
+/** A fase pedida (`?fase=`), se publicada; sem pedido, a que está em vigor. */
+function faseServivel(pub, pedida) {
+  const fases = fasesDoResultado(pub);
+  const f = String(pedida || "").trim();
+  return f ? fases.find((x) => x.fase === f) || null : fases[0] || null;
+}
+
 function editaisConhecidos(projetos, publicados = {}, termos = {}) {
   // as contagens são agregadas de TODOS os projetos (quem chama é o servidor,
   // não a visão de cada um) — é o que permite mostrar a guia Editais e
@@ -12563,6 +12600,10 @@ function editaisConhecidos(projetos, publicados = {}, termos = {}) {
     // vigente passa pelas fases preliminar → final, publicadas pela gestão
     resultadoFase: RESULTADOS_EDITAIS[numero] ? "final" : (publicados[numero]?.fase || null),
     resultadoPublicado: !!RESULTADOS_EDITAIS[numero] || !!publicados[numero],
+    // TODAS as fases já publicadas, para a página oferecer o preliminar ao
+    // lado do final (o PDF catalogado é o final da época: uma fase só)
+    resultadoFases: RESULTADOS_EDITAIS[numero]
+      ? [{ fase: "final", em: "" }] : fasesDoResultado(publicados[numero]),
     // os termos de compromisso só aparecem para aluno e orientação depois da
     // publicação — a cerimônia de assinaturas é que abre o documento
     termosPublicados: !!termos[numero],
@@ -12582,6 +12623,8 @@ const editaisEMParaLista = (publicados = {}) => TURMAS_EM.map((t) => ({
   // o da turma vigente passa pelas fases preliminar → final, como na graduação
   resultadoFase: t.resultado ? "final" : (publicados[t.edital]?.fase || null),
   resultadoPublicado: !!t.resultado || !!publicados[t.edital],
+  resultadoFases: t.resultado
+    ? [{ fase: "final", em: "" }] : fasesDoResultado(publicados[t.edital]),
 })).sort((a, b) => b.ciclo.localeCompare(a.ciclo, "pt-BR"));
 
 /** A publicação do resultado do ICEM — a mesma lógica em duas fases da
@@ -12746,11 +12789,17 @@ app.get("/api/ic/resultado.pdf", async (req, res) => {
     const pub = (await resultadosPublicados())[numero];
     if (!gereIC(u) && !pub)
       return res.status(403).send("O resultado deste edital ainda não foi publicado pela PROPPEX.");
-    // a gestão escolhe a fase da prévia (?fase=preliminar|final); os demais
-    // baixam exatamente a fase publicada
+    // a gestão escolhe a fase da PRÉVIA (?fase=preliminar|final), publicada
+    // ou não; os demais baixam as fases publicadas — a em vigor e o
+    // preliminar, que fica na guia ao lado do final
+    const alvo = faseServivel(pub, req.query.fase);
     const fase = gereIC(u)
-      ? (["preliminar", "final"].includes(req.query.fase) ? req.query.fase : (pub?.fase || "final"))
-      : (pub.fase || "final");
+      ? (["preliminar", "final"].includes(req.query.fase) ? req.query.fase : (alvo?.fase || "final"))
+      : alvo?.fase;
+    if (!fase) return res.status(404).send("O resultado desta fase ainda não foi publicado.");
+    // a data é a da publicação DAQUELA fase; a prévia do que ainda não se
+    // publicou sai com a de hoje, que é o que ela é
+    const publicadoEm = alvo?.fase === fase ? alvo.em : "";
     const todos = await lerProjetos();
     const neutro = { email: "", cpf: "", gestao: true };
     const projetos = todos
@@ -12759,7 +12808,7 @@ app.get("/api/ic/resultado.pdf", async (req, res) => {
     const { gerarResultadoEditalPdf } = await import("./lib/pdf.js");
     const buffer = await gerarResultadoEditalPdf({
       edital: numero === EDITAL.numero ? EDITAL : { numero },
-      projetos, emitidoPor: u.email, fase, assinaturas: await assinaturasParaPdf(),
+      projetos, emitidoPor: u.email, fase, publicadoEm, assinaturas: await assinaturasParaPdf(),
     });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(numero)}.pdf"`);
@@ -15739,12 +15788,15 @@ app.get("/api/ic/em/resultado.pdf", async (req, res) => {
     const pub = (await resultadosPublicadosEM())[turma.edital];
     if (!gereIC(u) && !pub)
       return res.status(403).send("O resultado deste edital ainda não foi publicado pela PROPPEX.");
+    const alvo = faseServivel(pub, req.query.fase);
     const fase = gereIC(u)
-      ? (["preliminar", "final"].includes(req.query.fase) ? req.query.fase : (pub?.fase || "final"))
-      : (pub.fase || "final");
+      ? (["preliminar", "final"].includes(req.query.fase) ? req.query.fase : (alvo?.fase || "final"))
+      : alvo?.fase;
+    if (!fase) return res.status(404).send("O resultado desta fase ainda não foi publicado.");
+    const publicadoEm = alvo?.fase === fase ? alvo.em : "";
     const bolsistas = (await lerBolsistasEM()).filter((b) => b.turma === turma.ciclo);
     const { gerarResultadoEMPdf } = await import("./lib/pdf.js");
-    const buffer = await gerarResultadoEMPdf({ turma, bolsistas, emitidoPor: u.email, fase,
+    const buffer = await gerarResultadoEMPdf({ turma, bolsistas, emitidoPor: u.email, fase, publicadoEm,
       assinaturas: await assinaturasParaPdf() });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="resultado-edital-${slug(turma.edital)}.pdf"`);

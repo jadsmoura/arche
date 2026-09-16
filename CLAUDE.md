@@ -4016,6 +4016,32 @@ public/
   "Avaliação do ciclo" (avaliados/total), e só aparecem com **todos os projetos
   avaliados** — ou com uma fase já publicada, para dar o passo seguinte ou recolher.
   Os PDFs catalogados em `RESULTADOS_EDITAIS` são finais da época e ficam sempre abertos.
+- **O PRELIMINAR FICA NA PÁGINA AO LADO DO FINAL, e cada documento leva a DATA DA SUA
+  PUBLICAÇÃO** (`fasesDoResultado`/`faseServivel` no server + `resultadoFases` no payload +
+  `botoesResultado` na vitrine `/editais` e na guia do setor + `publicadoEm` nos dois
+  geradores, pedido do dono set/2026: "mantenha na página de editais os PDF de resultados
+  preliminares também, além dos finais"). Publicado o final, o preliminar **sumia**: a
+  página mostrava UM botão, escolhido pela fase em vigor, e o `?fase=` público era ignorado.
+  E ele não é rascunho — é documento do processo: é a lista com que a PROPPEX foi à
+  presidência definir as cotas, e o marco de onde correu o **prazo de contestação**. Nada
+  precisou ser arquivado: o registro da publicação já guardava a data de CADA fase (`desde`,
+  que existe desde ago/2026 para republicar não reiniciar o relógio da contestação) e o
+  documento se gera na hora; o que faltava era a página oferecer as duas e a rota servi-las.
+  **A régua é UMA e vale nos dois lados** — a mesma função monta a lista de botões e decide
+  o que a rota serve, então nenhum botão leva a 404 e nenhuma fase se baixa por URL: só sai
+  a fase **mesmo publicada** (o preliminar que a gestão pulou não existe) e **nunca uma
+  posterior à que está em vigor**, senão a gestão que recuasse do final ao preliminar
+  voltaria a divulgar o final que retirou. O PDF catalogado da época é um documento só (o
+  final daquele ciclo), e a **prévia da gestão** segue como era: ela baixa qualquer fase,
+  publicada ou não.
+  **E a data deixou de ser a de hoje** (`dataExtenso` em lib/pdf.js): o resultado é gerado
+  a cada visita, e o "Goianésia, … de …" saía de `hojeExtenso()` — o preliminar reaberto em
+  dezembro sairia datado de dezembro, contradizendo o prazo que correu da publicação dele, e
+  o final que a PROPPEX divulgou em setembro mudaria de data a cada download. Agora cada
+  fase leva a data em que FOI publicada (`desde[fase]`), com a de hoje só onde não há
+  registro — o PDF arquivado da época e a prévia do que ainda não se publicou, que é o que
+  ela é. Ensaiado ponta a ponta: preliminar 10/09, final 15/09, ICEM 12/09, com o servidor
+  rodando em 16/09.
 - **Ver como** (`visaoComo` no server): a coordenação abre o ARCHÉ IC pelos olhos de
   qualquer pessoa do setor — professor, aluno ou avaliador — para conferir o que ela
   enxerga. Não é atalho de permissão: o alvo é tratado como quem é (`gestao: false`),

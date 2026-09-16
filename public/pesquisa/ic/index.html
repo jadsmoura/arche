@@ -4248,6 +4248,21 @@ function renderEditais() {
       ${fase !== "final" ? `<button class="bt ${fase === "preliminar" ? "bt-pri" : "bt-sec"}" onclick="publicarResultado('${esc(e.numero)}','final')">🏁 Publicar final</button>` : ""}`;
   };
 
+  /* UM BOTÃO POR FASE PUBLICADA (pedido do dono, set/2026): publicado o
+     final, o preliminar sumia da guia — e ele é documento do processo, não
+     rascunho. O que está EM VIGOR vem primeiro; o anterior fica ao lado,
+     nomeado. `resultadoFases` vem do servidor e é a MESMA régua da rota:
+     nenhum botão daqui leva a um 404. O PDF arquivado da época é um
+     documento só — o final daquele ciclo. */
+  const ROTULO_FASE = { preliminar: "Resultado preliminar", final: "Resultado final" };
+  const botoesResultado = (e, rota) => {
+    if (e.resultadoDocumento)
+      return `<a class="bt bt-sec" href="${esc(e.resultadoDocumento)}" target="_blank" rel="noopener">📄 Resultado final (PDF) — publicado</a>`;
+    const fases = e.resultadoFases?.length ? e.resultadoFases : [{ fase: e.resultadoFase || "final" }];
+    return fases.map((f, i) => `<a class="bt bt-sec" href="${rota}&fase=${encodeURIComponent(f.fase)}"
+      target="_blank" rel="noopener"${i ? ' style="opacity:.82"' : ""}>📄 ${ROTULO_FASE[f.fase] || "Resultado"} (PDF)</a>`).join("");
+  };
+
   const blocoGrad = (e) => `<div style="border-top:1px solid var(--linha);padding:14px 0 6px;margin-top:12px">
     <div style="font-weight:700">Edital ${esc(e.numero)} — Graduação (IC · IT · IE)
       ${e.vigente ? ' <span class="badge b-aprovado">vigente</span>' : ""}</div>
@@ -4256,8 +4271,7 @@ function renderEditais() {
       ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">
         📜 Edital (PDF)</a>` : `<span class="muted">Documento do edital ainda não arquivado.</span>`}
       ${e.resultadoPublicado
-        ? `<a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">
-            📄 ${e.resultadoFase === "preliminar" ? "Resultado preliminar (PDF)" : "Resultado final (PDF)"}${e.resultadoDocumento ? " — publicado" : ""}</a>`
+        ? botoesResultado(e, `/api/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}`)
         : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default"
             title="O resultado será divulgado pela PROPPEX ao fim do ciclo de avaliações">⏳ Resultado em breve</button>`}
       ${e.resultadoFase === "preliminar" ? `<span class="badge b-submetido" style="align-self:center">resultado final em breve</span>` : ""}
@@ -4272,7 +4286,7 @@ function renderEditais() {
     <div class="muted" style="margin-top:8px">${e.resultadoFase === "preliminar"
       ? `Resultado preliminar publicado — só os projetos aprovados. O resultado final, com a bolsa concedida, sai depois da distribuição das bolsas.`
       : e.resultadoPublicado
-        ? `O resultado sai sempre com os dados de agora — emitido na hora.`
+        ? `O resultado sai com os dados de agora — emitido na hora, e datado do dia em que a fase foi publicada.${(e.resultadoFases || []).length > 1 ? " O preliminar continua aqui, ao lado do final: ele é documento do processo." : ""}`
         : `O resultado será divulgado pela PROPPEX quando o ciclo de avaliações terminar.${META.gestao ? " A publicação (preliminar e final) se faz aqui ou no Painel — são os mesmos botões." : ""}`}${META.gestao ? ` A lista dos projetos está na guia
       <a href="#" onclick="nav('classificacao');return false">Projetos</a>.` : ""}</div>
   </div>`;
@@ -4287,8 +4301,7 @@ function renderEditais() {
       ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📜 Edital (PDF)</a>`
         : `<span class="muted">Documento do edital ainda não arquivado.</span>`}
       ${e.resultadoPublicado
-        ? `<a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/ic/em/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">
-            📄 ${e.resultadoFase === "preliminar" ? "Resultado preliminar (PDF)" : "Resultado final (PDF)"}${e.resultadoDocumento ? " — publicado" : ""}</a>`
+        ? botoesResultado(e, `/api/ic/em/resultado.pdf?edital=${encodeURIComponent(e.numero)}`)
         : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default"
             title="O resultado será divulgado pela PROPPEX ao fim da seleção">⏳ Resultado em breve</button>`}
       ${e.resultadoFase === "preliminar" ? `<span class="badge b-submetido" style="align-self:center">resultado final em breve</span>` : ""}

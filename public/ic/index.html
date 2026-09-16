@@ -111,6 +111,25 @@ fetch("/api/publico/ic").then(async (r) => {
   // UM QUADRO POR ANO (pedido do dono, ago/2026): dentro de cada ano, os
   // dois processos — o edital 01 (graduação: IC/IT/IE) e o 02 (Ensino
   // Médio) — com o edital e os resultados preliminar e final de cada um
+
+  /* UM BOTÃO POR FASE PUBLICADA (pedido do dono, set/2026: "mantenha na
+     página de editais os PDF de resultados preliminares também, além dos
+     finais"). Publicado o final, o preliminar sumia — e ele é documento do
+     processo, não rascunho: é a lista com que a PROPPEX foi definir as cotas
+     e o marco de onde correu o prazo de contestação. O que está EM VIGOR vem
+     primeiro (é o que se procura); o anterior fica ao lado, nomeado. Quem
+     manda é o servidor: `resultadoFases` é a mesma régua que a rota usa para
+     decidir o que serve, então nenhum botão aqui leva a um 404. */
+  const ROTULO_FASE = { preliminar: "Resultado preliminar", final: "Resultado final" };
+  const botoesResultado = (e, rota) => {
+    // PDF arquivado da época: um documento só, o final daquele ciclo
+    if (e.resultadoDocumento)
+      return `<a class="bt bt-sec" href="${esc(e.resultadoDocumento)}" target="_blank" rel="noopener">📄 Resultado final (PDF)</a>`;
+    const fases = e.resultadoFases?.length ? e.resultadoFases : [{ fase: e.resultadoFase || "final" }];
+    return fases.map((f, i) => `<a class="bt bt-sec" href="${rota}&fase=${encodeURIComponent(f.fase)}"
+      target="_blank" rel="noopener"${i ? ' style="opacity:.82"' : ""}>📄 ${ROTULO_FASE[f.fase] || "Resultado"} (PDF)</a>`).join("");
+  };
+
   const cartaoGrad = (e) => {
     const doEdital = (j.projetos || []).filter((p) => p.edital === e.numero);
     const linha = (p) => `<tr>
@@ -129,7 +148,7 @@ fetch("/api/publico/ic").then(async (r) => {
       <div class="exp">
         ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📜 Edital (PDF)</a>` : ""}
         ${e.resultadoPublicado
-          ? `<a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/publico/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">📄 ${e.resultadoFase === "preliminar" ? "Resultado preliminar (PDF)" : "Resultado final (PDF)"}</a>`
+          ? botoesResultado(e, `/api/publico/ic/resultado.pdf?edital=${encodeURIComponent(e.numero)}`)
           : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default" title="O resultado será divulgado pela PROPPEX ao fim do ciclo de avaliações">⏳ Resultado em breve</button>`}
         ${e.resultadoFase === "preliminar" ? `<span class="selo e" style="align-self:center">resultado final em breve</span>` : ""}
       </div>
@@ -151,7 +170,7 @@ fetch("/api/publico/ic").then(async (r) => {
     <div class="exp">
       ${e.documento ? `<a class="bt bt-pri" href="${esc(e.documento)}" target="_blank" rel="noopener">📜 Edital (PDF)</a>` : ""}
       ${e.resultadoPublicado
-        ? `<a class="bt bt-sec" href="${e.resultadoDocumento ? esc(e.resultadoDocumento) : `/api/publico/ic/em/resultado.pdf?edital=${encodeURIComponent(e.numero)}`}" target="_blank" rel="noopener">📄 ${e.resultadoFase === "preliminar" ? "Resultado preliminar (PDF)" : "Resultado final (PDF)"}</a>`
+        ? botoesResultado(e, `/api/publico/ic/em/resultado.pdf?edital=${encodeURIComponent(e.numero)}`)
         : `<button class="bt bt-sec" disabled style="opacity:.55;cursor:default" title="O resultado será divulgado pela PROPPEX ao fim da seleção">⏳ Resultado em breve</button>`}
       ${e.resultadoFase === "preliminar" ? `<span class="selo e" style="align-self:center">resultado final em breve</span>` : ""}
     </div>
