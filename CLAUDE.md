@@ -925,6 +925,18 @@ public/
   sempre, o passo é 500 ms. Ensaiado nos dois modos num servidor isolado — por SMTP o código de
   acesso saiu com `From: ARCHÉ · PROPPEX <nao-responda@uniego.edu.br>` e
   `Reply-To: proppex@uniego.edu.br`; sem variável nenhuma, `transporte: gmail` e 500 ms.
+  **O `smtp.gmail.com` NÃO é um SMTP qualquer, e o card tinha de dizer isso**
+  (`reescreveRemetente`/`tetoDiario` no transporte, set/2026): o servidor do Google **reescreve o
+  remetente** pelo endereço da conta que autenticou — a menos que ele seja um **alias verificado em
+  "Enviar e-mail como"** dela —, e o teto do dia continua sendo o da CONTA (~500 num Gmail comum,
+  ~2.000 no Workspace; o **relé** `smtp-relay.gmail.com`, que o administrador habilita à parte, é o
+  contrário: aceita qualquer remetente do domínio e vai a ~10.000). O aviso de remetente divergente
+  estava preso ao transporte ser a API do Gmail, então, apontado o SMTP para o Google, o
+  `MAIL_FROM_ADDR` apareceria no diagnóstico **como se estivesse em uso** — o card afirmando na
+  tela o que não é verdade na caixa de quem recebe, que é a classe de defeito que este arquivo já
+  registra como "contador que mente". Quem responde passou a ser o TRANSPORTE (`reescreve` e
+  `tetoDiario` no payload; a conta é "pessoal" pelo ENDEREÇO, venha pela API ou pelo SMTP — é a
+  mesma conta e o mesmo teto), e há teste das quatro combinações, porque quebram em silêncio.
   **O que fica com o dono** (nada disso é código): a saída mais barata é criar
   `nao-responda@uniego.edu.br` no **Workspace** que a instituição já tem e apontar o SMTP para
   `smtp.gmail.com:465` com uma senha de app — ~2.000/dia, custo zero, nenhum fornecedor novo, e o

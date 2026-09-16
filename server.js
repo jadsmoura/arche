@@ -535,9 +535,16 @@ app.get("/api/email/diagnostico", async (req, res) => {
   let conta = null, erroConta = "";
   try { conta = await transporte.contaAutenticada(); }
   catch (e) { erroConta = e.message; }
-  // "Workspace" só faz sentido para o Gmail; no SMTP quem manda é o plano
-  const noGmail = transporte.nome() === "gmail";
-  const workspace = noGmail ? !!conta && !/@(gmail|googlemail)\.com$/i.test(conta) : true;
+  // Conta PESSOAL do Gmail é o caso que dói (~500/dia), e ela é pessoal pelo
+  // ENDEREÇO — venha pela API ou pelo smtp.gmail.com, é a mesma conta e o
+  // mesmo teto. O teto só sai quando o transporte sabe dizê-lo: no SMTP de um
+  // serviço contratado quem o conhece é quem assinou o plano.
+  const contaPessoal = !!conta && /@(gmail|googlemail)\.com$/i.test(conta);
+  const tetoDiario = conta ? transporte.tetoDiario(conta) : null;
+  // O Google reescreve o `From` pela conta autenticada (na API e no
+  // smtp.gmail.com): sem dizer isso, o card mostraria o MAIL_FROM_ADDR como
+  // se ele fosse o remetente que chega na caixa de quem recebe.
+  const reescreve = transporte.reescreveRemetente();
 
   let teste = null;
   if (String(req.query.testar || "") === "1") {
@@ -557,9 +564,7 @@ app.get("/api/email/diagnostico", async (req, res) => {
       teste = { ok: false, motivo: e.message, ritmo: !!e.ritmo, diaria: !!e.diaria };
     }
   }
-  res.json({ ...retrato, conta, erroConta, workspace, noGmail,
-    // o teto do SMTP é do plano contratado e o código não o adivinha
-    tetoDiario: conta ? transporte.tetoDiario(conta) : null, teste });
+  res.json({ ...retrato, conta, erroConta, contaPessoal, tetoDiario, reescreve, teste });
 });
 
 /** POST /api/banda/zerar — recomeça a medição num período limpo. */

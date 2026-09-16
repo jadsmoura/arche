@@ -329,6 +329,45 @@ test("o erro do SMTP se classifica pelo protocolo, não pelo do Google", async (
   assert.equal(ehTransitorio(gaxios(429, { message: "User-rate limit exceeded" })), true);
 });
 
+/* O `smtp.gmail.com` não é um SMTP qualquer: ele REESCREVE o remetente pelo
+   endereço da conta que autenticou, e tem o teto de sempre. Sem esta régua o
+   diagnóstico mostraria o `MAIL_FROM_ADDR` como se ele estivesse em uso —
+   afirmando na tela algo que não é verdade na caixa de quem recebe. */
+test("o transporte diz o teto do dia e se o remetente vai ser reescrito", async () => {
+  const transporte = await import("../lib/email/transporte.js");
+  const antes = { ...process.env };
+  const ambiente = (o) => {
+    for (const k of ["MAIL_PROVEDOR", "SMTP_HOST", "SMTP_USUARIO", "SMTP_SENHA"]) delete process.env[k];
+    Object.assign(process.env, o);
+  };
+  try {
+    ambiente({ MAIL_PROVEDOR: "smtp", SMTP_HOST: "smtp.gmail.com", SMTP_USUARIO: "a@uniego.edu.br", SMTP_SENHA: "x" });
+    assert.equal(transporte.tetoDiario("a@uniego.edu.br"), 2000);   // conta do Workspace
+    assert.equal(transporte.tetoDiario("a@gmail.com"), 500);        // conta pessoal
+    assert.equal(transporte.reescreveRemetente(), true);
+
+    // o RELÉ do Workspace é o contrário: aceita o remetente do domínio
+    ambiente({ MAIL_PROVEDOR: "smtp", SMTP_HOST: "smtp-relay.gmail.com", SMTP_USUARIO: "a@uniego.edu.br", SMTP_SENHA: "x" });
+    assert.equal(transporte.tetoDiario("a@uniego.edu.br"), 10000);
+    assert.equal(transporte.reescreveRemetente(), false);
+
+    // serviço de envio: o teto é do plano, e o código não o adivinha
+    ambiente({ MAIL_PROVEDOR: "smtp", SMTP_HOST: "smtp.exemplo.com", SMTP_USUARIO: "chave", SMTP_SENHA: "x" });
+    assert.equal(transporte.tetoDiario("chave"), null);
+    assert.equal(transporte.reescreveRemetente(), false);
+
+    // sem variável nenhuma nada muda: Gmail, e ele sempre reescreve
+    ambiente({});
+    assert.equal(transporte.nome(), "gmail");
+    assert.equal(transporte.tetoDiario("a@gmail.com"), 500);
+    assert.equal(transporte.reescreveRemetente(), true);
+  } finally {
+    for (const k of ["MAIL_PROVEDOR", "SMTP_HOST", "SMTP_USUARIO", "SMTP_SENHA"]) {
+      if (antes[k] === undefined) delete process.env[k]; else process.env[k] = antes[k];
+    }
+  }
+});
+
 /* Este vem por ÚLTIMO: ele deixa a espera do módulo lá na frente, que é
    exatamente o que se quer provar — e o que atrapalharia os testes acima. */
 test("batido o limite, o RESTO DO LOTE falha na hora (não espera 250 vezes)", async () => {
