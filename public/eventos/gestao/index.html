@@ -1899,9 +1899,12 @@ function janelaComunicado(id,d){
   document.body.appendChild(fundo);
   // Esc fecha, como nos demais overlays do arquivo — a janela é de REVISÃO de
   // um envio que não se recolhe: sair dela tem de ser a coisa mais fácil
-  const esc=(e)=>{ if(e.key==="Escape") fechar(); };
-  const fechar=()=>{ document.removeEventListener("keydown",esc); fundo.remove(); };
-  document.addEventListener("keydown",esc);
+  /* `aoEsc`, não `esc`: chamado assim, ele SOMBRAVA o `esc()` global dentro da
+     função inteira, e a faixa de erro do envio (`esc(e.message)`, no catch
+     abaixo) saía literalmente "undefined" em vez do motivo da recusa. */
+  const aoEsc=(e)=>{ if(e.key==="Escape") fechar(); };
+  const fechar=()=>{ document.removeEventListener("keydown",aoEsc); fundo.remove(); };
+  document.addEventListener("keydown",aoEsc);
   fundo.querySelector("#cm-jan-nao").onclick=fechar;
   fundo.onclick=(e)=>{ if(e.target===fundo) fechar(); };
   fundo.querySelector("#cm-jan-ok").onclick=async()=>{
@@ -3057,7 +3060,7 @@ function renderFinLista(){
       <td class="muted" style="font-size:12px">${l.pagoEm?"pago "+esc(hora(l.pagoEm)):l.estado==="aguardando"?"até "+esc(hora(l.expiraEm)):esc(hora(l.inscritoEm))}</td>
       <td style="white-space:nowrap">
         ${pend?`<button class="bt bt-sec" style="padding:2px 9px;font-size:11px" onclick="conferirPg('${esc(id)}','${esc(l.token)}')">conferir</button>
-          <button class="bt bt-ok" style="padding:2px 9px;font-size:11px" onclick="isentarPg('${esc(id)}','${esc(l.token)}','${esc(l.nome)}')">isentar</button>`:""}
+          <button class="bt bt-ok" style="padding:2px 9px;font-size:11px" onclick="isentarPg('${esc(id)}','${esc(l.token)}','${esc(l.nome)}','R$ ${esc(String(l.valorDevido).replace(".",","))}')">isentar</button>`:""}
         ${["pago","contestado"].includes(l.estado)&&FIN.podeEstornar&&l.provedorId?`<button class="bt bt-err" style="padding:2px 9px;font-size:11px" onclick="estornarPg('${esc(id)}','${esc(l.token)}','${esc(l.nome)}','${esc(String(l.valorPago||l.valorDevido).replace(".",","))}')">estornar</button>`:""}
         <details style="display:inline-block;margin-left:4px"><summary class="lk" style="font-size:11px;list-style:none;cursor:pointer">histórico</summary>
           <div style="font-size:11.5px;color:var(--muted);text-align:left;max-width:280px">${(l.historico||[]).map(h=>`${esc(hora(h.em))} · ${esc(h.de||"—")} → ${esc(h.para)} (${esc(h.por)})${h.motivo?`: ${esc(h.motivo)}`:""}`).join("<br>")||"—"}</div></details>
@@ -3096,17 +3099,81 @@ async function corrigirNomeInscrito(id,token,atual){
     renderInscritosEv(a);
   }catch(e){ alert("Não foi possível corrigir o nome: "+e.message); }
 }
-async function isentarInscrito(id,token,nome){
-  const motivo=prompt(`Isentar a inscrição de ${nome}?\n\nA inscrição fica confirmada SEM pagamento e o e-mail com o QR sai agora. Escreva o motivo (fica no registro — ex.: monitor, professor, convidado):`);
-  if(!motivo) return;
-  try{ await acaoPg(id,token,"isentar",{motivo}); await carregar(); const a=ACOES.find(x=>x.id===id); atualizarContadoresEvento(a); renderInscritosEv(a); }
-  catch(e){ alert("Não foi possível isentar: "+e.message); }
+/* ISENTAR É UMA JANELA DO PORTAL, NÃO UM `prompt()` (relato do dono set/2026:
+   "estou clicando em isentar manualmente, no caso dos professores, e ou outras
+   situações, e nada acontece"). O ato dependia de `prompt()` para o motivo e de
+   `alert()` para o erro — e o navegador SUPRIME os dois depois de algumas
+   caixas seguidas: o Chrome oferece "impedir que esta página crie caixas de
+   diálogo adicionais" a quem faz isso em série, que é exatamente o caso de quem
+   isenta os professores de um congresso um atrás do outro. Marcada a caixa, o
+   clique passava a não fazer NADA — e o erro também não aparecia: silêncio
+   completo, o pior desfecho possível para um ato repetido trinta vezes.
+   Reproduzido no servidor local: com a caixa respondida, 200 e a linha vira
+   "isento"; com ela dispensada, nenhuma chamada ao servidor e nenhum aviso.
+   A janela não se suprime, confere ANTES os 5 caracteres que a rota exige (o
+   "prof" digitado às pressas voltava 400 num alert que talvez nem aparecesse),
+   põe os motivos de sempre a um clique e mostra a recusa DENTRO dela. */
+const MOTIVOS_ISENCAO=["professor(a) do curso","monitor(a) do evento","comissão organizadora","palestrante","convidado(a) institucional"];
+function janelaIsentar({id,token,nome,valor,feito}){
+  const fundo=document.createElement("div");
+  fundo.className="modal-fundo";
+  fundo.style.cssText="position:fixed;inset:0;background:rgba(24,38,50,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px";
+  fundo.innerHTML=`<div style="background:#fff;border-radius:14px;max-width:520px;width:100%;max-height:90vh;overflow:auto;padding:22px 24px">
+    <h3 style="margin:0 0 4px">Isentar a inscrição</h3>
+    <p class="muted" style="font-size:13px;margin:0 0 14px;line-height:1.6"><b style="color:var(--ink)">${esc(nome||"(sem nome)")}</b>${valor?` · ${esc(valor)}`:""} —
+      a inscrição fica <b style="color:var(--ink)">confirmada sem pagamento</b> e o e-mail com o QR Code sai agora.</p>
+    <label style="display:block">Motivo da isenção <span class="muted" style="font-weight:400">— fica no registro</span>
+      <input id="ise-jan-motivo" maxlength="300" autocomplete="off" placeholder="ex.: professor(a) do curso"></label>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+      ${MOTIVOS_ISENCAO.map(m=>`<button class="bt bt-ghost" style="padding:4px 10px;font-size:12px" data-m="${esc(m)}">${esc(m)}</button>`).join("")}
+    </div>
+    <div id="ise-jan-msg"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+      <button class="bt bt-pri" id="ise-jan-ok">✓ Isentar a inscrição</button>
+      <button class="bt bt-ghost" id="ise-jan-nao">Cancelar</button>
+    </div></div>`;
+  document.body.appendChild(fundo);
+  const campo=fundo.querySelector("#ise-jan-motivo"), bt=fundo.querySelector("#ise-jan-ok");
+  const aoEsc=(e)=>{ if(e.key==="Escape") fechar(); };
+  const fechar=()=>{ document.removeEventListener("keydown",aoEsc); fundo.remove(); };
+  document.addEventListener("keydown",aoEsc);
+  fundo.querySelector("#ise-jan-nao").onclick=fechar;
+  fundo.onclick=(e)=>{ if(e.target===fundo) fechar(); };
+  fundo.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ campo.value=b.dataset.m; campo.focus(); });
+  campo.onkeydown=(e)=>{ if(e.key==="Enter"){ e.preventDefault(); enviar(); } };
+  setTimeout(()=>campo.focus(),30);
+  const aviso=(t)=>{ fundo.querySelector("#ise-jan-msg").innerHTML=`<div class="banner ba-err" style="margin-top:12px">${esc(t)}</div>`; };
+  async function enviar(){
+    const motivo=(campo.value||"").trim();
+    if(motivo.length<5){ aviso("Escreva o motivo da isenção — ao menos 5 caracteres."); campo.focus(); return; }
+    bt.disabled=true; bt.textContent="Isentando…";
+    try{ await acaoPg(id,token,"isentar",{motivo}); fechar(); await feito(motivo); }
+    catch(e){ aviso("Não foi possível isentar: "+e.message); bt.disabled=false; bt.textContent="✓ Isentar a inscrição"; }
+  }
+  bt.onclick=enviar;
 }
-async function isentarPg(id,token,nome){
-  const motivo=prompt(`Isentar a inscrição de ${nome}?\n\nA credencial passa a valer sem pagamento e o e-mail com o QR sai agora. Escreva o motivo (fica no registro):`);
-  if(motivo===null) return;
-  try{ await acaoPg(id,token,"isentar",{motivo}); await carregar(); renderFinanceiro(ACOES.find(x=>x.id===id)); }
-  catch(e){ alert("Não foi possível isentar: "+e.message); }
+/* O aviso do que acabou de acontecer vive na própria guia (a lista se redesenha
+   sozinha a cada 30 s, e um alert some antes de a pessoa ler): fica no alto por
+   meio minuto e some sozinho, para não virar mobília. */
+let EV_INS_MSG=null;
+function avisoInscritos(texto,cls="ba-ok"){ EV_INS_MSG={texto,cls,ate:Date.now()+30000}; }
+function bannerInscritos(){
+  if(!EV_INS_MSG) return "";
+  if(Date.now()>EV_INS_MSG.ate){ EV_INS_MSG=null; return ""; }
+  return `<div class="banner ${EV_INS_MSG.cls}" style="margin-bottom:10px">${esc(EV_INS_MSG.texto)}</div>`;
+}
+async function isentarInscrito(id,token,nome){
+  janelaIsentar({id,token,nome,feito:async()=>{
+    await carregar(); const a=ACOES.find(x=>x.id===id);
+    avisoInscritos(`✓ ${nome} — inscrição isenta. O e-mail com o QR Code foi enviado.`);
+    atualizarContadoresEvento(a); renderInscritosEv(a);
+  }});
+}
+async function isentarPg(id,token,nome,valor){
+  janelaIsentar({id,token,nome,valor,feito:async()=>{
+    await carregar(); renderFinanceiro(ACOES.find(x=>x.id===id));
+    const m=$("fin-msg"); if(m) m.textContent=`✓ ${nome} — inscrição isenta; o e-mail com o QR Code foi enviado.`;
+  }});
 }
 async function estornarPg(id,token,nome,valor){
   const motivo=prompt(`ESTORNAR R$ ${valor} para ${nome}?\n\nO valor volta pelo provedor que recebeu (o prazo depende do meio) e a credencial deixa de valer. Escreva o motivo (fica no registro):`);
@@ -4289,7 +4356,7 @@ function renderInscritosEv(a){
   // do evento, e um fechamento sobre o objeto antigo mostraria a página 2 com
   // a lista de inscritos de trinta segundos atrás
   const pag=ArchePag.recorte("ev-inscritos",lista,()=>renderInscritosEv(ACOES.find(x=>x.id===a.id)||a));
-  el.innerHTML = lista.length ? `${pag.barra}<table class="pt">
+  el.innerHTML = lista.length ? `${bannerInscritos()}${pag.barra}<table class="pt">
     <thead><tr><th>Nome</th><th>Contato</th><th>Origem</th><th>Código</th><th>Atividades</th><th>Presença</th></tr></thead>
     <tbody>${pag.itens.map(x=>{
       const marcadas=(x.atividades||[]).map(tituloAtv);
@@ -4311,7 +4378,7 @@ function renderInscritosEv(a){
              onclick="presencaManualEv('${esc(a.id)}','${esc(x.token||"")}','${esc(x.cpf||"")}','${esc(x.email||"")}')">✓ presente</button>`}</td>
     </tr>`;}).join("")}</tbody></table>
     <div class="cnt">${lista.length} de ${todos.length} inscrito(s)${q?" no filtro":""}.</div>`
-    : `<div class="cnt">— ${todos.length
+    : `${bannerInscritos()}<div class="cnt">— ${todos.length
         ? (Object.keys(EV_FILTROS).length
           ? `nenhum dos ${todos.length} inscrito(s) passa nos filtros escolhidos. <button class="bt bt-ghost" style="padding:3px 9px;font-size:12px" onclick="EV_FILTROS={};ArchePag.zerar('ev-inscritos');renderInscritos(ACOES.find(x=>x.id===ABERTO))">✕ Limpar filtros</button>`
           : "ninguém encontrado com esta busca.")

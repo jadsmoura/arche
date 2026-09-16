@@ -1445,6 +1445,28 @@ public/
   cobrança), presença e origem, com a contagem em cada opção e o "✕ Limpar filtros". Para isso o
   `inscritoLeve` passou a mandar em `filtros` só as respostas dos campos de seleção (o texto livre
   continua fora: é o que pesa e ninguém filtra). A linha mostra o curso sob a origem.
+  **E ISENTAR PASSOU A SER UMA JANELA DO PORTAL, NÃO UM `prompt()`** (`janelaIsentar` +
+  `avisoInscritos`/`bannerInscritos` no ARCHÉ EV, relato do dono set/2026: "estou clicando em
+  isentar manualmente, no caso dos professores, e ou outras situações, e nada acontece"). O ato
+  pedia o motivo por `prompt()` e mostrava o erro por `alert()` — e **o navegador SUPRIME os dois**
+  depois de algumas caixas seguidas: o Chrome oferece "impedir que esta página crie caixas de
+  diálogo adicionais" justamente a quem faz isso em série, que é o caso de quem isenta os
+  professores de um congresso um atrás do outro. Marcada a caixa, o clique não fazia
+  **absolutamente nada** — e o erro também não aparecia. Reproduzido no servidor local: com a
+  caixa respondida, 200 e a linha vira "isento"; com ela dispensada, nenhuma chamada ao servidor e
+  nenhum aviso. É a mesma lição já escrita aqui sobre o "salvo" depois do upload recusado — o que
+  não pode acontecer é o silêncio.
+  A janela **não se suprime**, confere ANTES os 5 caracteres que a rota exige (o "prof" digitado
+  às pressas voltava 400 num `alert` que talvez nem aparecesse), traz os **motivos de sempre a um
+  clique** (professor · monitor · comissão · palestrante · convidado), aceita Enter e Esc, e
+  mostra a **recusa do servidor DENTRO dela**, sem fechar — quem tentar isentar uma inscrição já
+  paga lê o caminho do estorno e corrige ali. Vale nas duas portas (a lista de Inscritos e o
+  Financeiro, que passa também o valor). A confirmação fica **na própria guia** por meio minuto
+  (`bannerInscritos`), porque a lista se redesenha sozinha a cada 30 s e um `alert` some antes de
+  alguém ler. Ensaiado a 1280 e a 390 px com TODA caixa de diálogo do navegador dispensada.
+  No mesmo passo saiu um defeito vizinho: a janela de revisão do comunicado chamava de `esc` o
+  próprio ouvinte de Escape, **sombrando o `esc()` global** dentro da função — a faixa de erro do
+  envio saía literalmente "undefined" no lugar do motivo da recusa.
 - **ARCHÉ Eventos** (`lib/eventos.js` + `public/eventos/` + rotas em server.js; 2ª geração
   em ago/2026, no molde Even3/Sympla — pesquisa com 3 agentes sobre as duas plataformas):
   EVENTOS GRATUITOS de todos os formatos — a ação de extensão ganha `a.evento` e uma página
