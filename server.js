@@ -528,7 +528,6 @@ app.get("/api/email/diagnostico", async (req, res) => {
   if (!u) return;
   const { retratoDoEnvio, enviarEmail } = await import("./lib/mailer.js");
   const transporte = await import("./lib/email/transporte.js");
-  const retrato = retratoDoEnvio();
   // Quem é a conta autenticada de verdade: `MAIL_FROM_ADDR` é só o nome que
   // vai no cabeçalho, e no Gmail o Google ignora um que não seja o da conta.
   // O teto é da CONTA, então é ela que o diagnóstico precisa nomear.
@@ -564,6 +563,12 @@ app.get("/api/email/diagnostico", async (req, res) => {
       teste = { ok: false, motivo: e.message, ritmo: !!e.ritmo, diaria: !!e.diaria };
     }
   }
+
+  /* O retrato sai DEPOIS do teste, senão o card contradiz a si mesmo: a faixa
+     verde dizia "mensagem enviada" e o contador logo acima dizia "saíram hoje:
+     0", porque os números tinham sido lidos antes do envio. Quem lê acredita no
+     número, não na faixa — e sai achando que o envio falhou. */
+  const retrato = retratoDoEnvio();
   res.json({ ...retrato, conta, erroConta, contaPessoal, tetoDiario, reescreve, teste });
 });
 
