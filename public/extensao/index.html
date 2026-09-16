@@ -181,6 +181,14 @@
   .stat .s{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
   .stat .s b{font-family:Sora,sans-serif;font-size:22px;display:block;color:var(--ink);line-height:1.1}
   .stat .s span{font-size:11.5px;color:var(--muted)}
+  /* A TABELA LARGA VAI DENTRO DE UMA CAIXA QUE ROLA (a régua do portal; a
+     ficha do ARCHÉ EX rolava 243px de lado no telefone por causa da tabela de
+     participantes). Quem rola é o `.rolo`, não a página: `display:block` na
+     própria tabela faria a estreita deixar de ocupar os 100% que declara e
+     desalinharia thead de tbody. O `min-width:560px` é o que garante que ela
+     ROLE em vez de espremer as colunas até ficarem ilegíveis. */
+  .rolo{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+  .rolo>table.pt{min-width:560px}
   table.pt{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
   table.pt th{background:#f7f9fb;color:var(--muted);padding:9px 10px;text-align:left;font-size:11.5px;
     font-weight:600;border-bottom:1px solid var(--line)}
@@ -2210,14 +2218,14 @@ function renderAnexos(a){
   const el=$("ax-lista"); if(!el) return;
   const lock = statusReal(a)==="registrada";
   const l=a.portfolio?.anexos||[];
-  el.innerHTML = l.length ? `<table class="pt"><thead><tr><th>Arquivo</th><th>Tamanho</th><th>Enviado em</th><th></th></tr></thead><tbody>`
+  el.innerHTML = l.length ? `<div class="rolo"><table class="pt"><thead><tr><th>Arquivo</th><th>Tamanho</th><th>Enviado em</th><th></th></tr></thead><tbody>`
     + l.map((x,i)=>`<tr>
       <td><a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.name)}</a></td>
       <td>${fmtTam(x.size)}</td>
       <td>${x.enviadoEm?fmt(x.enviadoEm.slice(0,10)):""}</td>
       <td>${lock?"":`<span class="rm" title="remover"
         onclick="removerAnexo('${a.id}','${esc(x.fileId||("i:"+i))}','${esc(x.name||x.nome||"")}')">✕</span>`}</td></tr>`).join("")
-    + `</tbody></table>`
+    + `</tbody></table></div>`
     : '<div class="cnt">— nenhum arquivo anexado ainda.</div>';
 }
 /* A FOTO DO PORTFÓLIO É REDUZIDA ANTES DE SUBIR (decisão do dono, ago/2026).
@@ -2346,8 +2354,8 @@ function renderPreview(acao){
   const invalidos = rows.filter(r=>mapa.some((m,i)=>m==="cpf"&&r[i]&&!cpfValido(r[i]))).length;
   $("p-preview").innerHTML = `
     <div class="colmap">${selects}</div>
-    <table class="pt"><thead><tr>${mapa.map(m=>`<th>${(CAMPOS.find(c=>c[0]===m)||["","?"])[1]}</th>`).join("")}</tr></thead>
-    <tbody>${amostra}</tbody></table>
+    <div class="rolo"><table class="pt"><thead><tr>${mapa.map(m=>`<th>${(CAMPOS.find(c=>c[0]===m)||["","?"])[1]}</th>`).join("")}</tr></thead>
+    <tbody>${amostra}</tbody></table></div>
     <div class="cnt">${rows.length} linha(s) detectada(s)${rows.length>5?" (mostrando 5)":""}.
       ${invalidos?`<span style="color:var(--err);font-weight:700"> ⚠ ${invalidos} CPF(s) inválido(s) — serão adicionados marcados para correção.</span>`:""}</div>
     <button class="bt bt-pri" onclick="adicionarCola('${acao?acao.id:""}')">＋ Adicionar ${rows.length} participante(s) à lista</button>`;
@@ -2430,7 +2438,7 @@ function renderCorpoPart(id,c){
   const pagina=filtrados.slice(ini,ini+porPag);
   const tit=$("pt-tit-"+c);
   if(tit){ const rot=(CAT_PART.find(x=>x[0]===c)||[])[1]||""; tit.textContent=`${rot} · ${todos.length}${q?` (${filtrados.length} no filtro)`:""}`; }
-  alvo.innerHTML = (pagina.length?`<table class="pt"><thead><tr>${c==="palestrantes"?"<th>Palestra</th>":""}<th>Nome</th><th>Matrícula</th><th>CPF</th><th>E-mail</th><th>CH</th><th></th></tr></thead>
+  alvo.innerHTML = (pagina.length?`<div class="rolo"><table class="pt"><thead><tr>${c==="palestrantes"?"<th>Palestra</th>":""}<th>Nome</th><th>Matrícula</th><th>CPF</th><th>E-mail</th><th>CH</th><th></th></tr></thead>
     <tbody>${pagina.map(({x,i})=>`<tr>
       ${c==="palestrantes"?`<td>${esc(x.palestra||"")}</td>`:""}
       <td>${esc(x.nome)}</td><td>${esc(x.matricula||"")}</td>
@@ -2438,7 +2446,7 @@ function renderCorpoPart(id,c){
       <td>${esc(x.email||"")}</td><td>${esc(x.ch||"")}</td>
       ${c==="inscritos"&&(x.token||x.origem==="online"||x.presente||(x.presencas||[]).length)
         ? `<td class="muted" title="Inscrição feita pelo sistema (credencial/presença): não sai pela lista — cancelar é ato do ARCHÉ EV" style="font-size:11px">online</td>`
-        : `<td class="rm" title="remover" onclick="removerPart('${a.id}','${c}',${i})">✕</td>`}</tr>`).join("")}</tbody></table>`
+        : `<td class="rm" title="remover" onclick="removerPart('${a.id}','${c}',${i})">✕</td>`}</tr>`).join("")}</tbody></table></div>`
     : `<div class="cnt">— ninguém encontrado com esta busca.</div>`)
     + (paginas>1?`<div class="part-pag">
       <button class="bt bt-ghost" ${st.p<=1?"disabled":""} onclick="pagPart('${a.id}','${c}',-1)">‹ anterior</button>
@@ -2885,8 +2893,8 @@ function quadroNumerosEvento(a){
       ${item("Presença online",n.presentesOnline)}
       ${item("Mural (mensagens)",n.comentariosMural)}
     </div>
-    ${(n.porAtividade||[]).length?`<table class="pt"><thead><tr><th>Atividade</th><th>Inscritos</th><th>Presentes</th></tr></thead>
-      <tbody>${n.porAtividade.map(p=>`<tr><td>${esc(p.titulo)}</td><td>${p.inscritos}</td><td>${p.presentes}</td></tr>`).join("")}</tbody></table>`:""}`;
+    ${(n.porAtividade||[]).length?`<div class="rolo"><table class="pt"><thead><tr><th>Atividade</th><th>Inscritos</th><th>Presentes</th></tr></thead>
+      <tbody>${n.porAtividade.map(p=>`<tr><td>${esc(p.titulo)}</td><td>${p.inscritos}</td><td>${p.presentes}</td></tr>`).join("")}</tbody></table></div>`:""}`;
 }
 
 /* EXCLUIR A AÇÃO (pedido do dono, set/2026: "alguns eventos eu criei para os
@@ -3137,10 +3145,10 @@ function cardEvento(a){
 
 const contadoresAtividadeHtml = (a)=>{
   const por = numerosEventoLocal(a).porAtividade;
-  return por.length ? `<div style="margin:-4px 0 14px"><table class="pt">
+  return por.length ? `<div style="margin:-4px 0 14px"><div class="rolo"><table class="pt">
     <thead><tr><th>Atividade</th><th>Inscritos</th><th>Presentes</th></tr></thead>
     <tbody>${por.map(p=>`<tr><td>${esc(p.titulo)}</td><td>${p.inscritos}</td><td>${p.presentes}</td></tr>`).join("")}</tbody>
-  </table></div>` : "";
+  </table></div></div>` : "";
 };
 
 function novaAtividadeEv(){
@@ -3295,7 +3303,7 @@ function renderInscritosEv(a){
   // paginada como TODA lista de registros do portal (regra do dono, ago/2026)
   // — o ARCHÉ EV já paginava a mesma tabela; esta cópia tinha ficado de fora
   const pag=ArchePag.recorte("ex-ev-inscritos",lista,()=>renderInscritosEv(ACOES.find(x=>x.id===a.id)||a));
-  el.innerHTML = lista.length ? `${pag.barra}<table class="pt">
+  el.innerHTML = lista.length ? `${pag.barra}<div class="rolo"><table class="pt">
     <thead><tr><th>Nome</th><th>Contato</th><th>Origem</th><th>Código</th><th>Atividades</th><th>Presença</th></tr></thead>
     <tbody>${pag.itens.map(x=>{
       const marcadas=(x.atividades||[]).map(tituloAtv);
@@ -3314,7 +3322,7 @@ function renderInscritosEv(a){
              onclick="presencaAtividadeEv('${a.id}','${esc(x.token||"")}','${esc(x.cpf||"")}','${esc(x.email||"")}')">＋ na atividade</button>`:""}`
         : `<button class="bt bt-sec" style="padding:2px 9px;font-size:11px" title="Marcar presença à mão — na atividade escolhida acima (quem tem QR) ou na entrada geral"
              onclick="presencaManualEv('${a.id}','${esc(x.token||"")}','${esc(x.cpf||"")}','${esc(x.email||"")}')">✓ presente</button>`}</td>
-    </tr>`;}).join("")}</tbody></table>
+    </tr>`;}).join("")}</tbody></table></div>
     <div class="cnt">${lista.length} de ${todos.length} inscrito(s)${q?" no filtro":""}.</div>`
     : `<div class="cnt">— ${todos.length?"ninguém encontrado com esta busca.":"nenhum inscrito ainda."}</div>`;
 }
