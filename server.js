@@ -4305,6 +4305,18 @@ app.post("/api/extensao/:id/excluir", async (req, res) => {
     const u = await sessaoEx(req, res);
     if (!u) return;
     const confirmacao = String(req.body?.confirmacao || "").trim();
+    /* EXCLUIR A AÇÃO INTEIRA, mesmo numerada (pedido do dono, set/2026:
+       "alguns eventos eu criei para os testes de cobrança, e eu gostaria de
+       excluir eles da plataforma... ou que foram preenchidos errados, ou
+       outras justificativas"). Até aqui a ação aprovada só perdia o EVENTO —
+       ela ficava para sempre na guia Relatórios, contando como pendência,
+       entrando nos números do setor e fazendo a cobrança semanal perseguir um
+       relatório que nunca vem. O argumento de não abrir buraco na numeração
+       vale para a ação de verdade; para o teste, o buraco é MENOS ruim que a
+       ação fantasma — e ele não vira reaproveitamento, porque a sequência é um
+       CONTADOR (`extensao-config-v1`), não a contagem das ações. */
+    const tudo = req.body?.tudo === true;
+    const motivo = String(req.body?.motivo || "").trim().slice(0, 300);
     const r = await comAcoes((acoes) => {
       const i = acoes.findIndex((x) => x.id === req.params.id);
       if (i < 0) return { erro: [404, "Ação não encontrada"], gravar: false };
@@ -4330,10 +4342,29 @@ app.post("/api/extensao/:id/excluir", async (req, res) => {
       const enc = situacaoEncerramento(a);
       if (a.evento && enc !== "aberto")
         return { erro: [400, `Este evento tem o encerramento ${enc === "validado" ? "validado" : enc === "devolvido" ? "devolvido pela PROPPEX (o evento aconteceu e o relatório foi entregue)" : "solicitado à PROPPEX"} — não se exclui um evento em encerramento. Para tirar a página do ar, despublique.`], gravar: false };
-      // ação SEM evento e já numerada não tem "evento" a apagar: a rota
-      // zerava a lista digitada e mantinha a ação (revisão adversarial de set/2026)
-      if (!a.evento && (a.numeroAcao || a.relatorio?.entregueEm))
+      /* Apagar a AÇÃO numerada é ato da gestão e pede o MOTIVO por escrito:
+         o número sai da sequência oficial, e o rastro é a única coisa que
+         responde depois por que a série pula um degrau. */
+      if (tudo) {
+        if (!gereEx(u))
+          return { erro: [403, "Só a gestão da Extensão exclui a ação inteira."], gravar: false };
+        if (motivo.length < 5)
+          return { erro: [400, "Escreva o motivo da exclusão — é o que fica no registro para explicar o buraco na numeração."], gravar: false };
+        /* O relatório ENTREGUE é documento do processo: a coordenação o
+           conferiu, a lista de participantes está nele, e a ação com
+           relatório não é cadastro de teste. Para desfazer, reabre-se. */
+        if (a.relatorio?.entregueEm)
+          return { erro: [400, "Esta ação já tem relatório final entregue — o documento existe e não se apaga por aqui."], gravar: false };
+        /* DINHEIRO RECEBIDO e credencial emitida param a exclusão: apagar a
+           ação sumiria com o registro do que alguém pagou. */
+        const comValor = (a.participantes?.inscritos || []).filter((x) => ["pago", "isento", "contestado"].includes(x?.pagamento?.status || "")).length;
+        if (comValor)
+          return { erro: [400, `Este evento tem ${comValor} inscrição(ões) paga(s) ou isenta(s) — a credencial já vale e o registro do pagamento não se apaga. Estorne no Financeiro antes, se for o caso.`], gravar: false };
+      } else if (!a.evento && (a.numeroAcao || a.relatorio?.entregueEm)) {
+        // ação SEM evento e já numerada não tem "evento" a apagar: a rota
+        // zerava a lista digitada e mantinha a ação (revisão adversarial de set/2026)
         return { erro: [400, "Esta ação não tem evento cadastrado e já está numerada — não há o que excluir por aqui."], gravar: false };
+      }
       const presentes = (a.participantes?.inscritos || []).filter((x) => x?.presente || (x?.presencas || []).length).length;
       if (a.evento && presentes)
         return { erro: [400, `Este evento tem ${presentes} presença(s) registrada(s): ele aconteceu, e o registro não se apaga. Para tirar a página do ar, despublique.`], gravar: false };
@@ -4342,11 +4373,11 @@ app.post("/api/extensao/:id/excluir", async (req, res) => {
       if (inscritos && confirmacao !== nome)
         return { erro: [400, `Este evento tem ${inscritos} inscrito(s). Para excluir, confirme digitando o nome exato: ${nome}`], gravar: false };
       // ação sem número e sem relatório nunca foi processo: some inteira
-      const soOEvento = !!a.numeroAcao || !!a.relatorio?.entregueEm;
+      const soOEvento = !tudo && (!!a.numeroAcao || !!a.relatorio?.entregueEm);
       const resumo = { em: new Date().toISOString(), por: u.email, id: a.id, nome,
         curso: a.curso || "", numeroAcao: a.numeroAcao || null, status: a.status || "",
         inscritos, presentes: (a.participantes?.inscritos || []).filter((x) => x.presente).length,
-        alcance: soOEvento ? "evento" : "acao" };
+        alcance: soOEvento ? "evento" : "acao", ...(motivo ? { motivo } : {}) };
       if (soOEvento) {
         delete acoes[i].evento;
         acoes[i].participantes = { ...(a.participantes || {}), inscritos: [] };

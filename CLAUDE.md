@@ -2521,6 +2521,26 @@ public/
   **digitar o nome do evento** — é o que separa o clique errado da decisão de apagar o
   cadastro de quem se inscreveu. O que sumiu fica resumido em `sys-ex-exclusoes-v1` (sem
   dado pessoal): sem isso ninguém explica depois por que a ação desapareceu.
+- **EXCLUIR A AÇÃO INTEIRA, mesmo numerada** (`tudo: true` + `motivo` no MESMO
+  `POST /api/extensao/:id/excluir` + o bloco "🗑 Excluir esta ação da plataforma" no pé da ficha
+  do ARCHÉ EX, pedido do dono set/2026: "alguns eventos eu criei para os testes de cobrança, e eu
+  gostaria de excluir eles da plataforma, ou que foram preenchidos errados, ou outras
+  justificativas"). A regra acima cobria o cadastro que não virou nada; a ação **aprovada** só
+  perdia o EVENTO — e ela ficava para sempre na guia Relatórios, contando como pendência, entrando
+  nos números do setor e fazendo a **cobrança semanal perseguir um relatório que nunca vem**. O
+  argumento de não abrir buraco na numeração vale para a ação de verdade; para o teste, a ação
+  fantasma é pior que o buraco — e ele **não vira reaproveitamento**, porque a sequência é um
+  CONTADOR (`extensao-config-v1`), não a contagem das ações: excluída a EXT-2026-011, a seguinte
+  nasce 012 e o lugar da 011 fica vago (a mesma régua da renumeração das atas).
+  Três coisas o tornam defensável: é **só da gestão da Extensão** (o número é da sequência
+  oficial), o **MOTIVO é obrigatório** — é a única coisa que responde depois por que a série pula
+  um degrau, e fica em `sys-ex-exclusoes-v1` com quem apagou —, e **tudo o que já recusava
+  continua recusando**: ação registrada, relatório final entregue, encerramento em curso, presença
+  lançada e — novo — **inscrição paga ou isenta** (dinheiro recebido e credencial emitida não se
+  apagam; estorna-se no Financeiro antes). Com inscritos, a confirmação segue pedindo o nome exato.
+  O bloco mora no **PÉ DA FICHA, não na linha da lista**: é a régua que o portal já segue em todo
+  ato pesado — pratica-se com o documento aberto; na lista a linha é curta e o clique errado cai na
+  vizinha. E ele **DIZ antes o que o servidor recusaria**, em vez de oferecer um botão que falha.
 - **A gestão do evento acontece NO CARTÃO** (decisão do dono, ago/2026): os dois atos
   mais frequentes da coordenação estavam espalhados — aprovar a ação ficava noutro setor
   (o ARCHÉ EX) e publicar, dentro de uma guia. Agora o cartão do Painel geral traz

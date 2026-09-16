@@ -2079,6 +2079,7 @@ function renderDetalhe(id){
   // e o relatório final é o documento que se escreve depois dela
   if(doc==="relatorio") html += cardEvento(a);
 
+  html += blocoExcluirAcao(a);
   html += `<button class="bt bt-ghost" onclick="nav('${doc==="relatorio"?"relatorios":"acoes"}')"
     style="margin-bottom:24px">← voltar à lista</button>`;
   $("v-detalhe").innerHTML = html;
@@ -2888,6 +2889,74 @@ function quadroNumerosEvento(a){
       <tbody>${n.porAtividade.map(p=>`<tr><td>${esc(p.titulo)}</td><td>${p.inscritos}</td><td>${p.presentes}</td></tr>`).join("")}</tbody></table>`:""}`;
 }
 
+/* EXCLUIR A AÇÃO (pedido do dono, set/2026: "alguns eventos eu criei para os
+   testes de cobrança, e eu gostaria de excluir eles da plataforma... ou que
+   foram preenchidos errados, ou outras justificativas").
+
+   Fica no PÉ DA FICHA, não na linha da lista, e é a mesma régua que o portal
+   já segue em todo ato pesado: pratica-se com o documento aberto. Na lista, a
+   linha é curta e o clique errado cai na vizinha — aqui quem clica está com a
+   ação inteira à frente, e ainda assim a confirmação a NOMEIA.
+
+   Só a gestão da Extensão, porque o número sai da sequência oficial, e o
+   MOTIVO é obrigatório: ele é a única coisa que responde depois por que a
+   série de 2026 pula um degrau. Quem barra é o servidor — esconder o botão
+   não é porta. */
+function blocoExcluirAcao(a){
+  if(!PROPPEX) return "";
+  // o STATUS gravado, não a etapa: a ação registrada tem etapa "encerrado"
+  // (lib/situacao.js), e é `status` que o servidor testa — duas réguas
+  // diferentes aqui fariam a tela oferecer o que a rota recusa
+  const s = String(a.status||"");
+  const insc = (a.participantes?.inscritos||[]).length;
+  const pagos = (a.participantes?.inscritos||[]).filter(x=>["pago","isento","contestado"].includes(x?.pagamento?.status||"")).length;
+  const presentes = (a.participantes?.inscritos||[]).filter(x=>x?.presente||(x?.presencas||[]).length).length;
+  const enc = a.evento?.encerramento?.status||"aberto";
+  // o que o SERVIDOR recusaria: dizer antes é melhor que um botão que falha
+  let impede = "";
+  if(s==="registrada") impede = "a ação está registrada — o ciclo encerrou e o registro não se apaga";
+  else if(a.relatorio?.entregueEm) impede = "o relatório final já foi entregue — o documento existe e não se apaga por aqui";
+  else if(a.evento && enc!=="aberto") impede = "o encerramento do evento está em curso na PROPPEX";
+  else if(presentes) impede = `há ${presentes} presença(s) registrada(s): o evento aconteceu`;
+  else if(pagos) impede = `há ${pagos} inscrição(ões) paga(s) ou isenta(s) — estorne no Financeiro antes, se for o caso`;
+  return `<details class="card" style="margin-top:18px">
+    <summary style="cursor:pointer;color:var(--muted);font-size:13px">🗑 Excluir esta ação da plataforma</summary>
+    <div class="muted" style="margin-top:10px;font-size:13px">
+      Para o que foi <b>criado em teste</b>, <b>preenchido errado</b> ou <b>duplicado</b>. Some a ação inteira —
+      proposta, evento, página pública e inscritos. ${a.numeroAcao?`O número <b>${esc(a.numeroAcao)}</b> <b>não volta
+      a ser usado</b>: a sequência é um contador, e o lugar dele fica vago de propósito.`:""}
+      O que foi apagado fica registrado com quem apagou e o motivo.</div>
+    ${impede
+      ? `<div class="banner ba-err" style="margin-top:10px">Esta ação não se exclui: ${esc(impede)}.</div>`
+      : `<div style="margin-top:12px">
+          <label>Motivo da exclusão <span class="muted">(fica no registro)</span></label>
+          <input id="exc-motivo" placeholder="ex.: evento criado para testar a cobrança do Mercado Pago">
+          ${insc?`<div class="muted" style="margin-top:8px">Esta ação tem <b>${insc} inscrito(s)</b> — a confirmação vai pedir o nome exato do evento.</div>`:""}
+          <div style="margin-top:10px"><button class="bt bt-err" onclick="excluirAcao('${a.id}')">🗑 Excluir a ação</button></div>
+        </div>`}
+  </details>`;
+}
+async function excluirAcao(id){
+  const a = ACOES.find(x=>x.id===id); if(!a) return;
+  const motivo = ($("exc-motivo")?.value||"").trim();
+  if(motivo.length<5) return alert("Escreva o motivo da exclusão — ele fica no registro para explicar depois por que a ação sumiu.");
+  const nome = (a.proposta?.nomeAtividade||"").trim();
+  const insc = (a.participantes?.inscritos||[]).length;
+  if(!confirm(`Excluir DEFINITIVAMENTE "${nome}"${a.numeroAcao?` (${a.numeroAcao})`:""}?\n\nSome a proposta, o evento, a página pública e ${insc} inscrito(s).${a.numeroAcao?`\nO número ${a.numeroAcao} não volta a ser usado.`:""}\n\nIsto não se desfaz.`)) return;
+  let confirmacao = "";
+  if(insc){
+    confirmacao = (prompt(`Esta ação tem ${insc} inscrito(s). Para confirmar, digite o nome exato do evento:\n\n${nome}`)||"").trim();
+    if(!confirmacao) return;
+  }
+  const r = await fetch(`/api/extensao/${encodeURIComponent(id)}/excluir`, {
+    method:"POST", headers:{"content-type":"application/json"},
+    body: JSON.stringify({ tudo:true, motivo, confirmacao }) });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) return alert(j.error||"Não foi possível excluir.");
+  alert(`Ação excluída.${j.numeroAcao?` O número ${j.numeroAcao} fica vago na sequência.`:""}`);
+  await carregar();
+  nav("acoes");
+}
 function cardEvento(a){
   const ev = a.evento || {};
   // compat na edição: item antigo tinha só `hora` — vira horaInicio; os ids
