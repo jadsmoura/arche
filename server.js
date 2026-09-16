@@ -116,6 +116,11 @@ import {
 import * as provedorPg from "./lib/pagamentos/provedor.js";
 const mercadoPago = provedorPg.TODOS.mercadopago;
 const picPay = provedorPg.TODOS.picpay;
+/* ISENÇÃO DA TAXA pelo Comprovante de Cadastro Único (set/2026): a régua é
+   pura e vive em lib/isencao.js — a instituição NÃO consulta base federal
+   nenhuma (a API do CadÚnico é restrita a órgão público); a pessoa apresenta
+   o comprovante, o sistema lê e pré-decide, e quem defere é a coordenação. */
+import * as isencao from "./lib/isencao.js";
 import {
   AVISOS, AVISOS_KEY, SETORES_AVISO, aplicarMudanca as aplicarMudancaAviso,
   AVISOS_FILA_KEY, HORA_RESUMO, AVISOS_DA_GESTAO, avisoDe, modoDoAviso,
@@ -198,6 +203,7 @@ import * as wallet from "./lib/wallet.js";
 import * as tr from "./lib/trabalhos.js";
 import { idsDeImagens } from "./lib/richtext.js";
 import { emailTrabalhoRecebido, emailConviteRevisao, emailDecisaoTrabalho, emailTrabalhoMovimentado } from "./lib/mailer.js";
+import { emailIsencaoRecebida, emailIsencaoParaGestao, emailIsencaoDecidida } from "./lib/mailer.js";
 import {
   lerSessao, emitirCookie, limparCookie, renovarSessao, carregarUsuarios, salvarUsuarios,
   papelDe, modulosDe, MODULOS, verificarGoogle, criarCodigo, verificarCodigo,
@@ -3847,7 +3853,14 @@ const linhaSegura = (obj) => Object.fromEntries(Object.entries(obj)
    com muitos alunos). Texto livre continua fora: é o que pesa e ninguém filtra. */
 const inscritoLeve = (i, campos = []) => {
   if (!i || typeof i !== "object") return i;
-  const { respostas, consentimento, comunicacoes, ...resto } = i;
+  /* O PEDIDO DE ISENÇÃO fica FORA desta lista (set/2026): ele carrega
+     situação socioeconômica — faixa de renda, código familiar, município do
+     cadastro —, e a lista de inscritos é o payload mais puxado do módulo (o
+     poll da guia). Quem precisa desse detalhe abre a guia Isenção da taxa,
+     que o serve pela rota própria, ao MESMO público. Aqui fica só a palavra
+     que o selo da linha precisa. */
+  const { respostas, consentimento, comunicacoes, isencao: pedidoIsencao, ...cru } = i;
+  const resto = pedidoIsencao?.estado ? { ...cru, isencaoEstado: pedidoIsencao.estado } : cru;
   if (!respostas || !Object.keys(respostas).length) return resto;
   const filtros = {};
   for (const c of campos) {
@@ -5229,6 +5242,9 @@ function pagamentoPublico(inscrito, ev, agora = new Date()) {
     acrescimoCartao: pg.valorCartao > pg.valor ? acrescimoTexto(ev?.cobranca) : "",
     meio: pg.meio || "", pagoCentavos: pg.pagoCentavos ?? null,
     reservaVencida: reservaVencida(pg, agora),
+    // a reserva PAUSADA (pedido de isenção em análise) não vence: a tela
+    // precisa dizer isso, senão o prazo à vista parece estar correndo
+    pausado: !!pg.pausadoEm,
     divergente: !!pg.divergencia,
     valida: inscricaoValida(inscrito),
     politicaReembolso: String(ev?.cobranca?.politicaReembolso || ""),
@@ -6135,6 +6151,9 @@ app.get("/api/publico/eventos/:slug/inscricao/:token/pagamento", async (req, res
         periodoInicio: p.periodoInicio || "", periodoFim: p.periodoFim || "", local: p.local || "", municipio: p.municipio || "" },
       inscricao: { nome: r.inscrito.nome || "", codigo: codigoDe(r.inscrito.token), email: emailMascarado(r.inscrito.email) },
       pagamento: pagamentoPublico(r.inscrito, ev),
+      // a isenção da taxa: a configuração (só se o evento a oferece) e o
+      // pedido DESTA pessoa — nunca o de outra, nunca a fila
+      isencao: isencaoPublica(ev), meuPedido: isencaoDoInscrito(r.inscrito),
     });
   } catch (e) {
     console.error("Erro na página de pagamento:", e);
@@ -6234,6 +6253,231 @@ app.post("/api/publico/eventos/:slug/inscricao/:token/pagamento/pagar", async (r
     // inteira: cortada em 200 a orientação saía pela metade ("peça ao s")
     const motivo = /^(PicPay|Mercado Pago):/.test(String(e?.message || "")) ? ` (${String(e.message).slice(0, 400)})` : "";
     res.status(502).json({ error: `Não foi possível gerar a cobrança agora${motivo}. Tente de novo em instantes ou fale com a coordenação do evento.` });
+  }
+});
+
+/* ------------------- ISENÇÃO DA TAXA PELO CADÚNICO -----------------------
+   Pedido do dono (set/2026): "o candidato anexa o PDF do cadunico e, se
+   estiver dentro dos critérios, consegue a isenção". O que o sistema faz é
+   LER e PRÉ-DECIDIR — a instituição não consulta base federal (a API do
+   CadÚnico é restrita a órgão público) e o PDF se edita, então quem defere é
+   a coordenação, com o documento na tela e a chave de segurança a um clique
+   do site do Ministério. O critério é do EDITAL e vive na configuração. */
+const uploadIsencao = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
+const pastaIsencao = (a) => `${REPO}/Extensão/${slug(a.curso || "geral")}/${anoDaPasta(a.numeroAcao, a.proposta?.periodoFim || a.criadoEm)}/${slug(a.numeroAcao || a.id)}/isencoes`;
+
+/** O estado do pedido como a PESSOA o vê — sem o que é de análise interna. */
+const isencaoDoInscrito = (inscrito) => {
+  const p = inscrito?.isencao;
+  if (!p) return null;
+  return { id: p.id, em: p.em, estado: p.estado, rotulo: isencao.ESTADOS[p.estado] || p.estado,
+    motivo: p.decisao?.motivo || "", decididoEm: p.decisao?.em || "",
+    // o que se leu do PRÓPRIO comprovante dela volta para ela: é o dado dela,
+    // e é o que explica um indeferimento sem precisar ligar para a coordenação
+    faixa: p.leitura?.faixaTexto || "", emitidoEm: p.leitura?.emitidoEm || "" };
+};
+
+/** A configuração como a página pública a vê (sem nada de gestão). */
+const isencaoPublica = (ev) => {
+  const c = isencao.normalizarIsencao(ev?.isencao);
+  if (!c.ativa) return null;
+  return { ativa: true, criterio: c.criterio, criterioRotulo: isencao.criterioDe(c.criterio).rotulo,
+    prazoAte: c.prazoAte, validadeDias: c.validadeDias, orientacoes: c.orientacoes };
+};
+
+/**
+ * O pedido de isenção. Entra pelo TOKEN da inscrição, que é a credencial da
+ * pessoa — o mesmo caminho da página de pagamento. Três saídas, e a diferença
+ * entre elas é o que torna a automação honesta: o documento que ATENDE entra
+ * na fila já verde; o que não deu para LER entra na fila dizendo o que faltou
+ * (recusar quem mandou um arquivo que o nosso leitor não entendeu seria punir
+ * a pessoa por um limite nosso); e o que o PRÓPRIO documento NEGA é indeferido
+ * na hora, com o motivo — e a coordenação ainda pode reverter.
+ */
+app.post("/api/publico/eventos/:slug/inscricao/:token/isencao", uploadIsencao.single("comprovante"), async (req, res) => {
+  try {
+    if (inscricaoExcedeu(req.ip)) return res.status(429).json({ error: "Muitas tentativas — aguarde um minuto." });
+    const r = await acharInscricao(req.params.slug, req.params.token);
+    if (!r) return res.status(404).json({ error: "Inscrição não encontrada — confira o link recebido por e-mail." });
+    const { acao: a, inscrito: i } = r;
+    const congelado = eventoValidadoMsg(a);
+    if (congelado) return res.status(409).json({ error: congelado });
+    const cfg = isencao.normalizarIsencao(a.evento?.isencao);
+    const aberta = isencao.isencaoAberta(cfg, hojeLocalISO());
+    if (!aberta.ok) return res.status(409).json({ error: aberta.motivo });
+    if (!i.pagamento) return res.status(409).json({ error: "Esta inscrição não tem taxa a isentar." });
+    if (["pago", "isento", "estornado", "contestado"].includes(i.pagamento.status))
+      return res.status(409).json({ error: `Esta inscrição já está ${ROTULO_PAGAMENTO[i.pagamento.status] || i.pagamento.status} — não há taxa a isentar.` });
+    if (i.isencao?.estado === "analise")
+      return res.status(409).json({ error: "O seu pedido de isenção já está em análise. A coordenação avisa por e-mail quando decidir." });
+    if (i.isencao?.estado === "deferido")
+      return res.status(409).json({ error: "A sua isenção já foi concedida." });
+    /* A DECLARAÇÃO é o freio real — PDF se edita, e é ela que responsabiliza
+       quem declara falsamente. Sem ela o pedido não existe. */
+    if (String(req.body?.declaracao || "") !== "true")
+      return res.status(400).json({ error: "Para pedir a isenção é preciso firmar a declaração de veracidade." });
+    if (!req.file) return res.status(400).json({ error: "Anexe o Comprovante de Cadastro Único em PDF." });
+    if (!/pdf$/i.test(req.file.mimetype || "") && !/\.pdf$/i.test(req.file.originalname || ""))
+      return res.status(400).json({ error: "Envie o arquivo PDF original emitido pelo app ou pelo site do CadÚnico — foto e documento digitalizado não são lidos." });
+    /* A COTA se confere aqui e DE NOVO na hora de deferir: aqui para não
+       receber pedido que já não cabe, lá porque é o deferimento que gasta. */
+    const cota = isencao.cotaComporta(cfg, a.participantes?.inscritos);
+    if (!cota.ok) return res.status(409).json({ error: "As isenções deste evento já se esgotaram." });
+
+    // a LEITURA acontece fora da fila de escrita: é o passo caro
+    const leitura = await isencao.lerComprovante(req.file.buffer);
+    const v = isencao.avaliarComprovante(leitura, {
+      criterio: cfg.criterio, nome: i.nome || "", hoje: hojeLocalISO(), validadeDias: cfg.validadeDias });
+    let arquivo = null;
+    try {
+      const d = await files.save({ buffer: req.file.buffer, originalName: req.file.originalname || "comprovante-cadunico.pdf", prefix: pastaIsencao(a) });
+      arquivo = { ...d, tipo: req.file.mimetype || "application/pdf", em: new Date().toISOString() };
+    } catch (e) {
+      console.error("[isenção] upload do comprovante:", e.message);
+      return res.status(502).json({ error: "Não foi possível guardar o comprovante agora. Tente de novo em instantes." });
+    }
+
+    const estado = v.veredito === "naoAtende" ? "indeferido" : "analise";
+    const agora = new Date().toISOString();
+    const gravado = await comAcoes((acoes) => {
+      const ac = acoes.find((x) => x.id === a.id);
+      const ins = (ac?.participantes?.inscritos || []).find((x) => String(x?.token || "").toLowerCase() === String(r.inscrito.token).toLowerCase());
+      if (!ins) return { erro: [404, "Inscrição não encontrada."], gravar: false };
+      ins.isencao = {
+        id: "isen_" + crypto.randomUUID().slice(0, 10), em: agora, estado, criterio: cfg.criterio,
+        declaracao: { firmadaEm: agora, ip: String(req.ip || "").slice(0, 45) },
+        arquivo, leitura: isencao.resumoDaLeitura(leitura, v.nomeConfere),
+        veredito: { resultado: v.veredito, impedem: v.impedem, avisos: v.avisos },
+        ...(estado === "indeferido"
+          ? { decisao: { por: "sistema", em: agora, motivo: v.impedem.join("; ") } }
+          : {}),
+        historico: [{ em: agora, para: estado, por: "sistema" }],
+      };
+      /* A RESERVA PAUSA enquanto a coordenação analisa: o relógio dela não
+         pode correr contra quem está esperando uma decisão que não é dele. */
+      if (estado === "analise" && ["aguardando", "recusado"].includes(ins.pagamento?.status || ""))
+        ins.pagamento = { ...ins.pagamento, pausadoEm: agora };
+      ac.atualizadoEm = agora;
+      return { acao: ac, inscrito: ins };
+    }, { flushJa: "agora" });
+    if (gravado.erro) return res.status(gravado.erro[0]).json({ error: gravado.erro[1] });
+
+    res.json({ ok: true, isencao: isencaoDoInscrito(gravado.inscrito),
+      pagamento: pagamentoPublico(gravado.inscrito, gravado.acao.evento) });
+    const base = baseDe(req);
+    enviarAviso("ev-isencao-recebida", emailIsencaoRecebida(gravado.acao, gravado.inscrito, base))
+      .catch((e) => console.error("[isenção] aviso ao inscrito:", e.message));
+    if (estado === "analise")
+      enviarAviso("ev-isencao-gestao", emailIsencaoParaGestao(gravado.acao, gravado.inscrito, base))
+        .catch((e) => console.error("[isenção] aviso à gestão:", e.message));
+  } catch (e) {
+    console.error("Erro no pedido de isenção:", e);
+    if (!res.headersSent) res.status(500).json({ error: "Não foi possível registrar o pedido agora." });
+  }
+});
+
+/* ------------------ a gestão: a fila dos pedidos de isenção -------------- */
+
+/** A fila, com o que sustenta a decisão de cada pedido. Quem opera o evento. */
+app.get("/api/extensao/:id/isencoes", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const a = (await lerAcoes()).find((x) => x.id === req.params.id);
+    if (!a || !podeOperarEvento(u, a)) return res.status(404).json({ error: "Ação não encontrada" });
+    const cfg = isencao.normalizarIsencao(a.evento?.isencao);
+    const inscritos = a.participantes?.inscritos || [];
+    const pedidos = inscritos.filter((i) => i?.isencao).map((i) => ({
+      token: i.token, nome: i.nome || "", email: i.email || "",
+      categoria: i.pagamento?.categoriaNome || "", valor: i.pagamento?.valor ?? null,
+      pagamento: i.pagamento?.status || "",
+      ...i.isencao,
+      // o PDF fica no Repositório e se abre pelo endereço de sempre
+      arquivoUrl: i.isencao.arquivo?.fileId ? `/api/files/${encodeURIComponent(i.isencao.arquivo.fileId)}` : "",
+    }));
+    pedidos.sort((x, y) => (x.estado === "analise" ? 0 : 1) - (y.estado === "analise" ? 0 : 1)
+      || String(y.em).localeCompare(String(x.em)));
+    res.json({ config: cfg, criterios: isencao.CRITERIOS, urlValidacao: isencao.URL_VALIDACAO,
+      cota: isencao.cotaComporta(cfg, inscritos), pedidos });
+  } catch (e) {
+    console.error("Erro ao listar isenções:", e);
+    res.status(500).json({ error: "Falha ao carregar os pedidos de isenção." });
+  }
+});
+
+/**
+ * A decisão. Deferir chama o MESMO caminho da isenção que já existe (o
+ * `transitar` para `isento`), então a credencial passa a valer e o e-mail com
+ * o QR sai na hora — uma régua só para "inscrição isenta". Indeferir devolve
+ * a reserva com o prazo INTEIRO recomeçando: a pessoa perdeu dias esperando.
+ */
+app.post("/api/extensao/:id/isencoes/:token/decidir", async (req, res) => {
+  try {
+    const u = await sessaoEx(req, res);
+    if (!u) return;
+    const decisao = String(req.body?.decisao || "").trim();
+    if (!["deferido", "indeferido"].includes(decisao))
+      return res.status(400).json({ error: "Decisão inválida — defira ou indefira." });
+    const motivo = String(req.body?.motivo || "").trim().slice(0, 400);
+    if (decisao === "indeferido" && motivo.length < 5)
+      return res.status(400).json({ error: "Escreva o motivo do indeferimento — é o que a pessoa lê." });
+    const tok = String(req.params.token || "").trim().toLowerCase();
+    const r = await comAcoes((acoes) => {
+      const a = acoes.find((x) => x.id === req.params.id);
+      if (!a || !podeOperarEvento(u, a)) return { erro: [404, "Ação não encontrada"], gravar: false };
+      const congelado = eventoValidadoMsg(a);
+      if (congelado) return { erro: [400, congelado], gravar: false };
+      const inscritos = a.participantes?.inscritos || [];
+      const i = inscritos.find((x) => String(x?.token || "").toLowerCase() === tok);
+      if (!i?.isencao) return { erro: [404, "Pedido de isenção não encontrado."], gravar: false };
+      if (i.isencao.estado === decisao) return { erro: [409, `Este pedido já está ${isencao.ESTADOS[decisao]}.`], gravar: false };
+      const agora = new Date().toISOString();
+
+      if (decisao === "deferido") {
+        const cota = isencao.cotaComporta(a.evento?.isencao, inscritos);
+        if (!cota.ok) return { erro: [409, `A cota de isenções do evento (${isencao.normalizarIsencao(a.evento?.isencao).cota}) já está cheia.`], gravar: false };
+        if (i.pagamento?.status === "pago")
+          return { erro: [409, "Esta inscrição já está paga — para devolver o valor, use o estorno no Financeiro."], gravar: false };
+        const novo = transitarPagamento(i.pagamento, "isento", {
+          por: u.email, motivo: `isenção deferida (CadÚnico)${motivo ? ` — ${motivo}` : ""}`,
+          extra: { isentoPor: u.email, motivoIsencao: `isenção da taxa deferida pelo CadÚnico${motivo ? ` — ${motivo}` : ""}`,
+            pausadoEm: "", link: "", qrCode: "", linkCartao: "" } });
+        if (!novo) return { erro: [409, `Não dá para isentar uma inscrição ${ROTULO_PAGAMENTO[i.pagamento?.status] || i.pagamento?.status}.`], gravar: false };
+        delete novo.divergencia;
+        i.pagamento = novo;
+      } else if (i.pagamento?.status === "isento") {
+        /* DEFERIDA, a isenção não se desfaz por aqui. `isento` é estado FINAL
+           da máquina de pagamento, e o deferimento já mandou a confirmação com
+           o QR: virar só o registro deixaria o pedido dizendo "indeferido" e a
+           credencial da pessoa valendo — o registro e o dinheiro afirmando
+           coisas opostas, que é o defeito que este módulo inteiro evita. */
+        return { erro: [409, "Esta isenção já foi concedida e a credencial foi enviada por e-mail — não dá para indeferi-la depois. Para cobrar a taxa desta pessoa, fale com ela e registre uma nova inscrição."], gravar: false };
+      } else if (["aguardando", "recusado"].includes(i.pagamento?.status || "")) {
+        /* Indeferido: a reserva volta a correr com o prazo INTEIRO a partir de
+           agora — o tempo da análise não é dela. */
+        const minutos = Math.max(15, Number(a.evento?.cobranca?.reservaMinutos) || 1440);
+        i.pagamento = transitarPagamento(i.pagamento, i.pagamento.status, {
+          por: u.email, motivo: "isenção indeferida — reserva reaberta",
+          extra: { pausadoEm: "", expiraEm: new Date(Date.now() + minutos * 60000).toISOString() } }) || i.pagamento;
+      }
+      i.isencao = { ...i.isencao, estado: decisao,
+        decisao: { por: u.email, em: agora, motivo },
+        historico: [...(i.isencao.historico || []), { em: agora, para: decisao, por: u.email, ...(motivo ? { motivo } : {}) }].slice(-20) };
+      a.atualizadoEm = agora;
+      return { acao: a, inscrito: i };
+    }, { flushJa: "agora" });
+    if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    res.json({ ok: true, isencao: r.inscrito.isencao, pagamento: r.inscrito.pagamento });
+    const base = baseDe(req);
+    // deferida, a credencial passa a existir: o e-mail com o QR é o de sempre
+    if (decisao === "deferido")
+      enviarConfirmacaoInscricao(r.acao, r.inscrito, base)
+        .catch((e) => console.error("[isenção] confirmação após deferimento:", e.message));
+    enviarAviso("ev-isencao-decidida", emailIsencaoDecidida(r.acao, r.inscrito, base))
+      .catch((e) => console.error("[isenção] aviso da decisão:", e.message));
+  } catch (e) {
+    console.error("Erro ao decidir a isenção:", e);
+    res.status(500).json({ error: "Falha ao registrar a decisão." });
   }
 });
 
@@ -6744,6 +6988,8 @@ app.get("/api/publico/eventos/:slug/participante", async (req, res) => {
         valida: inscricaoValida(inscrito),
       } : null,
       pagamento: inscrito ? pagamentoPublico(inscrito, ev) : null,
+      // a isenção da taxa: a configuração e o pedido DESTA pessoa
+      isencao: isencaoPublica(ev), meuPedido: inscrito ? isencaoDoInscrito(inscrito) : null,
       liberado,
       trabalhos,
       outroEmail,
@@ -8779,6 +9025,20 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
           }
         }
         ev.cobranca = cob;
+      }
+      /* ISENÇÃO DA TAXA (set/2026): nasce DESLIGADA, como a cobrança e a
+         submissão de trabalhos — o recurso existe no código e nenhum evento
+         mostra nada até a coordenação ligar, porque o edital vem antes do
+         botão. E só existe em evento PAGO: oferecer isenção onde não há taxa
+         é uma porta para lugar nenhum. A guia de isenção não manda `cobranca`
+         e a guia Cobrança não manda `isencao` — cada uma preserva a outra. */
+      if (b.isencao !== undefined) {
+        if (typeof b.isencao !== "object" || b.isencao === null || Array.isArray(b.isencao))
+          return { erro: [400, "Configuração de isenção inválida."], gravar: false };
+        const isen = isencao.normalizarIsencao(b.isencao);
+        if (isen.ativa && !cobrancaAtiva(ev.cobranca))
+          return { erro: [400, "A isenção da taxa só existe em evento pago — ligue a cobrança da inscrição antes."], gravar: false };
+        ev.isencao = isen;
       }
       // e a ATIVAÇÃO da página de evento pago confere o mesmo (a chave pode
       // ter saído do ambiente depois de a cobrança ter sido configurada)

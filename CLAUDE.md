@@ -1350,6 +1350,65 @@ public/
   Cobrança, que não manda `vouchers`, não os apaga (o servidor preserva os gravados). O pagamento guarda
   `{ codigo, desconto }`, a renovação da reserva reconfere o voucher (se ainda vale, segue; senão, preço
   de hoje), e o Financeiro e a planilha ganharam as colunas Voucher/Desconto e o quadro "Por voucher".
+- **ISENÇÃO DA TAXA PELO COMPROVANTE DO CADÚNICO** (`lib/isencao.js` [régua pura + leitura do PDF] +
+  `evento.isencao` + `POST /api/publico/eventos/:slug/inscricao/:token/isencao` +
+  `GET /api/extensao/:id/isencoes` e `POST …/isencoes/:token/decidir` + a guia **Isenção da taxa**
+  (PRÉ-EVENTO) do ARCHÉ EV + o bloco na página de pagamento, pedido do dono set/2026: "a ideia é o
+  candidato anexar o PDF do cadunico e se ele estiver dentro dos critérios conseguir a isenção;
+  conseguimos automatizar?" — e, precisando: "não é você buscar o cadunico; o candidato anexa o seu
+  PDF e o sistema lê e valida"). **NASCE DESLIGADO**, por evento, como a cobrança e a submissão de
+  trabalhos: o código está no ar e nenhum evento mostra nada até a coordenação ligar na guia
+  ("Pode construir. Mas não lance ainda").
+  **POR QUE NÃO SE CONSULTA A BASE FEDERAL** (e isto fica escrito para não se reabrir): a API do
+  CadÚnico no Conecta gov.br é restrita a **órgãos públicos** — uma instituição privada de ensino não
+  se credencia; o Portal da Transparência responde outra pergunta (pagamento do Bolsa Família), só
+  por NIS, e não diz faixa de renda. E consultar a base federal significaria tratar dado de toda a
+  FAMÍLIA de quem se inscreve. O caminho que existe é o que o próprio cidadão emite: o **Comprovante
+  de Cadastro Único** do app/site, um PDF com camada de texto que carrega exatamente o critério —
+  a **faixa de renda familiar por pessoa**.
+  **A LEITURA CASA RÓTULO COM VALOR PELA COORDENADA, não pela ordem do texto**: o comprovante é um
+  FORMULÁRIO — todos os rótulos primeiro, todos os valores depois —, e a proximidade no fluxo de
+  texto casa a data errada. O valor está **abaixo** do rótulo, na mesma coluna (`abaixo`); a exceção
+  é "Consulta realizada em", que é rótulo INLINE com o valor **à direita**, no mesmo y (`aoLado`).
+  É o tipo de defeito que quebra em silêncio — devolver a data de cadastro onde se esperava a última
+  atualização decide o pedido pelo campo errado —, e por isso o teste MONTA um PDF com o mesmo
+  desenho e confere os 9 campos um a um. As **faixas se reconhecem pela FORMA da frase**, nunca pelo
+  "R$ 218" cravado (ele muda por decreto e o catálogo pararia de funcionar no dia do reajuste, sem
+  aviso); e o `\b` NÃO serve de fronteira depois de "é" — em JavaScript `\w` é ASCII, e `\bat[ée]\b`
+  recusava "Até meio salário mínimo".
+  **O CRITÉRIO É DO EDITAL, e o do dono é "até meio salário mínimo por pessoa"** — as duas primeiras
+  faixas, que é a definição de baixa renda do próprio CadÚnico. O recorte mais estreito (só a linha
+  de pobreza, que é o de concessão do Bolsa Família) fica no catálogo porque um edital seguinte pode
+  querer.
+  **A AUTOMAÇÃO PARA NA RECOMENDAÇÃO — quem defere é gente.** O PDF se edita e a chave de segurança
+  não tem API pública de validação: o sistema diz o que LEU e põe o botão que abre a conferência da
+  chave no site do Ministério. São **três desfechos**: `conforme` → fila, em verde; `conferir`
+  (arquivo ilegível, digitalizado, ou que não é o comprovante) → fila, **com o motivo** — nunca se
+  recusa alguém pelo limite do nosso leitor; e `naoAtende`, que é o **documento negando o critério**
+  (faixa acima, cadastro desatualizado, prazo vencido) → fica `indeferido` por `sistema`, com o
+  motivo por extenso, e a coordenação desfaz se quiser. O nome que não bate é **AVISO**, não
+  impedimento: o requerente pode ser dependente na família cadastrada.
+  **A RESERVA PAUSA enquanto a coordenação analisa** (`pagamento.pausadoEm`, lido por
+  `reservaVencida`): o relógio da vaga não pode correr contra quem espera uma decisão que não é
+  dele. Deferir passa pelo MESMO `transitar` para `isento` que a isenção do Financeiro já usa — uma
+  régua só para "inscrição isenta", e o e-mail com o QR sai na hora; indeferir devolve a reserva com
+  o **prazo INTEIRO recomeçando**, porque a pessoa perdeu dias esperando. **Deferida, não se
+  desfaz**: `isento` é estado final e a credencial já foi enviada — virar só o registro deixaria o
+  pedido dizendo "indeferido" com a credencial valendo, que é o registro e o dinheiro afirmando
+  coisas opostas. A **cota** se confere duas vezes (ao receber, para não aceitar pedido que já não
+  cabe; ao deferir, porque é o deferimento que gasta).
+  **PRIVACIDADE**: o comprovante lista a FAMÍLIA inteira — nomes, NIS e datas de nascimento de
+  terceiros, às vezes menores. A lista é usada só para responder "o requerente está nesta família?"
+  e **não se grava**: fica a contagem e a resposta (`resumoDaLeitura`), nunca os nomes nem o texto
+  cru. O PDF vai ao Repositório como qualquer anexo, e `inscritoLeve` tira o pedido INTEIRO da lista
+  que a gestão consulta a cada poll — vai só `isencaoEstado`. A **declaração de veracidade** é o
+  freio real (PDF se edita), e sem ela o pedido não existe.
+  O formulário mora em **UM lugar** (a página de pagamento, que é onde a pessoa está quando descobre
+  que há taxa); a área do inscrito mostra o estado e leva até lá. Três avisos no catálogo:
+  `ev-isencao-recebida` e `ev-isencao-decidida` (à pessoa, críticos) e `ev-isencao-gestao`.
+  **O que falta do lado do dono**: os prazos, a cota e o texto do edital; e testar o leitor contra um
+  comprovante ATUAL — o espécime que temos é de 2024, e é a única fragilidade que resta (se o layout
+  mudar, a leitura cai em `conferir`, que é o lado seguro: ninguém é recusado por isso).
 - **ISENÇÃO NA LISTA DE INSCRITOS E OS FILTROS** (guia Inscritos e presenças do ARCHÉ EV, pedido do
   dono set/2026: "em eventos pagos, permita à PROPPEX isentar alguns pagamentos — monitores e
   professores não pagam; eles se inscrevem, não pagam, e eu confirmo à mão"; "coloque filtros por

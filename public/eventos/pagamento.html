@@ -122,7 +122,11 @@ function render() {
     : pendente ? `
       ${vencida || p.status === "expirado"
         ? `<div class="prazo"><b>A reserva da vaga venceu</b>${p.expiraEm ? ` em ${esc(hora(p.expiraEm))}` : ""}. Se ainda houver vaga, dá para renovar e pagar agora — com o preço de hoje.</div>`
-        : `<div class="prazo">A vaga está <b>reservada até ${esc(hora(p.expiraEm))}</b>. Depois desse prazo, sem o pagamento, a inscrição expira e a vaga volta para a fila.</div>`}
+        : p.pausado
+          /* a reserva está PAUSADA por um pedido de isenção em análise: o
+             prazo à vista não está correndo, e dizê-lo seria mentir */
+          ? `<div class="prazo">A vaga está <b>reservada</b>, e o prazo para pagar <b>está parado</b> enquanto o seu pedido de isenção é analisado.</div>`
+          : `<div class="prazo">A vaga está <b>reservada até ${esc(hora(p.expiraEm))}</b>. Depois desse prazo, sem o pagamento, a inscrição expira e a vaga volta para a fila.</div>`}
       ${p.online
         ? (p.qrCode && !vencida && p.status === "aguardando"
           /* PIX POR QR CODE (PicPay): a pessoa não sai daqui — escaneia ou
@@ -155,9 +159,78 @@ function render() {
         ? "O valor desta inscrição foi devolvido. Para participar, faça uma nova inscrição na página do evento."
         : "Esta inscrição está em análise pela coordenação do evento."}</div>
       <a class="bt bt-sec" style="width:100%;margin-top:14px" href="/eventos/${encodeURIComponent(SLUG)}">Voltar à página do evento</a>`}
+    ${blocoIsencao(p)}
     <div id="msg"></div>
     ${p.politicaReembolso ? `<div class="pol"><b>Política de reembolso:</b> ${esc(p.politicaReembolso)}</div>` : ""}
     <p style="font-size:11.5px;color:var(--muted);margin-top:14px">Dúvidas sobre a inscrição ou o pagamento: eventos@uniego.edu.br.</p>`;
+}
+
+/* ------------------ ISENÇÃO DA TAXA PELO CADÚNICO (set/2026) --------------
+   O formulário vive AQUI e em nenhum outro lugar: a área do inscrito aponta
+   para esta página. Duas telas com o mesmo formulário acabam diferentes na
+   primeira correção — a lição que este sistema já pagou caro noutros cantos.
+   A declaração de veracidade é o freio real: PDF se edita, e é ela que
+   responsabiliza quem declara falsamente. */
+function blocoIsencao(p) {
+  const c = DADOS.isencao, meu = DADOS.meuPedido;
+  if (!c && !meu) return "";
+  if (meu && meu.estado === "analise") return `
+    <div class="msg-aviso" style="margin-top:14px">
+      <b>Pedido de isenção em análise.</b> A coordenação está conferindo o seu comprovante e avisa por e-mail quando decidir.
+      Enquanto isso, <b>a sua vaga fica reservada</b> e o prazo para pagar não corre — não é preciso fazer nada.
+      ${meu.faixa ? `<br><span style="font-size:12px">Lemos no seu comprovante: renda por pessoa “${esc(meu.faixa)}”.</span>` : ""}
+    </div>`;
+  if (meu && meu.estado === "deferido") return "";        // a inscrição já vale: a tela acima diz isso
+  if (!c) return "";                                       // o evento não oferece (ou já não oferece) isenção
+  if (!["aguardando", "recusado", "expirado"].includes(p.status)) return "";
+  return `
+    <details class="ise" style="margin-top:16px;border:1px solid var(--line);border-radius:12px;padding:12px 14px">
+      <summary style="cursor:pointer;font-weight:700;font-size:14px">Tenho CadÚnico — pedir isenção da taxa</summary>
+      ${meu && meu.estado === "indeferido" ? `<div class="msg-erro" style="margin-top:10px"><b>O seu pedido anterior não foi atendido.</b>
+        ${esc(meu.motivo || "")}<br><span style="font-size:12px">Se o motivo foi o arquivo, dá para enviar o comprovante certo abaixo.</span></div>` : ""}
+      <p style="font-size:13px;color:var(--ink-soft);margin-top:10px">
+        Quem está no <b>Cadastro Único</b> com <b>${esc(c.criterioRotulo.toLowerCase())}</b> pode pedir isenção da taxa desta inscrição.
+        ${c.prazoAte ? `Os pedidos vão até <b>${fmt(c.prazoAte)}</b>.` : ""}</p>
+      ${c.orientacoes ? `<p style="font-size:13px;margin-top:8px;white-space:pre-line">${esc(c.orientacoes)}</p>` : ""}
+      <p style="font-size:12.5px;color:var(--muted);margin-top:8px">
+        Anexe o <b>PDF original</b> do Comprovante de Cadastro Único — o que o aplicativo <b>CadÚnico</b> ou o site
+        <b>cadunico.dataprev.gov.br</b> emitem. <b>Foto e documento digitalizado não são lidos</b>: o sistema precisa do
+        arquivo como ele sai de lá.${c.validadeDias ? ` O comprovante deve ter sido emitido há no máximo <b>${c.validadeDias} dia(s)</b>.` : ""}</p>
+      <label style="display:block;margin-top:12px;font-size:13px">Comprovante de Cadastro Único (PDF)
+        <input type="file" id="ise-arq" accept="application/pdf,.pdf" style="display:block;margin-top:6px;font-size:13px;width:100%"></label>
+      <label style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;font-size:12.5px;line-height:1.5">
+        <input type="checkbox" id="ise-dec" style="margin-top:3px">
+        <span>Declaro que o comprovante anexado é <b>meu ou da minha família</b>, é <b>autêntico</b> e que as informações
+          nele contidas são verdadeiras. Estou ciente de que declaração falsa pode levar ao cancelamento da inscrição
+          e às demais medidas cabíveis.</span></label>
+      <button class="bt bt-sec" style="width:100%;margin-top:12px" id="bt-ise" onclick="pedirIsencao()">Enviar pedido de isenção</button>
+      <div id="ise-msg"></div>
+      <p style="font-size:11.5px;color:var(--muted);margin-top:8px">O comprovante fica guardado no sistema e é lido apenas
+        pela coordenação do evento, para analisar este pedido.</p>
+    </details>`;
+}
+async function pedirIsencao() {
+  const arq = $("ise-arq"), dec = $("ise-dec"), bt = $("bt-ise"), msg = $("ise-msg");
+  msg.innerHTML = "";
+  if (!arq?.files?.[0]) { msg.innerHTML = `<div class="msg-erro">Anexe o PDF do Comprovante de Cadastro Único.</div>`; return; }
+  if (!dec?.checked) { msg.innerHTML = `<div class="msg-erro">Marque a declaração de veracidade para enviar o pedido.</div>`; return; }
+  if (bt) { bt.disabled = true; bt.textContent = "Enviando…"; }
+  try {
+    const fd = new FormData();
+    fd.append("comprovante", arq.files[0]);
+    fd.append("declaracao", "true");
+    const r = await fetch(`${RAIZ}/isencao`, { method: "POST", body: fd });
+    const j = await r.json().catch(() => null);
+    if (!r.ok) throw new Error(j?.error || `Não foi possível enviar o pedido (HTTP ${r.status}).`);
+    DADOS.meuPedido = j.isencao;
+    if (j.pagamento) DADOS.pagamento = j.pagamento;
+    render();
+    // indeferido na hora (o próprio comprovante nega o critério): a razão
+    // aparece no bloco redesenhado, e o e-mail leva a mesma explicação
+  } catch (e) {
+    if (bt) { bt.disabled = false; bt.textContent = "Enviar pedido de isenção"; }
+    msg.innerHTML = `<div class="msg-erro">${esc(e.message)}</div>`;
+  }
 }
 
 async function pagar() {

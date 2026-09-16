@@ -366,6 +366,7 @@
         <section id="v-transmissao" class="hide"></section>
         <section id="v-cobranca" class="hide"></section>
         <section id="v-vouchers" class="hide"></section>
+        <section id="v-isencao" class="hide"></section>
         <section id="v-financeiro" class="hide"></section>
         <section id="v-exportacoes" class="hide"></section>
         <section id="v-editais" class="hide"></section>
@@ -537,6 +538,10 @@ const SECOES = [
      limitados em quantidade e prazo — conferidos pelo servidor na inscrição. */
   {k:"vouchers", rot:"Vouchers de desconto", grupo:"PRÉ-EVENTO", ic:IC.cobranca, evento:true, tit:"Vouchers de desconto",
    sub:"Códigos de desconto para a inscrição — por categoria, ilimitados ou limitados em quantidade e prazo."},
+  /* ISENÇÃO DA TAXA pelo CadÚnico (set/2026): o candidato anexa o comprovante,
+     o sistema lê e pré-decide, e a coordenação defere com o PDF na tela. */
+  {k:"isencao", rot:"Isenção da taxa", grupo:"PRÉ-EVENTO", ic:IC.cobranca, evento:true, tit:"Isenção da taxa de inscrição",
+   sub:"Quem tem CadÚnico anexa o comprovante e pede isenção: o sistema lê o documento e a coordenação decide."},
   {k:"pagina", rot:"Página do evento", grupo:"PRÉ-EVENTO", ic:IC.pagina, evento:true, tit:"Página do evento",
    sub:"A página pública (hotsite): ativação, endereço, descrição, local e capa."},
   {k:"programacao", rot:"Programação", grupo:"PRÉ-EVENTO", ic:IC.programacao, evento:true, tit:"Programação",
@@ -782,6 +787,7 @@ function nav(secao){
   else if(SECAO==="transmissao") renderTransmissao(a);
   else if(SECAO==="cobranca") renderCobranca(a);
   else if(SECAO==="vouchers") renderVouchers(a);
+  else if(SECAO==="isencao") renderIsencao(a);
   else if(SECAO==="financeiro") renderFinanceiro(a);
   else if(SECAO==="exportacoes") renderExportacoes(a);
   else if(SECAO==="editais") window.ArcheEditais?.montar($("v-editais"),{setores:["eventos"]});
@@ -2807,6 +2813,117 @@ async function salvarVouchers(id){
     if(j.vouchers.length<enviados) alert(`Salvo com ${j.vouchers.length} voucher(s). Linha sem código válido (letras e números, 2 a 30), sem desconto ou com código repetido não entra.`);
   }catch(e){ if(msg) msg.textContent=""; alert(e.message); }
 }
+/* ------------------ ISENÇÃO DA TAXA PELO CADÚNICO (set/2026) --------------
+   O candidato anexa o Comprovante de Cadastro Único e o servidor LÊ o PDF —
+   faixa de renda por pessoa, se o cadastro está atualizado, o limite de
+   atualização e a chave de segurança. O que ele NÃO faz é decidir: PDF se
+   edita e não há API pública para conferir a chave por máquina, então o
+   veredito é uma RECOMENDAÇÃO e quem defere é a coordenação, com o documento
+   na tela e a chave a um clique do site do Ministério. */
+let EV_ISE=null;
+const ISE_SELO={analise:["#8a6d1f","#fdf6e3","aguardando decisão"],deferido:["#1f6b3a","#eaf7ef","isenção concedida"],indeferido:["#8a2f2a","#fdf0ef","indeferido"]};
+const ISE_VER={conforme:["✓","#1f6b3a","o comprovante atende ao critério do edital"],
+  conferir:["⚠","#8a6d1f","precisa de conferência à mão"],
+  naoAtende:["✗","#8a2f2a","o próprio comprovante nega o critério"]};
+async function renderIsencao(a){
+  const alvo=$("v-isencao");
+  alvo.innerHTML=`<div class="cnt">Carregando os pedidos…</div>`;
+  let d=null;
+  try{
+    const r=await fetch(`/api/extensao/${encodeURIComponent(a.id)}/isencoes`);
+    d=await r.json(); if(!r.ok) throw new Error(d.error||"Falha ao carregar.");
+  }catch(e){ alvo.innerHTML=`<div class="banner ba-err">${esc(e.message)}</div>`; return; }
+  EV_ISE=d;
+  const c=d.config, paga=!!(a.evento?.cobranca?.ativa)&&(a.evento?.cobranca?.categorias||[]).some(k=>k.valor>0);
+  const naFila=d.pedidos.filter(p=>p.estado==="analise");
+  alvo.innerHTML=`
+    ${!paga?`<div class="banner ba-warn">Este evento ainda não cobra inscrição — a isenção só existe em evento pago.
+      Ligue a <button class="lk" onclick="nav('cobranca')">cobrança</button> antes.</div>`:""}
+    <div class="banner ba-info">A pessoa anexa o <b>PDF original</b> do Comprovante de Cadastro Único (o que o app ou o site
+      do CadÚnico emite) e firma a declaração de veracidade. O sistema <b>lê o documento</b> e diz o que encontrou; <b>quem
+      defere é você</b>, conferindo a chave de segurança no site do Ministério. Enquanto o pedido está em análise, a
+      <b>reserva da vaga não vence</b>.</div>
+    <div class="card">
+      <div class="sec-t">Como funciona neste evento</div>
+      <label class="ck" style="margin-bottom:10px"><input type="checkbox" id="ise-ativa" ${c.ativa?"checked":""}>
+        <span><b>Receber pedidos de isenção da taxa</b> — ${c.ativa?"ligado: quem se inscreve vê o pedido na página de pagamento.":"desligado: nada aparece para quem se inscreve."}</span></label>
+      <div class="grid2">
+        <label>Critério do edital
+          <select id="ise-criterio">${d.criterios.map(x=>`<option value="${esc(x.codigo)}" ${c.criterio===x.codigo?"selected":""}>${esc(x.rotulo)}</option>`).join("")}</select></label>
+        <label>Pedidos até (opcional)<input type="date" id="ise-prazo" value="${esc(c.prazoAte)}"></label>
+        <label>Cota de isenções (0 = sem cota)<input type="number" min="0" id="ise-cota" value="${c.cota||0}"></label>
+        <label>Comprovante emitido há no máximo (dias; 0 = sem exigência)<input type="number" min="0" id="ise-validade" value="${c.validadeDias||0}"></label>
+      </div>
+      <label style="margin-top:10px">Orientações ao candidato (aparecem no formulário do pedido)
+        <textarea id="ise-orient" rows="3" placeholder="Ex.: o comprovante se emite no app CadÚnico ou em cadunico.dataprev.gov.br. Envie o PDF original, não uma foto.">${esc(c.orientacoes)}</textarea></label>
+      <div class="exp" style="margin:12px 0 0">
+        <button class="bt bt-pri" onclick="salvarIsencao('${esc(a.id)}')">💾 Salvar</button>
+        <span class="muted ev-msg" style="align-self:center"></span>
+      </div>
+      ${c.cota?`<p class="muted" style="margin:10px 0 0">Cota: <b>${d.cota.usadas||0} de ${c.cota}</b> concedida(s)${d.cota.restam!==null?` · restam ${d.cota.restam}`:""}.</p>`:""}
+    </div>
+    <div class="card">
+      <div class="sec-t">Pedidos ${naFila.length?`· <span class="badge" style="background:#fdf6e3;color:#8a6d1f">${naFila.length} aguardando</span>`:""}</div>
+      ${d.pedidos.length?d.pedidos.map(p=>cardIsencao(a,p,d)).join(""):`<div class="cnt">— nenhum pedido de isenção até agora.</div>`}
+    </div>`;
+}
+function cardIsencao(a,p,d){
+  const [cor,fundo,rot]=ISE_SELO[p.estado]||["#5b7280","#eef3f5",p.estado];
+  const l=p.leitura||{}, v=p.veredito||{};
+  const [ic,cv,tv]=ISE_VER[v.resultado]||["·","#5b7280",""];
+  const linha=(r,x)=>x?`<div><span class="muted">${esc(r)}:</span> ${esc(x)}</div>`:"";
+  return `<div class="card-s" style="margin-bottom:10px">
+    <div class="lin" style="justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div><b>${esc(p.nome||"(sem nome)")}</b> <span class="muted">${esc(p.email||"")}</span>
+        ${p.categoria?`<span class="muted"> · ${esc(p.categoria)}${p.valor?` · ${reaisDe(p.valor)}`:""}</span>`:""}</div>
+      <span class="badge" style="background:${fundo};color:${cor}">${esc(rot)}</span>
+    </div>
+    <div style="font-size:13px;line-height:1.7;margin-top:8px">
+      <div style="color:${cv}"><b>${ic} ${esc(tv)}</b></div>
+      ${l.legivel===false
+        ? `<div class="muted">Não foi possível ler o arquivo (${esc(l.motivo||"")}) — confira pelo PDF.</div>`
+        : `${linha("Faixa de renda por pessoa",l.faixaTexto)}
+           ${linha("Cadastro atualizado",l.atualizado+(l.limiteAtualizacao?` · limite ${l.limiteAtualizacao}`:""))}
+           ${linha("Emitido em",l.emitidoEm)}${linha("Município",l.municipio)}
+           <div><span class="muted">Requerente entre os integrantes:</span> ${l.nomeConfere?"✓ sim":"— não encontrado"}
+             ${l.integrantes?`<span class="muted">(${l.integrantes} integrante(s) no comprovante)</span>`:""}</div>`}
+      ${(v.impedem||[]).map(m=>`<div style="color:#8a2f2a">✗ ${esc(m)}</div>`).join("")}
+      ${(v.avisos||[]).map(m=>`<div style="color:#8a6d1f">⚠ ${esc(m)}</div>`).join("")}
+      ${p.decisao?.motivo?`<div style="margin-top:6px"><span class="muted">Motivo registrado:</span> ${esc(p.decisao.motivo)}</div>`:""}
+    </div>
+    <div class="lin" style="gap:8px;flex-wrap:wrap;margin-top:10px">
+      ${p.arquivoUrl?`<a class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" href="${esc(p.arquivoUrl)}" target="_blank" rel="noopener">📄 Abrir o comprovante</a>`:""}
+      ${l.chave?`<a class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" href="${esc(d.urlValidacao)}" target="_blank" rel="noopener">🔑 Conferir a chave ${esc(l.chave)}</a>`:""}
+      ${p.estado!=="deferido"?`<button class="bt bt-pri" style="padding:7px 12px;font-size:12.5px" onclick="decidirIsencao('${esc(a.id)}','${esc(p.token)}','deferido')">✓ Deferir a isenção</button>`:""}
+      ${p.estado==="analise"?`<button class="bt bt-err" style="padding:7px 12px;font-size:12.5px" onclick="decidirIsencao('${esc(a.id)}','${esc(p.token)}','indeferido')">✗ Indeferir</button>`:""}
+      ${p.estado==="deferido"?`<span class="mut" style="font-size:12px">A credencial já foi enviada — esta isenção não se desfaz por aqui.</span>`:""}
+    </div>
+  </div>`;
+}
+async function decidirIsencao(id,token,decisao){
+  let motivo="";
+  if(decisao==="indeferido"){
+    motivo=(prompt("Motivo do indeferimento (a pessoa lê este texto):")||"").trim();
+    if(motivo.length<5) return;
+  }else if(!confirm("Deferir a isenção? A inscrição passa a valer e a credencial com o QR Code é enviada por e-mail agora.")) return;
+  try{
+    const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/isencoes/${encodeURIComponent(token)}/decidir`,
+      {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({decisao,motivo})});
+    const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||"Não foi possível registrar a decisão.");
+    await carregar(); nav("isencao");
+  }catch(e){ alert(e.message); }
+}
+function salvarIsencao(id){
+  return salvarParteEvento(id,{isencao:{
+    ativa:$("ise-ativa")?.checked===true,
+    criterio:$("ise-criterio")?.value||"",
+    prazoAte:$("ise-prazo")?.value||"",
+    cota:Number($("ise-cota")?.value)||0,
+    validadeDias:Number($("ise-validade")?.value)||0,
+    orientacoes:$("ise-orient")?.value||"",
+  }});
+}
+
 function salvarCobranca(id){
   if(!lotesProntos()) return false;
   return salvarParteEvento(id,{cobranca:{
