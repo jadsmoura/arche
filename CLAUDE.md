@@ -1926,6 +1926,31 @@ public/
   código, que é o que vale, nunca esteve nela, e o endereço sozinho responde "código inválido" —, mas
   um endereço escrito no telão se fotografa e se digita, e na projeção ele não serve a ninguém: quem
   está na sala aponta a câmera. Ficam o título, a chamada, o QR, a barra da janela e a contagem.
+  **O FREIO NÃO É PORTÃO — ele derrubava o auditório inteiro** (a rota
+  `POST /api/publico/eventos/:slug/presenca/:aid`, achado do dono set/2026, com o print da própria
+  tela no meio da **Aula Magna do Dia Mundial do Agrônomo**: "está tendo algum congestionamento?").
+  Não era congestionamento: era o `freioOnline` disparando. A rota conferia `excedeu(req.ip)` **no
+  topo**, antes de validar coisa alguma, e contava como falha tanto o código VENCIDO quanto o "não
+  encontramos a sua inscrição". Num auditório o campus é **UM IP atrás do NAT**, e o código vencido é
+  justamente o erro de quem está fazendo tudo certo — o QR gira a cada janela, a pessoa demora a
+  apontar a câmera, o vizinho manda a foto pelo WhatsApp, alguém reabre o link de antes. Vinte desses
+  em cinco minutos não é "inalcançável usando de verdade": numa sala cheia é questão de minutos. A
+  partir dali **todo mundo** recebia "Muitas tentativas sem sucesso", inclusive quem tinha código
+  válido e inscrição em ordem — foi o que aconteceu com o próprio pró-reitor. É a MESMA lição que o
+  check-in do monitor já carregava desde ago/2026 ("leitura ruim de quem já provou quem é não é
+  ataque; o campus inteiro é um IP só") e que faltava aqui, porque a rota do telão nasceu depois.
+  Três mudanças: o código se confere **FORA da fila de escrita** (leitura ruim nem entra nela, o que
+  também tira peso da fila no minuto de pico); **código válido passa SEMPRE**, mesmo com o freio
+  cheio — o freio deixou de decidir sobre pedido que ia dar certo; e só conta no freio o código que
+  **nem assina** (`invalido`), que não se erra lendo o telão. **Vencido não conta** e **"não
+  encontramos a sua inscrição" não conta** — esta última é o caminho OFERECIDO na tela (inscrever-se
+  e registrar a presença no mesmo ato), e num auditório é rotina. O abuso continua travado: 25
+  códigos forjados viram 429, e mesmo aí o código válido passa (ensaiado no servidor local, com o
+  código antigo e com o novo: antes, 20 leituras vencidas e o válido recebia 429; depois, 25 vencidas
+  saem com "leia o QR que está no telão agora" e o válido entra). O que sustenta tudo isso é
+  `lerCodigoTelao` distinguir **vencido** de **forjado** — código assinado para uma janela que já
+  passou é `expirado`; assinatura que não confere é `invalido` —, e essa distinção tem teste próprio,
+  porque se ela se perder a sala volta a cair sem ninguém entender por quê.
 - **O TELÃO SE LIGA NA PRÓPRIA GUIA CREDENCIAMENTO, e a escolha entre DINÂMICO e ESTÁTICO está à
   vista** (`POST /api/extensao/:id/telao/modo` + `blocoLigarTelao` no ARCHÉ EV, pedido do dono
   set/2026, com o print de uma AULA MAGNA recém-cadastrada: "eventos de uma única atividade também

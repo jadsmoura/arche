@@ -822,6 +822,31 @@ test("telão estático: vale até a hora marcada, nunca no passado", () => {
   assert.equal(codigoTelaoEstatico(chave, "abc12345", "nada", { agora }), null);
 });
 
+/* O que sustenta o freio do telão não ser um portão (incidente da Aula Magna
+   do Dia Mundial do Agrônomo, set/2026): a rota da presença SÓ conta no freio
+   o código que nem assina. Para isso, o código legitimamente VENCIDO — o erro
+   de quem está fazendo tudo certo num auditório — precisa continuar se
+   distinguindo do FORJADO. Se esta distinção se perder, a sala inteira volta a
+   receber "Muitas tentativas sem sucesso" e ninguém vai saber por quê. */
+test("vencido e forjado não são a mesma coisa — é o que impede o freio de derrubar o auditório", () => {
+  const chave = gerarChaveQr();
+  const t0 = Date.parse("2026-09-15T19:30:00Z");
+  const { codigo } = codigoTelaoRotativo(chave, "abc12345", { agora: t0, janela: 60 });
+  // assinado para uma janela que já passou: VENCIDO — não conta no freio
+  assert.equal(lerCodigoTelao(chave, "abc12345", codigo, { agora: t0 + 600_000, janela: 60 }).motivo, "expirado");
+  // o MESMO código com a janela trocada na mão (assinatura não bate): FORJADO
+  const trocado = codigo.replace(/^r[0-9a-z]+\./, "r" + Math.floor((t0 - 600_000) / 1000 / 60).toString(36) + ".");
+  assert.notEqual(trocado, codigo);
+  assert.equal(lerCodigoTelao(chave, "abc12345", trocado, { agora: t0, janela: 60 }).motivo, "invalido");
+  // assinatura inventada: FORJADO
+  assert.equal(lerCodigoTelao(chave, "abc12345", codigo.replace(/[0-9a-f]{12}$/, "a".repeat(12)), { agora: t0, janela: 60 }).motivo, "invalido");
+  // lixo: FORJADO
+  assert.equal(lerCodigoTelao(chave, "abc12345", "qualquer-coisa", { agora: t0, janela: 60 }).motivo, "invalido");
+  // e o estático vencido também é VENCIDO, pela mesma razão
+  const est = codigoTelaoEstatico(chave, "abc12345", new Date(t0 + 3600_000).toISOString(), { agora: t0 });
+  assert.equal(lerCodigoTelao(chave, "abc12345", est.codigo, { agora: t0 + 2 * 3600_000 }).motivo, "expirado");
+});
+
 test("tolerância do caminho da inscrição: recua, nunca adianta, e não vaza na leitura comum", async () => {
   const { TELAO_TOLERANCIA_INSCRICAO } = await import("../lib/eventos.js");
   const chave = gerarChaveQr();

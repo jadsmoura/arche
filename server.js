@@ -8296,12 +8296,25 @@ app.get("/api/publico/eventos/:slug/presenca/:aid", async (req, res) => {
  * E e-mail, os dois batendo na mesma inscrição — como a recuperação da
  * credencial. Não inscrito recebe o caminho da inscrição, nunca uma presença.
  * Evento pago: só a inscrição válida (paga ou isenta), a mesma régua da porta.
- * Falha de código e de identificação conta no freio (é rota pública).
+ *
+ * O FREIO NÃO É PORTÃO (achado do dono set/2026, na Aula Magna do Dia Mundial
+ * do Agrônomo: o auditório inteiro passou a receber "Muitas tentativas sem
+ * sucesso" no meio da atividade). Num auditório o campus é UM IP atrás do NAT,
+ * e o erro MAIS COMUM de quem está fazendo tudo certo é o código VENCIDO — o
+ * QR gira a cada janela, a pessoa demora a apontar a câmera, o vizinho manda a
+ * foto pelo WhatsApp. Somados na conta do IP compartilhado, vinte desses em
+ * cinco minutos derrubavam a sala toda, inclusive quem tinha código válido e
+ * inscrição em ordem. É a MESMA lição que o check-in do monitor já carrega
+ * ("leitura ruim de quem já provou quem é não é ataque"), que faltava aqui.
+ * Agora: o código se confere FORA da fila de escrita (leitura ruim nem entra
+ * nela), código VÁLIDO passa SEMPRE — o freio nunca barra quem vai dar certo —,
+ * e só conta no freio o código que nem assina, que não se erra lendo o telão.
+ * "Não encontramos a sua inscrição" também deixou de contar: ela é o caminho
+ * OFERECIDO na tela (inscrever-se e registrar a presença no mesmo ato), e num
+ * auditório é rotina, não abuso.
  */
 app.post("/api/publico/eventos/:slug/presenca/:aid", async (req, res) => {
   try {
-    if (freioOnline.excedeu(req.ip))
-      return res.status(429).json({ error: "Muitas tentativas sem sucesso. Aguarde alguns minutos." });
     const b = req.body || {};
     const conta = await usuarioDe(req, res);
     const cpfDigitado = normalizarCpf(b.cpf);
@@ -8313,6 +8326,23 @@ app.post("/api/publico/eventos/:slug/presenca/:aid", async (req, res) => {
     } else if (!cpf || !RE_EMAIL_INSCRICAO.test(email)) {
       return res.status(400).json({ error: "Informe o CPF e o e-mail usados na inscrição." });
     }
+    // 1) o código, ANTES da fila: é leitura de memória mais um HMAC
+    {
+      const aPre = eventoPorSlug(await lerAcoes(), req.params.slug);
+      if (!aPre?.evento?.slug) return res.status(404).json({ error: "Evento não encontrado." });
+      const { atv, erro } = atividadeDoTelao(aPre, req.params.aid);
+      if (erro) return res.status(erro[0]).json({ error: erro[1] });
+      const cod = lerCodigoTelao(aPre.evento.chaveQr, atv.id, b.c, { janela: janelaDoTelao(aPre.evento) });
+      if (!cod.ok) {
+        if (cod.motivo === "expirado")
+          return res.status(410).json({ error: "Este código já venceu — leia o QR que está no telão agora." });
+        freioOnline.falhou(req.ip);
+        if (freioOnline.excedeu(req.ip))
+          return res.status(429).json({ error: "Muitas tentativas sem sucesso. Aguarde alguns minutos." });
+        return res.status(410).json({ error: "Código inválido — leia o QR diretamente do telão desta atividade." });
+      }
+    }
+    // 2) daqui em diante o código é bom: a fila recebe só pedido que vale a pena
     const r = await comAcoes((acoes) => {
       const a = eventoPorSlug(acoes, req.params.slug);
       if (!a?.evento?.slug) return { erro: [404, "Evento não encontrado."], gravar: false };
@@ -8322,14 +8352,14 @@ app.post("/api/publico/eventos/:slug/presenca/:aid", async (req, res) => {
       if (!cod.ok)
         return { erro: [410, cod.motivo === "expirado"
           ? "Este código já venceu — leia o QR que está no telão agora."
-          : "Código inválido — leia o QR diretamente do telão desta atividade."], falha: true, gravar: false };
+          : "Código inválido — leia o QR diretamente do telão desta atividade."], gravar: false };
       const inscritos = a.participantes?.inscritos || [];
       // com conta: e-mail OU CPF (o casamento da área do inscrito); sem conta:
       // os dois juntos, senão a rota viraria um jeito de marcar presença em nome de outro
       const inscrito = conta
         ? jaInscrito(inscritos, { email, cpf })
         : inscritos.find((i) => soDigitos(i?.cpf) === cpf && String(i?.email || "").trim().toLowerCase() === email) || null;
-      if (!inscrito) return { erro: [404, "Não encontramos a sua inscrição neste evento."], naoInscrito: true, falha: true, gravar: false };
+      if (!inscrito) return { erro: [404, "Não encontramos a sua inscrição neste evento."], naoInscrito: true, gravar: false };
       const lib = liberadoParaParticipar(a.evento, inscrito);
       if (!lib.ok) return { erro: [403, lib.motivo], gravar: false };
       const p = registrarPresenca(a, atv, inscrito, { fase: cod.fase, por: "telão" });
@@ -8337,10 +8367,11 @@ app.post("/api/publico/eventos/:slug/presenca/:aid", async (req, res) => {
       // token da credencial é dela e a leva à própria inscrição
       return { ...p, token: inscrito.token || "", fase: cod.fase };
     }, { flushJa: false });
-    if (r.erro) {
-      if (r.falha) freioOnline.falhou(req.ip);
+    // nada aqui conta no freio: o código já foi conferido, e o que falha
+    // depois disso é inscrição que não existe ou pagamento pendente — os dois
+    // com caminho de saída na tela, nenhum deles abuso
+    if (r.erro)
       return res.status(r.erro[0]).json({ error: r.erro[1], ...(r.naoInscrito ? { naoInscrito: true } : {}) });
-    }
     res.json({ ok: true, ja: r.ja === true, nome: r.nome, presenteEm: r.presenteEm, fase: r.fase,
       ...(r.saida ? { saida: true } : {}), ...(r.completa ? { completa: true } : {}),
       ...(r.entradaSemRegistro ? { entradaSemRegistro: true } : {}),
