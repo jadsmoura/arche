@@ -1409,6 +1409,29 @@ public/
   **O que falta do lado do dono**: os prazos, a cota e o texto do edital; e testar o leitor contra um
   comprovante ATUAL — o espécime que temos é de 2024, e é a única fragilidade que resta (se o layout
   mudar, a leitura cai em `conferir`, que é o lado seguro: ninguém é recusado por isso).
+  **A FILA À VISTA, O DECIDIDO RECOLHIDO, E O INDEFERIMENTO SE REVERTE** (`decisao: "analise"` no
+  `POST …/isencoes/:token/decidir` + as duas listas da guia, pedido do dono set/2026, com os pedidos
+  já chegando: "deixe em uma lista os pedidos pendentes, e em uma lista recolhível os pedidos
+  analisados, de forma que tenha um botão de reverter decisão, em caso de negativa"). Os pedidos
+  saíam todos numa fileira só, e o acervo do ciclo enterraria quem espera decisão: a guia passou a
+  ter **Pedidos na fila** (só `analise`, com a contagem de "aguardando") e **Já analisados**, um
+  bloco recolhível no molde dos grupos do Painel — nasce **fechado**, porque é o que já se resolveu,
+  e a escolha fica no navegador (`arche-ev-isen-analisados`).
+  **Reverter NÃO é a decisão contrária: é desfazer a decisão.** O pedido volta a `analise`, volta a
+  contar no "aguardando" e a reserva **pausa de novo** — deferir continua sendo o botão de sempre,
+  com a confirmação que avisa do e-mail. É o que serve ao indeferimento AUTOMÁTICO (o `por:
+  "sistema"`, quando o comprovante nega o critério): a coordenação que queira olhar de novo devolve
+  o caso à fila em vez de decidir na hora, e ele deixa de constar como resolvido.
+  Quatro regras: só o **indeferido** volta (o deferido já mandou a credencial — a recusa que existe
+  desde o início vale igual aqui); o `decisao` gravado é **apagado** (é a decisão EM VIGOR, e
+  revertido não há nenhuma; o que aconteceu fica no histórico, junto com a linha do pagamento); quem
+  **pagou depois do indeferimento não volta à fila** — o pagamento não se desfaz por este caminho, e
+  devolvê-lo para cá só faria a coordenação bater no 409 do "já está paga"; e a pessoa **é avisada
+  por e-mail**, com voz própria no `emailIsencaoDecidida`, por uma razão prática: o e-mail anterior
+  mandou pagar até certa data, e reconsiderar em silêncio a faria pagar no meio da análise — depois
+  do pagamento a isenção já não cabe, só o estorno. No mesmo passo o **"Deferir" sumiu de quem já
+  pagou** (o servidor sempre recusou; o botão era armadilha) e no lugar dele fica o caminho do
+  estorno no Financeiro.
 - **ISENÇÃO NA LISTA DE INSCRITOS E OS FILTROS** (guia Inscritos e presenças do ARCHÉ EV, pedido do
   dono set/2026: "em eventos pagos, permita à PROPPEX isentar alguns pagamentos — monitores e
   professores não pagam; eles se inscrevem, não pagam, e eu confirmo à mão"; "coloque filtros por

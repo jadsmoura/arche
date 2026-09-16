@@ -2835,7 +2835,12 @@ async function renderIsencao(a){
   }catch(e){ alvo.innerHTML=`<div class="banner ba-err">${esc(e.message)}</div>`; return; }
   EV_ISE=d;
   const c=d.config, paga=!!(a.evento?.cobranca?.ativa)&&(a.evento?.cobranca?.categorias||[]).some(k=>k.valor>0);
+  /* DUAS LISTAS (pedido do dono, set/2026): a fila é o trabalho da
+     coordenação e fica à vista; o que já se decidiu desce para um bloco
+     recolhido, que é o que impede o acervo de enterrar quem espera. */
   const naFila=d.pedidos.filter(p=>p.estado==="analise");
+  const decididos=d.pedidos.filter(p=>p.estado!=="analise");
+  const deferidos=decididos.filter(p=>p.estado==="deferido").length;
   alvo.innerHTML=`
     ${!paga?`<div class="banner ba-warn">Este evento ainda não cobra inscrição — a isenção só existe em evento pago.
       Ligue a <button class="lk" onclick="nav('cobranca')">cobrança</button> antes.</div>`:""}
@@ -2863,14 +2868,35 @@ async function renderIsencao(a){
       ${c.cota?`<p class="muted" style="margin:10px 0 0">Cota: <b>${d.cota.usadas||0} de ${c.cota}</b> concedida(s)${d.cota.restam!==null?` · restam ${d.cota.restam}`:""}.</p>`:""}
     </div>
     <div class="card">
-      <div class="sec-t">Pedidos ${naFila.length?`· <span class="badge" style="background:#fdf6e3;color:#8a6d1f">${naFila.length} aguardando</span>`:""}</div>
-      ${d.pedidos.length?d.pedidos.map(p=>cardIsencao(a,p,d)).join(""):`<div class="cnt">— nenhum pedido de isenção até agora.</div>`}
-    </div>`;
+      <div class="sec-t">Pedidos na fila ${naFila.length?`· <span class="badge" style="background:#fdf6e3;color:#8a6d1f">${naFila.length} aguardando</span>`:""}</div>
+      ${naFila.length?naFila.map(p=>cardIsencao(a,p,d)).join("")
+        :`<div class="cnt">— ${d.pedidos.length?"nenhum pedido aguardando decisão.":"nenhum pedido de isenção até agora."}</div>`}
+    </div>
+    ${decididos.length?`<details class="grupo"${iseAnalisadosAberto()?" open":""} ontoggle="alternarIseAnalisados(this)">
+      <summary><span class="pt" style="background:#5b7280"></span>
+        Já analisados
+        <span class="dica">— ${deferidos} deferido(s) · ${decididos.length-deferidos} indeferido(s)</span>
+        <span class="qt">${decididos.length} ${decididos.length===1?"pedido":"pedidos"}</span>
+        <span class="seta">▼</span></summary>
+      <div class="corpo">${decididos.map(p=>cardIsencao(a,p,d)).join("")}</div>
+    </details>`:""}`;
+}
+/* O bloco dos analisados nasce FECHADO — é o que já se resolveu, e a fila é o
+   que a coordenação abre a guia para ver —, e a escolha fica no navegador. */
+function iseAnalisadosAberto(){
+  try{ return localStorage.getItem("arche-ev-isen-analisados")==="1"; }catch{ return false; }
+}
+function alternarIseAnalisados(el){
+  try{ localStorage.setItem("arche-ev-isen-analisados", el.open?"1":"0"); }catch{ /* aba privada */ }
 }
 function cardIsencao(a,p,d){
   const [cor,fundo,rot]=ISE_SELO[p.estado]||["#5b7280","#eef3f5",p.estado];
   const l=p.leitura||{}, v=p.veredito||{};
   const [ic,cv,tv]=ISE_VER[v.resultado]||["·","#5b7280",""];
+  /* PAGOU depois de ser indeferida: a isenção já não cabe (o servidor recusa
+     deferir e recusa devolver à fila), então os botões não se desenham —
+     botão que sempre falha é armadilha; o que fica é o caminho do estorno. */
+  const pago=p.pagamento==="pago";
   const linha=(r,x)=>x?`<div><span class="muted">${esc(r)}:</span> ${esc(x)}</div>`:"";
   return `<div class="card-s" style="margin-bottom:10px">
     <div class="lin" style="justify-content:space-between;gap:10px;flex-wrap:wrap">
@@ -2894,9 +2920,11 @@ function cardIsencao(a,p,d){
     <div class="lin" style="gap:8px;flex-wrap:wrap;margin-top:10px">
       ${p.arquivoUrl?`<a class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" href="${esc(p.arquivoUrl)}" target="_blank" rel="noopener">📄 Abrir o comprovante</a>`:""}
       ${l.chave?`<a class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" href="${esc(d.urlValidacao)}" target="_blank" rel="noopener">🔑 Conferir a chave ${esc(l.chave)}</a>`:""}
-      ${p.estado!=="deferido"?`<button class="bt bt-pri" style="padding:7px 12px;font-size:12.5px" onclick="decidirIsencao('${esc(a.id)}','${esc(p.token)}','deferido')">✓ Deferir a isenção</button>`:""}
+      ${p.estado!=="deferido"&&!pago?`<button class="bt bt-pri" style="padding:7px 12px;font-size:12.5px" onclick="decidirIsencao('${esc(a.id)}','${esc(p.token)}','deferido')">✓ Deferir a isenção</button>`:""}
       ${p.estado==="analise"?`<button class="bt bt-err" style="padding:7px 12px;font-size:12.5px" onclick="decidirIsencao('${esc(a.id)}','${esc(p.token)}','indeferido')">✗ Indeferir</button>`:""}
+      ${p.estado==="indeferido"&&!pago?`<button class="bt bt-ghost" style="padding:7px 12px;font-size:12.5px" onclick="decidirIsencao('${esc(a.id)}','${esc(p.token)}','analise')">↩ Reverter o indeferimento</button>`:""}
       ${p.estado==="deferido"?`<span class="mut" style="font-size:12px">A credencial já foi enviada — esta isenção não se desfaz por aqui.</span>`:""}
+      ${pago&&p.estado!=="deferido"?`<span class="mut" style="font-size:12px">Esta pessoa já pagou a inscrição — a isenção não cabe mais; para devolver o valor, use o <button class="lk" onclick="nav('financeiro')">estorno no Financeiro</button>.</span>`:""}
     </div>
   </div>`;
 }
@@ -2905,6 +2933,8 @@ async function decidirIsencao(id,token,decisao){
   if(decisao==="indeferido"){
     motivo=(prompt("Motivo do indeferimento (a pessoa lê este texto):")||"").trim();
     if(motivo.length<5) return;
+  }else if(decisao==="analise"){
+    if(!confirm("Reverter o indeferimento?\n\nO pedido volta para a fila, sem decisão, e o prazo da reserva fica suspenso de novo. A pessoa é avisada por e-mail de que o pedido voltou à análise — para não pagar enquanto isso.")) return;
   }else if(!confirm("Deferir a isenção? A inscrição passa a valer e a credencial com o QR Code é enviada por e-mail agora.")) return;
   try{
     const r=await fetch(`/api/extensao/${encodeURIComponent(id)}/isencoes/${encodeURIComponent(token)}/decidir`,

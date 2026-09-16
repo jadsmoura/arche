@@ -6441,14 +6441,19 @@ app.get("/api/extensao/:id/isencoes", async (req, res) => {
  * `transitar` para `isento`), então a credencial passa a valer e o e-mail com
  * o QR sai na hora — uma régua só para "inscrição isenta". Indeferir devolve
  * a reserva com o prazo INTEIRO recomeçando: a pessoa perdeu dias esperando.
+ *
+ * E `analise` REVERTE o indeferimento (pedido do dono, set/2026): não é a
+ * decisão contrária — é desfazer a decisão. O pedido volta à fila, volta a
+ * contar no "aguardando" e a reserva pausa de novo; quem defere continua
+ * deferindo pelo botão de sempre, com a confirmação que avisa do e-mail.
  */
 app.post("/api/extensao/:id/isencoes/:token/decidir", async (req, res) => {
   try {
     const u = await sessaoEx(req, res);
     if (!u) return;
     const decisao = String(req.body?.decisao || "").trim();
-    if (!["deferido", "indeferido"].includes(decisao))
-      return res.status(400).json({ error: "Decisão inválida — defira ou indefira." });
+    if (!["deferido", "indeferido", "analise"].includes(decisao))
+      return res.status(400).json({ error: "Decisão inválida — defira, indefira ou devolva o pedido à fila." });
     const motivo = String(req.body?.motivo || "").trim().slice(0, 400);
     if (decisao === "indeferido" && motivo.length < 5)
       return res.status(400).json({ error: "Escreva o motivo do indeferimento — é o que a pessoa lê." });
@@ -6464,7 +6469,24 @@ app.post("/api/extensao/:id/isencoes/:token/decidir", async (req, res) => {
       if (i.isencao.estado === decisao) return { erro: [409, `Este pedido já está ${isencao.ESTADOS[decisao]}.`], gravar: false };
       const agora = new Date().toISOString();
 
-      if (decisao === "deferido") {
+      if (decisao === "analise") {
+        /* REVERTER. Só o INDEFERIDO volta: o deferido já mandou a credencial,
+           e desfazê-lo por aqui é o mesmo defeito que a recusa abaixo evita.
+           E quem PAGOU depois do indeferimento não volta à fila: o pagamento
+           não se desfaz por este caminho, e devolvê-lo para cá só faria a
+           coordenação tentar deferir e bater no 409 do "já está paga". */
+        if (i.isencao.estado !== "indeferido")
+          return { erro: [409, "Só o pedido indeferido volta à fila."], gravar: false };
+        if (i.pagamento?.status === "pago")
+          return { erro: [409, "Esta pessoa pagou a inscrição depois do indeferimento — devolver o pedido à fila não desfaz o pagamento. Para devolver o valor, use o estorno no Financeiro."], gravar: false };
+        /* A reserva pausa de novo: o relógio dela não pode correr enquanto a
+           coordenação reconsidera. Reserva já vencida não se "despausa" — ela
+           volta a correr pela renovação, e o deferimento alcança a expirada. */
+        if (["aguardando", "recusado"].includes(i.pagamento?.status || ""))
+          i.pagamento = transitarPagamento(i.pagamento, i.pagamento.status, {
+            por: u.email, motivo: "indeferimento revertido — pedido de isenção de volta à análise",
+            extra: { pausadoEm: agora } }) || i.pagamento;
+      } else if (decisao === "deferido") {
         const cota = isencao.cotaComporta(a.evento?.isencao, inscritos);
         if (!cota.ok) return { erro: [409, `A cota de isenções do evento (${isencao.normalizarIsencao(a.evento?.isencao).cota}) já está cheia.`], gravar: false };
         if (i.pagamento?.status === "pago")
@@ -6491,9 +6513,14 @@ app.post("/api/extensao/:id/isencoes/:token/decidir", async (req, res) => {
           por: u.email, motivo: "isenção indeferida — reserva reaberta",
           extra: { pausadoEm: "", expiraEm: new Date(Date.now() + minutos * 60000).toISOString() } }) || i.pagamento;
       }
-      i.isencao = { ...i.isencao, estado: decisao,
-        decisao: { por: u.email, em: agora, motivo },
+      const reg = { ...i.isencao, estado: decisao,
         historico: [...(i.isencao.historico || []), { em: agora, para: decisao, por: u.email, ...(motivo ? { motivo } : {}) }].slice(-20) };
+      /* `decisao` é a decisão EM VIGOR: revertido, não há nenhuma — deixá-la
+         ali faria a ficha exibir o motivo de um indeferimento desfeito. O que
+         aconteceu fica no histórico, que é onde isso se lê. */
+      if (decisao === "analise") delete reg.decisao;
+      else reg.decisao = { por: u.email, em: agora, motivo };
+      i.isencao = reg;
       a.atualizadoEm = agora;
       return { acao: a, inscrito: i };
     }, { flushJa: "agora" });
