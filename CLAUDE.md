@@ -937,13 +937,45 @@ public/
   registra como "contador que mente". Quem responde passou a ser o TRANSPORTE (`reescreve` e
   `tetoDiario` no payload; a conta é "pessoal" pelo ENDEREÇO, venha pela API ou pelo SMTP — é a
   mesma conta e o mesmo teto), e há teste das quatro combinações, porque quebram em silêncio.
-  **O que fica com o dono** (nada disso é código): a saída mais barata é criar
-  `nao-responda@uniego.edu.br` no **Workspace** que a instituição já tem e apontar o SMTP para
-  `smtp.gmail.com:465` com uma senha de app — ~2.000/dia, custo zero, nenhum fornecedor novo, e o
-  domínio da instituição no remetente (SPF/DKIM alinhados, o que tira as mensagens do spam). Para
-  o volume de um congresso, um serviço de envio (Resend, Brevo, Amazon SES) é trocar quatro
-  variáveis no Render — `SMTP_HOST`, `SMTP_PORTA`, `SMTP_USUARIO`, `SMTP_SENHA` — e exige
-  verificar o domínio no painel do serviço (dois registros DNS em `uniego.edu.br`).
+  **O PORTAL PASSOU A ENVIAR PELO PRÓPRIO DOMÍNIO — `nao-responda@arche.app.br`** (aplicado em
+  16/09/2026; nenhuma linha de código mudou, só as sete variáveis no Render). O caminho que eu
+  havia recomendado — criar `nao-responda@uniego.edu.br` no "Workspace da instituição" — **não
+  existia**: `uniego.edu.br` é **Microsoft 365**, não Google, e a Microsoft desliga por padrão o
+  envio por SMTP com senha (reativar é configuração POR CAIXA, só do administrador). Com um TI
+  fechado, esse caminho morre na primeira mensagem — e a mesma parede vale para qualquer pedido
+  que dependa deles.
+  A saída foi inverter a pergunta: **o remetente não precisa ser da instituição — precisa ser de um
+  domínio que a PROPPEX controle**, e `arche.app.br` é do dono, com o DNS na Cloudflare dele. O
+  serviço é o **Resend** (região São Paulo), autenticado por CHAVE — não por conta de pessoa: se o
+  pró-reitor sair de férias ou trocar de senha, o portal continua mandando. Quatro registros na
+  Cloudflare (`resend._domainkey` TXT, `rsend` e `send` CNAME **DNS only**, `_dmarc` TXT) e o
+  domínio ficou `Verified`. Usar uma conta PESSOAL (Gmail ou Microsoft) do dono seria pior que o
+  que já havia: mesmo teto, mesmo remetente pessoal, mesmo spam.
+  Quatro decisões que o episódio fixa: **`MAIL_REPLY_TO` não precisa de caixa autenticada** —
+  receber não autentica, então `proppex@uniego.edu.br`, que é conta de DIRECIONAMENTO, serve
+  perfeitamente como "responder para"; a verificação foi por **"Manual setup", não "Auto
+  configure"** — o automático pede à Cloudflare permissão de EDITAR o DNS, e quem edita o DNS de
+  `arche.app.br` aponta o portal inteiro para outro lugar, o que não se entrega a terceiro para
+  economizar cinco minutos; o `SMTP_USUARIO` do Resend é a palavra literal **`resend`** (a chave é
+  a senha); e o **plano importa pelo teto DIÁRIO, não pelo mensal** — o gratuito são **100/dia**,
+  MENOS que os ~500/dia do Gmail comum de onde se estava saindo, e é o teto diário que mata o
+  **código de acesso do login** no meio da tarde. O **Pro (US$ 20/mês, "no daily email limit")**
+  foi contratado no mesmo dia, antes de abrir as inscrições do CONINT: um comunicado aos inscritos
+  sozinho estoura 100 numa tacada, e aí quem não consegue entrar é todo mundo.
+  **Dois pontos que ficaram em aberto, e são do MUNDO, não do código.** (1) A **Microsoft trata
+  domínio novo como suspeito**: a mensagem chega, mas convertida para texto simples e **com os
+  links desabilitados** — e os e-mails do ARCHÉ são feitos de link (o QR da credencial, o botão do
+  código, o link do relatório). Cada pessoa resolve na própria caixa marcando como remetente
+  confiável; o que resolve para o domínio inteiro é o TI incluir `arche.app.br` na lista de
+  permitidos do Microsoft 365 — pedido pequeno, que não os obriga a configurar nada nosso. Para
+  Gmail, Hotmail e o restante do público (a maioria dos estudantes e dos inscritos) não se aplica:
+  SPF, DKIM e DMARC alinhados entram na caixa de entrada. (2) A **primeira mensagem chegou EM
+  DUPLICIDADE**: a conexão inicial com o Resend demorou mais que o nosso tempo de espera, a régua
+  de repetição a tratou como falha e reenviou — e ela já havia sido aceita (2 "falhas" no card e
+  duas cópias na caixa). É típico de conexão fria, e o `pool` do nodemailer mantém a conexão aberta
+  depois disso. **Se repetir em envio real**, a correção é estreitar a repetição para o tempo
+  esgotado DEPOIS do `DATA`: repetir é certo quando o serviço RECUSA, e errado quando ele só
+  demorou a responder — mas isso não se decide com uma amostra de um arranque frio.
 - **A FILA DA PÁGINA INICIAL É UM QUADRO SÓ, com um QUADRADO por setor** (`#painel-fila` +
   `desenharFila`/`setoresDaFila` em public/index.html, pedido do dono set/2026: "acho que tem um
   bug nesses dois painéis de alerta; não tem porque dois — condense num quadro com quadrados para
