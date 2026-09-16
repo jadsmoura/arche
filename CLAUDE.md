@@ -798,6 +798,39 @@ public/
   indicação de aluno, pedido de substituição, contestação e — no ICEM — escolha/troca de
   projeto e relatório final do bolsista. O aviso leva o essencial e o link do setor,
   nunca nota, parecer ou dado bancário.
+- **O 429 DO GMAIL É "ESPERE", NÃO "NÃO DEU"** (`mandarComRitmo`/`ehTransitorio`/`esperaPedida`
+  em lib/mailer.js + `resumoFalhas` na SPA da IC, achado do dono set/2026: clicou em "Cobrar o
+  cadastro do estudante (1)" e leu na tela **"Pedido enviado a 0 bolsista(s). Falhas: Gabriel
+  Henrique Capone: User-rate limit exceeded. Retry after 2026-09-16T18:36:26.966Z (Mail
+  sending)"**). Duas coisas estavam erradas ali, e nenhuma delas era do Google.
+  A primeira: o **429 do Gmail é o limite de RITMO da conta que envia** — ele diz "espere um
+  instante", e o ARCHÉ o tratava como recusa DEFINITIVA. Uma tentativa, sem repetir, e o
+  bolsista ficava sem o pedido; num lote, cada recusa perdia um destinatário de vez. A segunda:
+  a frase CRUA da API do Google, em inglês, com um carimbo UTC, foi mostrada a quem coordena —
+  que não tem como saber se aquilo é erro do cadastro dela, do e-mail do estudante ou do sistema.
+  Agora a tentativa **se repete**, respeitando o tempo que o próprio Gmail pede (vem no cabeçalho
+  `Retry-After` **ou escrito na mensagem**, que é a única pista no caso real), e o que não couber
+  no orçamento vira uma frase em português com a **hora de voltar**. O orçamento existe porque
+  isto roda DENTRO do pedido HTTP, com alguém olhando a tela (3 tentativas, teto de 30 s por
+  mensagem — `MAIL_TENTATIVAS`/`MAIL_ESPERA_TETO_MS`): esperar cinco minutos por uma mensagem
+  seria trocar um defeito por outro. E o limite é da CONTA, não do destinatário — batido uma vez,
+  a espera pedida fica guardada no módulo, e um lote de trezentos comunicados que esbarre nele na
+  mensagem 50 **não gasta o orçamento 250 vezes**: as demais falham na hora, com a mesma frase, e
+  a rota devolve quantas saíram.
+  Três distinções que a régua carrega, e que têm teste próprio porque quebram em silêncio: o
+  **403 do Google serve a dois sentidos** (sem permissão × excedeu o ritmo) e quem separa é a
+  RAZÃO, nunca o número; **erro definitivo não se repete** (repetir um endereço inválido é
+  ruído); e o **teto DIÁRIO** (`Daily user sending quota exceeded`) sai na primeira tentativa,
+  dito como é — "o que faltou sai amanhã" —, **sem guardar espera local**, porque o "até quando"
+  seria palpite meu e um palpite de horas calaria o código de acesso de quem tenta entrar.
+  Na TELA, a falha **se diz uma vez**: o motivo é da conta que manda, e repeti-lo ao lado dos 24
+  nomes da turma esconde a informação em vez de dá-la (com UMA falha o nome fica, que é quem
+  precisa ser reavisado). O comunicado do ARCHÉ EV, que é o maior lote do portal, passou a levar
+  o **motivo** junto do "n de N não saíram" — "o servidor recusou" não distingue o que passa em
+  minutos do que exige alguém.
+  **O que fica com o dono**: a conta que envia é a do `MAIL_FROM_ADDR`. Se ela for um Gmail
+  comum, o teto é de ~500 mensagens/dia; um comunicado a um congresso inteiro chega perto disso,
+  e aí o caminho é a conta institucional (Workspace, 2.000/dia) ou um serviço de envio.
 - **A FILA DA PÁGINA INICIAL É UM QUADRO SÓ, com um QUADRADO por setor** (`#painel-fila` +
   `desenharFila`/`setoresDaFila` em public/index.html, pedido do dono set/2026: "acho que tem um
   bug nesses dois painéis de alerta; não tem porque dois — condense num quadro com quadrados para

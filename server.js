@@ -6771,11 +6771,12 @@ app.post("/api/extensao/:id/comunicado", async (req, res) => {
     if (mensagem.length < 10) return res.status(400).json({ error: "Escreva a mensagem do comunicado." });
     if (!comEmail.length) return res.status(409).json({ error: "Nenhum inscrito deste recorte tem e-mail no cadastro." });
     let enviados = 0;
+    let motivo = "";                // por que os que não saíram não saíram
     for (const i of comEmail) {
       try {
         await enviarAviso("ev-comunicado", emailComunicadoEvento({ acao: a, inscrito: i, assunto, mensagem, base: baseDe(req) }));
         enviados++;
-      } catch (e) { console.error(`Comunicado não enviado a ${i.email}:`, e.message); }
+      } catch (e) { motivo = e.message; console.error(`Comunicado não enviado a ${i.email}:`, e.message); }
     }
     const reg = JSON.parse((await storage.get(COMUNICADOS_KEY)) || "{}");
     const lista = Array.isArray(reg[a.id]) ? reg[a.id] : [];
@@ -6787,8 +6788,16 @@ app.post("/api/extensao/:id/comunicado", async (req, res) => {
        0 inscritos" em verde é o mesmo defeito do "salvo" depois do upload
        recusado — a coordenação sai achando que avisou. A tentativa fica no
        registro de todo modo (é ela que explica depois por que ninguém soube). */
-    if (!enviados) return res.status(502).json({ error: "Nenhum e-mail saiu — o servidor de e-mail recusou o envio. A tentativa ficou registrada; tente de novo em instantes.", enviados: 0 });
-    res.json({ ok: true, enviados, semEmail, destinatarios: comEmail.length });
+    /* E o MOTIVO vai junto (set/2026): "o servidor recusou" não distingue o
+       limite de ritmo do Gmail — que passa em minutos — de um problema que
+       exige alguém. O mailer já devolve a frase em português. */
+    if (!enviados) return res.status(502).json({ enviados: 0,
+      error: motivo
+        ? `Nenhum e-mail saiu: ${motivo}. A tentativa ficou registrada.`
+        : "Nenhum e-mail saiu — o servidor de e-mail recusou o envio. A tentativa ficou registrada; tente de novo em instantes." });
+    res.json({ ok: true, enviados, semEmail, destinatarios: comEmail.length,
+      // saiu pela metade: quem coordena precisa saber por que o resto parou
+      ...(enviados < comEmail.length && motivo ? { parcial: motivo } : {}) });
   } catch (e) {
     console.error("Erro ao enviar comunicado:", e);
     res.status(500).json({ error: "Não foi possível enviar o comunicado agora." });

@@ -492,6 +492,18 @@ function aviso(msg, tipo = "ok") {
   if (tipo === "ok") setTimeout(() => { if ($("aviso").textContent.includes(msg)) $("aviso").innerHTML = faixaVerComo(); }, 6000);
   window.scrollTo(0, 0);
 }
+/* AS FALHAS DE ENVIO SE DIZEM UMA VEZ (set/2026): quando o Gmail limita o
+   ritmo de envio, o motivo é da CONTA que manda, não de cada destinatário —
+   repeti-lo ao lado dos 24 nomes da turma esconde a informação em vez de
+   dá-la. Com UMA falha o nome fica, que é quem precisa ser reavisado. */
+function resumoFalhas(falhas) {
+  const lista = (falhas || []).map((f) => String(f)).filter(Boolean);
+  if (!lista.length) return "";
+  const motivos = new Set(lista.map((f) => f.replace(/^[^:]*:\s*/, "")));
+  return motivos.size === 1 && lista.length > 1
+    ? ` ${lista.length} não saíram: ${[...motivos][0]}.`
+    : " Falhas: " + lista.join("; ");
+}
 const cursoNome = (slug) => (META.cursos.find((c) => c.slug === slug) || {}).nome || slug || "—";
 const modNome = (c) => (META.modalidades.find((m) => m.codigo === c) || {}).nome || c || "—";
 const linhaNome = (c) => (META.linhas.find((l) => l.codigo === c) || {}).nome || c || "—";
@@ -1588,7 +1600,7 @@ async function emConvidar() {
           const r = await api("/api/ic/em/convidar", { method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ turma: TURMA_EM, reenviar, mensagem }) });
-          aviso(`Convite enviado a ${r.enviados} bolsista(s).${r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""}`,
+          aviso(`Convite enviado a ${r.enviados} bolsista(s).${resumoFalhas(r.falhas)}`,
             r.falhas.length ? "err" : undefined);
         } catch (e) { aviso(e.message, "err"); }
       },
@@ -1672,7 +1684,7 @@ async function icChamada() {
           const r = await api("/api/ic/chamada-relatorio", { method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ edital: CICLO_REL, mensagem }) });
-          aviso(`Chamada enviada a ${r.enviados} pessoa(s).${r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""}`,
+          aviso(`Chamada enviada a ${r.enviados} pessoa(s).${resumoFalhas(r.falhas)}`,
             r.falhas.length ? "err" : undefined);
         } catch (e) { aviso(e.message, "err"); }
       },
@@ -1710,7 +1722,7 @@ async function icChamadaBanco() {
             body: JSON.stringify({ ciclo: CICLO_BV, mensagem }) });
           aviso(`Pedido enviado a ${r.enviados} de ${r.total} bolsista(s).`
             + (r.semEmail ? ` ${r.semEmail} sem e-mail no cadastro.` : "")
-            + (r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""),
+            + resumoFalhas(r.falhas),
             r.falhas.length ? "err" : undefined);
           await carregar();
         } catch (e) { aviso(e.message, "err"); }
@@ -2022,7 +2034,7 @@ async function emChamada() {
           const r = await api("/api/ic/em/chamada-relatorio", { method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ turma: TURMA_EM, mensagem }) });
-          aviso(`Chamada enviada a ${r.enviados} bolsista(s).${r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""}`,
+          aviso(`Chamada enviada a ${r.enviados} bolsista(s).${resumoFalhas(r.falhas)}`,
             r.falhas.length ? "err" : undefined);
         } catch (e) { aviso(e.message, "err"); }
       },
@@ -2058,7 +2070,7 @@ async function emChamadaBanco() {
             body: JSON.stringify({ turma: TURMA_EM, mensagem }) });
           aviso(`Pedido enviado a ${r.enviados} bolsista(s).`
             + (r.semEmail ? ` ${r.semEmail} sem e-mail no cadastro.` : "")
-            + (r.falhas.length ? " Falhas: " + r.falhas.join("; ") : ""),
+            + resumoFalhas(r.falhas),
             r.falhas.length ? "err" : undefined);
           EM = null; await renderEM();
         } catch (e) { aviso(e.message, "err"); }

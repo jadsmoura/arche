@@ -3,7 +3,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { emailInscricaoEvento, destinatariosFinais, listaPara, linkEntrada,
-  emailChamadaRelatorioEM, emailConviteEM, emailConviteMonitor } from "../lib/mailer.js";
+  emailChamadaRelatorioEM, emailConviteEM, emailConviteMonitor,
+  ehTransitorio, esperaPedida, mandarComRitmo } from "../lib/mailer.js";
 
 const acao = {
   curso: "Agronomia",
@@ -130,4 +131,109 @@ test("os e-mails nominais do ICEM e da monitoria carregam a conta no botão", ()
     assert.match(link, /conta=ana\.camargo10/);
     assert.match(link, /next=/);
   }
+});
+
+/* O 429 DO GMAIL É "ESPERE", NÃO "NÃO DEU" (set/2026, com a chamada do
+   cadastro do ICEM). A frase abaixo é a que chegou à tela da coordenação,
+   letra por letra: se a leitura dela se perder, a repetição para de saber
+   quanto esperar e a mensagem volta a ser recusada na primeira tentativa. */
+const gaxios = (status, extra = {}) => Object.assign(new Error(extra.message || "erro"),
+  { status, response: { status, headers: extra.headers || {}, data: extra.data } }, extra.campos || {});
+
+test("a recusa por RITMO do Gmail é passageira; a de permissão não é", () => {
+  const ritmo = gaxios(429, {
+    message: "User-rate limit exceeded. Retry after 2026-09-16T18:36:26.966Z (Mail sending)",
+  });
+  assert.equal(ehTransitorio(ritmo), true);
+  // 403 tem os dois sentidos: quem separa é a RAZÃO, nunca o número
+  assert.equal(ehTransitorio(gaxios(403, { message: "Rate Limit Exceeded" })), true);
+  assert.equal(ehTransitorio(gaxios(403, { message: "Insufficient Permission" })), false);
+  assert.equal(ehTransitorio(gaxios(400, { message: "Invalid to header" })), false);
+  assert.equal(ehTransitorio(gaxios(503, {})), true);
+  // a razão do corpo basta, mesmo com status que não diz nada
+  assert.equal(ehTransitorio(gaxios(0, { data: { error: { errors: [{ reason: "userRateLimitExceeded" }] } } })), true);
+});
+
+test("o instante que o Gmail pede sai do cabeçalho OU do texto do erro", () => {
+  const daqui = (ms) => Math.round(ms / 1000);
+  // segundos no Retry-After
+  assert.equal(esperaPedida(gaxios(429, { headers: { "retry-after": "17" } })), 17000);
+  // o carimbo escrito na própria mensagem — o caso real
+  const alvo = Date.now() + 42_000;
+  const msg = `User-rate limit exceeded. Retry after ${new Date(alvo).toISOString()} (Mail sending)`;
+  assert.equal(daqui(esperaPedida(gaxios(429, { message: msg }))), 42);
+  // instante JÁ passado não vira espera negativa
+  assert.equal(esperaPedida(gaxios(429, { message: "Retry after 2020-01-01T00:00:00.000Z" })), 0);
+  // sem pista nenhuma, quem chama decide o recuo
+  assert.equal(esperaPedida(gaxios(429, { message: "Rate Limit Exceeded" })), null);
+});
+
+/* O LOTE NÃO PERDE O RESTO DA TURMA POR CAUSA DE UMA RECUSA DE RITMO. */
+const gmailFalso = (roteiro) => {
+  const chamadas = [];
+  return {
+    chamadas,
+    users: { messages: { send: async () => {
+      chamadas.push(Date.now());
+      const e = roteiro.shift();
+      if (e) throw e;
+    } } },
+  };
+};
+
+test("recusado por ritmo, o envio REPETE e a mensagem sai", async () => {
+  const g = gmailFalso([gaxios(429, { headers: { "retry-after": "0" },
+    message: "User-rate limit exceeded. Retry after 2020-01-01T00:00:00.000Z (Mail sending)" })]);
+  await mandarComRitmo(g, "bruto");            // não lança: a 2ª tentativa passa
+  assert.equal(g.chamadas.length, 2);
+});
+
+test("esgotadas as tentativas, o erro é EM PORTUGUÊS e diz quando voltar", async () => {
+  const ritmo = () => gaxios(429, { headers: { "retry-after": "0" },
+    message: "User-rate limit exceeded. Retry after 2020-01-01T00:00:00.000Z (Mail sending)" });
+  const g = gmailFalso([ritmo(), ritmo(), ritmo()]);
+  const e = await mandarComRitmo(g, "bruto").then(() => null, (x) => x);
+  assert.ok(e, "tinha de falhar");
+  assert.equal(e.ritmo, true);
+  assert.match(e.message, /Gmail limitou o ritmo/);
+  assert.doesNotMatch(e.message, /rate limit|Retry after/i);   // nada de inglês cru na tela
+  assert.equal(g.chamadas.length, 3);
+});
+
+test("erro DEFINITIVO não se repete — repetir um endereço inválido é ruído", async () => {
+  const g = gmailFalso([gaxios(400, { message: "Invalid to header" })]);
+  const e = await mandarComRitmo(g, "bruto").then(() => null, (x) => x);
+  assert.match(e.message, /Invalid to header/);
+  assert.equal(e.ritmo, undefined);
+  assert.equal(g.chamadas.length, 1);
+});
+
+test("o teto DIÁRIO se diz como é — e não vira espera de alguns minutos", async () => {
+  const g = gmailFalso([gaxios(429, { message: "Daily user sending quota exceeded. (Mail sending)" })]);
+  const e = await mandarComRitmo(g, "bruto").then(() => null, (x) => x);
+  assert.equal(e.diaria, true);
+  assert.match(e.message, /limite DIÁRIO/);
+  assert.doesNotMatch(e.message, /a partir das/);   // nada de hora inventada
+  assert.equal(g.chamadas.length, 1, "repetir o teto do dia é desperdício");
+  // e NÃO deixa espera guardada: o código de acesso do login tenta do mesmo jeito
+  const g2 = gmailFalso([]);
+  await mandarComRitmo(g2, "bruto");
+  assert.equal(g2.chamadas.length, 1);
+});
+
+/* Este vem por ÚLTIMO: ele deixa a espera do módulo lá na frente, que é
+   exatamente o que se quer provar — e o que atrapalharia os testes acima. */
+test("batido o limite, o RESTO DO LOTE falha na hora (não espera 250 vezes)", async () => {
+  const g = gmailFalso([gaxios(429, { headers: { "retry-after": "3600" },
+    message: "User-rate limit exceeded" })]);
+  const e1 = await mandarComRitmo(g, "bruto").then(() => null, (x) => x);
+  assert.equal(e1.ritmo, true);
+  assert.equal(g.chamadas.length, 1, "espera maior que o orçamento não se repete");
+  assert.match(e1.message, /a partir das \d{2}:\d{2}/);        // diz a HORA de voltar
+
+  // a mensagem seguinte do mesmo lote nem chega a bater no Gmail
+  const g2 = gmailFalso([]);
+  const e2 = await mandarComRitmo(g2, "bruto").then(() => null, (x) => x);
+  assert.equal(e2.ritmo, true);
+  assert.equal(g2.chamadas.length, 0);
 });

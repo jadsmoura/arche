@@ -1917,7 +1917,7 @@ function janelaComunicado(id,d){
       // parcial não é sucesso: a coordenação precisa saber quantos ficaram de fora
       const faltou=(j.destinatarios||0)-(j.enviados||0);
       $("cm-msg-res").innerHTML=`<div class="banner ${faltou?"ba-warn":"ba-ok"}" style="margin-top:10px">
-        ${faltou?"⚠":"✓"} Comunicado enviado a ${j.enviados} de ${j.destinatarios} inscrito(s).${faltou?` ${faltou} não saíram — o servidor de e-mail os recusou.`:""}${j.semEmail?` ${j.semEmail} não têm e-mail no cadastro.`:""}</div>`;
+        ${faltou?"⚠":"✓"} Comunicado enviado a ${j.enviados} de ${j.destinatarios} inscrito(s).${faltou?` ${faltou} não saíram${j.parcial?`: ${esc(j.parcial)}`:" — o servidor de e-mail os recusou."}`:""}${j.semEmail?` ${j.semEmail} não têm e-mail no cadastro.`:""}</div>`;
       $("cm-assunto").value=""; $("cm-msg").value="";
       carregarComunicados(id);
     }catch(e){
