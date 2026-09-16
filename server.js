@@ -306,7 +306,11 @@ const CSP = [
   "frame-ancestors 'self'",
   "form-action 'self'",
   "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://accounts.google.com",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  // accounts.google.com entra no style porque o botão "Entrar com o Google"
+  // injeta a folha de estilo DELE (accounts.google.com/gsi/style) ao carregar:
+  // sem isso o botão sai sem desenho no dia em que o GOOGLE_WEB_CLIENT_ID
+  // entrar no Render — e o defeito pareceria do login, não do cabeçalho
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   // data: é a foto e a assinatura em base64; blob:, a imagem que o navegador
   // reduz antes de subir e o QR desenhado na tela
@@ -500,6 +504,61 @@ app.get("/api/banda", async (req, res) => {
     console.error("Erro no diagnóstico de banda:", e);
     res.status(500).json({ error: "Não foi possível montar o diagnóstico." });
   }
+});
+
+/* GET /api/email/diagnostico — POR QUE O E-MAIL NÃO ESTÁ SAINDO (só gestor
+   geral). Todo e-mail do portal sai por UMA conta do Gmail, e é ela que tem
+   teto: quando ele é batido, o que morre junto é o CÓDIGO DE ACESSO — isto é,
+   a porta de entrada de quem ainda não tem conta. Até aqui a única pista era
+   o log do Render, que ninguém lê, e a frase genérica da tela de entrar.
+
+   O card responde as três perguntas na ordem em que elas são feitas: QUAL
+   conta está autenticada (é ela que define o teto — Gmail comum ~500/dia,
+   Workspace ~2.000/dia, e a resposta muda o que o dono tem a fazer),
+   QUANTAS saíram hoje por esta instância, e POR QUE a última falhou. Com
+   `?testar=1` manda uma mensagem de verdade para a caixa de quem pediu: é a
+   única prova de que o caminho inteiro funciona AGORA.
+
+   O contador é DESTA instância e recomeça no deploy — como o medidor de
+   banda, e pela mesma razão (contá-lo no estado somaria uma reescrita do
+   arquivo inteiro a cada e-mail). Serve para o dia, que é o que se pergunta. */
+app.get("/api/email/diagnostico", async (req, res) => {
+  const u = await exigirGestor(req, res);
+  if (!u) return;
+  const { retratoDoEnvio, enviarEmail } = await import("./lib/mailer.js");
+  const retrato = retratoDoEnvio();
+  // Quem é a conta autenticada de verdade: `MAIL_FROM_ADDR` é só o nome que
+  // vai no cabeçalho, e o Gmail ignora um que não seja o da conta. O teto é
+  // da CONTA, então é ela que o diagnóstico precisa nomear.
+  let conta = null, erroConta = "";
+  try {
+    const { google } = await import("googleapis");
+    const { driveAuth } = await import("./lib/files.js");
+    const gmail = google.gmail({ version: "v1", auth: driveAuth(google) });
+    const { data } = await gmail.users.getProfile({ userId: "me" });
+    conta = String(data?.emailAddress || "");
+  } catch (e) { erroConta = e.message; }
+  const workspace = !!conta && !/@(gmail|googlemail)\.com$/i.test(conta);
+
+  let teste = null;
+  if (String(req.query.testar || "") === "1") {
+    const em = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+    try {
+      // exato: o teste tem de chegar na caixa de quem clicou, e não ser
+      // desviado para o endereço institucional pela régua da conta pessoal
+      await enviarEmail({ exato: true, prioritaria: true, para: u.email,
+        assunto: `Teste de envio do ARCHÉ — ${em}`,
+        corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif">
+          <h2 style="color:#1c3742">O envio de e-mail está funcionando</h2>
+          <p>Mensagem de teste pedida no diagnóstico do sistema em ${em}.</p>
+          <p style="color:#5b7280;font-size:13px">Conta de envio: ${conta || "(não identificada)"}.</p></div>` });
+      teste = { ok: true, para: u.email };
+    } catch (e) {
+      teste = { ok: false, motivo: e.message, ritmo: !!e.ritmo, diaria: !!e.diaria };
+    }
+  }
+  res.json({ ...retrato, conta, erroConta, workspace,
+    tetoDiario: conta ? (workspace ? 2000 : 500) : null, teste });
 });
 
 /** POST /api/banda/zerar — recomeça a medição num período limpo. */
@@ -1573,6 +1632,13 @@ async function enviarCodigoPorEmail(email, codigo) {
     // exato: o código da conta X chega na caixa de X — a tradução da conta
     // pessoal para a institucional trancaria a conta pessoal do lado de fora
     exato: true,
+    /* PRIORITÁRIA: é a única mensagem do portal com uma PESSOA parada na
+       tela esperando por ela, e é a porta de entrada de quem ainda não tem
+       conta. Ela não espera na fila que um lote de comunicados encheu —
+       pela mesma razão pela qual o código de acesso ficou de fora do
+       catálogo de avisos: desligá-lo (ou segurá-lo) tranca todo mundo do
+       lado de fora. */
+    prioritaria: true,
     para: email,
     assunto: `${codigo} é o seu código de acesso ao ARCHÉ`,
     corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif;max-width:480px">
@@ -1586,6 +1652,23 @@ async function enviarCodigoPorEmail(email, codigo) {
   });
 }
 
+/* A TELA DE ENTRAR DIZIA "Não foi possível enviar o código agora" E NADA MAIS
+   (set/2026, com o print de um bolsista do ICEM parado nessa frase). O motivo
+   ia para o `console.error`, e em produção ninguém lê o log do Render: a
+   pessoa não sabia se o erro era do e-mail dela, se valia tentar de novo, ou
+   quando. Quando a recusa é de RITMO — a mais comum, e a que passa sozinha em
+   minutos — a frase passa a dizer a que horas tentar; quando é o teto do DIA,
+   diz que é do sistema e manda falar com a PROPPEX, porque insistir não
+   resolve. O que NÃO se conta a quem está do lado de fora é a falha de
+   credencial: ela é do servidor, e descrever a nossa configuração numa tela
+   pública não ajuda quem quer entrar e ajuda quem não deve. */
+function motivoDoCodigo(e) {
+  if (e?.ritmo) return e.diaria
+    ? "O sistema atingiu o limite de e-mails de hoje. Fale com a PROPPEX (proppex@uniego.edu.br) para entrar agora."
+    : `${e.message.replace(/^o Gmail limitou o ritmo de envio desta conta — t/, "O envio está congestionado neste momento — t")}.`;
+  return "Não foi possível enviar o código agora. Tente de novo em alguns minutos.";
+}
+
 app.post("/auth/codigo", async (req, res) => {
   try {
     const email = String(req.body?.email || "").trim().toLowerCase();
@@ -1594,7 +1677,7 @@ app.post("/auth/codigo", async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error("codigo:", e.message);
-    res.status(500).json({ ok: false, error: "Falha ao enviar o e-mail" });
+    res.status(500).json({ ok: false, error: motivoDoCodigo(e) });
   }
 });
 
@@ -1625,7 +1708,7 @@ app.post("/auth/inicio", async (req, res) => {
     res.json({ ok: true, metodo: "codigo" });
   } catch (e) {
     console.error("inicio:", e.message);
-    res.status(500).json({ ok: false, error: "Não foi possível enviar o código agora." });
+    res.status(500).json({ ok: false, error: motivoDoCodigo(e) });
   }
 });
 

@@ -2,6 +2,9 @@
    o passe na carteira digital (schema.org EventReservation). */
 import test from "node:test";
 import assert from "node:assert/strict";
+// o passo entre mensagens é real e proposital em produção; aqui ele só
+// deixaria a suíte lenta — quem o mede é o último teste, que o liga sozinho
+process.env.MAIL_INTERVALO_MS = "0";
 import { emailInscricaoEvento, destinatariosFinais, listaPara, linkEntrada,
   emailChamadaRelatorioEM, emailConviteEM, emailConviteMonitor,
   ehTransitorio, esperaPedida, mandarComRitmo } from "../lib/mailer.js";
@@ -236,4 +239,36 @@ test("batido o limite, o RESTO DO LOTE falha na hora (não espera 250 vezes)", a
   const e2 = await mandarComRitmo(g2, "bruto").then(() => null, (x) => x);
   assert.equal(e2.ritmo, true);
   assert.equal(g2.chamadas.length, 0);
+
+  /* MAS a mensagem que alguém está esperando na tela TENTA — é o código de
+     acesso do login, e a espera guardada foi ganha pelo lote, não por ela.
+     Foi isto que aconteceu em set/2026: a chamada do ICEM bateu no limite e
+     um bolsista, minutos depois, leu "Não foi possível enviar o código". */
+  const g3 = gmailFalso([]);
+  await mandarComRitmo(g3, "bruto", { prioritaria: true });
+  assert.equal(g3.chamadas.length, 1, "a prioritária não espera na fila do lote");
+});
+
+/* O passo entre mensagens é o que conserta a CAUSA: "user rate limit" é o
+   limite POR SEGUNDO da conta, e um lote num `for` com `await` passa dele
+   por volta da décima mensagem. Roda depois dos demais porque é o único
+   teste que mede tempo de relógio. */
+test("o lote sai PASSEADO — é o ritmo que derrubava o envio, não o volume", async () => {
+  process.env.MAIL_INTERVALO_MS = "40";
+  try {
+    const g = gmailFalso([]);
+    const t0 = Date.now();
+    for (let i = 0; i < 4; i++) await mandarComRitmo(g, "bruto", { prioritaria: true });
+    assert.equal(g.chamadas.length, 4);
+    assert.ok(Date.now() - t0 >= 100, "quatro mensagens não podem sair todas no mesmo instante");
+
+    /* E o passo vale também para chamadas que se CRUZAM: a vaga se reserva
+       antes de dormir, senão as duas leriam o mesmo instante, dormiriam
+       juntas e sairiam juntas — o passo valendo para uma só. */
+    const g2 = gmailFalso([]);
+    const t1 = Date.now();
+    await Promise.all([0, 1, 2].map(() => mandarComRitmo(g2, "bruto", { prioritaria: true })));
+    assert.equal(g2.chamadas.length, 3);
+    assert.ok(Date.now() - t1 >= 80, "três mensagens em paralelo ainda saem passeadas");
+  } finally { process.env.MAIL_INTERVALO_MS = "0"; }
 });

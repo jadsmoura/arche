@@ -831,6 +831,59 @@ public/
   **O que fica com o dono**: a conta que envia é a do `MAIL_FROM_ADDR`. Se ela for um Gmail
   comum, o teto é de ~500 mensagens/dia; um comunicado a um congresso inteiro chega perto disso,
   e aí o caminho é a conta institucional (Workspace, 2.000/dia) ou um serviço de envio.
+- **O ARCHÉ MANDAVA RÁPIDO DEMAIS — e era isso o "User-rate limit"** (`MAIL_INTERVALO_MS` +
+  a reserva de vaga em `mandarComRitmo`, lib/mailer.js; `prioritaria` até o código de acesso;
+  `motivoDoCodigo` + `GET /api/email/diagnostico` no server; card "Envio de e-mail" no
+  `/diagnostico/` — relato do dono set/2026: "tenho notado que o sistema não está enviando
+  e-mails, o que está causando problema na inscrição de novos usuários; com o aumento de novos
+  usuários, isso pode ser um gargalo", com o print de um bolsista do ICEM parado em **"Não foi
+  possível enviar o código agora"**). No MESMO dia, a mesma conta, o mesmo limite: horas antes, a
+  chamada do cadastro do ICEM falhara com `User-rate limit exceeded. Retry after …`. As duas
+  telas são o mesmo fato visto de dois lugares.
+  **O limite que o Gmail chama de *user rate* não é o do dia: é o de INSTANTE.** A API gasta
+  unidades de cota por segundo e o envio é o verbo mais caro dela; uma chamada em lote roda num
+  `for` com `await`, cada envio leva uns 200 ms, e isso passa de cinco mensagens por segundo — o
+  lote atropela o próprio limite lá pela décima mensagem. Não era volume: era RITMO. Por isso o
+  remédio é o **passo** (500 ms entre mensagens, `MAIL_INTERVALO_MS`), que mantém a conta abaixo
+  do limite POR CONSTRUÇÃO e faz o lote inteiro sair. A vaga se **reserva antes de dormir**: hoje
+  todo lote do portal é sequencial, mas duas chamadas que se cruzassem leriam o mesmo instante,
+  dormiriam juntas e sairiam juntas — o passo valendo para uma e não para as duas.
+  **E a mensagem que alguém ESPERA NA TELA não fica na fila do lote.** A espera guardada no
+  módulo (a correção anterior) existe para um lote de trezentos não gastar o orçamento duzentas e
+  cinquenta vezes — e, sem querer, passou a trancar do lado de fora justamente quem tentava
+  entrar: batido o limite por um comunicado, o **código de acesso do login** falhava na hora, sem
+  nem bater no Gmail. É o mesmo erro que este arquivo já registra sobre o teto diário ("um palpite
+  de horas calaria o código de acesso"), cometido pelo outro lado. O código agora vai
+  `prioritaria: true`: ignora a espera que o lote ganhou e SEMPRE tenta — é uma mensagem só, o
+  limite é de instante, e tentar e falhar é estritamente melhor que falhar sem tentar. É também o
+  que faz a causa VERDADEIRA chegar à tela, em vez de uma penalidade velha de outro envio.
+  **A tela de entrar dizia "Não foi possível enviar o código agora" e nada mais.** O motivo ia
+  para o `console.error`, e em produção ninguém lê o log do Render: a pessoa não sabia se o erro
+  era do e-mail dela, se valia insistir, nem quando. Agora a recusa por RITMO diz a que horas
+  tentar; o teto do DIA diz que é do sistema e manda falar com a PROPPEX, porque insistir não
+  resolve; e a falha de **credencial continua genérica** de propósito — ela é do servidor, e
+  descrever a nossa configuração numa tela pública não ajuda quem quer entrar.
+  **O card "Envio de e-mail"** (`/diagnostico/`, só gestor geral) responde as três perguntas na
+  ordem em que elas são feitas: QUAL conta está autenticada — `gmail.users.getProfile`, não o
+  `MAIL_FROM_ADDR`, que é só o nome no cabeçalho —, porque é ela que define o teto e a resposta
+  muda o que o dono tem a fazer; QUANTAS saíram hoje por esta instância; e POR QUE a última
+  falhou, classificada (ritmo × teto do dia × o resto). Com **"Mandar um e-mail de teste para
+  mim"** o caminho inteiro se prova AGORA, que é a única resposta que não depende de palpite. A
+  contagem é da instância e recomeça no deploy, como o medidor de banda e pela mesma razão
+  (contá-la no estado somaria uma reescrita do arquivo inteiro a cada e-mail); ela serve para o
+  dia, não para a fatura. O card **não guarda destinatário, assunto nem corpo**: é diagnóstico,
+  não arquivo de e-mails.
+  **O que fica com o dono, e é o gargalo de verdade.** (1) A conta de envio é um **Gmail comum**
+  (~500/dia); autorizar o envio por uma conta **@uniego.edu.br** quadruplica o teto e faz as
+  mensagens saírem do domínio da instituição — o que também as tira do spam nas caixas
+  institucionais. Como o refresh token é o MESMO do Drive (`driveAuth`), trocar a conta do e-mail
+  moveria junto o Drive onde o estado vive: o caminho limpo é uma credencial só para o Gmail, ou
+  um serviço de envio. (2) **`GOOGLE_WEB_CLIENT_ID` não está no Render** (`/api/authcfg` responde
+  `null` em produção): sem ele o botão "Entrar com o Google" não se desenha, e o portal fica com
+  **uma porta só** para quem ainda não tem conta — a que o Gmail derruba. O bolsista do print tem
+  endereço `@gmail.com` e entraria num toque. O `style-src` do CSP já ganhou
+  `accounts.google.com` (o botão injeta a folha de estilo dele), para o dia em que a variável
+  entrar o defeito não parecer do login.
 - **A FILA DA PÁGINA INICIAL É UM QUADRO SÓ, com um QUADRADO por setor** (`#painel-fila` +
   `desenharFila`/`setoresDaFila` em public/index.html, pedido do dono set/2026: "acho que tem um
   bug nesses dois painéis de alerta; não tem porque dois — condense num quadro com quadrados para

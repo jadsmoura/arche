@@ -404,6 +404,18 @@ function render(d) {
     </div>
 
     <div class="card">
+      <div class="card-t">Envio de e-mail</div>
+      <div class="card-s">Todo e-mail do portal sai por uma conta só — e é ela que tem teto.
+        Quando ele é batido, o que para junto é o <b>código de acesso do login</b>: quem ainda
+        não tem conta fica do lado de fora.</div>
+      <div id="email"><div class="kv">Conferindo…</div></div>
+      <div class="exp">
+        <button class="bt bt-ghost" onclick="testarEmail()">Mandar um e-mail de teste para mim</button>
+        <button class="bt bt-ghost" onclick="carregarEmail()">Atualizar</button>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-t">Google Wallet</div>
       <div class="card-s">O passe do inscrito na carteira do celular: o que está configurado e
         o que o Google respondeu.</div>
@@ -414,6 +426,53 @@ function render(d) {
       </div>
     </div>`;
   carregarWallet();
+  carregarEmail();
+}
+
+/* Quem é a conta que envia decide o teto do dia, e o teto do dia decide se o
+   código de acesso chega. Um Gmail comum manda ~500 mensagens por dia; uma
+   conta do Workspace (@uniego.edu.br), ~2.000 — e num congresso o comunicado
+   aos inscritos sozinho passa perto disso. O card diz a conta, quanto saiu
+   hoje por esta instância e por que a última falhou. */
+async function carregarEmail(testar) {
+  const alvo = $("email");
+  if (!alvo) return;
+  try {
+    const r = await fetch("/api/email/diagnostico" + (testar ? "?testar=1" : ""));
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Falha ao consultar.");
+    const sim = (b) => (b ? '<b style="color:var(--ok)">✓</b>' : '<b style="color:var(--err)">✗</b>');
+    const hora = (iso) => (iso ? new Date(iso).toLocaleString("pt-BR") : "");
+    const teste = j.teste ? `<div class="banner ${j.teste.ok ? "ba-ok" : "ba-err"}" style="margin-top:10px">
+        ${j.teste.ok ? `Mensagem de teste enviada para <b>${esc(j.teste.para)}</b> — se ela chegar, o caminho inteiro está funcionando.`
+                     : `O envio falhou: ${esc(j.teste.motivo)}`}</div>` : "";
+    alvo.innerHTML = `
+      <div class="kv">${sim(!!j.conta)} Conta que envia: ${j.conta
+        ? `<code>${esc(j.conta)}</code> — ${j.workspace ? "conta institucional" : "Gmail comum"}, teto de cerca de <b>${j.tetoDiario}</b> mensagens por dia`
+        : `não foi possível falar com o Gmail${j.erroConta ? " — " + esc(j.erroConta) : ""}`}</div>
+      ${j.conta && !j.workspace ? `<div class="banner ba-warn" style="margin-top:10px">
+        O portal envia por uma conta pessoal do Gmail. Autorizar o envio por uma conta
+        <b>@uniego.edu.br</b> quadruplica o teto do dia e faz as mensagens saírem do domínio da
+        instituição — o que também as tira do spam nas caixas institucionais.</div>` : ""}
+      <div class="kv">Remetente escrito no cabeçalho: <code>${esc(j.remetente)}</code>${
+        j.conta && j.conta.toLowerCase() !== String(j.remetente).toLowerCase()
+          ? ' — <b style="color:var(--err)">diferente da conta autenticada</b>; o Gmail usa a conta, não este endereço' : ""}</div>
+      <div class="kv">Saíram hoje por esta instância: <b>${j.enviados}</b>${j.falhas ? ` · falhas: <b>${j.falhas}</b>` : ""}${
+        j.ultimoOk ? ` · última às ${esc(hora(j.ultimoOk))}` : ""}</div>
+      <div class="kv" style="font-size:12px;color:var(--muted)">A contagem é desta instância e recomeça a cada
+        deploy — serve para o dia, não para a fatura. Passo entre mensagens: ${j.intervaloMs} ms.</div>
+      ${j.esperarAte ? `<div class="banner ba-warn" style="margin-top:10px">O Gmail pediu para esperar até
+        <b>${esc(hora(j.esperarAte))}</b>. O código de acesso do login não espera nessa fila.</div>` : ""}
+      ${j.ultimoErro ? `<div class="banner ${j.ultimoErro.diaria ? "ba-err" : "ba-warn"}" style="margin-top:10px">
+        Última falha (${esc(hora(j.ultimoErro.em))}): ${esc(j.ultimoErro.motivo)}</div>` : ""}
+      ${teste}`;
+  } catch (e) {
+    alvo.innerHTML = `<div class="banner ba-err">${esc(e.message)}</div>`;
+  }
+}
+async function testarEmail() {
+  $("email").innerHTML = `<div class="kv">Enviando…</div>`;
+  await carregarEmail(true);
 }
 
 /* O Google Wallet falha longe daqui — no console do emissor, na chave colada no
