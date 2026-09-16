@@ -171,23 +171,24 @@ test("o instante que o Gmail pede sai do cabeçalho OU do texto do erro", () => 
   assert.equal(esperaPedida(gaxios(429, { message: "Rate Limit Exceeded" })), null);
 });
 
-/* O LOTE NÃO PERDE O RESTO DA TURMA POR CAUSA DE UMA RECUSA DE RITMO. */
+/* O LOTE NÃO PERDE O RESTO DA TURMA POR CAUSA DE UMA RECUSA DE RITMO.
+   O transporte é INJETADO: o que se prova aqui é a régua de ritmo, que é a
+   mesma para o Gmail e para o SMTP — quem entrega de fato não importa. */
 const gmailFalso = (roteiro) => {
   const chamadas = [];
-  return {
-    chamadas,
-    users: { messages: { send: async () => {
-      chamadas.push(Date.now());
-      const e = roteiro.shift();
-      if (e) throw e;
-    } } },
+  const enviar = async () => {
+    chamadas.push(Date.now());
+    const e = roteiro.shift();
+    if (e) throw e;
   };
+  return { chamadas, enviar };
 };
+const manda = (g, opts = {}) => mandarComRitmo("bruto", { enviar: g.enviar, ...opts });
 
 test("recusado por ritmo, o envio REPETE e a mensagem sai", async () => {
   const g = gmailFalso([gaxios(429, { headers: { "retry-after": "0" },
     message: "User-rate limit exceeded. Retry after 2020-01-01T00:00:00.000Z (Mail sending)" })]);
-  await mandarComRitmo(g, "bruto");            // não lança: a 2ª tentativa passa
+  await manda(g);            // não lança: a 2ª tentativa passa
   assert.equal(g.chamadas.length, 2);
 });
 
@@ -195,7 +196,7 @@ test("esgotadas as tentativas, o erro é EM PORTUGUÊS e diz quando voltar", asy
   const ritmo = () => gaxios(429, { headers: { "retry-after": "0" },
     message: "User-rate limit exceeded. Retry after 2020-01-01T00:00:00.000Z (Mail sending)" });
   const g = gmailFalso([ritmo(), ritmo(), ritmo()]);
-  const e = await mandarComRitmo(g, "bruto").then(() => null, (x) => x);
+  const e = await manda(g).then(() => null, (x) => x);
   assert.ok(e, "tinha de falhar");
   assert.equal(e.ritmo, true);
   assert.match(e.message, /Gmail limitou o ritmo/);
@@ -205,7 +206,7 @@ test("esgotadas as tentativas, o erro é EM PORTUGUÊS e diz quando voltar", asy
 
 test("erro DEFINITIVO não se repete — repetir um endereço inválido é ruído", async () => {
   const g = gmailFalso([gaxios(400, { message: "Invalid to header" })]);
-  const e = await mandarComRitmo(g, "bruto").then(() => null, (x) => x);
+  const e = await manda(g).then(() => null, (x) => x);
   assert.match(e.message, /Invalid to header/);
   assert.equal(e.ritmo, undefined);
   assert.equal(g.chamadas.length, 1);
@@ -213,15 +214,119 @@ test("erro DEFINITIVO não se repete — repetir um endereço inválido é ruíd
 
 test("o teto DIÁRIO se diz como é — e não vira espera de alguns minutos", async () => {
   const g = gmailFalso([gaxios(429, { message: "Daily user sending quota exceeded. (Mail sending)" })]);
-  const e = await mandarComRitmo(g, "bruto").then(() => null, (x) => x);
+  const e = await manda(g).then(() => null, (x) => x);
   assert.equal(e.diaria, true);
   assert.match(e.message, /limite DIÁRIO/);
   assert.doesNotMatch(e.message, /a partir das/);   // nada de hora inventada
   assert.equal(g.chamadas.length, 1, "repetir o teto do dia é desperdício");
   // e NÃO deixa espera guardada: o código de acesso do login tenta do mesmo jeito
   const g2 = gmailFalso([]);
-  await mandarComRitmo(g2, "bruto");
+  await manda(g2);
   assert.equal(g2.chamadas.length, 1);
+});
+
+/* ======================================================================
+   O TRANSPORTE TROCA; A MENSAGEM NÃO (set/2026)
+
+   O segundo transporte é SMTP justamente para o MIME pronto atravessar
+   inteiro: o QR embutido por `cid:`, o multipart/related que o faz
+   aparecer no corpo, o JSON-LD que gera o passe na carteira e o assunto em
+   UTF-8. Remontar campo a campo numa API de terceiro quebraria isso em
+   silêncio — e o defeito só apareceria na caixa de entrada de quem se
+   inscreveu. Por isso este teste sobe um servidor SMTP de mentira e
+   confere os BYTES que chegaram do outro lado.
+   ====================================================================== */
+import net from "node:net";
+
+function smtpFalso() {
+  const recebidas = [];
+  const srv = net.createServer((s) => {
+    let buf = "", emDados = false, msg = "";
+    s.write("220 arche-teste ESMTP\r\n");
+    s.on("data", (d) => {
+      buf += d.toString("utf8");
+      let i;
+      while ((i = buf.indexOf("\r\n")) >= 0) {
+        const linha = buf.slice(0, i); buf = buf.slice(i + 2);
+        if (emDados) {
+          if (linha === ".") { emDados = false; recebidas.push(msg); msg = ""; s.write("250 ok\r\n"); }
+          // "dot-stuffing": a linha que começa com ponto viaja duplicada
+          else msg += (linha.startsWith("..") ? linha.slice(1) : linha) + "\r\n";
+          continue;
+        }
+        const c = linha.toUpperCase();
+        if (c.startsWith("EHLO")) s.write("250-arche-teste\r\n250 AUTH PLAIN LOGIN\r\n");
+        else if (c.startsWith("HELO")) s.write("250 arche-teste\r\n");
+        else if (c.startsWith("AUTH")) s.write("235 autenticado\r\n");
+        else if (c.startsWith("MAIL FROM") || c.startsWith("RCPT TO")) s.write("250 ok\r\n");
+        else if (c === "DATA") { emDados = true; s.write("354 manda\r\n"); }
+        else if (c === "QUIT") { s.write("221 tchau\r\n"); s.end(); }
+        else s.write("250 ok\r\n");
+      }
+    });
+    s.on("error", () => {});
+  });
+  return { srv, recebidas };
+}
+
+test("a mensagem atravessa o SMTP inteira — QR embutido, passe e Reply-To", async () => {
+  const { srv, recebidas } = smtpFalso();
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const porta = srv.address().port;
+  const antes = { ...process.env };
+  Object.assign(process.env, {
+    MAIL_PROVEDOR: "smtp", SMTP_HOST: "127.0.0.1", SMTP_PORTA: String(porta),
+    SMTP_USUARIO: "arche", SMTP_SENHA: "segredo",
+    MAIL_FROM_ADDR: "nao-responda@uniego.edu.br", MAIL_REPLY_TO: "proppex@uniego.edu.br",
+  });
+  try {
+    const { enviarEmail } = await import("../lib/mailer.js");
+    const { esquecerCliente } = await import("../lib/email/transporte.js");
+    esquecerCliente();
+    const msg = emailInscricaoEvento(acao, inscrito, { qrPng: Buffer.from("PNGFALSO") });
+    await enviarEmail({ para: "maria@exemplo.com", assunto: msg.assunto,
+      corpoHtml: msg.corpoHtml, anexos: msg.anexos });
+
+    assert.equal(recebidas.length, 1, "a mensagem tinha de chegar ao servidor");
+    const bruto = recebidas[0];
+    // o remetente do domínio da instituição, com a caixa que responde
+    assert.match(bruto, /^From: .*<nao-responda@uniego\.edu\.br>$/m);
+    assert.match(bruto, /^Reply-To: proppex@uniego\.edu\.br$/m);
+    // o QR embutido: sem multipart/related e sem o Content-ID o corpo
+    // mostra um quadrado vazio no lugar da credencial
+    assert.match(bruto, /Content-Type: multipart\/related/);
+    assert.match(bruto, /Content-ID: <qr-inscricao>/);
+    assert.match(bruto, /cid:qr-inscricao/);
+    assert.match(bruto, new RegExp(Buffer.from("PNGFALSO").toString("base64")));
+    // o passe da carteira digital
+    assert.match(bruto, /EventReservation/);
+    assert.match(bruto, new RegExp(`qrCode:${inscrito.token}`));
+    // assunto em UTF-8 codificado, não cru
+    assert.match(bruto, /^Subject: =\?UTF-8\?B\?/m);
+  } finally {
+    for (const k of ["MAIL_PROVEDOR", "SMTP_HOST", "SMTP_PORTA", "SMTP_USUARIO",
+      "SMTP_SENHA", "MAIL_FROM_ADDR", "MAIL_REPLY_TO"]) {
+      if (antes[k] === undefined) delete process.env[k]; else process.env[k] = antes[k];
+    }
+    const { esquecerCliente } = await import("../lib/email/transporte.js");
+    esquecerCliente();
+    srv.close();
+  }
+});
+
+test("o erro do SMTP se classifica pelo protocolo, não pelo do Google", async () => {
+  const smtp = (campos) => Object.assign(new Error(campos.message || "erro"), campos);
+  // 4xx do protocolo é "volte depois"; 5xx é definitivo
+  assert.equal(ehTransitorio(smtp({ responseCode: 421, message: "Too many connections" })), true);
+  assert.equal(ehTransitorio(smtp({ responseCode: 450, message: "rate exceeded" })), true);
+  assert.equal(ehTransitorio(smtp({ responseCode: 550, message: "No such user" })), false);
+  // rede se tenta de novo; SENHA ERRADA não melhora com insistência
+  assert.equal(ehTransitorio(smtp({ code: "ECONNECTION" })), true);
+  assert.equal(ehTransitorio(smtp({ code: "ETIMEDOUT" })), true);
+  assert.equal(ehTransitorio(smtp({ code: "EAUTH", responseCode: 535, message: "Invalid login" })), false);
+  // e o 429 do Gmail continua sendo lido como ritmo — é o caso que
+  // motivou a régua, e um `code` de texto não pode desviá-lo para cá
+  assert.equal(ehTransitorio(gaxios(429, { message: "User-rate limit exceeded" })), true);
 });
 
 /* Este vem por ÚLTIMO: ele deixa a espera do módulo lá na frente, que é
@@ -229,14 +334,14 @@ test("o teto DIÁRIO se diz como é — e não vira espera de alguns minutos", a
 test("batido o limite, o RESTO DO LOTE falha na hora (não espera 250 vezes)", async () => {
   const g = gmailFalso([gaxios(429, { headers: { "retry-after": "3600" },
     message: "User-rate limit exceeded" })]);
-  const e1 = await mandarComRitmo(g, "bruto").then(() => null, (x) => x);
+  const e1 = await manda(g).then(() => null, (x) => x);
   assert.equal(e1.ritmo, true);
   assert.equal(g.chamadas.length, 1, "espera maior que o orçamento não se repete");
   assert.match(e1.message, /a partir das \d{2}:\d{2}/);        // diz a HORA de voltar
 
   // a mensagem seguinte do mesmo lote nem chega a bater no Gmail
   const g2 = gmailFalso([]);
-  const e2 = await mandarComRitmo(g2, "bruto").then(() => null, (x) => x);
+  const e2 = await manda(g2).then(() => null, (x) => x);
   assert.equal(e2.ritmo, true);
   assert.equal(g2.chamadas.length, 0);
 
@@ -245,7 +350,7 @@ test("batido o limite, o RESTO DO LOTE falha na hora (não espera 250 vezes)", a
      Foi isto que aconteceu em set/2026: a chamada do ICEM bateu no limite e
      um bolsista, minutos depois, leu "Não foi possível enviar o código". */
   const g3 = gmailFalso([]);
-  await mandarComRitmo(g3, "bruto", { prioritaria: true });
+  await manda(g3, { prioritaria: true });
   assert.equal(g3.chamadas.length, 1, "a prioritária não espera na fila do lote");
 });
 
@@ -258,7 +363,7 @@ test("o lote sai PASSEADO — é o ritmo que derrubava o envio, não o volume", 
   try {
     const g = gmailFalso([]);
     const t0 = Date.now();
-    for (let i = 0; i < 4; i++) await mandarComRitmo(g, "bruto", { prioritaria: true });
+    for (let i = 0; i < 4; i++) await manda(g, { prioritaria: true });
     assert.equal(g.chamadas.length, 4);
     assert.ok(Date.now() - t0 >= 100, "quatro mensagens não podem sair todas no mesmo instante");
 
@@ -267,7 +372,7 @@ test("o lote sai PASSEADO — é o ritmo que derrubava o envio, não o volume", 
        juntas e sairiam juntas — o passo valendo para uma só. */
     const g2 = gmailFalso([]);
     const t1 = Date.now();
-    await Promise.all([0, 1, 2].map(() => mandarComRitmo(g2, "bruto", { prioritaria: true })));
+    await Promise.all([0, 1, 2].map(() => manda(g2, { prioritaria: true })));
     assert.equal(g2.chamadas.length, 3);
     assert.ok(Date.now() - t1 >= 80, "três mensagens em paralelo ainda saem passeadas");
   } finally { process.env.MAIL_INTERVALO_MS = "0"; }

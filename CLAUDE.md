@@ -884,6 +884,54 @@ public/
   endereço `@gmail.com` e entraria num toque. O `style-src` do CSP já ganhou
   `accounts.google.com` (o botão injeta a folha de estilo dele), para o dia em que a variável
   entrar o defeito não parecer do login.
+- **O E-MAIL SAI POR UM TRANSPORTE, E QUAL É DECIDE O AMBIENTE** (`lib/email/transporte.js` +
+  `MAIL_PROVEDOR` + `MAIL_REPLY_TO` + `GMAIL_OAUTH_*`, pedido do dono set/2026: "tem como enviar
+  e-mails por algum serviço sem ser o gmail? algum sistema com noreply de comunicação para reduzir
+  esse uso?"). Todo e-mail do portal saía pela MESMA autorização OAuth do Drive, e isso amarrava
+  três problemas num nó só: o **teto** de ~500/dia de um Gmail comum (batido, morre junto o código
+  de acesso do login); o **remetente** ser um endereço pessoal, que as caixas `@uniego.edu.br`
+  tratam como suspeito; e **trocar a conta do e-mail significar mover o Drive** onde o
+  `_estado.json` vive, porque a credencial é uma só.
+  A arquitetura é a **mesma do registro de provedores de pagamento**: o servidor fala com "o
+  transporte", `MAIL_PROVEDOR` (`gmail` | `smtp`) decide qual, e sem a variável vale o que estiver
+  configurado — SMTP primeiro, senão o Gmail. Os ~70 modelos de mensagem, a régua de ritmo, o
+  diagnóstico e as rotas **não sabem quem está por baixo**.
+  **O QUE VIAJA É O MIME PRONTO, não os campos** — e é essa a decisão que escolhe o SMTP em vez da
+  API HTTP de um provedor. `enviarEmail` já monta a mensagem inteira (cabeçalhos, o
+  multipart/related que embute o QR da credencial por `cid:`, o JSON-LD que faz o passe nascer na
+  carteira digital, o assunto em UTF-8), e cada transporte só a ENTREGA: o Gmail em
+  `messages.send({raw})`, o SMTP em `sendMail({raw})`. Remontar campo a campo numa API de terceiro
+  arriscaria justamente o que é caro e invisível — o QR que não aparece, o passe que deixa de
+  nascer —, e o defeito só apareceria na caixa de entrada de quem se inscreveu. Um teste sobe um
+  **servidor SMTP de mentira** e confere os BYTES que chegaram do outro lado: o `Content-ID`, o
+  `cid:`, o `multipart/related`, o `EventReservation`, o `Reply-To` e o assunto codificado.
+  E o SMTP ser o segundo transporte é o que o faz servir a **qualquer serviço** — Resend, Brevo,
+  Amazon SES, o Workspace da instituição, um servidor próprio — sem código novo: o serviço é
+  decisão de quem paga a conta, e o código não o nomeia.
+  **O `nao-responda@` só é defensável com `MAIL_REPLY_TO`**: um remetente que ninguém consegue
+  responder é hostil — a pessoa aperta "responder" para tirar uma dúvida e a resposta cai num
+  buraco. O cabeçalho manda as respostas para uma caixa de verdade, e o card do diagnóstico DIZ
+  quando ele não está configurado.
+  Três detalhes que o arquivo guarda: a credencial do Gmail pode ser **própria**
+  (`GMAIL_OAUTH_REFRESH_TOKEN`) e cai no `driveAuth` quando não existe — é o que permite o envio
+  mudar de conta sem arrastar o Drive; o **passo entre mensagens passou a ser do transporte** (500
+  ms no Gmail, que cobra cota por segundo; 200 ms no SMTP, que aceita bem mais), com
+  `MAIL_INTERVALO_MS` sobrepondo os dois; e o **erro do SMTP se classifica pelo protocolo** — 4xx
+  é "volte depois", 5xx é definitivo, `EAUTH` (senha errada) **não se repete**, e o
+  reconhecimento é ESTREITO de propósito (só `responseCode` ou um código nomeado do nodemailer),
+  porque o `code` do googleapis às vezes é o próprio status como texto e tratá-lo como SMTP faria
+  o 429 do Gmail — o caso que motivou toda esta régua — voltar a ser lido como recusa definitiva.
+  **Com as variáveis no padrão nada disso existe**: o transporte é o Gmail, o remetente é o de
+  sempre, o passo é 500 ms. Ensaiado nos dois modos num servidor isolado — por SMTP o código de
+  acesso saiu com `From: ARCHÉ · PROPPEX <nao-responda@uniego.edu.br>` e
+  `Reply-To: proppex@uniego.edu.br`; sem variável nenhuma, `transporte: gmail` e 500 ms.
+  **O que fica com o dono** (nada disso é código): a saída mais barata é criar
+  `nao-responda@uniego.edu.br` no **Workspace** que a instituição já tem e apontar o SMTP para
+  `smtp.gmail.com:465` com uma senha de app — ~2.000/dia, custo zero, nenhum fornecedor novo, e o
+  domínio da instituição no remetente (SPF/DKIM alinhados, o que tira as mensagens do spam). Para
+  o volume de um congresso, um serviço de envio (Resend, Brevo, Amazon SES) é trocar quatro
+  variáveis no Render — `SMTP_HOST`, `SMTP_PORTA`, `SMTP_USUARIO`, `SMTP_SENHA` — e exige
+  verificar o domínio no painel do serviço (dois registros DNS em `uniego.edu.br`).
 - **A FILA DA PÁGINA INICIAL É UM QUADRO SÓ, com um QUADRADO por setor** (`#painel-fila` +
   `desenharFila`/`setoresDaFila` em public/index.html, pedido do dono set/2026: "acho que tem um
   bug nesses dois painéis de alerta; não tem porque dois — condense num quadro com quadrados para

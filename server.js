@@ -507,17 +507,18 @@ app.get("/api/banda", async (req, res) => {
 });
 
 /* GET /api/email/diagnostico — POR QUE O E-MAIL NÃO ESTÁ SAINDO (só gestor
-   geral). Todo e-mail do portal sai por UMA conta do Gmail, e é ela que tem
-   teto: quando ele é batido, o que morre junto é o CÓDIGO DE ACESSO — isto é,
-   a porta de entrada de quem ainda não tem conta. Até aqui a única pista era
-   o log do Render, que ninguém lê, e a frase genérica da tela de entrar.
+   geral). Todo e-mail do portal sai por UM transporte, e o teto é dele:
+   quando é batido, o que morre junto é o CÓDIGO DE ACESSO — isto é, a porta
+   de entrada de quem ainda não tem conta. Até aqui a única pista era o log
+   do Render, que ninguém lê, e a frase genérica da tela de entrar.
 
-   O card responde as três perguntas na ordem em que elas são feitas: QUAL
-   conta está autenticada (é ela que define o teto — Gmail comum ~500/dia,
-   Workspace ~2.000/dia, e a resposta muda o que o dono tem a fazer),
-   QUANTAS saíram hoje por esta instância, e POR QUE a última falhou. Com
-   `?testar=1` manda uma mensagem de verdade para a caixa de quem pediu: é a
-   única prova de que o caminho inteiro funciona AGORA.
+   O card responde as três perguntas na ordem em que elas são feitas: por
+   ONDE e por QUAL conta as mensagens saem (é ela que define o teto — Gmail
+   comum ~500/dia, Workspace ~2.000/dia, serviço de envio conforme o plano,
+   e a resposta muda o que o dono tem a fazer), QUANTAS saíram hoje por esta
+   instância, e POR QUE a última falhou. Com `?testar=1` manda uma mensagem
+   de verdade para a caixa de quem pediu: é a única prova de que o caminho
+   inteiro funciona AGORA.
 
    O contador é DESTA instância e recomeça no deploy — como o medidor de
    banda, e pela mesma razão (contá-lo no estado somaria uma reescrita do
@@ -526,19 +527,17 @@ app.get("/api/email/diagnostico", async (req, res) => {
   const u = await exigirGestor(req, res);
   if (!u) return;
   const { retratoDoEnvio, enviarEmail } = await import("./lib/mailer.js");
+  const transporte = await import("./lib/email/transporte.js");
   const retrato = retratoDoEnvio();
   // Quem é a conta autenticada de verdade: `MAIL_FROM_ADDR` é só o nome que
-  // vai no cabeçalho, e o Gmail ignora um que não seja o da conta. O teto é
-  // da CONTA, então é ela que o diagnóstico precisa nomear.
+  // vai no cabeçalho, e no Gmail o Google ignora um que não seja o da conta.
+  // O teto é da CONTA, então é ela que o diagnóstico precisa nomear.
   let conta = null, erroConta = "";
-  try {
-    const { google } = await import("googleapis");
-    const { driveAuth } = await import("./lib/files.js");
-    const gmail = google.gmail({ version: "v1", auth: driveAuth(google) });
-    const { data } = await gmail.users.getProfile({ userId: "me" });
-    conta = String(data?.emailAddress || "");
-  } catch (e) { erroConta = e.message; }
-  const workspace = !!conta && !/@(gmail|googlemail)\.com$/i.test(conta);
+  try { conta = await transporte.contaAutenticada(); }
+  catch (e) { erroConta = e.message; }
+  // "Workspace" só faz sentido para o Gmail; no SMTP quem manda é o plano
+  const noGmail = transporte.nome() === "gmail";
+  const workspace = noGmail ? !!conta && !/@(gmail|googlemail)\.com$/i.test(conta) : true;
 
   let teste = null;
   if (String(req.query.testar || "") === "1") {
@@ -551,14 +550,16 @@ app.get("/api/email/diagnostico", async (req, res) => {
         corpoHtml: `<div style="font-family:Segoe UI,Roboto,sans-serif">
           <h2 style="color:#1c3742">O envio de e-mail está funcionando</h2>
           <p>Mensagem de teste pedida no diagnóstico do sistema em ${em}.</p>
-          <p style="color:#5b7280;font-size:13px">Conta de envio: ${conta || "(não identificada)"}.</p></div>` });
+          <p style="color:#5b7280;font-size:13px">Saiu por <b>${escHtml(transporte.rotulo())}</b>, pela conta
+            ${escHtml(conta || "(não identificada)")}.</p></div>` });
       teste = { ok: true, para: u.email };
     } catch (e) {
       teste = { ok: false, motivo: e.message, ritmo: !!e.ritmo, diaria: !!e.diaria };
     }
   }
-  res.json({ ...retrato, conta, erroConta, workspace,
-    tetoDiario: conta ? (workspace ? 2000 : 500) : null, teste });
+  res.json({ ...retrato, conta, erroConta, workspace, noGmail,
+    // o teto do SMTP é do plano contratado e o código não o adivinha
+    tetoDiario: conta ? transporte.tetoDiario(conta) : null, teste });
 });
 
 /** POST /api/banda/zerar — recomeça a medição num período limpo. */

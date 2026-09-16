@@ -447,15 +447,26 @@ async function carregarEmail(testar) {
         ${j.teste.ok ? `Mensagem de teste enviada para <b>${esc(j.teste.para)}</b> — se ela chegar, o caminho inteiro está funcionando.`
                      : `O envio falhou: ${esc(j.teste.motivo)}`}</div>` : "";
     alvo.innerHTML = `
+      <div class="kv">${sim(j.configurado)} Sai por: <b>${esc(j.transporteRotulo)}</b></div>
       <div class="kv">${sim(!!j.conta)} Conta que envia: ${j.conta
-        ? `<code>${esc(j.conta)}</code> — ${j.workspace ? "conta institucional" : "Gmail comum"}, teto de cerca de <b>${j.tetoDiario}</b> mensagens por dia`
-        : `não foi possível falar com o Gmail${j.erroConta ? " — " + esc(j.erroConta) : ""}`}</div>
-      ${j.conta && !j.workspace ? `<div class="banner ba-warn" style="margin-top:10px">
-        O portal envia por uma conta pessoal do Gmail. Autorizar o envio por uma conta
-        <b>@uniego.edu.br</b> quadruplica o teto do dia e faz as mensagens saírem do domínio da
-        instituição — o que também as tira do spam nas caixas institucionais.</div>` : ""}
+        ? `<code>${esc(j.conta)}</code>${j.noGmail
+            ? ` — ${j.workspace ? "conta institucional" : "Gmail comum"}, teto de cerca de <b>${j.tetoDiario}</b> mensagens por dia`
+            : " — o teto do dia é o do plano contratado"}`
+        : `não foi possível falar com o serviço${j.erroConta ? " — " + esc(j.erroConta) : ""}`}</div>
+      ${j.conta && j.noGmail && !j.workspace ? `<div class="banner ba-warn" style="margin-top:10px">
+        O portal envia por uma <b>conta pessoal do Gmail</b> — ~500 mensagens por dia, e batido o teto
+        o código de acesso do login para junto. Duas saídas, as duas sem mexer em código:
+        apontar o SMTP para um serviço de envio, ou autorizar uma conta <b>@uniego.edu.br</b>
+        (~2.000/dia). Qualquer uma delas também faz as mensagens saírem do domínio da instituição,
+        o que as tira do spam nas caixas institucionais.</div>` : ""}
+      ${j.respostaPara ? `<div class="kv">Respostas vão para: <code>${esc(j.respostaPara)}</code></div>`
+        : `<div class="kv" style="color:var(--muted)">Sem <code>MAIL_REPLY_TO</code>: quem responder a um
+           e-mail do sistema escreve para a própria conta de envio.</div>`}
       <div class="kv">Remetente escrito no cabeçalho: <code>${esc(j.remetente)}</code>${
-        j.conta && j.conta.toLowerCase() !== String(j.remetente).toLowerCase()
+        // no Gmail a divergência é DEFEITO (o Google reescreve o From pelo da
+        // conta); no SMTP ela é o normal — o usuário da conexão é a credencial
+        // do serviço, e o remetente é o endereço que se quer mostrar
+        j.noGmail && j.conta && j.conta.toLowerCase() !== String(j.remetente).toLowerCase()
           ? ' — <b style="color:var(--err)">diferente da conta autenticada</b>; o Gmail usa a conta, não este endereço' : ""}</div>
       <div class="kv">Saíram hoje por esta instância: <b>${j.enviados}</b>${j.falhas ? ` · falhas: <b>${j.falhas}</b>` : ""}${
         j.ultimoOk ? ` · última às ${esc(hora(j.ultimoOk))}` : ""}</div>
