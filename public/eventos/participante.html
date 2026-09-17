@@ -38,6 +38,10 @@
   .atv .m{font-size:12px;color:var(--muted);font-weight:400;margin-top:2px;line-height:1.45}
   .atv.lotada{opacity:.55} .atv.lotada label{cursor:not-allowed}
   .atv .tick{color:var(--ok);font-weight:700;font-size:15px;line-height:1.2}
+  /* a quem a atividade se destina */
+  .atv .cursos{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+  .atv .cs{background:var(--accent-wash);color:var(--brand);border:1px solid var(--line);
+    border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;white-space:nowrap}
   .vagas{font-weight:600;color:var(--brand)} .vagas.zero{color:var(--err)}
   /* o bloco das simultâneas: a escolha ali dentro é UMA (set/2026) */
   .bloco-hora{border:1px dashed var(--accent);border-radius:12px;padding:6px 10px 10px;margin-top:10px;background:var(--accent-wash)}
@@ -238,10 +242,21 @@ function blocosDoDia(lista) {
   }
   return html;
 }
+/* A QUEM A ATIVIDADE SE DESTINA (pedido do dono, set/2026: "para facilitar o
+   aluno a identificar se a programação foi pensada para seu curso"). Sem
+   curso indicado não sai etiqueta nenhuma — a atividade é de todos. */
+const cursosTags = (p) => (p.cursos || []).length
+  ? `<div class="cursos">${p.cursos.map((c) => `<span class="cs">${esc(c)}</span>`).join("")}</div>` : "";
+/* Quem ministra, que é uma LISTA desde set/2026 (mesa redonda, painel). */
+const quemMinistra = (p) => {
+  const nomes = Array.isArray(p.pessoas) && p.pessoas.length
+    ? p.pessoas.map((q) => q.nome).filter(Boolean) : [p.responsavel].filter(Boolean);
+  return nomes.length ? ` · com ${nomes.join(", ")}` : "";
+};
 function linhaAtividade(p) {
   const meta = [faixa(p), p.local, p.ch ? `CH ${p.ch}` : "", p.modalidade === "online" ? "online" : ""].filter(Boolean).join(" · ");
   if (p.inscricao !== "propria")
-    return `<div class="atv geral"><span class="tick">✓</span><div><div>${esc(p.titulo)}</div><div class="m">${esc(meta)}${meta ? " · " : ""}para todos os inscritos</div></div></div>`;
+    return `<div class="atv geral"><span class="tick">✓</span><div><div>${esc(p.titulo)}</div><div class="m">${esc(meta)}${meta ? " · " : ""}para todos os inscritos${esc(quemMinistra(p))}</div>${cursosTags(p)}</div></div>`;
   const minha = MARCADAS.has(p.id);
   const lotada = !minha && p.vagasRestantes !== null && p.vagasRestantes <= 0;
   const vagas = p.vagasRestantes === null ? "sem limite de vagas"
@@ -250,7 +265,7 @@ function linhaAtividade(p) {
   return `<div class="atv ${lotada ? "lotada" : ""}"><label>
     <input type="checkbox" data-atv="${esc(p.id)}" ${minha ? "checked" : ""} ${lotada || !D.podeTrocarAtividades ? "disabled" : ""} onchange="marcar(this)">
     <div><div>${esc(p.titulo)}${minha ? ' <span class="selo ok" style="padding:2px 8px;font-size:11px">inscrito</span>' : ""}</div>
-      <div class="m">${esc(meta)}${meta ? " · " : ""}${vagas}</div></div></label></div>`;
+      <div class="m">${esc(meta)}${meta ? " · " : ""}${vagas}${esc(quemMinistra(p))}</div>${cursosTags(p)}</div></label></div>`;
 }
 /* Marcar uma atividade DESMARCA as que se sobrepõem a ela (set/2026): a
    escolha no mesmo horário é uma, e sair de uma para entrar noutra é o que

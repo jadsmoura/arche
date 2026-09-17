@@ -52,7 +52,12 @@
     border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;
     font-family:'IBM Plex Sans',system-ui,sans-serif}
   .aba.on{background:var(--brand);border-color:var(--brand);color:#fff}
-  .atv{border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-top:10px;background:var(--card)}
+  /* Contraste (pedido do dono, set/2026: "estou me confundindo quando um
+     quadro de uma programação em relação a outro"): borda mais firme, sombra
+     baixa e mais ar entre um e outro — numa grade de congresso o que separa
+     as atividades é a distância, não a linha de 1px. */
+  .atv{border:1px solid var(--line-strong);border-radius:14px;padding:14px 16px;margin-top:14px;
+    background:var(--card);box-shadow:0 1px 3px rgba(24,38,50,.06)}
   .atv-topo{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
   .atv-h{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:13px;color:var(--brand-2);white-space:nowrap}
   .atv-t{font-weight:600;font-size:15px;color:var(--ink);flex:1;min-width:200px}
@@ -168,6 +173,14 @@
   /* miniatura de quem ministra, na linha da programação */
   .atv-quem{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:12.5px;color:var(--ink-soft)}
   .atv-quem img{width:34px;height:34px;border-radius:50%;object-fit:cover;flex:none}
+  /* sem foto, as iniciais no mesmo círculo: numa mesa redonda em que só um
+     enviou retrato, os nomes continuam alinhados uns sob os outros */
+  .atv-quem .ini-mini{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;
+    background:var(--wash2);color:var(--brand);font-weight:700;font-size:12px}
+  /* a quem a atividade se destina: as etiquetas de curso */
+  .atv-cursos{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .cs-tag{background:var(--accent-wash);color:var(--brand);border:1px solid var(--line);
+    border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:600;white-space:nowrap}
 
   /* --------------------------- blocos da página -------------------------- */
   /* a barra de seções sangra até a borda do <main>, e por isso a margem
@@ -668,14 +681,24 @@ const ICONE_REDE = {
    foto, quando o organizador a enviou. O banner gira sozinho de 6 em 6
    segundos, para e volta no toque/foco, e respeita quem pediu menos
    movimento no sistema. */
+/* Quem gira é a PESSOA, não a atividade (pedido do dono, set/2026: "mesa
+   redonda tem mais de uma pessoa, e preciso incluir mais de uma foto,
+   inclusive aparecer no destaque da atividade"): cada cartão traz uma
+   pessoa e diz de que atividade ela é. */
+function pessoasDa(p) {
+  if (Array.isArray(p.pessoas) && p.pessoas.length) return p.pessoas;
+  // COMPAT: atividade da era do palestrante único
+  return p.responsavel ? [{ nome: p.responsavel, instituicao: p.instituicao, miniBio: p.miniBio, temFoto: p.temFoto }] : [];
+}
 function palestrantesDe(e) {
-  const todos = (e.programacao || []).filter((p) => p.responsavel && (p.temFoto || p.miniBio || p.instituicao || p.tipo !== "outro"));
+  const vale = (p) => pessoasDa(p).length && (p.temFoto || p.miniBio || p.instituicao || p.tipo !== "outro");
+  const todas = (e.programacao || []).filter(vale);
   /* Marcadas em DESTAQUE (pedido do dono, set/2026: "não é toda programação
      que é interessante de ser destacada"), só elas giram no carrossel; sem
      nenhuma marca, giram todas — o evento que nunca marcou nada não perde a
      vitrine. */
-  const destacadas = todos.filter((p) => p.destaque === true);
-  return destacadas.length ? destacadas : todos;
+  const destacadas = todas.filter((p) => p.destaque === true);
+  return (destacadas.length ? destacadas : todas).flatMap((p) => pessoasDa(p).map((q) => ({ q, p })));
 }
 let PAL = 0, PAL_TIMER = null;
 function secaoPalestrantes(e) {
@@ -689,31 +712,42 @@ function secaoPalestrantes(e) {
         + '<button class="pal-seta dir" onclick="passaPalestrante(1)" aria-label="Próximo">›</button>' : ""}
       <div class="pal-palco" id="pal-palco" onmouseenter="pausaPalestrantes()" onmouseleave="girarPalestrantes()"
         onfocusin="pausaPalestrantes()">${palestranteCartao(lista[0])}</div>
-      ${lista.length > 1 ? `<div class="pal-navs" id="pal-navs">${lista.map((p, i) =>
+      ${lista.length > 1 ? `<div class="pal-navs" id="pal-navs">${lista.map((x, i) =>
         `<button class="pal-mini ${i === 0 ? "on" : ""}" onclick="mostraPalestrante(${i})"
-          title="${esc(p.responsavel)}" aria-label="${esc(p.responsavel)}">${miniFoto(p)}</button>`).join("")}</div>` : ""}
+          title="${esc(x.q.nome)}" aria-label="${esc(x.q.nome)}">${miniFoto(x)}</button>`).join("")}</div>` : ""}
     </div>`;
 }
-const fotoUrl = (p) => `/api/publico/eventos/${encodeURIComponent(SLUG)}/atividade/${encodeURIComponent(p.id)}/foto`;
+/* A foto é de cada PESSOA e sai pela rota dela; a atividade da era do
+   palestrante único não tem id de pessoa e continua saindo pela rota antiga. */
+const fotoUrl = ({ q, p }) => `/api/publico/eventos/${encodeURIComponent(SLUG)}/atividade/${encodeURIComponent(p.id)}`
+  + (q.id ? `/pessoa/${encodeURIComponent(q.id)}` : "") + "/foto";
 const iniciais = (n) => String(n || "?").trim().split(/\s+/).slice(0, 2).map((x) => x[0] || "").join("").toUpperCase();
-const miniFoto = (p) => p.temFoto
-  ? `<img src="${fotoUrl(p)}" alt="" loading="lazy">`
-  : `<span>${esc(iniciais(p.responsavel))}</span>`;
-function palestranteCartao(p) {
+const miniFoto = (x) => x.q.temFoto
+  ? `<img src="${fotoUrl(x)}" alt="" loading="lazy">`
+  : `<span>${esc(iniciais(x.q.nome))}</span>`;
+function palestranteCartao(x) {
+  const { q, p } = x;
   return `
     <div class="pal-foto">
-      ${p.temFoto ? `<img src="${fotoUrl(p)}" alt="${esc(p.responsavel)}" loading="lazy">`
-        : `<div class="ini">${esc(iniciais(p.responsavel))}</div>`}
+      ${q.temFoto ? `<img src="${fotoUrl(x)}" alt="${esc(q.nome)}" loading="lazy">`
+        : `<div class="ini">${esc(iniciais(q.nome))}</div>`}
     </div>
     <div class="pal-txt">
-      <div class="pal-nome">${esc(p.responsavel)}</div>
-      ${p.instituicao ? `<div class="pal-inst">${esc(p.instituicao)}</div>` : ""}
-      ${p.miniBio ? `<div class="pal-bio">${esc(p.miniBio)}</div>` : ""}
+      <div class="pal-nome">${esc(q.nome)}</div>
+      ${q.instituicao ? `<div class="pal-inst">${esc(q.instituicao)}</div>` : ""}
+      ${q.miniBio ? `<div class="pal-bio">${esc(q.miniBio)}</div>` : ""}
       <div class="pal-atv"><b>${esc(p.titulo)}</b>
         <div class="pal-quando">${esc([p.dia ? fmt(p.dia) : "", faixaHora(p), p.local || ""].filter(Boolean).join(" · "))}</div>
+        ${cursosTags(p)}
       </div>
     </div>`;
 }
+/* A QUEM A ATIVIDADE SE DESTINA (pedido do dono, set/2026: "para facilitar o
+   aluno a identificar se a programação foi pensada para seu curso"). Sem
+   curso indicado não sai nada — a atividade é de todos, e uma etiqueta
+   dizendo "todos" em cada linha da grade é ruído. */
+const cursosTags = (p) => (p.cursos || []).length
+  ? `<div class="atv-cursos">${(p.cursos || []).map((c) => `<span class="cs-tag">${esc(c)}</span>`).join("")}</div>` : "";
 function mostraPalestrante(i) {
   const lista = palestrantesDe(EV);
   if (!lista.length) return;
@@ -893,9 +927,11 @@ function progSecao(e) {
       </div>
       ${p.local || p.ch ? `<div class="atv-meta">
         ${[p.local, p.ch ? p.ch + " de carga horária" : ""].filter(Boolean).map(esc).join(" · ")}</div>` : ""}
-      ${p.responsavel ? `<div class="atv-quem">
-        ${p.temFoto ? `<img src="${fotoUrl(p)}" alt="" loading="lazy">` : ""}
-        <span><b>${esc(p.responsavel)}</b>${p.instituicao ? " · " + esc(p.instituicao) : ""}</span></div>` : ""}
+      ${pessoasDa(p).map((q) => `<div class="atv-quem">
+        ${q.temFoto ? `<img src="${fotoUrl({ q, p })}" alt="" loading="lazy">`
+          : `<span class="ini-mini">${esc(iniciais(q.nome))}</span>`}
+        <span><b>${esc(q.nome)}</b>${q.instituicao ? " · " + esc(q.instituicao) : ""}</span></div>`).join("")}
+      ${cursosTags(p)}
       <div class="atv-selos">
         ${p.modalidade === "online" ? '<span class="selo v">🖥 online</span>' : ""}
         ${p.inscricao === "propria" ? (p.vagasRestantes === null

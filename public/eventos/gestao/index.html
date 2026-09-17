@@ -205,7 +205,26 @@
   .tr-texto h4:first-child{margin-top:0}
   .tr-texto p{margin:0 0 7px}.tr-texto ul,.tr-texto ol{margin:0 0 7px;padding-left:22px}
   .tr-texto img{max-width:100%;height:auto;border-radius:6px;display:block;margin:8px auto}
-  .atv-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fafbfc;position:relative}
+  /* O CARD DE CADA ITEM — atividade, palestrante, bloco, voucher.
+     Contraste (pedido do dono, set/2026: "estou me confundindo quando um
+     quadro de uma programação em relação a outro"): o #fafbfc sobre o branco
+     do card era quase o mesmo branco, e com a borda de 1px em var(--line)
+     trinta atividades empilhadas viravam uma parede só. O fundo desce, a
+     borda escurece e o espaço entre um e outro dobra — é a distância que
+     diz onde um termina e o outro começa. */
+  .atv-card{border:1px solid #c6d3da;border-radius:10px;padding:12px 14px;margin-bottom:18px;background:#eef3f6;position:relative}
+  /* e a atividade da programação ganha CABEÇALHO: o número de ordem e o
+     título, que é como se acha a atividade certa numa grade de congresso */
+  .atv-prog{padding-top:0}
+  .atv-n{display:flex;align-items:center;gap:9px;margin:0 -14px 10px;padding:8px 14px;
+    border-bottom:1px solid #c6d3da;background:var(--brand);color:#fff;border-radius:9px 9px 0 0;
+    font-family:Sora,sans-serif;font-size:13px;font-weight:700}
+  .atv-n span{font-family:Figtree,sans-serif;font-weight:600;font-size:13px;opacity:.92;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  /* cada pessoa que ministra, dentro da atividade */
+  .qm-linha{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:8px}
+  .qm-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+  .qm-num{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
   /* a lista de sugestões da busca de pessoas (guia Equipe): abre sob o campo do nome */
   .sug{position:absolute;left:14px;top:50px;z-index:30;background:#fff;border:1px solid var(--line);border-radius:10px;
     box-shadow:0 8px 24px rgba(24,38,50,.14);min-width:300px;max-width:min(480px,calc(100% - 28px));overflow:hidden}
@@ -219,7 +238,12 @@
   .g-atv{display:grid;grid-template-columns:1fr 140px 106px 106px auto;gap:8px;align-items:center}
   .g-atv2{display:grid;grid-template-columns:1.2fr 1fr 96px 96px;gap:8px;margin-top:8px}
   .g-campo{display:grid;grid-template-columns:1.4fr 170px auto;gap:8px;align-items:center}
-  @media(max-width:760px){.g-atv,.g-atv2,.g-campo{grid-template-columns:1fr}}
+  /* a linha da atividade (local · vagas · CH) e a de quem ministra (nome ·
+     instituição) — em CLASSE, não em `style=`: no celular a media query
+     precisa poder empilhá-las, e estilo inline vence de media query */
+  .g-atv3{grid-template-columns:1.6fr 96px 150px}
+  .g-atv-quem{grid-template-columns:1.2fr 1fr;margin-top:0}
+  @media(max-width:760px){.g-atv,.g-atv2,.g-campo,.g-atv3,.g-atv-quem{grid-template-columns:1fr}}
   .chk{display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;
     font-weight:500;color:var(--ink);margin-top:8px}
   .chk input{width:auto}
@@ -2073,7 +2097,20 @@ function renderPagina(a){
     </div>`;
 }
 
-/* ===================== PRÉ-EVENTO · PROGRAMAÇÃO ========================= */
+/* ===================== PRÉ-EVENTO · PROGRAMAÇÃO =========================
+   QUEM MINISTRA é uma LISTA desde set/2026 ("mesa redonda tem mais de uma
+   pessoa, e preciso incluir mais de uma foto"). O payload traz `pessoas`; o
+   registro antigo traz os quatro campos soltos, e é deles que a primeira
+   nasce — quem grava a conversão é o servidor, na primeira gravação. */
+const MAX_QUEM_MINISTRA = 8;
+function pessoasDaAtv(p){
+  if(Array.isArray(p?.pessoas) && p.pessoas.length)
+    return p.pessoas.map(q=>({ id:q.id||"", nome:q.nome||"", instituicao:q.instituicao||"",
+      miniBio:q.miniBio||"", temFoto:q.temFoto===true }));
+  if(!String(p?.responsavel||"").trim()) return [];
+  return [{ id:"", nome:p.responsavel, instituicao:p.instituicao||"", miniBio:p.miniBio||"",
+    temFoto:p.temFoto===true }];
+}
 function renderProgramacao(a){
   const ev=a.evento||{};
   // compat na edição: item antigo tinha só `hora` — vira horaInicio; os ids
@@ -2081,12 +2118,15 @@ function renderProgramacao(a){
   EV_PROG=(ev.programacao||[]).map(p=>({
     id:p.id||"", tipo:p.tipo||"palestra", titulo:p.titulo||"", descricao:p.descricao||"",
     dia:p.dia||"", horaInicio:p.horaInicio||p.hora||"", horaFim:p.horaFim||"",
-    local:p.local||"", responsavel:p.responsavel||"", vagas:Number(p.vagas)||0, ch:p.ch||"",
+    local:p.local||"", vagas:Number(p.vagas)||0, ch:p.ch||"",
+    cursos:Array.isArray(p.cursos)?p.cursos.slice():[],
     inscricao:p.inscricao==="propria"?"propria":"geral",
     modalidade:p.modalidade==="online"?"online":"presencial",
-    // a foto não vem no payload (só o sinal): `foto` fica undefined até a
-    // pessoa enviar uma nova, e o servidor preserva a que já está gravada
-    temFoto:p.temFoto===true, instituicao:p.instituicao||"", miniBio:p.miniBio||"",
+    // QUEM MINISTRA é uma lista (set/2026). A foto não vem no payload (só o
+    // sinal): `foto` fica undefined até a pessoa enviar uma nova, e o servidor
+    // preserva a que já está gravada. COMPAT: atividade da era do palestrante
+    // único chega com os campos soltos — viram a primeira pessoa.
+    pessoas:pessoasDaAtv(p),
     frequencia:p.frequencia||"entrada",
     destaque:p.destaque===true,
   }));
@@ -2137,9 +2177,9 @@ function programacaoUnica(id){
     +"Acrescentar mesmo assim uma atividade única com os dados do evento?")) return;
   EV_PROG.push({ id:"", tipo:"palestra", titulo:p.nomeAtividade||"Atividade do evento",
     descricao:"", dia:p.periodoInicio||"", horaInicio:"", horaFim:"",
-    local:p.local||"", responsavel:p.respNome||"", vagas:0, ch:String(p.cargaHoraria||""),
-    inscricao:"geral", modalidade:"presencial", temFoto:false,
-    instituicao:"", miniBio:"", frequencia:"entrada" });
+    local:p.local||"", vagas:0, ch:String(p.cargaHoraria||""), cursos:[],
+    inscricao:"geral", modalidade:"presencial", frequencia:"entrada",
+    pessoas:p.respNome?[{ id:"", nome:p.respNome, instituicao:"", miniBio:"", temFoto:false }]:[] });
   renderProgEv();
   const cx=$("ev-prog"); cx?.lastElementChild?.scrollIntoView({behavior:"smooth",block:"center"});
 }
@@ -3250,7 +3290,7 @@ const contadoresAtividadeHtml=(a)=>{
 /* ------------------------ editor de atividades --------------------------- */
 function novaAtividadeEv(){
   EV_PROG.push({id:"",tipo:"palestra",titulo:"",descricao:"",dia:"",horaInicio:"",horaFim:"",
-    local:"",responsavel:"",vagas:0,ch:"",inscricao:"geral",modalidade:"presencial",frequencia:"entrada"});
+    local:"",vagas:0,ch:"",cursos:[],pessoas:[],inscricao:"geral",modalidade:"presencial",frequencia:"entrada"});
   renderProgEv();
 }
 function moverAtvEv(i,d){
@@ -3267,12 +3307,13 @@ function moverAtvEv(i,d){
    quatro minicursos no mesmo horário, em salas diferentes.
    A cópia entra LOGO ABAIXO da original e guarda o que se repete (tipo, dia,
    horário, local, CH, modalidade, vagas, frequência e o regime de inscrição).
-   Três coisas NÃO se copiam, de propósito: o **id**, porque é ele que os
-   inscritos marcaram e as presenças apontam — duas atividades com o mesmo id
-   seriam a mesma atividade em dois lugares; a **foto** e a **mini-bio** do
-   palestrante, que são de quem ministra, e o palestrante da cópia é outro; e
-   o **título**, que ganha "(cópia)" para ninguém publicar duas linhas iguais
-   sem perceber. O campo do título recebe o foco, que é o que se vai digitar. */
+   Três coisas NÃO se copiam, de propósito: o **id** (da atividade e o de cada
+   pessoa), porque é ele que os inscritos marcaram, que as presenças apontam e
+   que serve a foto — dois itens com o mesmo id seriam o mesmo item em dois
+   lugares; as **FOTOS** de quem ministra, que são das pessoas, e quem ministra
+   a cópia é outro; e o **título**, que ganha "(cópia)" para ninguém publicar
+   duas linhas iguais sem perceber. O campo do título recebe o foco, que é o
+   que se vai digitar. */
 function duplicarAtvEv(i){
   const o=EV_PROG[i]; if(!o) return;
   // o id fica VAZIO (o servidor emite o dela ao salvar): id é a chave da presença e do
@@ -3280,7 +3321,9 @@ function duplicarAtvEv(i){
   // A FOTO também não vem: o nome e a mini-bio se leem e se corrigem no formulário, mas uma
   // foto herdada em silêncio sairia na vitrine de palestrantes com o rosto de outra pessoa.
   // e o DESTAQUE também não: é da pessoa que ministra, e a cópia é de outra
-  const copia={...o, id:"", titulo:(o.titulo||"")+" (cópia)", foto:"", temFoto:false, destaque:false};
+  const copia={...o, id:"", titulo:(o.titulo||"")+" (cópia)", destaque:false,
+    cursos:(o.cursos||[]).slice(),
+    pessoas:(o.pessoas||[]).map(q=>({...q, id:"", foto:"", temFoto:false}))};
   EV_PROG.splice(i+1,0,copia);
   renderProgEv();
   // o título da cópia é o que muda: leva o cursor até ele
@@ -3291,7 +3334,8 @@ function duplicarAtvEv(i){
 function renderProgEv(){
   const el=$("ev-prog"); if(!el) return;
   el.innerHTML = EV_PROG.length ? EV_PROG.map((p,i)=>`
-    <div class="atv-card">
+    <div class="atv-card atv-prog">
+      <div class="atv-n">${i+1}<span>${esc(p.titulo||"sem título")}</span></div>
       <div class="g-atv">
         <select onchange="EV_PROG[${i}].tipo=this.value">
           ${TIPOS_ATV.map(t=>`<option value="${esc(t.codigo)}" ${p.tipo===t.codigo?"selected":""}>${esc(t.rotulo)}</option>`).join("")}</select>
@@ -3305,9 +3349,8 @@ function renderProgEv(){
           <button class="bt bt-ghost bt-xs" style="color:var(--err)" title="remover atividade" onclick="EV_PROG.splice(${i},1);renderProgEv()">✕</button>
         </span>
       </div>
-      <input placeholder="título da atividade *" value="${esc(p.titulo)}" oninput="EV_PROG[${i}].titulo=this.value" style="margin-top:8px">
-      <div class="g-atv2">
-        <input placeholder="responsável / ministrante" value="${esc(p.responsavel)}" oninput="EV_PROG[${i}].responsavel=this.value">
+      <input placeholder="título da atividade *" value="${esc(p.titulo)}" oninput="EV_PROG[${i}].titulo=this.value;tituloAtvEv(${i},this.value)" style="margin-top:8px">
+      <div class="g-atv2 g-atv3">
         <input placeholder="local / sala" value="${esc(p.local)}" oninput="EV_PROG[${i}].local=this.value">
         <input type="number" min="0" placeholder="vagas" title="vagas da atividade (0 = sem limite próprio)" value="${p.vagas||""}" oninput="EV_PROG[${i}].vagas=this.value">
         <input placeholder="CH em horas (ex.: 4)" inputmode="decimal" title="carga horária da atividade, em horas — entra no certificado de quem teve presença nela e no export da AEE por atividade" value="${esc(p.ch)}" oninput="EV_PROG[${i}].ch=this.value">
@@ -3338,22 +3381,15 @@ function renderProgEv(){
         <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--brand-3)">descrição da atividade (aparece no "ver detalhes" da página)</summary>
         <textarea style="margin-top:6px;min-height:56px" oninput="EV_PROG[${i}].descricao=this.value">${esc(p.descricao)}</textarea>
       </details>
-      <details style="margin-top:6px" ${(p.temFoto||p.foto||p.instituicao||p.miniBio||p.destaque)?"open":""}>
-        <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--brand-3)">quem ministra: foto, instituição e mini-bio (vitrine de palestrantes da página)${p.destaque?' <span class="badge b-aprovado" style="margin-left:6px">★ em destaque</span>':""}</summary>
-        <div class="g-atv2" style="margin-top:6px">
-          <input placeholder="instituição / vínculo" value="${esc(p.instituicao||"")}" oninput="EV_PROG[${i}].instituicao=this.value">
-          <input placeholder="mini-bio (uma ou duas linhas)" value="${esc(p.miniBio||"")}" oninput="EV_PROG[${i}].miniBio=this.value">
-        </div>
-        <label style="display:flex;align-items:center;gap:8px;margin:8px 0 0;font-size:12.5px;text-transform:none;letter-spacing:0;cursor:pointer"
-          title="Marcada em alguma atividade, só as marcadas giram no carrossel 'Palestrantes e convidados' da página; sem nenhuma marca, o carrossel mostra todas as que têm quem ministra">
+      ${blocoCursosDaAtv(p,i)}
+      <details style="margin-top:6px" ${(p.pessoas||[]).length?"open":""}>
+        <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--brand-3)">quem ministra${(p.pessoas||[]).length?` (${p.pessoas.length})`:""}: nome, foto, instituição e mini-bio${p.destaque?' <span class="badge b-aprovado" style="margin-left:6px">★ em destaque</span>':""}</summary>
+        <div id="qm-${i}">${quemMinistraHtml(p,i)}</div>
+        <label style="display:flex;align-items:center;gap:8px;margin:10px 0 0;font-size:12.5px;text-transform:none;letter-spacing:0;cursor:pointer"
+          title="Marcada em alguma atividade, só as marcadas giram no carrossel 'Palestrantes e convidados' da página; sem nenhuma marca, o carrossel mostra todas as que têm quem ministra. Quem gira são as PESSOAS: numa mesa redonda, todas elas.">
           <input type="checkbox" style="width:auto;margin:0" ${p.destaque?"checked":""} onchange="EV_PROG[${i}].destaque=this.checked">
           ★ destacar no carrossel de palestrantes da página inicial do evento
         </label>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">
-          <span id="foto-prev-${i}">${fotoPrevia(p,i)}</span>
-          <input type="file" accept="image/jpeg,image/png,image/webp" style="max-width:250px" onchange="lerFotoAtv(this,${i})">
-          <span class="muted" style="font-size:12px">quadrada, a partir de 400 × 400 px — o sistema recorta e reduz sozinho</span>
-        </div>
       </details>
     </div>`).join("")
     : '<div class="cnt">— nenhuma atividade ainda; a página pública diz que a programação sai em breve.</div>';
@@ -4203,31 +4239,119 @@ async function lerCapaEv(inp){
    como a pessoa tiver (até 10 MB), sai daqui recortada no QUADRADO e reduzida
    a 400 px — a vitrine de palestrantes é redonda, e guardar a foto original
    engordaria o registro da ação à toa. */
-function fotoPrevia(p,i){
-  if(p.foto) return `<img src="${p.foto}" alt="" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:1px solid var(--line)">`;
+const FOTO_REDONDA="width:56px;height:56px;border-radius:50%;object-fit:cover;border:1px solid var(--line)";
+function fotoPrevia(q,i,k){
+  if(q.foto) return `<img src="${q.foto}" alt="" style="${FOTO_REDONDA}">`;
   const ev = (ABERTO ? ACOES.find(x=>x.id===ABERTO) : null)?.evento;
-  if(p.temFoto && ev?.slug && ev?.ativo)
-    return `<img src="/api/publico/eventos/${encodeURIComponent(ev.slug)}/atividade/${encodeURIComponent(p.id||"")}/foto?v=${Date.now()}"
-      alt="" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:1px solid var(--line)" onerror="this.remove()">`;
-  if(p.temFoto) return '<span class="muted" style="font-size:12px">✓ foto enviada</span>';
+  const atv = EV_PROG[i];
+  if(q.temFoto && q.id && atv?.id && ev?.slug && ev?.ativo)
+    return `<img src="/api/publico/eventos/${encodeURIComponent(ev.slug)}/atividade/${encodeURIComponent(atv.id)}/pessoa/${encodeURIComponent(q.id)}/foto?v=${Date.now()}"
+      alt="" style="${FOTO_REDONDA}" onerror="this.remove()">`;
+  if(q.temFoto) return '<span class="muted" style="font-size:12px">✓ foto enviada</span>';
   return '<span class="muted" style="font-size:12px">— sem foto</span>';
 }
-async function lerFotoAtv(inp,i){
+/* QUEM MINISTRA: uma linha por pessoa. O índice `k` é a posição dentro da
+   atividade `i` — as duas viajam em todo manipulador, senão a foto de uma
+   mesa redonda cairia na pessoa errada. */
+function quemMinistraHtml(p,i){
+  const lista = p.pessoas||[];
+  const linhas = lista.map((q,k)=>`
+    <div class="qm-linha" id="qm-${i}-${k}">
+      <div class="qm-cab">
+        <span class="qm-num">${lista.length>1?`${k+1}ª pessoa`:"quem ministra"}</span>
+        <button class="bt bt-ghost bt-xs" style="color:var(--err)" title="retirar esta pessoa da atividade"
+          onclick="removerQuemMinistra(${i},${k})">✕</button>
+      </div>
+      <div class="g-atv2 g-atv-quem">
+        <input placeholder="nome de quem ministra *" value="${esc(q.nome||"")}" oninput="EV_PROG[${i}].pessoas[${k}].nome=this.value">
+        <input placeholder="instituição / vínculo" value="${esc(q.instituicao||"")}" oninput="EV_PROG[${i}].pessoas[${k}].instituicao=this.value">
+      </div>
+      <input placeholder="mini-bio (uma ou duas linhas)" style="margin-top:6px" value="${esc(q.miniBio||"")}" oninput="EV_PROG[${i}].pessoas[${k}].miniBio=this.value">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">
+        <span id="foto-prev-${i}-${k}">${fotoPrevia(q,i,k)}</span>
+        <input type="file" accept="image/jpeg,image/png,image/webp" style="max-width:250px" onchange="lerFotoAtv(this,${i},${k})">
+        <span class="muted" style="font-size:12px">quadrada, a partir de 400 × 400 px — o sistema recorta e reduz sozinho</span>
+      </div>
+    </div>`).join("");
+  return `${linhas||'<div class="cnt" style="margin:6px 0">— ninguém indicado; a atividade sai da vitrine de palestrantes.</div>'}
+    ${lista.length>=MAX_QUEM_MINISTRA?`<div class="muted" style="font-size:12px;margin-top:6px">Limite de ${MAX_QUEM_MINISTRA} pessoas por atividade.</div>`
+      :`<button class="bt bt-ghost" style="padding:6px 11px;font-size:12.5px;margin-top:8px" onclick="adicionarQuemMinistra(${i})">＋ incluir quem ministra${lista.length?" (mesa redonda, painel)":""}</button>`}`;
+}
+function redesenharQuemMinistra(i){
+  const cx=$("qm-"+i); if(!cx) return;
+  cx.innerHTML=quemMinistraHtml(EV_PROG[i],i);
+  const sm=cx.closest("details")?.querySelector("summary");
+  const n=(EV_PROG[i].pessoas||[]).length;
+  if(sm) sm.innerHTML=sm.innerHTML.replace(/quem ministra(?: \(\d+\))?/, `quem ministra${n?` (${n})`:""}`);
+}
+function adicionarQuemMinistra(i){
+  const p=EV_PROG[i]; if(!p) return;
+  p.pessoas=p.pessoas||[];
+  if(p.pessoas.length>=MAX_QUEM_MINISTRA) return;
+  p.pessoas.push({ id:"", nome:"", instituicao:"", miniBio:"", temFoto:false });
+  redesenharQuemMinistra(i);
+  $(`qm-${i}-${p.pessoas.length-1}`)?.querySelector("input")?.focus();
+}
+function removerQuemMinistra(i,k){
+  const p=EV_PROG[i]; if(!p?.pessoas) return;
+  const q=p.pessoas[k];
+  if((q?.nome||q?.temFoto) && !confirm(`Retirar ${q.nome||"esta pessoa"} desta atividade?\n\n`
+    +"A foto dela sai junto — grava no \"Salvar programação\".")) return;
+  p.pessoas.splice(k,1);
+  redesenharQuemMinistra(i);
+}
+/* O número e o título no alto do card acompanham o que se digita: é por eles
+   que se distingue uma atividade da outra numa grade de trinta. */
+function tituloAtvEv(i,v){
+  const el=$("ev-prog")?.querySelectorAll(".atv-prog")[i]?.querySelector(".atv-n span");
+  if(el) el.textContent = String(v||"").trim() || "sem título";
+}
+async function lerFotoAtv(inp,i,k){
   const f=inp.files&&inp.files[0]; if(!f) return;
+  const q=EV_PROG[i]?.pessoas?.[k]; if(!q) return;
   if(!/^image\/(jpeg|png|webp)$/.test(f.type)){ alert("A foto deve ser JPEG, PNG ou WebP."); inp.value=""; return; }
   if(f.size>CAPA_MAX_ARQUIVO){ alert("A imagem passa de 10 MB — exporte em qualidade um pouco menor."); inp.value=""; return; }
   try{
-    EV_PROG[i].foto = await recortarQuadrado(f, 400);
-    EV_PROG[i].temFoto = true;
-    const prev=$("foto-prev-"+i);
-    if(prev) prev.innerHTML=`<img src="${EV_PROG[i].foto}" alt="" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:1px solid var(--line)">
-      <button class="bt bt-ghost" style="padding:4px 8px;font-size:11px" onclick="removerFotoAtv(${i})">✕ remover</button>`;
+    q.foto = await recortarQuadrado(f, 400);
+    q.temFoto = true;
+    const prev=$(`foto-prev-${i}-${k}`);
+    if(prev) prev.innerHTML=`<img src="${q.foto}" alt="" style="${FOTO_REDONDA}">
+      <button class="bt bt-ghost" style="padding:4px 8px;font-size:11px" onclick="removerFotoAtv(${i},${k})">✕ remover</button>`;
   }catch(e){ alert("Não foi possível preparar a imagem neste navegador."); }
 }
-function removerFotoAtv(i){
-  EV_PROG[i].foto=""; EV_PROG[i].temFoto=false;
-  const prev=$("foto-prev-"+i);
+function removerFotoAtv(i,k){
+  const q=EV_PROG[i]?.pessoas?.[k]; if(!q) return;
+  q.foto=""; q.temFoto=false;
+  const prev=$(`foto-prev-${i}-${k}`);
   if(prev) prev.innerHTML='<span class="muted" style="font-size:12px">foto marcada para remoção — grava no "Salvar programação".</span>';
+}
+
+/* A QUEM A ATIVIDADE SE DESTINA (pedido do dono, set/2026). Vazio quer dizer
+   "para todos" — num congresso a maior parte da grade é isso, e marcar os
+   doze cursos em cada linha diria a mesma coisa com doze cliques. O bloco
+   reusa as etiquetas dos cursos co-realizadores da ação. */
+function blocoCursosDaAtv(p,i){
+  const postos=p.cursos||[];
+  // "Institucional / PROPPEX" existe para a AÇÃO, não para a atividade: o
+  // aluno procura o curso dele, e o servidor só aceita curso do catálogo
+  const livres=CURSOS_EV.filter(c=>c!=="Institucional / PROPPEX" && !postos.some(x=>chaveC(x)===chaveC(c)));
+  return `<div class="ce" id="ce-atv-${i}" style="margin-top:8px">
+    <span class="muted" style="font-size:12px;font-weight:600">para o curso:</span>
+    ${postos.map((c,j)=>`<span class="ce-tag">${esc(c)}
+      <button type="button" class="rm" title="Retirar este curso" onclick="cursoDaAtv(${i},${j},null)">✕</button></span>`).join("")}
+    ${livres.length?`<select class="ce-add" onchange="cursoDaAtv(${i},-1,this.value);this.value=''">
+      <option value="">${postos.length?"+ incluir outro curso…":"+ indicar um curso…"}</option>
+      ${livres.map(c=>`<option>${esc(c)}</option>`).join("")}</select>`:""}
+    ${postos.length?"":'<span class="muted" style="font-size:12px">— sem curso indicado, a atividade sai como para todos.</span>'}
+  </div>`;
+}
+function cursoDaAtv(i,j,valor){
+  const p=EV_PROG[i]; if(!p) return;
+  p.cursos=p.cursos||[];
+  if(valor===null) p.cursos.splice(j,1);
+  else if(valor && !p.cursos.some(x=>chaveC(x)===chaveC(valor))) p.cursos.push(valor);
+  const cx=$("ce-atv-"+i);
+  if(cx) cx.outerHTML=blocoCursosDaAtv(p,i);
 }
 /* Recorte central em quadrado + redução: a mesma conta da capa, com o corte
    do lado menor (foto de retrato não pode entrar esticada no círculo). */

@@ -4012,7 +4012,16 @@ function eventoSemSegredos(ev) {
   // pesam centenas de KB e têm rota própria — na lista viaja só o sinal de
   // que existem (a tela busca a imagem pela rota, com o id do item)
   if (Array.isArray(resto.programacao))
-    resto.programacao = resto.programacao.map(({ foto, ...atv }) => ({ ...atv, temFoto: temArte(foto) }));
+    resto.programacao = resto.programacao.map(({ foto, ...atv }) => {
+      // quem ministra é uma LISTA (set/2026): cada pessoa tem foto própria, e
+      // cada uma vira sinal. `temFoto` da atividade fica, apontando a primeira
+      // — é o que o registro da era do palestrante único ainda diz.
+      const pessoas = Array.isArray(atv.pessoas)
+        ? atv.pessoas.map(({ foto: f, ...q }) => ({ ...q, temFoto: temArte(f) }))
+        : undefined;
+      const temFoto = pessoas ? !!pessoas[0]?.temFoto : temArte(foto);
+      return pessoas ? { ...atv, pessoas, temFoto } : { ...atv, temFoto };
+    });
   if (Array.isArray(resto.blocos))
     resto.blocos = resto.blocos.map((b) => Array.isArray(b.itens)
       ? { ...b, itens: b.itens.map(({ logo, ...i }) => ({ ...i, temLogo: temArte(logo) })) }
@@ -4054,6 +4063,47 @@ function preservarImagens(nova, enviada, base, campo) {
     return saida;
   };
   return nova.map(aplicar);
+}
+
+/* Os cursos a que uma atividade da programação pode se destinar. Sai do
+   catálogo VIVO (o array é mutado no arranque e a cada curso novo) e inclui
+   o DESATIVADO de propósito: a régua aqui é de validação, e a atividade de um
+   curso que saiu do catálogo não pode ser apagada por isso — quem oferece só
+   os ativos é a tela. */
+const cursosDoCatalogo = () => CURSOS.map((c) => c.nome);
+
+/**
+ * A programação, com as fotos de QUEM MINISTRA que já estavam gravadas — as
+ * imagens não viajam nos payloads, então salvar a programação apagaria todas
+ * elas. Imagem nova enviada fica; string vazia é remoção explícita; ausente é
+ * "não mexi nela", e volta da base pelo par (atividade, pessoa).
+ *
+ * COMPAT: a atividade da era do palestrante único guardava UMA foto no nível
+ * dela. A primeira pessoa a herda, para o retrato não se perder na primeira
+ * gravação depois desta mudança — e a partir daí a foto é dela, com id dela.
+ */
+function preservarFotosDaProgramacao(nova, enviada, base) {
+  const porAtividade = new Map();
+  for (const atv of base || []) {
+    if (!atv?.id) continue;
+    const mapa = new Map();
+    for (const q of Array.isArray(atv.pessoas) ? atv.pessoas : []) if (q?.id && q.foto) mapa.set(q.id, q.foto);
+    porAtividade.set(atv.id, { pessoas: mapa, legado: atv.foto || "" });
+  }
+  const vazias = new Set();
+  for (const atv of enviada || []) {
+    for (const q of Array.isArray(atv?.pessoas) ? atv.pessoas : []) if (q?.id && q.foto === "") vazias.add(q.id);
+    if (atv?.id && atv.foto === "" && !Array.isArray(atv.pessoas)) vazias.add(atv.id);
+  }
+  return nova.map((atv) => {
+    const guardado = porAtividade.get(atv.id);
+    return { ...atv, pessoas: atv.pessoas.map((q, i) => {
+      if (q.foto) return q;
+      if (vazias.has(q.id) || (i === 0 && vazias.has(atv.id))) return { ...q, foto: "" };
+      const antiga = guardado?.pessoas.get(q.id) || (i === 0 ? guardado?.legado : "") || "";
+      return { ...q, foto: antiga };
+    }) };
+  });
 }
 
 /** A lista que a pessoa pode ver — nunca a base inteira. */
@@ -5231,9 +5281,12 @@ function eventoPublico(a, { detalhe = false } = {}) {
   // as atividades passam pela normalização na saída: o dado antigo (sem id,
   // com `hora`) ganha o shape novo sem migração — e como o item antigo é
   // sempre "geral", o id efêmero que ele ganha aqui não vincula nada
-  const programacao = normalizarProgramacao(ev.programacao).map(({ foto, ...atv }) => ({
+  const programacao = normalizarProgramacao(ev.programacao).map((atv) => ({
     ...atv,
-    temFoto: !!foto,
+    // as fotos de quem ministra não viajam no payload (a regra da capa): vai
+    // só o sinal, e a imagem sai pela rota da pessoa
+    pessoas: atv.pessoas.map(({ foto, ...q }) => ({ ...q, temFoto: !!foto })),
+    temFoto: !!atv.pessoas[0]?.foto,
     vagasRestantes: atv.inscricao === "propria" ? vagasAtividade(atv, inscritos) : null,
   }));
   // os blocos que o organizador montou (submissão, anais, apoiadores, texto);
@@ -7362,17 +7415,32 @@ async function serviuImagem(res, valor) {
   res.send(arte.buffer);
   return true;
 }
-app.get("/api/publico/eventos/:slug/atividade/:aid/foto", async (req, res) => {
+/* A foto de QUEM MINISTRA. Desde set/2026 a atividade tem uma LISTA de
+   pessoas, cada uma com a sua — daí a rota com o id da pessoa. A rota antiga
+   (sem ele) fica: ela serve a PRIMEIRA, que é o que a atividade da era do
+   palestrante único tem, e continua valendo para link já dado e cache. */
+function fotoDeQuemMinistra(evento, aid, pid) {
+  const atv = (evento?.programacao || []).find((x) => x?.id === aid);
+  if (!atv) return null;
+  const lista = Array.isArray(atv.pessoas) ? atv.pessoas : [];
+  if (!pid) return lista[0]?.foto || atv.foto || null;
+  // COMPAT: atividade sem `pessoas` tem uma foto só e nenhum id de pessoa a
+  // casar — é ela que se serve, seja qual for o id pedido.
+  return lista.length ? (lista.find((x) => x?.id === pid)?.foto || null) : (atv.foto || null);
+}
+const rotaDaFotoDaAtividade = async (req, res) => {
   try {
     const a = eventoPorSlug(await lerAcoes(), req.params.slug);
     if (!a?.evento?.ativo) return res.status(404).send("Evento não encontrado");
-    const atv = (a.evento.programacao || []).find((x) => x?.id === req.params.aid);
-    if (!(await serviuImagem(res, atv?.foto))) res.status(404).send("Sem foto");
+    const foto = fotoDeQuemMinistra(a.evento, req.params.aid, req.params.pid || "");
+    if (!(await serviuImagem(res, foto))) res.status(404).send("Sem foto");
   } catch (e) {
     console.error("Erro na foto da atividade:", e);
     res.status(500).send("Erro ao carregar a imagem");
   }
-});
+};
+app.get("/api/publico/eventos/:slug/atividade/:aid/pessoa/:pid/foto", rotaDaFotoDaAtividade);
+app.get("/api/publico/eventos/:slug/atividade/:aid/foto", rotaDaFotoDaAtividade);
 app.get("/api/publico/eventos/:slug/apoiador/:iid/logo", async (req, res) => {
   try {
     const a = eventoPorSlug(await lerAcoes(), req.params.slug);
@@ -9070,7 +9138,12 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
             b.capa = await guardarArte(b.capa, { acao: pre, nome: "capa" });
           }
           for (const atv of Array.isArray(b.programacao) ? b.programacao : []) {
-            if (ehDataUrl(atv?.foto)) atv.foto = await guardarArte(atv.foto, { acao: pre, nome: `foto-${slug(atv.titulo || atv.id || "atividade")}` });
+            const apelido = slug(atv?.titulo || atv?.id || "atividade");
+            if (ehDataUrl(atv?.foto)) atv.foto = await guardarArte(atv.foto, { acao: pre, nome: `foto-${apelido}` });
+            // quem ministra é uma lista: cada pessoa tem a foto dela
+            for (const q of Array.isArray(atv?.pessoas) ? atv.pessoas : []) {
+              if (ehDataUrl(q?.foto)) q.foto = await guardarArte(q.foto, { acao: pre, nome: `foto-${slug(q.nome || "palestrante")}-${apelido}` });
+            }
           }
           for (const bloco of Array.isArray(b.blocos) ? b.blocos : []) {
             for (const item of bloco?.itens || []) {
@@ -9216,8 +9289,8 @@ app.post("/api/extensao/:id/evento", async (req, res) => {
       // enviado VAZIO é remoção explícita; campo ausente é "não mexi nele".
       if (b.blocos !== undefined) ev.blocos = preservarImagens(
         normalizarBlocos(b.blocos), b.blocos, ev.blocos, "logo");
-      if (b.programacao !== undefined) ev.programacao = preservarImagens(
-        normalizarProgramacao(b.programacao), b.programacao, ev.programacao, "foto");
+      if (b.programacao !== undefined) ev.programacao = preservarFotosDaProgramacao(
+        normalizarProgramacao(b.programacao, cursosDoCatalogo()), b.programacao, ev.programacao);
       if (b.formulario !== undefined) ev.formulario = normalizarFormulario(b.formulario);
       if (b.local !== undefined) ev.local = String(b.local || "").trim().slice(0, 200);
       // o interruptor do EVENTO: sem controle de frequência, ninguém

@@ -2972,14 +2972,22 @@ function cardEvento(a){
   EV_PROG = (ev.programacao||[]).map(p=>({
     id:p.id||"", tipo:p.tipo||"palestra", titulo:p.titulo||"", descricao:p.descricao||"",
     dia:p.dia||"", horaInicio:p.horaInicio||p.hora||"", horaFim:p.horaFim||"",
-    local:p.local||"", responsavel:p.responsavel||"", vagas:Number(p.vagas)||0, ch:p.ch||"",
+    local:p.local||"", vagas:Number(p.vagas)||0, ch:p.ch||"",
     inscricao:p.inscricao==="propria"?"propria":"geral",
     modalidade:p.modalidade==="online"?"online":"presencial",
-    // estes três NÃO são editados aqui, mas viajam de volta no salvar: sem
-    // eles, salvar o evento pela Extensão zerava o modo de frequência
-    // (entrada e saída virava só entrada), a instituição e a mini-bio do
-    // palestrante configurados no ARCHÉ EV (achado da varredura ago/2026)
-    frequencia:p.frequencia||"entrada", instituicao:p.instituicao||"", miniBio:p.miniBio||"",
+    // estes NÃO são editados aqui, mas viajam de volta no salvar: sem eles,
+    // salvar o evento pela Extensão zerava o modo de frequência (entrada e
+    // saída virava só entrada), a instituição e a mini-bio do palestrante
+    // configurados no ARCHÉ EV (achado da varredura ago/2026) — e, desde
+    // set/2026, as DEMAIS pessoas da mesa redonda e os cursos a que a
+    // atividade se destina, que só se editam lá
+    frequencia:p.frequencia||"entrada", destaque:p.destaque===true,
+    cursos:Array.isArray(p.cursos)?p.cursos.slice():[],
+    // quem ministra é uma LISTA (set/2026); aqui se edita o NOME da primeira,
+    // que é o caso de uma atividade com um palestrante só
+    pessoas:(Array.isArray(p.pessoas)&&p.pessoas.length
+      ? p.pessoas.map(q=>({...q}))
+      : (p.responsavel?[{id:"",nome:p.responsavel,instituicao:p.instituicao||"",miniBio:p.miniBio||""}]:[])),
   }));
   EV_FORM = (ev.formulario||[]).map(c=>({...c, opcoesTxt:(c.opcoes||[]).join(", ")}));
   EV_CAPA = undefined;
@@ -3153,13 +3161,27 @@ const contadoresAtividadeHtml = (a)=>{
 
 function novaAtividadeEv(){
   EV_PROG.push({id:"",tipo:"palestra",titulo:"",descricao:"",dia:"",horaInicio:"",horaFim:"",
-    local:"",responsavel:"",vagas:0,ch:"",inscricao:"geral",modalidade:"presencial"});
+    local:"",pessoas:[],cursos:[],vagas:0,ch:"",inscricao:"geral",modalidade:"presencial"});
   renderProgEv();
 }
 function moverAtvEv(i,d){
   const j=i+d; if(j<0||j>=EV_PROG.length) return;
   [EV_PROG[i],EV_PROG[j]]=[EV_PROG[j],EV_PROG[i]];
   renderProgEv();
+}
+/* QUEM MINISTRA é uma LISTA desde set/2026 (mesa redonda). Aqui se edita o
+   NOME da primeira pessoa — a lista inteira, com foto, instituição e
+   mini-bio, mora na guia Programação do ARCHÉ EV. Os demais nomes ficam à
+   vista no campo, para ninguém achar que sumiram, e só o primeiro muda. */
+const nomeQuemMinistra = (p) => (p.pessoas||[]).map(q=>q.nome).filter(Boolean).join(" · ");
+function quemMinistraEx(i,v){
+  const p=EV_PROG[i]; if(!p) return;
+  p.pessoas=p.pessoas||[];
+  if(p.pessoas.length>1) return;           // o campo é só de leitura nesse caso
+  const nome=String(v||"").trim();
+  if(!p.pessoas.length){ if(nome) p.pessoas.push({id:"",nome,instituicao:"",miniBio:""}); return; }
+  p.pessoas[0].nome=nome;
+  if(!nome) p.pessoas=[];
 }
 /* Editor das atividades: um card por atividade (a grade de 5 colunas ficou
    pequena para o item rico). O id é preservado escondido no próprio objeto
@@ -3182,7 +3204,10 @@ function renderProgEv(){
       </div>
       <input placeholder="título da atividade *" value="${esc(p.titulo)}" oninput="EV_PROG[${i}].titulo=this.value" style="margin-top:8px">
       <div style="display:grid;grid-template-columns:1.2fr 1fr 96px 96px;gap:8px;margin-top:8px">
-        <input placeholder="responsável / ministrante" value="${esc(p.responsavel)}" oninput="EV_PROG[${i}].responsavel=this.value">
+        <input placeholder="responsável / ministrante" value="${esc(nomeQuemMinistra(p))}"
+          ${(p.pessoas||[]).length>1?'readonly title="Mais de uma pessoa ministra esta atividade — a lista, com foto, instituição e mini-bio, se edita no ARCHÉ EV, na guia Programação" style="background:var(--wash);cursor:not-allowed"'
+            :'title="A foto, a instituição e a mini-bio de quem ministra — e a mesa redonda com mais de uma pessoa — se editam no ARCHÉ EV, na guia Programação"'}
+          oninput="quemMinistraEx(${i},this.value)">
         <input placeholder="local / sala" value="${esc(p.local)}" oninput="EV_PROG[${i}].local=this.value">
         <input type="number" min="0" placeholder="vagas" title="vagas da atividade (0 = sem limite próprio)" value="${p.vagas||""}" oninput="EV_PROG[${i}].vagas=this.value">
         <input placeholder="CH em horas (ex.: 4)" inputmode="decimal" title="carga horária da atividade, em horas — entra no certificado de quem teve presença nela e no export da AEE por atividade" value="${esc(p.ch)}" oninput="EV_PROG[${i}].ch=this.value">

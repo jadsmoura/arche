@@ -5910,6 +5910,52 @@ public/
   para o evento que nunca marcou nada não perder a vitrine. A cópia de uma atividade (⧉) nasce
   sem destaque, pela mesma razão pela qual nasce sem foto: é de quem ministra, e a cópia é de outra
   pessoa.
+- **QUEM MINISTRA É UMA LISTA, E A ATIVIDADE DIZ A QUE CURSO SE DESTINA** (`pessoas` e `cursos` em
+  `normalizarProgramacao` + `preservarFotosDaProgramacao` e a rota `…/atividade/:aid/pessoa/:pid/foto`
+  no server + a guia Programação do ARCHÉ EV, o carrossel e a grade do hotsite e a área do inscrito —
+  pedido do dono set/2026: "permitir incluir mais de um palestrante na mesma atividade, por exemplo
+  mesa redonda tem mais de uma pessoa, e preciso incluir mais de uma foto, inclusive aparecer no
+  destaque da atividade"; "permitir indicar a qual curso aquela programação pertence, de forma que
+  apareça na programação, no carrossel e na área do inscrito, para facilitar o aluno a identificar se
+  a programação foi pensada para seu curso").
+  **Quem ministra** eram QUATRO CAMPOS SOLTOS de uma pessoa só (`responsavel`, `instituicao`,
+  `miniBio`, `foto`) — e mesa redonda, painel e roda de conversa são metade da grade de um congresso:
+  ou se digitavam três nomes num campo de texto (e o carrossel mostrava um retrato com três nomes
+  embaixo), ou se abriam três atividades no mesmo horário, que é o que a régua das simultâneas
+  proíbe ao participante. Agora é `pessoas: [{id, nome, instituicao, miniBio, foto}]`, até 8, **cada
+  uma com id próprio** — é por ele que a foto dela é servida. Os quatro campos antigos continuam
+  saindo, **DERIVADOS** da lista e escritos pelo servidor (`responsavel` é o nome de todas, unido por
+  " · "): é por eles que o conteúdo programático do relatório, o verso do certificado e o cartão do
+  setor leem quem ministra, e uma segunda régua neles acabaria divergindo da lista.
+  Quatro decisões que isto carrega: **o id da pessoa vive no MESMO espaço do id da atividade**, senão
+  a rota da foto — que procura o id na programação inteira — poderia achar dois donos; **a foto
+  continua fora dos payloads** (vai `temFoto` por pessoa, como a capa) e a preservação passou a casar
+  pelo par (atividade, pessoa), porque salvar a programação apagaria todas elas; **a atividade da era
+  do palestrante único migra sozinha** — a primeira pessoa nasce dos campos soltos e **herda a foto
+  que estava no nível da atividade**, e a rota antiga (sem id de pessoa) continua servindo a primeira,
+  para link já dado e cache não morrerem; e a **cópia (⧉) não leva id nem foto de ninguém**, pela
+  mesma razão de sempre.
+  **O CURSO** é `cursos: []` — vazio quer dizer "para todos", que é a maior parte da grade; uma lista
+  obrigatória faria o organizador marcar os doze cursos em cada linha para dizer a mesma coisa. A
+  régua é a dos co-realizadores da ação (fora do catálogo não entra, repetido não entra, grava-se a
+  grafia do catálogo), e a validação usa o catálogo VIVO **com os desativados**: a régua aqui é de
+  validação, e a atividade de um curso que saiu do catálogo não pode ser apagada por isso — quem
+  oferece só os ativos é a tela. "Institucional / PROPPEX" fica de fora: é curso da AÇÃO, e o aluno
+  procura o dele. As etiquetas saem nos três lugares que o pedido nomeia.
+  **O CONTRASTE** (mesma conversa: "o quadro poderia ter uma cor mais contrastante com o fundo, estou
+  me confundindo quando um quadro de uma programação em relação a outro"): o card de item do ARCHÉ EV
+  era `#fafbfc` sobre o branco do card, com borda de 1px em `--line` — trinta atividades empilhadas
+  viravam uma parede só. O fundo desce, a borda escurece, o espaço entre um e outro dobra, e a
+  atividade ganha **CABEÇALHO** com o número de ordem e o título (que acompanha o que se digita) — é
+  por ele que se acha a atividade certa numa grade de congresso. No hotsite, a mesma medida: borda
+  mais firme, sombra baixa e mais ar. Vale para os cards de item do módulo inteiro (equipe, blocos,
+  vouchers, trabalhos), porque a queixa é a mesma em todos.
+  **O ARCHÉ EX carrega a lista sem editá-la**: o card "Evento e inscrições" tem um editor de
+  programação mais velho, e ele já passava `frequencia`, `instituicao` e `miniBio` adiante para não
+  zerar o que se configurou no EV (achado de ago/2026). `pessoas`, `cursos` e `destaque` entram na
+  mesma regra; o campo "responsável" de lá edita o **nome da primeira pessoa** e, havendo mais de
+  uma, vira somente-leitura apontando o ARCHÉ EV — editar meia lista num lugar e a lista inteira no
+  outro é como as duas divergem.
 - **VARREDURA DAS "EDIÇÕES NÃO SALVAS" NO ARCHÉ IC** (set/2026, o dono: "notei algumas edições não
   salvas também no módulo IC"). O agente gravou e releu cada campo da ficha nos três papéis — todos
   os campos que a tela edita e salva SÃO gravados. O que se reproduziu de "não salva" era de outra

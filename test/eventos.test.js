@@ -657,10 +657,56 @@ test("blocos: catálogo com os tipos da página, códigos preservados", () => {
 
 test("programação: foto grande demais é descartada sem derrubar a atividade", () => {
   const grande = `data:image/jpeg;base64,${"A".repeat(200 * 1024)}`;
-  const [atv] = normalizarProgramacao([{ titulo: "Palestra", foto: grande, instituicao: "UNIEGO" }]);
+  const [atv] = normalizarProgramacao([{ titulo: "Palestra", responsavel: "Ana Lima", foto: grande, instituicao: "UNIEGO" }]);
   assert.equal(atv.titulo, "Palestra");
-  assert.equal(atv.foto, "");
-  assert.equal(atv.instituicao, "UNIEGO");
+  assert.equal(atv.pessoas[0].foto, "");
+  assert.equal(atv.pessoas[0].instituicao, "UNIEGO");
+  assert.equal(atv.instituicao, "UNIEGO", "o campo antigo continua saindo, derivado da primeira pessoa");
+});
+
+/* ---------------- quem ministra é uma LISTA, e a quem se destina ---------- */
+test("mesa redonda: a atividade tem VÁRIAS pessoas, com id e foto de cada uma", () => {
+  const png = "data:image/png;base64," + Buffer.from("x").toString("base64");
+  const [a] = normalizarProgramacao([{ id: "aaaa1111", titulo: "Mesa redonda", pessoas: [
+    { nome: "Ana Lima", instituicao: "UNIEGO", miniBio: "Professora", foto: png },
+    { nome: "Bruno Sá", instituicao: "UFG" },
+    { nome: "  ", instituicao: "sem nome" },        // sem nome não é pessoa
+  ] }]);
+  assert.equal(a.pessoas.length, 2, "a linha sem nome não entra");
+  assert.equal(a.pessoas[0].foto, png);
+  // o id da ATIVIDADE e o de cada pessoa vivem no mesmo espaço: a foto é
+  // servida pelo id da pessoa, e a rota o procura em toda a programação
+  const ids = new Set([a.id, ...a.pessoas.map((q) => q.id)]);
+  assert.equal(ids.size, 3, "id da atividade e ids das pessoas são distintos");
+  // os campos da era do palestrante único continuam saindo, DERIVADOS
+  assert.equal(a.responsavel, "Ana Lima · Bruno Sá");
+  assert.equal(a.instituicao, "UNIEGO");
+  // e o id de cada pessoa é PRESERVADO na normalização seguinte (é ele que
+  // serve a foto e que a preservação das imagens casa)
+  const [b] = normalizarProgramacao([a]);
+  assert.deepEqual(b.pessoas.map((q) => q.id), a.pessoas.map((q) => q.id));
+});
+
+test("compat: a atividade de UM palestrante vira a primeira pessoa, com a foto dela", () => {
+  const png = "data:image/png;base64," + Buffer.from("x").toString("base64");
+  const [a] = normalizarProgramacao([{ id: "bbbb2222", titulo: "Aula magna",
+    responsavel: "Carla Souza", instituicao: "UFG", miniBio: "Pesquisadora", foto: png }]);
+  assert.equal(a.pessoas.length, 1);
+  assert.equal(a.pessoas[0].nome, "Carla Souza");
+  assert.equal(a.pessoas[0].foto, png, "a foto migra para quem ministra");
+  // sem ninguém indicado, não se inventa pessoa
+  assert.deepEqual(normalizarProgramacao([{ titulo: "Intervalo" }])[0].pessoas, []);
+});
+
+test("a quem a atividade se destina: só curso do catálogo, sem repetir, na grafia dele", () => {
+  const [a] = normalizarProgramacao(
+    [{ titulo: "Oficina", cursos: ["direito", "Direito", "ENFERMAGEM", "Curso que não existe", ""] }],
+    ["Direito", "Enfermagem", "Agronomia"]);
+  assert.deepEqual(a.cursos, ["Direito", "Enfermagem"]);
+  // sem catálogo à mão (as RE-normalizações), o que está gravado não se perde
+  assert.deepEqual(normalizarProgramacao([a])[0].cursos, ["Direito", "Enfermagem"]);
+  // vazio é "para todos" — e é o padrão
+  assert.deepEqual(normalizarProgramacao([{ titulo: "Abertura" }])[0].cursos, []);
 });
 
 /* ------------------ controle de frequência da atividade ------------------ */

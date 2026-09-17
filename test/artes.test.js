@@ -71,9 +71,22 @@ test("a travessia acha as três artes e a troca acontece no lugar certo", () => 
   assert.equal(aplicarReferencia(null, { onde: "capa" }, REF), 0);
 });
 
+test("a travessia alcança a foto de CADA pessoa que ministra (mesa redonda)", () => {
+  const ev = { programacao: [{ id: "aaaa0003", titulo: "Mesa", pessoas: [
+    { id: "cccc0001", nome: "Ana", foto: PX },
+    { id: "cccc0002", nome: "Bruno" },
+  ] }] };
+  const achadas = artesEmbutidas(ev);
+  assert.deepEqual(achadas.map((a) => a.id), ["cccc0001"]);
+  assert.equal(aplicarReferencia(ev, achadas[0], REF), 1);
+  assert.deepEqual(ev.programacao[0].pessoas[0].foto, REF);
+  assert.equal(ev.programacao[0].pessoas[1].foto, undefined);
+  assert.deepEqual(artesEmbutidas(ev), []);
+});
+
 test("a normalização PRESERVA a referência migrada — senão a imagem sumiria ao salvar", () => {
-  const [atv] = normalizarProgramacao([{ id: "aaaa0001", titulo: "Abertura", foto: REF }]);
-  assert.deepEqual(atv.foto, REF);
+  const [atv] = normalizarProgramacao([{ id: "aaaa0001", titulo: "Abertura", responsavel: "Ana Lima", foto: REF }]);
+  assert.deepEqual(atv.pessoas[0].foto, REF, "a foto migra para quem ministra e a referência sobrevive");
   // a data URL continua sujeita ao teto de tamanho, como antes
   assert.equal(imagemPequena(PX, 10), "", "acima do teto, não se guarda");
   assert.equal(imagemPequena(PX, 10_000), PX);
