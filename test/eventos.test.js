@@ -17,6 +17,7 @@ import {
   faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento, PAPEIS_COMISSAO,
   temHotsiteEvento, eventoControlaFrequencia, contaPresente, liberadoParaParticipar, SLUGS_RESERVADOS,
   leEmTelao, duasLeituras, janelaDoTelao, codigoTelaoRotativo, codigoTelaoEstatico, lerCodigoTelao,
+  buscarPessoasDoPortal, completarPeloPortal,
 } from "../lib/eventos.js";
 
 /* --------------------------------- slug --------------------------------- */
@@ -531,33 +532,73 @@ test("export completo: colunas fixas + uma por campo extra, tudo por seguro()", 
   const ws = wb.getWorksheet("Inscritos");
   const cab = ws.getRow(1).values.slice(1);
   assert.deepEqual(cab, [
-    "Nome", "CPF", "E-mail", "Telefone", "Vínculo", "Curso / instituição", "Origem",
+    "Nome", "CPF", "Matrícula", "E-mail", "Telefone", "Vínculo", "Curso / instituição", "Origem",
     "Inscrito em", "Presente", "Presenças", "Atividades escolhidas",
     "Consentimento LGPD", "Comunicações", "Online (min)",
     "Como soube?", "Interesses",
   ], "os campos extras viram colunas, com o rótulo no cabeçalho");
+  // as células se leem pelo NOME da coluna: inserir uma coluna não pode
+  // reescrever vinte asserções por posição
+  const col = (linha, nome) => linha[cab.indexOf(nome)];
   const ana = ws.getRow(2).values.slice(1);
-  assert.equal(ana[0], "Ana Teste");
-  assert.equal(ana[1], "39053344705", "CPF só em dígitos");
-  assert.equal(ana[4], "UNIEGO", "o vínculo declarado sai por extenso");
-  assert.equal(ana[9], "credenciamento geral", "presença sem atividade é a entrada geral");
-  assert.equal(ana[10], "Oficina de IA", "atividade sai pelo título, não pelo id");
-  assert.ok(String(ana[11]).length, "consentimento com data");
-  assert.equal(ana[12], "sim");
-  assert.equal(ana[13], 62, "acumulado online em minutos");
-  assert.equal(ana[14], "Redes");
-  assert.equal(ana[15], "IA, Saúde", "múltipla vira lista legível");
+  assert.equal(col(ana, "Nome"), "Ana Teste");
+  assert.equal(col(ana, "CPF"), "39053344705", "CPF só em dígitos");
+  assert.equal(col(ana, "Vínculo"), "UNIEGO", "o vínculo declarado sai por extenso");
+  assert.equal(col(ana, "Presenças"), "credenciamento geral", "presença sem atividade é a entrada geral");
+  assert.equal(col(ana, "Atividades escolhidas"), "Oficina de IA", "atividade sai pelo título, não pelo id");
+  assert.ok(String(col(ana, "Consentimento LGPD")).length, "consentimento com data");
+  assert.equal(col(ana, "Comunicações"), "sim");
+  assert.equal(col(ana, "Online (min)"), 62, "acumulado online em minutos");
+  assert.equal(col(ana, "Como soube?"), "Redes");
+  assert.equal(col(ana, "Interesses"), "IA, Saúde", "múltipla vira lista legível");
   const bia = ws.getRow(3).values.slice(1);
-  assert.equal(bia[0], "'=CMD()", "nome com fórmula neutralizado");
-  assert.equal(bia[4], "outra instituição", "quem declarou ser de fora sai marcado");
-  assert.equal(bia[5], "Enfermagem — UFG", "e o curso dele fica como ele escreveu");
-  assert.equal(bia[9], "Oficina de IA");
-  assert.equal(bia[14], "'=SOMA(A1)", "resposta digitada também passa por seguro()");
+  assert.equal(col(bia, "Nome"), "'=CMD()", "nome com fórmula neutralizado");
+  assert.equal(col(bia, "Vínculo"), "outra instituição", "quem declarou ser de fora sai marcado");
+  assert.equal(col(bia, "Curso / instituição"), "Enfermagem — UFG", "e o curso dele fica como ele escreveu");
+  assert.equal(col(bia, "Matrícula") ?? "", "", "quem é de fora não tem matrícula da casa");
+  assert.equal(col(bia, "Presenças"), "Oficina de IA");
+  assert.equal(col(bia, "Como soube?"), "'=SOMA(A1)", "resposta digitada também passa por seguro()");
   const caio = ws.getRow(4).values.slice(1);
-  assert.equal(caio[4] ?? "", "", "quem veio da planilha não tem o que declarar — em branco, não um palpite");
-  assert.equal(caio[6], "lista da coordenação");
-  assert.equal(caio[11] ?? "", "", "sem consentimento a célula fica em branco — a ausência é informação");
-  assert.equal(caio[12] ?? "", "", "comunicações só de quem consentiu online");
+  assert.equal(col(caio, "Vínculo") ?? "", "", "quem veio da planilha não tem o que declarar — em branco, não um palpite");
+  assert.equal(col(caio, "Origem"), "lista da coordenação");
+  assert.equal(col(caio, "Consentimento LGPD") ?? "", "", "sem consentimento a célula fica em branco — a ausência é informação");
+  assert.equal(col(caio, "Comunicações") ?? "", "", "comunicações só de quem consentiu online");
+});
+
+/* --------------- a equipe se completa pelo cadastro do portal --------------
+   Achado do dono (set/2026): "acabei de cadastrar um monitor, e não puxou a
+   matrícula do sistema". A busca diz o que a conta TEM (nunca o dado em si),
+   e a gravação completa cada campo em branco SOZINHO — a matrícula entrava só
+   com o CPF vazio, e como o CPF é completado primeiro, ela nunca entrava. */
+test("completarPeloPortal: CPF, telefone e matrícula se completam cada um por si", () => {
+  const perfil = { cpf: "390.533.447-05", telefone: "(62) 99999-0000", matricula: "G2410026" };
+  const linha = completarPeloPortal({ nome: "Raiane Naves", email: "r@x.br", cpf: "", telefone: "", matricula: "" }, perfil);
+  assert.equal(linha.cpf, "39053344705");
+  assert.equal(linha.telefone, "(62) 99999-0000");
+  assert.equal(linha.matricula, "G2410026", "a matrícula entra mesmo com o CPF já completado");
+  // o que o organizador digitou não se sobrescreve
+  const digitada = completarPeloPortal({ nome: "R", email: "r@x.br", cpf: "", telefone: "", matricula: "X1" }, perfil);
+  assert.equal(digitada.matricula, "X1");
+  assert.equal(digitada.cpf, "39053344705");
+  // sem perfil nada muda; perfil sem matrícula não inventa
+  assert.equal(completarPeloPortal({ matricula: "" }, null).matricula, "");
+  assert.equal(completarPeloPortal({ cpf: "", matricula: "" }, { cpf: "39053344705" }).matricula, "");
+});
+
+test("buscarPessoasDoPortal: diz o que a conta TEM, e nunca entrega CPF, telefone ou matrícula", () => {
+  const contas = [
+    { email: "ana@x.br", nome: "Ana Paula Souza", funcao: "aluno", curso: "Enfermagem",
+      cpf: "39053344705", telefone: "62999", matricula: "G2410026" },
+    { email: "bia@x.br", nome: "Bia Souza", funcao: "professor", curso: "", cpf: "", telefone: "", matricula: "" },
+    { email: "rem@x.br", nome: "Ana Removida", removido: true },
+  ];
+  const r = buscarPessoasDoPortal(contas, "souza");
+  assert.deepEqual(r.map((p) => p.email), ["ana@x.br", "bia@x.br"], "removido fica de fora; ordem por nome");
+  const ana = r[0];
+  assert.equal(ana.temCpf, true); assert.equal(ana.temTelefone, true); assert.equal(ana.temMatricula, true);
+  for (const chave of ["cpf", "telefone", "matricula"]) assert.equal(chave in ana, false, `${chave} não sai na busca`);
+  assert.equal(r[1].temMatricula, false);
+  assert.deepEqual(buscarPessoasDoPortal(contas, "so"), [], "menos de três letras não busca");
 });
 
 /* --------------------- projeto do evento (publicação) -------------------- */

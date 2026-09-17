@@ -594,6 +594,9 @@ async function preencherComOUsuario() {
       põe("i-email", u.email),
       põe("i-tel", p.telefone),
       porCurso(p.curso),
+      // depois do curso, porque a pergunta "neste curso você é…" só existe
+      // com o curso posto
+      porEstudante(p),
     ].some(Boolean);
     const form = $("f");
     if (!form) return;
@@ -601,7 +604,8 @@ async function preencherComOUsuario() {
        aqui — nome, CPF, telefone, curso — vai para o cadastro da conta quando
        ele ainda não tem, e na próxima inscrição já vem preenchido. Quem tem o
        cadastro incompleto lê isso antes de digitar. */
-    const faltaNoCadastro = !nomeDeGente(p.nome) || String(p.cpf || "").replace(/\D/g, "").length !== 11 || !p.telefone;
+    const faltaNoCadastro = !nomeDeGente(p.nome) || String(p.cpf || "").replace(/\D/g, "").length !== 11 || !p.telefone
+      || (p.funcao === "aluno" && !p.matricula);
     if (faltaNoCadastro) {
       const nota = document.createElement("div");
       nota.className = "msg-ok";
@@ -1118,6 +1122,14 @@ function campoCurso(e) {
   // recuo o leva aos ~40px que a camada do celular pede para o que se toca
   const op = (v, r) => `<label class="chk" style="margin:0;padding:7px 0"><input type="radio"
     name="i-vinculo" value="${v}" onchange="mudouVinculo()"><span>${r}</span></label>`;
+  /* A SEGUNDA PERGUNTA, só para quem escolheu um curso da casa (pedido do dono,
+     set/2026: "todo aluno que criar um usuário para se inscrever tenha seus
+     dados obrigatórios solicitados"): o estudante informa a MATRÍCULA — é
+     dado obrigatório dele no perfil, a chave dos certificados de monitoria e
+     o que a equipe do evento puxa do portal. O professor do mesmo curso não
+     tem matrícula, e é a resposta que separa os dois. */
+  const opPapel = (v, r) => `<label class="chk" style="margin:0;padding:7px 0"><input type="radio"
+    name="i-papel" value="${v}" onchange="mudouPapel()"><span>${r}</span></label>`;
   return `<label>Você é do UNIEGO? <b>*</b></label>
     <div id="i-vinculo" style="display:flex;flex-wrap:wrap;gap:6px 22px;margin:2px 0 4px">
       ${op("uniego", "Sim, sou do UNIEGO")}${op("externo", "Não, sou de outra instituição")}
@@ -1131,6 +1143,17 @@ function campoCurso(e) {
       </select>
       <div id="i-curso-caixa" style="display:none;margin-top:8px">
         <input id="i-curso-outro" placeholder="Ex.: Secretaria Acadêmica">
+      </div>
+      <div id="i-papel-caixa" style="display:none;margin-top:8px">
+        <label>Neste curso você é <b>*</b></label>
+        <div id="i-papel" style="display:flex;flex-wrap:wrap;gap:6px 22px;margin:2px 0 4px">
+          ${opPapel("estudante", "Estudante")}${opPapel("docente", "Professor(a) ou servidor(a)")}
+        </div>
+        <div id="i-matricula-caixa" style="display:none">
+          <label for="i-matricula">Matrícula <b>*</b></label>
+          <input id="i-matricula" placeholder="Ex.: G2410026" autocomplete="off">
+          <div class="dica-campo">Fica no seu cadastro do portal: é por ela que os seus certificados de monitoria chegam a você.</div>
+        </div>
       </div>
     </div>
     <div id="i-curso-externo" style="display:none">
@@ -1159,6 +1182,29 @@ function mudouCurso() {
   const outro = sel.value === CURSO_OUTRO;
   caixa.style.display = outro ? "" : "none";
   if (outro) $("i-curso-outro").focus(); else $("i-curso-outro").value = "";
+  // "neste curso você é…" só existe com um curso da lista escolhido: no
+  // "outro" (servidor, setor) e sem escolha a pergunta não faz sentido, e a
+  // resposta que ficou lá dentro não pode continuar mandando matrícula
+  const papel = $("i-papel-caixa");
+  if (!papel) return;
+  const comCurso = !!sel.value && !outro;
+  papel.style.display = comCurso ? "" : "none";
+  if (!comCurso) {
+    document.querySelectorAll('input[name="i-papel"]').forEach((r) => { r.checked = false; });
+    mudouPapel();
+  }
+}
+/** "" enquanto ninguém respondeu; "estudante" | "docente" depois. */
+function papelEscolhido() {
+  return document.querySelector('input[name="i-papel"]:checked')?.value || "";
+}
+function mudouPapel() {
+  const caixa = $("i-matricula-caixa"), campo = $("i-matricula");
+  if (!caixa || !campo) return;
+  const estudante = papelEscolhido() === "estudante";
+  caixa.style.display = estudante ? "" : "none";
+  if (!estudante) campo.value = "";
+  else if (!campo.value) campo.focus();
 }
 /** O que vai ao servidor: a escolha da lista, ou o que a pessoa escreveu. */
 function cursoEscolhido() {
@@ -1179,11 +1225,30 @@ function porCurso(v) {
   if (vinculoEscolhido() || sel.value) return false;
   const radio = document.querySelector('input[name="i-vinculo"][value="uniego"]');
   if (radio) { radio.checked = true; mudouVinculo(); }
-  if ([...sel.options].some((o) => o.value === texto)) { sel.value = texto; return true; }
+  // escolher pela tela dispara `onchange`; escolher por código não — e é o
+  // `mudouCurso` que abre a pergunta "neste curso você é…" (o `porEstudante`
+  // que vem em seguida só responde o que está à vista)
+  if ([...sel.options].some((o) => o.value === texto)) { sel.value = texto; mudouCurso(); return true; }
   sel.value = CURSO_OUTRO;
   mudouCurso();
   $("i-curso-outro").value = texto;
   $("i-curso-outro").blur();
+  return true;
+}
+/** Responde "neste curso você é…" e a matrícula com o que o cadastro da conta
+    já sabe: função `aluno` é estudante; qualquer outra função declarada é
+    docente/servidor. Só quando a pergunta está à vista e ninguém respondeu. */
+function porEstudante(p) {
+  const caixa = $("i-papel-caixa");
+  if (!caixa || caixa.style.display === "none" || papelEscolhido()) return false;
+  const funcao = String(p?.funcao || "").trim();
+  if (!funcao) return false;
+  const v = funcao === "aluno" ? "estudante" : "docente";
+  const radio = document.querySelector(`input[name="i-papel"][value="${v}"]`);
+  if (!radio) return false;
+  radio.checked = true;
+  mudouPapel();
+  if (v === "estudante" && p.matricula && $("i-matricula")) { $("i-matricula").value = String(p.matricula); $("i-matricula").blur(); }
   return true;
 }
 function limparCurso() {
@@ -1492,6 +1557,20 @@ async function inscrever(ev) {
     document.querySelector('input[name="i-vinculo"]')?.focus();
     return;
   }
+  // a segunda pergunta e a matrícula do estudante: exigidas AQUI, aceitas em
+  // branco no servidor — a mesma razão da pergunta de cima (a aba antiga)
+  const papelCaixa = $("i-papel-caixa");
+  if (papelCaixa && papelCaixa.style.display !== "none") {
+    const erro = (msg, foco) => {
+      $("f-msg").innerHTML = `<div class="msg-erro">${msg}</div>`;
+      papelCaixa.scrollIntoView({ behavior: "smooth", block: "center" });
+      foco?.focus();
+    };
+    if (!papelEscolhido()) return erro("Diga se você é estudante ou professor(a)/servidor(a) neste curso — é o que decide se pedimos a sua matrícula.",
+      document.querySelector('input[name="i-papel"]'));
+    if (papelEscolhido() === "estudante" && !$("i-matricula").value.trim())
+      return erro("Informe a sua matrícula — ela fica no seu cadastro do portal e é por ela que os seus certificados chegam a você.", $("i-matricula"));
+  }
   const bt = $("f-bt"); bt.disabled = true;
   try {
     const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/inscrever`, {
@@ -1499,6 +1578,7 @@ async function inscrever(ev) {
       body: JSON.stringify({
         nome: $("i-nome").value, cpf: $("i-cpf").value, email: $("i-email").value,
         telefone: $("i-tel").value, curso: cursoEscolhido(), vinculo: vinculoEscolhido(),
+        matricula: ($("i-matricula")?.value || "").trim(), estudante: papelEscolhido() === "estudante",
         atividades: [...ESCOLHIDAS],
         respostas: lerRespostas(),
         categoria: document.querySelector('input[name="i-categoria"]:checked')?.value || "",

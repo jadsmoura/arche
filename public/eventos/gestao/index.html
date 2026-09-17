@@ -3417,7 +3417,7 @@ const faltaCert = (x, pal) => {
   // salvar (a busca não os entrega) — só contam como faltando se a conta não os tem
   const doPortal = x.conta && x.conta === String(x.email || "").trim().toLowerCase();
   if (!tem(x.nome)) f.push("nome");
-  if (!tem(x.cpf) && !tem(x.matricula) && !(doPortal && x.contaTemCpf)) f.push("CPF ou matrícula");
+  if (!tem(x.cpf) && !tem(x.matricula) && !(doPortal && (x.contaTemCpf || x.contaTemMatricula))) f.push("CPF ou matrícula");
   if (!tem(x.email)) f.push("e-mail");
   if (!tem(x.telefone) && !(doPortal && x.contaTemTelefone)) f.push("telefone");
   if (pal && !tem(x.palestra)) f.push("título da palestra");
@@ -3772,7 +3772,7 @@ function renderEqPal(){
           oninput="EQ_PAL[${i}].nome=this.value;saiuDoPortal(EQ_PAL[${i}]);marcaFalta(${i},'pal');buscaPessoa(this.value,'pal',${i})"
           onkeydown="if(event.key==='Escape')fechaSug('pal',${i})" onblur="setTimeout(()=>fechaSug('pal',${i}),180)">
         <input placeholder="${x.conta&&x.contaTemCpf?"CPF: do cadastro do portal":"CPF *"}" value="${esc(x.cpf||"")}" oninput="EQ_PAL[${i}].cpf=this.value;marcaFalta(${i},'pal')">
-        <input placeholder="matrícula (se não tiver CPF)" value="${esc(x.matricula||"")}" oninput="EQ_PAL[${i}].matricula=this.value;marcaFalta(${i},'pal')">
+        <input placeholder="${x.conta&&x.contaTemMatricula?"matrícula: do cadastro do portal":"matrícula (se não tiver CPF)"}" value="${esc(x.matricula||"")}" oninput="EQ_PAL[${i}].matricula=this.value;marcaFalta(${i},'pal')">
         <button class="bt bt-ghost bt-xs" style="color:var(--err)" onclick="EQ_PAL.splice(${i},1);renderEqPal()">✕</button>
       </div>
       <div class="g-atv2" style="margin-top:6px">
@@ -3781,7 +3781,7 @@ function renderEqPal(){
         <input placeholder="instituição" value="${esc(x.instituicao||"")}" oninput="EQ_PAL[${i}].instituicao=this.value">
       </div>
       <input style="margin-top:6px" placeholder="título da palestra / oficina *" value="${esc(x.palestra||"")}" oninput="EQ_PAL[${i}].palestra=this.value;marcaFalta(${i},'pal')">
-      ${x.conta?`<div class="do-portal">✓ conta do portal (${esc(x.conta)}) — CPF e telefone se completam do cadastro ao salvar</div>`:""}
+      ${x.conta?`<div class="do-portal">✓ conta do portal (${esc(x.conta)}) — CPF, telefone e matrícula se completam do cadastro ao salvar</div>`:""}
       <div id="falta-pal-${i}">${linhaFalta(faltaCert(x,true))}</div>
     </div>`).join("") : '<div class="cnt">— nenhum palestrante cadastrado.</div>';
   eqContadores();
@@ -3797,7 +3797,7 @@ function linhaCom(i, monitor){
           oninput="EQ_COM[${i}].nome=this.value;saiuDoPortal(EQ_COM[${i}]);marcaFalta(${i},'com');buscaPessoa(this.value,'com',${i})"
           onkeydown="if(event.key==='Escape')fechaSug('com',${i})" onblur="setTimeout(()=>fechaSug('com',${i}),180)">
         <input placeholder="${x.conta&&x.contaTemCpf?"CPF: do cadastro do portal":"CPF *"}" value="${esc(x.cpf||"")}" oninput="EQ_COM[${i}].cpf=this.value;marcaFalta(${i},'com')">
-        <input placeholder="matrícula (se não tiver CPF)" value="${esc(x.matricula||"")}" oninput="EQ_COM[${i}].matricula=this.value;marcaFalta(${i},'com')">
+        <input placeholder="${x.conta&&x.contaTemMatricula?"matrícula: do cadastro do portal":"matrícula (se não tiver CPF)"}" value="${esc(x.matricula||"")}" oninput="EQ_COM[${i}].matricula=this.value;marcaFalta(${i},'com')">
         <button class="bt bt-ghost bt-xs" style="color:var(--err)" onclick="EQ_COM.splice(${i},1);renderEqCom()">✕</button>
       </div>
       <div class="g-atv2" style="margin-top:6px">
@@ -3809,7 +3809,7 @@ function linhaCom(i, monitor){
         <input placeholder="CH (em branco = a do evento)" value="${esc(x.ch||"")}" oninput="EQ_COM[${i}].ch=this.value">
       </div>
       <input style="margin-top:6px" placeholder="função no evento (ex.: ${monitor?"apoio ao credenciamento":"recepção e credenciamento"})" value="${esc(x.funcao||"")}" oninput="EQ_COM[${i}].funcao=this.value">
-      ${x.conta?`<div class="do-portal">✓ conta do portal (${esc(x.conta)}) — CPF e telefone se completam do cadastro ao salvar</div>`:""}
+      ${x.conta?`<div class="do-portal">✓ conta do portal (${esc(x.conta)}) — CPF, telefone e matrícula se completam do cadastro ao salvar</div>`:""}
       <div id="falta-com-${i}">${linhaFalta(faltaCert(x,false))}</div>
     </div>`;
 }
@@ -3859,14 +3859,14 @@ function escolhePessoa(qual, i, p){
   const lista = qual==="pal" ? EQ_PAL : EQ_COM;
   const x = lista[i]; if(!x) return;
   x.nome = p.nome; x.email = p.email; x.conta = p.email;
-  x.contaTemCpf = !!p.temCpf; x.contaTemTelefone = !!p.temTelefone;
+  x.contaTemCpf = !!p.temCpf; x.contaTemTelefone = !!p.temTelefone; x.contaTemMatricula = !!p.temMatricula;
   if(qual==="pal") renderEqPal(); else renderEqCom();
   // o cursor vai ao que ainda é da pessoa que preenche: a CH ou a palestra
   const card = $(`sug-${qual}-${i}`)?.closest(".atv-card");
   const prox = card && [...card.querySelectorAll("input")].find(el=>/CH|palestra/.test(el.placeholder));
   if(prox) prox.focus();
 }
-function saiuDoPortal(x){ if(x && x.conta){ /* nome alterado à mão: a linha deixa de ser a conta */ delete x.conta; delete x.contaTemCpf; delete x.contaTemTelefone; } }
+function saiuDoPortal(x){ if(x && x.conta){ /* nome alterado à mão: a linha deixa de ser a conta */ delete x.conta; delete x.contaTemCpf; delete x.contaTemTelefone; delete x.contaTemMatricula; } }
 
 /* o aviso do que falta acompanha a digitação, sem redesenhar a linha (o campo
    perderia o foco a cada tecla) */

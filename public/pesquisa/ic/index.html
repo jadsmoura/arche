@@ -3566,7 +3566,7 @@ function renderMinhaBolsa() {
     .sort((a, b) => faltaNoCadastroLocal(a).length - faltaNoCadastroLocal(b).length)[0];
   const doPerfil = META.contato || {};
   const eu = { ...base };
-  for (const campo of ["nome", "cpf", "telefone"]) {
+  for (const campo of ["nome", "cpf", "telefone", "matricula"]) {
     if (!String(eu[campo] || "").trim() && doPerfil[campo]) eu[campo] = doPerfil[campo];
   }
   const comBolsa = lista.filter((p) => meuRegistro(p).bolsista && p.fomento && p.fomento.tipo !== "voluntario");
@@ -3597,20 +3597,24 @@ function renderMinhaBolsa() {
     <div class="sec-t">Identificação</div>
     <div class="grid3">
       <div><label>Nome completo *</label><input id="mb-nome" value="${esc(eu.nome || "")}"></div>
+      <div><label>Matrícula *</label><input id="mb-matricula" value="${esc(eu.matricula || "")}" placeholder="Ex.: G2410026"
+        title="A matrícula fica no seu cadastro do portal — é por ela que os seus certificados chegam a você"></div>
       <div><label>CPF *</label><input id="mb-cpf" value="${esc(eu.cpf || "")}" placeholder="000.000.000-00"></div>
-      <div><label>RG *</label><input id="mb-rg" value="${esc(eu.rg || "")}" placeholder="Número e órgão emissor"></div>
     </div>
     <div class="grid3">
+      <div><label>RG *</label><input id="mb-rg" value="${esc(eu.rg || "")}" placeholder="Número e órgão emissor"></div>
       <div><label>Data de nascimento *</label><input id="mb-nascimento" type="date" value="${esc(eu.nascimento || "")}"
         onchange="renderIdade()"></div>
       <div><label>Idade</label><input id="mb-idade" value="${idade != null ? idade + " anos" : ""}" disabled
         placeholder="calculada pela data"></div>
-      <div><label>Telefone (WhatsApp) *</label><input id="mb-telefone" value="${esc(eu.telefone || "")}" placeholder="(62) 90000-0000"></div>
     </div>
     <div class="grid3">
+      <div><label>Telefone (WhatsApp) *</label><input id="mb-telefone" value="${esc(eu.telefone || "")}" placeholder="(62) 90000-0000"></div>
       <div style="grid-column:span 2"><label>Endereço completo *</label>
         <input id="mb-endereco" value="${esc(eu.endereco || "")}" placeholder="Rua, número, bairro, cidade e CEP"></div>
-      <div><label>Endereço de e-mail</label><input value="${esc(eu.email || META.eu || "")}" disabled
+    </div>
+    <div class="grid3">
+      <div style="grid-column:span 3"><label>Endereço de e-mail</label><input value="${esc(eu.email || META.eu || "")}" disabled
         title="É o e-mail com que você entra no ARCHÉ — para trocar, fale com a coordenação"></div>
     </div>
     <div class="grid3">
@@ -3672,12 +3676,15 @@ function renderVinculo() {
 async function salvarMinhaBolsa() {
   const v = (id) => ($(id) ? $(id).value.trim() : "");
   const corpo = {
-    nome: v("mb-nome"), cpf: v("mb-cpf"), rg: v("mb-rg"), nascimento: v("mb-nascimento"),
+    nome: v("mb-nome"), matricula: v("mb-matricula"), cpf: v("mb-cpf"), rg: v("mb-rg"), nascimento: v("mb-nascimento"),
     telefone: v("mb-telefone"), endereco: v("mb-endereco"),
     vinculo: v("mb-vinculo"), vinculoOnde: v("mb-vinculoOnde"),
     banco: v("mb-banco"), agencia: v("mb-agencia"), conta: v("mb-conta"), pix: v("mb-pix"),
   };
   if (!corpo.nome) return aviso("Informe o seu nome completo.", "warn");
+  // a matrícula é obrigatória do estudante no perfil (é a chave dos certificados
+  // de monitoria); a régua do CONTRATO não a exige, então quem cobra é a tela
+  if (!corpo.matricula) return aviso("Informe a sua matrícula — ela fica no seu cadastro do portal.", "warn");
   try {
     await api("/api/ic/meus-dados", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),

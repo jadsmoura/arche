@@ -5668,8 +5668,18 @@ app.get("/api/publico/eventos/:slug", async (req, res) => {
    a pessoa já preencheu no /perfil/ nunca é sobrescrito), o CPF só quando
    nenhuma outra conta o tem (CPF é único por conta, e a régua do perfil é a
    mesma), e o curso só quando o texto casa com um curso do catálogo (o campo
-   público é "curso / instituição de origem", e "USP" não é curso do UNIEGO). */
-async function completarPerfilPelaInscricao(email, { nome, cpf, telefone, curso, funcao, vinculo }) {
+   público é "curso / instituição de origem", e "USP" não é curso do UNIEGO).
+
+   É UMA FUNÇÃO PARA TODAS AS PORTAS (pedido do dono, set/2026: "certifique que
+   todo aluno que criar um usuário para se inscrever ou utilizar a plataforma
+   tenha seus dados obrigatórios solicitados, e incorporados em todo o sistema,
+   onde forem solicitados"): a ficha do evento, a ficha do monitor (ARCHÉ MO),
+   o cadastro do bolsista (ARCHÉ IC) e o do ICEM pedem os MESMOS dados que o
+   perfil exige do estudante — nome, CPF, telefone, curso e matrícula —, e cada
+   uma delas passa por aqui depois de gravar o que é sua. Quem digitou a
+   matrícula na ficha do monitor não a digita de novo no perfil, nem na
+   inscrição do congresso, nem na equipe do evento em que for monitor. */
+async function completarPerfilPelaInscricao(email, { nome, cpf, telefone, curso, funcao, vinculo, matricula }) {
   const e = String(email || "").trim().toLowerCase();
   if (!e) return;
   const perfis = await carregarPerfis();
@@ -5680,6 +5690,11 @@ async function completarPerfilPelaInscricao(email, { nome, cpf, telefone, curso,
   const cpfLimpo = normalizarCpf(cpf);
   if (!p.cpf && cpfLimpo && !Object.entries(perfis).some(([m, x]) => m !== e && x?.cpf === cpfLimpo)) { novo.cpf = cpfLimpo; mudou = true; }
   if (!p.telefone && String(telefone || "").trim()) { novo.telefone = String(telefone).trim().slice(0, 40); mudou = true; }
+  // a matrícula é do UNIEGO: quem declarou ser de outra instituição não a leva
+  // ao perfil (a ficha nem a pede a ele — a guarda é para a aba antiga)
+  if (!String(p.matricula || "").trim() && String(matricula || "").trim() && vinculo !== "externo") {
+    novo.matricula = String(matricula).trim().slice(0, 40); mudou = true;
+  }
   /* A FUNÇÃO só se declara quando o perfil não tem nenhuma: quem já se
      declarou professor ou aluno de graduação não vira outra coisa porque
      preencheu um formulário de setor. Quem a passa é o bolsista do ICEM, e
@@ -5734,6 +5749,15 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     const vinculo = normalizarVinculoInscrito(b.vinculo);
     const cursoEscrito = String(b.curso || "").trim().slice(0, 120);
     const curso = vinculo === "externo" ? cursoEscrito : unificarCurso(cursoEscrito);
+    /* O ESTUDANTE DA CASA INFORMA A MATRÍCULA (pedido do dono, set/2026): a
+       ficha é o cadastro de quem cria a conta para se inscrever, e a matrícula
+       é dado obrigatório do estudante no perfil — é a chave dos certificados
+       de monitoria e o que a equipe do evento puxa do portal. A ficha só a
+       pede a quem disse ser estudante de um curso da casa; aqui ela é aceita
+       sem cobrança, pela mesma razão do vínculo (a aba aberta antes do
+       deploy), e a matrícula de outra instituição não entra. */
+    const matricula = vinculo === "externo" ? "" : String(b.matricula || "").trim().slice(0, 40);
+    const estudante = b.estudante === true && vinculo !== "externo";
     if (nome.length < 3) return res.status(400).json({ error: "Escreva o seu nome completo." });
     /* O NOME NÃO É UM E-MAIL (achado do dono, set/2026: inscritos aparecendo com o
        e-mail no lugar do nome). A sessão de quem entra por código ou senha
@@ -5930,6 +5954,7 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       const inscrito = {
         nome, cpf, email, telefone, curso,
         ...(vinculo ? { vinculo } : {}),
+        ...(matricula ? { matricula } : {}),
         ch: a.proposta?.cargaHoraria || "",
         origem: "online", inscritoEm: new Date().toISOString(),
         token: gerarToken(a.evento.chaveQr), presente: false,
@@ -5993,7 +6018,12 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     // próxima inscrição já vem preenchido, e o portal não pede de novo.
     // o curso do PERFIL é o recorte dos setores da graduação, então quem
     // DECLAROU ser de outra instituição não o leva para lá (`vinculo`)
-    if (conta) completarPerfilPelaInscricao(conta.email, { nome, cpf, telefone, curso, vinculo })
+    // e a FUNÇÃO só quando a pessoa se disse estudante de um curso da casa —
+    // "professor(a) ou servidor(a)" não escolhe entre as seis funções, e o
+    // perfil pergunta (a régua de `completarPerfilPelaInscricao`: nunca por
+    // cima do que já está declarado)
+    if (conta) completarPerfilPelaInscricao(conta.email, { nome, cpf, telefone, curso, vinculo, matricula,
+      funcao: estudante ? "aluno" : "" })
       .catch((e) => console.error("[eventos] completar perfil pela inscrição:", e.message));
 
     /* O E-MAIL É O RECIBO, e por isso ele sai DEPOIS de a inscrição estar
@@ -10502,6 +10532,9 @@ app.get("/api/monitoria", async (req, res) => {
         nome: perfil.nome || u.nome || "", cpf: perfil.cpf || "",
         titulacao: perfil.titulacao || "", telefone: perfil.telefone || "",
         curso: perfil.curso || "", funcao: perfil.funcao || "",
+        // a ficha do monitor abre com o que o perfil já sabe — matrícula
+        // inclusive, que é o campo que o estudante mais digita duas vezes
+        matricula: perfil.matricula || "",
       },
       projetos: meus.map((p) => monResumir(p, quem)),
       // orientadores e monitores saem dos próprios projetos — no ARCHÉ MO
@@ -11086,6 +11119,15 @@ app.post("/api/monitoria/:id/inscricao", async (req, res) => {
       return { ok: true, projeto: p, falta };
     });
     if (r.erro) return res.status(r.erro[0]).json({ error: r.erro[1] });
+    // o que o monitor digitou na ficha é o cadastro DELE no portal: entra no
+    // perfil onde ainda falta (a mesma função de toda porta por onde o
+    // estudante se cadastra), e a próxima ficha, inscrição ou equipe já o traz
+    {
+      const d = req.body || {};
+      completarPerfilPelaInscricao(u.email, { nome: d.nome, cpf: d.cpf, telefone: d.telefone,
+        matricula: d.matricula, curso: cursoDe(String(d.curso || ""))?.nome || "", funcao: "aluno" })
+        .catch((e) => console.error("[monitoria] completar perfil pela ficha:", e.message));
+    }
     if (entrou) {
       const { emailMovimentacaoMonitoria } = await import("./lib/mailer.js");
       avisarMonitoria(emailMovimentacaoMonitoria({
@@ -12663,7 +12705,7 @@ async function sessaoIC(req, res) {
   const cpf = meuPerfil.cpf || "";
   // o cadastro do bolsista repete o que a pessoa já digitou no perfil: o
   // formulário abre com isso preenchido em vez de pedir CPF duas vezes
-  const eu = { ...u, cpf, telefone: meuPerfil.telefone || meuPerfil.whatsapp || "" };
+  const eu = { ...u, cpf, telefone: meuPerfil.telefone || meuPerfil.whatsapp || "", matricula: meuPerfil.matricula || "" };
   if (u.papel === "pendente" && !participaDeAlgum(u.email, await lerProjetos(), cpf)
     && !(await souBolsistaEM(u.email, cpf))) {
     res.status(403).json({ error: "Seu acesso ainda está pendente de aprovação da PROPPEX" });
@@ -12956,7 +12998,7 @@ app.get("/api/ic/meta", async (req, res) => {
     gestao: meu.gestao, eu: meu.email, nome: como ? "" : (u.nome || ""),
     // o que o perfil já sabe da pessoa, para o cadastro do bolsista abrir
     // preenchido (simulando outra pessoa, não vai — seriam dados dela)
-    contato: como ? null : { nome: u.nome || "", cpf: u.cpf || "", telefone: u.telefone || "" },
+    contato: como ? null : { nome: u.nome || "", cpf: u.cpf || "", telefone: u.telefone || "", matricula: u.matricula || "" },
     perfil: perfilIC(u, projetos, meu, { bolsistaEM: como ? false : await souBolsistaEM(u.email, u.cpf) }),
     // quem a coordenação pode simular, e por quais olhos está olhando agora
     // os editais (números, contagens e documentos) são de todos; a lista de
@@ -17064,6 +17106,10 @@ function aplicarCadastroDoAluno(aluno, b, cpf) {
   // e sai errada com frequência —, mas nome em branco não apaga o que existe:
   // é a chave que reúne os certificados dos ciclos antigos
   if (String(b.nome || "").trim()) saida.nome = String(b.nome).trim().slice(0, 120);
+  // a matrícula segue a régua do nome: quem a informa corrige a da indicação,
+  // e em branco não apaga a que veio do formulário do edital (ela é a chave do
+  // aluno transcrito sem e-mail) — por isso fica fora dos campos protegidos
+  if (String(b.matricula || "").trim()) saida.matricula = String(b.matricula).trim().slice(0, 40);
   for (const [campo, max] of Object.entries(CAMPOS_DO_ALUNO)) {
     if (b[campo] === undefined) continue;
     saida[campo] = String(b[campo] ?? "").trim().slice(0, max);
@@ -17101,7 +17147,7 @@ async function gravarCadastroDoAluno(alvo, b, res, { quem, pelaGestao = false } 
   }
   const r = await comProjetos((projetos) => {
     let tocados = 0;
-    let nome = "";
+    let nome = "", curso = "", matricula = "";
     for (let i = 0; i < projetos.length; i++) {
       const p = projetos[i];
       const idx = (p.alunos || []).findIndex((a) => (a.email && eu && String(a.email).trim().toLowerCase() === eu)
@@ -17126,6 +17172,10 @@ async function gravarCadastroDoAluno(alvo, b, res, { quem, pelaGestao = false } 
       if (pelaGestao) depois.cadastroPelaGestao = { por: quem, em: new Date().toISOString() };
       else delete depois.cadastroPelaGestao;
       alunos[idx] = depois;
+      // o que o perfil da conta vai receber depois (curso e matrícula do
+      // registro, quando a tela não os mandou)
+      curso = curso || depois.curso || "";
+      matricula = matricula || depois.matricula || "";
       projetos[i] = anotarProjeto(normalizarProjeto({ ...p, alunos }, { base: p }), {
         quem,
         oQue: pelaGestao
@@ -17139,11 +17189,21 @@ async function gravarCadastroDoAluno(alvo, b, res, { quem, pelaGestao = false } 
         ? [404, "Não encontrei esse bolsista em nenhum projeto."]
         : [403, "Só o próprio aluno indicado preenche os seus dados"], gravar: false };
     }
-    return { tocados, nome };
+    return { tocados, nome, curso, matricula };
   });
   if (r.erro) { res.status(r.erro[0]).json({ error: r.erro[1] }); return null; }
   return r;
 }
+
+/* O CADASTRO DO BOLSISTA COMPLETA O PERFIL DA CONTA (pedido do dono, set/2026):
+   o aluno digitava CPF, telefone e matrícula na guia Bolsa e o perfil seguia
+   vazio — a etapa de completar o cadastro os pedia de novo na porta seguinte.
+   É a mesma função das demais portas, só no caminho do PRÓPRIO aluno: o que a
+   PROPPEX digita em nome dele não vira perfil da conta dele. */
+const completarPerfilPeloBolsista = (u, b, r) => completarPerfilPelaInscricao(u.email, {
+  nome: b.nome, cpf: b.cpf, telefone: b.telefone, matricula: b.matricula || r.matricula,
+  curso: cursoDe(String(r.curso || ""))?.nome || r.curso || "", funcao: "aluno",
+}).catch((e) => console.error("[ic] completar perfil pelo cadastro do bolsista:", e.message));
 
 /** O cadastro pela guia Bolsa: uma vez, valendo para todos os projetos. */
 app.post("/api/ic/meus-dados", async (req, res) => {
@@ -17151,6 +17211,7 @@ app.post("/api/ic/meus-dados", async (req, res) => {
   if (!u) return;
   const r = await gravarCadastroDoAluno(u, req.body || {}, res, { quem: u.email });
   if (!r) return;
+  completarPerfilPeloBolsista(u, req.body || {}, r);
   const projetos = (await lerProjetos()).filter((p) => podeVerProjeto(quemIC(u), p));
   res.json({ ok: true, projetos: r.tocados, lista: projetos.map((p) => verProjeto(u, p)) });
 });
@@ -17161,6 +17222,7 @@ app.post("/api/ic/:id/meus-dados", async (req, res) => {
   if (!u) return;
   const r = await gravarCadastroDoAluno(u, req.body || {}, res, { quem: u.email });
   if (!r) return;
+  completarPerfilPeloBolsista(u, req.body || {}, r);
   const p = (await lerProjetos()).find((x) => x.id === req.params.id);
   if (!p) return res.status(404).json({ error: "Projeto não encontrado" });
   res.json({ ok: true, projeto: verProjeto(u, p) });
@@ -19616,7 +19678,7 @@ app.get("/api/eventos/pessoas", async (req, res) => {
     const removidos = new Set(usuarios.removidos || []);
     const contas = Object.entries(perfis).map(([e, p]) => ({
       email: e, nome: p?.nome || "", funcao: normalizarFuncao(p?.funcao), curso: p?.curso || "",
-      cpf: p?.cpf || "", telefone: p?.telefone || "", removido: removidos.has(e),
+      cpf: p?.cpf || "", telefone: p?.telefone || "", matricula: p?.matricula || "", removido: removidos.has(e),
     }));
     res.json({ pessoas: buscarPessoasDoPortal(contas, req.query.q) });
   } catch (e) {

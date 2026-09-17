@@ -6132,6 +6132,51 @@ public/
   barra de "não declarado". Ensaiado no servidor local: `uniego` + "Enfermagem uniego" grava
   **Enfermagem**; `externo` + "Enfermagem" grava **Enfermagem marcado como de fora**; sem
   declaração, "Agronomia-UNIEGO" grava **Agronomia**.
+- **OS DADOS DO ESTUDANTE SÃO PEDIDOS ONDE ELE ENTRA E VALEM ONDE FOREM PEDIDOS**
+  (`completarPeloPortal`/`temMatricula` em lib/eventos.js + `matricula`/`estudante` no
+  `POST …/inscrever` + a segunda pergunta da ficha ("Neste curso você é…") + `completarPerfilPelaInscricao`
+  chamada pela ficha do monitor e pelo cadastro do bolsista + a coluna "Matrícula" na planilha
+  completa, achado do dono set/2026, cadastrando um monitor na guia Equipe do EV: "não puxou a
+  matrícula do sistema. Certifique que todo aluno que criar um usuário para se inscrever ou utilizar
+  a plataforma tenha seus dados obrigatórios solicitados, e incorporados em todo o sistema, onde
+  forem solicitados"). O defeito da linha do monitor era uma condição a mais: a matrícula só se
+  completava do perfil **se o CPF estivesse vazio** — e como o CPF é o primeiro campo completado, ela
+  nunca entrava para quem tinha os dois. A planilha da AEE aceita um OU outro, mas o estudante tem
+  os dois, e a matrícula é a chave dos certificados de monitoria dos semestres antigos. Cada campo
+  passou a se completar sozinho, e a busca de pessoas diz `temMatricula` (nunca o número — a mesma
+  régua do CPF e do telefone, que a busca não entrega).
+  **O levantamento mostrou o padrão por trás do achado**: o estudante entra no portal por QUATRO
+  portas — a ficha do evento, a ficha do monitor (ARCHÉ MO), o cadastro do bolsista (ARCHÉ IC) e o
+  perfil —, e só a ficha do evento gravava no perfil o que a pessoa digitava; as outras duas liam do
+  perfil e não devolviam nada. O monitor digitava CPF, telefone e matrícula na ficha, o bolsista
+  digitava os mesmos na guia Bolsa, e o perfil seguia vazio: a etapa de completar o cadastro os
+  pedia de novo na porta seguinte, e a equipe do evento não tinha de onde puxar. **Agora é UMA
+  função para todas as portas** (`completarPerfilPelaInscricao`, que ganhou `matricula`): cada uma
+  grava o que é sua e passa por ela depois, só nos campos vazios do perfil (o que a pessoa
+  preencheu no `/perfil/` nunca é sobrescrito). A ficha do monitor abre com o que o perfil já sabe
+  (o curso do perfil é o NOME; o seletor usa o slug do catálogo, e a tela converte), e a guia Bolsa
+  ganhou o campo Matrícula, preenchido do perfil e exigido pela tela (a régua do CONTRATO não a
+  exige — `faltaNoCadastroDoBolsista` não muda —, então quem cobra é a tela).
+  **A FICHA DO EVENTO GANHOU A SEGUNDA PERGUNTA**: escolhido um curso da lista, "Neste curso você
+  é — Estudante · Professor(a) ou servidor(a)"; estudante informa a **matrícula**, obrigatória na
+  tela. É a única forma de pedir a matrícula sem pedi-la ao professor do mesmo curso, que não tem
+  uma — e é a resposta que preenche a FUNÇÃO no perfil (`aluno`, só nesse caso: "professor ou
+  servidor" não escolhe entre as seis funções, e o perfil pergunta). A pergunta não existe no
+  "Outro — servidor(a), setor" nem para quem é de fora, e **a matrícula de outra instituição não
+  entra no perfil nem no inscrito** (a guarda é do servidor, pela aba antiga). Como o vínculo, é
+  exigida na TELA e aceita em branco na ROTA — a página do CONINT fica aberta o dia inteiro.
+  Com o perfil preenchido a ficha responde tudo sozinha (`porEstudante`): função `aluno` é
+  estudante, qualquer outra função declarada é docente — e `porCurso` passou a chamar `mudouCurso()`
+  ao escolher pela lista, porque escolher por código não dispara `onchange` e a pergunta ficava
+  escondida quando `porEstudante` chegava (achado no ensaio de tela).
+  Ensaiado num servidor isolado: equipe gravada só com nome, e-mail e CH → CPF, telefone **e
+  matrícula** completados do perfil; conta nova inscrita como estudante de Agronomia → perfil com
+  matrícula, função `aluno`, curso e CPF, e o inscrito com a matrícula; quem é de fora mandando
+  matrícula → nada em lugar nenhum. Na tela, a 1280 e a 390 px: a pergunta só aparece com curso da
+  lista, some no "Outro" e no "de fora", a matrícula só com "Estudante" (e se limpa ao trocar),
+  as duas recusas dizem o que falta, rádio com 39 px de alvo, sem rolagem lateral, sem erro de
+  JavaScript. A planilha completa lê as células pelo NOME da coluna no teste — inserir uma coluna
+  não pode reescrever vinte asserções por posição.
 - **O CADASTRO SE COMPLETA PELA INSCRIÇÃO, uma vez** (`completarPerfilPelaInscricao` no server +
   a nota "Preencha os seus dados uma vez" no hotsite, pedido do dono set/2026: "o sistema deve
   pedir cadastro completo ao usuário, para que nas próximas vezes não seja mais necessário"). O

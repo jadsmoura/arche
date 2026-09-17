@@ -1017,6 +1017,16 @@ function telaMinha(p, m) {
   const completo = !!m.cadastradoEm;
   const emExecucao = p.status === "aprovado";
   const podeEnviar = emExecucao && !["validado", "homologado"].includes(r.status);
+  /* A ficha abre com o que o PERFIL da conta já sabe (pedido do dono,
+     set/2026: os dados obrigatórios do estudante, incorporados onde forem
+     pedidos): o campo em branco no registro do monitor vem do cadastro —
+     matrícula, CPF, telefone e curso —, e o que o monitor gravar aqui volta ao
+     perfil. O curso do perfil é o NOME; o seletor usa o slug do catálogo. */
+  const pf = DADOS.perfil || {};
+  const m0 = m;
+  m = { ...m0, nome: m0.nome || pf.nome || "", matricula: m0.matricula || pf.matricula || "",
+    cpf: m0.cpf || pf.cpf || "", telefone: m0.telefone || pf.telefone || "",
+    curso: m0.curso || (META().cursos || []).find((c) => c.nome === pf.curso)?.slug || "" };
   return `
     <div class="card">
       <div class="card-t">Minha inscrição</div>
