@@ -39,8 +39,8 @@
   .atv.lotada{opacity:.55} .atv.lotada label{cursor:not-allowed}
   .atv .tick{color:var(--ok);font-weight:700;font-size:15px;line-height:1.2}
   /* a quem a atividade se destina */
-  .atv .cursos{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
-  .atv .cs{background:var(--accent-wash);color:var(--brand);border:1px solid var(--line);
+  .atv .cursos,.fx-sel .cursos{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+  .atv .cs,.fx-sel .cs{background:var(--accent-wash);color:var(--brand);border:1px solid var(--line);
     border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;white-space:nowrap}
   .vagas{font-weight:600;color:var(--brand)} .vagas.zero{color:var(--err)}
   /* O DIA SE LÊ EM FAIXAS DE HORÁRIO (set/2026): a faixa com mais de uma
@@ -57,9 +57,24 @@
   .faixa.exclusiva{border:1.5px solid var(--accent);border-radius:12px;padding:8px 10px 10px;background:var(--accent-wash)}
   .faixa.exclusiva .atv{background:#fff}
   .faixa.exclusiva.escolhido{border-color:var(--ok);background:var(--ok-soft)}
+  /* a LISTA SUSPENSA é a régua: o navegador não deixa escolher duas.
+     A seta é do WRAPPER (select não aceita ::after), e sem ela a caixa branca
+     se lê como campo de texto — ninguém clica para abrir o que não parece abrir */
+  .sel-caixa{position:relative;display:block}
+  .sel-caixa::after{content:"▾";position:absolute;right:12px;top:50%;transform:translateY(-50%);
+    color:var(--brand);font-size:13px;pointer-events:none}
+  .sel-faixa{width:100%;max-width:100%;padding:10px 34px 10px 12px;border:1px solid var(--accent);border-radius:9px;
+    background:#fff;color:var(--ink);font-family:inherit;font-size:13.5px;
+    -webkit-appearance:none;appearance:none;cursor:pointer}
+  .sel-faixa:disabled{background:var(--wash);color:var(--muted);cursor:not-allowed}
+  .fx-dica{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:7px}
+  .fx-sel{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:13.5px}
+  .fx-sel .t{font-weight:600;color:var(--ok)}
+  .fx-sel .m{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.45}
+  .faixa.exclusiva.escolhido .fx-sel{border-color:var(--ok)}
   /* o que se sobrepõe a esta e está em OUTRA faixa: a régua é pareada, e a
      caixa da faixa não alcança esse par */
-  .atv .choque{font-size:11.5px;color:var(--warn);margin-top:4px;line-height:1.45}
+  .atv .choque,.fx-sel .choque{font-size:11.5px;color:var(--warn);margin-top:4px;line-height:1.45}
   .trab{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px}
   .trab .t{font-weight:700;font-size:14px;color:var(--ink)}
   .trab .n{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;color:var(--muted)}
@@ -149,6 +164,7 @@ function render() {
     ${cardPagamento(pg, i)}
     ${cardProgramacao(e, i, lib)}
     ${cardTrabalhos(e, lib)}`;
+  pintarFaixas(); // a lista suspensa e o detalhe da escolhida saem da MESMA função do clique
 }
 
 function seloInscricao() {
@@ -269,11 +285,58 @@ function blocosDoDia(lista) {
     if (p.inscricao !== "propria") { feitos.add(p); html += linhaAtividade(p); continue; }
     const grupo = faixas.get(chaveDaFaixa(p)) || [p];
     grupo.forEach((x) => feitos.add(x));
-    html += `<div class="faixa ${grupo.length > 1 ? "exclusiva" : ""}" data-faixa="${esc(grupo.map((x) => x.id).join(","))}">
+    const ids = esc(grupo.map((x) => x.id).join(","));
+    html += `<div class="faixa ${grupo.length > 1 ? "exclusiva" : ""}" data-faixa="${ids}">
       <div class="fx-rot">${rotuloDaFaixa(grupo)}</div>
-      ${grupo.map((x) => linhaAtividade(x, grupo)).join("")}</div>`;
+      ${grupo.length > 1 ? seletorDaFaixa(grupo, ids) : linhaAtividade(grupo[0], grupo)}</div>`;
   }
   return html;
+}
+/* A FAIXA EXCLUSIVA É UMA LISTA SUSPENSA (pedido do dono, set/2026: "acho que
+   uma lista suspensa pode ser melhor que essa lista toda, deixa a página mais
+   enxuta, e permite separar programações que se sobrepõem com programações que
+   podem ser feitas"). Onze cartões com caixa de marcar dentro de uma caixa que
+   diz "escolha 1 destas 11" é uma tela que se contradiz: o controle oferecido
+   é o de marcar VÁRIAS, e o aviso de que só vale uma chega por texto. A lista
+   suspensa É a régua — o navegador não deixa escolher duas —, e a página do
+   dia cai de trinta cartões para três linhas.
+   O que a lista não mostra (local, CH, quem ministra, cursos) sai LOGO ABAIXO,
+   da escolhida: é o detalhe de UMA, não de onze. */
+function seletorDaFaixa(grupo, ids) {
+  const trava = D.podeTrocarAtividades ? "" : "disabled";
+  return `<label class="sel-caixa"><select class="sel-faixa" data-faixa-sel="${ids}" ${trava}
+      onchange="escolherNaFaixa(this)" aria-label="Escolha uma atividade de ${esc(faixa(grupo[0]) || "este horário")}">
+      <option value="">— nenhuma destas ${grupo.length} —</option>
+      ${grupo.map((p) => {
+        const o = opcaoDaAtividade(p);
+        return `<option value="${esc(p.id)}" ${o.lotada ? "disabled" : ""}>${esc(o.texto)}</option>`;
+      }).join("")}
+    </select></label>
+    <div class="fx-esc"></div>`;
+}
+/** O rótulo de uma opção: o que decide a escolha — título, vaga e curso. */
+function opcaoDaAtividade(p) {
+  const minha = MARCADAS.has(p.id);
+  const lotada = !minha && p.vagasRestantes !== null && p.vagasRestantes <= 0;
+  const vagas = lotada ? "vagas esgotadas"
+    : p.vagasRestantes === null ? "sem limite de vagas"
+    : `${p.vagasRestantes} vaga(s)`;
+  const cursos = (p.cursos || []).length ? " · " + p.cursos.join(", ") : "";
+  return { lotada, texto: `${p.titulo} — ${vagas}${cursos}` };
+}
+/** O detalhe da escolhida (ou a dica, quando não há escolha). */
+function detalheDaFaixa(grupo) {
+  const p = grupo.find((x) => MARCADAS.has(x.id));
+  if (!p) return `<div class="fx-dica">Abra a lista e escolha uma: só uma cabe neste horário.
+    As atividades das <b>outras faixas do dia</b> você escolhe à parte.</div>`;
+  const meta = [p.local, p.ch ? `CH ${p.ch}` : "", p.modalidade === "online" ? "online" : "",
+    p.vagasRestantes === null ? "sem limite de vagas" : `${p.vagasRestantes} vaga(s) restante(s)`]
+    .filter(Boolean).join(" · ");
+  const fora = choquesFora(p, grupo);
+  // sem repetir o título: ele está no rótulo da lista, logo acima
+  return `<div class="fx-sel"><div class="t">✓ você está nesta</div>
+    <div class="m">${esc(meta)}${esc(quemMinistra(p))}</div>${cursosTags(p)}
+    ${fora.length ? `<div class="choque">⇄ não cabe junto com ${fora.map((x) => `“${esc(x.titulo)}” (${esc(faixa(x) || "sem horário")})`).join(", ")} — escolher uma sai da outra</div>` : ""}</div>`;
 }
 /* O rótulo da faixa é a frase que o participante lê antes de marcar, e ele
    muda com a escolha: feita, a faixa diz qual é a dela. A mesma função pinta
@@ -284,7 +347,7 @@ function rotuloDaFaixa(grupo) {
   if (grupo.length > 1) {
     const escolhida = grupo.find((p) => MARCADAS.has(p.id));
     return escolhida
-      ? `<span class="fx-h ok">✓ ${esc(quando)}</span><span class="fx-n">sua escolha nesta faixa: <b>${esc(escolhida.titulo)}</b> — marcar outra troca por ela</span>`
+      ? `<span class="fx-h ok">✓ ${esc(quando)}</span><span class="fx-n">sua escolha está na lista — trocar por outra devolve a vaga desta</span>`
       : `<span class="fx-h">⇄ ${esc(quando)}</span><span class="fx-n">escolha <b>1</b> destas ${grupo.length} — elas acontecem ao mesmo tempo</span>`;
   }
   const sozinha = !choquesFora(grupo[0], grupo).length;
@@ -298,16 +361,24 @@ function choquesFora(p, grupo) {
   return ((D?.evento?.programacao) || [])
     .filter((x) => x?.inscricao === "propria" && !naFaixa.has(x.id) && choca(p, x));
 }
-/** Repinta os rótulos depois de cada clique — é o que faz a faixa resolvida
-    ficar verde e dizer a escolha, sem redesenhar a página inteira. */
+/** Repinta as faixas depois de cada escolha — rótulo, estado da lista suspensa,
+    detalhe da escolhida e as caixas das faixas livres. Sem redesenhar a página:
+    é UMA função para todos os controles, senão o estado de um contradiz o do
+    outro (marcar aqui tem de desmarcar lá). */
 function pintarFaixas() {
   const prog = (D?.evento?.programacao) || [];
   document.querySelectorAll("[data-faixa]").forEach((el) => {
     const grupo = el.dataset.faixa.split(",").map((id) => prog.find((p) => p.id === id)).filter(Boolean);
     if (!grupo.length) return;
+    const escolhida = grupo.find((p) => MARCADAS.has(p.id));
     const rot = el.querySelector(".fx-rot");
     if (rot) rot.innerHTML = rotuloDaFaixa(grupo);
-    el.classList.toggle("escolhido", grupo.some((p) => MARCADAS.has(p.id)));
+    el.classList.toggle("escolhido", !!escolhida);
+    const sel = el.querySelector("select[data-faixa-sel]");
+    if (sel) sel.value = escolhida ? escolhida.id : "";
+    const det = el.querySelector(".fx-esc");
+    if (det) det.innerHTML = detalheDaFaixa(grupo);
+    el.querySelectorAll("input[data-atv]").forEach((c) => { c.checked = MARCADAS.has(c.dataset.atv); });
   });
 }
 /* A QUEM A ATIVIDADE SE DESTINA (pedido do dono, set/2026: "para facilitar o
@@ -355,23 +426,49 @@ function choca(a, b) {
   if (!a?.dia || !b?.dia || a.dia !== b.dia || !a.horaInicio || !b.horaInicio) return false;
   return a.horaInicio < fimDe(b) && b.horaInicio < fimDe(a);
 }
-function marcar(chk) {
-  const id = chk.dataset.atv;
-  if (!chk.checked) { MARCADAS.delete(id); avisoTroca(""); pintarFaixas(); return; }
+/* Entrar numa atividade é SAIR das que se sobrepõem a ela. A conta é a mesma
+   nos dois controles — a caixa da faixa livre e a lista suspensa da faixa
+   exclusiva —, e por isso mora aqui: duas cópias acabariam discordando sobre
+   quem sai. Devolve o que saiu, que é o que o aviso nomeia. */
+function trocarPara(id) {
   const prog = (D?.evento?.programacao) || [];
   const nova = prog.find((p) => p.id === id);
   const saem = [...MARCADAS]
     .map((x) => prog.find((p) => p.id === x))
     .filter((p) => p && p.id !== id && p.inscricao === "propria" && choca(nova, p));
-  saem.forEach((p) => {
-    MARCADAS.delete(p.id);
-    const outro = document.querySelector(`input[data-atv="${CSS.escape(p.id)}"]`);
-    if (outro) outro.checked = false;
-  });
+  saem.forEach((p) => MARCADAS.delete(p.id));
   MARCADAS.add(id);
+  return { nova, saem };
+}
+function marcar(chk) {
+  const id = chk.dataset.atv;
+  if (!chk.checked) { MARCADAS.delete(id); pintarFaixas(); avisoTroca(""); return; }
+  const { nova, saem } = trocarPara(id);
   pintarFaixas();
-  avisoTroca(saem.length
-    ? `Você saiu de ${saem.map((p) => `“${p.titulo}”`).join(", ")} para entrar em “${nova?.titulo || ""}” — a vaga volta para a fila ao salvar.`
+  avisoSaida(saem.map((p) => p.titulo), nova?.titulo);
+}
+/* A lista suspensa da faixa: escolher uma SUBSTITUI a que estava, porque ali
+   a escolha é uma só — e ainda pode sair de outra faixa que se sobreponha
+   (14–17 escolhida no lugar de 14–16 derruba a de 16–18). */
+function escolherNaFaixa(sel) {
+  const ids = sel.dataset.faixaSel.split(",");
+  const prog = (D?.evento?.programacao) || [];
+  const titulo = (id) => prog.find((p) => p.id === id)?.titulo || "";
+  const antes = ids.find((x) => MARCADAS.has(x));
+  ids.forEach((x) => MARCADAS.delete(x));
+  const id = sel.value;
+  if (!id) {
+    pintarFaixas();
+    avisoTroca(antes ? `Você saiu de “${titulo(antes)}” — a vaga volta para a fila ao salvar.` : "");
+    return;
+  }
+  const { nova, saem } = trocarPara(id);
+  pintarFaixas();
+  avisoSaida([...(antes && antes !== id ? [titulo(antes)] : []), ...saem.map((p) => p.titulo)], nova?.titulo);
+}
+function avisoSaida(saiu, entrou) {
+  avisoTroca(saiu.length
+    ? `Você saiu de ${saiu.map((t) => `“${t}”`).join(", ")} para entrar em “${entrou || ""}” — a vaga volta para a fila ao salvar.`
     : "");
 }
 function avisoTroca(texto) {

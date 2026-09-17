@@ -2052,6 +2052,28 @@ public/
   marcava as duas e o `marcar` desmarcava uma em silêncio, contradizendo a tela que as mostrara
   como independentes. O agrupamento continua olhando o INÍCIO, e por isso **a caixa nunca mente**:
   início igual sempre se sobrepõe.
+  **A FAIXA EXCLUSIVA É UMA LISTA SUSPENSA; a livre continua caixa de marcar**
+  (`seletorDaFaixa`/`opcaoDaAtividade`/`detalheDaFaixa`/`escolherNaFaixa`/`trocarPara` no mesmo
+  arquivo, pedido do dono set/2026: "acho que uma lista suspensa pode ser melhor que essa lista
+  toda, deixa a página mais enxuta, e permite separar programações que se sobrepõem com
+  programações que podem ser feitas" — com o print de uma faixa de **11** minicursos das
+  19h–22h). Onze cartões com **caixa de marcar** dentro de um quadro que diz "escolha 1 destas
+  11" é uma tela que se contradiz: o controle oferecido é o de marcar VÁRIAS, e a regra chega só
+  por texto. A lista suspensa **É** a régua — o navegador não deixa escolher duas —, e é o
+  próprio TIPO DE CONTROLE que separa o que se sobrepõe do que se pode levar junto, que é a
+  segunda metade do pedido. Medido no dia do print: 11 cartões viraram três linhas.
+  Quatro decisões: a opção carrega **o que decide a escolha** (título — vagas · cursos), e o
+  resto (local, CH, quem ministra, etiquetas de curso, o choque com outra faixa) sai **abaixo,
+  só da escolhida** — é o detalhe de UMA, não de onze; **lotada entra `disabled`**, porque o
+  lugar de dizer "não dá" é onde se escolhe; **o título não se repete** (fica na lista fechada,
+  e o rótulo e o detalhe falam do estado); e a **seta é do wrapper** (`select` não aceita
+  `::after`) — sem ela a caixa branca se lê como campo de texto, e ninguém clica para abrir o
+  que não parece abrir.
+  A conta da troca virou **uma função** (`trocarPara`): a caixa da faixa livre e a lista da
+  exclusiva mandam no MESMO lugar, senão o estado de um controle contradiria o do outro (entrar
+  aqui tem de sair lá). E `pintarFaixas` passou a repintar tudo — rótulo, valor da lista,
+  detalhe e as caixas —, inclusive no **primeiro desenho**, que é o que faz o detalhe da
+  escolhida aparecer para quem só abriu a página.
 - **COMUNICADO AOS INSCRITOS** (`emailComunicadoEvento` em lib/mailer.js + `POST/GET
   /api/extensao/:id/comunicado[s]` + o card na guia Inscritos do ARCHÉ EV + aviso `ev-comunicado`,
   pedido do dono set/2026: "permita a gestão enviar comunicados por e-mail a todos os inscritos"):
