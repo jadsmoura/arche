@@ -6070,11 +6070,11 @@ public/
   quatro linhas **não filtra, não conta e não vira número de relatório** — e é o mesmo campo que
   alimenta o recorte por curso do ARCHÉ RE.
   **A lista NÃO pode ser fechada**: a inscrição é PÚBLICA e o participante pode ser de outra
-  instituição — é por isso que o campo se chama "curso / **instituição de origem**". Então a ficha
-  virou **lista COM SAÍDA**: os cursos da casa (que viajam no payload público do evento, em vez de
-  numa segunda chamada) e **"Outro curso ou outra instituição"**, que abre o campo de escrever.
-  Quem é daqui escolhe, e escolher não tem como errar a grafia; quem é de fora escreve, como sempre
-  escreveu. Payload antigo numa aba velha cai no campo escrito de sempre — formulário sem o campo
+  instituição — é por isso que o campo se chama "curso / **instituição de origem**". A primeira
+  versão resolveu isso com uma saída no FIM da lista ("Outro curso ou outra instituição"), e o dono
+  a substituiu no mesmo dia: **"talvez colocar um campo antes, se o usuário selecionar se é Uniego
+  ou se não é, pode resolver esse problema de usuários de outras IES"** — ver o bloco seguinte.
+  Payload antigo numa aba velha continua caindo no campo escrito de sempre: formulário sem o campo
   seria pior que campo livre.
   **A régua é do SERVIDOR** e vale em TODA porta por onde curso entra escrito: a inscrição pública,
   a **lista que a coordenação cola** (`CAMPOS_INSCRITO_DIGITADO` tem `curso`) e as duas do cadastro
@@ -6101,6 +6101,37 @@ public/
   entra no perfil quando o texto nomeia um curso da casa (o campo do perfil é o recorte dos setores
   da graduação — gravar "Enfermagem — UFG" ali poria alguém de fora dentro de um curso nosso), e a
   régua nova reconhece as grafias que a antiga recusava.
+- **A PERGUNTA VEM ANTES DO CAMPO: "Você é do UNIEGO?"** (`VINCULOS_INSCRITO`/
+  `normalizarVinculoInscrito` em lib/eventos.js + `vinculo` no inscrito + `campoCurso`/
+  `mudouVinculo`/`cursoEscolhido` na ficha + o filtro "Vínculo" e a marca "· de fora" na guia
+  Inscritos + a coluna na planilha completa, decisão do dono set/2026: "talvez colocar um campo
+  antes, se o usuário selecionar se é Uniego ou se não é, pode resolver esse problema de usuários
+  de outras IES"). Resolve, e **resolve o que a régua de texto não alcança**: "Enfermagem" digitado
+  por alguém da UFG é letra por letra igual ao da casa — nenhuma normalização distingue os dois, e
+  o participante externo entrava na contagem por curso como se fosse aluno nosso. A declaração
+  desfaz o empate, e é ela que diz quantos vieram de fora, que é **número do relatório de
+  extensão**.
+  E conserta a ergonomia: quem é de fora respondia "não" a uma pergunta que ninguém fez — abria uma
+  lista de doze cursos que não são dele e tinha de achar, no fim dela, a linha que o deixava
+  escrever. Perguntando primeiro, cada um vê **só o seu campo**, e quem é daqui recebe uma lista
+  **FECHADA**, sem porta nenhuma para digitar errado. Dentro do UNIEGO a lista ganhou o **Mestrado
+  em Sociedade, Tecnologia e Meio Ambiente** (a pós não vive no catálogo, que é dos cursos de
+  graduação — `cursosDaCasa` é UMA função para a ficha e para o ARCHÉ TR, senão o mestrado entraria
+  numa e faltaria na outra) e um "Outro — servidor(a), setor ou pós-graduação", que é a saída
+  ESTREITA de quem é da casa e não é de um curso.
+  **O que a declaração muda no servidor**: quem declarou `externo` fica com o texto **letra por
+  letra** (unificar ali transformaria o participante da UFG em aluno da casa) e **não leva o curso
+  ao perfil** (o campo do perfil é o recorte dos setores da graduação); declarando `uniego` — ou
+  não declarando nada, que é a aba antiga e a planilha colada pela coordenação — vale a unificação
+  pelo catálogo, que é o que corrige as quatro grafias.
+  **A pergunta é exigida na TELA, não na rota**, e isso é deliberado: a página do CONINT fica
+  aberta o dia inteiro com as inscrições correndo, e recusar no servidor faria a aba carregada
+  antes do deploy perder a inscrição de quem já preencheu tudo. Vazio é resposta legítima — e por
+  isso o filtro "Vínculo" da guia **só se desenha quando há declaração** (as opções saem das
+  respostas): nos eventos anteriores à pergunta ele simplesmente não aparece, em vez de encher a
+  barra de "não declarado". Ensaiado no servidor local: `uniego` + "Enfermagem uniego" grava
+  **Enfermagem**; `externo` + "Enfermagem" grava **Enfermagem marcado como de fora**; sem
+  declaração, "Agronomia-UNIEGO" grava **Agronomia**.
 - **O CADASTRO SE COMPLETA PELA INSCRIÇÃO, uma vez** (`completarPerfilPelaInscricao` no server +
   a nota "Preencha os seus dados uma vez" no hotsite, pedido do dono set/2026: "o sistema deve
   pedir cadastro completo ao usuário, para que nas próximas vezes não seja mais necessário"). O

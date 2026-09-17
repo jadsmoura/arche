@@ -10,6 +10,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { cursoDoCatalogo, unificarCurso, chaveDeCurso } from "../lib/instituicao.js";
+import { normalizarVinculoInscrito } from "../lib/eventos.js";
 
 test("as grafias do print viram UM curso do catálogo", () => {
   const mesmo = (grafias, nome) => {
@@ -59,6 +60,24 @@ test("unificar é idempotente: o nome do catálogo passa por ele sem mudar", () 
   for (const g of ["Agronomia", "Ciências Contábeis", "Engenharia de Software", "Psicologia"]) {
     assert.equal(unificarCurso(unificarCurso(g)), g);
   }
+});
+
+/* A PERGUNTA ANTES DO CAMPO (set/2026): a régua de texto não distingue o
+   "Enfermagem" da casa do "Enfermagem" da UFG — são a mesma palavra. Quem
+   distingue é a declaração, e o servidor só unifica quando ela NÃO diz
+   "externo" (a aba antiga e a planilha colada não declaram nada, e aí a
+   unificação pelo catálogo é o melhor que se tem). */
+test("declarar-se de fora impede a unificação; não declarar, não", () => {
+  assert.equal(normalizarVinculoInscrito("uniego"), "uniego");
+  assert.equal(normalizarVinculoInscrito("externo"), "externo");
+  for (const v of ["", null, undefined, "UNIEGO", "sim", "constructor"]) {
+    assert.equal(normalizarVinculoInscrito(v), "", "só os dois códigos do catálogo entram");
+  }
+  // o que o servidor faz com o texto, conforme a resposta
+  const gravar = (vinculo, texto) => (vinculo === "externo" ? texto : unificarCurso(texto));
+  assert.equal(gravar("uniego", "Enfermagem UNIEGO"), "Enfermagem");
+  assert.equal(gravar("externo", "Enfermagem"), "Enfermagem", "o texto de quem é de fora não se toca");
+  assert.equal(gravar("", "Enfermagem uniego"), "Enfermagem", "sem declaração, vale o catálogo");
 });
 
 test("a chave ignora acento, caixa e pontuação — e só isso", () => {

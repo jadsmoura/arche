@@ -482,13 +482,13 @@ const acaoRica = () => ({
   participantes: {
     inscritos: [
       { nome: "Ana Teste", cpf: "390.533.447-05", email: "ana@x.com", telefone: "62 9",
-        origem: "online", inscritoEm: "2026-05-10T12:00:00Z", presente: true, presentePor: "monitor",
+        vinculo: "uniego", curso: "Agronomia", origem: "online", inscritoEm: "2026-05-10T12:00:00Z", presente: true, presentePor: "monitor",
         atividades: ["aaaa1111"], presencas: [{ atividade: "", em: "2026-05-13T08:00:00Z" }],
         consentimento: { em: "2026-05-10T12:00:00Z", versao: "abcd1234" }, comunicacoes: true,
         respostas: { ffff1111: "Redes", ffff2222: ["IA", "Saúde"] },
         online: { segundos: 3720, segundosVisiveis: 3600 } },
       { nome: "=CMD()", cpf: "111.444.777-35", email: "bia@x.com",
-        origem: "online", presente: true,
+        vinculo: "externo", curso: "Enfermagem — UFG", origem: "online", presente: true,
         atividades: ["aaaa1111"], presencas: [{ atividade: "aaaa1111", em: "2026-05-13T09:00:00Z" }],
         respostas: { ffff1111: "=SOMA(A1)" } },
       { nome: "Caio Manual", matricula: "G123" },   // planilha da coordenação, sem consentimento
@@ -531,7 +531,7 @@ test("export completo: colunas fixas + uma por campo extra, tudo por seguro()", 
   const ws = wb.getWorksheet("Inscritos");
   const cab = ws.getRow(1).values.slice(1);
   assert.deepEqual(cab, [
-    "Nome", "CPF", "E-mail", "Telefone", "Curso / instituição", "Origem",
+    "Nome", "CPF", "E-mail", "Telefone", "Vínculo", "Curso / instituição", "Origem",
     "Inscrito em", "Presente", "Presenças", "Atividades escolhidas",
     "Consentimento LGPD", "Comunicações", "Online (min)",
     "Como soube?", "Interesses",
@@ -539,21 +539,25 @@ test("export completo: colunas fixas + uma por campo extra, tudo por seguro()", 
   const ana = ws.getRow(2).values.slice(1);
   assert.equal(ana[0], "Ana Teste");
   assert.equal(ana[1], "39053344705", "CPF só em dígitos");
-  assert.equal(ana[8], "credenciamento geral", "presença sem atividade é a entrada geral");
-  assert.equal(ana[9], "Oficina de IA", "atividade sai pelo título, não pelo id");
-  assert.ok(String(ana[10]).length, "consentimento com data");
-  assert.equal(ana[11], "sim");
-  assert.equal(ana[12], 62, "acumulado online em minutos");
-  assert.equal(ana[13], "Redes");
-  assert.equal(ana[14], "IA, Saúde", "múltipla vira lista legível");
+  assert.equal(ana[4], "UNIEGO", "o vínculo declarado sai por extenso");
+  assert.equal(ana[9], "credenciamento geral", "presença sem atividade é a entrada geral");
+  assert.equal(ana[10], "Oficina de IA", "atividade sai pelo título, não pelo id");
+  assert.ok(String(ana[11]).length, "consentimento com data");
+  assert.equal(ana[12], "sim");
+  assert.equal(ana[13], 62, "acumulado online em minutos");
+  assert.equal(ana[14], "Redes");
+  assert.equal(ana[15], "IA, Saúde", "múltipla vira lista legível");
   const bia = ws.getRow(3).values.slice(1);
   assert.equal(bia[0], "'=CMD()", "nome com fórmula neutralizado");
-  assert.equal(bia[8], "Oficina de IA");
-  assert.equal(bia[13], "'=SOMA(A1)", "resposta digitada também passa por seguro()");
+  assert.equal(bia[4], "outra instituição", "quem declarou ser de fora sai marcado");
+  assert.equal(bia[5], "Enfermagem — UFG", "e o curso dele fica como ele escreveu");
+  assert.equal(bia[9], "Oficina de IA");
+  assert.equal(bia[14], "'=SOMA(A1)", "resposta digitada também passa por seguro()");
   const caio = ws.getRow(4).values.slice(1);
-  assert.equal(caio[5], "lista da coordenação");
-  assert.equal(caio[10] ?? "", "", "sem consentimento a célula fica em branco — a ausência é informação");
-  assert.equal(caio[11] ?? "", "", "comunicações só de quem consentiu online");
+  assert.equal(caio[4] ?? "", "", "quem veio da planilha não tem o que declarar — em branco, não um palpite");
+  assert.equal(caio[6], "lista da coordenação");
+  assert.equal(caio[11] ?? "", "", "sem consentimento a célula fica em branco — a ausência é informação");
+  assert.equal(caio[12] ?? "", "", "comunicações só de quem consentiu online");
 });
 
 /* --------------------- projeto do evento (publicação) -------------------- */

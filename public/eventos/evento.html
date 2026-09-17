@@ -1090,28 +1090,68 @@ function formInscricao(e) {
 
    Mas a lista NÃO pode ser fechada: a inscrição é pública e o participante
    pode ser de outra instituição — é por isso que o campo se chama "curso /
-   instituição de origem". Então é lista COM SAÍDA: os cursos da casa, e
-   "Outro curso ou outra instituição", que abre o campo de escrever. Quem é
-   daqui escolhe (e escolher não tem como errar a grafia); quem é de fora
-   escreve, como sempre escreveu. O servidor unifica o que vier escrito e
-   reconhecer um curso da casa, e deixa o resto como a pessoa digitou. */
+   instituição de origem".
+
+   A SAÍDA É UMA PERGUNTA ANTES, não uma opção no fim da lista (decisão do
+   dono, set/2026: "talvez colocar um campo antes, se o usuário selecionar se
+   é Uniego ou se não é, pode resolver esse problema de usuários de outras
+   IES"). Quem é de fora respondia "não" a uma pergunta que ninguém fez: ele
+   abria uma lista de doze cursos que não são dele e tinha de achar, no fim,
+   a linha que o deixava escrever. Perguntando primeiro, cada um vê só o seu
+   campo — e quem é daqui recebe uma lista FECHADA, sem nenhuma porta para
+   digitar errado.
+   E a resposta é informação que a régua de texto nunca alcançaria: o
+   participante da UFG que escreve só "Enfermagem" fica indistinguível de um
+   aluno da casa, porque o texto é o mesmo. A declaração desfaz isso — e é ela
+   que diz à coordenação quantos vieram de fora, que é número de relatório de
+   extensão. */
 const CURSO_OUTRO = "__outro";
 function campoCurso(e) {
   const cursos = e.cursos || [];
-  const rot = `<label for="i-curso">Curso / instituição de origem</label>`;
   // sem a lista (payload antigo em aba aberta há tempo), o campo escrito de
   // sempre — um formulário sem o campo seria pior que um campo livre
-  if (!cursos.length) return `${rot}<input id="i-curso" placeholder="Ex.: Enfermagem">`;
-  return `${rot}
-    <select id="i-curso" onchange="mudouCurso()">
-      <option value="">Selecione…</option>
-      ${cursos.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}
-      <option value="${CURSO_OUTRO}">Outro curso ou outra instituição</option>
-    </select>
-    <div id="i-curso-caixa" style="display:none;margin-top:8px">
-      <input id="i-curso-outro" placeholder="Ex.: Enfermagem — UFG">
-      <div class="dica-campo">Escreva o curso e a instituição de onde você vem.</div>
+  if (!cursos.length) {
+    return `<label for="i-curso">Curso / instituição de origem</label>
+      <input id="i-curso" placeholder="Ex.: Enfermagem">`;
+  }
+  // o rótulo inteiro é o alvo, e com uma linha de texto ele fica em 25px — o
+  // recuo o leva aos ~40px que a camada do celular pede para o que se toca
+  const op = (v, r) => `<label class="chk" style="margin:0;padding:7px 0"><input type="radio"
+    name="i-vinculo" value="${v}" onchange="mudouVinculo()"><span>${r}</span></label>`;
+  return `<label>Você é do UNIEGO? <b>*</b></label>
+    <div id="i-vinculo" style="display:flex;flex-wrap:wrap;gap:6px 22px;margin:2px 0 4px">
+      ${op("uniego", "Sim, sou do UNIEGO")}${op("externo", "Não, sou de outra instituição")}
+    </div>
+    <div id="i-curso-uniego" style="display:none">
+      <label for="i-curso">Curso</label>
+      <select id="i-curso" onchange="mudouCurso()">
+        <option value="">Selecione…</option>
+        ${cursos.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}
+        <option value="${CURSO_OUTRO}">Outro — servidor(a), setor ou pós-graduação</option>
+      </select>
+      <div id="i-curso-caixa" style="display:none;margin-top:8px">
+        <input id="i-curso-outro" placeholder="Ex.: Secretaria Acadêmica">
+      </div>
+    </div>
+    <div id="i-curso-externo" style="display:none">
+      <label for="i-curso-fora">Curso e instituição de origem</label>
+      <input id="i-curso-fora" placeholder="Ex.: Enfermagem — UFG">
     </div>`;
+}
+/** Qual foi a resposta da pergunta de cima ("" enquanto ninguém respondeu). */
+function vinculoEscolhido() {
+  return document.querySelector('input[name="i-vinculo"]:checked')?.value || "";
+}
+function mudouVinculo() {
+  const v = vinculoEscolhido(), dentro = $("i-curso-uniego"), fora = $("i-curso-externo");
+  if (!dentro || !fora) return;
+  dentro.style.display = v === "uniego" ? "" : "none";
+  fora.style.display = v === "externo" ? "" : "none";
+  // o campo do lado que se fechou não pode continuar mandando resposta
+  if (v !== "uniego") { $("i-curso").value = ""; mudouCurso(); }
+  if (v !== "externo") $("i-curso-fora").value = "";
+  if (v === "uniego") $("i-curso").focus();
+  if (v === "externo") $("i-curso-fora").focus();
 }
 function mudouCurso() {
   const sel = $("i-curso"), caixa = $("i-curso-caixa");
@@ -1124,16 +1164,21 @@ function mudouCurso() {
 function cursoEscolhido() {
   const sel = $("i-curso");
   if (!sel) return "";
-  if (sel.tagName !== "SELECT") return sel.value;
+  if (sel.tagName !== "SELECT") return sel.value;                 // payload antigo
+  if (vinculoEscolhido() === "externo") return $("i-curso-fora")?.value || "";
   return sel.value === CURSO_OUTRO ? ($("i-curso-outro")?.value || "") : sel.value;
 }
-/** Põe no campo o curso que já se sabe (o do cadastro da conta). O que não
-    está na lista cai no "outro" — senão o dado da pessoa sumiria da tela. */
+/** Põe no campo o curso que já se sabe (o do cadastro da conta). Ele só existe
+    no perfil quando nomeia um curso da CASA, então a resposta é "sim"; o que
+    não estiver na lista (um "Institucional / PROPPEX") cai no "outro", senão o
+    dado da pessoa sumiria da tela. */
 function porCurso(v) {
   const sel = $("i-curso"), texto = String(v || "").trim();
   if (!sel || !texto) return false;
   if (sel.tagName !== "SELECT") { if (sel.value) return false; sel.value = texto; return true; }
-  if (sel.value) return false;
+  if (vinculoEscolhido() || sel.value) return false;
+  const radio = document.querySelector('input[name="i-vinculo"][value="uniego"]');
+  if (radio) { radio.checked = true; mudouVinculo(); }
   if ([...sel.options].some((o) => o.value === texto)) { sel.value = texto; return true; }
   sel.value = CURSO_OUTRO;
   mudouCurso();
@@ -1144,6 +1189,10 @@ function porCurso(v) {
 function limparCurso() {
   const sel = $("i-curso");
   if (!sel) return;
+  document.querySelectorAll('input[name="i-vinculo"]').forEach((r) => { r.checked = false; });
+  const fora = $("i-curso-fora");
+  if (fora) fora.value = "";
+  if ($("i-curso-uniego")) mudouVinculo();
   sel.value = "";
   if (sel.tagName === "SELECT") mudouCurso();
 }
@@ -1433,13 +1482,23 @@ async function inscrever(ev) {
     $("i-nome").focus();
     return;
   }
+  /* A pergunta do vínculo é da TELA, não do servidor: a página do CONINT fica
+     aberta o dia inteiro, e recusar no servidor faria a aba carregada antes
+     do deploy perder a inscrição de quem preencheu tudo. Aqui ela é um clique
+     e é o que separa o aluno da casa de quem vem de fora. */
+  if ($("i-vinculo") && !vinculoEscolhido()) {
+    $("f-msg").innerHTML = '<div class="msg-erro">Responda se você é do UNIEGO — é o que diz se o campo seguinte é um curso daqui ou a sua instituição de origem.</div>';
+    $("i-vinculo").scrollIntoView({ behavior: "smooth", block: "center" });
+    document.querySelector('input[name="i-vinculo"]')?.focus();
+    return;
+  }
   const bt = $("f-bt"); bt.disabled = true;
   try {
     const r = await fetch(`/api/publico/eventos/${encodeURIComponent(SLUG)}/inscrever`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         nome: $("i-nome").value, cpf: $("i-cpf").value, email: $("i-email").value,
-        telefone: $("i-tel").value, curso: cursoEscolhido(),
+        telefone: $("i-tel").value, curso: cursoEscolhido(), vinculo: vinculoEscolhido(),
         atividades: [...ESCOLHIDAS],
         respostas: lerRespostas(),
         categoria: document.querySelector('input[name="i-categoria"]:checked')?.value || "",

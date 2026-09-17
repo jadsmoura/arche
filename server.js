@@ -98,7 +98,7 @@ import {
   PAPEIS_COMISSAO, faltaParaCertificado, pendenciasCertificado, normalizarPessoaEvento,
   buscarPessoasDoPortal, completarPeloPortal, exigeContaNaInscricao,
   videoIdDe, numerosDoEvento, faltaNoProjetoDoEvento, contaPresente, houveCredenciamento,
-  normalizarCursosExtras, cursosDaAcao,
+  normalizarCursosExtras, cursosDaAcao, normalizarVinculoInscrito,
 } from "./lib/eventos.js";
 /* COBRANÇA DE INSCRIÇÃO (set/2026): a régua é pura (lib/pagamentos.js) e quem
    fala com o Mercado Pago é o adaptador — as credenciais vivem SÓ no ambiente
@@ -5318,6 +5318,15 @@ const eventoPorSlug = (acoes, slugEv) =>
 // pessoas: as vagas restantes saem como contagem, não como lista. A capa
 // sai como `temCapa` (a imagem tem rota própria) e a transmissão como
 // `transmissaoPublicada` — o link/id do vídeo só aparece contra o token.
+/* Tudo o que se cursa NA CASA: os cursos ativos do catálogo mais a
+   pós-graduação, que não vive nele (o catálogo é dos cursos de graduação — é
+   ele que nomeia pasta no Drive, valida ata e recorta relatório). A lista é
+   UMA porque as duas telas que a oferecem perguntam a mesma coisa (a ficha de
+   inscrição do evento e a submissão do ARCHÉ TR); escrita duas vezes, o
+   mestrado entraria numa e faltaria na outra. */
+const POS_GRADUACAO = ["Mestrado em Sociedade, Tecnologia e Meio Ambiente"];
+const cursosDaCasa = () => [...cursosAtivos().map((c) => c.nome), ...POS_GRADUACAO];
+
 function eventoPublico(a, { detalhe = false } = {}) {
   const p = a.proposta || {}, ev = a.evento || {};
   const inscritos = a.participantes?.inscritos;
@@ -5366,7 +5375,7 @@ function eventoPublico(a, { detalhe = false } = {}) {
        campo escrito à mão (achado do dono, set/2026: o mesmo curso aparecia
        em quatro grafias no filtro de inscritos). Viajam no payload da página
        em vez de numa segunda chamada: a ficha já se desenha deste retrato. */
-    cursos: cursosAtivos().map((c) => c.nome),
+    cursos: cursosDaCasa(),
     lgpdTexto: textoLgpd(ev),
     endereco: String(ev.local || ""),
     transmissaoPublicada: ev.transmissao?.publicada === true,
@@ -5660,7 +5669,7 @@ app.get("/api/publico/eventos/:slug", async (req, res) => {
    nenhuma outra conta o tem (CPF é único por conta, e a régua do perfil é a
    mesma), e o curso só quando o texto casa com um curso do catálogo (o campo
    público é "curso / instituição de origem", e "USP" não é curso do UNIEGO). */
-async function completarPerfilPelaInscricao(email, { nome, cpf, telefone, curso, funcao }) {
+async function completarPerfilPelaInscricao(email, { nome, cpf, telefone, curso, funcao, vinculo }) {
   const e = String(email || "").trim().toLowerCase();
   if (!e) return;
   const perfis = await carregarPerfis();
@@ -5683,7 +5692,7 @@ async function completarPerfilPelaInscricao(email, { nome, cpf, telefone, curso,
      setores da graduação — gravar "Enfermagem — UFG" ali poria o participante
      de fora dentro de um curso nosso. `cursoDoCatalogo` reconhece as grafias
      ("Enfermagem UNIEGO", "Agronômia/Uniego") e recusa as de outra instituição. */
-  if (!p.curso && curso) {
+  if (!p.curso && curso && vinculo !== "externo") {
     const doCatalogo = cursoDoCatalogo(curso);
     if (doCatalogo) { novo.curso = doCatalogo.nome; mudou = true; }
   }
@@ -5713,11 +5722,18 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     const telefone = String(b.telefone || "").trim().slice(0, 40);
     // a conta de quem se inscreve (quando o evento a exige, é dela que sai o e-mail)
     const conta = await usuarioDe(req, res);
-    /* O curso chega ESCRITO (o campo é livre porque o participante pode ser de
-       fora) e por isso chegava em quatro grafias — "Enfermagem", "Enfermagem
-       uniego", "Enfermagem UNIEGO". Quem é da casa é gravado com a grafia do
-       catálogo; quem é de outra instituição fica como escreveu. */
-    const curso = unificarCurso(String(b.curso || "").trim().slice(0, 120));
+    /* O VÍNCULO é a pergunta que a ficha faz antes do curso, e é ela que decide
+       o que fazer com o texto: quem DECLAROU ser de outra instituição fica com
+       o que escreveu, letra por letra — unificar ali transformaria o
+       participante da UFG em aluno da casa. Declarando UNIEGO (ou não
+       declarando nada: a aba antiga, a lista colada pela coordenação), vale a
+       unificação pelo catálogo, que é o que corrige as quatro grafias.
+       A pergunta NÃO é exigida aqui de propósito: a página do evento fica
+       aberta o dia inteiro, e recusar faria a aba carregada antes do deploy
+       perder a inscrição de quem preencheu tudo. Quem cobra é a tela. */
+    const vinculo = normalizarVinculoInscrito(b.vinculo);
+    const cursoEscrito = String(b.curso || "").trim().slice(0, 120);
+    const curso = vinculo === "externo" ? cursoEscrito : unificarCurso(cursoEscrito);
     if (nome.length < 3) return res.status(400).json({ error: "Escreva o seu nome completo." });
     /* O NOME NÃO É UM E-MAIL (achado do dono, set/2026: inscritos aparecendo com o
        e-mail no lugar do nome). A sessão de quem entra por código ou senha
@@ -5913,6 +5929,7 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
       if (choqueForm) return { erro: [400, choqueForm], gravar: false };
       const inscrito = {
         nome, cpf, email, telefone, curso,
+        ...(vinculo ? { vinculo } : {}),
         ch: a.proposta?.cargaHoraria || "",
         origem: "online", inscritoEm: new Date().toISOString(),
         token: gerarToken(a.evento.chaveQr), presente: false,
@@ -5974,7 +5991,9 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     // O CADASTRO SE COMPLETA PELA INSCRIÇÃO (pedido do dono, set/2026): o que a
     // pessoa digitou entra no perfil da conta onde ele ainda está vazio — na
     // próxima inscrição já vem preenchido, e o portal não pede de novo.
-    if (conta) completarPerfilPelaInscricao(conta.email, { nome, cpf, telefone, curso })
+    // o curso do PERFIL é o recorte dos setores da graduação, então quem
+    // DECLAROU ser de outra instituição não o leva para lá (`vinculo`)
+    if (conta) completarPerfilPelaInscricao(conta.email, { nome, cpf, telefone, curso, vinculo })
       .catch((e) => console.error("[eventos] completar perfil pela inscrição:", e.message));
 
     /* O E-MAIL É O RECIBO, e por isso ele sai DEPOIS de a inscrição estar
@@ -7843,8 +7862,7 @@ const dadosTr = (req) => { try { return JSON.parse(req.body?.dados || "{}") || {
 /* A lista suspensa de CURSO do formulário: os cursos ativos do catálogo, o
    mestrado (pedido do dono: "inclua Mestrado em Sociedade, Tecnologia e Meio
    Ambiente") e "Outro", para quem vem de fora. */
-const cursosTrabalho = () => [...CURSOS.filter((c) => c.ativo !== false).map((c) => c.nome),
-  "Mestrado em Sociedade, Tecnologia e Meio Ambiente", "Outro / instituição externa"];
+const cursosTrabalho = () => [...cursosDaCasa(), "Outro / instituição externa"];
 const catalogosTr = () => ({ modalidades: tr.MODALIDADES, criterios: tr.CRITERIOS, recomendacoes: tr.RECOMENDACOES,
   decisoes: tr.DECISOES, estados: tr.ESTADOS, secoes: tr.SECOES, titulacoes: tr.TITULACOES_AUTOR, idiomas: tr.IDIOMAS, vinculos: tr.VINCULOS });
 /* As IMAGENS que o autor colou no texto (set/2026): o registro guarda só a

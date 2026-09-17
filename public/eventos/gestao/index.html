@@ -4434,6 +4434,14 @@ function filtrosInscritosHtml(a){
   const todos=a.participantes?.inscritos||[];
   const cont=(fn)=>{ const m=new Map(); for(const x of todos){ for(const v of [].concat(fn(x)||[])){ if(v) m.set(v,(m.get(v)||0)+1); } } return [...m.entries()].sort((p,q)=>String(p[0]).localeCompare(String(q[0]),"pt-BR")).map(([v,n])=>({v,r:v,n})); };
   const partes=[];
+  /* O VÍNCULO é a resposta que a ficha passou a pedir antes do curso (set/2026):
+     "Enfermagem" digitado por alguém da UFG é letra por letra igual ao da casa,
+     e sem a declaração a coordenação não tem como contar o público externo. As
+     opções saem das RESPOSTAS, então o filtro não se desenha nos eventos
+     anteriores à pergunta nem na lista colada de planilha — que não têm o que
+     declarar; as demais barras da guia seguem a mesma regra. */
+  const vinc=cont(x=>x.vinculo).map(o=>({...o,r:o.v==="uniego"?"do UNIEGO":"de outra instituição"}));
+  if(vinc.length) partes.push(sel("vinculo","Vínculo",vinc,EV_FILTROS.vinculo||""));
   const cursos=cont(x=>x.curso);
   if(cursos.length>1) partes.push(sel("curso","Curso",cursos,EV_FILTROS.curso||""));
   for(const c of (a.evento?.formulario||[])){
@@ -4454,6 +4462,7 @@ function filtrosInscritosHtml(a){
 function passaFiltros(x){
   const f=EV_FILTROS;
   if(f.curso&&x.curso!==f.curso) return false;
+  if(f.vinculo&&x.vinculo!==f.vinculo) return false;
   for(const k of Object.keys(f)){ if(!k.startsWith("campo:")||!f[k]) continue; const v=x.filtros?.[k.slice(6)]; if(!(Array.isArray(v)?v.includes(f[k]):v===f[k])) return false; }
   if(f.pagamento){
     if(f.pagamento==="__validas"){ if(x.pagamento&&!["pago","isento"].includes(x.pagamento.status)) return false; }
@@ -4491,7 +4500,7 @@ function renderInscritosEv(a){
       return `<tr>
       <td>${esc(x.nome)}${String(x.nome||"").includes("@")?' <span class="badge b-atrasada" title="O inscrito enviou o e-mail no lugar do nome — corrija: o nome sai no crachá e no certificado">nome a corrigir</span>':""}${x.token?` <button class="bt bt-ghost" style="padding:1px 6px;font-size:11px" title="Corrigir o nome deste inscrito (sai no crachá e no certificado)" onclick="corrigirNomeInscrito('${esc(a.id)}','${esc(x.token)}','${esc(x.nome||"")}')">✎</button>`:""}</td>
       <td>${esc(x.email||"")}${x.telefone?`<br><span class="muted">${esc(x.telefone)}</span>`:""}</td>
-      <td>${x.origem==="online"?`online${x.inscritoEm?` <span class="muted">${esc(hora(x.inscritoEm))}</span>`:""}`:"lista da coordenação"}${x.curso?`<br><span class="muted" style="font-size:11.5px">${esc(x.curso)}</span>`:""}${x.pagamento?`<br>${badgePg(x.pagamento)}${["aguardando","expirado","recusado"].includes(x.pagamento.status)&&x.token?` <button class="bt bt-ok" style="padding:1px 8px;font-size:11px" title="Confirmar a inscrição SEM pagamento (monitor, professor, convidado): a credencial passa a valer e o e-mail com o QR sai agora" onclick="isentarInscrito('${esc(a.id)}','${esc(x.token)}','${esc(x.nome)}')">isentar</button>`:""}`
+      <td>${x.origem==="online"?`online${x.inscritoEm?` <span class="muted">${esc(hora(x.inscritoEm))}</span>`:""}`:"lista da coordenação"}${x.curso||x.vinculo==="externo"?`<br><span class="muted" style="font-size:11.5px">${esc(x.curso||"instituição não informada")}${x.vinculo==="externo"?' <b title="A pessoa declarou, na inscrição, que não é do UNIEGO">· de fora</b>':""}</span>`:""}${x.pagamento?`<br>${badgePg(x.pagamento)}${["aguardando","expirado","recusado"].includes(x.pagamento.status)&&x.token?` <button class="bt bt-ok" style="padding:1px 8px;font-size:11px" title="Confirmar a inscrição SEM pagamento (monitor, professor, convidado): a credencial passa a valer e o e-mail com o QR sai agora" onclick="isentarInscrito('${esc(a.id)}','${esc(x.token)}','${esc(x.nome)}')">isentar</button>`:""}`
         :a.evento?.cobranca?.ativa?`<br><span class="badge" style="background:#eceff3;color:var(--muted)" title="Esta inscrição não tem cobrança: entrou antes de a cobrança ser ligada, ou veio da lista da coordenação. Vale como confirmada.">sem cobrança</span>`:""}</td>
       <td style="font-family:ui-monospace,monospace">${x.token?esc(x.token.slice(0,6).toUpperCase()):"—"}</td>
       <td title="${esc(marcadas.join(" · "))}">${marcadas.length||"—"}</td>
