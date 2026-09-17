@@ -593,7 +593,7 @@ async function preencherComOUsuario() {
       põe("i-cpf", cpf.length === 11 ? cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : cpf),
       põe("i-email", u.email),
       põe("i-tel", p.telefone),
-      põe("i-curso", p.curso),
+      porCurso(p.curso),
     ].some(Boolean);
     const form = $("f");
     if (!form) return;
@@ -629,7 +629,8 @@ async function preencherComOUsuario() {
         location.href = "/entrar/?next=" + encodeURIComponent(location.pathname);
         return;
       }
-      for (const id of ["i-nome", "i-cpf", "i-email", "i-tel", "i-curso"]) { const el = $(id); if (el) el.value = ""; }
+      for (const id of ["i-nome", "i-cpf", "i-email", "i-tel"]) { const el = $(id); if (el) el.value = ""; }
+      limparCurso();
       av.remove();
       $("i-nome").focus();
     });
@@ -1066,7 +1067,7 @@ function formInscricao(e) {
     <label for="i-email">E-mail *</label><input id="i-email" type="email" required autocomplete="email" placeholder="voce@exemplo.com">
     <label for="i-tel">Telefone (WhatsApp) *</label><input id="i-tel" required autocomplete="tel" placeholder="(62) 9…">
     <div class="dica-campo">Vai na planilha de emissão do certificado — sem ele o certificado não sai.</div>
-    <label for="i-curso">Curso / instituição de origem</label><input id="i-curso" placeholder="Ex.: Enfermagem — UNIEGO">
+    ${campoCurso(e)}
     ${blocoCategoria(e)}
     ${escolha}
     ${extras}
@@ -1079,6 +1080,72 @@ function formInscricao(e) {
     <div id="f-msg"></div>
     <button class="bt bt-pri" style="width:100%;margin-top:16px" id="f-bt">${e.cobranca ? "Inscrever-me e ir para o pagamento" : "Inscrever-me gratuitamente"}</button>
   </form>`;
+}
+
+/* -------------------------- CURSO: LISTA, NÃO TEXTO ----------------------
+   Achado do dono (set/2026), abrindo o filtro "Curso" da lista de inscritos:
+   "Agronomia-uniego", "Agronomia-UNIEGO", "Agronômia/Uniego" — um curso só,
+   partido em três linhas, porque o campo era escrito à mão. Curso partido não
+   filtra, não conta e não vira número de relatório.
+
+   Mas a lista NÃO pode ser fechada: a inscrição é pública e o participante
+   pode ser de outra instituição — é por isso que o campo se chama "curso /
+   instituição de origem". Então é lista COM SAÍDA: os cursos da casa, e
+   "Outro curso ou outra instituição", que abre o campo de escrever. Quem é
+   daqui escolhe (e escolher não tem como errar a grafia); quem é de fora
+   escreve, como sempre escreveu. O servidor unifica o que vier escrito e
+   reconhecer um curso da casa, e deixa o resto como a pessoa digitou. */
+const CURSO_OUTRO = "__outro";
+function campoCurso(e) {
+  const cursos = e.cursos || [];
+  const rot = `<label for="i-curso">Curso / instituição de origem</label>`;
+  // sem a lista (payload antigo em aba aberta há tempo), o campo escrito de
+  // sempre — um formulário sem o campo seria pior que um campo livre
+  if (!cursos.length) return `${rot}<input id="i-curso" placeholder="Ex.: Enfermagem">`;
+  return `${rot}
+    <select id="i-curso" onchange="mudouCurso()">
+      <option value="">Selecione…</option>
+      ${cursos.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}
+      <option value="${CURSO_OUTRO}">Outro curso ou outra instituição</option>
+    </select>
+    <div id="i-curso-caixa" style="display:none;margin-top:8px">
+      <input id="i-curso-outro" placeholder="Ex.: Enfermagem — UFG">
+      <div class="dica-campo">Escreva o curso e a instituição de onde você vem.</div>
+    </div>`;
+}
+function mudouCurso() {
+  const sel = $("i-curso"), caixa = $("i-curso-caixa");
+  if (!sel || !caixa) return;
+  const outro = sel.value === CURSO_OUTRO;
+  caixa.style.display = outro ? "" : "none";
+  if (outro) $("i-curso-outro").focus(); else $("i-curso-outro").value = "";
+}
+/** O que vai ao servidor: a escolha da lista, ou o que a pessoa escreveu. */
+function cursoEscolhido() {
+  const sel = $("i-curso");
+  if (!sel) return "";
+  if (sel.tagName !== "SELECT") return sel.value;
+  return sel.value === CURSO_OUTRO ? ($("i-curso-outro")?.value || "") : sel.value;
+}
+/** Põe no campo o curso que já se sabe (o do cadastro da conta). O que não
+    está na lista cai no "outro" — senão o dado da pessoa sumiria da tela. */
+function porCurso(v) {
+  const sel = $("i-curso"), texto = String(v || "").trim();
+  if (!sel || !texto) return false;
+  if (sel.tagName !== "SELECT") { if (sel.value) return false; sel.value = texto; return true; }
+  if (sel.value) return false;
+  if ([...sel.options].some((o) => o.value === texto)) { sel.value = texto; return true; }
+  sel.value = CURSO_OUTRO;
+  mudouCurso();
+  $("i-curso-outro").value = texto;
+  $("i-curso-outro").blur();
+  return true;
+}
+function limparCurso() {
+  const sel = $("i-curso");
+  if (!sel) return;
+  sel.value = "";
+  if (sel.tagName === "SELECT") mudouCurso();
 }
 
 /* Escolha de atividades: só as com inscrição própria, agrupadas por dia,
@@ -1372,7 +1439,7 @@ async function inscrever(ev) {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         nome: $("i-nome").value, cpf: $("i-cpf").value, email: $("i-email").value,
-        telefone: $("i-tel").value, curso: $("i-curso").value,
+        telefone: $("i-tel").value, curso: cursoEscolhido(),
         atividades: [...ESCOLHIDAS],
         respostas: lerRespostas(),
         categoria: document.querySelector('input[name="i-categoria"]:checked')?.value || "",

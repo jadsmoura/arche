@@ -159,6 +159,7 @@ import {
 import {
   INSTITUICAO_KEY, normalizarInstituicao, normalizarComposicao, mesclarComposicao, aplicarNoCatalogo,
   cursosAtivos, cursosDaPessoa, equipeApDaComposicao, slugDeCursoNovo, siglaDeCursoNovo,
+  cursoDoCatalogo, unificarCurso,
   CARGOS_REITORIA, normalizarReitoria,
 } from "./lib/instituicao.js";
 import { certificadosDe, destinatariosDoCiclo, certificavel, codigo as codigoCert } from "./lib/certificados.js";
@@ -1410,7 +1411,9 @@ app.post("/api/perfil", async (req, res) => {
     // função vem do catálogo (lib/auth.js); o texto livre só sobrevive em "outro"
     funcaoOutro: normalizarFuncao(b.funcao) === "outro" ? txt(b.funcaoOutro, 120) : "",
     // vínculo institucional
-    funcao: normalizarFuncao(b.funcao), curso: txt(b.curso), vinculo: txt(b.vinculo, 40),
+    // o campo é uma lista suspensa na tela, mas a régua é do SERVIDOR: aba
+    // antiga e chamada pela API mandam o que quiserem
+    funcao: normalizarFuncao(b.funcao), curso: unificarCurso(txt(b.curso)), vinculo: txt(b.vinculo, 40),
     matricula: txt(b.matricula, 40),
     // contato
     telefone: txt(b.telefone, 40), whatsapp: txt(b.whatsapp, 40),
@@ -3188,6 +3191,60 @@ async function corrigirNomesDeInscritosQueEramEmail() {
   }
 }
 
+/* O MESMO CURSO EM QUATRO GRAFIAS (achado do dono, set/2026, no filtro
+   "Curso" da lista de inscritos do CONINT): "Agronomia-uniego",
+   "Agronomia-UNIEGO", "Agronômia/Uniego"; "Enfermagem", "Enfermagem uniego",
+   "Enfermagem Uniego", "Enfermagem UNIEGO". O campo é escrito à mão — de
+   propósito, porque o participante pode ser de outra instituição —, e o
+   filtro agrupa pelo texto EXATO: um curso partido em quatro linhas não
+   filtra, não conta e não vira número de relatório.
+
+   A porta foi fechada (a ficha virou lista suspensa, e toda gravação passa por
+   `unificarCurso`), mas o que já está gravado não se conserta sozinho. Esta
+   passada roda a CADA arranque — é barata, é idempotente e não tem marca de
+   propósito: restaurar um backup ou colar uma planilha antiga traz as grafias
+   de volta, e a passada seguinte as unifica de novo. Ela só reescreve o que
+   `cursoDoCatalogo` reconhece como curso da casa: "Enfermagem — UFG" fica
+   como a pessoa escreveu, que é o que o campo existe para guardar. */
+async function unificarCursosDigitados() {
+  const conta = { inscritos: 0, perfis: 0 };
+  try {
+    const r = await comAcoes((acoes) => {
+      let n = 0;
+      for (const a of acoes) {
+        for (const lista of [a.participantes?.inscritos, a.participantes?.palestrantes, a.participantes?.comissao]) {
+          for (const p of lista || []) {
+            const novo = p && p.curso ? unificarCurso(p.curso) : "";
+            if (!novo || novo === p.curso) continue;
+            p.curso = novo; n++;
+            a.atualizadoEm = new Date().toISOString();
+          }
+        }
+      }
+      return { n, gravar: n > 0 };
+    });
+    conta.inscritos = r.n;
+  } catch (e) {
+    console.error("[cursos] unificar nos inscritos:", e.message);
+  }
+  try {
+    const perfis = await carregarPerfis();
+    let n = 0;
+    for (const p of Object.values(perfis)) {
+      const novo = p && p.curso ? unificarCurso(p.curso) : "";
+      if (!novo || novo === p.curso) continue;
+      p.curso = novo; n++;
+    }
+    if (n) await storage.set(PERFIS_KEY, JSON.stringify(perfis));
+    conta.perfis = n;
+  } catch (e) {
+    console.error("[cursos] unificar nos perfis:", e.message);
+  }
+  if (conta.inscritos || conta.perfis) {
+    console.log(`[cursos] grafia unificada pelo catálogo: ${conta.inscritos} participante(s), ${conta.perfis} perfil(is)`);
+  }
+}
+
 /* A GESTÃO QUE VIROU ORIENTAÇÃO SEM QUERER (varredura de set/2026): até esta
    correção, `normalizarProjeto` carimbava o e-mail de QUEM SALVA na orientação
    de todo projeto que não tinha e-mail — e os projetos transcritos dos editais
@@ -3322,7 +3379,7 @@ app.post("/api/usuarios/perfil", async (req, res) => {
   perfis[e] = {
     ...antes, nome, cpf, funcao,
     funcaoOutro: funcao === "outro" ? String(b.funcaoOutro || "").trim().slice(0, 120) : "",
-    curso: String(b.curso ?? antes.curso ?? "").trim().slice(0, 80),
+    curso: unificarCurso(String(b.curso ?? antes.curso ?? "").trim().slice(0, 80)),
     titulacao: String(b.titulacao ?? antes.titulacao ?? "").trim().slice(0, 20),
     matricula: String(b.matricula ?? antes.matricula ?? "").trim().slice(0, 40),
     telefone: String(b.telefone ?? antes.telefone ?? "").trim().slice(0, 40),
@@ -4602,6 +4659,9 @@ app.post("/api/extensao/:id/participantes", async (req, res) => {
             .map((k) => [k, bruto[k].trim().slice(0, 300)]))
           : normalizarPessoaEvento(bruto, { palestrante: categoria === "palestrantes" });
         if (x.cpf) x.cpf = cpfValido(x.cpf) ? soDigitos(x.cpf) : "";
+        // a planilha da coordenação é a outra porta por onde o curso entra
+        // escrito — vale a MESMA unificação da inscrição pública
+        if (x.curso) x.curso = unificarCurso(x.curso);
         if (!x.nome) continue;
         const k = chaveDeParticipante(x);
         if (!k || existentes.has(k)) { dup++; continue; }
@@ -5302,6 +5362,11 @@ function eventoPublico(a, { detalhe = false } = {}) {
     ...base, descricao: String(ev.descricao || ""), temaCentral: p.temaCentral || "",
     publicoAlvo: p.publicoAlvo || "", programacao, blocos,
     formulario: ev.formulario || [],
+    /* Os cursos da casa, para o campo "curso" da ficha ser uma LISTA e não um
+       campo escrito à mão (achado do dono, set/2026: o mesmo curso aparecia
+       em quatro grafias no filtro de inscritos). Viajam no payload da página
+       em vez de numa segunda chamada: a ficha já se desenha deste retrato. */
+    cursos: cursosAtivos().map((c) => c.nome),
     lgpdTexto: textoLgpd(ev),
     endereco: String(ev.local || ""),
     transmissaoPublicada: ev.transmissao?.publicada === true,
@@ -5613,9 +5678,13 @@ async function completarPerfilPelaInscricao(email, { nome, cpf, telefone, curso,
   if (!String(p.funcao || "").trim() && funcao && FUNCOES.some((f) => f.codigo === funcao)) {
     novo.funcao = funcao; mudou = true;
   }
+  /* O CURSO só entra no perfil quando o texto nomeia um curso da CASA: o campo
+     público é "curso / instituição de origem", e o do perfil é o recorte dos
+     setores da graduação — gravar "Enfermagem — UFG" ali poria o participante
+     de fora dentro de um curso nosso. `cursoDoCatalogo` reconhece as grafias
+     ("Enfermagem UNIEGO", "Agronômia/Uniego") e recusa as de outra instituição. */
   if (!p.curso && curso) {
-    const alvo = chaveNome(curso);
-    const doCatalogo = CURSOS.find((c) => chaveNome(c.nome) === alvo || chaveNome(c.sigla || "") === alvo);
+    const doCatalogo = cursoDoCatalogo(curso);
     if (doCatalogo) { novo.curso = doCatalogo.nome; mudou = true; }
   }
   if (!mudou) return;
@@ -5644,7 +5713,11 @@ app.post("/api/publico/eventos/:slug/inscrever", async (req, res) => {
     const telefone = String(b.telefone || "").trim().slice(0, 40);
     // a conta de quem se inscreve (quando o evento a exige, é dela que sai o e-mail)
     const conta = await usuarioDe(req, res);
-    const curso = String(b.curso || "").trim().slice(0, 120);
+    /* O curso chega ESCRITO (o campo é livre porque o participante pode ser de
+       fora) e por isso chegava em quatro grafias — "Enfermagem", "Enfermagem
+       uniego", "Enfermagem UNIEGO". Quem é da casa é gravado com a grafia do
+       catálogo; quem é de outra instituição fica como escreveu. */
+    const curso = unificarCurso(String(b.curso || "").trim().slice(0, 120));
     if (nome.length < 3) return res.status(400).json({ error: "Escreva o seu nome completo." });
     /* O NOME NÃO É UM E-MAIL (achado do dono, set/2026: inscritos aparecendo com o
        e-mail no lugar do nome). A sessão de quem entra por código ou senha
@@ -22408,6 +22481,7 @@ app.listen(port, () => {
       corrigirCpfDaOrientadoraLuana, // o CPF da aluna sai do campo da orientação
       desfazerOrientacaoCarimbadaPelaGestao, // o gestor que virou orientação ao salvar
       corrigirNomesDeInscritosQueEramEmail,  // inscrito com o e-mail no lugar do nome
+      unificarCursosDigitados,               // o mesmo curso escrito de quatro jeitos
       corrigirStatusDeRelatorioEntregue,     // relatório entregue preso em "aprovada"
       designarGestaoDaAvaliacao,   // as coordenações das pró-reitorias na Avaliação
       vincularPerfisIC,

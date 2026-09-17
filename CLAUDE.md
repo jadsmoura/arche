@@ -6057,6 +6057,50 @@ public/
   **perfil**: `faltaNoPerfil` passa a contar como faltando o nome que é e-mail ou palavra só — o
   perfil alimenta crachá, certificado, termo e ata, e a etapa de completar o cadastro aponta o
   campo.
+- **O MESMO CURSO EM QUATRO GRAFIAS** (`chaveDeCurso`/`cursoDoCatalogo`/`unificarCurso` em
+  lib/instituicao.js + `unificarCursosDigitados` no arranque + `campoCurso` na ficha de inscrição,
+  achado do dono set/2026, abrindo o filtro "Curso" da lista de inscritos do CONINT: "tem vários
+  cursos escritos de formas diferentes mas que estão na mesma categoria; o sistema tem colhido
+  essas informações de forma escrita, o que está resultando em resultados diferentes — unifique e
+  corrija isso para as próximas inscrições e cadastros de usuários"). O print trazia
+  **"Agronomia-uniego", "Agronomia-UNIEGO", "Agronômia/Uniego"**; **"Enfermagem", "Enfermagem
+  uniego", "Enfermagem Uniego", "Enfermagem UNIEGO"**; **"Ciências contábeis", "Ciências
+  Contábeis", "Ciências Contábeis - UNIEGO", "Ciências Contábeis- UNIEGO"**. O filtro não estava
+  errado: ele agrupa pelo texto EXATO, e o texto era o que a pessoa digitou. Um curso partido em
+  quatro linhas **não filtra, não conta e não vira número de relatório** — e é o mesmo campo que
+  alimenta o recorte por curso do ARCHÉ RE.
+  **A lista NÃO pode ser fechada**: a inscrição é PÚBLICA e o participante pode ser de outra
+  instituição — é por isso que o campo se chama "curso / **instituição de origem**". Então a ficha
+  virou **lista COM SAÍDA**: os cursos da casa (que viajam no payload público do evento, em vez de
+  numa segunda chamada) e **"Outro curso ou outra instituição"**, que abre o campo de escrever.
+  Quem é daqui escolhe, e escolher não tem como errar a grafia; quem é de fora escreve, como sempre
+  escreveu. Payload antigo numa aba velha cai no campo escrito de sempre — formulário sem o campo
+  seria pior que campo livre.
+  **A régua é do SERVIDOR** e vale em TODA porta por onde curso entra escrito: a inscrição pública,
+  a **lista que a coordenação cola** (`CAMPOS_INSCRITO_DIGITADO` tem `curso`) e as duas do cadastro
+  de usuário (`/api/perfil` e `/api/usuarios/perfil` — os dois são lista suspensa na tela, mas aba
+  antiga e chamada pela API mandam o que quiserem). Ela compara o que se ESCREVE, não os bytes: sem
+  acento (a "Agronômia" do print é a mesma Agronomia), sem caixa, com pontuação virando espaço (o
+  "-", o "—" e o "/" que separam o curso do nome da instituição) e sem os conectivos ("Engenharia
+  de Software" = "engenharia software"). A **sigla** vale só na forma exata ("ADM" é o curso, "adm
+  de empresas" não é), e o catálogo consultado é o INTEIRO, **desativado inclusive** — o curso que
+  saiu dos formulários novos continua tendo inscritos antigos.
+  **Só o marcador da PRÓPRIA instituição é descartado** — `uniego` e `faceg`, os dois nomes que ela
+  já teve —, e é isso que impede o falso positivo que custaria caro: **"Enfermagem — UFG" e
+  "Medicina Veterinária/UFU" NÃO viram curso da casa**, porque a sigla que sobra não é nossa; ficam
+  como a pessoa escreveu, que é o que o campo existe para guardar. Unificar de menos deixa
+  "Enfermagem uniego" numa linha própria, que era o defeito; unificar demais transforma o
+  participante de fora em aluno da casa, e aí quem passa a mentir é o certificado e o relatório ao
+  MEC. O teste carrega as grafias do print letra por letra, e os dois sentidos.
+  **O que já está gravado se conserta numa passada de ARRANQUE** (`unificarCursosDigitados`), que
+  roda a CADA partida e **não tem marca de propósito**: é barata, é idempotente, e restaurar um
+  backup ou colar uma planilha antiga traz as grafias de volta. Alcança inscritos, palestrantes,
+  comissão e os perfis. Ensaiada com as 21 grafias do print: **21 linhas viraram 10**, com
+  "Enfermagem — UFG", "Institucional / PROAC" e "Docente administração e Contábeis" intactos.
+  No `completarPerfilPelaInscricao` ela **substituiu o casamento exato** que existia ali: o curso só
+  entra no perfil quando o texto nomeia um curso da casa (o campo do perfil é o recorte dos setores
+  da graduação — gravar "Enfermagem — UFG" ali poria alguém de fora dentro de um curso nosso), e a
+  régua nova reconhece as grafias que a antiga recusava.
 - **O CADASTRO SE COMPLETA PELA INSCRIÇÃO, uma vez** (`completarPerfilPelaInscricao` no server +
   a nota "Preencha os seus dados uma vez" no hotsite, pedido do dono set/2026: "o sistema deve
   pedir cadastro completo ao usuário, para que nas próximas vezes não seja mais necessário"). O
