@@ -43,11 +43,23 @@
   .atv .cs{background:var(--accent-wash);color:var(--brand);border:1px solid var(--line);
     border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;white-space:nowrap}
   .vagas{font-weight:600;color:var(--brand)} .vagas.zero{color:var(--err)}
-  /* o bloco das simultâneas: a escolha ali dentro é UMA (set/2026) */
-  .bloco-hora{border:1px dashed var(--accent);border-radius:12px;padding:6px 10px 10px;margin-top:10px;background:var(--accent-wash)}
-  .bloco-hora .bh{font-family:Sora,sans-serif;font-weight:700;font-size:11.5px;color:var(--brand);
-    text-transform:uppercase;letter-spacing:.05em;margin:6px 2px 0}
-  .bloco-hora .atv{background:#fff}
+  /* O DIA SE LÊ EM FAIXAS DE HORÁRIO (set/2026): a faixa com mais de uma
+     atividade é a escolha exclusiva — caixa fechada, com borda; a de uma só
+     sai com o rótulo dizendo que o horário é livre. É o CONTRASTE entre as
+     duas que mostra a regra sem ninguém ter de ler o parágrafo. */
+  .dia-nota{font-size:12.5px;color:var(--muted);margin:2px 2px 6px;line-height:1.5}
+  .faixa{margin-top:10px}
+  .faixa .fx-rot{display:flex;gap:7px;flex-wrap:wrap;align-items:baseline;margin:0 2px 2px;font-size:11.5px;line-height:1.55}
+  .faixa .fx-h{font-family:Sora,sans-serif;font-weight:700;font-size:11.5px;color:var(--brand);
+    text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+  .faixa .fx-h.ok{color:var(--ok)}
+  .faixa .fx-n{color:var(--muted);font-weight:400}
+  .faixa.exclusiva{border:1.5px solid var(--accent);border-radius:12px;padding:8px 10px 10px;background:var(--accent-wash)}
+  .faixa.exclusiva .atv{background:#fff}
+  .faixa.exclusiva.escolhido{border-color:var(--ok);background:var(--ok-soft)}
+  /* o que se sobrepõe a esta e está em OUTRA faixa: a régua é pareada, e a
+     caixa da faixa não alcança esse par */
+  .atv .choque{font-size:11.5px;color:var(--warn);margin-top:4px;line-height:1.45}
   .trab{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px}
   .trab .t{font-weight:700;font-size:14px;color:var(--ink)}
   .trab .n{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;color:var(--muted)}
@@ -212,7 +224,8 @@ function cardProgramacao(e, i, lib) {
     <div class="sec-t">Programação</div>
     <div class="sec-s">As atividades gerais já são suas — quem está inscrito no evento participa. As de <b>vaga limitada</b>
       (minicursos, oficinas) você marca aqui, e a vaga se esgota conforme os inscritos as escolhem.
-      Havendo mais de uma <b>no mesmo horário</b>, escolha uma: ao entrar numa, você sai da outra e a vaga dela volta para a fila.</div>
+      Só <b>o mesmo horário</b> obriga a escolher: dentro de uma faixa você fica com uma — ao entrar numa, sai da outra e a vaga
+      dela volta para a fila. Em <b>horários diferentes</b>, ainda que no mesmo dia, dá para escolher todas.</div>
     ${dias.map((d) => `<div class="dia">${d ? esc(fmt(d)) : "Data a definir"}</div>
       ${blocosDoDia(prog.filter((p) => (p.dia || "") === d))}`).join("")}
     ${proprias.length ? `<div id="prog-msg"></div>
@@ -222,25 +235,80 @@ function cardProgramacao(e, i, lib) {
         : `<span class="msg warn" style="margin:0">As inscrições encerraram — a escolha de atividades está travada. Precisa mudar? Fale com a organização.</span>`}</div>` : ""}
   </div>`;
 }
-/* As atividades do dia, com as PRÓPRIAS que começam no mesmo horário reunidas
-   num bloco. O agrupamento olha o INÍCIO — é "no mesmo horário" no sentido em
-   que o participante lê a grade. A régua de verdade é a sobreposição, e ela
-   roda em `marcar` e no servidor: 8–10 e 9–11 não caem no mesmo bloco e
-   continuam sendo uma escolha só. */
+/* O DIA SE LÊ EM FAIXAS DE HORÁRIO (pedido do dono, set/2026: "mostrar de
+   forma que o aluno perceba visualmente que ele está escolhendo entre
+   atividades que estão no mesmo horário, e outras atividades de outros
+   horários podem ser escolhidas, mesmo estando dentro do mesmo dia").
+   A régua do servidor sempre foi PAREADA, por sobreposição — nunca por dia —,
+   mas a TELA não dizia isso: o único sinal era a caixa "escolha uma destas
+   10", e ao lado dela as outras linhas do dia não traziam marca nenhuma.
+   Quem olhava concluía que o dia inteiro era uma escolha só.
+   Agora TODA atividade de vaga limitada entra numa faixa rotulada pelo
+   horário: a de mais de uma é a escolha exclusiva; a de uma só diz que o
+   horário é livre. O contraste entre as duas é o que ensina a regra.
+   O agrupamento olha o INÍCIO, que é como o participante lê a grade — e
+   início igual SEMPRE se sobrepõe, então a caixa nunca mente. O que ela não
+   alcança é o par de faixas diferentes que se sobrepõe (14–17 e 16–18): esse
+   sai nomeado na própria linha, por `linhaAtividade`. */
+const chaveDaFaixa = (p) => p.horaInicio || `só:${p.id}`;
+
 function blocosDoDia(lista) {
+  const proprias = lista.filter((p) => p.inscricao === "propria");
+  const faixas = new Map();
+  for (const p of proprias) {
+    const k = chaveDaFaixa(p);
+    if (!faixas.has(k)) faixas.set(k, []);
+    faixas.get(k).push(p);
+  }
   const feitos = new Set();
-  let html = "";
+  let html = faixas.size > 1
+    ? `<div class="dia-nota">Este dia tem <b>${faixas.size} faixas de horário</b> com vaga limitada — dá para escolher
+       <b>uma atividade em cada faixa</b>.</div>` : "";
   for (const p of lista) {
     if (feitos.has(p)) continue;
-    const irmas = p.inscricao === "propria" && p.horaInicio
-      ? lista.filter((x) => x.inscricao === "propria" && x.horaInicio === p.horaInicio && x.id !== p.id) : [];
-    if (!irmas.length) { feitos.add(p); html += linhaAtividade(p); continue; }
-    const grupo = [p, ...irmas];
+    if (p.inscricao !== "propria") { feitos.add(p); html += linhaAtividade(p); continue; }
+    const grupo = faixas.get(chaveDaFaixa(p)) || [p];
     grupo.forEach((x) => feitos.add(x));
-    html += `<div class="bloco-hora"><div class="bh">⇄ ${esc(faixa(p))} — escolha uma destas ${grupo.length}</div>
-      ${grupo.map(linhaAtividade).join("")}</div>`;
+    html += `<div class="faixa ${grupo.length > 1 ? "exclusiva" : ""}" data-faixa="${esc(grupo.map((x) => x.id).join(","))}">
+      <div class="fx-rot">${rotuloDaFaixa(grupo)}</div>
+      ${grupo.map((x) => linhaAtividade(x, grupo)).join("")}</div>`;
   }
   return html;
+}
+/* O rótulo da faixa é a frase que o participante lê antes de marcar, e ele
+   muda com a escolha: feita, a faixa diz qual é a dela. A mesma função pinta
+   no desenho e no clique (`pintarFaixas`) — duas frases para o mesmo estado
+   acabariam divergindo. */
+function rotuloDaFaixa(grupo) {
+  const quando = faixa(grupo[0]) || "horário a definir";
+  if (grupo.length > 1) {
+    const escolhida = grupo.find((p) => MARCADAS.has(p.id));
+    return escolhida
+      ? `<span class="fx-h ok">✓ ${esc(quando)}</span><span class="fx-n">sua escolha nesta faixa: <b>${esc(escolhida.titulo)}</b> — marcar outra troca por ela</span>`
+      : `<span class="fx-h">⇄ ${esc(quando)}</span><span class="fx-n">escolha <b>1</b> destas ${grupo.length} — elas acontecem ao mesmo tempo</span>`;
+  }
+  const sozinha = !choquesFora(grupo[0], grupo).length;
+  return sozinha
+    ? `<span class="fx-h">🕒 ${esc(quando)}</span><span class="fx-n">horário livre — pode ficar com esta e com as das outras faixas</span>`
+    : `<span class="fx-h">⇄ ${esc(quando)}</span><span class="fx-n">sobrepõe outra faixa deste dia</span>`;
+}
+/** As próprias que se sobrepõem a `p` e estão FORA da faixa dele. */
+function choquesFora(p, grupo) {
+  const naFaixa = new Set(grupo.map((x) => x.id));
+  return ((D?.evento?.programacao) || [])
+    .filter((x) => x?.inscricao === "propria" && !naFaixa.has(x.id) && choca(p, x));
+}
+/** Repinta os rótulos depois de cada clique — é o que faz a faixa resolvida
+    ficar verde e dizer a escolha, sem redesenhar a página inteira. */
+function pintarFaixas() {
+  const prog = (D?.evento?.programacao) || [];
+  document.querySelectorAll("[data-faixa]").forEach((el) => {
+    const grupo = el.dataset.faixa.split(",").map((id) => prog.find((p) => p.id === id)).filter(Boolean);
+    if (!grupo.length) return;
+    const rot = el.querySelector(".fx-rot");
+    if (rot) rot.innerHTML = rotuloDaFaixa(grupo);
+    el.classList.toggle("escolhido", grupo.some((p) => MARCADAS.has(p.id)));
+  });
 }
 /* A QUEM A ATIVIDADE SE DESTINA (pedido do dono, set/2026: "para facilitar o
    aluno a identificar se a programação foi pensada para seu curso"). Sem
@@ -253,10 +321,15 @@ const quemMinistra = (p) => {
     ? p.pessoas.map((q) => q.nome).filter(Boolean) : [p.responsavel].filter(Boolean);
   return nomes.length ? ` · com ${nomes.join(", ")}` : "";
 };
-function linhaAtividade(p) {
+function linhaAtividade(p, grupo = [p]) {
   const meta = [faixa(p), p.local, p.ch ? `CH ${p.ch}` : "", p.modalidade === "online" ? "online" : ""].filter(Boolean).join(" · ");
   if (p.inscricao !== "propria")
     return `<div class="atv geral"><span class="tick">✓</span><div><div>${esc(p.titulo)}</div><div class="m">${esc(meta)}${meta ? " · " : ""}para todos os inscritos${esc(quemMinistra(p))}</div>${cursosTags(p)}</div></div>`;
+  // o par que a caixa da faixa não alcança: mesma sobreposição, outro início
+  const fora = choquesFora(p, grupo);
+  const choque = fora.length
+    ? `<div class="choque">⇄ não cabe junto com ${fora.map((x) => `“${esc(x.titulo)}” (${esc(faixa(x) || "sem horário")})`).join(", ")} — marcar uma sai da outra</div>`
+    : "";
   const minha = MARCADAS.has(p.id);
   const lotada = !minha && p.vagasRestantes !== null && p.vagasRestantes <= 0;
   const vagas = p.vagasRestantes === null ? "sem limite de vagas"
@@ -265,7 +338,7 @@ function linhaAtividade(p) {
   return `<div class="atv ${lotada ? "lotada" : ""}"><label>
     <input type="checkbox" data-atv="${esc(p.id)}" ${minha ? "checked" : ""} ${lotada || !D.podeTrocarAtividades ? "disabled" : ""} onchange="marcar(this)">
     <div><div>${esc(p.titulo)}${minha ? ' <span class="selo ok" style="padding:2px 8px;font-size:11px">inscrito</span>' : ""}</div>
-      <div class="m">${esc(meta)}${meta ? " · " : ""}${vagas}${esc(quemMinistra(p))}</div>${cursosTags(p)}</div></label></div>`;
+      <div class="m">${esc(meta)}${meta ? " · " : ""}${vagas}${esc(quemMinistra(p))}</div>${cursosTags(p)}${choque}</div></label></div>`;
 }
 /* Marcar uma atividade DESMARCA as que se sobrepõem a ela (set/2026): a
    escolha no mesmo horário é uma, e sair de uma para entrar noutra é o que
@@ -284,7 +357,7 @@ function choca(a, b) {
 }
 function marcar(chk) {
   const id = chk.dataset.atv;
-  if (!chk.checked) { MARCADAS.delete(id); avisoTroca(""); return; }
+  if (!chk.checked) { MARCADAS.delete(id); avisoTroca(""); pintarFaixas(); return; }
   const prog = (D?.evento?.programacao) || [];
   const nova = prog.find((p) => p.id === id);
   const saem = [...MARCADAS]
@@ -296,6 +369,7 @@ function marcar(chk) {
     if (outro) outro.checked = false;
   });
   MARCADAS.add(id);
+  pintarFaixas();
   avisoTroca(saem.length
     ? `Você saiu de ${saem.map((p) => `“${p.titulo}”`).join(", ")} para entrar em “${nova?.titulo || ""}” — a vaga volta para a fila ao salvar.`
     : "");

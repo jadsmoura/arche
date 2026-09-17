@@ -2027,6 +2027,31 @@ public/
   num bloco ("⇄ 14:00–17:00 — escolha uma destas 2"): o agrupamento é presentacional e olha o
   INÍCIO, que é como o participante lê a grade; quem manda é a sobreposição, que roda no `marcar`
   e no servidor. A recusa **nomeia as duas** atividades — quem lê precisa saber o que trocar.
+  **O DIA SE LÊ EM FAIXAS DE HORÁRIO** (`blocosDoDia`/`rotuloDaFaixa`/`choquesFora`/`pintarFaixas`
+  em public/eventos/participante.html, pedido do dono set/2026: "atividades que estejam na mesma
+  hora é que não podem permitir inscrição paralela; às vezes podem ter atividades no mesmo dia, e
+  essas podem permitir que o aluno se inscreva — na página do inscrito, mostrar de forma que o
+  aluno perceba visualmente que ele está escolhendo entre atividades que estão no mesmo horário, e
+  outras atividades de outros horários podem ser escolhidas, mesmo estando dentro do mesmo dia").
+  **A régua não mudou** — ela já era pareada, por sobreposição, nunca por dia. O que estava errado
+  era a TELA: o único sinal era a caixa "⇄ 19:00–22:00 — escolha uma destas 10", e ao lado dela as
+  demais linhas do dia não traziam marca nenhuma; quem abria a página concluía que o DIA inteiro
+  era uma escolha só, e deixava de marcar o minicurso da manhã que ninguém lhe proibiu.
+  Agora **toda** atividade de vaga limitada entra numa faixa rotulada pelo horário: a de mais de
+  uma é a escolha exclusiva (caixa fechada, com borda, "escolha **1** destas N"), e a de uma só sai
+  com o rótulo dizendo "🕒 horário livre — pode ficar com esta e com as das outras faixas". É o
+  CONTRASTE entre as duas que ensina a regra; parágrafo explicando não se lê. O dia ganhou a linha
+  "este dia tem N faixas de horário — dá para escolher uma atividade em cada faixa", e a faixa
+  resolvida fica **verde dizendo qual foi a escolha** ("✓ 14:00–16:00 · sua escolha nesta faixa:
+  …"), repintada a cada clique (`pintarFaixas`) pela MESMA função que desenha — duas frases para o
+  mesmo estado acabariam divergindo.
+  O que a caixa **não alcança** é o par de faixas diferentes que se sobrepõe (14–17 e 16–18): a
+  régua é pareada e agrupar por componente conexo mentiria (8–10, 9–11 e 10–12 viram um bloco só, e
+  8–10 com 10–12 é escolha legítima). Esse par sai **nomeado na própria linha** ("⇄ não cabe junto
+  com “X” (16:00–18:00) — marcar uma sai da outra"), que é onde ele se resolve; sem isso a pessoa
+  marcava as duas e o `marcar` desmarcava uma em silêncio, contradizendo a tela que as mostrara
+  como independentes. O agrupamento continua olhando o INÍCIO, e por isso **a caixa nunca mente**:
+  início igual sempre se sobrepõe.
 - **COMUNICADO AOS INSCRITOS** (`emailComunicadoEvento` em lib/mailer.js + `POST/GET
   /api/extensao/:id/comunicado[s]` + o card na guia Inscritos do ARCHÉ EV + aviso `ev-comunicado`,
   pedido do dono set/2026: "permita a gestão enviar comunicados por e-mail a todos os inscritos"):
